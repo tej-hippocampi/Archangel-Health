@@ -688,12 +688,13 @@ def recover_interrupted_uploads(store: Any) -> int:
                     pass
                 handled += 1
                 continue
-            removed = store.delete_unpromoted_ingest_cases(uid)
+            specialty_override = store.assigned_specialty_for_upload(uid)
+            removed = store.supersede_ingest_cases_for_upload(uid)
             store.log_event(entity_type="ingest_upload", entity_id=uid,
                             event_type="upload_recovery_requeued",
                             payload={"prior_status": upload.get("status"),
                                      "cleared_cases": removed})
-            process_upload(store, uid)
+            process_upload(store, uid, specialty_override=specialty_override)
             handled += 1
         except Exception as exc:  # pragma: no cover - defensive per-upload
             log.warning("ingest recovery: upload %s failed to reprocess: %s", uid, exc)
@@ -1797,7 +1798,10 @@ def opaque_patient_key(raw_key: str) -> str:
 
 
 # ─── The orchestration (PRD §3) ───────────────────────────────────────────────
-def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
+INGEST_PIPELINE_VERSION = 5
+
+
+def process_upload(store: Any, upload_id: str, *, specialty_override: Optional[str] = None) -> Dict[str, Any]:
     """Run the full pipeline for a received upload. Never raises — every outcome
     (ingested / quarantined / rejected) lands on the upload + case rows with
     audit events. Returns a summary dict."""
@@ -1903,7 +1907,7 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     # is the ClinicalCase default and claims nothing; the admin treats it as
     # "not yet determined" and prompts an operator to set the real value before
     # promotion.
-    specialty = (manifest.get("specialty")
+    specialty = (specialty_override or manifest.get("specialty")
                  or (store.get_upload_link(upload["link_id"]) or {}).get("specialty")
                  or "general")
 
@@ -1992,7 +1996,8 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     ingested, quarantined, needs_review = 0, 0, 0
     for pk, parts in per_patient.items():
         merged = _merge_fragments(parts)
-        report: Dict[str, Any] = {"patient_key": opaque_patient_key(pk)}
+        report: Dict[str, Any] = {"patient_key": opaque_patient_key(pk),
+                                  "pipeline_version": INGEST_PIPELINE_VERSION}
         if unify_report:
             report["patient_key_unification"] = unify_report
         adapter_warnings = list(merged.get("_adapter_warnings") or [])
@@ -2126,6 +2131,8 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
             # list request (Case Generation Fix PRD §B1). Advisory only — a
             # failure here must never change the ingest outcome.
             try:
+                from asclepius.real_cases import prepare_longitudinal_chart
+                case = prepare_longitudinal_chart(case)
                 report["content_summary"] = content_summary(case)
             except Exception as exc:  # pragma: no cover - defensive
                 log.warning("content summary failed for upload %s: %s", upload_id, exc)
@@ -2253,7 +2260,7 @@ def content_summary(case: Dict[str, Any]) -> Dict[str, Any]:
     """
     from asclepius import real_cases as rc
 
-    c = case or {}
+    c = rc.prepare_longitudinal_chart(case)
     encounters = rc.segment_longitudinal_record(c)
     undated = len(encounters) == 1 and bool(encounters[0].get("undated"))
     decision_points = 0 if undated else sum(
@@ -2263,6 +2270,7 @@ def content_summary(case: Dict[str, Any]) -> Dict[str, Any]:
     if _scores:
         best = max(_scores, key=lambda s: _scores[s])
     return {
+        "omitted_implausible_dates": sum(n.get("withheld_reason") == "implausible_date" for n in c.get("notes") or []),
         "notes": len(c.get("notes") or []),
         "lab_panels": len(c.get("lab_panels") or []),
         "studies": len(c.get("studies") or []),

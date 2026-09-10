@@ -36,7 +36,38 @@ That claim is not taken on trust. Every bundle runs the shipped
 `deid_verify.verify_deid` hard guard on the way in, and three of the four pass it
 clean. The fourth does not, and it does not for a reason worth reading:
 
-## Measured yield — 55 encounters → 22 decision points → 18 verifiable
+## Accepted pipeline v5 yield — detection and evidence readiness
+
+Applying the longitudinal-fix PRD literally yields **47 encounters → 18 decision
+points → 14 verifiable** across these exact fixture trees:
+
+| bundle | encounters | decision points | verifiable | status |
+|---|---|---|---|---|
+| patient-1 | 22 | 9 | 8 | ingested |
+| patient-2 | 12 | 2 | 1 | quarantined; diagnostic counts only |
+| patient-3 | 5 | 4 | 3 | ingested |
+| patient-4 | 8 | 3 | 2 | ingested; 167 curated notes, 157 panels |
+
+The user approved these measured yields. Density thresholds and the three-year
+date rule were not relaxed. Detected decision points are distinct from points
+that can safely become physician tasks:
+
+| bundle | detected points | held for evidence review | ready before model gates |
+|---|---|---|---|
+| patient-1 | 9 | 8 | 1 |
+| patient-2 | 2 | 1 | 0; upload remains quarantined |
+| patient-3 | 4 | 3 | 1 |
+| patient-4 | 3 | 2 | 1 |
+
+A point needs a visible contemporaneous clinical narrative. Prior discharge
+summaries, reports and order/nursing forms do not satisfy that requirement.
+Predecessors whose next outcome is held are also held; generation cannot silently
+bridge across unresolved evidence. The ready suffix can be built independently.
+For patient-4, the first two points remain review-only and the terminal point is
+ready. No three-point labelable walk is claimed. See
+`prd-longitudinal-fix/IMPLEMENTATION_STATUS.md` for the accepted policy.
+
+## Previous pipeline yield — 55 encounters → 22 decision points → 18 verifiable
 
 Measured on these exact trees, through the shipped ingestion path, and pinned by
 `tests/test_longitudinal_front_door.py` so a gate change cannot move it quietly.

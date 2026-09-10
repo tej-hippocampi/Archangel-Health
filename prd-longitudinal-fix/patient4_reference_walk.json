@@ -1,0 +1,3813 @@
+{
+ "trajectory_id": "traj_patient4_reference",
+ "specialty": "cardiology",
+ "walk_mode": "solo",
+ "distribution": "assigned_only",
+ "max_labels": 1,
+ "source": {
+  "bundle": "patient-4",
+  "committed_at": "backend/asclepius/fixtures/patient_bundles/patient-4",
+  "planner": "asclepius.real_cases.plan_cases",
+  "density_gate": {
+   "min_distinct_dates": 2,
+   "min_events": 8,
+   "min_resource_types": 2
+  },
+  "encounters": 8,
+  "decision_points": 3,
+  "verifiable_decision_points": 2,
+  "historical_encounters": 12,
+  "review_required_points": 2,
+  "ready_decision_points": 1,
+  "acceptance_revision": "Measured yields and evidence holds approved by user"
+ },
+ "points": [
+  {
+   "sequence_index": 0,
+   "encounter_index": 1,
+   "encounter_span_chart_days": [
+    -408,
+    -405
+   ],
+   "index_event_offset_chart_days": -406,
+   "decision_offset_days": 0,
+   "index_rationale": {
+    "reason": "no resolving event detected; sealed the final recorded day as the outcome",
+    "resolving_offset": -405,
+    "signal": null,
+    "weak": true
+   },
+   "density": {
+    "qualifies": true,
+    "n_distinct_dates": 4,
+    "n_events": 65,
+    "resource_types": [
+     "lab_panels",
+     "notes"
+    ],
+    "n_resource_types": 2,
+    "reasons": []
+   },
+   "qualifies_as_decision_point": true,
+   "outcome_verifiable": true,
+   "specialty": "cardiology",
+   "specialty_confidence": 1.0,
+   "specialty_scores": {
+    "nephrology": 1.507,
+    "cardiology": 2.629,
+    "hepatology": 1.72,
+    "oncology": 0.0
+   },
+   "taxonomy_bucket": "acs_nuance",
+   "subtopic": "troponin_interpretation",
+   "difficulty": {
+    "score": 0.717,
+    "band": "medium",
+    "axes": {
+     "competing_problems": 1.0,
+     "abnormal_analyte_ratio": 0.231,
+     "longitudinal_span": 1.0,
+     "decisive_datum_buried": 1.0,
+     "guideline_recency": 0.0
+    },
+    "measured": false,
+    "model_failure_rate": null,
+    "weights": {
+     "model_failure_rate": 0.5,
+     "competing_problems": 0.12,
+     "abnormal_analyte_ratio": 0.08,
+     "longitudinal_span": 0.1,
+     "decisive_datum_buried": 0.12,
+     "guideline_recency": 0.08
+    },
+    "gate_note": "structure proposes hard but no frontier measurement is available \u2014 banded down"
+   },
+   "curation": {
+    "labs": {
+     "dropped_furniture": 0,
+     "dropped_duplicate": 81,
+     "panels_in": 21,
+     "results_in": 147,
+     "enriched_from_duplicate": 5,
+     "units_split": 0,
+     "ranges_recovered": 0,
+     "ref_range_datelike": 1,
+     "implausible_value": 0,
+     "panels_out": 13,
+     "results_out": 66,
+     "dropped_over_budget": 1
+    },
+    "notes": {
+     "notes_in": 32,
+     "dropped_duplicate": 0,
+     "dropped_non_clinical": 0,
+     "dropped_short": 0,
+     "provenance_lines_stripped": 0,
+     "notes_out": 32,
+     "dropped_over_budget": 22
+    },
+    "medications": {
+     "meds_in": 42,
+     "dropped_furniture": 23,
+     "dropped_duplicate": 2,
+     "recovered_from_notes": 0,
+     "meds_out": 17
+    },
+    "problems": 6,
+    "studies": 0,
+    "withheld_untimed": {
+     "notes": 28,
+     "medications": 52
+    }
+   },
+   "visible_case": {
+    "demographics": {
+     "age_band": "40-49",
+     "sex": "M"
+    },
+    "problem_list": [
+     {
+      "condition": "Cerebrovascular event / stroke features",
+      "since": "2016",
+      "collected_offset_days": -3246
+     },
+     {
+      "condition": "Diabetes mellitus",
+      "since": "2016",
+      "collected_offset_days": -3246
+     },
+     {
+      "condition": "Hypertension",
+      "since": "2016",
+      "collected_offset_days": -3246
+     },
+     {
+      "condition": "Pancreatic enzyme elevation / pancreatitis workup",
+      "since": "2024",
+      "collected_offset_days": -2
+     },
+     {
+      "condition": "Ascites",
+      "since": "2024",
+      "collected_offset_days": -2
+     },
+     {
+      "condition": "Possible acute coronary syndrome workup",
+      "since": "2024",
+      "collected_offset_days": -1
+     }
+    ],
+    "medications": [
+     {
+      "drug": "Provans/Provens",
+      "dose": "1 g",
+      "collected_offset_days": -1423
+     },
+     {
+      "drug": "Ezium",
+      "dose": "40 mg",
+      "collected_offset_days": -1423
+     },
+     {
+      "drug": "Onset",
+      "dose": "8 mg",
+      "collected_offset_days": -1423
+     },
+     {
+      "drug": "Tanzo 4.5",
+      "collected_offset_days": -1423
+     },
+     {
+      "drug": "N/S + Inj Neurob",
+      "collected_offset_days": -1423
+     },
+     {
+      "drug": "Bofalgan",
+      "route": "IV",
+      "freq": "SOS",
+      "collected_offset_days": -1023
+     },
+     {
+      "drug": "Rivotril 0.5 (",
+      "freq": "0+0+1",
+      "collected_offset_days": -1023
+     },
+     {
+      "drug": "Lerace",
+      "dose": "500 mg",
+      "freq": "1+0+1",
+      "collected_offset_days": -1753
+     },
+     {
+      "drug": "Kempro",
+      "dose": "5 mg",
+      "freq": "0+0+1",
+      "collected_offset_days": -1753
+     },
+     {
+      "drug": "Risp",
+      "dose": "2 mg",
+      "freq": "1+0+1",
+      "collected_offset_days": -1753
+     },
+     {
+      "drug": "Atem",
+      "freq": "8 hourly",
+      "collected_offset_days": -1753
+     },
+     {
+      "drug": "Clenil",
+      "freq": "6 hourly",
+      "collected_offset_days": -1753
+     },
+     {
+      "drug": "Ascard",
+      "dose": "75 mg",
+      "freq": "1+0+0",
+      "collected_offset_days": -1753
+     },
+     {
+      "drug": "Nebil",
+      "dose": "2.5 mg",
+      "freq": "1+0+0",
+      "collected_offset_days": -1753
+     },
+     {
+      "drug": "Extor 5/160 (",
+      "freq": "1+0+0",
+      "collected_offset_days": -1753
+     },
+     {
+      "drug": "Hydralazine",
+      "dose": "25 mg",
+      "freq": "1+1+1",
+      "collected_offset_days": -1753
+     },
+     {
+      "drug": "Vita-6 (",
+      "freq": "1+0+0",
+      "collected_offset_days": -1753
+     }
+    ],
+    "items": [
+     {
+      "offset_rel": -2,
+      "kind": "note",
+      "note_type": "Lab report",
+      "text": "Document index: 96 Document type: LFT Service date: [day -408] Age on report: 45Y Sex: M CONTENT ---------------------------------------- Department of Biochemistry Booking: [day -408] 16:55:24 Collection: [day -408] 16:"
+     },
+     {
+      "offset_rel": -1,
+      "kind": "note",
+      "note_type": "Report",
+      "text": "Department of Chemical Pathology Booking: [day -407] 11:02:41 Collection: [day -407] 11:04:28 Reporting: [day -407] 12:28:45 TROPONIN-I: Troponin I: 0.609 ng/mL (< 0.30) [H]"
+     },
+     {
+      "offset_rel": -1,
+      "kind": "note",
+      "note_type": "Report",
+      "text": "Department of Biochemistry Booking: [day -407] 05:41:36 Collection: [day -407] 05:41:42 Reporting: [day -407] 06:10:24 ELECTROLYTES: Sodium: 137 mmol/L (135 - 145) Potassium: 4.0 mmol/L (3.5 - 5.5) Chloride: 101 mmol/L ("
+     },
+     {
+      "offset_rel": -1,
+      "kind": "note",
+      "note_type": "Report",
+      "text": "Department of Chemical Pathology Booking: [day -407] 04:14:14 Collection: [day -407] 04:14:21 Reporting: [day -407] 05:09:53 TROPONIN-I: Troponin I: 0.855 ng/mL (< 0.30) [H]"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Lab report",
+      "text": "Document index: 90 Document type: CBC/hematology Service date: [day -406] Age on report: 45Y Sex: M CONTENT ---------------------------------------- Department of Hematology Booking: [day -406] 06:34:20 Collection: [day "
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Radiology",
+      "text": "Document index: 109 Document type: radiology report Service date: [day -406] Age on report: 46Y Sex: M CONTENT ---------------------------------------- Echo report \u2014 VALVES / SUMMARY. VALVES: - Aortic Valve: Thickened wi"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Radiology",
+      "text": "Document index: 110 Document type: radiology report Service date: [day -406] Age on report: 46Y Sex: M CONTENT ---------------------------------------- STRUCTURAL INTERPRETATION (same study timestamp as index 109). Left "
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Report",
+      "text": "Department of Hematology Booking: [day -406] 06:34:20 Collection: [day -406] 06:34:45 Reporting: [day -406] 06:59:38 CBC: Hemoglobin: 13.8 g/dl (12 - 16.5) R.B.Cs: 4.80 10^12/L (4.0-5.2) Hematocrit: 39.6 % (35.0-50.0) M."
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Report",
+      "text": "Echo report \u2014 VALVES / SUMMARY. VALVES: - Aortic Valve: Thickened with normal mobility. Trace regurgitation. - Mitral Valve: Thickened with normal mobility. Trace regurgitation. - Pulmonic Valve: Normal in thickness and "
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Report",
+      "text": "STRUCTURAL INTERPRETATION (same study timestamp as index 109). Left Ventricle systolic function: Size and wall thickness is normal. Apex, septum, mid lateral, mid inferior, mid anterior and mid posterior segments are aki"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "lab_panel",
+      "panel": "CBC/hematology",
+      "n_results": 14,
+      "abnormal": []
+     },
+     {
+      "offset_rel": -1,
+      "kind": "lab_panel",
+      "panel": "other lab",
+      "n_results": 1,
+      "abnormal": [
+       "Amylase 146.0 U/L (H)"
+      ]
+     },
+     {
+      "offset_rel": -1,
+      "kind": "lab_panel",
+      "panel": "other lab",
+      "n_results": 1,
+      "abnormal": [
+       "Lipase 242.0 U/L (H)"
+      ]
+     },
+     {
+      "offset_rel": -1,
+      "kind": "lab_panel",
+      "panel": "other lab",
+      "n_results": 1,
+      "abnormal": [
+       "Troponin I 0.609 ng/mL (H)"
+      ]
+     },
+     {
+      "offset_rel": -1,
+      "kind": "lab_panel",
+      "panel": "electrolytes",
+      "n_results": 4,
+      "abnormal": []
+     },
+     {
+      "offset_rel": -1,
+      "kind": "lab_panel",
+      "panel": "other lab",
+      "n_results": 1,
+      "abnormal": [
+       "Troponin I 0.855 ng/mL (H)"
+      ]
+     },
+     {
+      "offset_rel": -2,
+      "kind": "lab_panel",
+      "panel": "LFT",
+      "n_results": 7,
+      "abnormal": [
+       "GAMMA GT 137.0 U/L (H)"
+      ]
+     },
+     {
+      "offset_rel": -2,
+      "kind": "lab_panel",
+      "panel": "RFT/renal",
+      "n_results": 1,
+      "abnormal": []
+     },
+     {
+      "offset_rel": -2,
+      "kind": "lab_panel",
+      "panel": "CBC/hematology",
+      "n_results": 14,
+      "abnormal": [
+       "Total Leucocytes Count/TLC 13.19 x 10^3/l (H)",
+       "Neutrophils 85.9 % (H)",
+       "Lymphocytes 10.1 % (L)",
+       "Eosinophils 0.2 % (L)"
+      ]
+     },
+     {
+      "offset_rel": -2,
+      "kind": "lab_panel",
+      "panel": "electrolytes",
+      "n_results": 4,
+      "abnormal": [
+       "Sodium 131.3 mmol/L (L)",
+       "Potassium 5.84 mmol/L (H)",
+       "Chloride 93.4 mmol/L (L)",
+       "Bicarbonate 8.4 mmol/L (L)"
+      ]
+     },
+     {
+      "offset_rel": -2,
+      "kind": "lab_panel",
+      "panel": "Laboratory Panel",
+      "n_results": 11,
+      "abnormal": [
+       "GGT 137 U/L (H)",
+       "Leukocytes 13.19 x 10^3/l (H)"
+      ]
+     },
+     {
+      "offset_rel": 0,
+      "kind": "lab_panel",
+      "panel": "Laboratory Panel",
+      "n_results": 6,
+      "abnormal": []
+     }
+    ],
+    "n_notes": 10,
+    "n_panels": 12
+   },
+   "held_out_as_shipped": {
+    "problems_recorded_after": [
+     "Portal hypertension / portal vein abnormality",
+     "Seizure disorder",
+     "Sinusitis",
+     "Jaundice / biliary obstruction"
+    ],
+    "newly_established_problems": [
+     "Portal hypertension / portal vein abnormality",
+     "Seizure disorder",
+     "Sinusitis",
+     "Jaundice / biliary obstruction"
+    ],
+    "drugs_started_after": [
+     "Tazo 4.5g 8-hrly",
+     "Ezium 40mg",
+     "Risp 1 mg BD",
+     "Kempro 5 mg HS",
+     "Rivotril 0.5 mg 0 + 0 + 1",
+     "Tanzo 4.5 gm IV TDS",
+     "Onset 8 mg IV TDS",
+     "Bofalgan 1 gm IV SOS",
+     "Ezium 40 mg IV OD",
+     "Dormicum IV SOS",
+     "Lerace 500 mg IV BD",
+     "Atem 6 hourly",
+     "Clenil BD",
+     "Vita-6 1+0+0",
+     "Tanzo 4.5 IV 8 hrly",
+     "Onset 8 mg IV SOS",
+     "Ezium IV OD",
+     "Sofalgan IV SOS",
+     "Rivotril 0.5 ( 0+0+1",
+     "Lerace 500 ( 1+0+1",
+     "Kempro 5 mg 0+0+1",
+     "feed Glucerna 3 scoops 250 ml",
+     "Risp 1 mg 1+0+1",
+     "Atem 8 hrly",
+     "Clenil 6 hrly",
+     "Humulin R sliding scale",
+     "Ascard 75 ( 1+0+0",
+     "Nebil 2.5 ( 1+0+0",
+     "Extor OD",
+     "Hydralazine 25 ( 1+1+1",
+     "Vit K 10 ( 1+0+0"
+    ],
+    "newly_started_drugs": [
+     "Tazo 4.5g 8-hrly",
+     "Dormicum IV SOS",
+     "Sofalgan IV SOS",
+     "feed Glucerna 3 scoops 250 ml",
+     "Humulin R sliding scale",
+     "Vit K 10 ( 1+0+0"
+    ],
+    "abnormal_results_after": [
+     "Calcium 8.14 mg/dL (L) at +406d",
+     "CRP 30.7 mg/L (H) at +406d",
+     "Bicarbonate 19.0 mmol/L (L) at +406d",
+     "Creatinine Serum 0.668 mg/dL (L) at +406d",
+     "Hemoglobin 11.8 g/dl (L) at +406d",
+     "Neutrophils 80.6 % (H) at +406d",
+     "Lymphocytes 11.8 % (L) at +406d",
+     "Platelets 145.0 x 10^9/l (L) at +406d",
+     "pCO2 28.2 mmHg (L) at +406d",
+     "pO2 43.2 mmHg (L) at +406d",
+     "O2 Saturation 76.8 % (L) at +406d",
+     "Bicarbonate 16.4 mmol/L (L) at +406d",
+     "Base Excess -8.7 mmol/L  (L) at +406d",
+     "pCO2 29.1 mmHg (L) at +405d",
+     "pO2 174.2 mmHg (H) at +405d",
+     "O2 Saturation 99.5 % (H) at +405d",
+     "Bicarbonate 18.6 mmol/L (L) at +405d",
+     "Base Excess -5.9 mmol/L  (L) at +405d",
+     "pO2 19.0 mmHg (L) at +405d",
+     "O2 Saturation 26.5 % (L) at +405d",
+     "Hemoglobin 11.1 g/dl (L) at +405d",
+     "R.B.Cs 3.87 10^12/L (L) at +405d",
+     "Hematocrit 33.8 % (L) at +405d",
+     "Neutrophils 78.3 % (H) at +405d",
+     "Lymphocytes 14.0 % (L) at +405d",
+     "Creatinine Serum 0.632 mg/dL (L) at +405d",
+     "Bicarbonate 19.0 mmol/L (L) at +405d",
+     "pH 7.461  (H) at +404d",
+     "pCO2 26.7 mmHg (L) at +404d",
+     "pO2 181.6 mmHg (H) at +404d",
+     "O2 Saturation 99.6 % (H) at +404d",
+     "Bicarbonate 18.6 mmol/L (L) at +404d",
+     "Base Excess -5.3 mmol/L  (L) at +404d",
+     "pH 7.461  (H) at +404d",
+     "pCO2 26.7 mmHg (L) at +404d",
+     "pO2 181.6 mmHg (H) at +404d",
+     "O2 Saturation 99.6 % (H) at +404d",
+     "Bicarbonate 18.6 mmol/L (L) at +404d",
+     "Base Excess -5.3 mmol/L  (L) at +404d",
+     "Hemoglobin 11.2 g/dl (L) at +404d"
+    ],
+    "narrative_after": [
+     "[+406d Radiology] Document index: 1\r\nDocument type: radiology report\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nModality: MRI BRAIN WITH CONTRAST\r\nClinical history: History of seizures.\r\n\r\nTechnique: Multiplanar multisequential images obtained with contrast according to departmental protocol.\r\n\r\nFindings:\r\n- Brain parenchyma: No recent territorial ischemic infarction, intracranial hemorrhage, or mass lesion. Gray-white matter differentiation preserved.\r\n- Ventricles and CSF cisterns: Unremarkable.\r\n- Bilateral basal ganglia, thalami, brainstem, an",
+     "[+406d Lab report] Document index: 2\r\nDocument type: electrolytes\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day 0] 09:59:32\r\nCollection: [day 0] 09:59:56\r\nReporting: [day 0] 11:36:35\r\n\r\nMAGNESIUM:\r\nMagnesium: 2.01 mg/dl (1.9 - 2.5)",
+     "[+406d Lab report] Document index: 3\r\nDocument type: electrolytes\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day 0] 09:59:32\r\nCollection: [day 0] 09:59:56\r\nReporting: [day 0] 11:36:35\r\n\r\nCALCIUM (SERUM):\r\nCalcium: 8.14 mg/dL (8.6 - 10.3) [L]",
+     "[+406d Lab report] Document index: 4\r\nDocument type: other lab\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day 0] 09:59:32\r\nCollection: [day 0] 09:59:56\r\nReporting: [day 0] 11:36:35\r\n\r\nCRP (C-REACTIVE PROTEIN):\r\nCRP: 30.7 mg/L (< 7.90) [H]",
+     "[+406d Lab report] Document index: 5\r\nDocument type: electrolytes\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day 0] 05:21:57\r\nCollection: [day 0] 05:24:48\r\nReporting: [day 0] 07:31:27\r\n\r\nELECTROLYTES:\r\nSodium: 136 mmol/L (135 - 145)\r\nPotassium: 3.7 mmol/L (3.5 - 5.5)\r\nChloride: 101 mmol/L (96 - 106)\r\nBicarbonate: 19 mmol/L (20.0 - 29.0) [L]",
+     "[+406d Lab report] Document index: 6\r\nDocument type: RFT/renal\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day 0] 05:21:57\r\nCollection: [day 0] 05:24:48\r\nReporting: [day 0] 07:31:27\r\n\r\nCREATININE (SERUM):\r\nCreatinine Serum: 0.668 mg/dL (Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4) [L]",
+     "[+406d Lab report] Document index: 7\r\nDocument type: CBC/hematology\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Hematology\r\nBooking: [day 0] 05:21:57\r\nCollection: [day 0] 05:24:48\r\nReporting: [day 0] 10:32:03\r\n\r\nCBC:\r\nHemoglobin: 11.8 g/dl (12 - 16.5) [L]\r\nR.B.Cs: 4.11 10^12/L (4.0 - 5.2)\r\nHematocrit: 35.6 % (35.0 - 50.0)\r\nM.C.V: 86.6 fl (76 - 96)\r\nM.C.H: 28.7 pg (24 - 29)\r\nM.C.H.C: 33.1 g/dl (32 - 36)\r\nRDW-CV: 15.5 % (11.0 - 16.0)\r\nTotal Leucocytes Count/TLC: 6.97 x 10^3/l (4 - 10)\r\nNeutrophils: 80.6 % (40 - 75) [H]\r\nLymphocytes: 11.8",
+     "[+406d Lab report] Document index: 8\r\nDocument type: other lab\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day 0] 05:21:57\r\nCollection: [day 0] 05:24:48\r\nReporting: [day 0] 06:56:35\r\n\r\nARTERIAL BLOOD GASES (ABGs):\r\nABG's Measure at: 37 C\r\npH: 7.382 (7.35-7.45)\r\npCO2: 28.2 mmHg (35-48) [L]\r\npO2: 43.2 mmHg (83-108) [L]\r\nO2 Saturation: 76.8 % (94-98) [L]\r\nBicarbonate: 16.4 mmol/L (19 - 24) [L]\r\nBase Excess: -8.7 mmol/L (-2 - 3) [L]",
+     "[+406d Lab report] Document index: 9\r\nDocument type: RFT/renal\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day 0] 05:21:57\r\nCollection: [day 0] 05:24:48\r\nReporting: [day 0] 07:31:27\r\n\r\nUREA (BLOOD):\r\nUrea: 18.8 mg/dL (10 - 50)",
+     "[+405d Lab report] Document index: 10\r\nDocument type: other lab\r\nService date: [day -1]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day -1] 04:49:11\r\nCollection: [day -1] 04:51:12\r\nReporting: [day -1] 05:25:05\r\n\r\nARTERIAL BLOOD GASES (ABGs):\r\nABG's Measure at: 37 C\r\npH: 7.422 (7.35-7.45)\r\npCO2: 29.1 mmHg (35-48) [L]\r\npO2: 174.2 mmHg (83-108) [H]\r\nO2 Saturation: 99.5 % (94-98) [H]\r\nBicarbonate: 18.6 mmol/L (19 - 24) [L]\r\nBase Excess: -5.9 mmol/L (-2 - 3) [L]",
+     "[+405d Lab report] Document index: 11\r\nDocument type: other lab\r\nService date: [day -1]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day -1] 19:05:26\r\nCollection: [day -1] 19:05:30\r\nReporting: [day -1] 22:31:33\r\n\r\nARTERIAL BLOOD GASES (ABGs):\r\nABG's Measure at: 37 C\r\npH: 7.35 (7.35-7.45)\r\npCO2: 42 mmHg (35-48)\r\npO2: 19 mmHg (83-108) [L]\r\nO2 Saturation: 26.5 % (94-98) [L]\r\nBicarbonate: 23.5 mmol/L (19 - 24)\r\nBase Excess: -2.0 mmol/L (-2 - 3)\r\n\r\nRemarks: Whole Blood / Venous Sample. Importantly, sufficient variability between arterial an",
+     "[+405d Lab report] Document index: 12\r\nDocument type: CBC/hematology\r\nService date: [day -1]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Hematology\r\nBooking: [day -1] 04:49:11\r\nCollection: [day -1] 04:51:12\r\nReporting: [day -1] 11:05:15\r\n\r\nCBC & ESR:\r\nHemoglobin: 11.1 g/dl (12 - 16.5) [L]\r\nR.B.Cs: 3.87 10^12/L (4.0-5.2) [L]\r\nHematocrit: 33.8 % (35.0-50.0) [L]\r\nM.C.V: 87.3 fl (76 - 96)\r\nM.C.H: 28.7 pg (24 - 29)\r\nM.C.H.C: 32.8 g/dl (32 - 36)\r\nRDW-CV: 15.6 % (11.0-16.0)\r\nTotal Leucocytes Count/TLC: 7.56 x 10^3/l (4 - 10)\r\nNeutrophils: 78.3 % (40-75) [H]\r\nLympho"
+    ]
+   },
+   "outcome_window_chart_days": [
+    -406,
+    -372
+   ],
+   "outcome_window_items": [
+    {
+     "offset": -405,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 1,
+     "abnormal": [
+      "Creatinine Serum 0.47 mg/dL (L)"
+     ]
+    },
+    {
+     "offset": -405,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -405,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 4,
+     "abnormal": [
+      "Sodium 134.0 mmol/L (L)",
+      "Potassium 3.4 mmol/L (L)"
+     ]
+    },
+    {
+     "offset": -405,
+     "kind": "lab_panel",
+     "panel": "Laboratory Panel",
+     "n_results": 6,
+     "abnormal": [
+      "Creatinine 0.47 mg/dL (L)",
+      "Sodium 134 mmol/L (L)",
+      "Potassium 3.4 mmol/L (L)"
+     ]
+    },
+    {
+     "offset": -405,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 2,
+     "abnormal": [
+      "Creatinine Serum 0.47 mg/dL (L)"
+     ]
+    },
+    {
+     "offset": -405,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 4,
+     "abnormal": [
+      "Potassium 3.4 mmol/L (L)",
+      "Sodium 134 mmol/L (L)"
+     ]
+    },
+    {
+     "offset": -405,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Biochemistry Booking: [day -405] 11:25:59 Collection: [day -405] 11:27:53 Reporting: [day -405] 12:32:11 CREATININE (SERUM): Creatinine Serum: 0.47 mg/dL (Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4) [L]"
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 7,
+     "abnormal": []
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 4,
+     "abnormal": []
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "urinalysis",
+     "n_results": 18,
+     "abnormal": []
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 7,
+     "abnormal": []
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": [
+      "Lipase 1221.0 U/L (H)"
+     ]
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "LFT",
+     "n_results": 7,
+     "abnormal": [
+      "GAMMA GT 62.0 U/L (H)"
+     ]
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "CBC/hematology",
+     "n_results": 15,
+     "abnormal": [
+      "M.C.H 29.3 pg (H)",
+      "Total Leucocytes Count/TLC 15.0 x 10^3/l (H)",
+      "Neutrophils 83.9 % (H)",
+      "Lymphocytes 6.3 % (L)",
+      "ESR 79.0 mm/Hour (H)"
+     ]
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "Laboratory Panel",
+     "n_results": 66,
+     "abnormal": [
+      "Lipase 1221 U/L (H)",
+      "GGT 62 U/L (H)",
+      "MCH 29.3 pg (H)",
+      "Leukocytes 15.0 x 10^3/l (H)",
+      "Neutrophils 83.9 % (H)",
+      "Lymphocytes 6.3 % (L)",
+      "ESR 79 mm/Hour (H)"
+     ]
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 20,
+     "abnormal": [
+      "Lipase 1221 U/L (H)"
+     ]
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 4,
+     "abnormal": []
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "urinalysis",
+     "n_results": 18,
+     "abnormal": []
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "LFT",
+     "n_results": 7,
+     "abnormal": [
+      "GAMMA GT 62 U/L (H)"
+     ]
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 2,
+     "abnormal": []
+    },
+    {
+     "offset": -373,
+     "kind": "lab_panel",
+     "panel": "CBC/hematology",
+     "n_results": 15,
+     "abnormal": [
+      "ESR 79 mm/Hour (H)",
+      "Lymphocytes 6.3 % (L)",
+      "M.C.H 29.3 pg (H)",
+      "Neutrophils 83.9 % (H)",
+      "Total Leucocytes Count/TLC 15.0 x 10^3/l (H)"
+     ]
+    },
+    {
+     "offset": -373,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF BIOCHEMISTRY Booking: [day -373] 21:44:34 Collection: [day -373] 21:45:21 Reporting: [day -373] 22:49:03 ARTERIAL BLOOD GASES (ABGs) - ABG's Measure at: 37 C - pH: 7.392 (7.35-7.45) - pCO2: 26.3 mmHg (35-48) \u2014 low - pO2: 95.4 mmHg (83-108) - O2 S"
+    },
+    {
+     "offset": -373,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF BIOCHEMISTRY Booking: [day -373] 21:42:56 Collection: [day -373] 21:43:04 Reporting: [day -372] 00:08:27 ELECTROLYTES - Sodium: 147 mmol/L (135 - 145) \u2014 high - Potassium: 3.0 mmol/L (3.5 - 5.5) \u2014 low - Chloride: 110 mmol/L (96 - 106) \u2014 high - Bic"
+    },
+    {
+     "offset": -373,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF BIOCHEMISTRY Booking: [day -373] 18:31:12 Collection: [day -373] 18:31:27 Reporting: [day -373] 20:56:41 CRP (C- REACTIVE PROTEIN) - CRP: 169 mg/L (< 7.90) \u2014 elevated"
+    },
+    {
+     "offset": -373,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF CHEMICAL PATHOLOGY Booking: [day -373] 18:31:12 Collection: [day -373] 18:31:27 Reporting: [day -373] 20:55:44 PCT (ICU) - PCT: 4.5 ng/mL Interpretation text on report: procalcitonin levels < 0.5 Represent a low risk of severe sepsis and/or septi"
+    },
+    {
+     "offset": -373,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF PARASITOLOGY \u2014 URINE DR Booking: [day -373] 17:26:19 Collection: [day -373] 17:26:32 Reporting: [day -372] 13:46:57 PHYSICAL EXAMINATION - Quantity: 40 mL - Color: YELLOW (Pale Yellow - Yellow) - Appearance: CLEAR (Clear) CHEMICAL EXAMINATION - S"
+    },
+    {
+     "offset": -373,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF BIOCHEMISTRY Booking: [day -373] 11:54:02 Collection: [day -373] 11:54:07 Reporting: [day -373] 12:06:47 ARTERIAL BLOOD GASES (ABGs) - ABG's Measure at: 37 C - pH: 7.031 (7.35-7.45) \u2014 low - pCO2: 6.6 mmHg (35-48) \u2014 low - pO2: 143.0 mmHg (83-108) "
+    },
+    {
+     "offset": -373,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF BIOCHEMISTRY Booking: [day -373] 11:52:50 Collection: [day -373] 11:53:18 Reporting: [day -373] 12:55:01 AMYLASE (SERUM) - Amylase: 359 U/L (28-100) \u2014 elevated"
+    },
+    {
+     "offset": -373,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Chemical Pathology Booking: [day -373] 11:52:50 Collection: [day -373] 11:53:18 Reporting: [day -373] 17:42:01 LIPASE (SERUM): Lipase: 1221 U/L (13-60) [H]"
+    },
+    {
+     "offset": -373,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Biochemistry Booking: [day -373] 11:52:45 Collection: [day -373] 11:53:56 Reporting: [day -373] 17:10:38 LFT (LIVER FUNCTION TEST): Bilirubin Total: 0.3 mg/dL (Adult: Up to 0.1-1.0; Children 0-1 Days: 2.0-6.0; Children 1-2 Days: 6.0-10.0; Childre"
+    },
+    {
+     "offset": -373,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Biochemistry Booking: [day -373] 10:30:40 Collection: [day -373] 10:30:54 Reporting: [day -373] 11:33:42 UREA (BLOOD): Urea: 43 mg/dL (10 - 50)"
+    },
+    {
+     "offset": -373,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Chemical Pathology Booking: [day -373] 10:30:40 Collection: [day -373] 10:30:54 Reporting: [day -373] 11:33:57 TROPONIN-I: Troponin I: <0.100 ng/mL (< 0.30)"
+    },
+    {
+     "offset": -373,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Hematology Booking: [day -373] 10:30:40 Collection: [day -373] 10:30:54 Reporting: [day -373] 11:39:14 CBC & ESR: Hemoglobin: 13.5 g/dl (12 - 16.5) R.B.Cs: 4.60 10^12/L (4.0 - 5.2) Hematocrit: 41.9 % (35.0 - 50.0) M.C.V: 91.1 fl (76 - 96) M.C.H: "
+    },
+    {
+     "offset": -373,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "X-RAY CHEST PA/AP VIEW Findings: - Bony cage normal. - No active pulmonary lesion, consolidation, collapse. - No mediastinal pathology seen. - Hilum appears normal. - The cardio and costeopherenic angle are clear. - Both domes of diaphragm are normally raised."
+    },
+    {
+     "offset": -373,
+     "kind": "note",
+     "note_type": "discharge summary",
+     "text": "DISCHARGE SUMMARY Presenting Complaints: Patient aged 45 years presented in ER with complaints of: - SHORTNESS OF BREATH - FLANK PAIN Diagnosis: DIABETIC KETOACIDOSES (DKA) Relevant Investigation: CBC, ESR, UREA, CREATININE, ELECTROLYTES, LFT, AMYLASE, LIPASE,"
+    },
+    {
+     "offset": -373,
+     "kind": "note",
+     "note_type": "discharge summary",
+     "text": "DISCHARGE SUMMARY \u2014 medication on discharge / follow-up page (continuation of index 113). Medication on Discharge / instructions: - INJ MERONEUM 1GM IV TDS (THREE TIMES A DAY) --- FOR 5 DAYS - CAP EZIUM 40MG 1+0+0 - TAB ONSET 8MG 1+0+1 - MUST TAKE MEAL WITHIN "
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 4,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 7,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 7,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 2,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "coagulation",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "coagulation",
+     "n_results": 3,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "coagulation",
+     "n_results": 3,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 4,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 4,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 2,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 7,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "Laboratory Panel",
+     "n_results": 49,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 30,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 9,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "coagulation",
+     "n_results": 7,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 3,
+     "abnormal": []
+    },
+    {
+     "offset": -372,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Biochemistry Panel: Electrolytes Booking: [day -372] 19:43:20 Collection: [day -372] 19:52:27 Reporting: [day -372] 21:24:35 - Sodium: 142.2 mmol/L (135-145) - Potassium: 2.40 mmol/L (3.5-5.5) \u2014 below reference range - Chloride: 108.5 mmol/L (96-10"
+    },
+    {
+     "offset": -372,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Biochemistry Panel: LFT (Liver Function Test) Booking: [day -372] 19:43:04 Collection: [day -372] 19:50:48 Reporting: [day -372] 20:58:28 - Bilirubin Total: 0.2 mg/dL (Adult 0.1-1.0; pediatric day-of-life ranges also listed) - Bilirubin Direct: 0.1"
+    },
+    {
+     "offset": -372,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Biochemistry Panel: Arterial Blood Gases (ABGs) Booking: [day -372] 18:41:00 Collection: [day -372] 18:41:16 Reporting: [day -372] 18:59:28 - ABG's Measure at: 37 C - pH: 7.510 (7.35-7.45) - pCO2: 25.6 mmHg (35-48) - pO2: 204.5 mmHg (83-108) - O2 S"
+    },
+    {
+     "offset": -372,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Biochemistry Booking: [day -372] 12:21:13 Collection: [day -372] 12:22:02 Reporting: [day -372] 13:59:27 Albumin (Serum): - Albumin: 3.0 g/dL - Normal ranges: Newborn 2-4 Days 2.2-4.4; 4-14 Years 3.8-5.4; Adult 3.5-5.2; >60 Years 3.2-4.6 (Result be"
+    },
+    {
+     "offset": -372,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF BIOCHEMISTRY Booking: [day -372] 12:21:13 Collection: [day -372] 12:22:02 Reporting: [day -372] 13:59:27 CALCIUM (SERUM) - Calcium: 7.4 mg/dL (8.6 - 10.3) \u2014 low"
+    },
+    {
+     "offset": -372,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF CHEMICAL PATHOLOGY Booking: [day -372] 12:21:13 Collection: [day -372] 12:22:02 Reporting: [day -372] 14:48:04 D-DIMER (FDPs) - D-DIMER: 4.66 mg/L (Upto 0.5) \u2014 elevated"
+    },
+    {
+     "offset": -372,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF HEMATOLOGY Booking: [day -372] 12:21:13 Collection: [day -372] 12:22:02 Reporting: [day -372] 12:52:02 PROTHROMBIN TIME (PT/INR) - Prothrombin Time: 12.6 Sec (10 - 15) - INR: 0.96 (0.9 - 1.5) - Control: 13.0 Sec"
+    },
+    {
+     "offset": -372,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF CHEMICAL PATHOLOGY Booking: [day -372] 05:18:17 Collection: [day -372] 05:18:24 Reporting: [day -372] 07:41:23 TROPONIN-I - Troponin I: <0.100 ng/mL (Normal: < 0.30)"
+    },
+    {
+     "offset": -372,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF BIOCHEMISTRY Booking: [day -372] 04:53:34 Collection: [day -372] 04:54:34 Reporting: [day -372] 07:44:37 UREA (BLOOD) - Urea: 40 mg/dL (10 - 50)"
+    },
+    {
+     "offset": -372,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "X-RAY CHEST AP VIEW Findings/impression text: Bilateral lower lobe air space infiltrates likely infective in etiology. Adv clinical and laboratory correlation."
+    }
+   ],
+   "authored": {
+    "title": "Point 1 \u00b7 troponin rise with a new 30\u201335% ejection fraction, inside a pancreatitis admission",
+    "what_the_physician_sees": [
+     "40\u201349 M. Problem list as the pipeline carries it: diabetes, hypertension, 'cerebrovascular event / stroke features' \u2014 NOTE the stroke entry comes only from notes mis-dated ten years early (F6); the encounter's own discharge summary says 'known case of HTN, DM and IHD'. This admission: pancreatic-enzyme elevation, ascites, 'possible ACS workup'.",
+     "Day \u22122 (admission): WBC 13.19 (H), Na 131 (L), K 5.84 (H), Cl 93 (L), bicarbonate 8.4 (L), GGT 137 (H); amylase 146 (H), lipase 242 (H).",
+     "Day \u22121: Troponin I 0.855 \u2192 0.609 ng/mL (ref < 0.30), two draws ~7 h apart, falling. Electrolytes normalised (Na 137, K 4.0, HCO3 20).",
+     "Day 0 (index): Echo \u2014 apex, septum, mid lateral/inferior/anterior/posterior segments akinetic; EF visually 30\u201335%; normal chamber size and wall thickness; trace AR/MR; normal RV. CBC normal.",
+     "WITHHELD from this window (F7): the discharge summary, dated to the admission day, which names the cardiac consult, 'medications adjusted' and the discharge list. It is the outcome of this encounter and is revealed at point 2."
+    ],
+    "question": "A 40\u201349-year-old man with diabetes, hypertension and known ischaemic heart disease is admitted with severe abdominal pain, vomiting, lipase 242 and a bicarbonate of 8.4 that corrects within a day. Troponin I is 0.855 then 0.609 ng/mL and falling; the echo on day 0 shows multi-segment akinesis with a visually estimated EF of 30\u201335% and no chamber dilatation. How do you classify this troponin elevation, and what is your cardiac plan for the remainder of this admission \u2014 including whether angiography is indicated now and which therapies you commit to before discharge?",
+    "question_source": "hand_authored_reference",
+    "candidate_answers": [
+     {
+      "id": "A",
+      "text": "Type 1 NSTEMI until proven otherwise: falling troponin with new regional akinesis in a diabetic hypertensive with known ischaemic heart disease. Load antiplatelet therapy, anticoagulate, and arrange coronary angiography this admission; start beta-blocker, ACE inhibitor/ARB and high-intensity statin now and titrate.",
+      "is_flawed": true,
+      "why_flawed": "Commits to invasive management and dual antiplatelet + anticoagulation in a patient with an acute pancreatitis picture, profound acidosis on arrival and no documented chest pain or ECG change; ignores that the troponin is already falling and the akinesis pattern (apex + mid segments, normal chamber size) is as consistent with a stress/toxic cardiomyopathy or demand injury as with an infarct. Does not address the ascites/portal picture that makes anticoagulation risky."
+     },
+     {
+      "id": "B",
+      "text": "Myocardial injury in the setting of critical illness (severe metabolic acidosis, pancreatitis) with a newly documented cardiomyopathy \u2014 Type 2 injury or non-ischaemic LV dysfunction is at least as likely as plaque rupture given the falling curve and absence of a documented ischaemic syndrome. Start guideline therapy for reduced EF now (beta-blocker, ACE-I/ARB as blood pressure and potassium allow once K normalises, statin, aspirin given the vascular history), obtain an ECG series and repeat troponin to confirm the downtrend, defer angiography to an elective outpatient or early-inpatient decision once the abdominal process has settled, and plan a repeat echo at 6\u201312 weeks to distinguish a recoverable cardiomyopathy from ischaemic scar. Hold SGLT2 inhibitor initiation while acidotic; revisit before discharge.",
+      "is_flawed": false
+     }
+    ],
+    "intended_flawed_id": "A",
+    "ai_failure_mode": "anchoring on the most extreme number (troponin) and treating a falling troponin in a critically ill patient as an acute coronary syndrome requiring invasive management",
+    "expected_trajectory": {
+     "expectations": [
+      {
+       "expectation": "The troponin will continue to fall and no urgent angiography or PCI will be performed during this admission",
+       "horizon_days": 7
+      },
+      {
+       "expectation": "The patient leaves on at least a beta-blocker, a statin and antiplatelet therapy, with an MRA and/or SGLT2 inhibitor added for the reduced EF",
+       "horizon_days": 7
+      },
+      {
+       "expectation": "On the next echo the ejection fraction will improve to above 40%, consistent with a non-ischaemic or stress-related cardiomyopathy",
+       "horizon_days": 180
+      }
+     ],
+     "falsifiers": [
+      "A coronary angiogram this admission showing a culprit lesion that is stented",
+      "A rising troponin on a third draw or new ST changes",
+      "EF still \u2264 35% on the next echo"
+     ],
+     "note": "The bicarbonate of 8.4 on arrival is the datum that reframes the troponin; it is not on the same page as the echo.",
+     "falsifiable": true
+    },
+    "outcome_that_the_chart_wrote_between_this_point_and_the_next": [
+     "Discharge summary (encounter end): 'Cardiac team consultation requested due to low EF (~30\u201335%); medications adjusted.' No procedure. Discharge list: aspirin 75, atorvastatin 20, nebivolol 5, spironolactone-furosemide 40 (half tab), dapagliflozin 10, a PPI, an antiemetic, and two brand-name lines not confidently mapped. OPD follow-up in one week.",
+     "Day +34 (next admission, presenting data only): shortness of breath and flank pain; random glucose high; diagnosis diabetic ketoacidosis; K 2.6 (L), HCO3 13.2 (L), pCO2 26 (L); troponin I < 0.10 twice; chest X-ray bilateral lower-lobe infiltrates; ICU."
+    ],
+    "self_score_at_reveal_reference": [
+     "held",
+     "held (nebivolol + spironolactone + dapagliflozin started)",
+     "not_assessable (no echo in this window)"
+    ]
+   },
+   "historical_encounter_index": 5,
+   "review_required": true,
+   "generation_ready": false,
+   "reference_only": true
+  },
+  {
+   "sequence_index": 1,
+   "encounter_index": 2,
+   "encounter_span_chart_days": [
+    -373,
+    -371
+   ],
+   "index_event_offset_chart_days": -372,
+   "decision_offset_days": 0,
+   "index_rationale": {
+    "reason": "no resolving event detected; sealed the final recorded day as the outcome",
+    "resolving_offset": -371,
+    "signal": null,
+    "weak": true
+   },
+   "density": {
+    "qualifies": true,
+    "n_distinct_dates": 3,
+    "n_events": 124,
+    "resource_types": [
+     "lab_panels",
+     "notes"
+    ],
+    "n_resource_types": 2,
+    "reasons": []
+   },
+   "qualifies_as_decision_point": true,
+   "outcome_verifiable": true,
+   "specialty": "cardiology",
+   "specialty_confidence": 1.0,
+   "specialty_scores": {
+    "nephrology": 2.007,
+    "cardiology": 1.387,
+    "hepatology": 0.271,
+    "oncology": 0.0
+   },
+   "taxonomy_bucket": "acs_nuance",
+   "subtopic": "troponin_interpretation",
+   "difficulty": {
+    "score": 0.464,
+    "band": "medium",
+    "axes": {
+     "competing_problems": 1.0,
+     "abnormal_analyte_ratio": 0.148,
+     "longitudinal_span": 1.0,
+     "decisive_datum_buried": 0.0,
+     "guideline_recency": 0.0
+    },
+    "measured": false,
+    "model_failure_rate": null,
+    "weights": {
+     "model_failure_rate": 0.5,
+     "competing_problems": 0.12,
+     "abnormal_analyte_ratio": 0.08,
+     "longitudinal_span": 0.1,
+     "decisive_datum_buried": 0.12,
+     "guideline_recency": 0.08
+    },
+    "gate_note": null
+   },
+   "curation": {
+    "labs": {
+     "dropped_furniture": 52,
+     "dropped_duplicate": 189,
+     "panels_in": 42,
+     "results_in": 345,
+     "enriched_from_duplicate": 4,
+     "units_split": 78,
+     "ranges_recovered": 51,
+     "ref_range_datelike": 1,
+     "implausible_value": 3,
+     "flags_derived": 4,
+     "panels_out": 28,
+     "results_out": 101,
+     "dropped_over_budget": 16
+    },
+    "notes": {
+     "notes_in": 68,
+     "dropped_duplicate": 0,
+     "dropped_non_clinical": 0,
+     "dropped_short": 0,
+     "provenance_lines_stripped": 0,
+     "notes_out": 68,
+     "dropped_over_budget": 58
+    },
+    "medications": {
+     "meds_in": 42,
+     "dropped_furniture": 23,
+     "dropped_duplicate": 2,
+     "recovered_from_notes": 0,
+     "meds_out": 17
+    },
+    "problems": 6,
+    "studies": 0,
+    "withheld_untimed": {
+     "notes": 28,
+     "medications": 52
+    }
+   },
+   "visible_case": {
+    "demographics": {
+     "age_band": "40-49",
+     "sex": "M"
+    },
+    "problem_list": [
+     {
+      "condition": "Cerebrovascular event / stroke features",
+      "since": "2016",
+      "collected_offset_days": -3280
+     },
+     {
+      "condition": "Diabetes mellitus",
+      "since": "2016",
+      "collected_offset_days": -3280
+     },
+     {
+      "condition": "Hypertension",
+      "since": "2016",
+      "collected_offset_days": -3280
+     },
+     {
+      "condition": "Pancreatic enzyme elevation / pancreatitis workup",
+      "since": "2024",
+      "collected_offset_days": -36
+     },
+     {
+      "condition": "Ascites",
+      "since": "2024",
+      "collected_offset_days": -36
+     },
+     {
+      "condition": "Possible acute coronary syndrome workup",
+      "since": "2024",
+      "collected_offset_days": -35
+     }
+    ],
+    "medications": [
+     {
+      "drug": "Provans/Provens",
+      "dose": "1 g",
+      "collected_offset_days": -1457
+     },
+     {
+      "drug": "Ezium",
+      "dose": "40 mg",
+      "collected_offset_days": -1457
+     },
+     {
+      "drug": "Onset",
+      "dose": "8 mg",
+      "collected_offset_days": -1457
+     },
+     {
+      "drug": "Tanzo 4.5",
+      "collected_offset_days": -1457
+     },
+     {
+      "drug": "N/S + Inj Neurob",
+      "collected_offset_days": -1457
+     },
+     {
+      "drug": "Bofalgan",
+      "route": "IV",
+      "freq": "SOS",
+      "collected_offset_days": -1057
+     },
+     {
+      "drug": "Rivotril 0.5 (",
+      "freq": "0+0+1",
+      "collected_offset_days": -1057
+     },
+     {
+      "drug": "Lerace",
+      "dose": "500 mg",
+      "freq": "1+0+1",
+      "collected_offset_days": -1787
+     },
+     {
+      "drug": "Kempro",
+      "dose": "5 mg",
+      "freq": "0+0+1",
+      "collected_offset_days": -1787
+     },
+     {
+      "drug": "Risp",
+      "dose": "2 mg",
+      "freq": "1+0+1",
+      "collected_offset_days": -1787
+     },
+     {
+      "drug": "Atem",
+      "freq": "8 hourly",
+      "collected_offset_days": -1787
+     },
+     {
+      "drug": "Clenil",
+      "freq": "6 hourly",
+      "collected_offset_days": -1787
+     },
+     {
+      "drug": "Ascard",
+      "dose": "75 mg",
+      "freq": "1+0+0",
+      "collected_offset_days": -1787
+     },
+     {
+      "drug": "Nebil",
+      "dose": "2.5 mg",
+      "freq": "1+0+0",
+      "collected_offset_days": -1787
+     },
+     {
+      "drug": "Extor 5/160 (",
+      "freq": "1+0+0",
+      "collected_offset_days": -1787
+     },
+     {
+      "drug": "Hydralazine",
+      "dose": "25 mg",
+      "freq": "1+1+1",
+      "collected_offset_days": -1787
+     },
+     {
+      "drug": "Vita-6 (",
+      "freq": "1+0+0",
+      "collected_offset_days": -1787
+     }
+    ],
+    "items": [
+     {
+      "offset_rel": -1,
+      "kind": "note",
+      "note_type": "Lab report",
+      "text": "Document index: 73 Document type: other lab Service date: [day -373] Age on report: 45Y Sex: M CONTENT ---------------------------------------- DEPARTMENT OF BIOCHEMISTRY Booking: [day -373] 21:44:34 Collection: [day -37"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Report",
+      "text": "DEPARTMENT OF HEMATOLOGY Booking: [day -372] 12:21:13 Collection: [day -372] 12:22:02 Reporting: [day -372] 12:52:02 PROTHROMBIN TIME (PT/INR) - Prothrombin Time: 12.6 Sec (10 - 15) - INR: 0.96 (0.9 - 1.5) - Control: 13."
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Report",
+      "text": "DEPARTMENT OF CHEMICAL PATHOLOGY Booking: [day -372] 12:21:13 Collection: [day -372] 12:22:02 Reporting: [day -372] 13:14:37 TROPONIN-I - Troponin I: <0.100 ng/mL (Normal: < 0.30)"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Report",
+      "text": "DEPARTMENT OF CHEMICAL PATHOLOGY Booking: [day -372] 05:18:17 Collection: [day -372] 05:18:24 Reporting: [day -372] 07:41:23 TROPONIN-I - Troponin I: <0.100 ng/mL (Normal: < 0.30)"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Report",
+      "text": "DEPARTMENT OF BIOCHEMISTRY Booking: [day -372] 04:53:34 Collection: [day -372] 04:54:34 Reporting: [day -372] 07:44:37 UREA (BLOOD) - Urea: 40 mg/dL (10 - 50)"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Report",
+      "text": "DEPARTMENT OF BIOCHEMISTRY Booking: [day -372] 04:53:34 Collection: [day -372] 04:54:34 Reporting: [day -372] 08:12:15 ELECTROLYTES - Sodium: 142 mmol/L (135 - 145) - Potassium: 2.6 mmol/L (3.5 - 5.5) \u2014 low - Chloride: 1"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Report",
+      "text": "DEPARTMENT OF BIOCHEMISTRY Booking: [day -372] 04:53:34 Collection: [day -372] 04:54:34 Reporting: [day -372] 08:12:15 ELECTROLYTES - Sodium: 142 mmol/L (135 - 145) - Potassium: 2.6 mmol/L (3.5 - 5.5) \u2014 low - Chloride: 1"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Report",
+      "text": "DEPARTMENT OF BIOCHEMISTRY Booking: [day -372] 04:53:34 Collection: [day -372] 04:54:34 Reporting: [day -372] 07:44:29 CREATININE (SERUM) - Creatinine Serum: 1.0 mg/dL Ref: Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8;"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Report",
+      "text": "DEPARTMENT OF BIOCHEMISTRY Booking: [day -372] 04:53:34 Collection: [day -372] 04:54:34 Reporting: [day -372] 08:01:20 ARTERIAL BLOOD GASES (ABGs) - ABG's Measure at: 37 C - pH: 7.452 (7.35-7.45) - pCO2: 31.0 mmHg (35-48"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Report",
+      "text": "X-RAY CHEST AP VIEW Findings/impression text: Bilateral lower lobe air space infiltrates likely infective in etiology. Adv clinical and laboratory correlation."
+     },
+     {
+      "offset_rel": 0,
+      "kind": "lab_panel",
+      "panel": "other lab",
+      "n_results": 5,
+      "abnormal": [
+       "pCO2 25.6 mmHg (L)",
+       "pO2 204.5 mmHg (H)",
+       "O2 Saturation 99.8 % (H)"
+      ]
+     },
+     {
+      "offset_rel": 0,
+      "kind": "lab_panel",
+      "panel": "other lab",
+      "n_results": 1,
+      "abnormal": []
+     },
+     {
+      "offset_rel": 0,
+      "kind": "lab_panel",
+      "panel": "other lab",
+      "n_results": 1,
+      "abnormal": []
+     },
+     {
+      "offset_rel": 0,
+      "kind": "lab_panel",
+      "panel": "electrolytes",
+      "n_results": 1,
+      "abnormal": []
+     },
+     {
+      "offset_rel": 0,
+      "kind": "lab_panel",
+      "panel": "coagulation",
+      "n_results": 1,
+      "abnormal": []
+     },
+     {
+      "offset_rel": 0,
+      "kind": "lab_panel",
+      "panel": "coagulation",
+      "n_results": 2,
+      "abnormal": []
+     },
+     {
+      "offset_rel": 0,
+      "kind": "lab_panel",
+      "panel": "other lab",
+      "n_results": 1,
+      "abnormal": []
+     },
+     {
+      "offset_rel": 0,
+      "kind": "lab_panel",
+      "panel": "RFT/renal",
+      "n_results": 1,
+      "abnormal": []
+     },
+     {
+      "offset_rel": 0,
+      "kind": "lab_panel",
+      "panel": "electrolytes",
+      "n_results": 4,
+      "abnormal": []
+     },
+     {
+      "offset_rel": 0,
+      "kind": "lab_panel",
+      "panel": "RFT/renal",
+      "n_results": 1,
+      "abnormal": []
+     },
+     {
+      "offset_rel": 0,
+      "kind": "lab_panel",
+      "panel": "other lab",
+      "n_results": 4,
+      "abnormal": [
+       "O2 Saturation 99.2 % (H)"
+      ]
+     },
+     {
+      "offset_rel": -1,
+      "kind": "lab_panel",
+      "panel": "other lab",
+      "n_results": 5,
+      "abnormal": []
+     }
+    ],
+    "n_notes": 10,
+    "n_panels": 12
+   },
+   "held_out_as_shipped": {
+    "problems_recorded_after": [
+     "Portal hypertension / portal vein abnormality",
+     "Seizure disorder",
+     "Sinusitis",
+     "Jaundice / biliary obstruction"
+    ],
+    "newly_established_problems": [
+     "Portal hypertension / portal vein abnormality",
+     "Seizure disorder",
+     "Sinusitis",
+     "Jaundice / biliary obstruction"
+    ],
+    "drugs_started_after": [
+     "Tazo 4.5g 8-hrly",
+     "Ezium 40mg",
+     "Risp 1 mg BD",
+     "Kempro 5 mg HS",
+     "Rivotril 0.5 mg 0 + 0 + 1",
+     "Tanzo 4.5 gm IV TDS",
+     "Onset 8 mg IV TDS",
+     "Bofalgan 1 gm IV SOS",
+     "Ezium 40 mg IV OD",
+     "Dormicum IV SOS",
+     "Lerace 500 mg IV BD",
+     "Atem 6 hourly",
+     "Clenil BD",
+     "Vita-6 1+0+0",
+     "Tanzo 4.5 IV 8 hrly",
+     "Onset 8 mg IV SOS",
+     "Ezium IV OD",
+     "Sofalgan IV SOS",
+     "Rivotril 0.5 ( 0+0+1",
+     "Lerace 500 ( 1+0+1",
+     "Kempro 5 mg 0+0+1",
+     "feed Glucerna 3 scoops 250 ml",
+     "Risp 1 mg 1+0+1",
+     "Atem 8 hrly",
+     "Clenil 6 hrly",
+     "Humulin R sliding scale",
+     "Ascard 75 ( 1+0+0",
+     "Nebil 2.5 ( 1+0+0",
+     "Extor OD",
+     "Hydralazine 25 ( 1+1+1",
+     "Vit K 10 ( 1+0+0"
+    ],
+    "newly_started_drugs": [
+     "Tazo 4.5g 8-hrly",
+     "Dormicum IV SOS",
+     "Sofalgan IV SOS",
+     "feed Glucerna 3 scoops 250 ml",
+     "Humulin R sliding scale",
+     "Vit K 10 ( 1+0+0"
+    ],
+    "abnormal_results_after": [
+     "Calcium 8.14 mg/dL (L) at +372d",
+     "CRP 30.7 mg/L (H) at +372d",
+     "Bicarbonate 19.0 mmol/L (L) at +372d",
+     "Creatinine Serum 0.668 mg/dL (L) at +372d",
+     "Hemoglobin 11.8 g/dl (L) at +372d",
+     "Neutrophils 80.6 % (H) at +372d",
+     "Lymphocytes 11.8 % (L) at +372d",
+     "Platelets 145.0 x 10^9/l (L) at +372d",
+     "pCO2 28.2 mmHg (L) at +372d",
+     "pO2 43.2 mmHg (L) at +372d",
+     "O2 Saturation 76.8 % (L) at +372d",
+     "Bicarbonate 16.4 mmol/L (L) at +372d",
+     "Base Excess -8.7 mmol/L  (L) at +372d",
+     "pCO2 29.1 mmHg (L) at +371d",
+     "pO2 174.2 mmHg (H) at +371d",
+     "O2 Saturation 99.5 % (H) at +371d",
+     "Bicarbonate 18.6 mmol/L (L) at +371d",
+     "Base Excess -5.9 mmol/L  (L) at +371d",
+     "pO2 19.0 mmHg (L) at +371d",
+     "O2 Saturation 26.5 % (L) at +371d",
+     "Hemoglobin 11.1 g/dl (L) at +371d",
+     "R.B.Cs 3.87 10^12/L (L) at +371d",
+     "Hematocrit 33.8 % (L) at +371d",
+     "Neutrophils 78.3 % (H) at +371d",
+     "Lymphocytes 14.0 % (L) at +371d",
+     "Creatinine Serum 0.632 mg/dL (L) at +371d",
+     "Bicarbonate 19.0 mmol/L (L) at +371d",
+     "pH 7.461  (H) at +370d",
+     "pCO2 26.7 mmHg (L) at +370d",
+     "pO2 181.6 mmHg (H) at +370d",
+     "O2 Saturation 99.6 % (H) at +370d",
+     "Bicarbonate 18.6 mmol/L (L) at +370d",
+     "Base Excess -5.3 mmol/L  (L) at +370d",
+     "pH 7.461  (H) at +370d",
+     "pCO2 26.7 mmHg (L) at +370d",
+     "pO2 181.6 mmHg (H) at +370d",
+     "O2 Saturation 99.6 % (H) at +370d",
+     "Bicarbonate 18.6 mmol/L (L) at +370d",
+     "Base Excess -5.3 mmol/L  (L) at +370d",
+     "Hemoglobin 11.2 g/dl (L) at +370d"
+    ],
+    "narrative_after": [
+     "[+372d Radiology] Document index: 1\r\nDocument type: radiology report\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nModality: MRI BRAIN WITH CONTRAST\r\nClinical history: History of seizures.\r\n\r\nTechnique: Multiplanar multisequential images obtained with contrast according to departmental protocol.\r\n\r\nFindings:\r\n- Brain parenchyma: No recent territorial ischemic infarction, intracranial hemorrhage, or mass lesion. Gray-white matter differentiation preserved.\r\n- Ventricles and CSF cisterns: Unremarkable.\r\n- Bilateral basal ganglia, thalami, brainstem, an",
+     "[+372d Lab report] Document index: 2\r\nDocument type: electrolytes\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day 0] 09:59:32\r\nCollection: [day 0] 09:59:56\r\nReporting: [day 0] 11:36:35\r\n\r\nMAGNESIUM:\r\nMagnesium: 2.01 mg/dl (1.9 - 2.5)",
+     "[+372d Lab report] Document index: 3\r\nDocument type: electrolytes\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day 0] 09:59:32\r\nCollection: [day 0] 09:59:56\r\nReporting: [day 0] 11:36:35\r\n\r\nCALCIUM (SERUM):\r\nCalcium: 8.14 mg/dL (8.6 - 10.3) [L]",
+     "[+372d Lab report] Document index: 4\r\nDocument type: other lab\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day 0] 09:59:32\r\nCollection: [day 0] 09:59:56\r\nReporting: [day 0] 11:36:35\r\n\r\nCRP (C-REACTIVE PROTEIN):\r\nCRP: 30.7 mg/L (< 7.90) [H]",
+     "[+372d Lab report] Document index: 5\r\nDocument type: electrolytes\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day 0] 05:21:57\r\nCollection: [day 0] 05:24:48\r\nReporting: [day 0] 07:31:27\r\n\r\nELECTROLYTES:\r\nSodium: 136 mmol/L (135 - 145)\r\nPotassium: 3.7 mmol/L (3.5 - 5.5)\r\nChloride: 101 mmol/L (96 - 106)\r\nBicarbonate: 19 mmol/L (20.0 - 29.0) [L]",
+     "[+372d Lab report] Document index: 6\r\nDocument type: RFT/renal\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day 0] 05:21:57\r\nCollection: [day 0] 05:24:48\r\nReporting: [day 0] 07:31:27\r\n\r\nCREATININE (SERUM):\r\nCreatinine Serum: 0.668 mg/dL (Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4) [L]",
+     "[+372d Lab report] Document index: 7\r\nDocument type: CBC/hematology\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Hematology\r\nBooking: [day 0] 05:21:57\r\nCollection: [day 0] 05:24:48\r\nReporting: [day 0] 10:32:03\r\n\r\nCBC:\r\nHemoglobin: 11.8 g/dl (12 - 16.5) [L]\r\nR.B.Cs: 4.11 10^12/L (4.0 - 5.2)\r\nHematocrit: 35.6 % (35.0 - 50.0)\r\nM.C.V: 86.6 fl (76 - 96)\r\nM.C.H: 28.7 pg (24 - 29)\r\nM.C.H.C: 33.1 g/dl (32 - 36)\r\nRDW-CV: 15.5 % (11.0 - 16.0)\r\nTotal Leucocytes Count/TLC: 6.97 x 10^3/l (4 - 10)\r\nNeutrophils: 80.6 % (40 - 75) [H]\r\nLymphocytes: 11.8",
+     "[+372d Lab report] Document index: 8\r\nDocument type: other lab\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day 0] 05:21:57\r\nCollection: [day 0] 05:24:48\r\nReporting: [day 0] 06:56:35\r\n\r\nARTERIAL BLOOD GASES (ABGs):\r\nABG's Measure at: 37 C\r\npH: 7.382 (7.35-7.45)\r\npCO2: 28.2 mmHg (35-48) [L]\r\npO2: 43.2 mmHg (83-108) [L]\r\nO2 Saturation: 76.8 % (94-98) [L]\r\nBicarbonate: 16.4 mmol/L (19 - 24) [L]\r\nBase Excess: -8.7 mmol/L (-2 - 3) [L]",
+     "[+372d Lab report] Document index: 9\r\nDocument type: RFT/renal\r\nService date: [day 0]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day 0] 05:21:57\r\nCollection: [day 0] 05:24:48\r\nReporting: [day 0] 07:31:27\r\n\r\nUREA (BLOOD):\r\nUrea: 18.8 mg/dL (10 - 50)",
+     "[+371d Lab report] Document index: 10\r\nDocument type: other lab\r\nService date: [day -1]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day -1] 04:49:11\r\nCollection: [day -1] 04:51:12\r\nReporting: [day -1] 05:25:05\r\n\r\nARTERIAL BLOOD GASES (ABGs):\r\nABG's Measure at: 37 C\r\npH: 7.422 (7.35-7.45)\r\npCO2: 29.1 mmHg (35-48) [L]\r\npO2: 174.2 mmHg (83-108) [H]\r\nO2 Saturation: 99.5 % (94-98) [H]\r\nBicarbonate: 18.6 mmol/L (19 - 24) [L]\r\nBase Excess: -5.9 mmol/L (-2 - 3) [L]",
+     "[+371d Lab report] Document index: 11\r\nDocument type: other lab\r\nService date: [day -1]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Biochemistry\r\nBooking: [day -1] 19:05:26\r\nCollection: [day -1] 19:05:30\r\nReporting: [day -1] 22:31:33\r\n\r\nARTERIAL BLOOD GASES (ABGs):\r\nABG's Measure at: 37 C\r\npH: 7.35 (7.35-7.45)\r\npCO2: 42 mmHg (35-48)\r\npO2: 19 mmHg (83-108) [L]\r\nO2 Saturation: 26.5 % (94-98) [L]\r\nBicarbonate: 23.5 mmol/L (19 - 24)\r\nBase Excess: -2.0 mmol/L (-2 - 3)\r\n\r\nRemarks: Whole Blood / Venous Sample. Importantly, sufficient variability between arterial an",
+     "[+371d Lab report] Document index: 12\r\nDocument type: CBC/hematology\r\nService date: [day -1]\r\nAge on report: 46Y    Sex: M\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nDepartment of Hematology\r\nBooking: [day -1] 04:49:11\r\nCollection: [day -1] 04:51:12\r\nReporting: [day -1] 11:05:15\r\n\r\nCBC & ESR:\r\nHemoglobin: 11.1 g/dl (12 - 16.5) [L]\r\nR.B.Cs: 3.87 10^12/L (4.0-5.2) [L]\r\nHematocrit: 33.8 % (35.0-50.0) [L]\r\nM.C.V: 87.3 fl (76 - 96)\r\nM.C.H: 28.7 pg (24 - 29)\r\nM.C.H.C: 32.8 g/dl (32 - 36)\r\nRDW-CV: 15.6 % (11.0-16.0)\r\nTotal Leucocytes Count/TLC: 7.56 x 10^3/l (4 - 10)\r\nNeutrophils: 78.3 % (40-75) [H]\r\nLympho"
+    ]
+   },
+   "outcome_window_chart_days": [
+    -372,
+    1
+   ],
+   "outcome_window_items": [
+    {
+     "offset": -371,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -371,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -371,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 15,
+     "abnormal": []
+    },
+    {
+     "offset": -371,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 7,
+     "abnormal": []
+    },
+    {
+     "offset": -371,
+     "kind": "lab_panel",
+     "panel": "Laboratory Panel",
+     "n_results": 24,
+     "abnormal": []
+    },
+    {
+     "offset": -371,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 24,
+     "abnormal": []
+    },
+    {
+     "offset": -371,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Biochemistry Booking: [day -371] 21:03:06 Collection: [day -371] 21:03:14 Reporting: [day -371] 21:44:33 Potassium (Serum): - Potassium: 4.07 mmol/L (3.5-5.5)"
+    },
+    {
+     "offset": -371,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Biochemistry Booking: [day -371] 05:45:21 Collection: [day -371] 05:47:51 Reporting: [day -371] 07:53:25 UREA (BLOOD): - Urea: 27 mg/dL (10-50)"
+    },
+    {
+     "offset": -371,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Hematology Panel: CBC & ESR Booking: [day -371] 05:45:21 Collection: [day -371] 05:47:51 Reporting: [day -370] 11:00:27 - Hemoglobin: 10.4 g/dl (12-16.5) - R.B.Cs: 3.49 10^12/L (4.0-5.2) - Hematocrit: 29.4 % (35.0-50.0) - M.C.V: 84.2 fl (76-96) - M"
+    },
+    {
+     "offset": -371,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Biochemistry Panel: Arterial Blood Gases (ABGs) Booking: [day -371] 05:45:21 Collection: [day -371] 05:47:51 Reporting: [day -371] 06:41:32 - ABG's Measure at: 37 C - pH: 7.486 (7.35-7.45) - pCO2: 26.6 mmHg (35-48) - pO2: 194.4 mmHg (83-108) - O2 S"
+    },
+    {
+     "offset": -280,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 15,
+     "abnormal": []
+    },
+    {
+     "offset": -280,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -280,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 2,
+     "abnormal": []
+    },
+    {
+     "offset": -280,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 4,
+     "abnormal": []
+    },
+    {
+     "offset": -280,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 7,
+     "abnormal": []
+    },
+    {
+     "offset": -280,
+     "kind": "lab_panel",
+     "panel": "Laboratory Panel",
+     "n_results": 29,
+     "abnormal": []
+    },
+    {
+     "offset": -280,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 29,
+     "abnormal": []
+    },
+    {
+     "offset": -280,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Hematology Panel: CBC & ESR Booking: [day -280] 13:10:30 Collection: [day -280] 13:10:51 Reporting: [day -280] 13:34:49 - Hemoglobin: 11.0 g/dl (12-16.5) - R.B.Cs: 4.21 10^12/L (4.0-5.2) - Hematocrit: 34.1 % (35.0-50.0) - M.C.V: 81.0 fl (76-96) - M"
+    },
+    {
+     "offset": -280,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Biochemistry Booking: [day -280] 13:10:30 Collection: [day -280] 13:10:51 Reporting: [day -280] 14:27:28 AMYLASE (SERUM): - Amylase: 158 U/L (28-100) \u2014 above reference range"
+    },
+    {
+     "offset": -280,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Biochemistry Panel: Electrolytes Booking: [day -280] 13:10:30 Collection: [day -280] 13:10:51 Reporting: [day -280] 14:28:58 - Sodium: 141 mmol/L (135-145) - Potassium: 4.2 mmol/L (3.5-5.5) - Chloride: 104 mmol/L (96-106) - Bicarbonate: 18.7 mmol/L"
+    },
+    {
+     "offset": -280,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Biochemistry Panel: LFT (Liver Function Test) Booking: [day -280] 13:10:30 Collection: [day -280] 13:10:51 Reporting: [day -280] 14:27:20 - Bilirubin Total: 0.2 mg/dL (Adult 0.1-1.0; pediatric day-of-life ranges also listed) - Bilirubin Direct: 0.1"
+    },
+    {
+     "offset": -230,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 3,
+     "abnormal": []
+    },
+    {
+     "offset": -230,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 7,
+     "abnormal": []
+    },
+    {
+     "offset": -230,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 4,
+     "abnormal": []
+    },
+    {
+     "offset": -230,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 2,
+     "abnormal": []
+    },
+    {
+     "offset": -230,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 2,
+     "abnormal": []
+    },
+    {
+     "offset": -230,
+     "kind": "lab_panel",
+     "panel": "Laboratory Panel",
+     "n_results": 18,
+     "abnormal": []
+    },
+    {
+     "offset": -230,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 18,
+     "abnormal": []
+    },
+    {
+     "offset": -230,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Biochemistry Booking: [day -230] 14:29:36 Collection: [day -230] 14:30:02 Reporting: [day -230] 16:07:48 HBA1C (Glycosylated HB): - HBA1C: 11.46 % - Normal ranges: Non Diabetic 4.0-6.0; Pre Diabetic 6.5-7.0; Diabetic 7.0-8.0 Notes (printed): 1. Per"
+    },
+    {
+     "offset": -230,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Biochemistry Panel: LFT (Liver Function Test) Booking: [day -230] 14:29:36 Collection: [day -230] 14:30:02 Reporting: [day -230] 16:52:24 - Bilirubin Total: 0.3 mg/dL (Adult 0.1-1.0; pediatric day-of-life ranges also listed) - Bilirubin Direct: 0.2"
+    },
+    {
+     "offset": -230,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Biochemistry Panel: Electrolytes Booking: [day -230] 14:29:36 Collection: [day -230] 14:30:02 Reporting: [day -230] 16:07:22 - Sodium: 136.8 mmol/L (135-145) - Potassium: 3.68 mmol/L (3.5-5.5) - Chloride: 96.5 mmol/L (96-106) - Bicarbonate: 19.1 mm"
+    },
+    {
+     "offset": -92,
+     "kind": "medication",
+     "drug": "Form note: Please write all medication and IV fluid orders on the separate sheet designed for this purpose"
+    },
+    {
+     "offset": -92,
+     "kind": "medication",
+     "drug": "Time: 6:00 pm"
+    },
+    {
+     "offset": -92,
+     "kind": "medication",
+     "drug": "Fresh order:"
+    },
+    {
+     "offset": -92,
+     "kind": "medication",
+     "drug": "T. Risp 1 mg 1/2 (1/2 + 1/2) half BD"
+    },
+    {
+     "offset": -92,
+     "kind": "medication",
+     "drug": "T. Kempro 5 mg 1 x HS"
+    },
+    {
+     "offset": -92,
+     "kind": "medication",
+     "drug": "T. Rivotril 0.5 mg (0 + 0 + 1)"
+    },
+    {
+     "offset": -92,
+     "kind": "medication",
+     "drug": "Role notation after signature: (ICU)"
+    },
+    {
+     "offset": -92,
+     "kind": "medication",
+     "drug": "RN signature-time column blank"
+    },
+    {
+     "offset": -92,
+     "kind": "note",
+     "note_type": "prescription/medication",
+     "text": "Form note: Please write all medication and IV fluid orders on the separate sheet designed for this purpose Time: 6:00 pm Fresh order: - T. Risp 1 mg 1/2 (1/2 + 1/2) half BD - T. Kempro 5 mg 1 x HS - T. Rivotril 0.5 mg (0 + 0 + 1) Role notation after signature:"
+    },
+    {
+     "offset": -33,
+     "kind": "lab_panel",
+     "panel": "coagulation",
+     "n_results": 3,
+     "abnormal": []
+    },
+    {
+     "offset": -33,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -33,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 3,
+     "abnormal": []
+    },
+    {
+     "offset": -33,
+     "kind": "lab_panel",
+     "panel": "Laboratory Panel",
+     "n_results": 7,
+     "abnormal": []
+    },
+    {
+     "offset": -33,
+     "kind": "lab_panel",
+     "panel": "coagulation",
+     "n_results": 3,
+     "abnormal": []
+    },
+    {
+     "offset": -33,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 4,
+     "abnormal": []
+    },
+    {
+     "offset": -33,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF HEMATOLOGY Booking Date & Time: [day -33] 12:23:23 Collection Date & Time: [day -33] 12:26:28 Reporting Date & Time: [day -33] 13:04:03 PROTHROMBIN TIME (PT/INR) Prothrombin Time: 11.9 Sec (10 - 15) INR: 0.99 (0.9 - 1.5) Control: 12.0 Sec"
+    },
+    {
+     "offset": -33,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Virology Booking: [day -33] 12:23:23 Collection: [day -33] 12:26:28 Reporting: [day -33] 13:40:16 HbsAg (Australian Antigen): - HbsAg: 0.412 (Cut Off 1.00) \u2014 Non-Reactive"
+    },
+    {
+     "offset": -33,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department: Biochemistry Booking: [day -33] 12:23:23 Collection: [day -33] 12:26:28 Reporting: [day -33] 13:36:38 HBA1C (Glycosylated HB): - HBA1C: 8.32 % - Normal ranges: Non Diabetic 4.0-6.0; Pre Diabetic 6.5-7.0; Diabetic 7.0-8.0 Notes (printed): 1. Per ADA"
+    },
+    {
+     "offset": -33,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "ULTRASOUND ABDOMEN LIVER: Normal in size measures 13.4 cm, shows slight increased echo pattern with regular margins. No focal mass seen in liver. Intra hepatic biliary duct are not dilated. Portal vein is normal. It measures 0.9 cm. GALL BLADDER: Partially con"
+    },
+    {
+     "offset": -33,
+     "kind": "note",
+     "note_type": "Report interpretation",
+     "text": "No evidence of calculus, focal mass or hydronephrosis seen. No evidence of calculus or hydronephrosis seen. No evidence of para-aortic lymphadenopathy."
+    },
+    {
+     "offset": -33,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "ULTRASOUND ABDOMEN \u2014 impression/summary page (same timestamp as index 105). - Left renal cyst. - Rest of abdomen appear unremarkable."
+    },
+    {
+     "offset": -33,
+     "kind": "problem",
+     "condition": "Portal hypertension / portal vein abnormality"
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 4,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 14,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 2,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 2,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 5,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 4,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "CBC/hematology",
+     "n_results": 15,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "coagulation",
+     "n_results": 3,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "LFT",
+     "n_results": 7,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "coagulation",
+     "n_results": 4,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "Laboratory Panel",
+     "n_results": 66,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 28,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 5,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 4,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "CBC/hematology",
+     "n_results": 15,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "coagulation",
+     "n_results": 7,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "lab_panel",
+     "panel": "LFT",
+     "n_results": 7,
+     "abnormal": []
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Left margin: Aspiration Pneumonia; Admit in ICU"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Clinical notes / orders (handwritten):"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "c/o Dyspnea \u2014 SOB"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Chest (R) crepts"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "1. CBC, U/E/E, LFTs, BSL"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "2. CXR, ECG, U/S whole Abd"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "3. Blood culture + Tracheal culture"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Treatment:"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Inj N/S 500cc + Neurobion"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Inj. Tazo 4.5g 8-hrly"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Inj. Ezium 40mg (frequency partially illegible)"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Additional inj. line partially illegible on image"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Apply CPAP (timing noted as 8am / 8pm style schedule; suffix partially unclear)"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Form note: Please write all medication and IV fluid orders on the separate sheet designed for this purpose"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Time: 3:00 pm"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Header: Fresh Order"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Orders:"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Keep on CPAP @ 8 cmH2O"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Prop-up"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Inj N/S IV @ 40 ml/hr + Neurobion (1 ampule)"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Inj Tanzo 4.5 gm IV x TDS"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Inj Onset 8 mg IV x TDS"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Inj Bofalgan 1 gm IV x SOS"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Inj Ezium 40 mg IV x OD"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Inj Dormicum IV x SOS"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Inj Lerace 500 mg IV x BD"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Nebs c\u0304 Atem x 6 hourly"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Nebs c\u0304 Clenil x BD"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Get urgent CT brain done"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Vital monitoring"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "RBS x TDS"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Keep on S/C insulin sliding scale: 150(2), 200(4), 250(6), 300(8), 350(10), 400"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Tab Vita-6 1+0+0"
+    },
+    {
+     "offset": -3,
+     "kind": "medication",
+     "drug": "Notation after signature area: (J.W)"
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "- NT proBNP values > 125 pg/mL: May indicate heart failure. - Cutoff 125 pg/mL: negative predictive value 96.7%; positive predictive value 80.68."
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "Report interpretation",
+     "text": "CHEMICAL PATHOLOGY Booking Date & Time: [day -3] 22:08:51 Collection Date & Time: [day -3] 22:09:02 Reporting Date & Time: [day -3] 22:47:04 ProBNP: 70.1 pg/mL (Normal: < 125) Interpretive notes on report: - NT proBNP values < 125 pg/mL: Exclude cardiac dysfun"
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF BIOCHEMISTRY Booking Date & Time: [day -3] 20:53:42 Collection Date & Time: [day -3] 20:53:54 Reporting Date & Time: [day -3] 22:50:40 CRP (C- REACTIVE PROTEIN) CRP: 2.92 mg/L (< 7.90)"
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF MICROBIOLOGY Booking Date & Time: [day -3] 18:55:36 Collection Date & Time: [day -3] 18:55:49 Reporting Date & Time: [day +1] 16:08:51 CULTURE & SENSITIVITY (TRACHEAL SECRETION) Specimen: Tracheal Secretion Gram Stain: Gram negative rods Organism"
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF BIOCHEMISTRY Booking Date & Time: [day -3] 18:28:24 Collection Date & Time: [day -3] 18:28:40 Reporting Date & Time: [day -3] 20:08:48 CREATININE (SERUM) Creatinine Serum: 0.561 mg/dL Normal Ranges: Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8;"
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF BIOCHEMISTRY Booking Date & Time: [day -3] 18:26:24 Collection Date & Time: [day -3] 18:26:40 Reporting Date & Time: [day -3] 20:08:48 CREATININE (SERUM) Creatinine Serum: 0.561 mg/dL Normal Ranges: Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8;"
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF BIOCHEMISTRY ELECTROLYTES Booking Date & Time: [day -3] 18:26:24 Collection Date & Time: [day -3] 18:26:40 Reporting Date & Time: [day -3] 20:08:48 Sodium: 139.5 mmol/L (135 - 145) Potassium: 4.25 mmol/L (3.5 - 5.5) Chloride: 101.6 mmol/L (96 - 1"
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "HEMATOLOGY CBC & ESR Booking Date & Time: [day -3] 18:26:24 Collection Date & Time: [day -3] 18:26:40 Reporting Date & Time: [day -3] 18:55:27 Hemoglobin: 12.0 g/dl (12 - 16.5) R.B.Cs: 4.18 10^12/L (4.0-5.2) Hematocrit: 36.4 % (35.0-50.0) M.C.V: 87.1 fl (76 - "
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF HEMATOLOGY Booking Date & Time: [day -3] 18:26:24 Collection Date & Time: [day -3] 18:26:40 Reporting Date & Time: [day -3] 18:58:47 PROTHROMBIN TIME (PT/INR) Prothrombin Time: 11.6 Sec (10 - 15) INR: 0.96 (0.9 - 1.5) Control: 12.0 Sec"
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF CHEMICAL PATHOLOGY Booking Date & Time: [day -3] 18:26:24 Collection Date & Time: [day -3] 18:26:40 Reporting Date & Time: [day -3] 19:27:45 TROPONIN-I Troponin I: <0.100 ng/mL (< 0.30)"
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF BIOCHEMISTRY LFT (LIVER FUNCTION TEST) Booking Date & Time: [day -3] 18:26:24 Collection Date & Time: [day -3] 18:26:40 Reporting Date & Time: [day -3] 20:08:48 Bilirubin Total: 0.3 mg/dL (Adult 0.1-1.0; Children 0-1 Days 2.0-6.0; 1-2 Days 6.0-10"
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF HEMATOLOGY Location: Intensive Care Unit (ICU) -- 007 Booking Date & Time: [day -3] 18:26:24 Collection Date & Time: [day -3] 18:26:40 Reporting Date & Time: [day -3] 18:58:47 PROTHROMBIN TIME (PT/INR) Prothrombin Time: 11.6 Sec (10 - 15) INR: 0."
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "CT BRAIN PLAIN HISTORY: - K/C of HTN, DM and IHD - H/O alcoholic abuse - C/O altered level of consciousness TECHNIQUE: Multiple axial images were acquired without contrast. - Normal gray-white matter differentiation. - Basal ganglia and thalami appear normal. "
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "Report interpretation",
+     "text": "FINDINGS: - No evidence of recent gross infarct, intracranial bleed or mass effect. IMPRESSION: - No evidence of recent hemorrhage, territorial infarct or space occupying lesion seen."
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "ULTRASOUND ABDOMEN (PORTABLE) LIVER: Normal in size shows uniform echotexture & regular outlines. No focal mass is seen. IHVs & ducts are not dilated. P.V is 1.0 cm & CBD not dilated. G. BLADDER: Partially contracted, however no focal mass or calculus is seen."
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "PATIENT TRIAGE / ER ASSESSMENT Time: 6:04 pm Complaint: Pt came with c/o ALOC since 11 am, 1 episode of vomiting. History: k/c of DM, HTN, IHD (2024 - PCI). Alcohol addict (24 years). H/o alcohol abuse last night & today morning. On Examination: - Chest: B/L c"
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "prescription/medication",
+     "text": "PHYSICIAN ORDERS (Page 2 of 2) Left margin: Aspiration Pneumonia; Admit in ICU Clinical notes / orders (handwritten): - c/o Dyspnea \u2014 SOB - Chest (R) crepts Plan: 1. CBC, U/E/E, LFTs, BSL 2. CXR, ECG, U/S whole Abd 3. Blood culture + Tracheal culture Treatment"
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "PART 1: TO BE FILLED BY DOCTOR Time: 8:00 pm Age field on form: blank Presenting Complaints: - (initial line crossed out / illegible) - Drowsiness (01 day) - H/o Alcohol abuse in morning Known Case Of: DM, HTN, IHD (PCI in 2024) History of Presenting Complaint"
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Form: PATIENT PROGRESS Time: 8:30 pm Event Note: - Patient had 1 episode of fits. - Resolved by given Inj Dormicum. - [Neurophysician] taken on board."
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Form: PATIENT PROGRESS (Page 1 of 2) Time: 8:30 pm Review note Diagnoses / problems (triangle): - DM, HTN, H/O IHD (PCI in 2024) - Seizure - Aspiration Pneumonia G/C: Not satisfactory Currently: Hypertensive BP 160/112; Tachycardia HR 151; 1 episode of fits. V"
+    },
+    {
+     "offset": -3,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Title: Neuro-Physician Note Time: 8:30 AM Clinical status: - Pt seen and examined - 1 episode of seizure in ICU - No H/O previous seizure / stroke - K/C DM, alcoholic, past e- - C/O ALOC since morning O/E: - GCS: M4 V1 E3 -> 9/15 - Pupils: PERL - (R) gaze pref"
+    },
+    {
+     "offset": -3,
+     "kind": "problem",
+     "condition": "Seizure disorder"
+    },
+    {
+     "offset": -3,
+     "kind": "problem",
+     "condition": "Sinusitis"
+    },
+    {
+     "offset": -3,
+     "kind": "problem",
+     "condition": "Jaundice / biliary obstruction"
+    },
+    {
+     "offset": -2,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 7,
+     "abnormal": [
+      "pH 7.461  (H)",
+      "pCO2 26.7 mmHg (L)",
+      "pO2 181.6 mmHg (H)",
+      "O2 Saturation 99.6 % (H)",
+      "Bicarbonate 18.6 mmol/L (L)",
+      "Base Excess -5.3 mmol/L  (L)"
+     ]
+    },
+    {
+     "offset": -2,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -2,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 7,
+     "abnormal": [
+      "pH 7.461  (H)",
+      "pCO2 26.7 mmHg (L)",
+      "pO2 181.6 mmHg (H)",
+      "O2 Saturation 99.6 % (H)",
+      "Bicarbonate 18.6 mmol/L (L)",
+      "Base Excess -5.3 mmol/L  (L)"
+     ]
+    },
+    {
+     "offset": -2,
+     "kind": "lab_panel",
+     "panel": "CBC/hematology",
+     "n_results": 15,
+     "abnormal": [
+      "Hemoglobin 11.2 g/dl (L)",
+      "R.B.Cs 3.86 10^12/L (L)",
+      "Hematocrit 33.7 % (L)",
+      "Neutrophils 88.0 % (H)",
+      "Lymphocytes 8.4 % (L)",
+      "Eosinophils 0.1 % (L)",
+      "ESR 20.0 mm/Hour (H)"
+     ]
+    },
+    {
+     "offset": -2,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 2,
+     "abnormal": []
+    },
+    {
+     "offset": -2,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 4,
+     "abnormal": []
+    },
+    {
+     "offset": -2,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -2,
+     "kind": "lab_panel",
+     "panel": "Laboratory Panel",
+     "n_results": 37,
+     "abnormal": [
+      "pH Arterial 7.461  (H)",
+      "pCO2 Arterial 26.7 mmHg (L)",
+      "pO2 Arterial 181.6 mmHg (H)",
+      "Oxygen saturation 99.6 % (H)",
+      "Bicarbonate 18.6 mmol/L (L)",
+      "Base excess -5.3 mmol/L  (L)",
+      "pH Arterial 7.461  (H)",
+      "pCO2 Arterial 26.7 mmHg (L)"
+     ]
+    },
+    {
+     "offset": -2,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 15,
+     "abnormal": [
+      "Base Excess -5.3 mmol/L  (L)",
+      "Bicarbonate 18.6 mmol/L (L)",
+      "O2 Saturation 99.6 % (H)",
+      "pCO2 26.7 mmHg (L)",
+      "pH 7.461  (H)",
+      "pO2 181.6 mmHg (H)",
+      "Base Excess -5.3 mmol/L  (L)",
+      "Bicarbonate 18.6 mmol/L (L)"
+     ]
+    },
+    {
+     "offset": -2,
+     "kind": "lab_panel",
+     "panel": "CBC/hematology",
+     "n_results": 15,
+     "abnormal": [
+      "ESR 20 mm/Hour (H)",
+      "Eosinophils 0.1 % (L)",
+      "Hematocrit 33.7 % (L)",
+      "Hemoglobin 11.2 g/dl (L)",
+      "Lymphocytes 8.4 % (L)",
+      "Neutrophils 88.0 % (H)",
+      "R.B.Cs 3.86 10^12/L (L)"
+     ]
+    },
+    {
+     "offset": -2,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 3,
+     "abnormal": []
+    },
+    {
+     "offset": -2,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 4,
+     "abnormal": []
+    },
+    {
+     "offset": -2,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Biochemistry Booking: [day -2] 18:16:48 Collection: [day -2] 18:17:07 Reporting: [day -2] 18:26:00 ARTERIAL BLOOD GASES (ABGs): ABG's Measure at: 37 C pH: 7.461 (7.35-7.45) [H] pCO2: 26.7 mmHg (35-48) [L] pO2: 181.6 mmHg (83-108) [H] O2 Saturatio"
+    },
+    {
+     "offset": -2,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Biochemistry Booking: [day -2] 14:30:44 Collection: [day -2] 14:30:55 Reporting: [day -2] 15:12:36 CPK (CREATINE PHOSPHOKINASE): CPK: 164 U/L (Men 38-174; Women 26-140)"
+    },
+    {
+     "offset": -2,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Hematology Booking: [day -2] 04:32:48 Collection: [day -2] 04:33:45 Reporting: [day -2] 10:33:01 CBC & ESR: Hemoglobin: 11.2 g/dl (12 - 16.5) [L] R.B.Cs: 3.86 10^12/L (4.0-5.2) [L] Hematocrit: 33.7 % (35.0-50.0) [L] M.C.V: 87.3 fl (76 - 96) M.C.H"
+    },
+    {
+     "offset": -2,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF BIOCHEMISTRY Booking Date & Time: [day -2] 04:32:48 Collection Date & Time: [day -2] 04:33:45 Reporting Date & Time: [day -2] 06:26:43 CREATININE (SERUM) Creatinine Serum: 0.662 mg/dL Normal Ranges: Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8;"
+    },
+    {
+     "offset": -2,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "DEPARTMENT OF BIOCHEMISTRY ELECTROLYTES Booking Date & Time: [day -2] 04:32:48 Collection Date & Time: [day -2] 04:33:45 Reporting Date & Time: [day -2] 06:26:43 Sodium: 136 mmol/L (135 - 145) Potassium: 4.0 mmol/L (3.5 - 5.5) Chloride: 103 mmol/L (96 - 106) B"
+    },
+    {
+     "offset": -2,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Echo report \u2014 VALVES / SUMMARY section (header facility/patient fields redacted on image). VALVES: - Aortic Valve: Thickened with normal mobility. - Mitral Valve: Thickened with normal mobility. Mild regurgitation. - Pulmonic Valve: Normal in thickness and mob"
+    },
+    {
+     "offset": -2,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "STRUCTURAL INTERPRETATION (same study timestamp as index 101). Left Ventricle systolic function: Size and wall thickness is normal. Left ventricular global systolic function is preserved. Visually estimated ejection fraction is 50%. Left ventricle diastolic fu"
+    },
+    {
+     "offset": -2,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Form: ICU ROUTINE DOCUMENT (Page 1 of 2) Time: 2:30 am Date of Admission: [day -3] ICU Day: 01 Intubation / Extubation / Post-op day: \u2014 Header vitals box (BP, R/R, Pulse, Sat, Temp, Allergies, ABGs): blank Presenting complain: - 46-year-old alcoholic male - k/"
+    },
+    {
+     "offset": -2,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Form: PATIENT PROGRESS Time: 5:00 pm Evening follow-up Problems (triangle): - k/c DM, HTN, IHD (H/o PCI in 2024) - Seizures - Aspiration Pneumonia G/C: Not satisfactory Currently: hemodynamically & vitally stable (GCS field blank) Vitals: - HR: 87 - BP: 156/11"
+    },
+    {
+     "offset": -1,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 7,
+     "abnormal": [
+      "pCO2 29.1 mmHg (L)",
+      "pO2 174.2 mmHg (H)",
+      "O2 Saturation 99.5 % (H)",
+      "Bicarbonate 18.6 mmol/L (L)",
+      "Base Excess -5.9 mmol/L  (L)"
+     ]
+    },
+    {
+     "offset": -1,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 7,
+     "abnormal": [
+      "pO2 19.0 mmHg (L)",
+      "O2 Saturation 26.5 % (L)"
+     ]
+    },
+    {
+     "offset": -1,
+     "kind": "lab_panel",
+     "panel": "CBC/hematology",
+     "n_results": 15,
+     "abnormal": [
+      "Hemoglobin 11.1 g/dl (L)",
+      "R.B.Cs 3.87 10^12/L (L)",
+      "Hematocrit 33.8 % (L)",
+      "Neutrophils 78.3 % (H)",
+      "Lymphocytes 14.0 % (L)"
+     ]
+    },
+    {
+     "offset": -1,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 1,
+     "abnormal": [
+      "Creatinine Serum 0.632 mg/dL (L)"
+     ]
+    },
+    {
+     "offset": -1,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 4,
+     "abnormal": [
+      "Bicarbonate 19.0 mmol/L (L)"
+     ]
+    },
+    {
+     "offset": -1,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": -1,
+     "kind": "lab_panel",
+     "panel": "urinalysis",
+     "n_results": 3,
+     "abnormal": []
+    },
+    {
+     "offset": -1,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 11,
+     "abnormal": []
+    },
+    {
+     "offset": -1,
+     "kind": "lab_panel",
+     "panel": "Laboratory Panel",
+     "n_results": 49,
+     "abnormal": [
+      "pCO2 Arterial 29.1 mmHg (L)",
+      "pO2 Arterial 174.2 mmHg (H)",
+      "Oxygen saturation 99.5 % (H)",
+      "Bicarbonate 18.6 mmol/L (L)",
+      "Base excess -5.9 mmol/L  (L)",
+      "pO2 Arterial 19 mmHg (L)",
+      "Oxygen saturation 26.5 % (L)",
+      "Hemoglobin 11.1 g/dl (L)"
+     ]
+    },
+    {
+     "offset": -1,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 25,
+     "abnormal": [
+      "Base Excess -5.9 mmol/L  (L)",
+      "Bicarbonate 18.6 mmol/L (L)",
+      "O2 Saturation 99.5 % (H)",
+      "pCO2 29.1 mmHg (L)",
+      "pO2 174.2 mmHg (H)",
+      "O2 Saturation 26.5 % (L)",
+      "pO2 19 mmHg (L)"
+     ]
+    },
+    {
+     "offset": -1,
+     "kind": "lab_panel",
+     "panel": "CBC/hematology",
+     "n_results": 15,
+     "abnormal": [
+      "Hematocrit 33.8 % (L)",
+      "Hemoglobin 11.1 g/dl (L)",
+      "Lymphocytes 14.0 % (L)",
+      "Neutrophils 78.3 % (H)",
+      "R.B.Cs 3.87 10^12/L (L)"
+     ]
+    },
+    {
+     "offset": -1,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 2,
+     "abnormal": [
+      "Creatinine Serum 0.632 mg/dL (L)"
+     ]
+    },
+    {
+     "offset": -1,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 4,
+     "abnormal": [
+      "Bicarbonate 19 mmol/L (L)"
+     ]
+    },
+    {
+     "offset": -1,
+     "kind": "lab_panel",
+     "panel": "urinalysis",
+     "n_results": 3,
+     "abnormal": []
+    },
+    {
+     "offset": -1,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Biochemistry Booking: [day -1] 04:49:11 Collection: [day -1] 04:51:12 Reporting: [day -1] 05:25:05 ARTERIAL BLOOD GASES (ABGs): ABG's Measure at: 37 C pH: 7.422 (7.35-7.45) pCO2: 29.1 mmHg (35-48) [L] pO2: 174.2 mmHg (83-108) [H] O2 Saturation: 9"
+    },
+    {
+     "offset": -1,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Biochemistry Booking: [day -1] 19:05:26 Collection: [day -1] 19:05:30 Reporting: [day -1] 22:31:33 ARTERIAL BLOOD GASES (ABGs): ABG's Measure at: 37 C pH: 7.35 (7.35-7.45) pCO2: 42 mmHg (35-48) pO2: 19 mmHg (83-108) [L] O2 Saturation: 26.5 % (94-"
+    },
+    {
+     "offset": -1,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Hematology Booking: [day -1] 04:49:11 Collection: [day -1] 04:51:12 Reporting: [day -1] 11:05:15 CBC & ESR: Hemoglobin: 11.1 g/dl (12 - 16.5) [L] R.B.Cs: 3.87 10^12/L (4.0-5.2) [L] Hematocrit: 33.8 % (35.0-50.0) [L] M.C.V: 87.3 fl (76 - 96) M.C.H"
+    },
+    {
+     "offset": -1,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Microbiology Booking: [day -1] 03:11:49 Collection: [day -1] 03:11:59 Reporting: [day +1] 16:30:51 Status stamp: APPROVED CULTURE & SENSITIVTY (URINE) [spelling as printed]: Specimen: Urine Culture: No growth after 48 hours' incubation."
+    },
+    {
+     "offset": -1,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "CSF DR (cerebrospinal fluid routine examination) A. PHYSICAL EXAMINATION: - Volume: 02 ml - Color: Colourless - Appearance: Clear - Coagulum: Not Present B. CHEMICAL EXAMINATION: - Proteins: 70.8 mg/dl (Reference: 15-45) - Sugar: 64.1 mg/dl (Reference: 45-70) "
+    },
+    {
+     "offset": -1,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Form: PATIENT PROGRESS Time: 4:45 pm Thanks for Psychiatric Consultation S/B [provider redacted] On: 1. Risperdal / Risperidone 2. Rivotril 2 mg Plan \u2014 Restart: - Risperdal 1/2 x BD - Tab Lorazepam 1 x HS - Rivotril 0.5 mg - if Restlessness \u2192 1/2 \u2014 0 \u2014 1"
+    },
+    {
+     "offset": -1,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Form: ICU ROUTINE DOCUMENT Time: blank Date of Admission: 28-2026 ICU Day: Day 02 Intubation / Extubation / Post-op day: \u2014 Code status: Full CODE Header vitals box: blank Presenting complain: - 46 years old male - k/c HTN, DM, IHD S/P PCI (2024) - Alcoholic - "
+    },
+    {
+     "offset": -1,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Form: PATIENT PROGRESS (Page 2 of 2) Time: 3:40 pm LP done under all aseptic means. - Sample handed over to [staff name redacted] - 2 cc send for D/R to [lab/facility redacted] - 2 cc kept in fridge - RBS at time of procedure: 113 - Pt vitally stable after pro"
+    },
+    {
+     "offset": -1,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Form: PATIENT PROGRESS (Page 1 of 2) Time: 5:42 pm E.F.U. (evening follow-up) G/C: Static A/I: Delirium / psychoses for now under Dormicum effect GCS: E3 M5 V2\u20133 (10\u201311/15) Vitals: - BP: 160/90 (manual) - P/R: 86 bpm - Temp: Afebrile - R/R: 20 br/min - SpO2: 9"
+    },
+    {
+     "offset": 0,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": 0,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 1,
+     "abnormal": [
+      "Calcium 8.14 mg/dL (L)"
+     ]
+    },
+    {
+     "offset": 0,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 1,
+     "abnormal": [
+      "CRP 30.7 mg/L (H)"
+     ]
+    },
+    {
+     "offset": 0,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 4,
+     "abnormal": [
+      "Bicarbonate 19.0 mmol/L (L)"
+     ]
+    },
+    {
+     "offset": 0,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 1,
+     "abnormal": [
+      "Creatinine Serum 0.668 mg/dL (L)"
+     ]
+    },
+    {
+     "offset": 0,
+     "kind": "lab_panel",
+     "panel": "CBC/hematology",
+     "n_results": 14,
+     "abnormal": [
+      "Hemoglobin 11.8 g/dl (L)",
+      "Neutrophils 80.6 % (H)",
+      "Lymphocytes 11.8 % (L)",
+      "Platelets 145.0 x 10^9/l (L)"
+     ]
+    },
+    {
+     "offset": 0,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 7,
+     "abnormal": [
+      "pCO2 28.2 mmHg (L)",
+      "pO2 43.2 mmHg (L)",
+      "O2 Saturation 76.8 % (L)",
+      "Bicarbonate 16.4 mmol/L (L)",
+      "Base Excess -8.7 mmol/L  (L)"
+     ]
+    },
+    {
+     "offset": 0,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 1,
+     "abnormal": []
+    },
+    {
+     "offset": 0,
+     "kind": "lab_panel",
+     "panel": "Laboratory Panel",
+     "n_results": 30,
+     "abnormal": [
+      "Calcium 8.14 mg/dL (L)",
+      "CRP 30.7 mg/L (H)",
+      "Bicarbonate 19 mmol/L (L)",
+      "Creatinine 0.668 mg/dL (L)",
+      "Hemoglobin 11.8 g/dl (L)",
+      "Neutrophils 80.6 % (H)",
+      "Lymphocytes 11.8 % (L)",
+      "Platelets 145 x 10^9/l (L)"
+     ]
+    },
+    {
+     "offset": 0,
+     "kind": "lab_panel",
+     "panel": "electrolytes",
+     "n_results": 6,
+     "abnormal": [
+      "Calcium 8.14 mg/dL (L)",
+      "Bicarbonate 19 mmol/L (L)"
+     ]
+    },
+    {
+     "offset": 0,
+     "kind": "lab_panel",
+     "panel": "other lab",
+     "n_results": 8,
+     "abnormal": [
+      "CRP 30.7 mg/L (H)",
+      "Base Excess -8.7 mmol/L  (L)",
+      "Bicarbonate 16.4 mmol/L (L)",
+      "O2 Saturation 76.8 % (L)",
+      "pCO2 28.2 mmHg (L)",
+      "pO2 43.2 mmHg (L)"
+     ]
+    },
+    {
+     "offset": 0,
+     "kind": "lab_panel",
+     "panel": "RFT/renal",
+     "n_results": 2,
+     "abnormal": [
+      "Creatinine Serum 0.668 mg/dL (L)"
+     ]
+    },
+    {
+     "offset": 0,
+     "kind": "lab_panel",
+     "panel": "CBC/hematology",
+     "n_results": 14,
+     "abnormal": [
+      "Hemoglobin 11.8 g/dl (L)",
+      "Lymphocytes 11.8 % (L)",
+      "Neutrophils 80.6 % (H)",
+      "Platelets 145 x 10^9/l (L)"
+     ]
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Form: Fresh Orders"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Form note: Please write all medication and IV fluid orders on the separate sheet..."
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Orders:"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Inj 5% dextrose saline + 1 Neurobion IV @ 40 ml/hr"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Inj Tanzo 4.5 IV x 8 hrly"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Inj Onset 8 mg IV x SOS"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Inj Ezium 40 IV x OD"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Inj Sofalgan IV x SOS"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Tab Rivotril 0.5 (0+0+1)"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Tab Lerace 500 (1+0+1)"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Tab Kempro 5 mg (0+0+1)"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "NG feed Glucerna 3 scoops + 250 ml"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Tab Risp 1 mg 1/2 (1+0+1)"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Neb c\u0304 Atem 8 hrly"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Neb c\u0304 Clenil 6 hrly"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Inj Humulin R sliding scale 8 hrly"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Tab Ascard 75 (1+0+0)"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Tab Nebil 2.5 (1+0+0)"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Tab Extor 5/160 x OD"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Tab Hydralazine 25 (1+1+1)"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Tab Vit K 10 (1+0+0)"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "RBS x 4 hourly"
+    },
+    {
+     "offset": 0,
+     "kind": "medication",
+     "drug": "Form: 2024, Rev # 01, Page 1 of 1"
+    },
+    {
+     "offset": 0,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Modality: MRI BRAIN WITH CONTRAST Clinical history: History of seizures. Technique: Multiplanar multisequential images obtained with contrast according to departmental protocol. Findings: - Brain parenchyma: No recent territorial ischemic infarction, intracran"
+    },
+    {
+     "offset": 0,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Biochemistry Booking: [day 0] 09:59:32 Collection: [day 0] 09:59:56 Reporting: [day 0] 11:36:35 MAGNESIUM: Magnesium: 2.01 mg/dl (1.9 - 2.5)"
+    },
+    {
+     "offset": 0,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Biochemistry Booking: [day 0] 05:21:57 Collection: [day 0] 05:24:48 Reporting: [day 0] 07:31:27 ELECTROLYTES: Sodium: 136 mmol/L (135 - 145) Potassium: 3.7 mmol/L (3.5 - 5.5) Chloride: 101 mmol/L (96 - 106) Bicarbonate: 19 mmol/L (20.0 - 29.0) [L"
+    },
+    {
+     "offset": 0,
+     "kind": "note",
+     "note_type": "Report",
+     "text": "Department of Hematology Booking: [day 0] 05:21:57 Collection: [day 0] 05:24:48 Reporting: [day 0] 10:32:03 CBC: Hemoglobin: 11.8 g/dl (12 - 16.5) [L] R.B.Cs: 4.11 10^12/L (4.0 - 5.2) Hematocrit: 35.6 % (35.0 - 50.0) M.C.V: 86.6 fl (76 - 96) M.C.H: 28.7 pg (24"
+    },
+    {
+     "offset": 0,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Form: PATIENT PROGRESS Time: 11:45 AM NEURO-PHYSICIAN NOTE Pt seen and examined - GCS improving - GCS: M5\u20136 V3 E3 = 12/15 - Pupils: PERL (PERRL) - Moves all four limbs A/P: - CSF D/R \u2192 (N) - Get MRI brain with contrast - Cont Rivotril 0.5 mg \u00bd + \u00bd - + Lerace 5"
+    },
+    {
+     "offset": 0,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Form: ICU ROUTINE DOCUMENT Time: 2:30 pm Date of Admission: [day -3] ICU Day: 03 Intubation / Extubation / Post-op day: \u2014 Header vitals box: blank Presenting complain: - 46 years old male - k/c HTN, DM, IHD S/P PCI in 2024 - Known alcoholic since 25 yrs - c/o "
+    },
+    {
+     "offset": 0,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Form continuation (Page 2 of 2; Rev # 00, 2025) Time on note: 11:36 am NEURO: GCS E4 M5 V3 = 12/15 (alt read E4 M6 V3 13/15); plantars B/L \u2193/flex; no neck rigidity CARDIO: EF 55%; hemodynamically stable RESP: B/L clear on room air ABDO: Soft NT; stool not pass"
+    },
+    {
+     "offset": 0,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Form: PATIENT PROGRESS (Page 1 of 2) Entry 1 \u2014 Time 07:30 PM: - MRI Brain done - Films shared with Neurophysician onboard [name redacted] - Case discussed with [provider redacted] - Stepping down in Gastro ward - When bed vacant in HDU, shift patient to Gastro"
+    },
+    {
+     "offset": 0,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Form: Physiotherapy & Rehabilitation Services Progress Note Session 1 \u2014 [day 0], 11:00 am: - Dx: DM, HTN, IHD (PCI), Aspiration pneumonia - Risk factor: B, C - Fall risk / fall protocol boxes blank - Interventions: PROM exercises of all 4 limbs; Approximation;"
+    },
+    {
+     "offset": 0,
+     "kind": "note",
+     "note_type": "prescription/medication",
+     "text": "Form: Fresh Orders Form note: Please write all medication and IV fluid orders on the separate sheet... Orders: - Inj 5% dextrose saline + 1 Neurobion IV @ 40 ml/hr - Inj Tanzo 4.5 IV x 8 hrly - Inj Onset 8 mg IV x SOS - Inj Ezium 40 IV x OD - Inj Sofalgan IV x"
+    },
+    {
+     "offset": 1,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Form: PATIENT PROGRESS Time: 2:45 PM NEURO-PHYSICIAN NOTE Pt seen and examined - MRI brain + cervical looks (N) - CSF D/R \u2014 (N) - GCS improving - No seizure in last 48 hrs A/P: - CST - Get psychiatrist opinion - Chase MRI-brain report"
+    },
+    {
+     "offset": 1,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Department form: Nutrition & Food Service Time: 11:30 am Diagnosis: DM, HTN, IHD, ALD, Alcoholic Findings / Height / Calories: blank Notes: - Patient has been visited - On NG feed"
+    },
+    {
+     "offset": 1,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Patient Assessment (M = morning, E = evening), Date [day +1]: Skin breakdown: - Body check redness/breakdown / prominences: M NO/Intact; E NO - Bed sore staging/size: M NO; E NO Invasive lines: - Line 1: 18G both shifts; Insertion/redressed date written [day +"
+    },
+    {
+     "offset": 1,
+     "kind": "note",
+     "note_type": "clinical note",
+     "text": "Form: Head to Toe Assessment & Reassessment For Adult and Peads Mark (\u2713) for Yes, (-) for No, NA for Not Applicable Date [day +1]; columns M / E Orientation: *2 / *2; GCS 12/15 / 12/15 Oral cavity: Mouth/tongue Dry / Dry; Coated/ulcer - / No; Others - / No Car"
+    }
+   ],
+   "authored": {
+    "title": "Point 2 \u00b7 34 days later: DKA on a newly started SGLT2 inhibitor, troponin negative, bilateral infiltrates",
+    "what_the_physician_sees": [
+     "Same patient, 34 days after point 1. Now also carries: discharge regimen from point 1 (aspirin, statin, nebivolol, spironolactone-furosemide, dapagliflozin).",
+     "Day \u22121: ABG pH 7.39, pCO2 26.3 (L), pO2 95 \u2014 compensated metabolic acidosis. Discharge-summary-in-progress names the diagnosis DKA with a high random glucose; ICU for 48 h.",
+     "Day 0 (index): K 2.6 (L), Cl 107 (H), HCO3 13.2 (L); urea 40, creatinine 1.0; troponin I < 0.10 ng/mL twice; PT/INR normal; ABG pH 7.45, pCO2 31 (L); chest X-ray: bilateral lower-lobe air-space infiltrates, likely infective.",
+     "WITHHELD (F7): the discharge medication page for this admission (what was stopped and what was continued), revealed at point 3."
+    ],
+    "question": "Thirty-four days after the echo showing EF 30\u201335%, the same patient presents with dyspnoea and flank pain and is in diabetic ketoacidosis (bicarbonate 13.2, potassium 2.6, compensated pH). He was discharged on nebivolol, spironolactone-furosemide and dapagliflozin. Troponin is negative twice and the chest X-ray shows bilateral lower-lobe infiltrates. What do you change in his cardiac regimen today, what do you continue, and what is your plan for the reduced ejection fraction over the next three months?",
+    "question_source": "hand_authored_reference",
+    "candidate_answers": [
+     {
+      "id": "A",
+      "text": "Stop dapagliflozin now \u2014 SGLT2 inhibitors are a recognised precipitant of (often euglycaemic) ketoacidosis and should not be restarted in a patient who has had DKA on the drug. Hold spironolactone-furosemide while potassium is 2.6 and the patient is volume-depleted; replace potassium aggressively. Continue the beta-blocker at the current dose unless hypotensive or in low-output state (do not up-titrate during an acute illness); continue aspirin and statin; treat the pneumonia. Before discharge, restart an MRA only once potassium is stable, and consider an ACE-I/ARB as blood pressure allows. Arrange a repeat echo at 8\u201312 weeks; if EF has not recovered, refer for ischaemic evaluation (angiography) as an outpatient.",
+      "is_flawed": false
+     },
+     {
+      "id": "B",
+      "text": "The troponin is negative and the heart is not the problem today; this is a diabetic and infective admission. Continue all discharge cardiac medications unchanged including dapagliflozin (it has heart-failure benefit) and spironolactone-furosemide, correct the potassium, and manage the DKA and pneumonia. No change to the cardiac plan; repeat echo at one year.",
+      "is_flawed": true,
+      "why_flawed": "Continues the SGLT2 inhibitor through a ketoacidosis it likely precipitated, continues a diuretic-MRA combination in a hypokalaemic volume-depleted patient, and delays the re-assessment of a 30\u201335% EF by a year."
+     }
+    ],
+    "intended_flawed_id": "B",
+    "ai_failure_mode": "treating a negative troponin as 'no cardiac decision to make' and missing the drug-precipitated event in the medication history",
+    "expected_trajectory": {
+     "expectations": [
+      {
+       "expectation": "Dapagliflozin will not appear on the discharge list of this admission",
+       "horizon_days": 7
+      },
+      {
+       "expectation": "The patient will leave on aspirin and a statin, with the beta-blocker either continued or re-listed at follow-up",
+       "horizon_days": 7
+      },
+      {
+       "expectation": "The next echo will show a recovered EF (\u2265 50%), i.e. the point-1 dysfunction was reversible",
+       "horizon_days": 365
+      }
+     ],
+     "falsifiers": [
+      "Dapagliflozin re-listed at discharge",
+      "A repeat echo with EF \u2264 40%",
+      "A coronary procedure documented in the next year"
+     ],
+     "note": "The decision is in the medication list, not in the troponin.",
+     "falsifiable": true
+    },
+    "outcome_that_the_chart_wrote_between_this_point_and_the_next": [
+     "Discharge (this admission): meropenem 5 days, insulin (fixed + basal + sliding scale), pantoprazole, ondansetron, aspirin 75, atorvastatin 20. Dapagliflozin, spironolactone-furosemide and nebivolol are NOT on the discharge list.",
+     "Days +92 and +142: outpatient laboratory visits only (single-day, labs).",
+     "Day +280: outpatient labs and a renal ultrasound with no calculus/hydronephrosis; a psychiatric medication order (risperidone, clonazepam).",
+     "Day +339: outpatient labs.",
+     "Day +369\u2013+373 (next admission, presenting data): altered consciousness after alcohol, aspiration pneumonia (SpO2 84% on air), one generalised seizure, HR 151, BP 160/112, temperature 100\u2013101 \u00b0F; NT-proBNP 70 pg/mL (< 125); echo EF ~55%, IVC normal and collapsing; CT brain no acute lesion; cardiology 'on board: beta-blocker + antiplatelet + CCB + ARB'. History now records 'IHD (PCI in 2024)'."
+    ],
+    "self_score_at_reveal_reference": [
+     "held",
+     "held (aspirin + statin; beta-blocker re-listed later)",
+     "held (EF ~55% at day +371)"
+    ]
+   },
+   "historical_encounter_index": 6,
+   "review_required": true,
+   "generation_ready": false,
+   "reference_only": true
+  },
+  {
+   "sequence_index": 2,
+   "encounter_index": 7,
+   "encounter_span_chart_days": [
+    -3,
+    5
+   ],
+   "index_event_offset_chart_days": 1,
+   "decision_offset_days": 0,
+   "index_rationale": {
+    "reason": "no resolving event detected; sealed the final recorded day as the outcome",
+    "resolving_offset": 5,
+    "signal": null,
+    "weak": true
+   },
+   "density": {
+    "qualifies": true,
+    "n_distinct_dates": 6,
+    "n_events": 200,
+    "resource_types": [
+     "lab_panels",
+     "notes"
+    ],
+    "n_resource_types": 2,
+    "reasons": []
+   },
+   "qualifies_as_decision_point": true,
+   "outcome_verifiable": false,
+   "specialty": "cardiology",
+   "specialty_confidence": 1.0,
+   "specialty_scores": {
+    "nephrology": 1.905,
+    "cardiology": 1.672,
+    "hepatology": 0.816,
+    "oncology": 0.0
+   },
+   "taxonomy_bucket": "hf_gdmt",
+   "subtopic": "beta_blocker_decompensation",
+   "difficulty": {
+    "score": 0.502,
+    "band": "medium",
+    "axes": {
+     "competing_problems": 1.0,
+     "abnormal_analyte_ratio": 0.391,
+     "longitudinal_span": 1.0,
+     "decisive_datum_buried": 0.0,
+     "guideline_recency": 0.0
+    },
+    "measured": false,
+    "model_failure_rate": null,
+    "weights": {
+     "model_failure_rate": 0.5,
+     "competing_problems": 0.12,
+     "abnormal_analyte_ratio": 0.08,
+     "longitudinal_span": 0.1,
+     "decisive_datum_buried": 0.12,
+     "guideline_recency": 0.08
+    },
+    "gate_note": null
+   },
+   "curation": {
+    "labs": {
+     "dropped_furniture": 63,
+     "dropped_duplicate": 286,
+     "panels_in": 62,
+     "results_in": 546,
+     "enriched_from_duplicate": 18,
+     "units_split": 15,
+     "ranges_recovered": 3,
+     "ref_range_datelike": 1,
+     "implausible_value": 0,
+     "flags_derived": 4,
+     "panels_out": 38,
+     "results_out": 197,
+     "dropped_over_budget": 26
+    },
+    "notes": {
+     "notes_in": 136,
+     "dropped_duplicate": 0,
+     "dropped_non_clinical": 0,
+     "dropped_short": 0,
+     "provenance_lines_stripped": 0,
+     "notes_out": 136,
+     "dropped_over_budget": 126
+    },
+    "medications": {
+     "meds_in": 107,
+     "dropped_furniture": 57,
+     "dropped_duplicate": 37,
+     "recovered_from_notes": 0,
+     "meds_out": 30
+    },
+    "problems": 10,
+    "studies": 0,
+    "withheld_untimed": {
+     "notes": 28,
+     "medications": 52
+    }
+   },
+   "visible_case": {
+    "demographics": {
+     "age_band": "40-49",
+     "sex": "M"
+    },
+    "problem_list": [
+     {
+      "condition": "Cerebrovascular event / stroke features",
+      "since": "2016",
+      "collected_offset_days": -3653
+     },
+     {
+      "condition": "Diabetes mellitus",
+      "since": "2016",
+      "collected_offset_days": -3653
+     },
+     {
+      "condition": "Hypertension",
+      "since": "2016",
+      "collected_offset_days": -3653
+     },
+     {
+      "condition": "Pancreatic enzyme elevation / pancreatitis workup",
+      "since": "2024",
+      "collected_offset_days": -409
+     },
+     {
+      "condition": "Ascites",
+      "since": "2024",
+      "collected_offset_days": -409
+     },
+     {
+      "condition": "Possible acute coronary syndrome workup",
+      "since": "2024",
+      "collected_offset_days": -408
+     },
+     {
+      "condition": "Portal hypertension / portal vein abnormality",
+      "since": "2025",
+      "collected_offset_days": -34
+     },
+     {
+      "condition": "Seizure disorder",
+      "since": "2026",
+      "collected_offset_days": -4
+     },
+     {
+      "condition": "Sinusitis",
+      "since": "2026",
+      "collected_offset_days": -4
+     },
+     {
+      "condition": "Jaundice / biliary obstruction",
+      "since": "2026",
+      "collected_offset_days": -4
+     }
+    ],
+    "medications": [
+     {
+      "drug": "Tazo",
+      "dose": "4.5g",
+      "freq": "8-hrly",
+      "collected_offset_days": -4
+     },
+     {
+      "drug": "Ezium",
+      "dose": "40mg",
+      "collected_offset_days": -4
+     },
+     {
+      "drug": "Risp",
+      "dose": "1 mg",
+      "freq": "BD",
+      "collected_offset_days": -93
+     },
+     {
+      "drug": "Kempro",
+      "dose": "5 mg",
+      "freq": "HS",
+      "collected_offset_days": -93
+     },
+     {
+      "drug": "Rivotril",
+      "dose": "0.5 mg",
+      "freq": "0 + 0 + 1",
+      "collected_offset_days": -93
+     },
+     {
+      "drug": "Tanzo",
+      "dose": "4.5 gm",
+      "route": "IV",
+      "freq": "TDS",
+      "collected_offset_days": -4
+     },
+     {
+      "drug": "Onset",
+      "dose": "8 mg",
+      "route": "IV",
+      "freq": "TDS",
+      "collected_offset_days": -4
+     },
+     {
+      "drug": "Bofalgan",
+      "dose": "1 gm",
+      "route": "IV",
+      "freq": "SOS",
+      "collected_offset_days": -4
+     },
+     {
+      "drug": "Dormicum",
+      "route": "IV",
+      "freq": "SOS",
+      "collected_offset_days": -4
+     },
+     {
+      "drug": "Lerace",
+      "dose": "500 mg",
+      "route": "IV",
+      "freq": "BD",
+      "collected_offset_days": -4
+     },
+     {
+      "drug": "Atem",
+      "freq": "6 hourly",
+      "collected_offset_days": -4
+     },
+     {
+      "drug": "Clenil",
+      "freq": "BD",
+      "collected_offset_days": -4
+     },
+     {
+      "drug": "Vita-6",
+      "freq": "1+0+0",
+      "collected_offset_days": -4
+     },
+     {
+      "drug": "Provans/Provens",
+      "dose": "1 g",
+      "collected_offset_days": -1830
+     },
+     {
+      "drug": "Tanzo 4.5",
+      "collected_offset_days": -1830
+     },
+     {
+      "drug": "N/S + Inj Neurob",
+      "collected_offset_days": -1830
+     },
+     {
+      "drug": "Sofalgan",
+      "route": "IV",
+      "freq": "SOS",
+      "collected_offset_days": -1
+     },
+     {
+      "drug": "Rivotril 0.5 (",
+      "freq": "0+0+1",
+      "collected_offset_days": -1
+     },
+     {
+      "drug": "Lerace 500 (",
+      "freq": "1+0+1",
+      "collected_offset_days": -1
+     },
+     {
+      "drug": "feed Glucerna 3 scoops",
+      "dose": "250 ml",
+      "collected_offset_days": -1
+     },
+     {
+      "drug": "Humulin R",
+      "freq": "sliding scale",
+      "collected_offset_days": -1
+     },
+     {
+      "drug": "Ascard 75 (",
+      "freq": "1+0+0",
+      "collected_offset_days": -1
+     },
+     {
+      "drug": "Nebil 2.5 (",
+      "freq": "1+0+0",
+      "collected_offset_days": -1
+     },
+     {
+      "drug": "Extor",
+      "freq": "OD",
+      "collected_offset_days": -1
+     },
+     {
+      "drug": "Hydralazine 25 (",
+      "freq": "1+1+1",
+      "collected_offset_days": -1
+     },
+     {
+      "drug": "Vit K 10 (",
+      "freq": "1+0+0",
+      "collected_offset_days": -1
+     },
+     {
+      "drug": "Ascard",
+      "dose": "75 mg",
+      "freq": "1+0+0",
+      "collected_offset_days": -2160
+     },
+     {
+      "drug": "Nebil",
+      "dose": "2.5 mg",
+      "freq": "1+0+0",
+      "collected_offset_days": -2160
+     },
+     {
+      "drug": "Extor 5/160 (",
+      "freq": "1+0+0",
+      "collected_offset_days": -2160
+     },
+     {
+      "drug": "Hydralazine",
+      "dose": "25 mg",
+      "freq": "1+1+1",
+      "collected_offset_days": -2160
+     }
+    ],
+    "items": [
+     {
+      "offset_rel": -4,
+      "kind": "note",
+      "note_type": "Lab report",
+      "text": "Document index: 24 Document type: other lab Service date: [day -3] Age on report: 46Y Sex: M CONTENT ---------------------------------------- CHEMICAL PATHOLOGY Booking Date & Time: [day -3] 22:08:51 Collection Date & Ti"
+     },
+     {
+      "offset_rel": -1,
+      "kind": "note",
+      "note_type": "prescription/medication",
+      "text": "Form: Fresh Orders Form note: Please write all medication and IV fluid orders on the separate sheet... Orders: - Inj 5% dextrose saline + 1 Neurobion IV @ 40 ml/hr - Inj Tanzo 4.5 IV x 8 hrly - Inj Onset 8 mg IV x SOS - "
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Progress",
+      "text": "Document index: 140 Document type: clinical note Service date: [day +1] Age on report: UNKNOWN Sex: UNKNOWN CONTENT ---------------------------------------- Form: PATIENT PROGRESS Time: 2:45 PM NEURO-PHYSICIAN NOTE Pt se"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Progress",
+      "text": "Document index: 146 Document type: clinical note Service date: [day +1] Age on report: 46Y Sex: UNKNOWN CONTENT ---------------------------------------- Department form: Nutrition & Food Service Time: 11:30 am Diagnosis:"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Progress",
+      "text": "Document index: 156 Document type: clinical note Service date: [day +1] Age on report: UNKNOWN Sex: UNKNOWN CONTENT ---------------------------------------- Patient Assessment (M = morning, E = evening), Date [day +1]: S"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "Progress",
+      "text": "Document index: 157 Document type: clinical note Service date: [day +1] Age on report: UNKNOWN Sex: UNKNOWN CONTENT ---------------------------------------- Form: Head to Toe Assessment & Reassessment For Adult and Peads"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "clinical note",
+      "text": "Form: PATIENT PROGRESS Time: 2:45 PM NEURO-PHYSICIAN NOTE Pt seen and examined - MRI brain + cervical looks (N) - CSF D/R \u2014 (N) - GCS improving - No seizure in last 48 hrs A/P: - CST - Get psychiatrist opinion - Chase MR"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "clinical note",
+      "text": "Department form: Nutrition & Food Service Time: 11:30 am Diagnosis: DM, HTN, IHD, ALD, Alcoholic Findings / Height / Calories: blank Notes: - Patient has been visited - On NG feed"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "clinical note",
+      "text": "Patient Assessment (M = morning, E = evening), Date [day +1]: Skin breakdown: - Body check redness/breakdown / prominences: M NO/Intact; E NO - Bed sore staging/size: M NO; E NO Invasive lines: - Line 1: 18G both shifts;"
+     },
+     {
+      "offset_rel": 0,
+      "kind": "note",
+      "note_type": "clinical note",
+      "text": "Form: Head to Toe Assessment & Reassessment For Adult and Peads Mark (\u2713) for Yes, (-) for No, NA for Not Applicable Date [day +1]; columns M / E Orientation: *2 / *2; GCS 12/15 / 12/15 Oral cavity: Mouth/tongue Dry / Dry"
+     },
+     {
+      "offset_rel": -1,
+      "kind": "lab_panel",
+      "panel": "electrolytes",
+      "n_results": 1,
+      "abnormal": []
+     },
+     {
+      "offset_rel": -1,
+      "kind": "lab_panel",
+      "panel": "electrolytes",
+      "n_results": 1,
+      "abnormal": [
+       "Calcium 8.14 mg/dL (L)"
+      ]
+     },
+     {
+      "offset_rel": -1,
+      "kind": "lab_panel",
+      "panel": "other lab",
+      "n_results": 1,
+      "abnormal": [
+       "CRP 30.7 mg/L (H)"
+      ]
+     },
+     {
+      "offset_rel": -1,
+      "kind": "lab_panel",
+      "panel": "electrolytes",
+      "n_results": 4,
+      "abnormal": [
+       "Bicarbonate 19.0 mmol/L (L)"
+      ]
+     },
+     {
+      "offset_rel": -1,
+      "kind": "lab_panel",
+      "panel": "RFT/renal",
+      "n_results": 1,
+      "abnormal": [
+       "Creatinine Serum 0.668 mg/dL (L)"
+      ]
+     },
+     {
+      "offset_rel": -1,
+      "kind": "lab_panel",
+      "panel": "CBC/hematology",
+      "n_results": 14,
+      "abnormal": [
+       "Hemoglobin 11.8 g/dl (L)",
+       "Neutrophils 80.6 % (H)",
+       "Lymphocytes 11.8 % (L)",
+       "Platelets 145.0 x 10^9/l (L)"
+      ]
+     },
+     {
+      "offset_rel": -1,
+      "kind": "lab_panel",
+      "panel": "other lab",
+      "n_results": 7,
+      "abnormal": [
+       "pCO2 28.2 mmHg (L)",
+       "pO2 43.2 mmHg (L)",
+       "O2 Saturation 76.8 % (L)",
+       "Bicarbonate 16.4 mmol/L (L)",
+       "Base Excess -8.7 mmol/L  (L)"
+      ]
+     },
+     {
+      "offset_rel": -1,
+      "kind": "lab_panel",
+      "panel": "RFT/renal",
+      "n_results": 1,
+      "abnormal": []
+     },
+     {
+      "offset_rel": -4,
+      "kind": "lab_panel",
+      "panel": "other lab",
+      "n_results": 1,
+      "abnormal": []
+     },
+     {
+      "offset_rel": -2,
+      "kind": "lab_panel",
+      "panel": "other lab",
+      "n_results": 7,
+      "abnormal": [
+       "Proteins 70.8 mg/dl (H)"
+      ]
+     },
+     {
+      "offset_rel": -2,
+      "kind": "lab_panel",
+      "panel": "Laboratory Panel",
+      "n_results": 15,
+      "abnormal": [
+       "pCO2 Arterial 29.1 mmHg (L)",
+       "pO2 Arterial 174.2 mmHg (H)",
+       "Oxygen saturation 99.5 % (H)",
+       "pO2 Arterial 19 mmHg (L)",
+       "Oxygen saturation 26.5 % (L)",
+       "Erythrocytes 3.87 10^12/L (L)",
+       "Creatinine 0.632 mg/dL (L)"
+      ]
+     },
+     {
+      "offset_rel": -1,
+      "kind": "lab_panel",
+      "panel": "Laboratory Panel",
+      "n_results": 11,
+      "abnormal": [
+       "Creatinine 0.668 mg/dL (L)",
+       "pCO2 Arterial 28.2 mmHg (L)",
+       "pO2 Arterial 43.2 mmHg (L)",
+       "Oxygen saturation 76.8 % (L)"
+      ]
+     }
+    ],
+    "n_notes": 10,
+    "n_panels": 12
+   },
+   "held_out_as_shipped": {
+    "problems_recorded_after": [],
+    "newly_established_problems": [],
+    "drugs_started_after": [],
+    "newly_started_drugs": [],
+    "abnormal_results_after": [],
+    "narrative_after": [
+     "[+4d Progress] Document index: 153\r\nDocument type: clinical note\r\nService date: [day +5]\r\nAge on report: UNKNOWN    Sex: UNKNOWN\r\n\n\r\nCONTENT\r\n----------------------------------------\r\nForm: Orientation of the Unit\r\n\r\nItems provided on admission (checked): Hospital Dress, Blanket, Admission Pack\r\nNot checked: Information Booklet, Patient Bill of Rights, Others\r\n\r\nOrientation topics checked: Nursing call bell, Emergency call bell, Lights, Telephone, Bed controls & use of side rails, Meal time, Washroom\r\n\r\nFacility policies oriented (checked): Hospital Valuable policy; No home food/fruit allowed; Patient own me",
+     "[+4d clinical note] Form: Orientation of the Unit\n\nItems provided on admission (checked): Hospital Dress, Blanket, Admission Pack\nNot checked: Information Booklet, Patient Bill of Rights, Others\n\nOrientation topics checked: Nursing call bell, Emergency call bell, Lights, Telephone, Bed controls & use of side rails, Meal time, Washroom\n\nFacility policies oriented (checked): Hospital Valuable policy; No home food/fruit allowed; Patient own medication policy; Visiting hours & visitor's policy; Doctor round timing; Smoking policy; Acceptance of gift policy\nNot checked: Prayer Area, Others\n\nPersonal belongings: Eye gl"
+    ]
+   },
+   "outcome_window_chart_days": null,
+   "outcome_window_items": [],
+   "authored": {
+    "title": "Point 3 \u00b7 one year on: recovered EF, hypertensive tachycardic alcohol-withdrawal state, aspiration pneumonia (terminal point)",
+    "what_the_physician_sees": [
+     "Same patient, ~13 months after point 2. Problem list now adds: portal hypertension/portal-vein abnormality, seizure disorder, sinusitis, jaundice/biliary obstruction. Nutrition note lists 'DM, HTN, IHD, ALD, alcoholic'. Triage records 'IHD (2024 \u2013 PCI)', alcohol ~500 ml/day for 24 years.",
+     "Day \u22123 (ER): ALOC since morning after alcohol, one vomit, SpO2 84% on air, BP 160/100, HR 84 \u2192 later 151 with BP 160/112 and fever; GCS 10/15; CPAP; piperacillin-tazobactam; one generalised seizure \u2192 midazolam, levetiracetam load. NT-proBNP 70.1 pg/mL (< 125). CT brain: no acute infarct, bleed or mass.",
+     "Day \u22122: ICU day 1 \u2014 echo EF ~55%, IVC normal collapsing; USG abdomen no ascites; urine glucose +3, ketones +2. Evening: 'continue cardiac medications'.",
+     "Day \u22121: ICU day 2 \u2014 'Cardio on board \u2014 BB + antiplatelet + CCB + ARB'; LP done (CSF normal); psychiatry: risperidone, clonazepam/lorazepam; BP 160/90, HR 86, SpO2 97% on air; ABG pO2 43 (L), sat 76.8% (L), HCO3 16.4 (L); Hb 11.8 (L), platelets 145 (L), CRP 30.7 (H), calcium 8.14 (L), creatinine 0.67.",
+     "Day 0 (index, day +1 on the chart axis): GCS 12/15 improving, no seizure for 48 h, MRI brain + cervical normal; orders: aspirin 75, nebivolol 2.5, amlodipine/valsartan 5/160 OD, hydralazine 25 TDS, vitamin K 10, levetiracetam, clonazepam, risperidone, NG feed, sliding-scale insulin; 'Extor to be continued; add hydralazine 25 TDS SOS if BP remains high'; shift to gastro ward."
+    ],
+    "question": "One year after an EF of 30\u201335% that was managed medically, this 40\u201349-year-old man with diabetes, hypertension, a reported PCI and long-standing heavy alcohol use is in ICU after an alcohol-related collapse with aspiration pneumonia and a first seizure. Echo now shows EF ~55% with a normal collapsing IVC and NT-proBNP is 70. He is hypertensive (160/112) and was tachycardic to 151, on nebivolol 2.5, amlodipine/valsartan 5/160 and as-needed hydralazine. Given the recovered ventricle, what is the right cardiac regimen for this admission and for the year ahead, and which of the current cardiac drugs would you stop, keep or change \u2014 and why?",
+    "question_source": "hand_authored_reference",
+    "candidate_answers": [
+     {
+      "id": "A",
+      "text": "The tachycardia and hypertension in an alcohol-withdrawal state with sepsis should be treated as withdrawal and infection first (benzodiazepine, fluids, antibiotics), not by escalating antihypertensives. Keep aspirin and a statin (the record reports prior PCI). With a recovered EF (~55%) and normal NT-proBNP, the heart-failure indication for the MRA/SGLT2 inhibitor no longer applies and dapagliflozin in particular should stay off given the prior DKA; continue the beta-blocker (it now serves rate control and secondary prevention, not HFrEF) and the ARB for hypertension and diabetes, but avoid hydralazine-driven reflex tachycardia \u2014 drop the SOS hydralazine and up-titrate the ARB/CCB instead once withdrawal is controlled. Document the diagnosis as a recovered (likely alcohol/stress-related) cardiomyopathy and repeat the echo in 12 months or with any symptom; counsel on alcohol as the modifiable cause.",
+      "is_flawed": false
+     },
+     {
+      "id": "B",
+      "text": "Because he has ischaemic heart disease with a prior PCI and a documented EF of 30\u201335% last year, restart full heart-failure therapy: re-add spironolactone and dapagliflozin, keep nebivolol and add an ACE inhibitor in place of the ARB, and use hydralazine three times daily to control the blood pressure. Arrange repeat coronary angiography this admission given the tachycardia.",
+      "is_flawed": true,
+      "why_flawed": "Treats a recovered ventricle as current HFrEF, re-introduces the SGLT2 inhibitor that precipitated DKA, stacks hydralazine on a tachycardic withdrawal state, and proposes angiography for a rhythm/withdrawal problem in a septic patient with a normal NT-proBNP."
+     }
+    ],
+    "intended_flawed_id": "B",
+    "ai_failure_mode": "carrying a stale diagnosis (HFrEF) forward across the walk instead of updating on the new echo and biomarker",
+    "expected_trajectory": {
+     "expectations": [
+      {
+       "expectation": "No SGLT2 inhibitor or MRA will be restarted this admission",
+       "horizon_days": 14
+      },
+      {
+       "expectation": "Blood pressure and heart rate settle with withdrawal management without any change to the beta-blocker dose",
+       "horizon_days": 5
+      }
+     ],
+     "falsifiers": [
+      "Dapagliflozin or spironolactone re-ordered",
+      "A coronary procedure this admission"
+     ],
+     "note": "Terminal point of the walk: the record ends four days later, so these expectations are sealed but will be marked not_assessable unless the record grows.",
+     "falsifiable": true
+    },
+    "outcome_that_the_chart_wrote_between_this_point_and_the_next": [
+     "None \u2014 this is the last decision point; the record continues only to day +5 (ward orientation and nursing assessments). Verifiable points in this walk: 2 of 3, exactly as the planner reports."
+    ],
+    "self_score_at_reveal_reference": [
+     "not_assessable",
+     "not_assessable"
+    ]
+   },
+   "historical_encounter_index": 11,
+   "review_required": false,
+   "generation_ready": true,
+   "reference_only": true
+  }
+ ],
+ "how_to_read": {
+  "offsets": "All days are RELATIVE. 'chart days' are on the chart axis (0 = the chart's index anchor); 'offset_rel' inside a point's visible case is relative to that point's own index event, exactly as the physician sees it. No calendar dates appear anywhere, by design (timeline.py destroys the anchor).",
+  "shape": "One point = one task row from store.insert_task with trajectory_id + sequence_index, distribution 'assigned_only', max_labels 1, generation.mode 'real_case_trajectory'. The physician sees prompt = render_case_prompt(visible_case, question) + two blinded candidates; submits reasoning + expected_trajectory {expectations[{expectation, horizon_days}], falsifiers[], note}; at the next point the reveal is outcome_delta(next point's stored case) and they self-score each expectation held / did_not_hold / not_assessable.",
+  "authored_vs_pipeline": "Everything under 'authored' is the hand-built reference; everything else is the shipped planner's own output on the committed patient-4 tree with specialty=cardiology. Where they differ (what is visible at each point; what the held-out contains) the difference IS the fix list in the PRD (\u00a75)."
+ }
+}

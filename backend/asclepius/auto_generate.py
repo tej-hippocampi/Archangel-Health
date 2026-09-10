@@ -129,7 +129,7 @@ async def run_upload(store: Any, upload_id: str, actor: str) -> Dict[str, Any]:
         #   failed       — ENCOUNTERS the handler could not turn into a task
         #                  (a case judge rejection), isolated inside one chart;
         #   cases_failed — whole CHARTS that could not be planned at all.
-        "failed": 0, "cases_failed": 0,
+        "failed": 0, "cases_failed": 0, "review_required_points": 0,
         "trajectories": [], "errors": [],
     }
     try:
@@ -167,6 +167,15 @@ async def run_upload(store: Any, upload_id: str, actor: str) -> Dict[str, Any]:
                 # Per-CASE isolation, mirroring the per-ENCOUNTER isolation inside
                 # the handler: one chart that cannot be planned must not stop the
                 # other nine in the same bundle.
+                detail = getattr(exc, "detail", None)
+                if (isinstance(detail, dict) and detail.get("error") == "nothing_generatable"
+                        and detail.get("held")):
+                    entry.update({"generated": 0, "gated": 0, "failed": 0,
+                                  "review_required_points": detail.get("review_required_points", 0),
+                                  "dropped": _review_drops(detail["held"])})
+                    report["review_required_points"] += entry["review_required_points"]
+                    report["cases"].append(entry)
+                    continue
                 log.warning("auto-generate failed for %s: %s", case["ingest_case_id"], exc)
                 entry.update({"error": _readable(exc)})
                 report["cases_failed"] += 1
@@ -187,6 +196,7 @@ async def run_upload(store: Any, upload_id: str, actor: str) -> Dict[str, Any]:
                 "failed": res.get("failed", 0),
                 "trajectory_id": res.get("trajectory_id"),
                 "points": res.get("trajectory_points"),
+                "review_required_points": res.get("review_required_points", 0),
             })
             # The per-encounter failures the handler isolated, carried up with
             # enough detail to act on: an encounter index and a reason.
@@ -194,6 +204,8 @@ async def run_upload(store: Any, upload_id: str, actor: str) -> Dict[str, Any]:
             drops = [{"encounter_index": d.get("encounter_index"),
                       "reason": d.get("error") or d.get("failures")}
                      for d in (details.get("failed") or []) + (details.get("gated") or [])]
+            drops.extend(_review_drops(details.get("held") or []))
+            report["review_required_points"] += entry["review_required_points"]
             if drops:
                 entry["dropped"] = drops
             report["generated"] += entry["generated"]
@@ -216,6 +228,13 @@ async def run_upload(store: Any, upload_id: str, actor: str) -> Dict[str, Any]:
     except Exception:  # pragma: no cover
         log.exception("auto-generate: could not record the report for %s", upload_id)
     return report
+
+
+def _review_drops(held: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [{"encounter_index": d.get("encounter_index"),
+             "reason": "; ".join(r.get("message", r.get("reason", "Review required"))
+                                 for r in d.get("review_reasons") or []),
+             "review_required": True} for d in held]
 
 
 def _readable(exc: Exception) -> str:

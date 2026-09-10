@@ -2851,7 +2851,7 @@
       'Below the decision-point gate: ' + (d.reasons || []).join('; '));
   }
 
-  function renderProposalRow(ic, p, refresh) {
+  function renderProposalRow(ic, p, refresh, trajectory = false) {
     const wrap = h('div', {
       class: 'asc-card-pad',
       style: 'border:1px solid var(--asc-line);border-radius:10px;margin-bottom:12px'
@@ -2915,7 +2915,7 @@
         class: 'asc-card-sub',
         style: 'margin-top:8px;padding:8px 10px;border-radius:8px;'
           + 'background:var(--lime-wash);border:1px solid var(--lime-line);color:var(--lime-deep)',
-      }, 'Not generatable: ' + (p.blockers || []).join(' · ')));
+      }, (p.review_required ? 'Held for evidence review: ' : 'Not generatable: ') + (p.blockers || []).join(' · ')));
       // §A5 — when the blocker is the specialty, the picker is the fix, and it
       // belongs on the row that names the problem. Re-plans once the server
       // confirms, so the operator sees the encounter turn generatable rather
@@ -2941,7 +2941,7 @@
       try {
         const r = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate', {
           method: 'POST',
-          body: { dry_run: false, encounter_indices: [p.encounter_index] },
+          body: { dry_run: false, trajectory, encounter_indices: [p.encounter_index] },
         });
         const ok = (r.task_ids || []).length;
         status.appendChild(h('div', { class: ok ? 'asc-inline-ok' : 'asc-inline-warn' },
@@ -2968,6 +2968,7 @@
    * to the static behaviour, so the ingestion page's existing call is unchanged. */
   function openCasePlanModal(upload, ic, plan, statusBox, opts) {
     const trajectory = !!(opts && opts.trajectory);
+    const reviewOnly = !!(opts && opts.reviewOnly);
     const overlay = h('div', {
       class: 'call-team-overlay is-open',
       onClick: (e) => { if (e.target === overlay) overlay.remove(); },
@@ -2986,13 +2987,15 @@
       }
       loadIngestionLists();
     };
-    proposals.forEach((p) => list.appendChild(renderProposalRow(ic, p, onRowRefresh)));
+    const declarationRequired = trajectory && !plan.specialty_hint;
+    if (declarationRequired) list.appendChild(specialtyResolver(upload.upload_id, () => onRowRefresh('specialty')));
+    proposals.forEach((p) => list.appendChild(renderProposalRow(ic, (declarationRequired || reviewOnly) ? { ...p, generatable: false, blockers: reviewOnly && !p.review_required ? ['Existing tasks are preserved; this is a read-only review.'] : p.blockers } : p, onRowRefresh, trajectory)));
 
     const status = h('div', { style: 'margin-top:12px' });
-    const nGen = plan.generatable || 0;
+    const nGen = trajectory ? (plan.ready_decision_points || 0) : (plan.generatable || 0);
     const allBtn = h('button', { class: 'asc-btn asc-btn-primary' },
       'Generate all ' + nGen + ' case(s)');
-    if (!nGen) allBtn.setAttribute('disabled', '');
+    if (!nGen || declarationRequired || reviewOnly) allBtn.setAttribute('disabled', '');
     allBtn.addEventListener('click', async () => {
       allBtn.setAttribute('disabled', '');
       allBtn.textContent = 'Generating…';
@@ -3007,6 +3010,7 @@
             ? 'Built a chart walk of ' + r.generated + ' decision point(s). They are '
               + 'held back from every queue until you send them from Task Routing.'
             : 'Generated ' + r.generated + ' V4 case(s)')
+          + (r.review_required_points ? ' · ' + r.review_required_points + ' held for evidence review' : '')
           + (r.gated ? ' · ' + r.gated + ' gated' : '')
           + (r.failed ? ' · ' + r.failed + ' failed' : '') + '.'));
         toast('Generated ' + r.generated + ' case(s) from this chart.', 'success');
@@ -3025,12 +3029,28 @@
     // ceremony: this writes N tasks at $75 a completed submission, and §9.3 exists
     // because "a trajectory is not a discount on physician time — it is N tasks
     // that happen to share a chart".
-    const nPoints = plan.decision_points || 0;
-    const nVerifiable = plan.verifiable_decision_points || 0;
+    const nDensityPoints = plan.decision_points || 0;
+    const nPoints = trajectory ? (plan.ready_decision_points || 0) : nDensityPoints;
+    const nVerifiable = trajectory ? Math.max(0, nPoints - 1) : (plan.verifiable_decision_points || 0);
     const trajBtn = h('button', { class: 'asc-btn asc-btn-primary' },
       'Chain ' + nPoints + ' decision point(s) into one trajectory');
-    if (!nPoints) trajBtn.setAttribute('disabled', '');
+    if (!nPoints || declarationRequired || reviewOnly) trajBtn.setAttribute('disabled', '');
+    const replanTrajectory = async () => {
+      const walkPlan = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate',
+        { method: 'POST', body: { dry_run: true, trajectory: true } });
+      overlay.remove();
+      openCasePlanModal(upload, ic, walkPlan, statusBox,
+        { ...opts, trajectory: true, replan: replanTrajectory });
+    };
     trajBtn.addEventListener('click', async () => {
+      if (!trajectory) {
+        // A static preview has not applied longitudinal evidence holds.
+        trajBtn.disabled = true;
+        try {
+          await replanTrajectory();
+        } catch (e) { trajBtn.disabled = false; toast(errText(e, 'Could not plan this walk.'), 'error'); }
+        return;
+      }
       const cost = (nPoints * 75).toLocaleString();
       if (!window.confirm(
         'Create a ' + nPoints + '-point longitudinal trajectory from this chart?\n\n'
@@ -3075,15 +3095,24 @@
         (ic.patient_key || '') + ' · ' + (plan.encounters || 0) + ' encounters detected · '
         + nGen + ' generatable'
         + (plan.specialty_hint ? ' · specialty ' + plan.specialty_hint : '')),
+      reviewOnly ? h('div', { class: 'asc-inline-warn' }, 'Read-only chart review: existing tasks are preserved. Provide a corrected upload to build additional points.') : null,
+      plan.why ? h('div', { class: 'asc-dim' }, plan.why) : null,
+      h('div', { class: 'asc-dim' }, 'Chart threads across encounters: ' + Object.entries(proposals.reduce((scores, p) => {
+        Object.entries(p.specialty_scores || {}).forEach(([key, value]) => { scores[key] = Math.max(scores[key] || 0, value); });
+        return scores;
+      }, {})).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => key + ' ' + value.toFixed(2)).join(' / ')),
       h('div', { class: 'asc-card-sub', style: 'margin-bottom:6px' },
         'Nothing here has been written. Difficulty is measured only when you generate, '
         + 'a band shown as "proposed" is the structural prior, not a frontier failure rate.'),
       // Both numbers, always, because they are what a chart walk is priced on and
       // they are never the same number.
       h('div', { class: 'asc-card-sub', style: 'margin-bottom:14px' },
-        nPoints + ' encounter(s) clear the decision-point gate (≥2 dates, ≥8 events, '
+        nDensityPoints + ' encounter(s) clear the decision-point gate (≥2 dates, ≥8 events, '
         + '≥2 resource types) · ' + nVerifiable + ' have a later encounter to be checked '
         + 'against. Encounters below the gate are single-contact draws, not decisions.'),
+      trajectory ? h('div', { class: 'asc-inline-warn' }, (plan.review_required_points || 0)
+        + ' decision point(s) held for evidence review · ' + nPoints + ' ready to build. '
+        + 'Held points and predecessors that depend on them cannot be generated until the evidence is resolved.') : null,
       list,
       status,
       h('div', { style: 'display:flex;gap:10px;margin-top:16px;flex-wrap:wrap' },
@@ -3327,14 +3356,15 @@
       statusBox.appendChild(loadingCard('Planning the chart walk…'));
       api('/ingestion/uploads/' + encodeURIComponent(upload.upload_id))
         .then((full) => {
-          const first = (full.cases || []).find((c) => c.status === 'ingested');
+          const first = (full.cases || []).find((c) => c.status === 'ingested')
+            || (full.cases || []).find((c) => c.status === 'promoted');
           if (!first) throw new Error('No ingested cases left to plan in this upload.');
           return api('/ingestion/cases/' + encodeURIComponent(first.ingest_case_id) + '/generate',
-                     { method: 'POST', body: { dry_run: true, trajectory: true } })
+                     { method: 'POST', body: { dry_run: true, trajectory: true, derive_questions: false } })
             .then((plan) => {
               clear(statusBox);
               openCasePlanModal(upload, first, plan, statusBox, {
-                trajectory: true,
+                trajectory: true, reviewOnly: first.status === 'promoted',
                 // A specialty set from inside the modal re-plans the walk (§A5)
                 // and refreshes the rows, so the chip on the row agrees with it.
                 replan: () => { load(); previewLongitudinal(upload, statusBox); },
@@ -3363,6 +3393,24 @@
     }
     const cap = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : s);
 
+    function reingestControl(u) {
+      const c = u.content || {};
+      if (!c.reingest_available) return null;
+      const blocked = !!(u.case_counts || {}).promoted || ['received', 'scanning', 'parsing'].includes(u.status);
+      const button = h('button', { class: 'asc-btn-link', type: 'button', disabled: blocked,
+        title: blocked ? 'This upload already has tasks; retry is unavailable.' : null }, 'Re-ingest');
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          await api('/ingestion/uploads/' + encodeURIComponent(u.upload_id) + '/retry', { method: 'POST' });
+          load();
+        } catch (e) { button.disabled = false; toast(errText(e, 'Could not re-ingest.'), 'error'); }
+      });
+      return h('div', { class: 'asc-stage-counts' },
+        'Ingested with pipeline ' + (c.pipeline_versions || ['unknown']).join(', ')
+        + ' · current v' + c.current_pipeline_version + ' · ', button);
+    }
+
     function headerLines(u) {
       const bits = [
         u.partner_label || u.partner_id || 'Unknown sender',
@@ -3381,6 +3429,7 @@
         h('div', { class: 'asc-stage-head' }, bits.join(' · '), ' ', integrity,
           u.created_at ? h('span', { class: 'asc-dim' }, ' · ' + fmtDate(u.created_at)) : null),
         h('div', { class: 'asc-stage-desc' }, specialtyChip(u), ' · ', chartFacts(u)),
+        reingestControl(u),
         h('div', { class: 'asc-stage-counts' },
           u.description
             ? h('span', {}, '“' + u.description + '”')
@@ -3426,6 +3475,7 @@
       if (c.encounters) bits.push(c.encounters + ' encounter' + (c.encounters === 1 ? '' : 's'));
       if (c.notes) bits.push(c.notes + ' note' + (c.notes === 1 ? '' : 's'));
       if (c.lab_panels) bits.push(c.lab_panels + ' panel' + (c.lab_panels === 1 ? '' : 's'));
+      if (c.omitted_implausible_dates) bits.push(c.omitted_implausible_dates + ' documents carry dates the chart cannot support');
       if (c.studies) bits.push(c.studies + ' stud' + (c.studies === 1 ? 'y' : 'ies'));
       if (counts.needs_review) bits.push(counts.needs_review + ' need review');
       if (counts.quarantined) bits.push(counts.quarantined + ' quarantined');
@@ -3448,19 +3498,17 @@
       if ((u.specialties || []).length) return { required: false, node: null };
       const c = u.content || {};
       // Three states, not two. `null` means the chart was ingested before the
-      // summary existed — nothing was measured — and a row must not be gated on
-      // a measurement nobody took, nor told its chart "carries too little
-      // signal" when it was never read.
+      // summary existed. A declaration is still required, but missing inference
+      // must not be described as a measured low-confidence result.
       const measured = c.specialty_clears_floor === true || c.specialty_clears_floor === false;
-      const required = measured && !c.specialty_clears_floor;
+      const required = true;
       const why = !measured
         ? ('This chart was ingested before specialty inference was recorded, so '
-           + 'nothing has been measured. Set the specialty here, or build and let '
-           + 'the planner read each encounter. ')
+           + 'nothing has been measured. Set the specialty before building. ')
         : (c.specialty_inferred
           ? ('The chart as a whole reads as ' + cap(c.specialty_inferred) + ' at '
              + Number(c.specialty_confidence || 0).toFixed(2)
-             + (required
+             + (c.specialty_clears_floor !== true
                 ? (', below the ' + (c.specialty_floor || 0.6) + ' the planner needs on each encounter it builds. ')
                 : ', which the planner would accept: confirm it, or choose another. '))
           : 'The chart carries too little signal to read a specialty from. ');
@@ -3681,6 +3729,10 @@
 
     function doneRow(u) {
       const counts = u.case_counts || {};
+      const statusBox = h('div', {});
+      const review = u.task_mode === 'longitudinal'
+        ? h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+            onClick: () => previewLongitudinal(u, statusBox) }, 'Review chart plan') : null;
       const go = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
         'view in Task Routing →');
       go.addEventListener('click', () => {
@@ -3692,7 +3744,7 @@
           '✓ ' + (counts.promoted || 0) + ' task(s) created · '
           + (u.partner_label || 'Unknown sender') + ' · ' + (u.filename || 'bundle')
           + (u.task_mode ? (' · ' + u.task_mode) : '')),
-        go);
+        go, review, autoGenerateFailures(u), statusBox);
     }
 
     // ─── Paint ──────────────────────────────────────────────────────────────

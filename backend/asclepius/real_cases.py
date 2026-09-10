@@ -35,6 +35,7 @@ returns the same plan twice.
 
 from __future__ import annotations
 
+import copy
 import logging
 import math
 import os
@@ -119,6 +120,40 @@ def _timed_offsets(case: Dict[str, Any], keys: Sequence[str] = _TIMED_COLLECTION
 _ACTIVITY_COLLECTIONS = ("lab_panels", "notes", "studies", "vitals")
 
 
+def prepare_longitudinal_chart(case: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Curate a copy; unsupported early note dates never seed chart state."""
+    c = copy.deepcopy(as_dict(case) or {})
+    if not c:
+        return c
+    c["notes"], _ = curate_notes(c.get("notes") or [])
+    structured = _timed_offsets(c, ("lab_panels", "studies"))
+    if structured:
+        earliest = min(structured)
+        suspect = {o for n in c.get("notes") or []
+                   if (o := _offset_of(n)) is not None and earliest - o > 3 * 365
+                   and not any(abs(o - d) <= 30 for d in structured)}
+        for key in ("notes", "medications", "problem_list"):
+            for item in c.get(key) or []:
+                if _offset_of(item) in suspect:
+                    item["collected_offset_days"] = None
+                    if key == "notes":
+                        item.update(model_visible=False, withheld_reason="implausible_date")
+                    elif key == "problem_list":
+                        item["since"] = None
+    return c
+
+
+def _activity_case(case: Dict[str, Any]) -> Dict[str, Any]:
+    """Panel renderings remain in the chart but cannot inflate the density gate."""
+    offsets = set(_timed_offsets(case, ("lab_panels",)))
+    return {**case, "notes": [n for n in case.get("notes") or []
+            if not (_is_panel_note(n) and _offset_of(n) in offsets)]}
+
+
+def _is_panel_note(note: Dict[str, Any]) -> bool:
+    return str(note.get("note_type") or "").strip().lower() in {"report", "lab report"}
+
+
 def segment_longitudinal_record(
     case: Optional[Dict[str, Any]], *, min_gap_days: int = 7,
 ) -> List[Dict[str, Any]]:
@@ -133,7 +168,7 @@ def segment_longitudinal_record(
     offsets, n_events}``. A chart with no timing at all returns a single encounter
     spanning everything, which the caller can still gate on content.
     """
-    c = as_dict(case) or {}
+    c = _activity_case(prepare_longitudinal_chart(case))
     offsets = sorted(set(_timed_offsets(c, _ACTIVITY_COLLECTIONS)))
     if not offsets:
         return [{"index": 0, "start_offset": 0, "end_offset": 0,
@@ -213,7 +248,7 @@ def qualify_encounter(
     construct is "truncate here, reveal what came after", and neither half of that
     means anything without an axis to truncate on.
     """
-    c = as_dict(case) or {}
+    c = _activity_case(prepare_longitudinal_chart(case))
     enc = encounter or {}
     offsets = list(enc.get("offsets") or [])
     reasons: List[str] = []
@@ -836,6 +871,8 @@ def curate_notes(notes: Sequence[Dict[str, Any]], *, min_chars: int = 40,
             continue
         raw = str(note.get("text") or "").strip()
         text = strip_provenance_lines(raw).strip()
+        text = re.sub(r"^Document index:.*?^-{20,}[^\S\n]*\n?", "", text,
+                      flags=re.MULTILINE | re.DOTALL | re.IGNORECASE).strip()
         if text != raw:
             stats["provenance_lines_stripped"] += len(provenance_lines(raw))
             note = {**note, "text": text}
@@ -845,7 +882,8 @@ def curate_notes(notes: Sequence[Dict[str, Any]], *, min_chars: int = 40,
         if _NON_CLINICAL_NOTE_RE.match(text):
             stats["dropped_non_clinical"] += 1
             continue
-        norm = _normalized_note_text(text)
+        # Repeated templates on different visits remain distinct observations.
+        norm = (_offset_of(note), _normalized_note_text(text)[:300])
         if norm in seen:
             stats["dropped_duplicate"] += 1
             continue
@@ -856,7 +894,7 @@ def curate_notes(notes: Sequence[Dict[str, Any]], *, min_chars: int = 40,
 
 
 def _budget(items: List[Dict[str, Any]], limit: int, stats: Dict[str, int],
-            key: str) -> List[Dict[str, Any]]:
+            key: str, *, note_roles: bool = False) -> List[Dict[str, Any]]:
     """Keep the ``limit`` items closest to the decision point, plus the earliest
     one in the window so the TREND survives the cut. Dropping the oldest panel
     would delete exactly the comparison the case is testing."""
@@ -865,7 +903,17 @@ def _budget(items: List[Dict[str, Any]], limit: int, stats: Dict[str, int],
     ordered = sorted(items, key=lambda it: (_offset_of(it) is None, _offset_of(it) or 0))
     # ``limit == 1`` has no room for a trend anchor, and ``ordered[-0:]`` is the
     # WHOLE list — a slice that silently disables the budget rather than applying it.
-    kept = [ordered[-1]] if limit <= 1 else ordered[-(limit - 1):] + [ordered[0]]
+    if note_roles:
+        def role(it):
+            typ = str(it.get("note_type") or "").lower()
+            classes = (r"\b(?:er|triage|emergency)\b", r"h&p|history|admission", r"progress",
+                       r"consult", r"discharge", r"radiology|interpretation|report",
+                       r"order|prescription", r"nurs")
+            return next((i for i, pat in enumerate(classes) if re.search(pat, typ)), 8)
+        ranked = sorted(ordered, key=lambda it: (role(it), -(_offset_of(it) or 0)))
+        kept = ranked[:1] if limit <= 1 else [ordered[0]] + [it for it in ranked if it is not ordered[0]][:limit-1]
+    else:
+        kept = [ordered[-1]] if limit <= 1 else ordered[-(limit - 1):] + [ordered[0]]
     stats[key] = len(items) - len(kept)
     keep_ids = {id(it) for it in kept}
     return [it for it in items if id(it) in keep_ids]
@@ -1036,7 +1084,8 @@ def _drug_identity(name: Any) -> str:
 
 def _held_out_summary(case: Dict[str, Any], index_offset: int,
                       visible_text: str = "",
-                      visible_drugs: Optional[set] = None) -> Dict[str, Any]:
+                      visible_drugs: Optional[set] = None,
+                      until_offset: Optional[int] = None) -> Dict[str, Any]:
     """What actually happened after the decision point — the outcome the
     physician's answer is checked against. Assembled deterministically from the
     chart itself, never invented.
@@ -1048,7 +1097,8 @@ def _held_out_summary(case: Dict[str, Any], index_offset: int,
     Counting it as the answer both mis-grades the model and trips the leakage guard
     on a term the visible chart legitimately contains."""
     after = lambda key: [it for it in (case.get(key) or [])                    # noqa: E731
-                         if (o := _offset_of(it)) is not None and o > index_offset]
+                         if (o := _offset_of(it)) is not None and o > index_offset
+                         and (until_offset is None or o <= until_offset)]
     problems = [str(p.get("condition") or "") for p in after("problem_list")]
     # The answer key is graded against, so it gets the same curation as the visible
     # side: a key listing "Left margin: Aspiration Pneumonia; Admit in ICU" as a
@@ -1063,7 +1113,14 @@ def _held_out_summary(case: Dict[str, Any], index_offset: int,
                                      parsed.get("route"), parsed.get("freq")) if x),
             ))
     lines: List[str] = []
-    for note in after("notes"):
+    panel_offsets = set(_timed_offsets(case, ("lab_panels",)))
+    outcome_notes, _ = curate_notes([n for n in after("notes")
+        if not (_is_panel_note(n) and _offset_of(n) in panel_offsets)])
+    # The outcome key needs the resolution narrative before a stack of reports.
+    outcome_notes.sort(key=lambda n: (
+        not bool(re.search("discharge", str(n.get("note_type") or ""), re.I)),
+        _offset_of(n)))
+    for note in outcome_notes:
         text = str(note.get("text") or "").strip()
         if text:
             lines.append(f"[+{_offset_of(note) - index_offset}d {note.get('note_type') or 'Note'}] "
@@ -1130,6 +1187,8 @@ def _ground_truth_from_held_out(held_out: Dict[str, Any]) -> Dict[str, Any]:
 
 def build_encounter_case(
     case: Optional[Dict[str, Any]], encounter: Dict[str, Any], index_offset: int,
+    *, until_offset: Optional[int] = None, trajectory: bool = False,
+    encounters: Optional[Sequence[Dict[str, Any]]] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
     """``(visible_case, held_out, curation_stats)`` for one decision point.
 
@@ -1138,7 +1197,18 @@ def build_encounter_case(
     and total: no collection is exempt, because a problem added afterwards is
     literally the answer and a drug started afterwards names the diagnosis.
     """
-    c = as_dict(case) or {}
+    c = prepare_longitudinal_chart(case)
+    # Resolution documents belong to the end of their own encounter. Prior
+    # resolutions remain available as history and as the next point's reveal.
+    spans = encounters if encounters is not None else [encounter]
+    for note in c.get("notes") or []:
+        off = _offset_of(note)
+        if off is not None and re.search("discharge", str(note.get("note_type") or ""), re.I):
+            span = next((e for e in spans if e["start_offset"] <= off <= e["end_offset"]), None)
+            if span:
+                note["collected_offset_days"] = span["end_offset"]
+                if index_offset < span["end_offset"]:
+                    note.update(model_visible=False, withheld_reason="encounter_resolution")
     lookback = encounter.get("start_offset")
     if not isinstance(lookback, int):
         lookback = index_offset
@@ -1161,7 +1231,8 @@ def build_encounter_case(
             if off > index_offset:
                 continue
             if lo is not None and off < lo:
-                continue
+                if key != "notes" or not re.search("discharge", str(it.get("note_type") or ""), re.I):
+                    continue
             out.append(it)
         return out
 
@@ -1170,9 +1241,15 @@ def build_encounter_case(
     # one recorded at or before the index event, however long ago — that is what a
     # chart shows you when you open it.
     panels, lab_stats = curate_lab_panels(_visible("lab_panels", from_start=True))
-    notes, note_stats = curate_notes(_visible("notes", from_start=True))
+    note_candidates = _visible("notes", from_start=True)
+    panel_offsets = set(_timed_offsets(c, ("lab_panels",)))
+    notes, note_stats = curate_notes([n for n in note_candidates
+        if not (_is_panel_note(n) and _offset_of(n) in panel_offsets)])
+    note_stats["dropped_panel_rendering"] = len(note_candidates) - len([
+        n for n in note_candidates if not (_is_panel_note(n) and _offset_of(n) in panel_offsets)])
     panels = _budget(panels, max_panels_per_case(), lab_stats, "dropped_over_budget")
-    notes = _budget(notes, max_notes_per_case(), note_stats, "dropped_over_budget")
+    notes = _budget(notes, _env_int("ASCLEPIUS_REAL_CASE_MAX_NOTES", 16) if trajectory
+                    else max_notes_per_case(), note_stats, "dropped_over_budget", note_roles=True)
     meds, med_stats = curate_medications(_visible("medications"), notes,
                                          index_offset=index_offset)
     problems = _visible("problem_list")
@@ -1186,7 +1263,8 @@ def build_encounter_case(
         + [str(s.get(f) or "") for s in studies for f in ("findings", "impression")])
     held_out = _held_out_summary(
         c, index_offset, seen_before,
-        {_drug_identity(m.get("drug")) for m in meds if m.get("drug")})
+        {_drug_identity(m.get("drug")) for m in meds if m.get("drug")},
+        until_offset=until_offset)
     visible = {
         "case_source": "real_deid",
         "specialty": c.get("specialty") or "general",
@@ -1899,10 +1977,51 @@ def _content_blockers(visible: Dict[str, Any]) -> List[str]:
     return blockers
 
 
+_NARRATIVE_TYPE_RE = re.compile(
+    r"^(?:progress(?: note)?|consult(?:ation)?(?: note)?|h&p|history(?: and physical)?|"
+    r"admission(?: note)?|emergency(?: note)?|er|triage|clinical note|note)$", re.I)
+_NON_NARRATIVE_OPENING_RE = re.compile(
+    r"^(?:form:\s*)?(?:fresh orders|medication form|medication administration|"
+    r"head to toe assessment|patient assessment|intake\s*/\s*output|"
+    r"nursing (?:assessment|chart)|vital signs|orders?\s*:)", re.I)
+
+
+def has_encounter_narrative(visible: Dict[str, Any], encounter: Dict[str, Any],
+                            index_offset: int) -> bool:
+    """A visible clinical narrative from THIS encounter, not a prior resolution.
+
+    This is a conservative document-role check, not a clinical quality judgment.
+    Known order/nursing forms sometimes arrive mislabeled as Progress; they do
+    not establish a presenting narrative merely by carrying that type label.
+    """
+    lo = encounter.get("start_offset")
+    if not isinstance(lo, int):
+        return False
+    for note in visible.get("notes") or []:
+        off = _offset_of(note)
+        text = str(note.get("text") or "").strip()
+        if (off is not None and lo <= off + index_offset <= index_offset
+                and note.get("model_visible") is not False
+                and not note.get("withheld_reason")
+                and len(text) >= 40
+                and _NARRATIVE_TYPE_RE.fullmatch(str(note.get("note_type") or "").strip())
+                and not _NON_NARRATIVE_OPENING_RE.match(text)):
+            return True
+    return False
+
+
+def _hold_proposal(proposal: Dict[str, Any], reason: str, message: str) -> None:
+    proposal["review_required"] = True
+    proposal.setdefault("review_reasons", []).append({"reason": reason, "message": message})
+    proposal["blockers"].append(message)
+    proposal["generatable"] = False
+
+
 async def plan_cases(
     case: Optional[Dict[str, Any]], *, max_cases: Optional[int] = None,
     min_gap_days: int = 7, specialty_hint: Optional[str] = None,
     derive_questions: bool = True, question_indices: Optional[Sequence[int]] = None,
+    trajectory: bool = False,
 ) -> Dict[str, Any]:
     """One ingested chart → the full list of proposed cases, WITHOUT writing
     anything. This is what the admin dry-run returns and what generation iterates.
@@ -1912,7 +2031,7 @@ async def plan_cases(
     what was skipped and why; a plan that silently returns only the survivors is
     how a partner's chart quietly yields two cases instead of six.
     """
-    c = as_dict(case) or {}
+    c = prepare_longitudinal_chart(case)
     if not c:
         raise RealCaseError("empty case")
 
@@ -1952,7 +2071,12 @@ async def plan_cases(
             proposals.append(proposal)
             continue
 
-        visible, held_out, stats = build_encounter_case(c, enc, index_offset)
+        later = [e for e in encounters if e["index"] > enc["index"]
+                 and qualify_encounter(c, e)["qualifies"]]
+        until_offset = select_decision_point(c, later[0])[0] if later else max(_timed_offsets(c), default=index_offset)
+        visible, held_out, stats = build_encounter_case(
+            c, enc, index_offset, until_offset=until_offset, trajectory=trajectory,
+            encounters=encounters)
         specialty, confidence, scores = infer_specialty(visible)
         if specialty_hint and is_enabled(specialty_hint):
             # An admin who has set the specialty on the upload outranks the
@@ -1988,7 +2112,25 @@ async def plan_cases(
                 f"confidence floor for any enabled specialty (best {confidence:.2f} "
                 f"of {sorted(scores)}) — an admin must set it")
         proposal["generatable"] = not proposal["blockers"]
+        if trajectory and not has_encounter_narrative(visible, enc, index_offset):
+            _hold_proposal(proposal, "missing_encounter_narrative",
+                "Review required: no visible clinical narrative from this encounter. "
+                "Review source timing/type or upload additional contemporaneous notes; historical discharge "
+                "summaries and report/order forms cannot clear this hold.")
         proposals.append(proposal)
+
+    if trajectory:
+        # A's answer key ends at B. If B is held, do not silently connect A to C
+        # and grade it against a different reveal. Propagate the hold backwards;
+        # the unaffected suffix can still become an ordered, bounded walk.
+        successor = None
+        for point in reversed(proposals):
+            if successor and successor.get("review_required") and not point.get("review_required"):
+                _hold_proposal(point, "outcome_requires_review",
+                    "Review required: the next decision point's evidence is held. "
+                    "Resolve its narrative hold before building this preceding point.")
+            if point.get("qualifies_as_decision_point"):
+                successor = point
 
     # Authoring a question is the ONE plan step that costs a model call, so it is
     # scoped: generating a single encounter must not author six questions.
@@ -2018,7 +2160,13 @@ async def plan_cases(
         "encounters": total_encounters,
         "proposals": proposals,
         "generatable": len(generatable),
+        "review_required_points": sum(bool(p.get("review_required")) for p in proposals
+                                      if p.get("qualifies_as_decision_point")),
+        "ready_decision_points": sum(bool(p.get("generatable")) for p in proposals
+                                     if p.get("qualifies_as_decision_point")),
         "min_gap_days": min_gap_days,
+        "why": "no model was called: 0 encounters cleared the gate" if not generatable else None,
+        "omitted_implausible_dates": sum(n.get("withheld_reason") == "implausible_date" for n in c.get("notes") or []),
         # §2 — the two numbers a chart walk is priced on, stated separately because
         # they are different facts. ``decision_points`` is what clears the density
         # gate; ``verifiable_decision_points`` is how many of those the record can

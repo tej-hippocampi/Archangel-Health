@@ -300,7 +300,9 @@ def test_recovery_reprocesses_a_stuck_upload_without_duplicating_cases():
     assert handled >= 1
     up = st.get_ingest_upload(res["upload_id"])
     assert up["status"] == "ingested"                    # driven back to terminal
-    assert len(st.list_ingest_cases(upload_id=res["upload_id"])) == 1  # no dup cases
+    rows = st.list_ingest_cases(upload_id=res["upload_id"])
+    assert len(rows) == 2  # prior attempt remains audit history
+    assert sorted(c["status"] for c in rows) == ["ingested", "superseded"]
 
 
 def test_recovery_rejects_upload_whose_raw_blob_is_gone():

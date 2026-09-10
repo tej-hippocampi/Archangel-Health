@@ -6721,16 +6721,23 @@ def _upload_content_view(cases: List[Dict[str, Any]]) -> Dict[str, Any]:
     The specialty inference is taken from the first ingested case's recorded
     summary — a bundle is one patient after unification, so "first" is "the"
     chart in every case this screen was built for."""
+    cases = [c for c in cases if c.get("status") != "superseded"]
     out: Dict[str, Any] = {"charts": len(cases), "notes": 0, "lab_panels": 0,
                            "studies": 0, "encounters": 0, "decision_points": 0,
                            "specialty_inferred": None, "specialty_confidence": None,
                            "specialty_clears_floor": None, "specialty_floor": None}
+    versions = sorted({str((c.get("report") or {}).get("pipeline_version") or "unknown") for c in cases})
+    out["pipeline_versions"] = versions
+    out["current_pipeline_version"] = asc_ingestion.INGEST_PIPELINE_VERSION
+    out["reingest_available"] = bool(cases) and any(
+        (c.get("report") or {}).get("pipeline_version") != asc_ingestion.INGEST_PIPELINE_VERSION
+        or not (c.get("report") or {}).get("content_summary") for c in cases)
     for c in cases:
         summary = ((c.get("report") or {}).get("content_summary")) or {}
         body = c.get("case") or {}
         if summary:
-            for k in ("notes", "lab_panels", "studies", "encounters", "decision_points"):
-                out[k] += int(summary.get(k) or 0)
+            for k in ("notes", "lab_panels", "studies", "encounters", "decision_points", "omitted_implausible_dates"):
+                out[k] = out.get(k, 0) + int(summary.get(k) or 0)
         else:
             out["notes"] += len(body.get("notes") or [])
             out["lab_panels"] += len(body.get("lab_panels") or [])
@@ -6835,7 +6842,8 @@ async def list_ingestion_uploads(
             u["size_bytes"] = 0
         # How many ingested cases are ready to promote from THIS upload file —
         # drives the upload-scoped promote UI.
-        cases = store.list_ingest_cases(upload_id=u["upload_id"])
+        cases = [c for c in store.list_ingest_cases(upload_id=u["upload_id"])
+                 if c.get("status") != "superseded"]
         u["ingested_case_count"] = sum(1 for c in cases if c.get("status") == "ingested")
         u["case_count"] = len(cases)
         # Whether promotion is even POSSIBLE for this upload, on the same row that
@@ -6853,6 +6861,8 @@ async def list_ingestion_uploads(
         # ingest recorded; a row that predates the summary gets the cheap counts
         # from its stored case and no inference.
         u["content"] = _upload_content_view(cases)
+        if not cases and u.get("status") == "rejected":
+            u["content"]["reingest_available"] = True
         promotable = [c for c in ingested
                       if not asc_ingestion.blocks_promotion(
                           c.get("purpose") or u.get("purpose"))]
@@ -7132,11 +7142,16 @@ async def retry_ingestion_upload(
         raise HTTPException(status_code=404, detail="Upload not found")
     if not upload.get("raw_path") or not os.path.exists(upload["raw_path"]):
         raise HTTPException(status_code=410, detail="Raw upload already purged (retention window)")
-    store.update_ingest_upload(upload_id, status="received", reason=None)
+    specialty_override = store.assigned_specialty_for_upload(upload_id)
+    try:
+        superseded = store.begin_ingest_retry(upload_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                     event_type="upload_retry", actor=admin["id"])
-    background.add_task(asc_ingestion.process_upload, store, upload_id)
-    return {"upload_id": upload_id, "status": "received"}
+    background.add_task(asc_ingestion.process_upload, store, upload_id,
+                        specialty_override=specialty_override)
+    return {"upload_id": upload_id, "status": "received", "superseded": superseded}
 
 
 @router.get("/ingestion/quarantine")
@@ -7404,6 +7419,7 @@ def _commit_promoted_task(
         grounding_mode=grounding_mode or DEFAULT_GROUNDING_MODE,
         independent_mode=independent_mode or DEFAULT_INDEPENDENT_MODE,
         case=conv["case"], generation=conv["generation"], created_by=admin["id"],
+        ingest_case_id=ic["ingest_case_id"],
         # Launch-week fan-out (V4 PRD §4): VISIBILITY only, never max_labels.
         open_to_all_specialties=bool(open_to_all_specialties),
     )
@@ -7739,6 +7755,9 @@ def _proposal_view(p: Dict[str, Any]) -> Dict[str, Any]:
         "index_rationale": p.get("index_rationale"),
         "generatable": bool(p.get("generatable")),
         "blockers": p.get("blockers") or [],
+        "review_required": bool(p.get("review_required")),
+        "review_reasons": p.get("review_reasons") or [],
+        "specialty_scores": p.get("specialty_scores") or {},
         "question": p.get("question"),
         # The proposed question is MODEL OUTPUT until a physician accepts it, and
         # the console's colour semantics turn on exactly that distinction — the UI
@@ -7802,6 +7821,9 @@ async def _generate_one_real_case(
     fall for is not the trap, and keying the flawed answer to an invented one is
     what makes an A/B pair two guesses instead of a preference pair.
     """
+    if p.get("review_required"):
+        return {"encounter_index": p.get("encounter_index"), "review_required": True,
+                "error": "Point is held for evidence review", "review_reasons": p.get("review_reasons") or []}
     from asclepius import real_cases
     from asclepius.constants import (
         case_coherence_min, case_divergence_min, case_mm_necessity_min,
@@ -7957,6 +7979,7 @@ async def _generate_one_real_case(
         grounding_mode=grounding_mode or DEFAULT_GROUNDING_MODE,
         independent_mode=independent_mode or DEFAULT_INDEPENDENT_MODE,
         case=case, generation=generation, created_by=admin["id"],
+        ingest_case_id=ic["ingest_case_id"],
         # Launch-week fan-out (V4 PRD §4): VISIBILITY only, never max_labels.
         open_to_all_specialties=bool(open_to_all_specialties),
         trajectory_id=trajectory_id, sequence_index=sequence_index,
@@ -8033,7 +8056,7 @@ async def generate_real_cases(
         plan = await real_cases.plan_cases(
             ic.get("case") or {}, max_cases=body.max_cases,
             min_gap_days=max(1, int(body.min_gap_days or 7)),
-            specialty_hint=hint, derive_questions=body.derive_questions,
+            specialty_hint=hint, derive_questions=body.derive_questions, trajectory=body.trajectory,
             # On a live per-case generate, author ONLY the question we are about to
             # use. A dry run authors all of them, which is the point of the preview.
             question_indices=(None if body.dry_run else body.encounter_indices))
@@ -8071,6 +8094,8 @@ async def generate_real_cases(
         "patient_key": ic.get("patient_key"),
         "encounters": plan["encounters"],
         "generatable": plan["generatable"],
+        "why": plan.get("why"),
+        "omitted_implausible_dates": plan.get("omitted_implausible_dates", 0),
         "selected": len(selected),
         "specialty_hint": hint,
         "dry_run": bool(body.dry_run),
@@ -8079,6 +8104,8 @@ async def generate_real_cases(
         # trajectory or not, because they are what an admin needs to decide whether
         # this chart is worth walking.
         "decision_points": plan.get("decision_points"),
+        "review_required_points": plan.get("review_required_points", 0),
+        "ready_decision_points": plan.get("ready_decision_points", 0),
         "verifiable_decision_points": plan.get("verifiable_decision_points"),
         "density_gate": plan.get("density_gate"),
         "trajectory": trajectory_mode,
@@ -8094,6 +8121,16 @@ async def generate_real_cases(
         raise HTTPException(
             status_code=422,
             detail={"error": "nothing_generatable",
+                    "review_required_points": plan.get("review_required_points", 0),
+                    "held": [{"encounter_index": p["encounter_index"],
+                              "review_reasons": p.get("review_reasons") or []}
+                             for p in plan["proposals"] if p.get("review_required")
+                             and p.get("qualifies_as_decision_point")],
+                    "message": ("Review required: no requested decision points are ready. "
+                                "Resolve the narrative evidence holds in the chart-walk preview."
+                                if any(p.get("review_required") for p in plan["proposals"]
+                                       if not wanted or p["encounter_index"] in wanted)
+                                else "No requested encounters cleared generation gates."),
                     "blockers": {p["encounter_index"]: p.get("blockers") or []
                                  for p in plan["proposals"]}})
 
@@ -8164,7 +8201,11 @@ async def generate_real_cases(
     response.update({
         "generated": len(generated), "gated": len(gated), "failed": len(failed),
         "task_ids": [g["task_id"] for g in generated],
-        "details": {"generated": generated, "gated": gated, "failed": failed},
+        "details": {"generated": generated, "gated": gated, "failed": failed,
+                    "held": [{"encounter_index": p["encounter_index"],
+                              "review_reasons": p.get("review_reasons") or []}
+                             for p in plan["proposals"] if p.get("review_required")
+                             and p.get("qualifies_as_decision_point")]},
     })
     if trajectory_mode and generated:
         n = len(generated)
