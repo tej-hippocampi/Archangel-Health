@@ -115,6 +115,13 @@ def test_health_system_browser_gate_runs_with_chromium_and_a_built_landing():
     assert "npm --prefix ../landing run build" in workflow
 
 
+def test_browser_onboarding_is_owned_by_the_browser_job():
+    path = "tests/test_physician_onboarding_browser.py"
+    assert path in ci_shard.EXCLUDED
+    workflow = (Path(BACKEND).parent / ".github/workflows/tests.yml").read_text()
+    assert path in workflow.split("  visual:", 1)[1].split("  onboarding-form:", 1)[0]
+
+
 def test_an_unweighted_file_is_still_assigned():
     """WEIGHTS is an optimisation, never a correctness input: a file nobody has
     measured still lands in a shard. This is what makes adding a test file safe."""

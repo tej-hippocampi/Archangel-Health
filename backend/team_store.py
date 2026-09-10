@@ -1375,7 +1375,10 @@ class TeamStore:
                     director_password_set_at = CASE
                         WHEN ? IS NOT NULL THEN ? ELSE director_password_set_at END,
                     director_license_state = COALESCE(NULLIF(?, ''), director_license_state),
-                    onboarding_step = CASE WHEN onboarding_step < 1 THEN 1 ELSE onboarding_step END
+                    -- Mailbox proof belongs to the address that received the OTP.
+                    onboarding_step = CASE
+                        WHEN lower(trim(COALESCE(director_email, ''))) <> ? THEN 1
+                        WHEN onboarding_step < 1 THEN 1 ELSE onboarding_step END
                 WHERE id = ?
                 """,
                 (
@@ -1383,6 +1386,7 @@ class TeamStore:
                     password_hash,
                     password_hash, _utcnow_iso(),
                     (license_state or "").strip().upper()[:2],
+                    email.lower().strip(),
                     hs_id,
                 ),
             )
@@ -5487,4 +5491,3 @@ def set_team_store(store: "TeamStore", realm_name: Optional[str] = None) -> "Tea
 def drop_team_store_for_realm(r: str) -> None:
     """Forget the cached store for ``r`` (``Reset sandbox``)."""
     _STORES.pop(_realm.validate(r), None)
-

@@ -685,6 +685,10 @@ export async function asclepiusForgotPassword(email: string): Promise<{ message:
     body: JSON.stringify({ email }),
   });
   const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(typeof body.detail === "string" ? body.detail
+      : "Could not send the password link. Please try again.");
+  }
   return {
     message:
       (body && body.message) ||

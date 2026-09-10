@@ -126,6 +126,10 @@ def verify_password(plain: str, hashed: str) -> bool:
 NO_PASSWORD_HASH = "!no-password-set"
 
 
+class AccountAlreadyClaimed(ValueError):
+    """An onboarding attempt cannot replace an existing account's credential."""
+
+
 def password_is_unset(user: Dict[str, Any]) -> bool:
     """True when this account has never had a password of any kind."""
     return (user or {}).get("password_hash") == NO_PASSWORD_HASH
@@ -3938,6 +3942,7 @@ class AsclepiusStore:
         credentials: Optional[Dict[str, Any]] = None,
         attestations: Optional[Dict[str, Any]] = None,
         account_kind: Optional[str] = None,
+        reject_existing_password: bool = False,
     ) -> Dict[str, Any]:
         """Idempotent upsert used by the Asclepius onboarding flow.
 
@@ -3958,19 +3963,22 @@ class AsclepiusStore:
         email = email.lower().strip()
         if password_hash is None and password is not None:
             password_hash = hash_password(password)
-        existing_probe = self.get_user_by_email(email)
-        # Onboarding v2 §2: the wizard provisions with NO_PASSWORD_HASH. On a
-        # RE-onboard that must never touch a credential the physician is signing
-        # in with today — the sentinel means "we were not given one", not "erase
-        # the one you have". Same reasoning as the None case documented above,
-        # which this is the second spelling of.
-        if password_hash == NO_PASSWORD_HASH and existing_probe \
-                and (existing_probe.get("password_hash") or "") != NO_PASSWORD_HASH:
-            password_hash = None
         creds_json = json.dumps(credentials or {})
         atts_json = json.dumps(attestations or {})
-        existing = existing_probe
         with self._conn() as conn:
+            # Serialize the existence check with the write: two open invitations
+            # for one address must not race to replace each other's password.
+            conn.execute("BEGIN IMMEDIATE")
+            found = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+            existing = dict(found) if found else None
+            if reject_existing_password and existing \
+                    and (existing.get("password_hash") or "").strip() \
+                    and not password_is_unset(existing):
+                raise AccountAlreadyClaimed(email)
+            # A sentinel means no credential was supplied, never erase one.
+            if password_hash == NO_PASSWORD_HASH and existing \
+                    and not password_is_unset(existing):
+                password_hash = None
             if existing:
                 # password_hash is set in its own clause, and only when supplied,
                 # so a re-onboard that carries no password cannot blank or
@@ -4013,7 +4021,7 @@ class AsclepiusStore:
                         creds_json, atts_json, account_kind, *pw_stamp_param, email,
                     ),
                 )
-                return self.get_user_by_email(email)  # type: ignore[return-value]
+                return dict(conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone())
             uid = _new_id("u")
             id_hashed = hashlib.sha256(uid.encode("utf-8")).hexdigest()[:16]
             conn.execute(
@@ -6176,8 +6184,8 @@ class AsclepiusStore:
         self, *, user_id: str, task_id: str, specialty: str,
         attempt: int, payload: Dict[str, Any], time_spent_sec: int = 0,
         is_own_specialty: Optional[bool] = None, applied_specialty: str = "",
-    ) -> str:
-        """File an applicant's examination. Returns the exam id.
+    ) -> tuple[str, bool]:
+        """File an applicant's examination. Returns (exam id, newly created).
 
         Append-only: a retake writes a new row rather than replacing the old
         one, so an admin looking at somebody who was asked to try again can see
@@ -6190,6 +6198,16 @@ class AsclepiusStore:
                                         captured_at=captured_at)
         exam_id = "ce-" + uuid.uuid4().hex[:12]
         with self._conn() as conn:
+            # The check, insert and application receipt share a write lock.
+            # Simultaneous tabs and retries cannot file the same attempt twice.
+            conn.execute("BEGIN IMMEDIATE")
+            previous = conn.execute(
+                "SELECT exam_id, task_id, submitted_at FROM credentialing_exams "
+                "WHERE user_id = ? AND attempt = ? ORDER BY rowid LIMIT 1",
+                (user_id, int(attempt or 1)),
+            ).fetchone()
+            if previous:
+                return previous["exam_id"], False
             conn.execute(
                 """
                 INSERT INTO credentialing_exams
@@ -6203,7 +6221,20 @@ class AsclepiusStore:
                  None if is_own_specialty is None else int(bool(is_own_specialty)),
                  (applied_specialty or "").strip() or None, json.dumps(metadata)),
             )
-        return exam_id
+            row = conn.execute("SELECT tutorial_json FROM users WHERE id = ?", (user_id,)).fetchone()
+            try:
+                tutorial = json.loads(row["tutorial_json"] or "{}") if row else {}
+            except (TypeError, ValueError):
+                tutorial = {}
+            if not isinstance(tutorial, dict):
+                tutorial = {}
+            tutorial.setdefault("status", "not_started")
+            tutorial["exam"] = {"state": "submitted", "attempt": int(attempt or 1),
+                                "submitted_at": captured_at + "Z", "exam_id": exam_id,
+                                "task_id": task_id}
+            conn.execute("UPDATE users SET tutorial_json = ? WHERE id = ?",
+                         (json.dumps(tutorial), user_id))
+        return exam_id, True
 
     def list_credentialing_exams(self, user_id: str) -> List[Dict[str, Any]]:
         """Every examination this applicant has filed, newest first."""

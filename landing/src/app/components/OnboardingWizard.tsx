@@ -537,6 +537,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
      captured when the loop began — which is precisely the stale reading this
      exists to prevent. */
   const cvAttemptRef = useRef<string | null>(null);
+  const resumeCvRef = useRef<{ attemptId?: string } | null>(null);
   useEffect(() => () => { cvAttemptRef.current = CV_POLL_CANCELLED; }, []);
   const [stepError, setStepError] = useState("");
   const [bootError, setBootError] = useState("");
@@ -602,6 +603,9 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     if (cvBlock.uploaded) {
       setCvFilename(cvBlock.filename || "");
       setCvStage((cvBlock.stage as CvStage | null) ?? null);
+      if (cvBlock.stage !== "done" && cvBlock.stage !== "failed") {
+        resumeCvRef.current = { attemptId: d.director_credentials?.cvAttemptId || undefined };
+      }
     }
     setDataState((prev) => ({
       ...prev,
@@ -627,9 +631,16 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         // so the same fact is not asked for twice. Never over a value the
         // physician already has there: the same rule applyCvParse follows.
         const fromStep1 = (d.director_license_state ?? "").trim();
-        return fromStep1 && !base.licenseState
+        const restored = fromStep1 && !base.licenseState
           ? { ...base, licenseState: fromStep1 }
           : base;
+        // Upload results live separately from the form until Review is saved.
+        // A reload must restore those suggestions while retaining manual edits.
+        if (cvBlock.stage === "done") {
+          const { patch } = applyCvParse(cvBlock.parsed ?? null, restored);
+          return { ...restored, ...patch };
+        }
+        return restored;
       })(),
       attestations:
         d.director_attestations && Object.keys(d.director_attestations).length > 0
@@ -685,7 +696,8 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     const savedAtts =
       d.director_attestations && Object.keys(d.director_attestations).length > 0;
     const kind = signupKindFor(d.signup_flavor);
-    if (stepNum < 1) setStep("identity");
+    if (stepNum < 1 || (product === "asclepius" && kind === "physician"
+        && !d.director_password_set)) setStep("identity");
     else if (stepNum < 2) setStep("verify");
     // A short signup has nowhere to resume TO past the password: the screens
     // after it do not exist for this account. Setting a password again is an
@@ -1097,6 +1109,14 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     }
   }, [token, applyParseAndReview]);
 
+  useEffect(() => {
+    if (loading || !resumeCvRef.current) return;
+    const { attemptId } = resumeCvRef.current;
+    resumeCvRef.current = null;
+    cvAttemptRef.current = attemptId ?? null;
+    void pollCvParse(attemptId);
+  }, [loading, pollCvParse]);
+
   const uploadCv = useCallback(
     async (file: File) => {
       setStepError("");
@@ -1176,6 +1196,13 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     const fbody = await readResponseJson(fr);
     if (!fr.ok) {
       setStepError(formatApiError(fbody) || `HTTP ${fr.status}`);
+      if (apiErrorCode(fbody) === "password_required") {
+        setData({ password: "", passwordSet: false });
+        setStep("identity");
+      } else if (apiErrorCode(fbody) === "account_exists") {
+        setSignInReason("account_exists");
+        setStep("ascSignIn");
+      }
       return false;
     }
     const d = fbody as { workspace_url?: string; token?: string; awaiting_review?: boolean };
@@ -1260,6 +1287,13 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     const body = await readResponseJson(r);
     if (!r.ok) {
       setStepError(formatApiError(body) || `HTTP ${r.status}`);
+      if (apiErrorCode(body) === "account_exists") {
+        setSignInReason("account_exists");
+        setStep("ascSignIn");
+      } else if (apiErrorCode(body) === "password_required") {
+        setData({ password: "", passwordSet: false });
+        setStep("identity");
+      }
       return false;
     }
     const d = body as { workspace_url?: string; token?: string };
@@ -1387,6 +1421,10 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       const fbody = await readResponseJson(fr);
       if (!fr.ok) {
         setStepError(formatApiError(fbody) || `HTTP ${fr.status}`);
+        if (apiErrorCode(fbody) === "account_exists") {
+          setSignInReason("account_exists");
+          setStep("ascSignIn");
+        }
         return false;
       }
       const d = fbody as { workspace_url?: string; token?: string };

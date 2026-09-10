@@ -21,7 +21,6 @@ not on which function was called.
 from __future__ import annotations
 
 import os
-import sqlite3
 import sys
 import uuid
 from pathlib import Path
@@ -79,11 +78,14 @@ def _submit_an_application(client: TestClient) -> str:
     token = invite["onboarding_url"].rsplit("/", 1)[-1]
     hs_id = invite["health_system_id"]
     email = f"dr_{uuid.uuid4().hex[:8]}@hospital.example.org"
-    ts.update_health_system_director_identity(
-        hs_id, first_name="Amara", last_name="Okafor", email=email)
-    with sqlite3.connect(ts.db_path) as conn:
-        conn.execute("UPDATE health_systems SET onboarding_step = 2 WHERE id = ?", (hs_id,))
-        conn.commit()
+    identity = client.post("/api/onboarding/step1-identity", json={
+        "token": token, "first_name": "Amara", "last_name": "Okafor",
+        "email": email, "password": "chosen-physician-password-1",
+    })
+    assert identity.status_code == 200, identity.text
+    ts.create_otp_challenge(hs_id, email, "123456")
+    verified = client.post("/api/onboarding/verify-otp", json={"token": token, "code": "123456"})
+    assert verified.status_code == 200, verified.text
     client.post("/api/onboarding/asclepius/credentials",
                 json={"token": token, "credentials": CREDS_MINIMAL})
     client.post("/api/onboarding/asclepius/attestations",

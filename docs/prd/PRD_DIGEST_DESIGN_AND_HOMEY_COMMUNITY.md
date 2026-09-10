@@ -268,7 +268,7 @@ Three cross-cutting items the agent would otherwise miss:
    existing token variables from `_tokens.css` (read, never edited). If a wash the
    palette lacks is needed, derive it in `community.css` from a token; do not add a
    token.
-3. **Founders' Calendly on profile cards.** `FOUNDER_CALENDLY` lives in `asclepius.js:3155`,
+3. **Founders' Calendly on profile cards.** `FOUNDER_CALENDLY` lives in `asclepius.js:3186`,
    which the community page does not load. Pass the URL through the shell data
    `community.html` already hands to `community.js` (a `data-` attribute or the `/me`
    payload) — do not import from the portal bundle and do not hardcode a second copy.

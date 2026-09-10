@@ -85,7 +85,8 @@ def _seed_verified(client: TestClient, *, product: str = "asclepius"):
     hs_id = invite["health_system_id"]
     email = f"dr_{uuid.uuid4().hex[:8]}@hospital.example.org"
     ts.update_health_system_director_identity(
-        hs_id, first_name="Amara", last_name="Okafor", email=email)
+        hs_id, first_name="Amara", last_name="Okafor", email=email,
+        password_hash=ts.hash_team_password("correct-horse-battery-1"))
     with sqlite3.connect(ts.db_path) as conn:
         conn.execute("UPDATE health_systems SET onboarding_step = 2 WHERE id = ?", (hs_id,))
         conn.commit()
@@ -157,9 +158,8 @@ def test_member_and_short_signup_orders_are_unchanged():
 def test_submit_succeeds_with_only_name_email_and_specialty(client: TestClient):
     """§8: submit succeeds with ONLY name+email+specialty.
 
-    No NPI, no CV, no board certification, no licence, no phone — and no
-    password, which is the change that makes the account `pending` rather than
-    usable.
+    No NPI, CV, board certification, licence or phone is required. The account
+    uses the password already chosen on the identity screen and stays pending.
     """
     token, hs_id, email = _seed_verified(client)
     assert client.post("/api/onboarding/asclepius/credentials",
@@ -176,14 +176,13 @@ def test_submit_succeeds_with_only_name_email_and_specialty(client: TestClient):
     # it. An applicant now has real work to do before we decide about them, and
     # it cannot live behind a door they cannot open.
     #
-    # No password comes into existence here, so the reasoning at approval time
-    # is untouched: approval is still where a durable credential is minted.
+    # The password was chosen earlier; approval still decides access.
     assert body.get("token"), "an applicant needs a way into the practice case"
 
     asc = client.app.state.asclepius_store
     u = asc.get_user_by_email(email)
     assert u is not None
-    assert asc_store_mod.password_is_unset(u), "a v2 application must carry no credential"
+    assert not asc_store_mod.password_is_unset(u), "a new applicant must be able to return"
     assert u["verification_status"] == "pending"
     assert u["specialty"] == "nephrology"
 
@@ -490,12 +489,11 @@ def test_resume_restores_the_exact_screen_and_state(client: TestClient):
 def test_a_second_link_for_an_applicant_reports_the_review_not_a_signin(client: TestClient):
     """A physician who already applied and asks for another link is not told to
     sign in to an account that has no password."""
-    token, hs_id, email = _seed_verified(client)
-    client.post("/api/onboarding/asclepius/credentials",
-                json={"token": token, "credentials": CREDS_MINIMAL})
-    client.post("/api/onboarding/asclepius/attestations",
-                json={"token": token, "attestations": ATTS})
-    client.post("/api/onboarding/asclepius/finish", json={"token": token})
+    # This is a legacy account: current signup requires a chosen password.
+    email = f"legacy_{uuid.uuid4().hex[:8]}@hospital.example.org"
+    asc = client.app.state.asclepius_store
+    user = asc.provision_user(email=email, password_hash=asc_store_mod.NO_PASSWORD_HASH)
+    asc.set_verification_status(user["id"], "pending")
 
     ts = client.app.state.team_store
     invite = ts.create_health_system_invite(
