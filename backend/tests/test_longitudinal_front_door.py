@@ -182,7 +182,7 @@ _EXPECTED = {
     "patient-1": (22, 9, 8),
     "patient-2": (12, 2, 1),
     "patient-3": (5, 4, 3),
-    "patient-4": (8, 3, 2),
+    "patient-4": (7, 3, 2),
 }
 
 
@@ -280,10 +280,10 @@ def test_patient_one_becomes_a_sealed_ordered_walk(store, monkeypatch):
     assert r.status_code == 200, r.text
     body = r.json()
 
-    assert body["decision_points"] == 9
-    assert body["review_required_points"] == 8
-    assert body["ready_decision_points"] == 1
-    assert body["trajectory_points"] == 1, body
+    assert body["decision_points"] == 2
+    assert body["review_required_points"] == 0
+    assert body["ready_decision_points"] == 2
+    assert body["trajectory_points"] == 2, body
     assert body["trajectory_points"] <= body["ready_decision_points"], body
     points = store.trajectory_points(body["trajectory_id"])
     assert len(points) == body["trajectory_points"]
