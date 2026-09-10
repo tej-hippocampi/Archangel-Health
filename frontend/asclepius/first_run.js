@@ -120,6 +120,7 @@
   var escHandler = null;
   var reentryEsc = null;   // §3: Esc leaves the re-entry page
   var returnTo = null;     // set while ONE stop was opened from the re-entry page
+  var demoOpener = null;
   var objectUrl = null;    // blob: URL for the authenticated video, revoked on close
 
   function h() { return ctx.h.apply(null, arguments); }
@@ -342,8 +343,8 @@
      ═══════════════════════════════════════════════════════════════════════ */
 
   var LETTER = [
-    'Doctors earn from their judgment. Models learn from it. The hardest cases '
-      + 'become the most valuable data.',
+    'Our mission is to help doctors earn from their judgment, models learn from it, '
+      + 'and the hardest cases become the most valuable data.',
     'AI is going to take real clinical work off physicians: diagnosing, '
       + 'prescribing, managing patients. That is coming either way. Whether it '
       + 'arrives safely depends on what it learns from, and we don’t believe that '
@@ -363,6 +364,7 @@
       h('h1', { class: 'asc-fr-letter-title' }, 'Welcome to Archangel Health.'),
       // The first line is the mission, and it carries the weight of a pull
       // quote rather than being one more paragraph.
+      h('div', { class: 'asc-chrome' }, 'OUR MISSION'),
       h('p', { class: 'asc-fr-letter-lead' }, LETTER[0]),
       h('p', { class: 'asc-fr-letter-body' }, LETTER[1]),
       h('p', { class: 'asc-fr-letter-body' }, LETTER[2]),
@@ -454,13 +456,16 @@
     standaloneDemo = false;
     var overlay = document.getElementById('ascFrDemo');
     if (overlay) overlay.remove();
-    if (escHandler) { document.removeEventListener('keydown', escHandler); escHandler = null; }
+    if (escHandler) { document.removeEventListener('keydown', escHandler, true); escHandler = null; }
     if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
+    if (demoOpener && demoOpener.isConnected) demoOpener.focus();
+    demoOpener = null;
   }
 
   function openDemo() {
     if (document.getElementById('ascFrDemo')) return;
 
+    demoOpener = document.activeElement;
     var video = h('video', {
       class: 'asc-fr-video',
       controls: 'controls',
@@ -469,7 +474,8 @@
       autoplay: 'autoplay',
     });
 
-    var overlay = h('div', { class: 'asc-fr-demo-overlay', id: 'ascFrDemo' },
+    var overlay = h('div', { class: 'asc-fr-demo-overlay', id: 'ascFrDemo',
+      role: 'dialog', 'aria-modal': 'true', 'aria-label': 'How to label a case' },
       h('div', { class: 'asc-fr-demo-frame' },
         h('button', {
           class: 'asc-fr-demo-close', type: 'button', 'aria-label': 'Close the demo',
@@ -477,28 +483,44 @@
         }, '✕'),
         video,
         h('div', { class: 'asc-fr-demo-after', id: 'ascFrDemoAfter', hidden: true },
-          h('span', {}, 'Ready to try one?'),
+          h('span', {}, standaloneDemo ? 'Ready for your next step?' : 'Ready to try one?'),
           h('button', {
             class: 'asc-btn asc-btn-primary', type: 'button',
             onClick: function () {
+              if (standaloneDemo) { closeDemo(); return; }
               closeDemo();
-              if (standaloneDemo) return;   // the resources screen is still behind it
               close('start', 'done', runPracticeCase);
             },
-          }, 'Start the practice case →'))));
+          }, standaloneDemo ? 'Back to your application' : 'Start the practice case →'))));
 
     // Clicking the dim closes, the frame does not. Same behaviour as every
     // other overlay in this portal.
     overlay.addEventListener('click', function (e) { if (e.target === overlay) closeDemo(); });
-    escHandler = function (e) { if (e.key === 'Escape') closeDemo(); };
-    document.addEventListener('keydown', escHandler);
+    escHandler = function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); closeDemo(); return; }
+    };
+    document.addEventListener('keydown', escHandler, true);
 
     video.addEventListener('ended', function () {
       var after = document.getElementById('ascFrDemoAfter');
       if (after) after.removeAttribute('hidden');
     });
 
+    // Sentinels wrap focus without intercepting Tab inside native video
+    // controls, whose shadow-DOM focus is reported as the video element.
+    var before = h('span', { tabindex: '0', onFocus: function () {
+      var after = document.getElementById('ascFrDemoAfter');
+      var target = after && !after.hasAttribute('hidden') ? after.querySelector('button') : video;
+      if (!target.isConnected) target = overlay.querySelector('.asc-fr-demo-close');
+      target.focus();
+    } });
+    var after = h('span', { tabindex: '0', onFocus: function () {
+      overlay.querySelector('.asc-fr-demo-close').focus();
+    } });
+    overlay.insertBefore(before, overlay.firstChild);
+    overlay.appendChild(after);
     document.body.appendChild(overlay);
+    overlay.querySelector('.asc-fr-demo-close').focus();
     attachDemoSource(video);
   }
 

@@ -549,7 +549,7 @@ def test_approve_mints_a_hashed_temp_password_and_sends_the_welcome(client: Test
     # The credential is in the email, which is the whole ask...
     assert "Temporary password" in html
     # ...and the mission block and the founders' intro are there with it (§4.4).
-    assert "The hardest cases become the most valuable data." in html
+    assert "the hardest cases become the most valuable data." in html
     assert "calendly.com/aryaabhatia-berkeley" in html
     # The plaintext password is never written to the audit log.
     events = store.list_events(entity_type="user", entity_id=applicant["id"]) \
@@ -1130,6 +1130,8 @@ def test_a_media_ticket_plays_the_demo_and_can_do_nothing_else(client: TestClien
     and it must not be usable as a session token."""
     store = fresh_store()
     u = make_user(store)
+    store.set_verification_status(u['id'], 'pending')
+    u = store.get_user_by_id(u['id'])
     data = _install_demo(store)
     c = TestClient(app)
 
@@ -1277,9 +1279,10 @@ def test_the_four_builders_render_and_are_in_the_preview():
     assert "within 24&ndash;48 hours" in built["submitted"] \
         or "24–48 hours" in built["submitted"]
     assert "We keep review human on purpose" in built["submitted"]
-    assert ("Doctors earn from their judgment. Models learn from it. "
-            "The hardest cases become the most valuable data.") in built["welcome"]
-    assert "Verification is the scarce input in medical AI." in built["welcome"]
+    assert "Our mission" in built["welcome"]
+    assert "doctors earn from their judgment" in built["welcome"]
+    assert "the hardest cases become the most valuable data." in built["welcome"]
+    assert "physicians who carry" in built["welcome"]
     assert "Kf3-tQ92mXbW7p" in built["welcome"]
     assert oe.FOUNDER_INTRO_CALENDLY in built["welcome"]
 

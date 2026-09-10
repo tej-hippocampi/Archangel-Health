@@ -1391,7 +1391,7 @@
     // examination shipped and no screen rendered it, so the artifact the whole
     // decision rests on was invisible while the optional warm-up beside it had
     // a card.
-    slot.appendChild(examinationCard(ctx, d.examination));
+    slot.appendChild(examinationCard(ctx, d.examination, userId));
 
     // ── THE PRACTICE CASE ──
     // Open, and above the buttons, because it is the only piece of clinical
@@ -1425,105 +1425,97 @@
      "Passed" and "passed on the first attempt" are separate lines because they
      are separate facts. The gate forces an eventual pass, so a pass on its own
      says only that somebody kept going. */
-  /** The examination, and the case's own answer key beside it.
-   *
-   *  NO VERDICT. Every line here is a fact: which candidate the case was
-   *  authored to make wrong and which one they rejected, which of the key's
-   *  data points their prose reached for. Whether that adds up to a physician
-   *  we want is the reading admin's call, and a score in this card would be the
-   *  product making it first. There is deliberately no total, no percentage and
-   *  no colour that means "good".
-   */
-  function examinationCard(ctx, ex) {
+  /** A short result, with full evidence available on demand. */
+  function examinationCard(ctx, ex, userId) {
     const { h } = ctx;
     const card = sectionCard(ctx, 'Examination');
     const pad = card.querySelector('.asc-card-pad');
     const subs = (ex && ex.submissions) || [];
-    if (!ex || !subs.length) {
-      pad.appendChild(h('div', { class: 'asc-dim' },
-        (ex && ex.state === 'in_progress')
-          ? 'Started and not yet filed.'
-          : 'Not sat yet. This is the piece we read, so a decision made now is '
-            + 'being made on credentials alone.'));
+    if (!subs.length) {
+      pad.appendChild(h('p', { class: 'asc-dim' }, ex && ex.state === 'in_progress'
+        ? 'In progress' : 'Not completed yet'));
       return card;
     }
-    // Newest first, and every attempt shown. Somebody asked to try again is
-    // being looked at precisely for what changed between the two.
     subs.forEach((s, i) => {
-      const obs = s.observations || {};
-      const own = s.is_own_specialty;
-      const block = h('div', { class: 'vq-exam-attempt' });
-      block.appendChild(h('div', { class: 'vq-exam-head' },
-        h('span', { class: 'asc-chrome' },
-          'ATTEMPT ' + (s.attempt || (subs.length - i))),
-        h('span', { class: 'asc-dim' },
-          (s.submitted_at ? String(s.submitted_at).slice(0, 10) : '')
-          + (s.time_spent_sec ? ' · ' + Math.round(s.time_spent_sec / 60) + ' min' : ''))));
-
-      const rows = [
-        ['Case', s.task_id || null],
-        ['Specialty served', s.specialty || null],
-        // Three states, not two. `null` is "we did not record this", which is
-        // true of every attempt filed before the column existed, and saying
-        // "no" there would be inventing a fact about the physician.
-        ['Their own specialty', own == null
-          ? 'Not recorded'
-          : (own ? 'Yes' : 'No, they applied with ' + (s.applied_specialty || 'something else'))],
-      ];
-      block.appendChild(kvBlock(h, '', rows.filter((r) => r[1] != null)));
-
-      if (!obs.graded) {
-        block.appendChild(h('div', { class: 'asc-dim' },
-          'This case carries no answer key we can line their reading up '
-          + 'against, so read the answers below directly.'));
-      } else {
-        if (obs.rejected_the_flawed_candidate !== null
-            && obs.rejected_the_flawed_candidate !== undefined) {
-          block.appendChild(h('div', { class: 'vq-exam-fact' },
-            h('span', {
-              class: 'dot ' + (obs.rejected_the_flawed_candidate ? 'dot-green' : 'dot-orange'),
-              'aria-hidden': 'true',
-            }),
-            h('span', {}, obs.rejected_the_flawed_candidate
-              ? 'Rejected candidate ' + obs.intended_flawed_id
-                + ', which is the one this case was authored to make wrong.'
-              : 'Rejected candidate ' + (obs.rejected_id || 'neither')
-                + '. The case was authored to make ' + obs.intended_flawed_id + ' wrong.')));
-        }
-        if (obs.key_data_total) {
-          block.appendChild(h('div', { class: 'vq-exam-fact' },
-            h('span', { class: 'asc-dim' },
-              'Their reading reached for ' + obs.key_data_matched.length
-              + ' of the ' + obs.key_data_total
-              + ' data points the answer key turns on.')));
-          const list = h('ul', { class: 'vq-exam-keys' });
-          (obs.key_data_matched || []).forEach((k) => list.appendChild(
-            h('li', { class: 'vq-exam-key hit' }, k)));
-          (obs.key_data_missed || []).forEach((k) => list.appendChild(
-            h('li', { class: 'vq-exam-key miss' }, k)));
-          block.appendChild(list);
-        }
-        if (obs.answer) {
-          block.appendChild(h('details', { class: 'vq-exam-key-answer' },
-            h('summary', {}, 'The answer key'),
-            h('p', {}, obs.answer),
-            obs.rationale ? h('p', { class: 'asc-dim' }, obs.rationale) : null));
-        }
-      }
-
-      const wrote = (s.payload && s.payload.independent_answer
-        && s.payload.independent_answer.text) || '';
-      if (wrote) {
-        block.appendChild(h('details', { class: 'vq-exam-answer' },
-          h('summary', {}, 'What they wrote, before they saw either candidate'),
-          h('p', {}, wrote)));
-      }
-      pad.appendChild(block);
+      const score = s.score || {};
+      const band = ['well', 'alright', 'poorly'].includes(score.band) ? score.band : 'unscored';
+      const label = { well: 'Did well', alright: 'Did alright', poorly: 'Did poorly', unscored: 'Needs review' }[band];
+      pad.appendChild(h('div', { class: 'vq-exam-summary' },
+        h('div', {}, h('span', { class: 'vq-exam-band vq-exam-band--' + band }, label),
+          h('p', { class: 'asc-dim asc-small' }, 'Attempt ' + (s.attempt || subs.length - i)
+            + (s.submitted_at ? ' · ' + String(s.submitted_at).slice(0, 10) : ''))),
+        h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+          onClick: () => inspectExam(ctx, userId, s) }, 'Inspect score')));
     });
-
-    pad.appendChild(h('div', { class: 'asc-dim' },
-      'Facts, not a verdict. Nothing here is scored and nothing here decides.'));
     return card;
+  }
+
+  function detailDialog(ctx, title) {
+    const { h } = ctx;
+    const opener = document.activeElement;
+    let closed = false, cleanup = null;
+    const body = h('div', { class: 'vq-detail-body' });
+    const close = () => {
+      if (closed) return;
+      closed = true; overlay.remove();
+      document.removeEventListener('keydown', key, true);
+      if (cleanup) cleanup();
+      if (opener && opener.isConnected) opener.focus();
+    };
+    const closeBtn = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+      'aria-label': 'Close ' + title, onClick: close }, 'Close ×');
+    const frame = h('div', { class: 'vq-detail-frame' },
+      h('div', { class: 'vq-detail-head' }, h('h2', {}, title), closeBtn), body);
+    const overlay = h('div', { class: 'vq-detail-overlay', role: 'dialog',
+      'aria-modal': 'true', 'aria-label': title }, frame);
+    const controls = () => Array.from(frame.querySelectorAll('button, a[href], iframe, [tabindex="0"]'))
+      .filter((el) => !el.disabled);
+    overlay.insertBefore(h('span', { tabindex: '0', onFocus: () => {
+      const all = controls(); (all[all.length - 1] || closeBtn).focus();
+    } }), frame);
+    overlay.appendChild(h('span', { tabindex: '0', onFocus: () => closeBtn.focus() }));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    const key = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    document.addEventListener('keydown', key, true);
+    document.body.appendChild(overlay); closeBtn.focus();
+    return { body, close, isClosed: () => closed, onClose: (fn) => { cleanup = fn; } };
+  }
+
+  function inspectExam(ctx, userId, attempt) {
+    const { h } = ctx;
+    const modal = detailDialog(ctx, 'Examination score');
+    const metadata = attempt.metadata || {};
+    const score = attempt.score || {};
+    modal.body.appendChild(h('div', { class: 'vq-score-lead' },
+      h('h3', {}, score.value == null ? 'No answer key available' : score.value + ' / 100'),
+      h('p', { class: 'asc-dim' }, score.limitation || 'Read the answers before making a decision.')));
+    modal.body.appendChild(kvBlock(h, '', [
+      ['Case', attempt.task_id], ['Specialty', attempt.specialty || 'Not recorded'],
+      ['Time spent', Math.round((attempt.time_spent_sec || 0) / 60) + ' minutes'],
+      ['Score version', metadata.score_version || 'Not recorded'],
+      ['Evidence', metadata.reconstructed ? 'Reconstructed from saved answers and current case' : 'Captured when submitted'],
+    ]));
+    (score.components || []).forEach((c) => modal.body.appendChild(h('p', {},
+      c.name + ': ' + c.earned + ' / ' + c.possible)));
+    modal.body.appendChild(h('p', { class: 'asc-dim asc-small' }, score.method || ''));
+    modal.body.appendChild(h('p', { class: 'asc-dim asc-small' },
+      'Did well: 80–100 · Did alright: 50–79 · Did poorly: below 50. This summary does not approve or reject the physician.'));
+    const obs = metadata.observations || attempt.observations || {};
+    modal.body.appendChild(h('h3', {}, 'Answer-key evidence'));
+    modal.body.appendChild(h('p', {}, 'Matched: ' + ((obs.key_data_matched || []).join('; ') || 'None')));
+    modal.body.appendChild(h('p', {}, 'Not matched: ' + ((obs.key_data_missed || []).join('; ') || 'None')));
+    for (const [label, value] of [['Answer key', metadata.answer_key || {}],
+      ['Complete physician answers', metadata.physician_answers || attempt.payload || {}],
+      ['Case and scoring metadata', metadata]]) {
+      modal.body.appendChild(h('details', { class: 'vq-score-details' },
+        h('summary', {}, label), h('pre', { class: 'vq-json' }, JSON.stringify(value, null, 2))));
+    }
+    const exportBtn = h('button', { class: 'asc-btn asc-btn-primary', type: 'button',
+      onClick: () => ctx.downloadBlob('/verify/queue/' + encodeURIComponent(userId)
+        + '/examination/' + encodeURIComponent(attempt.exam_id) + '/export',
+        'examination-' + attempt.exam_id + '.json') }, 'Export for model review');
+    modal.body.appendChild(exportBtn);
+    modal.body.appendChild(h('p', { class: 'asc-dim asc-small' }, 'Downloads the case, answers, answer key and scoring evidence as JSON.'));
   }
 
   function practiceCaseCard(ctx, pc, ready) {
@@ -1603,21 +1595,18 @@
      cross-check; where they DISAGREE is already open, in the credentials card. */
   function cvCard(ctx, userId, d) {
     const { h } = ctx;
-    const det = h('details', { class: 'asc-card' });
-    det.appendChild(h('summary', { class: 'asc-card-head' },
-      h('div', { class: 'asc-card-title' }, 'CV')));
-    const pad = h('div', { class: 'asc-card-pad' });
+    const det = sectionCard(ctx, 'CV');
+    const pad = det.querySelector('.asc-card-pad');
     if (d.has_cv) {
+      pad.appendChild(h('p', { class: 'asc-dim' }, 'Original document saved with this application.'));
       pad.appendChild(cvLink(ctx, userId, d));
       const parsed = d.cv_parsed || {};
-      const rows = Object.keys(parsed)
-        .filter((k) => k !== 'ok' && typeof parsed[k] !== 'object')
+      const rows = Object.keys(parsed).filter((k) => k !== 'ok' && typeof parsed[k] !== 'object')
         .map((k) => [k.replace(/_/g, ' '), String(parsed[k])]);
-      if (rows.length) pad.appendChild(kvBlock(h, '', rows));
+      if (rows.length) pad.appendChild(h('details', {}, h('summary', {}, 'Extracted details'), kvBlock(h, '', rows)));
     } else {
       pad.appendChild(h('div', { class: 'asc-dim' }, 'No CV uploaded'));
     }
-    det.appendChild(pad);
     return det;
   }
 
@@ -1659,12 +1648,46 @@
     return h('div', {}, btn);
   }
 
-  function openCv(ctx, userId) {
-    // The CV is bytes behind an admin bearer token, so it cannot be a plain
-    // href. ctx.downloadBlob already carries the token and the filename.
-    if (typeof ctx.downloadBlob === 'function') {
-      ctx.downloadBlob('/verify/queue/' + encodeURIComponent(userId) + '/cv',
-                       'cv-' + userId);
+  async function openCv(ctx, userId) {
+    const { h } = ctx;
+    const modal = detailDialog(ctx, 'CV');
+    const path = '/verify/queue/' + encodeURIComponent(userId) + '/cv';
+    const status = h('p', { role: 'status', class: 'asc-dim' }, 'Loading CV…');
+    modal.body.appendChild(status);
+    let objectUrl = null;
+    modal.onClose(() => { if (objectUrl) URL.revokeObjectURL(objectUrl); });
+    try {
+      const response = await ctx.api(path, { raw: true });
+      if (!response.ok) throw new Error(response.status === 404 ? 'The saved CV could not be found.' : 'Could not load the CV.');
+      const blob = await response.blob();
+      if (modal.isClosed()) return;
+      status.textContent = '';
+      const mime = (blob.type || '').split(';')[0];
+      modal.body.appendChild(h('button', { class: 'asc-btn asc-btn-ghost', type: 'button',
+        onClick: () => ctx.downloadBlob(path, 'cv-' + userId + ({ 'application/pdf': '.pdf', 'text/plain': '.txt', 'application/rtf': '.rtf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx', 'image/png': '.png', 'image/jpeg': '.jpg' }[mime] || '.bin')) }, 'Download CV'));
+      if (mime === 'application/pdf') {
+        objectUrl = URL.createObjectURL(blob);
+        modal.body.appendChild(h('iframe', { class: 'vq-cv-viewer', title: 'Uploaded CV', src: objectUrl }));
+      } else if (mime === 'image/png' || mime === 'image/jpeg') {
+        objectUrl = URL.createObjectURL(blob);
+        modal.body.appendChild(h('img', { class: 'vq-cv-image', alt: 'Uploaded CV', src: objectUrl }));
+      } else if (mime === 'application/rtf' || mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        const preview = await ctx.api(path + '?preview=true', { raw: true });
+        if (!preview.ok) throw new Error('Could not prepare the document preview.');
+        const text = await preview.text();
+        if (modal.isClosed()) return;
+        modal.body.appendChild(h('p', { class: 'asc-dim asc-small' }, 'Text preview · Download the original to see its formatting.'));
+        modal.body.appendChild(h('pre', { class: 'vq-cv-text', tabindex: '0' }, text || 'No readable text found. Download the original below.'));
+      } else if (mime === 'text/plain') {
+        const text = await blob.text();
+        if (modal.isClosed()) return;
+        modal.body.appendChild(h('pre', { class: 'vq-cv-text', tabindex: '0' }, text));
+      } else {
+        modal.body.appendChild(h('p', {}, 'This document cannot be previewed in the browser. Download it to view.'));
+      }
+
+    } catch (error) {
+      if (!modal.isClosed()) status.textContent = error.message || 'Could not load the CV. Close this window and try again.';
     }
   }
 

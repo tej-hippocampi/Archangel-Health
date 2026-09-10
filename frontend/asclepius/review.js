@@ -640,7 +640,8 @@
         var txt = (e && e.expectation) || String(e || '');
         var days = e && e.horizon_days;
         return h('div', { class: 'asc-rv-kv' },
-          txt + (days ? ', within ' + days + ' day' + (days === 1 ? '' : 's') : ''));
+          txt + (e.horizon_value ? ', within ' + e.horizon_value + ' ' + e.horizon_unit
+            : days ? ', within ' + days + ' day' + (days === 1 ? '' : 's') : ''));
       })));
     }
     var fals = et.falsifiers || [];

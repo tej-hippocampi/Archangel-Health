@@ -720,3 +720,28 @@ def test_calibration_feeds_the_tiering_decision_end_to_end():
     assert after["tr_eligible"] is True
     assert after["proposed_tier"] == "reviewer"
     assert after["features"]["calibration_z"] > 0
+
+
+def test_admin_can_preview_stored_word_cv_without_exposing_it_to_applicants():
+    import io
+    import zipfile
+    store = fresh_store()
+    applicant = make_user(store)
+    admin = make_user(store, role='admin')
+    data = io.BytesIO()
+    with zipfile.ZipFile(data, 'w') as archive:
+        archive.writestr('[Content_Types].xml', '<Types/>')
+        archive.writestr('word/document.xml', '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Dr Example — Nephrology</w:t></w:r></w:p></w:body></w:document>')
+    mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    meta = credentialing.store_cv(data.getvalue(), mime)
+    store.set_cv(applicant['id'], meta['sha256'], None)
+    client = TestClient(app)
+    path = f"/api/asclepius/verify/queue/{applicant['id']}/cv"
+    original = client.get(path, headers=headers_for(admin))
+    assert original.status_code == 200 and original.content == data.getvalue()
+    assert '.docx' in original.headers['content-disposition']
+    preview = client.get(path + '?preview=true', headers=headers_for(admin))
+    assert preview.status_code == 200 and 'Dr Example' in preview.text
+    assert preview.headers['content-type'].startswith('text/plain')
+    assert preview.headers['cache-control'] == 'private, no-store'
+    assert client.get(path + '?preview=true', headers=headers_for(applicant)).status_code == 403

@@ -300,13 +300,16 @@ def test_masthead_restacks_on_resize(sandbox_on):
         page.set_viewport_size({"width": 2200, "height": 900})
         page.wait_for_timeout(100)
         _assert_every_tab_on_screen(page, 2200)
-        # The bar is capped at 1180px, so seven tabs beside this address stack
-        # at any viewport. Shorten the address and the strip returns to the row.
-        page.locator(".asc-admin-who-email").evaluate("el => { el.textContent = 'a@b.c'; }")
+        # The production bar is capped at 1180px. Even a short email can leave
+        # the seven tabs overflowing (font metrics vary across platforms).
+        # Give this fixture enough actual space to exercise the reverse resize
+        # transition, then restore the production cap for the narrow check.
+        page.locator(".asc-admin-bar-inner").evaluate("el => { el.style.maxWidth = '1800px'; }")
         page.evaluate("window.dispatchEvent(new Event('resize'))")
         page.wait_for_timeout(50)
         assert not page.locator(".asc-admin-bar-inner").evaluate("el => el.classList.contains('stacked')")
         _assert_every_tab_on_screen(page, 2200)
+        page.locator(".asc-admin-bar-inner").evaluate("el => { el.style.removeProperty('max-width'); }")
         page.set_viewport_size({"width": 1000, "height": 900})
         page.wait_for_timeout(100)
         _assert_every_tab_on_screen(page, 1000)

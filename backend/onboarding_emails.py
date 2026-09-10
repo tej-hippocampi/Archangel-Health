@@ -1450,21 +1450,19 @@ def build_application_welcome_email(
             muted=True, small=True)
     body = (
         _eyebrow("Approved · Archangel Health")
-        + _h1("We just approved your application. Welcome.")
-        # §4.4 section 2: the mission block, verbatim from the landing /mission.
-        + _pullquote("Doctors earn from their judgment. Models learn from it. "
-                     "The hardest cases become the most valuable data.")
-        + _p("Verification is the scarce input in medical AI. A 70% benchmark score is "
-             "irrelevant when a patient is downstream. The people who carry the "
-             "consequences should define what correct means. That&rsquo;s you.")
+        + _h1("You’re approved. Welcome to Archangel Health.")
+        + _section_label("Our mission")
+        + _p("Our mission is to help doctors earn from their judgment, models learn "
+             "from it, and the hardest cases become the most valuable data.")
+        + _p("Medical AI needs more than benchmark scores. The physicians who carry "
+             "the consequences of care should define what correct means. That&rsquo;s you.", muted=True)
         # §4.4 section 3: the credentials card, or the line that replaces it.
         + credentials_block
         + _cta(sign_in_url, "Sign in")
         # §4.4 section 4: meet us.
         + _section_label("Meet us")
-        + _p("We meet every physician one on one. It&rsquo;s the part of this we like "
-             "most. Book 20 minutes with us: about the mission, the platform, your "
-             "specialty, or anything else. We&rsquo;d genuinely love to learn from you.")
+        + _p("Meet the founders for a 20-minute conversation about your specialty, "
+             "the platform, or what you hope to contribute.")
         + _cta(calendly_url, "Book 20 minutes")
         + _founder_signoff("Tej and Aryaa, co-founders")
     )
@@ -2548,12 +2546,11 @@ def build_founder_event_alert(*, eyebrow: str, headline: str, lede: str,
 #: same effect: the reason a hospital's records are worth licensing is that a
 #: physician's judgment on them is scarce, and this is who is paying for it.
 _MISSION_BLOCK = (
-    _p(f"{_strong('Doctors earn from their judgment. Models learn from it.')}<br>"
-       "The hardest cases become the most valuable data.")
-    + _p("Verification is the scarce input in medical AI. A 70% benchmark score "
-         "is irrelevant when a patient is downstream, and the people who carry "
-         "the consequences should define what correct means. Your records are "
-         "where that judgment gets exercised.")
+    _section_label("Our mission")
+    + _p("Our mission is to help doctors earn from their judgment, models learn "
+         "from it, and the hardest cases become the most valuable data.")
+    + _p("The physicians who carry the consequences of care should define "
+         "what correct means. Your records put that judgment to work.", muted=True)
 )
 
 #: WHERE THE CREDENTIALS CARD WENT. Both health-system letters below used to

@@ -382,3 +382,22 @@ def test_the_pass_mark_needs_the_right_answer_and_enough_of_it():
                          headers=A.headers_for(user)).json()["result"]
     assert result["matched"] < PASS_MIN_MATCHED
     assert result["passed"] is False
+
+
+def test_approved_doctor_can_skip_practice_without_faking_a_pass():
+    from routers.asclepius import require_first_run_stops
+    store = A.fresh_store()
+    user = A.make_user(store, practice_case=False)
+    store.set_verification_status(user['id'], 'approved')
+    store.set_first_run(user['id'], {'version': 2, 'stops': {'welcome': 'done'}, 'sessions_seen': 1})
+    user = store.get_user_by_id(user['id'])
+    assert asc_caps.practice_gate_reason(user, required_version=999) is None
+    assert require_first_run_stops(user) == user
+    before = store.get_tutorial_state(user['id'])
+    response = client.patch('/api/asclepius/me/first-run', json={'action': 'dismiss'}, headers=A.headers_for(user))
+    assert response.status_code == 200 and response.json()['first_run']['dismissed_at']
+    assert store.get_tutorial_state(user['id']) == before
+    session = client.get('/api/asclepius/auth/me', headers=A.headers_for(user))
+    assert session.json()['first_run']['dismissed_at']
+    from asclepius.first_run import mode
+    assert mode(session.json()['first_run']) == 'none'

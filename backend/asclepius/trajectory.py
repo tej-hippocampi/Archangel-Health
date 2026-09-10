@@ -34,6 +34,8 @@ the rule itself so the queue and the URL can never disagree about it.
 
 from __future__ import annotations
 
+import math
+
 import random
 import re
 import uuid
@@ -391,14 +393,27 @@ def normalize_expected_trajectory(raw: Any) -> Optional[Dict[str, Any]]:
         text = _clean(item.get("expectation"))
         if len(text.split()) < _MIN_EXPECTATION_WORDS:
             continue
-        horizon: Optional[int]
+        # Keep the authored unit, alongside canonical days for older consumers.
+        unit = item.get("horizon_unit") or "days"
+        explicit = "horizon_value" in item
+        value = item.get("horizon_value") if explicit else item.get("horizon_days")
         try:
-            horizon = int(item.get("horizon_days"))
-        except (TypeError, ValueError):
+            value = float(value)
+            factor = {"hours": 1 / 24, "days": 1, "weeks": 7}[unit]
+            horizon = value * factor
+            if not math.isfinite(horizon) or (explicit and horizon <= 0):
+                raise ValueError("invalid horizon")
+            if explicit and horizon > _HORIZON_MAX_DAYS:
+                raise ValueError("horizon too long")
+            if not explicit:
+                horizon = max(_HORIZON_MIN_DAYS, min(_HORIZON_MAX_DAYS, horizon))
+        except (TypeError, ValueError, KeyError, OverflowError):
             horizon = None
-        if horizon is not None:
-            horizon = max(_HORIZON_MIN_DAYS, min(_HORIZON_MAX_DAYS, horizon))
-        expectations.append({"expectation": text, "horizon_days": horizon})
+        row = {"expectation": text, "horizon_days": horizon}
+        if explicit:
+            row.update(horizon_value=value if horizon is not None else None,
+                       horizon_unit=unit if unit in ("hours", "days", "weeks") else "days")
+        expectations.append(row)
 
     falsifiers: List[str] = []
     for item in raw.get("falsifiers") or []:

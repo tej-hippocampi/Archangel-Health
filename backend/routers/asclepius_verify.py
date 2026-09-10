@@ -258,34 +258,7 @@ def _practice_case_block(user: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _examination_block(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
-    """The examination this applicant sat, for the decision screen.
-
-    THE thing an admin is deciding on. The practice case beside it is a guided
-    tour with a "Skip this step" button on every screen, which is a poor basis
-    for a decision about somebody; this is one case in their own specialty, in
-    the real workspace, with the real validation.
-
-    Every attempt is listed rather than only the latest, because a physician
-    who was asked to try again is being looked at precisely for what changed
-    between the two.
-
-    NO VERDICT IS COMPUTED HERE AND NONE IS STORED. Whether this person is good
-    enough is the reading admin's call, and putting a number next to their
-    answers would be this code making it first.
-
-    What each attempt now carries alongside it is ``observations``: the case's
-    own answer key, lined up against what they wrote. Which candidate the case
-    was authored to make wrong and which one they rejected; which of the key's
-    data points their prose reached for and which it did not. Those are facts,
-    not a judgement, and the difference is the whole reason they may sit here.
-    An admin was already doing this comparison by hand, in their head, and
-    differently every time.
-
-    Computed on READ, never on submit. ``/exam/submit`` promises in its own
-    docstring that it leaves nothing a client could read a verdict out of, and
-    that promise is worth more than the microseconds. It also means the answer
-    key can be corrected in ``gold_cases`` without a backfill.
-    """
+    """Admin-only attempts with immutable score evidence; legacy rows reconstruct it."""
     from asclepius import exam_grading  # noqa: PLC0415
 
     try:
@@ -313,10 +286,14 @@ def _examination_block(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
                 # than as "no", because those are different claims.
                 "is_own_specialty": exam_grading.own_specialty(e),
                 "applied_specialty": e.get("applied_specialty"),
-                "observations": exam_grading.observations(
-                    _exam_task(store, e.get("task_id")), e.get("payload") or {}),
+                "observations": metadata["observations"],
+                "metadata": metadata,
+                "score": metadata["score"],
             }
             for e in exams
+            for metadata in [e.get("metadata") or exam_grading.examination_metadata(
+                _exam_task(store, e.get("task_id")), e.get("payload") or {},
+                captured_at=datetime.utcnow().isoformat() + "Z", reconstructed=True)]
         ],
     }
 
@@ -652,6 +629,7 @@ def _registry_block(user: Dict[str, Any]) -> Dict[str, Any]:
 @router.get("/queue/{user_id}/cv")
 async def verification_cv(
     user_id: str,
+    preview: bool = False,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """The raw CV file — the admin's ground truth when the parse is empty."""
@@ -665,7 +643,13 @@ async def verification_cv(
     except Exception:
         raise HTTPException(status_code=404, detail="CV blob missing from asset store")
     mime = credentialing.sniff_cv_mime(data) or "application/octet-stream"
-    ext = "pdf" if mime == "application/pdf" else "txt"
+    extensions = {"application/pdf": "pdf", "text/plain": "txt", "application/rtf": "rtf",
+                  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+                  "image/png": "png", "image/jpeg": "jpg"}
+    ext = extensions.get(mime, "bin")
+    if preview and ext in ("docx", "rtf"):
+        text = await run_in_threadpool(credentialing.extract_cv_text, data, mime)
+        data, mime, ext = text.encode("utf-8"), "text/plain", "txt"
     return Response(content=data, media_type=mime, headers={
         "Content-Disposition": f'inline; filename="cv-{user_id}.{ext}"',
         # B-5.5: served inline from the app origin to an admin whose bearer
@@ -676,6 +660,24 @@ async def verification_cv(
         "Content-Security-Policy": "default-src 'none'; sandbox",
         "Cache-Control": "private, no-store",
     })
+
+
+@router.get("/queue/{user_id}/examination/{exam_id}/export")
+async def examination_export(user_id: str, exam_id: str,
+                             admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """Download one applicant's complete examination artifact for model review."""
+    user = _load_user_or_404(user_id)
+    attempts = _examination_block(_store(), user)["submissions"]
+    attempt = next((row for row in attempts if row["exam_id"] == exam_id), None)
+    if attempt is None:
+        raise HTTPException(status_code=404, detail="Examination not found")
+    artifact = {"exam_id": exam_id, "attempt": attempt["attempt"],
+                "submitted_at": attempt["submitted_at"],
+                "specialty": attempt["specialty"], "is_own_specialty": attempt["is_own_specialty"],
+                "time_spent_sec": attempt["time_spent_sec"], **attempt["metadata"]}
+    return Response(content=json.dumps(artifact, indent=2), media_type="application/json",
+                    headers={"Content-Disposition": f'attachment; filename="examination-{exam_id}.json"',
+                             "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 
 
 # ─── Decisions ────────────────────────────────────────────────────────────────

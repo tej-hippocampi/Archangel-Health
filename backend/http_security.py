@@ -95,7 +95,7 @@ def build_csp() -> str:
             "font-src 'self' data:",
             "media-src 'self' blob: https:",
             "connect-src 'self' https:",
-            "frame-src 'self' https:",
+            "frame-src 'self' blob: https:",
         ]
     )
 

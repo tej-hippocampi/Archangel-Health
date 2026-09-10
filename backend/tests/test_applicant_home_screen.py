@@ -199,7 +199,7 @@ def test_the_video_opens_in_place_using_the_existing_player():
     second player would be a second thing to keep working."""
     view = _fn("renderApplicantHome")
     assert "FirstRunWalkthrough.playDemo" in view
-    assert "demoAvailable" in view, "a row that opens nothing is worse than no row"
+    assert "demoAvailable" not in view, "a cold walkthrough cache must not hide the video"
 
 
 def test_the_guide_opens_as_an_overlay_and_returns_here():
@@ -363,3 +363,91 @@ def test_the_only_media_block_the_applicant_grid_opens_is_its_own():
     assert block.count("@media") == 1
     assert "@media (min-width: 900px) {" in block
     assert block.count("{") == block.count("}")
+
+
+def test_fresh_applicant_can_open_video_without_walkthrough_and_return():
+    from tests.test_first_run_dom import _ctx, _run_node
+    result = _run_node(_ctx() + _fn("renderApplicantHome") + """
+      var state = {user: {specialty: 'nephrology'}};
+      var location = {hash: ''};
+      function credentialingStage() { return 'exam_not_started'; }
+      function firstRunCtx() { return ctx; }
+      function startExam() {}
+      function startTutorial() {}
+      function openGuideOverlay() {}
+      function setRoot(el) { rootNode = el; document.body.appendChild(el); }
+      renderApplicantHome();
+      var button = find(rootNode, 'asc-applicant-video')[0];
+      var cold = window.FirstRunWalkthrough.demoAvailable();
+      button.dispatch('click');
+      done(function () {
+        var overlay = document.getElementById('ascFrDemo');
+        var video = find(overlay, 'asc-fr-video')[0];
+        video.dispatch('ended');
+        var after = document.getElementById('ascFrDemoAfter');
+        find(after, 'asc-btn')[0].dispatch('click');
+        console.log(JSON.stringify({cold: cold, opened: !!overlay,
+          source: video.getAttribute('src') || video.src,
+          closed: !document.getElementById('ascFrDemo'),
+          calls: apiCalls, handoffs: handoffs}));
+      });
+    """)
+    assert result['cold'] is False
+    assert result['opened'] and result['closed']
+    assert '?t=tkt' in result['source']
+    assert result['handoffs'] == []
+    assert all(call['path'] != '/me/first-run' for call in result['calls'])
+
+
+def test_video_failure_keeps_a_retry_and_does_not_block_exam():
+    from tests.test_first_run_dom import _ctx, _run_node
+    result = _run_node(_ctx(demo={'available': False}) + _fn("renderApplicantHome") + """
+      var state = {user: {specialty: 'nephrology'}};
+      var location = {hash: ''};
+      function credentialingStage() { return 'exam_not_started'; }
+      function firstRunCtx() { return ctx; }
+      function startExam() { handoffs.push('exam'); }
+      function startTutorial() {}
+      function openGuideOverlay() {}
+      function setRoot(el) { rootNode = el; document.body.appendChild(el); }
+      renderApplicantHome();
+      var button = find(rootNode, 'asc-applicant-video')[0];
+      button.dispatch('click');
+      done(function () {
+        var message = textOf(find(rootNode, 'asc-applicant-video-status')[0]);
+        DEMO = {available: true};
+        button.dispatch('click');
+        done(function () {
+          document.getElementById('ascExamStart').dispatch('click');
+          console.log(JSON.stringify({message: message,
+            retried: !!document.getElementById('ascFrDemo'), handoffs: handoffs}));
+        });
+      });
+    """)
+    assert 'unavailable' in result['message']
+    assert result['retried']
+    assert result['handoffs'] == ['exam']
+
+
+def test_approved_physician_who_skipped_does_not_reenter_practice_on_signin():
+    from tests.test_first_run_dom import _ctx, _run_node
+    result = _run_node(_ctx() + _fn('enterApp') + """
+      var state = {user: {role: 'evaluator', verification_status: 'approved',
+        tutorial: {gate_state: 'locked'}, first_run: {dismissed_at: 'saved'}}};
+      function isAdminUser(){return false;}
+      function isReferralOnly(){return false;}
+      function sessionCan(){return false;}
+      function isAdvisor(){return false;}
+      function sessionIsProvisional(){return false;}
+      function readReviewHash(){return false;}
+      function firstRunMode(){return window.FirstRunWalkthrough.mode(state.user);}
+      function resetCommunityState(){} function renderHeader(){} function renderSidePanel(){}
+      function startCommunityPolling(){}
+      function renderDashboardView(){handoffs.push('dashboard');}
+      function startTutorial(){handoffs.push('practice');}
+      function startFirstRun(){handoffs.push('walkthrough');}
+      function openFirstRunReentry(){handoffs.push('reentry');}
+      enterApp();
+      console.log(JSON.stringify(handoffs));
+    """)
+    assert result == ['dashboard']
