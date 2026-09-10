@@ -408,6 +408,167 @@ def test_the_session_reports_the_password_without_leaking_it(client, mail):
     assert PW not in str(body)
 
 
+def test_changing_a_verified_email_requires_a_new_mailbox_proof(client, mail):
+    fresh_store()
+    original = f"original-{uniq()}@example.org"
+    replacement = f"replacement-{uniq()}@example.org"
+    token, hs_id = _invite(client, original)
+    identity = {"token": token, "first_name": "Amara", "last_name": "Okafor"}
+    assert client.post("/api/onboarding/step1-identity", json={
+        **identity, "email": original, "password": PW}).status_code == 200
+    ts = client.app.state.team_store
+    ts.create_otp_challenge(hs_id, original, "123456")
+    assert client.post("/api/onboarding/verify-otp", json={
+        "token": token, "code": "123456"}).status_code == 200
+    # A name correction or email case change does not revoke mailbox proof.
+    assert client.post("/api/onboarding/step1-identity", json={
+        **identity, "last_name": "Corrected", "email": original.upper()}).status_code == 200
+    assert ts.get_health_system_by_id(hs_id)["onboarding_step"] == 2
+    assert client.post("/api/onboarding/step1-identity", json={
+        **identity, "email": replacement}).status_code == 200
+    assert ts.get_health_system_by_id(hs_id)["onboarding_step"] == 1
+    for path, payload in [("credentials", {"credentials": CREDS}),
+                          ("attestations", {"attestations": ATTS}), ("finish", {})]:
+        assert client.post(f"/api/onboarding/asclepius/{path}", json={
+            "token": token, **payload}).status_code == 403
+    assert client.post("/api/onboarding/verify-otp", json={
+        "token": token, "code": "123456"}).status_code == 400
+    ts.create_otp_challenge(hs_id, replacement, "654321")
+    assert client.post("/api/onboarding/verify-otp", json={
+        "token": token, "code": "654321"}).status_code == 200
+    for path, payload in [("credentials", {"credentials": CREDS}),
+                          ("attestations", {"attestations": ATTS}), ("finish", {})]:
+        r = client.post(f"/api/onboarding/asclepius/{path}", json={"token": token, **payload})
+        assert r.status_code == 200, r.text
+    assert client.post("/api/asclepius/auth/login", json={
+        "email": replacement, "password": PW}).status_code == 200
+
+
+def test_an_existing_account_cannot_be_replaced_by_another_invitation(client, mail):
+    fresh_store()
+    email = f"existing-{uniq()}@example.org"
+    original_password = "original-account-password"
+    user = _existing_account(client, email, password=original_password)
+    token, hs_id = _invite(client, email)
+    assert client.post("/api/onboarding/step1-identity", json={
+        "token": token, "first_name": "Replacement", "last_name": "Name",
+        "email": email, "password": PW}).status_code == 200
+    _prove_mailbox(client, hs_id)
+    for path, payload in [("credentials", {"credentials": CREDS}),
+                          ("attestations", {"attestations": ATTS})]:
+        assert client.post(f"/api/onboarding/asclepius/{path}", json={
+            "token": token, **payload}).status_code == 200
+    r = client.post("/api/onboarding/asclepius/finish", json={"token": token})
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "account_exists"
+    saved = client.app.state.asclepius_store.get_user_by_email(email)
+    assert saved == user, "a rejected signup changed the existing account"
+    assert not client.app.state.team_store.get_health_system_by_id(hs_id)["onboarding_completed_at"]
+    assert client.post("/api/asclepius/auth/login", json={
+        "email": email, "password": original_password}).status_code == 200
+    assert client.post("/api/asclepius/auth/login", json={
+        "email": email, "password": PW}).status_code == 401
+
+
+def test_a_legacy_incomplete_invite_must_choose_a_password_before_finish(client, mail):
+    fresh_store()
+    email = f"legacy-{uniq()}@example.org"
+    token, hs_id = _invite(client, email)
+    ts = client.app.state.team_store
+    ts.update_health_system_director_identity(
+        hs_id, first_name="Amara", last_name="Okafor", email=email)
+    _prove_mailbox(client, hs_id)
+    for path, payload in [("credentials", {"credentials": CREDS}),
+                          ("attestations", {"attestations": ATTS})]:
+        assert client.post(f"/api/onboarding/asclepius/{path}", json={
+            "token": token, **payload}).status_code == 200
+    r = client.post("/api/onboarding/asclepius/finish", json={"token": token})
+    assert r.status_code == 400 and r.json()["detail"]["code"] == "password_required"
+    assert client.app.state.asclepius_store.get_user_by_email(email) is None
+    assert not ts.get_health_system_by_id(hs_id)["onboarding_completed_at"]
+    assert client.get("/api/onboarding/session", params={"token": token}).json()["director_credentials"]["primarySpecialty"] == "Nephrology"
+    # Returning to identity keeps all saved application data, then finish works.
+    assert client.post("/api/onboarding/step1-identity", json={
+        "token": token, "first_name": "Amara", "last_name": "Okafor",
+        "email": email, "password": PW}).status_code == 200
+    assert client.post("/api/onboarding/asclepius/finish", json={"token": token}).status_code == 200
+    assert client.post("/api/asclepius/auth/login", json={
+        "email": email, "password": PW}).status_code == 200
+
+
+def test_concurrent_account_claims_cannot_replace_the_winning_password(client):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from asclepius.store import AccountAlreadyClaimed, hash_password
+
+    fresh_store()
+    store = client.app.state.asclepius_store
+    email = f"concurrent-{uniq()}@example.org"
+    hashes = [hash_password("first-chosen-password"), hash_password("second-chosen-password")]
+    start = Barrier(2)
+
+    def claim(password_hash):
+        start.wait(timeout=5)
+        try:
+            store.provision_user(email=email, password_hash=password_hash, reject_existing_password=True)
+            return password_hash
+        except AccountAlreadyClaimed:
+            return None
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        winners = [result for result in pool.map(claim, hashes) if result]
+    assert len(winners) == 1
+    assert store.get_user_by_email(email)["password_hash"] == winners[0]
+
+
+def test_a_password_on_the_legacy_person_row_survives_identity_correction(client, mail):
+    fresh_store()
+    email = f"legacy-person-{uniq()}@example.org"
+    token, hs_id = _invite(client, email)
+    ts = client.app.state.team_store
+    ts.update_health_system_director_identity(hs_id, first_name="Amara", last_name="Okafor", email=email)
+    _prove_mailbox(client, hs_id)
+    assert client.post("/api/onboarding/asclepius/password", json={"token": token, "password": PW}).status_code == 200
+    assert not ts.get_health_system_by_id(hs_id)["director_password_hash"]
+    assert client.get("/api/onboarding/session", params={"token": token}).json()["director_password_set"]
+    response = client.post("/api/onboarding/step1-identity", json={
+        "token": token, "first_name": "Amara", "last_name": "Corrected", "email": email})
+    assert response.status_code == 200 and response.json()["password_set"]
+    for path, payload in [("credentials", {"credentials": CREDS}),
+                          ("attestations", {"attestations": ATTS}), ("finish", {})]:
+        r = client.post(f"/api/onboarding/asclepius/{path}", json={"token": token, **payload})
+        assert r.status_code == 200, r.text
+    assert client.post("/api/asclepius/auth/login", json={"email": email, "password": PW}).status_code == 200
+
+
+def test_submitted_application_can_sign_in_reveal_and_file_its_examination(client, mail):
+    from tests._physician_application import PASSWORD, submit_physician_application
+
+    store = fresh_store()
+    user = submit_physician_application(client, f"applicant-{uniq()}@example.org")
+    assert user["cv_asset_sha"], "the application lost its uploaded CV"
+    signed_in = client.post("/api/asclepius/auth/login", json={"email": user["email"], "password": PASSWORD})
+    assert signed_in.status_code == 200, signed_in.text
+    headers = {"Authorization": "Bearer " + signed_in.json()["token"]}
+    handoff = client.post("/api/asclepius/auth/portal-handoff", headers=headers)
+    assert handoff.status_code == 200, handoff.text
+    consumed = client.post("/api/asclepius/auth/portal-handoff/consume", json={
+        "handoff_code": handoff.json()["handoff_code"]})
+    assert consumed.status_code == 200
+    headers = {"Authorization": "Bearer " + consumed.json()["token"]}
+    assert client.get("/api/asclepius/auth/me", headers=headers).status_code == 200
+    drawn = client.get("/api/asclepius/exam/task", headers=headers)
+    assert drawn.status_code == 200, drawn.text
+    task_id = drawn.json()["task"]["task_id"]
+    revealed = client.post(f"/api/asclepius/tasks/{task_id}/reveal", headers=headers,
+                           json={"text": "Correct sodium cautiously with close monitoring."})
+    assert revealed.status_code == 200, revealed.text
+    filed = client.post("/api/asclepius/exam/submit", headers=headers, json={
+        "task_id": task_id, "verdict": "A_better", "chosen_id": "A", "time_spent_sec": 640})
+    assert filed.status_code == 200, filed.text
+    assert filed.json()["user"]["tutorial"]["exam"]["state"] == "submitted"
+    assert len(store.list_credentialing_exams(user["id"])) == 1
+
+
 # ── The wizard, asserted on the shipped source ───────────────────────────────
 #
 # Structural rather than rendered, in the style the rest of this suite uses for

@@ -148,6 +148,95 @@ def test_a_provisional_applicant_can_reveal_on_their_own_exam_task(client):
     assert res.status_code == 200, res.text
 
 
+@pytest.mark.parametrize("endpoint", ["split", "pregrade"])
+def test_applicant_can_use_reasoning_helpers_on_their_own_text(client, endpoint):
+    store = fresh_store()
+    user = _applicant(store)
+    response = client.post(f"/api/asclepius/reasoning/{endpoint}",
+                           headers=headers_for(user),
+                           json={"text": "Monitor sodium closely. Correct slowly.",
+                                 "prompt": "How should sodium be corrected?",
+                                 "specialty": "nephrology"})
+    assert response.status_code == 200, response.text
+    assert response.json()["steps"]
+    assert client.post(f"/api/asclepius/reasoning/{endpoint}",
+                       json={"text": "No session"}).status_code == 401
+
+
+def test_applicant_rubric_is_scoped_to_their_own_examination(client):
+    store = fresh_store()
+    user = _applicant(store)
+    own = _draw_exam(client, user)
+    for task_id, expected in [(own, 200), (_synthetic_task(store), 403),
+                              (_real_v4_task(store), 403)]:
+        response = client.post("/api/asclepius/rubric/suggest",
+                               headers=headers_for(user),
+                               json={"task_id": task_id, "verdict": "A_better", "chosen_id": "A"})
+        assert response.status_code == expected, response.text
+
+
+def test_exam_receipt_retry_does_not_duplicate_work(client, monkeypatch):
+    from routers import asclepius as routes
+
+    store = fresh_store()
+    user = _applicant(store)
+    task_id = _draw_exam(client, user)
+    sent = []
+    monkeypatch.setattr(routes, "_send_exam_received", lambda u: sent.append(u["id"]))
+    payload = {"task_id": task_id, "verdict": "A_better", "chosen_id": "A"}
+    for _ in range(2):
+        response = client.post("/api/asclepius/exam/submit", json=payload, headers=headers_for(user))
+        assert response.status_code == 200, response.text
+    assert len(store.list_credentialing_exams(user["id"])) == 1
+    assert sent == [user["id"]]
+    resume = client.get("/api/asclepius/exam/task", headers=headers_for(user)).json()
+    assert resume["state"] == "submitted"
+    assert resume["user"]["tutorial"]["exam"]["state"] == "submitted"
+
+
+def test_simultaneous_exam_submissions_file_one_attempt(client, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from routers import asclepius as routes
+
+    store = fresh_store()
+    user = _applicant(store)
+    task_id = _draw_exam(client, user)
+    barrier = Barrier(2)
+    record = store.record_credentialing_exam
+    sent = []
+
+    def synchronized(**kwargs):
+        barrier.wait(timeout=5)
+        return record(**kwargs)
+
+    monkeypatch.setattr(store, "record_credentialing_exam", synchronized)
+    monkeypatch.setattr(routes, "_send_exam_received", lambda u: sent.append(u["id"]))
+
+    def submit(_):
+        return TestClient(app).post("/api/asclepius/exam/submit", headers=headers_for(user),
+                                    json={"task_id": task_id, "verdict": "A_better", "chosen_id": "A"})
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(submit, range(2)))
+    assert [r.status_code for r in responses] == [200, 200]
+    assert len(store.list_credentialing_exams(user["id"])) == 1
+    assert sent == [user["id"]]
+    assert all(r.json()["user"]["tutorial"]["exam"]["state"] == "submitted" for r in responses)
+
+
+def test_exam_resume_keeps_original_case_after_specialty_edit(client):
+    store = fresh_store()
+    user = _applicant(store)
+    task_id = _draw_exam(client, user)
+    with store._conn() as conn:
+        conn.execute("UPDATE users SET specialty = 'cardiology' WHERE id = ?", (user["id"],))
+    response = client.get("/api/asclepius/exam/task", headers=headers_for(user)).json()
+    assert response["task"]["task_id"] == task_id
+    assert response["specialty"] == "nephrology"
+    assert response["is_own_specialty"] is False
+
+
 def test_the_examination_persists_unlike_the_practice_case(client):
     """``/tutorial/reveal`` writes no ``independent_commits`` row by design —
     "the practice case leaves no data behind". The examination must do the

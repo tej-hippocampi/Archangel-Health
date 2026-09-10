@@ -1931,13 +1931,16 @@ async def get_exam_task(user: Dict[str, Any] = Depends(asc_auth.require_surface(
     exam = current.get("exam") if isinstance(current.get("exam"), dict) else {}
     attempt = int(exam.get("attempt") or 0) or 1
 
-    task = exam_case.exam_task_for(store, user, attempt)
+    stamped = str(exam.get("task_id") or "").strip()
+    task = (store.get_task(stamped) if stamped and exam.get("state") in ("in_progress", "submitted")
+            else exam_case.exam_task_for(store, user, attempt))
     if not task:
         raise HTTPException(
             status_code=503,
             detail="No examination case is available yet. We will email you.")
 
     picked = exam_case.exam_specialty(user)
+    served_specialty = task.get("specialty") or picked["specialty"]
     # Mark it in progress on the DRAW, so somebody who closes the tab mid-case
     # comes back to "Resume my examination" rather than to a screen that has
     # forgotten they started.
@@ -1953,11 +1956,13 @@ async def get_exam_task(user: Dict[str, Any] = Depends(asc_auth.require_surface(
     return {
         "task": _blind_task(task),
         "attempt": attempt,
+        "state": "submitted" if exam.get("state") == "submitted" else "in_progress",
+        "user": asc_auth.public_user(store.get_user_by_id(user["id"])),
         # Said out loud when we could not serve their own specialty. Handing a
         # cardiologist a kidney case without a word would read as a broken
         # product, and they would reasonably answer it as though we had erred.
-        "specialty": picked["specialty"],
-        "is_own_specialty": picked["is_own"],
+        "specialty": served_specialty,
+        "is_own_specialty": picked["is_own"] and picked["specialty"] == served_specialty,
     }
 
 
@@ -2013,10 +2018,14 @@ async def submit_exam(
             detail="That is not the case your examination was served.")
     task_id = served
 
+    # Retrying after a lost receipt must not create another examination or email.
+    if exam.get("state") == "submitted":
+        return {"ok": True, "user": asc_auth.public_user(store.get_user_by_id(user["id"]))}
+
     picked = exam_case.exam_specialty(user)
-    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
-    exam_id = store.record_credentialing_exam(
-        user_id=user["id"], task_id=task_id, specialty=picked["specialty"],
+    served_specialty = (store.get_task(task_id) or {}).get("specialty") or picked["specialty"]
+    exam_id, created = store.record_credentialing_exam(
+        user_id=user["id"], task_id=task_id, specialty=served_specialty,
         attempt=attempt, payload=body,
         time_spent_sec=int(body.get("time_spent_sec") or 0),
         # `specialty` above is what was SERVED. These two say whether it was
@@ -2024,17 +2033,11 @@ async def submit_exam(
         # examination that measures their reading and one that measures how
         # they cope outside their field. Recorded at submit time because the
         # user row can change afterwards and the answer must not.
-        is_own_specialty=bool(picked["is_own"]),
+        is_own_specialty=bool(picked["is_own"] and picked["specialty"] == served_specialty),
         applied_specialty=picked.get("applied_with") or "",
     )
-    # ``task_id`` is CARRIED THROUGH rather than dropped. Rebuilding this blob
-    # from scratch used to lose it, which would have closed the applicant's own
-    # case to them the instant they filed it — the workspace re-reads the task
-    # after a submit, and require_task_access answers out of this stamp.
-    current["exam"] = {"state": "submitted", "attempt": attempt,
-                       "submitted_at": now, "exam_id": exam_id,
-                       "task_id": task_id}
-    store.set_tutorial_state(user["id"], current)
+    if not created:
+        return {"ok": True, "user": asc_auth.public_user(store.get_user_by_id(user["id"]))}
     # A receipt, with no verdict in it by construction. A retake writes a new
     # row and so sends a second one, which is correct: it IS a second
     # submission, and silence after the one they were asked to redo would be
@@ -5271,7 +5274,7 @@ async def model_failures(
 
 @router.post("/reasoning/split")
 async def reasoning_split(
-    body: ReasoningSplitRequest, _user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    body: ReasoningSplitRequest, _user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL))
 ):
     """Split a chosen/ideal answer into ordered reasoning steps for tap-to-grade
     (Eval Flow Upgrade §4). Returns ``{steps: [str, ...], source}``. Degrades to a
@@ -5282,7 +5285,7 @@ async def reasoning_split(
 
 @router.post("/reasoning/pregrade")
 async def reasoning_pregrade(
-    body: ReasoningSplitRequest, _user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    body: ReasoningSplitRequest, _user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL))
 ):
     """Split + pre-grade an answer's reasoning steps (Speed Optimization §2):
     each step arrives with a SUGGESTED ``good``/``bad`` label (+ a one-line
@@ -5301,7 +5304,7 @@ async def reasoning_pregrade(
 # ─── Rubric capture (FEAT-2) ──────────────────────────────────────────────────
 @router.post("/rubric/suggest")
 async def rubric_suggest(
-    body: SubmissionIn, user: Dict[str, Any] = Depends(require_practice_case)
+    body: SubmissionIn, user: Dict[str, Any] = Depends(asc_auth.get_current_account)
 ):
     """Auto-seed proposed rubric criteria from the doctor's already-captured tags
     (FEAT-2). The client sends the in-progress draft (error tags + reasons,
@@ -5310,6 +5313,8 @@ async def rubric_suggest(
     confirms/edits/deletes before the rubric ships (same anti-rubber-stamp rule as
     everywhere else). Post-reveal + on the doctor's own tags, so no anti-peeking
     gate; the answer key stays server-side."""
+    if not asc_auth.owns_this_exam_task(user, body.task_id):
+        _full_task_gate(user)
     store = _store()
     task = store.get_task(body.task_id)
     if not task:

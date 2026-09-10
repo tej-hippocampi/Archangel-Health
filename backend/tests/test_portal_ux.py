@@ -537,7 +537,7 @@ function seedDraft(taskId, draft) {
 def _dash_harness(body: str, available: dict) -> dict:
     payload = "\n".join([
         _const("DRAFT_PREFIX"), _const("TUTORIAL_TASK_ID"),
-        _fn("h"), _fn("appendChildren"), _fn("draftKey"), _fn("formatTime"),
+        _fn("h"), _fn("appendChildren"), _fn("examActive"), _fn("draftKey"), _fn("formatTime"),
         _fn("findResumableDraft"), _fn("renderDashboardView"),
     ])
     script = _DASH_PRELUDE % {"payload": payload, "api": json.dumps(available)}
@@ -758,7 +758,7 @@ async function api() { if (RESPONSE) return RESPONSE; throw THROWN; }
 def _open_harness(body: str) -> dict:
     payload = "\n".join([
         _const("DRAFT_PREFIX"),
-        _fn("h"), _fn("appendChildren"), _fn("draftKey"), _fn("randomId"),
+        _fn("h"), _fn("appendChildren"), _fn("examActive"), _fn("draftKey"), _fn("randomId"),
         _fn("emptyAnchor"), _fn("newDraft"), _fn("initDraftForTask"),
         _fn("clearDraft"), _fn("isPracticeGate"), _fn("openTaskById"),
     ])
@@ -923,7 +923,7 @@ _LIFECYCLE = _slice(
 def _timer_harness(body: str) -> dict:
     payload = "\n".join([
         _const("DRAFT_PREFIX"),
-        _fn("draftKey"), _fn("startTimer"), _fn("stopTimer"), _fn("getElapsed"),
+        _fn("examActive"), _fn("draftKey"), _fn("startTimer"), _fn("stopTimer"), _fn("getElapsed"),
         _fn("formatTime"), _fn("saveDraft"), _fn("clearDraft"),
         _fn("findResumableDraft"),
         _LIFECYCLE,
