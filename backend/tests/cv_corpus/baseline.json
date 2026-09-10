@@ -1,0 +1,7245 @@
+{
+  "documents": 100,
+  "field_checks": 1300,
+  "passed": 644,
+  "documents_passed": 0,
+  "elapsed_seconds": 0.67,
+  "failures": [
+    {
+      "id": "cv-000",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example A University Hospital, 2005 - 2010",
+          "year": "2010"
+        }
+      ]
+    },
+    {
+      "id": "cv-000",
+      "field": "residencyCompletionYear",
+      "expected": "2010",
+      "actual": ""
+    },
+    {
+      "id": "cv-000",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Nephrology — Example A Medical Center, 2010 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-000",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-001",
+      "field": "fullLegalName",
+      "expected": "José Alvarez",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-001",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example B University Hospital, 2005 - 2011",
+          "year": "2011"
+        }
+      ]
+    },
+    {
+      "id": "cv-001",
+      "field": "residencyCompletionYear",
+      "expected": "2011",
+      "actual": ""
+    },
+    {
+      "id": "cv-001",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Cardiology — Example B Medical Center, 2011 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-001",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-002",
+      "field": "fullLegalName",
+      "expected": "Zoë Laurent",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-002",
+      "field": "primarySpecialty",
+      "expected": "Internal Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-002",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example C University Hospital, 2005 - 2012",
+          "year": "2012"
+        }
+      ]
+    },
+    {
+      "id": "cv-002",
+      "field": "residencyCompletionYear",
+      "expected": "2012",
+      "actual": ""
+    },
+    {
+      "id": "cv-002",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Internal Medicine — Example C Medical Center, 2012 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-002",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-003",
+      "field": "primarySpecialty",
+      "expected": "Pediatrics",
+      "actual": ""
+    },
+    {
+      "id": "cv-003",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example D University Hospital, 2005 - 2013",
+          "year": "2013"
+        }
+      ]
+    },
+    {
+      "id": "cv-003",
+      "field": "residencyCompletionYear",
+      "expected": "2013",
+      "actual": ""
+    },
+    {
+      "id": "cv-003",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Pediatrics — Example D Medical Center, 2013 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-003",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-004",
+      "field": "primarySpecialty",
+      "expected": "Surgery",
+      "actual": ""
+    },
+    {
+      "id": "cv-004",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example E University Hospital, 2005 - 2014",
+          "year": "2014"
+        }
+      ]
+    },
+    {
+      "id": "cv-004",
+      "field": "residencyCompletionYear",
+      "expected": "2014",
+      "actual": ""
+    },
+    {
+      "id": "cv-004",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Surgery — Example E Medical Center, 2014 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-004",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-005",
+      "field": "primarySpecialty",
+      "expected": "Neurology",
+      "actual": ""
+    },
+    {
+      "id": "cv-005",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example F University Hospital, 2005 - 2015",
+          "year": "2015"
+        }
+      ]
+    },
+    {
+      "id": "cv-005",
+      "field": "residencyCompletionYear",
+      "expected": "2015",
+      "actual": ""
+    },
+    {
+      "id": "cv-005",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Neurology — Example F Medical Center, 2015 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-005",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-006",
+      "field": "primarySpecialty",
+      "expected": "Radiology",
+      "actual": ""
+    },
+    {
+      "id": "cv-006",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example G University Hospital, 2005 - 2016",
+          "year": "2016"
+        }
+      ]
+    },
+    {
+      "id": "cv-006",
+      "field": "residencyCompletionYear",
+      "expected": "2016",
+      "actual": ""
+    },
+    {
+      "id": "cv-006",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Radiology — Example G Medical Center, 2016 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-006",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-007",
+      "field": "primarySpecialty",
+      "expected": "Family Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-007",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example H University Hospital, 2005 - 2017",
+          "year": "2017"
+        }
+      ]
+    },
+    {
+      "id": "cv-007",
+      "field": "residencyCompletionYear",
+      "expected": "2017",
+      "actual": ""
+    },
+    {
+      "id": "cv-007",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Family Medicine — Example H Medical Center, 2017 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-007",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-008",
+      "field": "primarySpecialty",
+      "expected": "Dermatology",
+      "actual": ""
+    },
+    {
+      "id": "cv-008",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example I University Hospital, 2005 - 2018",
+          "year": "2018"
+        }
+      ]
+    },
+    {
+      "id": "cv-008",
+      "field": "residencyCompletionYear",
+      "expected": "2018",
+      "actual": ""
+    },
+    {
+      "id": "cv-008",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Dermatology — Example I Medical Center, 2018 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-008",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-009",
+      "field": "primarySpecialty",
+      "expected": "Psychiatry",
+      "actual": ""
+    },
+    {
+      "id": "cv-009",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example J University Hospital, 2005 - 2019",
+          "year": "2019"
+        }
+      ]
+    },
+    {
+      "id": "cv-009",
+      "field": "residencyCompletionYear",
+      "expected": "2019",
+      "actual": ""
+    },
+    {
+      "id": "cv-009",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Psychiatry — Example J Medical Center, 2019 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-009",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-010",
+      "field": "healthSystem",
+      "expected": "Example A Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-010",
+      "field": "licenseNumber",
+      "expected": "A900010",
+      "actual": ""
+    },
+    {
+      "id": "cv-010",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-010",
+      "field": "residencyCompletionYear",
+      "expected": "2010",
+      "actual": ""
+    },
+    {
+      "id": "cv-010",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-010",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-011",
+      "field": "fullLegalName",
+      "expected": "José Alvarez",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-011",
+      "field": "healthSystem",
+      "expected": "Example B Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-011",
+      "field": "licenseNumber",
+      "expected": "A900011",
+      "actual": ""
+    },
+    {
+      "id": "cv-011",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-011",
+      "field": "residencyCompletionYear",
+      "expected": "2011",
+      "actual": ""
+    },
+    {
+      "id": "cv-011",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-011",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-012",
+      "field": "fullLegalName",
+      "expected": "Zoë Laurent",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-012",
+      "field": "primarySpecialty",
+      "expected": "Internal Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-012",
+      "field": "healthSystem",
+      "expected": "Example C Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-012",
+      "field": "licenseNumber",
+      "expected": "A900012",
+      "actual": ""
+    },
+    {
+      "id": "cv-012",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-012",
+      "field": "residencyCompletionYear",
+      "expected": "2012",
+      "actual": ""
+    },
+    {
+      "id": "cv-012",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-012",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-013",
+      "field": "primarySpecialty",
+      "expected": "Pediatrics",
+      "actual": ""
+    },
+    {
+      "id": "cv-013",
+      "field": "healthSystem",
+      "expected": "Example D Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-013",
+      "field": "licenseNumber",
+      "expected": "A900013",
+      "actual": ""
+    },
+    {
+      "id": "cv-013",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-013",
+      "field": "residencyCompletionYear",
+      "expected": "2013",
+      "actual": ""
+    },
+    {
+      "id": "cv-013",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-013",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-014",
+      "field": "primarySpecialty",
+      "expected": "Surgery",
+      "actual": ""
+    },
+    {
+      "id": "cv-014",
+      "field": "healthSystem",
+      "expected": "Example E Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-014",
+      "field": "licenseNumber",
+      "expected": "A900014",
+      "actual": ""
+    },
+    {
+      "id": "cv-014",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-014",
+      "field": "residencyCompletionYear",
+      "expected": "2014",
+      "actual": ""
+    },
+    {
+      "id": "cv-014",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-014",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-015",
+      "field": "primarySpecialty",
+      "expected": "Neurology",
+      "actual": ""
+    },
+    {
+      "id": "cv-015",
+      "field": "healthSystem",
+      "expected": "Example F Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-015",
+      "field": "licenseNumber",
+      "expected": "A900015",
+      "actual": ""
+    },
+    {
+      "id": "cv-015",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-015",
+      "field": "residencyCompletionYear",
+      "expected": "2015",
+      "actual": ""
+    },
+    {
+      "id": "cv-015",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-015",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-016",
+      "field": "primarySpecialty",
+      "expected": "Radiology",
+      "actual": ""
+    },
+    {
+      "id": "cv-016",
+      "field": "healthSystem",
+      "expected": "Example G Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-016",
+      "field": "licenseNumber",
+      "expected": "A900016",
+      "actual": ""
+    },
+    {
+      "id": "cv-016",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-016",
+      "field": "residencyCompletionYear",
+      "expected": "2016",
+      "actual": ""
+    },
+    {
+      "id": "cv-016",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-016",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-017",
+      "field": "primarySpecialty",
+      "expected": "Family Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-017",
+      "field": "healthSystem",
+      "expected": "Example H Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-017",
+      "field": "licenseNumber",
+      "expected": "A900017",
+      "actual": ""
+    },
+    {
+      "id": "cv-017",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-017",
+      "field": "residencyCompletionYear",
+      "expected": "2017",
+      "actual": ""
+    },
+    {
+      "id": "cv-017",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-017",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-018",
+      "field": "primarySpecialty",
+      "expected": "Dermatology",
+      "actual": ""
+    },
+    {
+      "id": "cv-018",
+      "field": "healthSystem",
+      "expected": "Example I Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-018",
+      "field": "licenseNumber",
+      "expected": "A900018",
+      "actual": ""
+    },
+    {
+      "id": "cv-018",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-018",
+      "field": "residencyCompletionYear",
+      "expected": "2018",
+      "actual": ""
+    },
+    {
+      "id": "cv-018",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-018",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-019",
+      "field": "primarySpecialty",
+      "expected": "Psychiatry",
+      "actual": ""
+    },
+    {
+      "id": "cv-019",
+      "field": "healthSystem",
+      "expected": "Example J Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-019",
+      "field": "licenseNumber",
+      "expected": "A900019",
+      "actual": ""
+    },
+    {
+      "id": "cv-019",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-019",
+      "field": "residencyCompletionYear",
+      "expected": "2019",
+      "actual": ""
+    },
+    {
+      "id": "cv-019",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-019",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-020",
+      "field": "fullLegalName",
+      "expected": "Avery Morgan",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-020",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example A University Hospital, 2005 - 2010",
+          "year": "2010"
+        }
+      ]
+    },
+    {
+      "id": "cv-020",
+      "field": "residencyCompletionYear",
+      "expected": "2010",
+      "actual": ""
+    },
+    {
+      "id": "cv-020",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Nephrology — Example A Medical Center, 2010 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-020",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-021",
+      "field": "fullLegalName",
+      "expected": "José Alvarez",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-021",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example B University Hospital, 2005 - 2011",
+          "year": "2011"
+        }
+      ]
+    },
+    {
+      "id": "cv-021",
+      "field": "residencyCompletionYear",
+      "expected": "2011",
+      "actual": ""
+    },
+    {
+      "id": "cv-021",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Cardiology — Example B Medical Center, 2011 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-021",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-022",
+      "field": "fullLegalName",
+      "expected": "Zoë Laurent",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-022",
+      "field": "primarySpecialty",
+      "expected": "Internal Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-022",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example C University Hospital, 2005 - 2012",
+          "year": "2012"
+        }
+      ]
+    },
+    {
+      "id": "cv-022",
+      "field": "residencyCompletionYear",
+      "expected": "2012",
+      "actual": ""
+    },
+    {
+      "id": "cv-022",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Internal Medicine — Example C Medical Center, 2012 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-022",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-023",
+      "field": "fullLegalName",
+      "expected": "Amara Okafor",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-023",
+      "field": "primarySpecialty",
+      "expected": "Pediatrics",
+      "actual": ""
+    },
+    {
+      "id": "cv-023",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example D University Hospital, 2005 - 2013",
+          "year": "2013"
+        }
+      ]
+    },
+    {
+      "id": "cv-023",
+      "field": "residencyCompletionYear",
+      "expected": "2013",
+      "actual": ""
+    },
+    {
+      "id": "cv-023",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Pediatrics — Example D Medical Center, 2013 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-023",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-024",
+      "field": "fullLegalName",
+      "expected": "Priya Shah",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-024",
+      "field": "primarySpecialty",
+      "expected": "Surgery",
+      "actual": ""
+    },
+    {
+      "id": "cv-024",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example E University Hospital, 2005 - 2014",
+          "year": "2014"
+        }
+      ]
+    },
+    {
+      "id": "cv-024",
+      "field": "residencyCompletionYear",
+      "expected": "2014",
+      "actual": ""
+    },
+    {
+      "id": "cv-024",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Surgery — Example E Medical Center, 2014 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-024",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-025",
+      "field": "fullLegalName",
+      "expected": "Jean-Luc Martin",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-025",
+      "field": "primarySpecialty",
+      "expected": "Neurology",
+      "actual": ""
+    },
+    {
+      "id": "cv-025",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example F University Hospital, 2005 - 2015",
+          "year": "2015"
+        }
+      ]
+    },
+    {
+      "id": "cv-025",
+      "field": "residencyCompletionYear",
+      "expected": "2015",
+      "actual": ""
+    },
+    {
+      "id": "cv-025",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Neurology — Example F Medical Center, 2015 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-025",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-026",
+      "field": "fullLegalName",
+      "expected": "Mei Chen",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-026",
+      "field": "primarySpecialty",
+      "expected": "Radiology",
+      "actual": ""
+    },
+    {
+      "id": "cv-026",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example G University Hospital, 2005 - 2016",
+          "year": "2016"
+        }
+      ]
+    },
+    {
+      "id": "cv-026",
+      "field": "residencyCompletionYear",
+      "expected": "2016",
+      "actual": ""
+    },
+    {
+      "id": "cv-026",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Radiology — Example G Medical Center, 2016 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-026",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-027",
+      "field": "fullLegalName",
+      "expected": "Sofia Rossi",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-027",
+      "field": "primarySpecialty",
+      "expected": "Family Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-027",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example H University Hospital, 2005 - 2017",
+          "year": "2017"
+        }
+      ]
+    },
+    {
+      "id": "cv-027",
+      "field": "residencyCompletionYear",
+      "expected": "2017",
+      "actual": ""
+    },
+    {
+      "id": "cv-027",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Family Medicine — Example H Medical Center, 2017 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-027",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-028",
+      "field": "fullLegalName",
+      "expected": "Omar Hassan",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-028",
+      "field": "primarySpecialty",
+      "expected": "Dermatology",
+      "actual": ""
+    },
+    {
+      "id": "cv-028",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example I University Hospital, 2005 - 2018",
+          "year": "2018"
+        }
+      ]
+    },
+    {
+      "id": "cv-028",
+      "field": "residencyCompletionYear",
+      "expected": "2018",
+      "actual": ""
+    },
+    {
+      "id": "cv-028",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Dermatology — Example I Medical Center, 2018 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-028",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-029",
+      "field": "fullLegalName",
+      "expected": "Rachel O’Neill",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-029",
+      "field": "primarySpecialty",
+      "expected": "Psychiatry",
+      "actual": ""
+    },
+    {
+      "id": "cv-029",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example J University Hospital, 2005 - 2019",
+          "year": "2019"
+        }
+      ]
+    },
+    {
+      "id": "cv-029",
+      "field": "residencyCompletionYear",
+      "expected": "2019",
+      "actual": ""
+    },
+    {
+      "id": "cv-029",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Psychiatry — Example J Medical Center, 2019 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-029",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-030",
+      "field": "healthSystem",
+      "expected": "Example A Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-030",
+      "field": "licenseNumber",
+      "expected": "A900030",
+      "actual": ""
+    },
+    {
+      "id": "cv-030",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-030",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-030",
+      "field": "residencyCompletionYear",
+      "expected": "2010",
+      "actual": ""
+    },
+    {
+      "id": "cv-030",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-030",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-031",
+      "field": "fullLegalName",
+      "expected": "José Alvarez",
+      "actual": "Postgraduate Training"
+    },
+    {
+      "id": "cv-031",
+      "field": "healthSystem",
+      "expected": "Example B Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-031",
+      "field": "licenseNumber",
+      "expected": "A900031",
+      "actual": ""
+    },
+    {
+      "id": "cv-031",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-031",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-031",
+      "field": "residencyCompletionYear",
+      "expected": "2011",
+      "actual": ""
+    },
+    {
+      "id": "cv-031",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-031",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-032",
+      "field": "fullLegalName",
+      "expected": "Zoë Laurent",
+      "actual": "Postgraduate Training"
+    },
+    {
+      "id": "cv-032",
+      "field": "primarySpecialty",
+      "expected": "Internal Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-032",
+      "field": "healthSystem",
+      "expected": "Example C Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-032",
+      "field": "licenseNumber",
+      "expected": "A900032",
+      "actual": ""
+    },
+    {
+      "id": "cv-032",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-032",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-032",
+      "field": "residencyCompletionYear",
+      "expected": "2012",
+      "actual": ""
+    },
+    {
+      "id": "cv-032",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-032",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-033",
+      "field": "primarySpecialty",
+      "expected": "Pediatrics",
+      "actual": ""
+    },
+    {
+      "id": "cv-033",
+      "field": "healthSystem",
+      "expected": "Example D Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-033",
+      "field": "licenseNumber",
+      "expected": "A900033",
+      "actual": ""
+    },
+    {
+      "id": "cv-033",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-033",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-033",
+      "field": "residencyCompletionYear",
+      "expected": "2013",
+      "actual": ""
+    },
+    {
+      "id": "cv-033",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-033",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-034",
+      "field": "primarySpecialty",
+      "expected": "Surgery",
+      "actual": ""
+    },
+    {
+      "id": "cv-034",
+      "field": "healthSystem",
+      "expected": "Example E Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-034",
+      "field": "licenseNumber",
+      "expected": "A900034",
+      "actual": ""
+    },
+    {
+      "id": "cv-034",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-034",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-034",
+      "field": "residencyCompletionYear",
+      "expected": "2014",
+      "actual": ""
+    },
+    {
+      "id": "cv-034",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-034",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-035",
+      "field": "primarySpecialty",
+      "expected": "Neurology",
+      "actual": ""
+    },
+    {
+      "id": "cv-035",
+      "field": "healthSystem",
+      "expected": "Example F Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-035",
+      "field": "licenseNumber",
+      "expected": "A900035",
+      "actual": ""
+    },
+    {
+      "id": "cv-035",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-035",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-035",
+      "field": "residencyCompletionYear",
+      "expected": "2015",
+      "actual": ""
+    },
+    {
+      "id": "cv-035",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-035",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-036",
+      "field": "primarySpecialty",
+      "expected": "Radiology",
+      "actual": ""
+    },
+    {
+      "id": "cv-036",
+      "field": "healthSystem",
+      "expected": "Example G Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-036",
+      "field": "licenseNumber",
+      "expected": "A900036",
+      "actual": ""
+    },
+    {
+      "id": "cv-036",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-036",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-036",
+      "field": "residencyCompletionYear",
+      "expected": "2016",
+      "actual": ""
+    },
+    {
+      "id": "cv-036",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-036",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-037",
+      "field": "primarySpecialty",
+      "expected": "Family Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-037",
+      "field": "healthSystem",
+      "expected": "Example H Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-037",
+      "field": "licenseNumber",
+      "expected": "A900037",
+      "actual": ""
+    },
+    {
+      "id": "cv-037",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-037",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-037",
+      "field": "residencyCompletionYear",
+      "expected": "2017",
+      "actual": ""
+    },
+    {
+      "id": "cv-037",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-037",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-038",
+      "field": "primarySpecialty",
+      "expected": "Dermatology",
+      "actual": ""
+    },
+    {
+      "id": "cv-038",
+      "field": "healthSystem",
+      "expected": "Example I Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-038",
+      "field": "licenseNumber",
+      "expected": "A900038",
+      "actual": ""
+    },
+    {
+      "id": "cv-038",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-038",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-038",
+      "field": "residencyCompletionYear",
+      "expected": "2018",
+      "actual": ""
+    },
+    {
+      "id": "cv-038",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-038",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-039",
+      "field": "primarySpecialty",
+      "expected": "Psychiatry",
+      "actual": ""
+    },
+    {
+      "id": "cv-039",
+      "field": "healthSystem",
+      "expected": "Example J Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-039",
+      "field": "licenseNumber",
+      "expected": "A900039",
+      "actual": ""
+    },
+    {
+      "id": "cv-039",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-039",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-039",
+      "field": "residencyCompletionYear",
+      "expected": "2019",
+      "actual": ""
+    },
+    {
+      "id": "cv-039",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-039",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-040",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example A University Hospital, 2005 - 2010",
+          "year": "2010"
+        }
+      ]
+    },
+    {
+      "id": "cv-040",
+      "field": "residencyCompletionYear",
+      "expected": "2010",
+      "actual": ""
+    },
+    {
+      "id": "cv-040",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Nephrology — Example A Medical Center, 2010 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-040",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-041",
+      "field": "fullLegalName",
+      "expected": "José Alvarez",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-041",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example B University Hospital, 2005 - 2011",
+          "year": "2011"
+        }
+      ]
+    },
+    {
+      "id": "cv-041",
+      "field": "residencyCompletionYear",
+      "expected": "2011",
+      "actual": ""
+    },
+    {
+      "id": "cv-041",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Cardiology — Example B Medical Center, 2011 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-041",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-042",
+      "field": "fullLegalName",
+      "expected": "Zoë Laurent",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-042",
+      "field": "primarySpecialty",
+      "expected": "Internal Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-042",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example C University Hospital, 2005 - 2012",
+          "year": "2012"
+        }
+      ]
+    },
+    {
+      "id": "cv-042",
+      "field": "residencyCompletionYear",
+      "expected": "2012",
+      "actual": ""
+    },
+    {
+      "id": "cv-042",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Internal Medicine — Example C Medical Center, 2012 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-042",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-043",
+      "field": "primarySpecialty",
+      "expected": "Pediatrics",
+      "actual": ""
+    },
+    {
+      "id": "cv-043",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example D University Hospital, 2005 - 2013",
+          "year": "2013"
+        }
+      ]
+    },
+    {
+      "id": "cv-043",
+      "field": "residencyCompletionYear",
+      "expected": "2013",
+      "actual": ""
+    },
+    {
+      "id": "cv-043",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Pediatrics — Example D Medical Center, 2013 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-043",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-044",
+      "field": "primarySpecialty",
+      "expected": "Surgery",
+      "actual": ""
+    },
+    {
+      "id": "cv-044",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example E University Hospital, 2005 - 2014",
+          "year": "2014"
+        }
+      ]
+    },
+    {
+      "id": "cv-044",
+      "field": "residencyCompletionYear",
+      "expected": "2014",
+      "actual": ""
+    },
+    {
+      "id": "cv-044",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Surgery — Example E Medical Center, 2014 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-044",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-045",
+      "field": "primarySpecialty",
+      "expected": "Neurology",
+      "actual": ""
+    },
+    {
+      "id": "cv-045",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example F University Hospital, 2005 - 2015",
+          "year": "2015"
+        }
+      ]
+    },
+    {
+      "id": "cv-045",
+      "field": "residencyCompletionYear",
+      "expected": "2015",
+      "actual": ""
+    },
+    {
+      "id": "cv-045",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Neurology — Example F Medical Center, 2015 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-045",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-046",
+      "field": "primarySpecialty",
+      "expected": "Radiology",
+      "actual": ""
+    },
+    {
+      "id": "cv-046",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example G University Hospital, 2005 - 2016",
+          "year": "2016"
+        }
+      ]
+    },
+    {
+      "id": "cv-046",
+      "field": "residencyCompletionYear",
+      "expected": "2016",
+      "actual": ""
+    },
+    {
+      "id": "cv-046",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Radiology — Example G Medical Center, 2016 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-046",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-047",
+      "field": "primarySpecialty",
+      "expected": "Family Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-047",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example H University Hospital, 2005 - 2017",
+          "year": "2017"
+        }
+      ]
+    },
+    {
+      "id": "cv-047",
+      "field": "residencyCompletionYear",
+      "expected": "2017",
+      "actual": ""
+    },
+    {
+      "id": "cv-047",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Family Medicine — Example H Medical Center, 2017 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-047",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-048",
+      "field": "primarySpecialty",
+      "expected": "Dermatology",
+      "actual": ""
+    },
+    {
+      "id": "cv-048",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example I University Hospital, 2005 - 2018",
+          "year": "2018"
+        }
+      ]
+    },
+    {
+      "id": "cv-048",
+      "field": "residencyCompletionYear",
+      "expected": "2018",
+      "actual": ""
+    },
+    {
+      "id": "cv-048",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Dermatology — Example I Medical Center, 2018 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-048",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-049",
+      "field": "primarySpecialty",
+      "expected": "Psychiatry",
+      "actual": ""
+    },
+    {
+      "id": "cv-049",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example J University Hospital, 2005 - 2019",
+          "year": "2019"
+        }
+      ]
+    },
+    {
+      "id": "cv-049",
+      "field": "residencyCompletionYear",
+      "expected": "2019",
+      "actual": ""
+    },
+    {
+      "id": "cv-049",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Psychiatry — Example J Medical Center, 2019 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-049",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-050",
+      "field": "healthSystem",
+      "expected": "Example A Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-050",
+      "field": "licenseNumber",
+      "expected": "A900050",
+      "actual": ""
+    },
+    {
+      "id": "cv-050",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-050",
+      "field": "residencyCompletionYear",
+      "expected": "2010",
+      "actual": ""
+    },
+    {
+      "id": "cv-050",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-050",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-051",
+      "field": "fullLegalName",
+      "expected": "José Alvarez",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-051",
+      "field": "healthSystem",
+      "expected": "Example B Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-051",
+      "field": "licenseNumber",
+      "expected": "A900051",
+      "actual": ""
+    },
+    {
+      "id": "cv-051",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-051",
+      "field": "residencyCompletionYear",
+      "expected": "2011",
+      "actual": ""
+    },
+    {
+      "id": "cv-051",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-051",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-052",
+      "field": "fullLegalName",
+      "expected": "Zoë Laurent",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-052",
+      "field": "primarySpecialty",
+      "expected": "Internal Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-052",
+      "field": "healthSystem",
+      "expected": "Example C Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-052",
+      "field": "licenseNumber",
+      "expected": "A900052",
+      "actual": ""
+    },
+    {
+      "id": "cv-052",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-052",
+      "field": "residencyCompletionYear",
+      "expected": "2012",
+      "actual": ""
+    },
+    {
+      "id": "cv-052",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-052",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-053",
+      "field": "primarySpecialty",
+      "expected": "Pediatrics",
+      "actual": ""
+    },
+    {
+      "id": "cv-053",
+      "field": "healthSystem",
+      "expected": "Example D Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-053",
+      "field": "licenseNumber",
+      "expected": "A900053",
+      "actual": ""
+    },
+    {
+      "id": "cv-053",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-053",
+      "field": "residencyCompletionYear",
+      "expected": "2013",
+      "actual": ""
+    },
+    {
+      "id": "cv-053",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-053",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-054",
+      "field": "primarySpecialty",
+      "expected": "Surgery",
+      "actual": ""
+    },
+    {
+      "id": "cv-054",
+      "field": "healthSystem",
+      "expected": "Example E Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-054",
+      "field": "licenseNumber",
+      "expected": "A900054",
+      "actual": ""
+    },
+    {
+      "id": "cv-054",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-054",
+      "field": "residencyCompletionYear",
+      "expected": "2014",
+      "actual": ""
+    },
+    {
+      "id": "cv-054",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-054",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-055",
+      "field": "primarySpecialty",
+      "expected": "Neurology",
+      "actual": ""
+    },
+    {
+      "id": "cv-055",
+      "field": "healthSystem",
+      "expected": "Example F Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-055",
+      "field": "licenseNumber",
+      "expected": "A900055",
+      "actual": ""
+    },
+    {
+      "id": "cv-055",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-055",
+      "field": "residencyCompletionYear",
+      "expected": "2015",
+      "actual": ""
+    },
+    {
+      "id": "cv-055",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-055",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-056",
+      "field": "primarySpecialty",
+      "expected": "Radiology",
+      "actual": ""
+    },
+    {
+      "id": "cv-056",
+      "field": "healthSystem",
+      "expected": "Example G Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-056",
+      "field": "licenseNumber",
+      "expected": "A900056",
+      "actual": ""
+    },
+    {
+      "id": "cv-056",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-056",
+      "field": "residencyCompletionYear",
+      "expected": "2016",
+      "actual": ""
+    },
+    {
+      "id": "cv-056",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-056",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-057",
+      "field": "primarySpecialty",
+      "expected": "Family Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-057",
+      "field": "healthSystem",
+      "expected": "Example H Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-057",
+      "field": "licenseNumber",
+      "expected": "A900057",
+      "actual": ""
+    },
+    {
+      "id": "cv-057",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-057",
+      "field": "residencyCompletionYear",
+      "expected": "2017",
+      "actual": ""
+    },
+    {
+      "id": "cv-057",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-057",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-058",
+      "field": "primarySpecialty",
+      "expected": "Dermatology",
+      "actual": ""
+    },
+    {
+      "id": "cv-058",
+      "field": "healthSystem",
+      "expected": "Example I Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-058",
+      "field": "licenseNumber",
+      "expected": "A900058",
+      "actual": ""
+    },
+    {
+      "id": "cv-058",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-058",
+      "field": "residencyCompletionYear",
+      "expected": "2018",
+      "actual": ""
+    },
+    {
+      "id": "cv-058",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-058",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-059",
+      "field": "primarySpecialty",
+      "expected": "Psychiatry",
+      "actual": ""
+    },
+    {
+      "id": "cv-059",
+      "field": "healthSystem",
+      "expected": "Example J Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-059",
+      "field": "licenseNumber",
+      "expected": "A900059",
+      "actual": ""
+    },
+    {
+      "id": "cv-059",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-059",
+      "field": "residencyCompletionYear",
+      "expected": "2019",
+      "actual": ""
+    },
+    {
+      "id": "cv-059",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-059",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-060",
+      "field": "fullLegalName",
+      "expected": "Avery Morgan",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-060",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example A University Hospital, 2005 - 2010",
+          "year": "2010"
+        }
+      ]
+    },
+    {
+      "id": "cv-060",
+      "field": "residencyCompletionYear",
+      "expected": "2010",
+      "actual": ""
+    },
+    {
+      "id": "cv-060",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Nephrology — Example A Medical Center, 2010 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-060",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-061",
+      "field": "fullLegalName",
+      "expected": "José Alvarez",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-061",
+      "field": "degree",
+      "expected": "DO",
+      "actual": "MD"
+    },
+    {
+      "id": "cv-061",
+      "field": "qualification",
+      "expected": "DO",
+      "actual": "MD"
+    },
+    {
+      "id": "cv-061",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example B University Hospital, 2005 - 2011",
+          "year": "2011"
+        }
+      ]
+    },
+    {
+      "id": "cv-061",
+      "field": "residencyCompletionYear",
+      "expected": "2011",
+      "actual": ""
+    },
+    {
+      "id": "cv-061",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Cardiology — Example B Medical Center, 2011 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-061",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-062",
+      "field": "fullLegalName",
+      "expected": "Zoë Laurent",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-062",
+      "field": "degree",
+      "expected": "MBBS",
+      "actual": "MD"
+    },
+    {
+      "id": "cv-062",
+      "field": "qualification",
+      "expected": "MBBS",
+      "actual": "MD"
+    },
+    {
+      "id": "cv-062",
+      "field": "primarySpecialty",
+      "expected": "Internal Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-062",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example C University Hospital, 2005 - 2012",
+          "year": "2012"
+        }
+      ]
+    },
+    {
+      "id": "cv-062",
+      "field": "residencyCompletionYear",
+      "expected": "2012",
+      "actual": ""
+    },
+    {
+      "id": "cv-062",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Internal Medicine — Example C Medical Center, 2012 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-062",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-063",
+      "field": "fullLegalName",
+      "expected": "Amara Okafor",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-063",
+      "field": "degree",
+      "expected": "MBChB",
+      "actual": "MD"
+    },
+    {
+      "id": "cv-063",
+      "field": "qualification",
+      "expected": "MBChB",
+      "actual": "MD"
+    },
+    {
+      "id": "cv-063",
+      "field": "primarySpecialty",
+      "expected": "Pediatrics",
+      "actual": ""
+    },
+    {
+      "id": "cv-063",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example D University Hospital, 2005 - 2013",
+          "year": "2013"
+        }
+      ]
+    },
+    {
+      "id": "cv-063",
+      "field": "residencyCompletionYear",
+      "expected": "2013",
+      "actual": ""
+    },
+    {
+      "id": "cv-063",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Pediatrics — Example D Medical Center, 2013 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-063",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-064",
+      "field": "fullLegalName",
+      "expected": "Priya Shah",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-064",
+      "field": "primarySpecialty",
+      "expected": "Surgery",
+      "actual": ""
+    },
+    {
+      "id": "cv-064",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example E University Hospital, 2005 - 2014",
+          "year": "2014"
+        }
+      ]
+    },
+    {
+      "id": "cv-064",
+      "field": "residencyCompletionYear",
+      "expected": "2014",
+      "actual": ""
+    },
+    {
+      "id": "cv-064",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Surgery — Example E Medical Center, 2014 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-064",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-065",
+      "field": "fullLegalName",
+      "expected": "Jean-Luc Martin",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-065",
+      "field": "primarySpecialty",
+      "expected": "Neurology",
+      "actual": ""
+    },
+    {
+      "id": "cv-065",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example F University Hospital, 2005 - 2015",
+          "year": "2015"
+        }
+      ]
+    },
+    {
+      "id": "cv-065",
+      "field": "residencyCompletionYear",
+      "expected": "2015",
+      "actual": ""
+    },
+    {
+      "id": "cv-065",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Neurology — Example F Medical Center, 2015 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-065",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-066",
+      "field": "fullLegalName",
+      "expected": "Mei Chen",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-066",
+      "field": "degree",
+      "expected": "DO",
+      "actual": "MD"
+    },
+    {
+      "id": "cv-066",
+      "field": "qualification",
+      "expected": "DO",
+      "actual": "MD"
+    },
+    {
+      "id": "cv-066",
+      "field": "primarySpecialty",
+      "expected": "Radiology",
+      "actual": ""
+    },
+    {
+      "id": "cv-066",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example G University Hospital, 2005 - 2016",
+          "year": "2016"
+        }
+      ]
+    },
+    {
+      "id": "cv-066",
+      "field": "residencyCompletionYear",
+      "expected": "2016",
+      "actual": ""
+    },
+    {
+      "id": "cv-066",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Radiology — Example G Medical Center, 2016 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-066",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-067",
+      "field": "fullLegalName",
+      "expected": "Sofia Rossi",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-067",
+      "field": "degree",
+      "expected": "MBBS",
+      "actual": "MD"
+    },
+    {
+      "id": "cv-067",
+      "field": "qualification",
+      "expected": "MBBS",
+      "actual": "MD"
+    },
+    {
+      "id": "cv-067",
+      "field": "primarySpecialty",
+      "expected": "Family Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-067",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example H University Hospital, 2005 - 2017",
+          "year": "2017"
+        }
+      ]
+    },
+    {
+      "id": "cv-067",
+      "field": "residencyCompletionYear",
+      "expected": "2017",
+      "actual": ""
+    },
+    {
+      "id": "cv-067",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Family Medicine — Example H Medical Center, 2017 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-067",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-068",
+      "field": "fullLegalName",
+      "expected": "Omar Hassan",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-068",
+      "field": "degree",
+      "expected": "MBChB",
+      "actual": "MD"
+    },
+    {
+      "id": "cv-068",
+      "field": "qualification",
+      "expected": "MBChB",
+      "actual": "MD"
+    },
+    {
+      "id": "cv-068",
+      "field": "primarySpecialty",
+      "expected": "Dermatology",
+      "actual": ""
+    },
+    {
+      "id": "cv-068",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example I University Hospital, 2005 - 2018",
+          "year": "2018"
+        }
+      ]
+    },
+    {
+      "id": "cv-068",
+      "field": "residencyCompletionYear",
+      "expected": "2018",
+      "actual": ""
+    },
+    {
+      "id": "cv-068",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Dermatology — Example I Medical Center, 2018 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-068",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-069",
+      "field": "fullLegalName",
+      "expected": "Rachel O’Neill",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-069",
+      "field": "primarySpecialty",
+      "expected": "Psychiatry",
+      "actual": ""
+    },
+    {
+      "id": "cv-069",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example J University Hospital, 2005 - 2019",
+          "year": "2019"
+        }
+      ]
+    },
+    {
+      "id": "cv-069",
+      "field": "residencyCompletionYear",
+      "expected": "2019",
+      "actual": ""
+    },
+    {
+      "id": "cv-069",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Psychiatry — Example J Medical Center, 2019 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-069",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-070",
+      "field": "healthSystem",
+      "expected": "Example A Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-070",
+      "field": "licenseNumber",
+      "expected": "A900070",
+      "actual": ""
+    },
+    {
+      "id": "cv-070",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-070",
+      "field": "residencyCompletionYear",
+      "expected": "2010",
+      "actual": ""
+    },
+    {
+      "id": "cv-070",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-070",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-071",
+      "field": "fullLegalName",
+      "expected": "José Alvarez",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-071",
+      "field": "healthSystem",
+      "expected": "Example B Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-071",
+      "field": "licenseNumber",
+      "expected": "A900071",
+      "actual": ""
+    },
+    {
+      "id": "cv-071",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-071",
+      "field": "residencyCompletionYear",
+      "expected": "2011",
+      "actual": ""
+    },
+    {
+      "id": "cv-071",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-071",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-072",
+      "field": "fullLegalName",
+      "expected": "Zoë Laurent",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-072",
+      "field": "primarySpecialty",
+      "expected": "Internal Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-072",
+      "field": "healthSystem",
+      "expected": "Example C Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-072",
+      "field": "licenseNumber",
+      "expected": "A900072",
+      "actual": ""
+    },
+    {
+      "id": "cv-072",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-072",
+      "field": "residencyCompletionYear",
+      "expected": "2012",
+      "actual": ""
+    },
+    {
+      "id": "cv-072",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-072",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-073",
+      "field": "primarySpecialty",
+      "expected": "Pediatrics",
+      "actual": ""
+    },
+    {
+      "id": "cv-073",
+      "field": "healthSystem",
+      "expected": "Example D Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-073",
+      "field": "licenseNumber",
+      "expected": "A900073",
+      "actual": ""
+    },
+    {
+      "id": "cv-073",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-073",
+      "field": "residencyCompletionYear",
+      "expected": "2013",
+      "actual": ""
+    },
+    {
+      "id": "cv-073",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-073",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-074",
+      "field": "primarySpecialty",
+      "expected": "Surgery",
+      "actual": ""
+    },
+    {
+      "id": "cv-074",
+      "field": "healthSystem",
+      "expected": "Example E Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-074",
+      "field": "licenseNumber",
+      "expected": "A900074",
+      "actual": ""
+    },
+    {
+      "id": "cv-074",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-074",
+      "field": "residencyCompletionYear",
+      "expected": "2014",
+      "actual": ""
+    },
+    {
+      "id": "cv-074",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-074",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-075",
+      "field": "primarySpecialty",
+      "expected": "Neurology",
+      "actual": ""
+    },
+    {
+      "id": "cv-075",
+      "field": "healthSystem",
+      "expected": "Example F Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-075",
+      "field": "licenseNumber",
+      "expected": "A900075",
+      "actual": ""
+    },
+    {
+      "id": "cv-075",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-075",
+      "field": "residencyCompletionYear",
+      "expected": "2015",
+      "actual": ""
+    },
+    {
+      "id": "cv-075",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-075",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-076",
+      "field": "primarySpecialty",
+      "expected": "Radiology",
+      "actual": ""
+    },
+    {
+      "id": "cv-076",
+      "field": "healthSystem",
+      "expected": "Example G Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-076",
+      "field": "licenseNumber",
+      "expected": "A900076",
+      "actual": ""
+    },
+    {
+      "id": "cv-076",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-076",
+      "field": "residencyCompletionYear",
+      "expected": "2016",
+      "actual": ""
+    },
+    {
+      "id": "cv-076",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-076",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-077",
+      "field": "primarySpecialty",
+      "expected": "Family Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-077",
+      "field": "healthSystem",
+      "expected": "Example H Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-077",
+      "field": "licenseNumber",
+      "expected": "A900077",
+      "actual": ""
+    },
+    {
+      "id": "cv-077",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-077",
+      "field": "residencyCompletionYear",
+      "expected": "2017",
+      "actual": ""
+    },
+    {
+      "id": "cv-077",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-077",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-078",
+      "field": "primarySpecialty",
+      "expected": "Dermatology",
+      "actual": ""
+    },
+    {
+      "id": "cv-078",
+      "field": "healthSystem",
+      "expected": "Example I Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-078",
+      "field": "licenseNumber",
+      "expected": "A900078",
+      "actual": ""
+    },
+    {
+      "id": "cv-078",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-078",
+      "field": "residencyCompletionYear",
+      "expected": "2018",
+      "actual": ""
+    },
+    {
+      "id": "cv-078",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-078",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-079",
+      "field": "primarySpecialty",
+      "expected": "Psychiatry",
+      "actual": ""
+    },
+    {
+      "id": "cv-079",
+      "field": "healthSystem",
+      "expected": "Example J Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-079",
+      "field": "licenseNumber",
+      "expected": "A900079",
+      "actual": ""
+    },
+    {
+      "id": "cv-079",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-079",
+      "field": "residencyCompletionYear",
+      "expected": "2019",
+      "actual": ""
+    },
+    {
+      "id": "cv-079",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-079",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-080",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example A University Hospital, 2005 - 2010",
+          "year": "2010"
+        }
+      ]
+    },
+    {
+      "id": "cv-080",
+      "field": "residencyCompletionYear",
+      "expected": "2010",
+      "actual": ""
+    },
+    {
+      "id": "cv-080",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Nephrology — Example A Medical Center, 2010 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-080",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-081",
+      "field": "fullLegalName",
+      "expected": "José Alvarez",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-081",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example B University Hospital, 2005 - 2011",
+          "year": "2011"
+        }
+      ]
+    },
+    {
+      "id": "cv-081",
+      "field": "residencyCompletionYear",
+      "expected": "2011",
+      "actual": ""
+    },
+    {
+      "id": "cv-081",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Cardiology — Example B Medical Center, 2011 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-081",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-082",
+      "field": "fullLegalName",
+      "expected": "Zoë Laurent",
+      "actual": "Professional Experience"
+    },
+    {
+      "id": "cv-082",
+      "field": "primarySpecialty",
+      "expected": "Internal Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-082",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example C University Hospital, 2005 - 2012",
+          "year": "2012"
+        }
+      ]
+    },
+    {
+      "id": "cv-082",
+      "field": "residencyCompletionYear",
+      "expected": "2012",
+      "actual": ""
+    },
+    {
+      "id": "cv-082",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Internal Medicine — Example C Medical Center, 2012 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-082",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-083",
+      "field": "primarySpecialty",
+      "expected": "Pediatrics",
+      "actual": ""
+    },
+    {
+      "id": "cv-083",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example D University Hospital, 2005 - 2013",
+          "year": "2013"
+        }
+      ]
+    },
+    {
+      "id": "cv-083",
+      "field": "residencyCompletionYear",
+      "expected": "2013",
+      "actual": ""
+    },
+    {
+      "id": "cv-083",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Pediatrics — Example D Medical Center, 2013 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-083",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-084",
+      "field": "primarySpecialty",
+      "expected": "Surgery",
+      "actual": ""
+    },
+    {
+      "id": "cv-084",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example E University Hospital, 2005 - 2014",
+          "year": "2014"
+        }
+      ]
+    },
+    {
+      "id": "cv-084",
+      "field": "residencyCompletionYear",
+      "expected": "2014",
+      "actual": ""
+    },
+    {
+      "id": "cv-084",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Surgery — Example E Medical Center, 2014 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-084",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-085",
+      "field": "primarySpecialty",
+      "expected": "Neurology",
+      "actual": ""
+    },
+    {
+      "id": "cv-085",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example F University Hospital, 2005 - 2015",
+          "year": "2015"
+        }
+      ]
+    },
+    {
+      "id": "cv-085",
+      "field": "residencyCompletionYear",
+      "expected": "2015",
+      "actual": ""
+    },
+    {
+      "id": "cv-085",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Neurology — Example F Medical Center, 2015 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-085",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-086",
+      "field": "primarySpecialty",
+      "expected": "Radiology",
+      "actual": ""
+    },
+    {
+      "id": "cv-086",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example G University Hospital, 2005 - 2016",
+          "year": "2016"
+        }
+      ]
+    },
+    {
+      "id": "cv-086",
+      "field": "residencyCompletionYear",
+      "expected": "2016",
+      "actual": ""
+    },
+    {
+      "id": "cv-086",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Radiology — Example G Medical Center, 2016 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-086",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-087",
+      "field": "primarySpecialty",
+      "expected": "Family Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-087",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example H University Hospital, 2005 - 2017",
+          "year": "2017"
+        }
+      ]
+    },
+    {
+      "id": "cv-087",
+      "field": "residencyCompletionYear",
+      "expected": "2017",
+      "actual": ""
+    },
+    {
+      "id": "cv-087",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Family Medicine — Example H Medical Center, 2017 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-087",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-088",
+      "field": "primarySpecialty",
+      "expected": "Dermatology",
+      "actual": ""
+    },
+    {
+      "id": "cv-088",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example I University Hospital, 2005 - 2018",
+          "year": "2018"
+        }
+      ]
+    },
+    {
+      "id": "cv-088",
+      "field": "residencyCompletionYear",
+      "expected": "2018",
+      "actual": ""
+    },
+    {
+      "id": "cv-088",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Dermatology — Example I Medical Center, 2018 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-088",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-089",
+      "field": "primarySpecialty",
+      "expected": "Psychiatry",
+      "actual": ""
+    },
+    {
+      "id": "cv-089",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example J University Hospital, 2005 - 2019",
+          "year": "2019"
+        }
+      ]
+    },
+    {
+      "id": "cv-089",
+      "field": "residencyCompletionYear",
+      "expected": "2019",
+      "actual": ""
+    },
+    {
+      "id": "cv-089",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Psychiatry — Example J Medical Center, 2019 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-089",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-090",
+      "field": "fullLegalName",
+      "expected": "Avery Morgan",
+      "actual": ""
+    },
+    {
+      "id": "cv-090",
+      "field": "healthSystem",
+      "expected": "Example A Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-090",
+      "field": "licenseNumber",
+      "expected": "A900090",
+      "actual": ""
+    },
+    {
+      "id": "cv-090",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-090",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example A University Hospital, 2005 - 2010",
+          "year": "2010"
+        }
+      ]
+    },
+    {
+      "id": "cv-090",
+      "field": "residencyCompletionYear",
+      "expected": "2010",
+      "actual": ""
+    },
+    {
+      "id": "cv-090",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Nephrology — Example A Medical Center, 2010 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-090",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-091",
+      "field": "fullLegalName",
+      "expected": "José Alvarez",
+      "actual": ""
+    },
+    {
+      "id": "cv-091",
+      "field": "healthSystem",
+      "expected": "Example B Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-091",
+      "field": "licenseNumber",
+      "expected": "A900091",
+      "actual": ""
+    },
+    {
+      "id": "cv-091",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-091",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example B University Hospital, 2005 - 2011",
+          "year": "2011"
+        }
+      ]
+    },
+    {
+      "id": "cv-091",
+      "field": "residencyCompletionYear",
+      "expected": "2011",
+      "actual": ""
+    },
+    {
+      "id": "cv-091",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Cardiology — Example B Medical Center, 2011 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-091",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-092",
+      "field": "fullLegalName",
+      "expected": "Zoë Laurent",
+      "actual": ""
+    },
+    {
+      "id": "cv-092",
+      "field": "primarySpecialty",
+      "expected": "Internal Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-092",
+      "field": "healthSystem",
+      "expected": "Example C Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-092",
+      "field": "licenseNumber",
+      "expected": "A900092",
+      "actual": ""
+    },
+    {
+      "id": "cv-092",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-092",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example C University Hospital, 2005 - 2012",
+          "year": "2012"
+        }
+      ]
+    },
+    {
+      "id": "cv-092",
+      "field": "residencyCompletionYear",
+      "expected": "2012",
+      "actual": ""
+    },
+    {
+      "id": "cv-092",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Internal Medicine — Example C Medical Center, 2012 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-092",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-093",
+      "field": "fullLegalName",
+      "expected": "Amara Okafor",
+      "actual": ""
+    },
+    {
+      "id": "cv-093",
+      "field": "primarySpecialty",
+      "expected": "Pediatrics",
+      "actual": ""
+    },
+    {
+      "id": "cv-093",
+      "field": "healthSystem",
+      "expected": "Example D Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-093",
+      "field": "licenseNumber",
+      "expected": "A900093",
+      "actual": ""
+    },
+    {
+      "id": "cv-093",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-093",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example D University Hospital, 2005 - 2013",
+          "year": "2013"
+        }
+      ]
+    },
+    {
+      "id": "cv-093",
+      "field": "residencyCompletionYear",
+      "expected": "2013",
+      "actual": ""
+    },
+    {
+      "id": "cv-093",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Pediatrics — Example D Medical Center, 2013 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-093",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-094",
+      "field": "fullLegalName",
+      "expected": "Priya Shah",
+      "actual": ""
+    },
+    {
+      "id": "cv-094",
+      "field": "primarySpecialty",
+      "expected": "Surgery",
+      "actual": ""
+    },
+    {
+      "id": "cv-094",
+      "field": "healthSystem",
+      "expected": "Example E Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-094",
+      "field": "licenseNumber",
+      "expected": "A900094",
+      "actual": ""
+    },
+    {
+      "id": "cv-094",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-094",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example E University Hospital, 2005 - 2014",
+          "year": "2014"
+        }
+      ]
+    },
+    {
+      "id": "cv-094",
+      "field": "residencyCompletionYear",
+      "expected": "2014",
+      "actual": ""
+    },
+    {
+      "id": "cv-094",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Surgery — Example E Medical Center, 2014 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-094",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-095",
+      "field": "fullLegalName",
+      "expected": "Jean-Luc Martin",
+      "actual": ""
+    },
+    {
+      "id": "cv-095",
+      "field": "primarySpecialty",
+      "expected": "Neurology",
+      "actual": ""
+    },
+    {
+      "id": "cv-095",
+      "field": "healthSystem",
+      "expected": "Example F Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-095",
+      "field": "licenseNumber",
+      "expected": "A900095",
+      "actual": ""
+    },
+    {
+      "id": "cv-095",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-095",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example F University Hospital, 2005 - 2015",
+          "year": "2015"
+        }
+      ]
+    },
+    {
+      "id": "cv-095",
+      "field": "residencyCompletionYear",
+      "expected": "2015",
+      "actual": ""
+    },
+    {
+      "id": "cv-095",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Neurology — Example F Medical Center, 2015 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-095",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-096",
+      "field": "fullLegalName",
+      "expected": "Mei Chen",
+      "actual": ""
+    },
+    {
+      "id": "cv-096",
+      "field": "primarySpecialty",
+      "expected": "Radiology",
+      "actual": ""
+    },
+    {
+      "id": "cv-096",
+      "field": "healthSystem",
+      "expected": "Example G Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-096",
+      "field": "licenseNumber",
+      "expected": "A900096",
+      "actual": ""
+    },
+    {
+      "id": "cv-096",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-096",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example G University Hospital, 2005 - 2016",
+          "year": "2016"
+        }
+      ]
+    },
+    {
+      "id": "cv-096",
+      "field": "residencyCompletionYear",
+      "expected": "2016",
+      "actual": ""
+    },
+    {
+      "id": "cv-096",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Radiology — Example G Medical Center, 2016 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-096",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-097",
+      "field": "fullLegalName",
+      "expected": "Sofia Rossi",
+      "actual": ""
+    },
+    {
+      "id": "cv-097",
+      "field": "primarySpecialty",
+      "expected": "Family Medicine",
+      "actual": ""
+    },
+    {
+      "id": "cv-097",
+      "field": "healthSystem",
+      "expected": "Example H Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-097",
+      "field": "licenseNumber",
+      "expected": "A900097",
+      "actual": ""
+    },
+    {
+      "id": "cv-097",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-097",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example H University Hospital, 2005 - 2017",
+          "year": "2017"
+        }
+      ]
+    },
+    {
+      "id": "cv-097",
+      "field": "residencyCompletionYear",
+      "expected": "2017",
+      "actual": ""
+    },
+    {
+      "id": "cv-097",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Family Medicine — Example H Medical Center, 2017 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-097",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-098",
+      "field": "fullLegalName",
+      "expected": "Omar Hassan",
+      "actual": ""
+    },
+    {
+      "id": "cv-098",
+      "field": "primarySpecialty",
+      "expected": "Dermatology",
+      "actual": ""
+    },
+    {
+      "id": "cv-098",
+      "field": "healthSystem",
+      "expected": "Example I Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-098",
+      "field": "licenseNumber",
+      "expected": "A900098",
+      "actual": ""
+    },
+    {
+      "id": "cv-098",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-098",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example I University Hospital, 2005 - 2018",
+          "year": "2018"
+        }
+      ]
+    },
+    {
+      "id": "cv-098",
+      "field": "residencyCompletionYear",
+      "expected": "2018",
+      "actual": ""
+    },
+    {
+      "id": "cv-098",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Dermatology — Example I Medical Center, 2018 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-098",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "cv-099",
+      "field": "fullLegalName",
+      "expected": "Rachel O’Neill",
+      "actual": ""
+    },
+    {
+      "id": "cv-099",
+      "field": "primarySpecialty",
+      "expected": "Psychiatry",
+      "actual": ""
+    },
+    {
+      "id": "cv-099",
+      "field": "healthSystem",
+      "expected": "Example J Medical Center",
+      "actual": ""
+    },
+    {
+      "id": "cv-099",
+      "field": "licenseNumber",
+      "expected": "A900099",
+      "actual": ""
+    },
+    {
+      "id": "cv-099",
+      "field": "licenseState",
+      "expected": "CA",
+      "actual": ""
+    },
+    {
+      "id": "cv-099",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Residency, Internal Medicine — Example J University Hospital, 2005 - 2019",
+          "year": "2019"
+        }
+      ]
+    },
+    {
+      "id": "cv-099",
+      "field": "residencyCompletionYear",
+      "expected": "2019",
+      "actual": ""
+    },
+    {
+      "id": "cv-099",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "Fellowship, Psychiatry — Example J Medical Center, 2019 - 2023",
+          "specialty": "",
+          "year": "2023"
+        }
+      ]
+    },
+    {
+      "id": "cv-099",
+      "field": "boardCertifications",
+      "expected": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ],
+      "actual": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": false
+        }
+      ]
+    }
+  ]
+}

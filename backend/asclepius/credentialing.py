@@ -644,7 +644,7 @@ CV_MAX_BYTES = 10 * 1024 * 1024  # a 10 MB cap comfortably fits any real CV
 #: and a re-extraction cannot tell whether it would be an improvement or a
 #: no-op. Bump it whenever the extracted SHAPE or the field semantics change —
 #: not for a refactor that produces identical output.
-PARSER_VERSION = "cv-parse-1"
+PARSER_VERSION = "cv-parse-2"
 
 
 class CvUploadError(ValueError):
@@ -866,25 +866,55 @@ def store_cv(data: bytes, mime: str) -> Dict[str, Any]:
 
 
 def _pdf_text(data: bytes) -> str:
-    """Text layer of a PDF: pdfminer first (best quality), PyPDF2 fallback,
-    then OCR of the first pages when there is no text layer at all (scanned
-    CVs) and tesseract is actually present. Best-effort throughout."""
-    text = ""
-    try:
-        from pdfminer.high_level import extract_text as _pm_extract
-        text = _pm_extract(io.BytesIO(data)) or ""
-    except Exception:
+    """Read each page independently, preserving columns and OCRing scanned pages.
+
+    A text cover sheet must not disable OCR of the actual CV behind it.
+    Bounds match the upload's small-document purpose; no unbounded rasterization.
+    """
+    from PyPDF2 import PdfReader, PdfWriter
+    reader = PdfReader(io.BytesIO(data))
+    if len(reader.pages) > 30:
+        raise ValueError("cv_page_limit_exceeded")
+    pages = []
+    for page in reader.pages:
+        writer = PdfWriter()
+        writer.add_page(page)
+        buf = io.BytesIO()
+        writer.write(buf)
+        page_data = buf.getvalue()
         text = ""
-    if len(text.strip()) < 40:
         try:
-            from PyPDF2 import PdfReader
-            reader = PdfReader(io.BytesIO(data))
-            text = "\n".join((p.extract_text() or "") for p in reader.pages)
+            from pdfminer.high_level import extract_pages
+            from pdfminer.layout import LTTextLine
+            layout = next(extract_pages(io.BytesIO(page_data)))
+            lines = []
+            def visit(node):
+                if isinstance(node, LTTextLine):
+                    if node.get_text().strip():
+                        lines.append(node)
+                elif hasattr(node, "__iter__"):
+                    for child in node:
+                        visit(child)
+            visit(layout)
+            # A sustained central gutter denotes independent text columns.
+            ordered = sorted(lines, key=lambda line: (-line.y1, line.x0))
+            for fraction in (0.5, 0.45, 0.55, 0.4, 0.6):
+                split = layout.width * fraction
+                left = [ln for ln in lines if ln.x1 < split - 8]
+                right = [ln for ln in lines if ln.x0 > split + 8]
+                spanning = [ln for ln in lines if ln not in left and ln not in right]
+                # Dates in a table are not a second prose column.
+                prose = [ln for ln in right if sum(c.isalpha() for c in ln.get_text()) > 15]
+                if len(left) >= 3 and len(prose) >= 3 and len(spanning) <= 2 and all(ln.y0 >= max(x.y1 for x in left + right) for ln in spanning):
+                    ordered = sorted(spanning, key=lambda ln: -ln.y1) + sorted(left, key=lambda ln: -ln.y1) + sorted(right, key=lambda ln: -ln.y1)
+                    break
+            text = "\n".join(ln.get_text().strip() for ln in ordered)
         except Exception:
-            pass
-    if len(text.strip()) < 40:
-        text = _ocr_pdf_pages(data) or text
-    return text or ""
+            text = page.extract_text() or ""
+        if len(text.strip()) < 40:
+            text = _ocr_pdf_pages(page_data, max_pages=1) or text
+        pages.append(text)
+    return "\n\f\n".join(pages)
 
 
 def _ocr_pdf_pages(data: bytes, max_pages: int = 5) -> str:
@@ -894,8 +924,8 @@ def _ocr_pdf_pages(data: bytes, max_pages: int = 5) -> str:
     try:
         import pytesseract
         from pdf2image import convert_from_bytes
-        pages = convert_from_bytes(data, dpi=200, first_page=1, last_page=max_pages)
-        return "\n".join(pytesseract.image_to_string(p) for p in pages)
+        pages = convert_from_bytes(data, dpi=200, first_page=1, last_page=max_pages, size=2400, timeout=20)
+        return "\n".join(pytesseract.image_to_string(p, timeout=15) for p in pages)
     except Exception:
         return ""
 
@@ -990,7 +1020,9 @@ _NAME_LINE = re.compile(
 _NAME_STOPWORDS = (
     "curriculum", "vitae", "resume", "résumé", "university", "hospital", "clinic",
     "department", "school", "college", "center", "centre", "institute", "phone",
-    "email", "address", "profile", "summary",
+    "email", "address", "profile", "summary", "certification", "experience",
+    "licensure", "training", "publication", "professional", "appointment", "clinical",
+    "education", "research", "membership", "contact", "reference", "board",
 )
 
 #: Training lines: "Residency, Internal Medicine — Johns Hopkins, 2014–2017".
@@ -1016,20 +1048,29 @@ def _extract_name(lines: List[str]) -> Optional[str]:
     capitalized two-word line is a section heading or a co-author, and naming
     the wrong person on the review screen is a bad way to open a relationship.
     """
-    for ln in lines[:8]:
-        if len(ln) > 70 or any(ch.isdigit() for ch in ln):
+    for i, ln in enumerate(lines[:30]):
+        if re.match(r"^(references|publications|professional experience|education|training)$", ln, re.I):
+            break
+        candidate = re.sub(r"^(?:Dr\.?|Name:)\s+", "", ln, flags=re.I)
+        candidate = candidate.split(",", 1)[0].strip()
+        # Strip suffix degrees even when no comma separates them.
+        candidate = re.sub(r"\s+(?:MD|DO|MBBS|MBChB|PhD|MPH)\b.*$", "", candidate)
+        if len(candidate) > 70 or any(ch.isdigit() for ch in candidate):
             continue
-        low = ln.casefold()
-        if any(w in low for w in _NAME_STOPWORDS):
+        if any(w in candidate.casefold() for w in _NAME_STOPWORDS):
             continue
-        m = _NAME_LINE.match(ln.strip())
-        if m:
-            return " ".join(m.group(1).split())
+        words = candidate.split()
+        if not 2 <= len(words) <= 5:
+            continue
+        if all(w[0].isupper() and all(c.isalpha() or c in "'’-." for c in w) for w in words):
+            return " ".join(words)
     return None
 
 
 def _extract_degrees(text: str) -> List[str]:
     """Which medical degrees the document claims, deduped, in canonical spelling."""
+    # References and publications describe other people, not the applicant.
+    text = re.split(r"(?im)^\s*(?:references|publications|selected publications)\b", text)[0]
     out: List[str] = []
     for label, pattern in _DEGREE_PATTERNS:
         if pattern.search(text) and label not in out:
@@ -1263,6 +1304,15 @@ def _extract_board_certifications(lines: List[str]) -> List[Dict[str, Any]]:
     "Board certified in Cardiology" without naming the issuer. It is far
     stricter in exchange: the field has to be one we recognise outright.
     """
+    merged = []
+    for line in lines:
+        if re.search(r"\b(?:not|never|pending|eligible|eligibility|scheduled|candidate)\b", line, re.I):
+            continue
+        if merged and _BOARD_ACRONYM.search(line) and not re.search(r"certif", line, re.I) and re.search(r"board[ -]*certif", merged[-1], re.I) and not _BOARD_ACRONYM.search(merged[-1]):
+            merged[-1] += " (" + line + ")"
+        else:
+            merged.append(line)
+    lines = merged
     out: List[Dict[str, Any]] = []
     seen = set()
 
@@ -1339,7 +1389,7 @@ def _extract_board_certifications(lines: List[str]) -> List[Dict[str, Any]]:
         if not m:
             continue
         add("", _known_field(m.group(1)))
-    return out[:6]
+    return out
 
 
 #: A licence line names the state and the number, and both have to be on it.
@@ -1350,7 +1400,8 @@ def _extract_board_certifications(lines: List[str]) -> List[Dict[str, Any]]:
 #: "A44219", which is what a two-letter state pattern read it as.
 _LICENSE_NUMBER = re.compile(r"#\s*([A-Z]{0,4}[-\s]?\d[\dA-Z-]{2,15})|"
                              r"\b([A-Z]{1,4}[-][\dA-Z-]{3,15})\b|"
-                             r"\bno\.?\s*([A-Z]{0,4}[-\s]?\d[\dA-Z-]{2,15})",
+                             r"\bno\.?\s*([A-Z]{0,4}[-\s]?\d[\dA-Z-]{2,15})|"
+                             r"licen[cs]e\s*:\s*([A-Z]{0,4}[-\s]?\d[\dA-Z-]{2,15})",
                              re.IGNORECASE)
 
 _US_STATE_NAMES = {
@@ -1417,7 +1468,7 @@ def _extract_licenses(lines: List[str]) -> List[Dict[str, str]]:
             "state": state,
             "number": number,
             # "current" / "active" is on the same line or it is not claimed.
-            "current": "yes" if re.search(r"\b(current|active)\b", line, re.IGNORECASE) else "",
+            "current": "yes" if re.search(r"\b(current|active)\b", line, re.IGNORECASE) and not re.search(r"\b(not|inactive|expired|suspended)\b", line, re.I) else "",
         })
     return out[:4]
 
@@ -1428,7 +1479,7 @@ _ENTRY_HEADER = re.compile(
     r"^(?P<institution>[A-Z][^\n]{3,90}?)\s*[,–—|-]?\s*"
     r"(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,?\s*[A-Z]{2}\s*)?"
     r"(?P<dates>(?:[A-Z][a-z]{2}\s+)?(?P<start>(?:19|20)\d{2})\s*[–—-]+\s*"
-    r"(?:[A-Z][a-z]{2}\s+)?(?P<end>(?:19|20)\d{2}|Present|Current))\s*$")
+    r"(?:[A-Z][a-z]{2}\s+)?(?P<end>(?:19|20)\d{2}|(?i:present|current)))\s*$")
 
 _INSTITUTION_TAIL = re.compile(
     r"\s*[,–—|-]\s*[A-Z][a-zA-Z .'-]+,?\s*[A-Z]{2}\s*$")
@@ -1459,79 +1510,41 @@ def _clean_institution(raw: str) -> str:
 
 
 def _extract_training(lines: List[str]) -> List[Dict[str, Any]]:
-    """Residency / fellowship / internship entries as {kind, institution, years}.
-
-    Two shapes, because CVs use both and only one of them used to work.
-
-    ONE LINE: "Nephrology Fellowship, Cleveland Clinic, 2015-2017". The old
-    code handled this and nothing else.
-
-    TWO LINES, which is how almost every real CV is laid out:
-
-        Cleveland Clinic, Cleveland OH          Jul 2015 - Jun 2017
-        Fellow, Nephrology
-
-    The kind is on the second line and the institution and dates are on the
-    first, so a per-line scan sees a line with an institution and no kind
-    followed by a line with a kind and no institution, and emits nothing. On
-    the walkthrough CV that meant a fellowship and a residency, both plainly
-    written, both dropped.
-    """
-    out: List[Dict[str, Any]] = []
+    """Associate training role, subject, institution and completion year locally."""
+    out = []
     seen = set()
-
-    def add(kind: str, institution: str, start: Optional[str], end: Optional[str],
-            specialty: str = "") -> None:
-        inst = _clean_institution(institution)
-        key = (kind, inst.lower(), start or "")
-        if not inst or key in seen:
-            return
-        seen.add(key)
-        out.append({
-            "kind": kind, "institution": inst,
-            "start_year": start, "end_year": end,
-            # "" when the document does not say. An absent subject is a blank
-            # box for the physician, never a guess from their current specialty.
-            "specialty": specialty or "",
-        })
-
     for i, line in enumerate(lines):
-        if len(line) > 200:
-            continue
         kind = next((k for k, pat in _TRAINING_KIND if pat.search(line)), None)
-
-        # Same line: a kind and an institution together.
-        if kind and _INSTITUTION_RE.search(line):
-            years = _YEAR_RANGE.search(line)
-            add(kind, line, years.group(1) if years else None,
-                years.group(2) if years else None,
-                specialty=_training_specialty(line))
+        if not kind or len(line) > 240:
             continue
-
-        # Split across two: this line is the header, the kind is on the next.
-        # Bounded to the IMMEDIATELY following line on purpose. Scanning
-        # further would start pairing a training role with whatever employer
-        # happened to appear above it, which is a wrong institution on a
-        # credential rather than a missing one.
-        header = _ENTRY_HEADER.match(line)
-        if not header or i + 1 >= len(lines):
-            continue
-        nxt = lines[i + 1]
-        if len(nxt) > 120:
-            continue
-        next_kind = next((k for k, pat in _TRAINING_KIND if pat.search(nxt)), None)
-        if not next_kind:
-            continue
-        end = header.group("end")
-        # The kind line is where the subject is written in the two-line shape
-        # ("Fellow, Nephrology"); the header line carries the institution and
-        # the dates. Both are offered, kind line first.
-        add(next_kind, header.group("institution"), header.group("start"),
-            None if end.lower() in ("present", "current") else end,
-            specialty=_training_specialty(nxt, line))
-        if len(out) >= 8:
-            break
-    return out[:8]
+        institution_line = line
+        # A role-only line belongs to its immediately preceding dated institution.
+        if not _ENTRY_HEADER.match(line) and i and _ENTRY_HEADER.match(lines[i-1]):
+            institution_line = lines[i-1]
+        header = _ENTRY_HEADER.match(institution_line)
+        years = _YEAR_RANGE.search(institution_line)
+        raw = header.group("institution") if header else institution_line[:years.start() if years else len(institution_line)].strip(" ,;–—-|")
+        if institution_line == line:
+            parts = re.split(r"\s*[—–|]\s*|,\s*", raw)
+            inst_parts = [part for part in parts if _INSTITUTION_WORDS.search(part) and not any(pat.search(part) for _, pat in _TRAINING_KIND)]
+            if not inst_parts:
+                continue
+            raw = inst_parts[0]
+        institution = _clean_institution(raw)
+        subject = ""
+        for field in sorted(_MEDICAL_FIELDS, key=len, reverse=True):
+            if re.search(r"\b" + re.escape(field) + r"\b", line, re.I):
+                subject = display_specialty(field)
+                break
+        start = header.group("start") if header else years.group(1) if years else None
+        end = header.group("end") if header else years.group(2) if years else None
+        entry = {"kind":kind, "institution":institution, "specialty":subject,
+                 "start_year":start, "end_year": None if not end or end.lower() in ("present", "current") else end}
+        key = (kind, institution, start)
+        if key not in seen:
+            seen.add(key)
+            out.append(entry)
+    return out
 
 
 def _training_specialty(*lines: str) -> str:
@@ -1590,6 +1603,8 @@ def _extract_employer(lines: List[str]) -> str:
         header = _ENTRY_HEADER.match(line)
         if not header or header.group("end").lower() not in ("present", "current"):
             continue
+        if not _INSTITUTION_WORDS.search(header.group("institution")):
+            continue
         # Not if the role under it is training: a current fellow's institution
         # is their training programme, which the training block already has.
         if i + 1 < len(lines) and any(
@@ -1597,6 +1612,36 @@ def _extract_employer(lines: List[str]) -> str:
             continue
         return _clean_institution(header.group("institution"))
     return ""
+
+
+def _extract_display_specialty(lines: List[str], text: str, certs: List[str]) -> str:
+    # Onboarding accepts more specialties than the case-generation registry.
+    for line in lines:
+        match = re.match(r"(?:primary\s+)?specialt(?:y|ies)\s*:\s*(.+)$", line, re.I)
+        if match:
+            field = _known_field(match.group(1))
+            if field:
+                return field
+    return display_specialty(_extract_specialty(text, certs) or "")
+
+
+def _extract_contact_fields(text: str) -> Dict[str, Any]:
+    """Read explicit personal contact/focus labels, never references or office numbers."""
+    personal = re.split(r"(?im)^\s*(?:references|publications|selected publications)\b", text)[0]
+    def labelled(label):
+        match = re.search(r"(?im)^\s*(?:" + label + r")\s*:\s*([^\n]+)$", personal)
+        return match.group(1).strip() if match else None
+    mobile = labelled(r"mobile(?: phone)?|cell(?: phone)?|personal phone")
+    if mobile and not 7 <= sum(c.isdigit() for c in mobile) <= 15:
+        mobile = None
+    years = _YEARS_EXPLICIT.search(personal)
+    return {
+        "mobile_phone": mobile,
+        "practice_city": labelled(r"practice city|practice location"),
+        "clinical_focus": labelled(r"clinical focus|clinical interests|specialty focus"),
+        # Deliberately separate from years SINCE training, which the legacy scorer reads.
+        "years_in_active_practice": min(60, int(years.group(1))) if years else None,
+    }
 
 
 def _parse_cv_text(text: str) -> Dict[str, Any]:
@@ -1661,6 +1706,7 @@ def _parse_cv_text(text: str) -> Dict[str, Any]:
     # for the v2 Review screen is additive and nullable, so a scorer that has
     # never heard of these keys behaves exactly as it did before.
     return {
+        **_extract_contact_fields(text),
         "institutions": institutions,
         "board_certifications": certs,
         "years_in_practice": years,
@@ -1676,7 +1722,7 @@ def _parse_cv_text(text: str) -> Dict[str, Any]:
         # prefills from THIS one: putting "nephrology" in a box on a form that
         # is asking a physician to vouch for their credentials reads as
         # carelessness, and it is a correction they should not have to make.
-        "specialty_display": display_specialty(_extract_specialty(text, certs) or ""),
+        "specialty_display": _extract_display_specialty(lines, text, certs),
         # ── Added for the Review screen's prefill ──
         "board_certifications_structured": board_certs,
         "licenses": _extract_licenses(lines),
@@ -1706,6 +1752,8 @@ def _empty_parse(asset_sha: str, reason: str) -> Dict[str, Any]:
         # drifting once already, and the Review screen indexes these directly.
         "specialty_display": None, "board_certifications_structured": [],
         "licenses": [], "employer": None,
+        "mobile_phone": None, "practice_city": None, "clinical_focus": None,
+        "years_in_active_practice": None,
     }
 
 

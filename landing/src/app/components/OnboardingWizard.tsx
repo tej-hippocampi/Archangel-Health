@@ -364,9 +364,22 @@ function applyCvParse(
   const filled: string[] = [];
   if (!parsed || !parsed.ok) return { patch, filled };
 
+  // Refresh only values still equal to our previous suggestion. Manual edits
+  // (including an edited row) remain authoritative on replacement uploads.
+  const previousSuggestions = current.cvSuggestions || {};
+  const blank = emptyCredentials();
+  const next = { ...current };
+  for (const key of Object.keys(previousSuggestions) as (keyof Credentials)[]) {
+    if (!current.cvManualFields?.includes(key) &&
+        JSON.stringify(current[key]) === JSON.stringify(previousSuggestions[key])) {
+      (next as Record<string, unknown>)[key] = blank[key];
+      (patch as Record<string, unknown>)[key] = blank[key];
+    }
+  }
+  current = next;
   const fill = (key: keyof Credentials, value: string | undefined | null) => {
     const v = (value ?? "").toString().trim();
-    if (!v) return;
+    if (!v || current.cvManualFields?.includes(key)) return;
     if ((current[key] ?? "").toString().trim()) return;   // never overwrite them
     (patch as Record<string, unknown>)[key] = v;
     filled.push(key as string);
@@ -379,6 +392,9 @@ function applyCvParse(
   fill("primarySpecialty", parsed.specialty_display || parsed.specialty);
   fill("linkedinUrl", parsed.linkedin_url);
   fill("healthSystem", parsed.employer);
+  fill("phone", parsed.mobile_phone);
+  fill("practiceCity", parsed.practice_city);
+  fill("specialtyNiche", parsed.clinical_focus);
   // The NPI is only carried across when the parse found a LABELLED,
   // checksum-valid one (the server does that check). Prefilling a ten-digit run
   // that happened to sit near the word NPI would put a wrong number behind a
@@ -395,7 +411,7 @@ function applyCvParse(
     fill("degree", degree);
     fill("qualification", degree);
   }
-  if (parsed.years_in_practice != null) fill("yearsInActivePractice", String(parsed.years_in_practice));
+  if (parsed.years_in_active_practice != null) fill("yearsInActivePractice", String(parsed.years_in_active_practice));
 
   /* Board certifications, now board AND field.
    *
@@ -406,25 +422,19 @@ function applyCvParse(
    *  missing. The parser now emits {board, specialty} and refuses to emit
    *  anything it cannot recognise as both.
    *
-   *  `active` is never asserted, and it is now UNANSWERED rather than false.
-   *  "Currently valid" is a compliance answer about today, and a document
-   *  written last year cannot give it. Writing `true` would put words in a
-   *  physician's mouth on a field they sign for — but so did writing `false`,
-   *  which is what shipped: the toggle renders `false` as a SELECTED "No", so
-   *  every physician who uploaded a CV was shown a negative attestation they
-   *  never made, on every certification they hold. `null` renders as neither
-   *  button pressed, which is the truth (PRD C §6 C/E).
+   *  `active` is still never asserted. "Currently valid" is a compliance
+   *  answer about today, and a document written last year cannot give it;
+   *  putting `true` there would be words in a physician's mouth on a field
+   *  they sign for. It stays null so neither Yes nor No is selected.
    */
   const structured = (parsed.board_certifications_structured || []).filter(
     (c) => c && (c.board || c.specialty));
   const currentCerts = current.boardCertifications || [];
   const certsUntouched = currentCerts.every(
     (bc) => !bc.board.trim() && !bc.specialty.trim() && !bc.subspecialty.trim());
-  if (certsUntouched) {
+  if (certsUntouched && !current.cvManualFields?.includes("boardCertifications")) {
     if (structured.length) {
-      patch.boardCertifications = structured.slice(0, 4).map((c) => ({
-        // A stable id per imported row, so a later re-upload can merge BY ROW
-        // rather than by array position (PRD C §6-D).
+      patch.boardCertifications = structured.map((c) => ({
         rowId: newRowId("bc"),
         board: c.board || "",
         specialty: c.specialty || "",
@@ -437,9 +447,8 @@ function applyCvParse(
       // could not take apart. Same treatment as before: the name only.
       const flat = (parsed.board_certifications || []).filter(Boolean);
       if (flat.length) {
-        patch.boardCertifications = flat.slice(0, 4).map((name) => ({
-          rowId: newRowId("bc"),
-          board: name, specialty: "", subspecialty: "", active: null,
+        patch.boardCertifications = flat.map((name) => ({
+          rowId: newRowId("bc"), board: name, specialty: "", subspecialty: "", active: null,
         }));
         filled.push("boardCertifications");
       }
@@ -455,97 +464,46 @@ function applyCvParse(
     (t) => t.kind === "residency" || t.kind === "internship");
   const fellowshipUntouched = (current.fellowship || []).every(
     (f) => !f.institution.trim() && !f.specialty.trim() && !f.year.trim());
-  if (fellowships.length && fellowshipUntouched) {
-    patch.fellowship = fellowships.slice(0, 3).map((t) => ({
+  if (fellowships.length && fellowshipUntouched && !current.cvManualFields?.includes("fellowship")) {
+    patch.fellowship = fellowships.map((t) => ({
       rowId: newRowId("fel"),
       institution: t.institution || "",
-      // THE DOCUMENT'S OWN WORD, or nothing (PRD C §6-C). "Fellow, Nephrology"
-      // names the subject plainly and it used to be dropped: the review page
-      // showed institution and year with the specialty box empty, wearing the
-      // grey placeholder "Nephrology" — which reads as a filled field, so a
-      // physician whose CV said it retyped it or, worse, believed it was there.
-      //
-      // Still never inferred from their current specialty. The server fills
-      // this only from a fragment that resolves against the specialty registry,
-      // so an unrecognised word leaves the box genuinely empty.
-      specialty: (t.specialty || "").trim(),
+      // The parse knows WHERE and WHEN. It does not reliably know the
+      // fellowship's subject, so that box is left for the physician.
+      specialty: t.specialty || "",
       year: t.end_year || "",
     }));
     filled.push("fellowship");
   }
   const residencyUntouched = (current.residency || []).every(
     (r) => !r.institution.trim() && !r.year.trim());
-  if (residencies.length && residencyUntouched) {
-    patch.residency = residencies.slice(0, 3).map((t) => ({
+  if (residencies.length && residencyUntouched && !current.cvManualFields?.includes("residency")) {
+    patch.residency = residencies.map((t) => ({
       rowId: newRowId("res"),
       institution: t.institution || "",
       year: t.end_year || "",
     }));
     filled.push("residency");
-
-    /* THE COMPLETION YEAR IS A SEPARATE FIELD, and it stayed empty while the
-     * row beside it showed the year (PRD C §6-C). The physician saw 2014 on
-     * their residency and an empty "year you finished" box below it wearing the
-     * placeholder 2010, and had to copy one into the other.
-     *
-     * ONLY when it is unambiguous. One residency, with an end year, that has
-     * actually passed. Several residencies need the physician to say which one
-     * is the relevant one; a future end year is an expectation and not a
-     * completion; and a fellowship year is never substituted for a residency
-     * year.
-     *
-     * The attestation itself — "Have you finished residency?" — is deliberately
-     * NOT answered here. A date is evidence; the answer is theirs. */
-    const completed = residencies.filter((t) => {
-      const y = parseInt(t.end_year || "", 10);
-      return Number.isFinite(y) && y <= new Date().getFullYear();
-    });
+    const completed = residencies.filter((t) => t.kind === "residency" && /^\d{4}$/.test(t.end_year || "") && Number(t.end_year) <= new Date().getFullYear());
     if (completed.length === 1) fill("residencyCompletionYear", completed[0].end_year);
   }
 
   /* The licence. Anchored on a labelled line server-side, so what arrives here
    *  is a state and a number that were written down together.
    */
-  /* A LICENCE IS ONE VALUE, not two fields that happen to sit together.
-   *
-   * `fill` skips a field the physician has already filled, and calling it twice
-   * meant the two halves could come from different places: a doctor who had
-   * typed NY and no number got NY paired with the CA number off their CV. A
-   * jurisdiction and a number that were never issued together is not a partial
-   * answer, it is a wrong credential (PRD C §5 invariant 3, §6-C).
-   *
-   * So: both, or neither. */
   const licences = (parsed.licenses || []).filter((l) => l && l.state && l.number);
-  const primary = licences.find((l) => l.current) || licences[0];
-  /* The pair is writable when nothing conflicts with it — not only when both
-     halves are blank. `loadDirectorSession` prefills `licenseState` from the
-     signup answer, so requiring both empty meant a resumed session never got
-     the CV's licence NUMBER either, which is a fill that used to work and
-     should. §6-C blocks the CONFLICTING pair ("existing user state with a
-     conflicting CV license creates a choice"), not the agreeing one. */
-  const sameState = (a: string, b: string) =>
-    a.trim().toUpperCase() === b.trim().toUpperCase();
-  const licenceUntouched =
-    !(current.licenseNumber || "").trim()
-    && (!(current.licenseState || "").trim()
-        || (!!primary && sameState(current.licenseState, primary.state)));
-  if (primary && licenceUntouched) {
-    patch.licenseNumber = primary.number;
-    patch.licenseState = primary.state;
-    filled.push("licenseNumber", "licenseState");
+  const current_licence = licences.find((l) => l.current) || licences[0];
+  if (current_licence && (!current.licenseState || current.licenseState === current_licence.state) &&
+      (!current.licenseNumber || current.licenseNumber === current_licence.number)) {
+    fill("licenseNumber", current_licence.number);
+    fill("licenseState", current_licence.state);
   }
-  /* EVERY OTHER LICENCE IS KEPT, not silently dropped (PRD C §6 invariant 6).
-   * The form shows one, so a physician holding CA and MA saw only CA and could
-   * not review the second fact at all. The repeatable licence UI is Phase 4
-   * work; until it exists these are carried on the credential record so the
-   * admin dossier and a later migration can both see them, and so that nothing
-   * the document supported is thrown away in the meantime. */
-  const others = licences.filter((l) => l !== primary);
-  if (others.length) {
-    (patch as Record<string, unknown>).additionalLicenses = others.map((l) => ({
-      state: l.state, number: l.number, current: l.current,
-    }));
+  const additional = licences.filter((l) => !(l.state === (patch.licenseState ?? current.licenseState) && l.number === (patch.licenseNumber ?? current.licenseNumber)));
+  if (additional.length && !current.additionalLicenses?.length && !current.cvManualFields?.includes("additionalLicenses")) {
+    patch.additionalLicenses = additional.map((l) => ({ ...l, rowId: newRowId("lic") }));
+    filled.push("additionalLicenses");
   }
+  patch.cvSuggestions = Object.fromEntries(filled.map((key) => [key, (patch as Record<string, unknown>)[key]]));
   return { patch, filled };
 }
 

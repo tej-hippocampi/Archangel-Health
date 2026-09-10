@@ -1,0 +1,409 @@
+{
+  "documents": 100,
+  "field_checks": 1300,
+  "passed": 1270,
+  "documents_passed": 90,
+  "elapsed_seconds": 0.67,
+  "failures": [
+    {
+      "id": "cv-030",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-030",
+      "field": "residencyCompletionYear",
+      "expected": "2010",
+      "actual": ""
+    },
+    {
+      "id": "cv-030",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-031",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-031",
+      "field": "residencyCompletionYear",
+      "expected": "2011",
+      "actual": ""
+    },
+    {
+      "id": "cv-031",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-032",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-032",
+      "field": "residencyCompletionYear",
+      "expected": "2012",
+      "actual": ""
+    },
+    {
+      "id": "cv-032",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-033",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-033",
+      "field": "residencyCompletionYear",
+      "expected": "2013",
+      "actual": ""
+    },
+    {
+      "id": "cv-033",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-034",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-034",
+      "field": "residencyCompletionYear",
+      "expected": "2014",
+      "actual": ""
+    },
+    {
+      "id": "cv-034",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-035",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-035",
+      "field": "residencyCompletionYear",
+      "expected": "2015",
+      "actual": ""
+    },
+    {
+      "id": "cv-035",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-036",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-036",
+      "field": "residencyCompletionYear",
+      "expected": "2016",
+      "actual": ""
+    },
+    {
+      "id": "cv-036",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-037",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-037",
+      "field": "residencyCompletionYear",
+      "expected": "2017",
+      "actual": ""
+    },
+    {
+      "id": "cv-037",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-038",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-038",
+      "field": "residencyCompletionYear",
+      "expected": "2018",
+      "actual": ""
+    },
+    {
+      "id": "cv-038",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-039",
+      "field": "residency",
+      "expected": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "year": ""
+        }
+      ]
+    },
+    {
+      "id": "cv-039",
+      "field": "residencyCompletionYear",
+      "expected": "2019",
+      "actual": ""
+    },
+    {
+      "id": "cv-039",
+      "field": "fellowship",
+      "expected": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "actual": [
+        {
+          "institution": "",
+          "specialty": "",
+          "year": ""
+        }
+      ]
+    }
+  ]
+}
