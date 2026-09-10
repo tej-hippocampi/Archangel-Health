@@ -992,8 +992,10 @@ a.cm-digest-headline:hover { color: var(--green-deep); }
    that can be deleted without the card losing anything, so it is deleted. */
 .cm-why {
   margin-top: 10px;
-  padding: 8px 11px;
-  background: var(--lime-wash);
+  padding: 9px 12px;
+  /* Softened for the same reason as the chips. At full strength this is a
+     full-width slab and the eye lands on it before the headline above it. */
+  background: color-mix(in srgb, var(--lime-wash) 55%, transparent);
   font-size: 0.9rem;
   line-height: 1.45;
   color: var(--ink);
@@ -1001,7 +1003,9 @@ a.cm-digest-headline:hover { color: var(--green-deep); }
 
 /* Compact items: a hairline between them, no boxes, no deck. */
 .cm-digest-item {
-  padding: 14px 0 12px;
+  /* Four stories in a column need the gap to do the separating; the rule is
+     support, not the boundary itself. */
+  padding: 18px 0 16px;
   border-top: 1px solid var(--hairline);
 }
 .cm-digest-lead + .cm-digest-item { margin-top: 4px; }
@@ -1031,7 +1035,9 @@ a.cm-digest-subhead:hover { color: var(--green-deep); }
 }
 .cm-digest-link {
   font-size: 0.8rem;
-  font-weight: 500;
+  /* It appears once per story. At 500 four of them compete with the headlines
+     they belong to. */
+  font-weight: 400;
   color: var(--green-deep);
   text-decoration: none;
 }
@@ -1092,7 +1098,12 @@ a.cm-digest-subhead:hover { color: var(--green-deep); }
   gap: 5px;
   padding: 3px 8px;
   border-radius: 999px;
-  background: var(--cm-tag-wash, var(--green-wash));
+  /* The tint at roughly half strength. Four saturated pills stacked down a
+     four-story card read as four things to look at before the headlines, which
+     is backwards: the chip says what KIND of story this is, and the headline is
+     the story. Mixed from the same token rather than swapped for a paler one,
+     so the tag keeps one source of colour and §4 still holds. */
+  background: color-mix(in srgb, var(--cm-tag-wash, var(--green-wash)) 45%, transparent);
   color: var(--cm-tag-ink, var(--ink-soft));
   font-family: var(--mono);
   font-size: 0.6rem;
