@@ -240,6 +240,11 @@
     // Same reasoning as logout(): a session that expired mid-case did not
     // un-work the case. Persist before the clock stops and the chrome goes.
     saveDraft();
+    stopTimer();
+    teardownTutorial();
+    state.exam = null;
+    state.task = null;
+    state.draft = null;
     state.token = null;
     state.user = null;
     localStorage.removeItem(TOKEN_KEY);
@@ -1908,6 +1913,10 @@
     // getElapsed() — then stop, so the clock cannot run on past the session.
     saveDraft();
     stopTimer();
+    teardownTutorial();
+    state.exam = null;
+    state.task = null;
+    state.draft = null;
     state.token = null;
     state.user = null;
     teardownReview();
@@ -2350,7 +2359,7 @@
       body,
     );
     setRoot(h('div', { class: 'asc-login-wrap' }, card));
-    setTimeout(() => emailInput.focus(), 30);
+    emailInput.focus();
   }
 
   // ─── Awaiting verification ───────────────────────────────────────────────--
@@ -3033,34 +3042,51 @@
 
   /** The examination: the real workspace, one case, in their own specialty. */
   async function startExam() {
+    if (state._examOpening) return;
+    state._examOpening = true;
+    saveDraft();
+    stopTimer();
+    teardownTutorial();
     setRoot(h('div', { class: 'asc-wrap' },
       h('div', { class: 'asc-card asc-card-pad' },
         h('div', { class: 'loading-state' },
           h('div', { class: 'loading-spinner' }), 'Opening your examination…'))));
-    let data;
     try {
-      data = await api('/exam/task');
+      const data = await api('/exam/task');
+      if (data.user) state.user = data.user;
+      if (data.state === 'submitted') { renderExamSubmitted(); return; }
+      if (!data.task || !data.task.task_id) throw new Error('The case could not be loaded. Please try again.');
+      state.exam = { active: true, attempt: data.attempt,
+                     isOwnSpecialty: data.is_own_specialty !== false,
+                     specialty: data.specialty };
+      state.task = data.task;
+      state.view = 'eval';
+      state.portalChosen = true;
+      state.specialtyChosen = true;
+      state.servedVersion = 'v3';
+      state.continuedFrom = null;
+      state.trajectoryProgress = null;
+      initDraftForTask(state.task);
+      state.draft.portal_version = 'v3';
+      saveDraft();
+      if (state.draft.stage === 'compare') {
+        try { await loadWithheldAnswersIfNeeded(); } catch (e) {
+          if (e.status === 401) throw e;
+          // The workspace offers Retry for a temporary reveal failure.
+        }
+      }
+      renderTaskWorkspace();
     } catch (e) {
-      // Never trap them on a spinner. The dashboard says where they are.
+      stopTimer();
+      state.exam = null;
+      state.task = null;
       if (e.status !== 401) {
         toast('Could not open your examination: ' + e.message, 'error');
         renderDashboardView();
       }
-      return;
+    } finally {
+      state._examOpening = false;
     }
-    state.exam = { active: true, attempt: data.attempt,
-                   isOwnSpecialty: data.is_own_specialty !== false,
-                   specialty: data.specialty };
-    state.task = data.task;
-    state.portalChosen = true;
-    state.specialtyChosen = true;
-    initDraftForTask(state.task);
-    if (!state.draft || typeof state.draft.stage !== 'string') {
-      state.draft = newDraft(state.task);
-    }
-    state.draft.portal_version = 'v3';
-    saveDraft();
-    renderTaskWorkspace();
   }
 
   function examActive() { return !!(state.exam && state.exam.active); }
@@ -3076,16 +3102,18 @@
    */
   function pauseExam() {
     saveDraft();
+    stopTimer();
     state.exam = null;
     state.task = null;
     // Back to the applicant's one screen, which now offers the guide and the
     // demo directly. It used to return them to a pre-examination resources
     // screen that no longer exists — and that screen was itself a stage, which
     // is what PRD A §1 removed.
-    renderApplicantHome();
+    renderDashboardView();
   }
 
   async function submitExamEvaluation() {
+    if (state.submitting) return;
     state.submitting = true;
     updateSubmitState();
     try {
@@ -3095,14 +3123,17 @@
       const res = await api('/exam/submit', { method: 'POST', body: payload });
       if (res && res.user) state.user = res.user;
       clearDraft(state.task && state.task.task_id);
+      stopTimer();
       state.exam = null;
       state.task = null;
+      state.draft = null;
       state.view = 'home';
       renderExamSubmitted();
     } catch (e) {
       toast('Could not file your examination: ' + e.message, 'error');
     } finally {
       state.submitting = false;
+      updateSubmitState();
     }
   }
 
@@ -3332,7 +3363,9 @@
         h('span', { class: 'asc-applicant-review-dot', 'aria-hidden': 'true' }),
         h('div', {},
           h('strong', {}, 'We are checking your credentials'),
-          h('p', {}, 'Review takes one to two business days. We’ll email you when it’s decided.'))),
+          h('p', {}, submitted
+            ? 'Your credentials and examination are under review. We’ll email you when it’s decided.'
+            : 'You can take the examination now while we review your credentials. Review usually takes one to two business days.'))),
       h('div', { class: 'asc-applicant-grid' }, howToLabel, takeExam),
       h('p', { class: 'asc-applicant-help' },
         'Any questions: ',
@@ -3854,7 +3887,12 @@
   }
 
   // ─── Draft + timer ─────────────────────────────────────────────────────────
-  function draftKey(taskId) { return DRAFT_PREFIX + taskId; }
+  function draftKey(taskId) {
+    if (examActive() && state.user) {
+      return DRAFT_PREFIX + REALM + ':exam:' + state.user.id + ':' + state.exam.attempt + ':' + taskId;
+    }
+    return DRAFT_PREFIX + taskId;
+  }
   function randomId() {
     let s = '';
     const a = '0123456789abcdef';
@@ -3916,8 +3954,12 @@
   }
   function initDraftForTask(task) {
     let draft = null;
-    try { draft = JSON.parse(localStorage.getItem(draftKey(task.task_id)) || 'null'); } catch (e) { draft = null; }
+    const storageKey = draftKey(task.task_id);
+    // Exam drafts belong to this account, realm and attempt. Leave old unowned
+    // task-only drafts untouched; they cannot safely be attributed on shared devices.
+    try { draft = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch (e) { draft = null; }
     if (!draft || draft.task_id !== task.task_id) draft = newDraft(task);
+    draft.storage_key = storageKey;
     // ── Structural backfill, BEFORE anything reaches inside these objects ──
     // Every member backfill below dereferences one of them, so a draft missing
     // one threw a TypeError right here — and openTaskById caught it, leaving
@@ -4017,7 +4059,7 @@
     // §4.1 needs "the newest draft" to be an answerable question: findResumableDraft
     // picks between several stored drafts by this stamp.
     state.draft.savedAt = Date.now();
-    try { localStorage.setItem(draftKey(state.draft.task_id), JSON.stringify(state.draft)); } catch (e) { /* ignore quota */ }
+    try { localStorage.setItem(state.draft.storage_key || draftKey(state.draft.task_id), JSON.stringify(state.draft)); } catch (e) { /* ignore quota */ }
   }
 
   /** The newest draft whose task is still in the served queue, or null.
@@ -5478,7 +5520,6 @@
       b.title = label;
     }
     const caseRail = h('aside', { class: 'asc-case-rail' },
-      examBannerEl(),
       promptCard,
       renderCasePanel() || h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' },
                              promptText || 'n/a'),
@@ -5506,6 +5547,8 @@
     grid.appendChild(caseRail);
     grid.appendChild(workCol);
     shell.appendChild(taskBar);
+    const examinationBanner = examBannerEl();
+    if (examinationBanner) shell.appendChild(examinationBanner);
     shell.appendChild(grid);
     setRoot(shell);
     if (d.stage === 'compare') {
@@ -5579,7 +5622,7 @@
     return (a && a.fetched && !a.skipped && a.suggested_weaker) ? a : null;
   }
   function persistDraft(d) {
-    try { localStorage.setItem(draftKey(d.task_id), JSON.stringify(d)); } catch (e) { /* ignore quota */ }
+    try { localStorage.setItem(d.storage_key || draftKey(d.task_id), JSON.stringify(d)); } catch (e) { /* ignore quota */ }
   }
   async function loadAssist() {
     const d = state.draft;
@@ -6023,6 +6066,7 @@
     d.prompt_review.reviewed_at = new Date().toISOString();
     saveDraft();
     if (state.submitting) return;
+    if (examActive()) { await submitExamEvaluation(); return; }
     state.submitting = true;
     try {
       await api('/submissions', { method: 'POST', body: buildSubmissionPayload() });
@@ -6051,6 +6095,7 @@
     d.prompt_review.reviewed_at = new Date().toISOString();
     saveDraft();
     if (state.submitting) return;
+    if (examActive()) { await submitExamEvaluation(); return; }
     state.submitting = true;
     try {
       await api('/submissions', { method: 'POST', body: buildSubmissionPayload() });

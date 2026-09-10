@@ -349,8 +349,12 @@ def test_members_are_provisioned_emailed_and_can_sign_in(mail):
     _rotate(client)
     r = client.post(f"{API}/hs/members", json={
         "emails": ["k.patel@example.org", org["email"], "not-an-address"]})
+    assert r.status_code == 400
+    assert len(store.list_hs_portal_users(org["hs_id"])) == 1
+    r = client.post(f"{API}/hs/members", json={
+        "emails": ["k.patel@example.org", org["email"]]})
     assert r.status_code == 200, r.text
-    # The colleague was added; the caller's own address and the junk were not.
+    # Correcting the invalid address works; the caller is not added twice.
     assert r.json()["added"] == ["k.patel@example.org"]
     assert len(r.json()["members"]) == 2
 

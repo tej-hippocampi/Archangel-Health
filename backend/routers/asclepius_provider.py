@@ -22,6 +22,7 @@ import io
 import json
 import logging
 import os
+import re
 import time
 import zipfile
 from datetime import datetime, timedelta, timezone
@@ -1498,6 +1499,10 @@ _HS_SIGNUP_MAX_ATTEMPTS = 5
 _HS_SIGNUP_OK = {"ok": True, "next": "verify"}
 
 
+def _valid_hs_email(email: str) -> bool:
+    return len(email) <= 254 and bool(re.fullmatch(r"[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+", email))
+
+
 class HsSignupRequest(BaseModel):
     full_name: str
     email: str
@@ -1565,15 +1570,15 @@ async def hs_signup(body: HsSignupRequest, request: Request):
     """
     store = _store()
     email = (body.email or "").strip().lower()
-    full_name = (body.full_name or "").strip()
-    organization = " ".join((body.organization or "").split())
+    full_name = " ".join((body.full_name or "").split())[:120]
+    organization = " ".join((body.organization or "").split())[:120]
 
     # Honeypot. Write nothing, send nothing, and return the same shape; the
     # 4 KB pad makes the decoy and the real answer the same size for free.
     if (body.company_website or "").strip():
         return _HS_SIGNUP_OK
 
-    if not email or "@" not in email or not full_name or not organization:
+    if not _valid_hs_email(email) or not full_name or not organization:
         raise HTTPException(status_code=400,
                             detail="Please fill in your name, work email and organization.")
     chosen_password = body.password or ""
@@ -1586,80 +1591,90 @@ async def hs_signup(body: HsSignupRequest, request: Request):
             # it tells an attacker nothing they did not already supply.
             raise HTTPException(status_code=400, detail=str(exc))
 
-    if store.count_recent_hs_signups_for_email(email, hours=24) >= _HS_SIGNUP_EMAIL_CAP:
+    reservation = store.reserve_hs_signup_delivery(email, limit=_HS_SIGNUP_EMAIL_CAP)
+    if not reservation:
         log.info("hs signup: per-email cap reached, dropping silently")
         return _HS_SIGNUP_OK
 
-    code = f"{secrets.randbelow(1000000):06d}"
     try:
-        staged = store.create_hs_signup(
-            email=email, full_name=full_name, organization=organization,
-            # An unusable random string when they chose nothing. The row must
-            # never hold a hash anybody could produce a preimage for, because a
-            # staged row that is later verified becomes an account.
-            password=chosen_password or secrets.token_urlsafe(32),
-            code=code, ttl_minutes=_HS_SIGNUP_CODE_TTL_MIN,
-            client_ip=client_ip(request), needs_temp_password=wants_temp)
-    except Exception:
-        log.exception("hs signup: could not stage")
-        raise HTTPException(status_code=503, detail="We could not start that just now. Please try again.")
+        code = f"{secrets.randbelow(1000000):06d}"
+        # A failed send must not retire a working code or spend the daily signup
+        # allowance. Only install the new challenge after the transport accepts it.
+        if not is_email_transport_configured():
+            if _is_production():
+                raise HTTPException(status_code=503,
+                                    detail="We could not send your code just now. Please try again.")
+            log.warning("hs signup: no email transport, code for %s is %s", email, code)
+        else:
+            from onboarding_emails import build_hs_signup_code_email
+            try:
+                ok = await send_html_email(
+                    email, "Your Archangel Health confirmation code",
+                    build_hs_signup_code_email(code=code, organization=organization,
+                                               expires_minutes=_HS_SIGNUP_CODE_TTL_MIN))
+            except Exception:
+                log.exception("hs signup: code delivery failed")
+                ok = False
+            if not ok:
+                raise HTTPException(status_code=503,
+                                    detail="We could not send your code just now. Please try again.")
 
-    if not is_email_transport_configured():
-        if _is_production():
-            store.burn_hs_signup(staged["signup_id"])
-            raise HTTPException(status_code=503,
-                                detail="We could not send your code just now. Please try again.")
-        # Local development has no transport; without this the whole flow is
-        # untestable. Mirrors the onboarding OTP's dev bypass.
-        log.warning("hs signup: no email transport, code for %s is %s", email, code)
-        return _HS_SIGNUP_OK
+        try:
+            store.create_hs_signup(
+                email=email, full_name=full_name, organization=organization,
+                # An unusable random string when they chose nothing. The row must
+                # never hold a hash anybody could produce a preimage for, because a
+                # staged row that is later verified becomes an account.
+                password=secrets.token_urlsafe(32) if wants_temp else chosen_password,
+                code=code, ttl_minutes=_HS_SIGNUP_CODE_TTL_MIN,
+                client_ip=client_ip(request), needs_temp_password=wants_temp,
+                delivery_reservation=reservation)
+        except Exception:
+            log.exception("hs signup: could not stage")
+            raise HTTPException(status_code=503, detail="We could not start that just now. Please try again.")
 
-    from onboarding_emails import build_hs_signup_code_email
-    ok = await send_html_email(
-        email, "Your Archangel Health confirmation code",
-        build_hs_signup_code_email(code=code, organization=organization,
-                                   expires_minutes=_HS_SIGNUP_CODE_TTL_MIN))
-    if not ok:
-        store.burn_hs_signup(staged["signup_id"])
-        raise HTTPException(status_code=503,
-                            detail="We could not send your code just now. Please try again.")
+    finally:
+        store.release_hs_signup_delivery(reservation)
+
     return _HS_SIGNUP_OK
 
 
 @portal_router.post("/hs/signup/resend",
-                    dependencies=[Depends(rate_limiter("hs_signup_resend", 3, 600))])
+                    dependencies=[Depends(rate_limiter("hs_signup_resend", 3, 600)),
+                                  Depends(global_rate_limiter("hs_signup_resend_all", 60, 3600))])
 async def hs_signup_resend(body: HsSignupResendRequest):
     """Mail the code again. Always the same body, whether or not anything was
     staged for that address."""
     store = _store()
     email = (body.email or "").strip().lower()
-    staged = store.get_live_hs_signup(email) if email else None
+    if not is_email_transport_configured() and _is_production():
+        raise HTTPException(status_code=503,
+                            detail="We could not send your code just now. Please try again.")
+    staged = store.get_hs_signup_for_resend(email) if email else None
     if not staged:
         return _HS_SIGNUP_OK
-    # The stored code is hashed, so it cannot be re-sent; issue a new challenge
-    # for the same details instead.
+    # Deliver first. An unavailable mail service must not invalidate the code
+    # already in the person's inbox or lose their chosen password.
     code = f"{secrets.randbelow(1000000):06d}"
-    store.create_hs_signup(
-        email=email, full_name=staged["full_name"], organization=staged["organization"],
-        password=secrets.token_urlsafe(32), code=code,
-        ttl_minutes=_HS_SIGNUP_CODE_TTL_MIN, client_ip=staged.get("client_ip"),
-        # Carried across, or a resend would silently turn a
-        # three-field signup into one that verifies with a password nobody has.
-        needs_temp_password=bool(staged.get("needs_temp_password")))
-    # ...but the password on the new row is garbage, because we never held the
-    # real one in the clear. Carry the ORIGINAL hash across so verifying the new
-    # code still creates the account with the password they actually chose.
-    fresh = store.get_live_hs_signup(email)
-    if fresh:
-        store.set_hs_signup_password_hash(fresh["signup_id"], staged["password_hash"])
     if not is_email_transport_configured():
         log.warning("hs signup resend: no transport, code for %s is %s", email, code)
-        return _HS_SIGNUP_OK
-    from onboarding_emails import build_hs_signup_code_email
-    await send_html_email(
-        email, "Your Archangel Health confirmation code",
-        build_hs_signup_code_email(code=code, organization=staged["organization"],
-                                   expires_minutes=_HS_SIGNUP_CODE_TTL_MIN))
+    else:
+        from onboarding_emails import build_hs_signup_code_email
+        try:
+            ok = await send_html_email(
+                email, "Your Archangel Health confirmation code",
+                build_hs_signup_code_email(code=code, organization=staged["organization"],
+                                           expires_minutes=_HS_SIGNUP_CODE_TTL_MIN))
+        except Exception:
+            log.exception("hs signup resend: code delivery failed")
+            ok = False
+        if not ok:
+            raise HTTPException(status_code=503,
+                                detail="We could not send your code just now. Please try again.")
+    if not store.renew_hs_signup_code(staged["signup_id"], previous_code_hash=staged["code_hash"],
+                                     code=code, ttl_minutes=_HS_SIGNUP_CODE_TTL_MIN):
+        raise HTTPException(status_code=409,
+                            detail="This signup changed while sending. Please return to sign in or start again.")
     return _HS_SIGNUP_OK
 
 
@@ -1682,45 +1697,27 @@ async def hs_signup_verify(body: HsSignupVerifyRequest, background: BackgroundTa
     if not staged:
         raise generic
     if not verify_password(code, staged["code_hash"]):
-        attempts = store.bump_hs_signup_attempts(staged["signup_id"])
-        if attempts >= _HS_SIGNUP_MAX_ATTEMPTS:
-            # Burn it rather than leaving a six-digit secret to be ground down.
-            store.burn_hs_signup(staged["signup_id"])
+        store.reject_hs_signup_code(staged["signup_id"], expected_code_hash=staged["code_hash"],
+                                    max_attempts=_HS_SIGNUP_MAX_ATTEMPTS)
         raise generic
 
     organization = staged["organization"]
-    # NEVER ensure_health_system here. See create_health_system_unclaimed: that
-    # method is create-or-reuse by name, and on a public route it would hand a
-    # stranger an incumbent partner's upload history.
-    hs = store.create_health_system_unclaimed(organization, contact_email=email)
     wants_temp = bool(staged.get("needs_temp_password"))
-    # ONE minting path for both doors, shared with the operator's own
-    # (asclepius/hs_provisioning.py). must_reset follows what they gave us:
-    # a credential that travelled through email has to be replaced before it
-    # guards anything, and a password they chose ninety seconds ago has nothing
-    # to replace -- landing them on the forced-reset screen for it would be
-    # asking them to change something they just typed.
-    minted = asc_hs_provisioning.provision_account(
-        store, hs_id=hs["hs_id"], org_name=organization, email=email,
-        full_name=staged["full_name"], signup_source="self_serve",
-        approval_status="pending", must_reset=wants_temp,
-        # A three-field signup chose no password, so instead of generating one
-        # and mailing it we mint a claim link and mail that. They are signed in
-        # here either way, on the session this response sets; the link is what
-        # gets them back in from any other device, and what lets them set a
-        # password of their own rather than replace one of ours.
-        mint_invite=wants_temp)
+    claim_token = secrets.token_urlsafe(32) if wants_temp else ""
+    try:
+        minted = store.complete_hs_signup(
+            staged["signup_id"], expected_code_hash=staged["code_hash"],
+            invite_token_hash=asc_hs_provisioning.invite_token_hash(claim_token) if claim_token else None,
+            invite_expires_at=(datetime.utcnow() + timedelta(days=asc_hs_provisioning.INVITE_TTL_DAYS)).isoformat()
+            if claim_token else None)
+    except Exception:
+        log.exception("hs signup: account creation failed")
+        raise HTTPException(status_code=503,
+                            detail="We could not create your portal just now. Please try the same code again.")
+    if not minted:
+        raise generic
     username = minted["username"]
-    if not wants_temp:
-        # Carry the password they actually chose, which we only ever held
-        # hashed, over the one provision_account generated.
-        store.set_hs_portal_password_hash(username, staged["password_hash"])
-    # The organization starts at the beginning of the state machine, not at the
-    # end of it. This is the one write that makes the upload door closed by
-    # default for everything that arrives through this route; a health system
-    # provisioned by an operator keeps its NULL and keeps its door.
-    store.set_hs_onboarding_state(hs["hs_id"], hs_states.INTAKE)
-    store.consume_hs_signup(staged["signup_id"])
+    hs = {"hs_id": minted["hs_id"]}
     store.log_event(entity_type="health_system", entity_id=hs["hs_id"],
                     event_type="self_signup_verified", actor=username,
                     payload={"organization": organization})
@@ -1729,7 +1726,7 @@ async def hs_signup_verify(body: HsSignupVerifyRequest, background: BackgroundTa
                   store.health_systems_named_like(organization, exclude_hs_id=hs["hs_id"])]
     background.add_task(_notify_hs_signup, store, staged["full_name"], email,
                         organization, hs["hs_id"], username, collisions,
-                        minted["invite_token"] if wants_temp else "")
+                        claim_token)
 
     fresh = store.get_hs_portal_user(username) or {}
     _set_hs_cookie(response, _hs_token(username, hs["hs_id"],
@@ -1769,6 +1766,9 @@ def _notify_hs_signup(store: Any, full_name: str, email: str, organization: str,
                 full_name=full_name, email=email, organization=organization,
                 hs_id=hs_id, username=username, name_collisions=collisions),
             dedupe_key=hs_id, coalesce=False)
+    except Exception:
+        log.exception("hs signup: founder notification failed")
+    try:
         if is_email_transport_configured():
             if claim_token:
                 subject = "Welcome to Archangel Health: your portal access"
@@ -1932,8 +1932,11 @@ async def hs_invite_claim(token: str, body: HsInviteClaimRequest, response: Resp
     if not full_name:
         raise HTTPException(status_code=400, detail="Please tell us your name.")
 
-    store.claim_hs_portal_invite(
-        user["username"], password=body.password, full_name=full_name)
+    claimed = store.claim_hs_portal_invite(
+        user["username"], password=body.password, full_name=full_name,
+        token_hash=asc_hs_provisioning.invite_token_hash(token.strip()))
+    if not claimed:
+        raise generic
     store.log_event(entity_type="hs_portal", entity_id=user["username"],
                     event_type="invite_claimed", actor=user["username"],
                     payload={"hs_id": hs["hs_id"]})
@@ -2333,6 +2336,7 @@ _HS_APPLICATION_QUESTIONS: List[Dict[str, Any]] = [
             {"value": "notes_and_structured", "label": "Notes and structured"},
             {"value": "structured_only", "label": "Structured only"},
             {"value": "varies", "label": "Depends by system"},
+            {"value": "not_sure", "label": "Not sure"},
         ],
     },
     {
@@ -2660,7 +2664,11 @@ async def hs_members_post(
     wanted: List[str] = []
     for raw in (body.emails or [])[:_HS_MAX_MEMBERS]:
         addr = str(raw or "").strip().lower()
-        if not addr or "@" not in addr or addr in have or addr in wanted:
+        if not addr:
+            continue
+        if not _valid_hs_email(addr):
+            raise HTTPException(status_code=400, detail="Please enter a valid email address for each teammate.")
+        if addr in have or addr in wanted:
             continue
         wanted.append(addr)
     if not wanted:
@@ -2915,6 +2923,8 @@ async def hs_agreement_sign(
     background.add_task(_drain_admin_notifications)
     fresh = store.get_health_system(hs["hs_id"])
     return {"ok": True, "signed": _hs_agreement_summary(store, fresh),
+            "surfaces": sorted(hs_access.surfaces(portal_user)),
+            "account_state": hs_access.account_state(portal_user),
             **hs_states.public_view(fresh)}
 
 

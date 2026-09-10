@@ -21,6 +21,8 @@ export default function ResetPasswordPage({ token }: Props) {
   const [confirm, setConfirm] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [notice, setNotice] = React.useState("");
 
   const longEnough = pw.length >= MIN;
   const varied = new Set(pw).size >= 5;
@@ -44,6 +46,52 @@ export default function ResetPasswordPage({ token }: Props) {
       setBusy(false);
     }
   };
+
+  // A "Forgot password" link has no token yet. First prove mailbox control
+  // by requesting the same single-use reset email as the portal login form.
+  if (!token) {
+    const requestReset = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (busy || !email.trim()) return;
+      setBusy(true);
+      setError("");
+      setNotice("");
+      try {
+        const result = await authApi.asclepiusForgotPassword(email.trim());
+        setNotice(result.message);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not send the link. Try again.");
+      } finally {
+        setBusy(false);
+      }
+    };
+    return (
+      <div className="adg-scrim adg-page">
+        <style>{authDialogStyles}</style>
+        <div className="adg-panel"><div className="adg-body">
+          <div className="adg-head"><div>
+            <h2 className="adg-title">Set or reset your password</h2>
+            <p className="adg-sub">
+              Enter the email you applied with. We'll send a link to choose a password
+              and get back into your account, including if you haven't set one before.
+            </p>
+          </div></div>
+          <form onSubmit={requestReset}>
+            {error && <div className="adg-error" role="alert">{error}</div>}
+            {notice && <div className="adg-notice" role="status">{notice}</div>}
+            <label className="adg-label" htmlFor="rp-email">Email</label>
+            <input id="rp-email" className="adg-input" type="email" required
+              autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <button className="adg-btn adg-btn-primary" type="submit"
+              disabled={busy || !email.trim()} style={{ marginTop: 18 }}>
+              {busy ? "Sending…" : "Email me a password link"}
+            </button>
+            <p><a href={authApi.asclepiusPortalUrl()}>Back to sign in</a></p>
+          </form>
+        </div></div>
+      </div>
+    );
+  }
 
   const check = (ok: boolean, label: string) => (
     <li style={{ display: "flex", gap: 8, margin: "4px 0", fontSize: "0.85rem", color: ok ? "var(--green)" : "var(--ink-faint)" }}>

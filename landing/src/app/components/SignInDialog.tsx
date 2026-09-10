@@ -247,9 +247,14 @@ export function SignInDialog({ open, onOpenChange }: Props) {
                     // email field empty. esbuild strips types without checking
                     // them, which is why a build never caught it.
                     if (!addr) { setApiError("Enter your email above first."); return; }
-                    const { message } = await authApi.asclepiusForgotPassword(addr);
-                    setApiError(null);
-                    setNotice(message);
+                    setNotice("");
+                    try {
+                      const { message } = await authApi.asclepiusForgotPassword(addr);
+                      setApiError(null);
+                      setNotice(message);
+                    } catch (err) {
+                      setApiError(err instanceof Error ? err.message : "Could not send the password link.");
+                    }
                   }}
                 >
                   Forgot password?
