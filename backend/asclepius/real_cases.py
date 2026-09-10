@@ -192,7 +192,9 @@ _DS_RESOLVE_SENTENCE_RE = re.compile(
 def _leading_presentation(course_text: str) -> str:
     body = re.sub(r"^[^:]{2,60}:\s*", "", course_text.strip(), count=1)
     kept: List[str] = []
-    for sentence in re.split(r"(?<=[.;])\s+", body):
+    # A semicolon can connect an examination to treatment in the same sentence.
+    # Keep the sentence intact so resolution language seals the whole statement.
+    for sentence in re.split(r"(?<=[.!?])\s+", body):
         if not sentence.strip():
             continue
         if _DS_RESOLVE_SENTENCE_RE.search(sentence) or not _DS_PRESENT_SENTENCE_RE.search(sentence):

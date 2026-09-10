@@ -1133,6 +1133,10 @@ def trajectory_block(
     return {
         "trajectory_id": t.get("trajectory_id"),
         "sequence_index": t.get("sequence_index"),
+        # Older walks have no class metadata; never invent a decision label.
+        "point_class": (t.get("generation") or {}).get("point_class"),
+        "presenting_narrative": (t.get("generation") or {}).get("presenting_narrative"),
+        "downgraded": (t.get("generation") or {}).get("downgraded"),
         # §8.1 — WHICH PRODUCT produced this record. A solo walk is one physician's
         # judgment evolving over a patient; a relay is N physicians handing off,
         # each reading the last one's commitment. The rows look identical, so a

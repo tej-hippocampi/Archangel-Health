@@ -41,119 +41,61 @@ a second tab, and worse, its existence invites deleting the server one.
 
 ---
 
-## 2. What clears the gate, and why you must not lower it
+## 2. Decision and interval points
 
-An **encounter** is a cluster of recorded activity separated by a gap of more than
-7 days. A **decision point** is an encounter that clears the density gate:
+An **encounter** groups recorded activity separated by gaps of more than seven
+days. The density thresholds remain unchanged: **two distinct dates, eight
+recorded events, two resource types** (labs, notes, studies or vitals).
 
-| threshold | value |
-|---|---|
-| distinct dates | ≥ 2 |
-| recorded events | ≥ 8 |
-| resource types (labs / notes / studies / vitals) | ≥ 2 |
+A **decision** point clears all three thresholds and has a visible presenting
+clinical narrative from that encounter. An **interval** point records follow-up
+observations: the physician re-evaluates the existing plan against the new data.
+A density-qualified encounter without a presenting narrative becomes an interval
+with a `downgraded` reason. It is not held, and it does not hold its predecessor.
 
-**Accepted pipeline v5:** note de-duplication, panel-text exclusion and the exact
-unsupported-date rule yield **47 → 18 → 14**. Per chart: patient-1 **22 → 9 → 8**,
-patient-2 **12 → 2 → 1** (quarantined), patient-3 **5 → 4 → 3**, patient-4
-**8 → 3 → 2**. The user approved these measured results without changing any
-density threshold.
+A sparse trailing interval is excluded because no later point can verify it.
+A density-qualified final encounter may close the walk as an interval when its
+narrative is absent. The terminal point has no later outcome to verify.
 
-Detection is not readiness. A trajectory point without a visible clinical
-narrative from its own encounter is held for evidence review. Order/nursing forms,
-reports, model-hidden notes and prior discharge summaries cannot clear it. An
-earlier point that depends on a held successor is also held, so its answer key
-and reveal cannot refer to different successor encounters. The ready suffix may
-be built. Current ready counts before model gates: patient-1 **1**, patient-2 **0**
-(quarantined), patient-3 **1**, patient-4 **1**. Patient-4's first two points remain
-review-only. The plan reports detected, review-held and ready counts separately;
-automatic runs retain the same holds. See `prd-longitudinal-fix/IMPLEMENTATION_STATUS.md`.
+Measured through the committed fixture ingestion door with `trajectory: true`:
 
-Previous pipeline measured across `patient-1` … `patient-4`: **55 encounters → 22 decision points →
-18 verifiable ones.** The rest fail, and they fail because they are single-date,
-few-event contacts.
+| Chart | Encounters | Decision | Interval | Walk points / generatable | Verifiable | Held |
+| --- | --- | --- | --- | --- | --- | --- |
+| patient-1 | 22 | 2 | 20 | 22 | 21 | 0 |
+| patient-3 | 5 | 3 | 2 | 5 | 4 | 0 |
+| patient-4 | 7 | 3 | 4 | 7 | 6 | 0 |
 
-> **Where that number comes from — corrected.** The four charts ARE in this
-> repository now (`asclepius/fixtures/patient_bundles/`), so the figure is
-> measured rather than inherited. Running the shipped ingestion path over them
-> gives 55 → 22 → 18; this document previously quoted **59 → 25 → 21** from the
-> PRD, measured elsewhere on copies we did not hold. Both are recorded because
-> the difference matters to anyone auditing a pitch: quote 55 / 22 / 18, which
-> `test_longitudinal_front_door.py` pins per chart so a gate change cannot move it
-> quietly.
->
-> The difference is **not** gate drift. patient-1's thirteen-point walk — the
-> number the product is demoed on — reproduces exactly.
->
-> `patient-2` quarantines on an ambiguous date token in an OCR annotation, and is
-> recoverable only through the documented override path. See the bundles' own
-> README; do not relax the date scan to admit it.
->
-> The other real chart in the tree, `tests/fixtures/nephrology_pgnmid_bundle.json`,
-> yields **zero** decision points: it is a cross-sectional diagnostic workup,
-> three of its four encounters are a single lab draw, and the fourth misses the
-> event floor 4-to-8. That zero is pinned in
-> `test_asclepius_longitudinal_real_bundle.py`, including the counterfactual that
-> lowering the floor to admit it would still produce nothing pairable.
->
-> **Yield on a NEW partner's charts is still unverified until you run the plan
-> (`dry_run: true`) against them.** Quote the gate, not the number.
-
-**Do not lower the gate to raise the count.** A repeat lab draw is not a decision,
-and a task built on one teaches a model that medicine is a series of trivia
-questions. Every point below the gate is a point a specialist is paid $75 to
-answer and a buyer is asked to price as clinical judgment. The gate is the
-product.
-
-`apply_density_gate: false` exists on the generate request **only** to inspect
-what the gate is rejecting.
-
-### Two numbers, and they are never the same number
-
-* **decision points** — how many encounters clear the gate.
-* **verifiable decision points** — how many of those have a *later qualifying*
-  encounter to be checked against. Always one fewer: the terminal point has
-  nothing after it in the record.
-
-Both are returned by the plan and both are shown in the admin console. Price by
-**decision point**; yield per chart is not predictable (patient-1 gives 13,
-patient-2 gives 2).
-
----
+Patient-2 remains quarantined; diagnostic density counts do not authorize tasks.
+Static-mode patient-1 and patient-3 retain 22/9 and 5/4 encounters/decision points.
+The density-qualified counts (9 and 4) are different from the walk's narrative-
+qualified decision counts (2 and 3). Yield on new partner charts must be measured.
 
 ## 3. Generate a walk
 
-```
-POST /api/asclepius/ingestion/cases/{ingest_case_id}/generate
-{ "dry_run": true }                       # the plan — writes nothing
-{ "dry_run": false, "trajectory": true }  # the walk
+```json
+{ "dry_run": true, "trajectory": true, "include_interval_points": true }
 ```
 
-The dry run returns every proposal *including the ones that were rejected*, each
-with its `density` block naming which threshold it missed. A preview that lists
-only the survivors reads as "this chart had two decision points" when it had
-seventeen.
+Send to `POST /api/asclepius/ingestion/cases/{ingest_case_id}/generate` for the
+plan, then use `dry_run: false` to generate. Interval points are included by
+default. The admin checkbox changes both the preview and generation selection.
+The chart's declared specialty applies to the entire walk.
 
-A live trajectory run:
+The plan reports encounters, decision/interval counts, ready points, verifiable
+points and downgrade reasons. Generation selects `qualifies_as_point` proposals
+that are `generatable`; `apply_density_gate: false` includes every generatable
+proposal. Content, date, leakage and empirical difficulty gates still apply.
 
-* keeps only proposals that clear the density gate,
-* orders them by `encounter_index` (the sequence index **is** the chronology),
-* mints one `trajectory_id` and assigns `sequence_index` 0…n−1, advancing only on
-  points that actually became tasks,
-* forces `max_labels = 1` — see §5.
-
-The response carries `trajectory_id`, `trajectory_points`,
-`trajectory_verifiable_points` and `estimated_cost_usd`.
-
-**Cost, before you click.** A trajectory is not a discount on physician time; it
-is N tasks that happen to share a chart. At `tl_rate_cents` ($75 a completed
-submission): patient-1's 13 points is **$975**, all four charts' 21 points is
-**$1,575**. Double-labelled, double that.
+Generated tasks share one `trajectory_id`, receive dense `sequence_index` values
+0…n−1, and use `assigned_only` distribution with `max_labels = 1`. Physician pay
+remains **$75 per submission for either class**. A complete seven-point patient-4
+walk therefore has $525 in physician pay. There is no buyer price field.
 
 ---
 
 ## 4. What the physician sees
 
-1. **The case, truncated.** A banner names the step ("Decision 3 of 13") and says
+1. **The case, truncated.** A banner names the step ("Step 3 of 7 · Interval visit") and says
    the future is sealed.
 2. **The commitment.** Assessment and plan as usual, plus the *Expected
    trajectory* card: what should happen next, with an optional horizon, and what
@@ -170,7 +112,7 @@ submission): patient-1's 13 points is **$975**, all four charts' 21 points is
    Reading a new chart is the expensive part of a task; a walk pays that once.
 
 The reveal window runs from just after this decision point up to and including
-the **next** decision point — the presenting data of encounter *k+1*, not its
+the **next** walk point — the presenting data of encounter *k+1*, not its
 resolution, which belongs to the point after. Say so if a physician asks, because
 someone marking `not_assessable` needs to know whether the observation is absent
 from the record or merely beyond the window.
@@ -188,24 +130,15 @@ generation, and both capacity-lifting paths are guarded:
 * `agreement.should_double_label` — the background sweep.
 
 Guarding only the first would let the sweep silently re-flag a minute later and
-turn a $975 chart walk into $1,950 with nobody deciding to.
+double the physician-pay obligation without an explicit assignment.
 
 ### The consequence you will hit in operations
 
-At `max_labels = 1`, **the first physician to take point 0 owns the walk.** Every
-later point is gated behind point 0, and point 0 is at capacity for everyone else.
-That is the policy working — but a physician who takes point 0 and never returns
-leaves the rest of the chart unreachable.
-
-**The release:** lift point 0 to two labels.
-
-```python
-store.flag_tasks_for_double_label(
-    [{"task_id": "<point 0>", "specialty": "<specialty>", "current_rate": None}])
-```
-
-A second physician can then start the walk from the beginning. This is a priced
-decision — a second full walk — which is exactly why it is explicit.
+Generation does not route the walk. An admin assigns the whole walk to one
+physician (solo), or sends a relay with a seeded rotation across the declared
+specialty's physician pool. Point 0 opens first; later points unlock after the
+required prior submission. Reassign an abandoned point through the relay admin
+workflow. Generation and background agreement sweeps do not lift the label cap.
 
 A **flagged prompt still advances the walk.** A physician who rejected point 3's
 prompt never predicted anything at point 3, so nothing of theirs is destroyed by
@@ -242,15 +175,29 @@ and `supervision`):
 
 | field | why it matters |
 |---|---|
-| `trajectory_id` / `sequence_index` | **the reassembly key.** The bundle is one line per record. Without these, thirteen decision points arrive as thirteen unrelated rows — thirteen single-shot cases at a trajectory price, and the buyer will say so |
+| `trajectory_id` / `sequence_index` | **the reassembly key.** The bundle is one line per record. Group by trajectory and sort by sequence to reconstruct the walk |
+| `point_class` / `presenting_narrative` / `downgraded` | decision or interval, narrative evidence and downgrade reason; missing legacy classes remain null |
+| `point_counts` | distinct shipped decision, interval and unclassified points per trajectory; multiple records or labels count once |
 | `expected_trajectory.falsifiers[]` | the falsifier corpus: a stated, expert-authored, chart-checkable falsifier is a reward function for a clinical RL environment, written by a board-certified specialist |
 | `expected_trajectory.falsifiable` | filter on it — a physician who could not name a falsifier is allowed to say so |
 | `self_score.marks[]` | held / did not hold / not assessable |
 | `outcome_verified` | true only where something was actually checkable |
 
-`cases.jsonl` carries `trajectory_id`/`sequence_index` at case level too, and the
+`cases.jsonl` carries the identity, class, downgrade reason and point counts at case level too, and the
 per-physician `trajectory` block on each label (two physicians on one decision
 point write two different falsifiers).
+
+The datasheet and buyer manifest report class counts for the points actually
+shipped after profile filtering; they do not imply that a partial export is a
+complete walk. Calendar audit timestamps and monetary fields are omitted from
+chart-walk buyer files. Dated taxonomy/configuration versions use stable SHA-256
+identifiers. Stored source payloads and internal audit timestamps remain intact.
+Calendar-dated license expiry is rejected without changing the license or export
+state. Every text companion is scanned before records are marked exported.
+
+P5 is still pending: the reveal endpoint currently derives its delta from the
+next stored task. The separate P5 branch must persist the sealed per-point
+outcome so a failed or retired successor cannot change the reveal boundary.
 
 Everything above is in `data_dictionary.md`, along with the limits — an
 undocumented field in a delivered artifact is indistinguishable from a leak.
@@ -271,7 +218,7 @@ every one of them.
   model trained naively on chart trajectories learns the treatment pattern, not
   the reasoning. Score the stated reasoning and expectation, not the plan's
   similarity to what was done.
-* **Uneven density.** Price by decision point, not by chart.
+* **Uneven density.** Decision and interval counts are separate; both pay physicians $75 per submission.
 * **Survivorship.** These charts continue because the patient continued.
   Encounters ending in death or transfer are absent by construction — and that is
   exactly where the interesting failures live.
