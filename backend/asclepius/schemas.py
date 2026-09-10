@@ -217,7 +217,7 @@ class GenerateRealCasesRequest(BaseModel):  # noqa: D401  (see docstring)
     # want to pay for seven of them.
     derive_questions: bool = True
     # ─── Longitudinal trajectory mode (Longitudinal Cases PRD §4, Phase 5) ────
-    # Chain the chart's qualifying decision points into ONE ordered walk instead of
+    # Chain the chart's decision and interval points into ONE ordered walk instead of
     # emitting independent cases: same generation pipeline, plus a shared
     # ``trajectory_id`` and a ``sequence_index`` per point, which together make the
     # sequence gate (§9.1) apply and the outcome reveal (Phase 4) resolvable.
@@ -227,11 +227,11 @@ class GenerateRealCasesRequest(BaseModel):  # noqa: D401  (see docstring)
     # (``max_labels=1``, §9.6) and a different quality metric (outcome verification,
     # not κ, §4.2.4). An admin turns it on knowingly.
     trajectory: bool = False
-    # The §2 density gate applies in trajectory mode: only encounters carrying
-    # ≥ 2 distinct dates, ≥ 8 events and ≥ 2 resource types become points. Set
-    # False ONLY to inspect what the gate is rejecting — never to raise the count.
-    # A repeat lab draw is not a decision, and a task built on one teaches a model
-    # that medicine is a series of trivia questions (§2.1).
+    # Include dated interval visits between density-qualified encounters. A
+    # density-qualified encounter without narrative remains a downgraded interval.
+    include_interval_points: bool = True
+    # Use the planner's point eligibility. Density still determines class; False
+    # keeps every generatable proposal for inspection without bypassing content gates.
     apply_density_gate: bool = True
 
 

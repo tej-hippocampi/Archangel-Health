@@ -7776,6 +7776,10 @@ def _proposal_view(p: Dict[str, Any]) -> Dict[str, Any]:
         # each skipped encounter missed, or the gate is unarguable.
         "density": p.get("density"),
         "qualifies_as_decision_point": bool(p.get("qualifies_as_decision_point")),
+        "point_class": p.get("point_class"),
+        "qualifies_as_point": bool(p.get("qualifies_as_point")),
+        "presenting_narrative": bool(p.get("presenting_narrative")),
+        "downgraded": p.get("downgraded"),
         "outcome_verifiable": bool(p.get("outcome_verifiable")),
     }
     case = p.get("case")
@@ -7864,7 +7868,17 @@ async def _generate_one_real_case(
         "treatment": held_out.get("newly_started_drugs") or [],
     }
     try:
-        asc_cases.assert_multimodal_content(case)
+        if p.get("point_class") == "interval":
+            span = p.get("encounter_span") or []
+            index = p.get("index_event_offset")
+            if len(span) != 2 or not all(isinstance(off, int) for off in [*span, index]):
+                raise ValueError("interval point has no dated encounter window")
+            blockers = real_cases.interval_content_blockers(
+                case, {"start_offset": span[0], "end_offset": span[1]}, index)
+            if blockers:
+                raise ValueError("; ".join(blockers))
+        else:
+            asc_cases.assert_multimodal_content(case)
         real_cases.assert_temporal_split(case)
         asc_ingestion.assert_no_answer_leakage(case, {"answer_key": sealed_key})
     except Exception as exc:
@@ -7969,6 +7983,9 @@ async def _generate_one_real_case(
             "trajectory_id": trajectory_id,
             "sequence_index": sequence_index,
             "density": p.get("density"),
+            "point_class": p.get("point_class"),
+            "presenting_narrative": bool(p.get("presenting_narrative")),
+            "downgraded": p.get("downgraded"),
         })
     task = store.insert_task(
         prompt=prompt, specialty=specialty,
@@ -8052,11 +8069,16 @@ async def generate_real_cases(
         if not asc_specialties.is_enabled(hint):
             hint = None
 
+    if body.trajectory and hint is None:
+        raise HTTPException(status_code=422,
+                            detail="Set an enabled specialty for this chart walk.")
+
     try:
         plan = await real_cases.plan_cases(
             ic.get("case") or {}, max_cases=body.max_cases,
             min_gap_days=max(1, int(body.min_gap_days or 7)),
             specialty_hint=hint, derive_questions=body.derive_questions, trajectory=body.trajectory,
+            include_interval_points=body.include_interval_points,
             # On a live per-case generate, author ONLY the question we are about to
             # use. A dry run authors all of them, which is the point of the preview.
             question_indices=(None if body.dry_run else body.encounter_indices))
@@ -8070,8 +8092,8 @@ async def generate_real_cases(
     # ── Longitudinal trajectory mode (PRD 2 §4, Phase 5) ─────────────────────
     # Same generation pipeline, three differences, each of them deliberate:
     #
-    #   1. Only encounters clearing the §2 DENSITY GATE become points. A repeat lab
-    #      draw is not a decision, and the gate is the product (§2.1).
+    #   1. The planner selects decision and interval points; the unchanged density
+    #      gate determines class, not whether a recorded interval belongs in the walk.
     #   2. The points are ORDERED and share a trajectory_id, which is what makes
     #      the sequence gate (§9.1) and the outcome reveal (Phase 4) work at all.
     #   3. ``max_labels`` is forced to 1 (§9.6) — see the note at the loop.
@@ -8084,7 +8106,7 @@ async def generate_real_cases(
     trajectory_id = None
     if trajectory_mode:
         if body.apply_density_gate:
-            selected = [p for p in selected if p.get("qualifies_as_decision_point")]
+            selected = [p for p in selected if p.get("qualifies_as_point")]
         selected = sorted(selected, key=lambda p: p["encounter_index"])
         trajectory_id = asc_trajectory.new_trajectory_id()
 
@@ -8110,6 +8132,15 @@ async def generate_real_cases(
         "density_gate": plan.get("density_gate"),
         "trajectory": trajectory_mode,
     }
+    if trajectory_mode:
+        response.update({
+            "walk_points": plan.get("walk_points", 0),
+            "interval_points": plan.get("interval_points", 0),
+            "ready_walk_points": plan.get("ready_walk_points", 0),
+            "downgraded_points": plan.get("downgraded_points", 0),
+            "trajectory_points": len(selected) if body.dry_run else 0,
+            "walk_verifiable_points": max(0, len(selected) - 1) if body.dry_run else 0,
+        })
     if body.dry_run:
         store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
                         event_type="real_case_plan_previewed", actor=admin["id"],
@@ -8125,9 +8156,9 @@ async def generate_real_cases(
                     "held": [{"encounter_index": p["encounter_index"],
                               "review_reasons": p.get("review_reasons") or []}
                              for p in plan["proposals"] if p.get("review_required")
-                             and p.get("qualifies_as_decision_point")],
-                    "message": ("Review required: no requested decision points are ready. "
-                                "Resolve the narrative evidence holds in the chart-walk preview."
+                             and p.get("qualifies_as_point" if trajectory_mode else "qualifies_as_decision_point")],
+                    "message": ("Review required: no requested points are ready. "
+                                "Resolve the evidence review issues in the chart-walk preview."
                                 if any(p.get("review_required") for p in plan["proposals"]
                                        if not wanted or p["encounter_index"] in wanted)
                                 else "No requested encounters cleared generation gates."),
@@ -8205,7 +8236,7 @@ async def generate_real_cases(
                     "held": [{"encounter_index": p["encounter_index"],
                               "review_reasons": p.get("review_reasons") or []}
                              for p in plan["proposals"] if p.get("review_required")
-                             and p.get("qualifies_as_decision_point")]},
+                             and p.get("qualifies_as_point" if trajectory_mode else "qualifies_as_decision_point")]},
     })
     if trajectory_mode and generated:
         n = len(generated)
@@ -8217,6 +8248,7 @@ async def generate_real_cases(
         # because an admin reading "13 points" should not have to infer that 12 of
         # them carry outcome verification.
         response["trajectory_verifiable_points"] = max(0, n - 1)
+        response["walk_verifiable_points"] = max(0, n - 1)
         # The cost, before anyone asks. A trajectory is not a discount on physician
         # time; it is N tasks that happen to share a chart (§9.3).
         from asclepius import payments as asc_payments

@@ -1173,6 +1173,32 @@ def _drug_identity(name: Any) -> str:
     return re.sub(r"[^a-z0-9]", "", str(name or "").lower())
 
 
+def _discharge_medication_orders(text: str) -> List[Dict[str, str]]:
+    """Read line orders and explicit inline orders in a discharge narrative.
+
+    Hospital-course lists often use commas rather than newlines. These orders
+    already appear in the visible history, so repeating one later cannot make it
+    a newly revealed treatment. Keep the conservative medication-line parser and
+    require an order at the start or an affirmative medication-list lead-in.
+    """
+    orders = []
+    lead_in = re.compile(
+        r"(?:^|;)\s*(?:inpatient\s+)?(?:meds|medications|treatment)"
+        r"\s+(?:included|includes?|given|administered)\s*:?\s+", re.I)
+    for line in str(text or "").splitlines():
+        if not parse_medication_line(re.split(r"[,;]", line)[0]):
+            # Do not mine a list introduced by 'avoid' or 'allergic to' for orders.
+            if not (match := lead_in.search(line)):
+                continue
+            line = line[match.end():]
+        for fragment in re.split(r"[,;]", line):
+            parsed = parse_medication_line(fragment)
+            if not parsed or not parsed.get("drug"):
+                break
+            orders.append(parsed)
+    return orders
+
+
 def _held_out_summary(case: Dict[str, Any], index_offset: int,
                       visible_text: str = "",
                       visible_drugs: Optional[set] = None,
@@ -1221,14 +1247,12 @@ def _held_out_summary(case: Dict[str, Any], index_offset: int,
         # and in many exports they exist only as text. Parse them like an order
         # sheet so "dapagliflozin started" reaches the key, not just the reveal.
         if include_discharge_orders and re.search("discharge", str(note.get("note_type") or ""), re.I):
-            for line in text.splitlines():
-                parsed = parse_medication_line(line)
-                if parsed and parsed.get("drug"):
-                    drugs.append((
-                        _drug_identity(parsed["drug"]),
-                        " ".join(x for x in (parsed.get("drug"), parsed.get("dose"),
-                                             parsed.get("route"), parsed.get("freq")) if x),
-                    ))
+            for parsed in _discharge_medication_orders(text):
+                drugs.append((
+                    _drug_identity(parsed["drug"]),
+                    " ".join(x for x in (parsed.get("drug"), parsed.get("dose"),
+                                         parsed.get("route"), parsed.get("freq")) if x),
+                ))
     abnormal: List[str] = []
     for panel in after("lab_panels"):
         for r in panel.get("results") or []:
@@ -1391,10 +1415,8 @@ def build_encounter_case(
     on_board = {_drug_identity(m.get("drug")) for m in meds if m.get("drug")}
     for n in notes if trajectory else []:
         if re.search("discharge", str(n.get("note_type") or ""), re.I):
-            for line in str(n.get("text") or "").splitlines():
-                parsed = parse_medication_line(line)
-                if parsed and parsed.get("drug"):
-                    on_board.add(_drug_identity(parsed["drug"]))
+            for parsed in _discharge_medication_orders(n.get("text")):
+                on_board.add(_drug_identity(parsed["drug"]))
     held_out = _held_out_summary(
         c, index_offset, seen_before, on_board,
         until_offset=until_offset, include_discharge_orders=trajectory)
