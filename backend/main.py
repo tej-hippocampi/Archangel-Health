@@ -800,8 +800,21 @@ async def _drain_admin_notifications() -> None:
             store = _asc_store()
             for row in store.due_admin_notifications():
                 try:
+                    from asclepius import hs_states
+                    if row['kind'] in ('hs_dla_request', 'hs_uploads_open') and row['idempotency_key'].startswith('hs:'):
+                        hs_id = row['idempotency_key'].split(':')[1]
+                        hs = store.get_health_system(hs_id)
+                        expected = hs_states.AWAITING_DLA if row['kind'] == 'hs_dla_request' else hs_states.ACTIVE
+                        recipient_active = any(u.get('active') and u.get('approval_status') == 'approved' and
+                            (u.get('email') or '').strip().lower() == row['recipient_email'].strip().lower()
+                            for u in store.list_hs_portal_users(hs_id))
+                        if not hs or not hs.get('active') or not recipient_active or hs_states.state_of(hs) != expected or hs_states.data_readiness_error(store, hs_id):
+                            store.void_pending_admin_notification(row['idempotency_key'])
+                            continue
+                    from asclepius.hs_mail import attachments
                     ok = await send_html_email(
                         row["recipient_email"], row["subject"], row["body_html"],
+                        attachments=attachments(row),
                         # Preserved from the inline send this outbox replaced.
                         # Moving the approval mail here would otherwise have
                         # quietly dropped the flag it was sent with, and a
@@ -809,7 +822,7 @@ async def _drain_admin_notifications() -> None:
                         # recipient is actually waiting on.
                         importance_headers=row["kind"] in IMPORTANT_KINDS,
                     )
-                    store.mark_admin_notification_sent(row["id"], ok=bool(ok))
+                    store.mark_admin_notification_sent(row["id"], ok=bool(ok), error="" if ok else "Email provider did not accept the message")
                 except Exception as exc:
                     store.mark_admin_notification_sent(row["id"], ok=False, error=str(exc))
 

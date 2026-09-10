@@ -118,3 +118,13 @@ cd backend && python3 scripts/route_baseline.py --diff
 # dangling-import scan — imports that name a module that no longer exists
 cd backend && python3 scripts/check_dangling_imports.py
 ```
+
+## Mandatory data preservation for every future PRD
+
+Every data-related PRD and implementation follows `docs/data-safety/POLICY.md`.
+Preserve accepted originals, full form answers, contracts, source charts and all
+product records. No age-only cleanup, destructive migrations, replacement of
+existing evidence, silent truncation, or successful partial ingestion. Snapshot
+all affected databases and file trees before and after, test failure/retry paths,
+and obtain independent review. A missing inventory or untested restore blocks a
+production safety claim. Authorized retention disposition is a separate process.

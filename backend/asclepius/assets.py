@@ -259,7 +259,10 @@ def asset_storage_durable() -> Tuple[bool, str]:
 def _write_blob(sha256: str, data: bytes) -> None:
     path = _blob_path(sha256)
     if os.path.exists(path):
-        return  # content-addressed dedupe — identical image costs once (§9 perf)
+        with open(path, "rb") as existing:
+            if hashlib.sha256(existing.read()).hexdigest() == sha256:
+                return
+        raise ValueError("existing asset checksum mismatch; preserve and investigate")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     # Unique temp name so two concurrent ingests of the same content don't race on a
     # shared ``.tmp`` (the second os.replace could otherwise hit FileNotFoundError).
@@ -271,13 +274,15 @@ def _write_blob(sha256: str, data: bytes) -> None:
         os.fsync(f.fileno())          # survive an unclean container stop (Audit §P2)
     try:
         os.replace(tmp, path)         # atomic: no half-written blob is ever visible
+        from durable_files import sync_ancestors
+        sync_ancestors(os.path.dirname(path))
     except OSError:  # a concurrent writer won the race — identical content, fine
         if os.path.exists(tmp):
             try:
                 os.remove(tmp)
             except OSError:
                 pass
-        return
+        raise
     # Read back and re-hash. A blob that cannot be re-read does not exist, and finding
     # out now beats a physician annotating a case whose image 404s (Audit §P2). A blob
     # that fails verification is removed so nothing can later resolve corrupt content.
@@ -388,10 +393,16 @@ def store_media(chunks: Any, mime: str, *, max_bytes: Optional[int] = None) -> D
         sha = digest.hexdigest()
         final = _blob_path(sha)
         if os.path.exists(final):
+            with open(final, 'rb') as existing:
+                check = hashlib.file_digest(existing, 'sha256').hexdigest()
+            if check != sha:
+                raise AssetError('Existing media checksum mismatch; original preserved for investigation')
             os.remove(tmp)          # content-addressed dedupe: identical bytes cost once
         else:
             os.makedirs(os.path.dirname(final), exist_ok=True)
             os.replace(tmp, final)
+        from durable_files import sync_ancestors
+        sync_ancestors(os.path.dirname(final))
     except BaseException:
         if os.path.exists(tmp):
             try:

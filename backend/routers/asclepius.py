@@ -6608,21 +6608,20 @@ async def partner_upload(
             detail="Could not store the upload securely. Your link is still valid, "
                    "please retry in a moment.",
         )
-    # 2. ATOMIC one-time claim, AFTER the bytes are safe (closes the TOCTOU race
-    #    where two concurrent uploads both pass a used_count==0 read). If we lose
-    #    the claim (already used / revoked), delete the orphan blob and 410.
-    if not store.consume_upload_link(link["link_id"], one_time=bool(link.get("one_time"))):
-        asc_ingestion.delete_raw(raw_path)
-        raise HTTPException(status_code=410, detail="This upload link was already used")
-    # 3. Insert the row already carrying raw_path — it is never null, so the file
-    #    on disk is always reachable by download/retry/recovery.
-    upload = store.insert_ingest_upload(
-        upload_id=upload_id,
-        link_id=link["link_id"], partner_id=link["partner_id"],
-        filename=(file.filename or "bundle.zip")[:120], sha256=digest,
-        size_bytes=len(data), raw_path=raw_path,
-        source_ip=(request.client.host if request.client else None),
-    )
+    # The link claim and upload receipt commit together. A database failure
+    # rolls the claim back; the durable original remains available for recovery.
+    try:
+        upload = store.insert_ingest_upload(
+            upload_id=upload_id, consume_link=True,
+            link_id=link["link_id"], partner_id=link["partner_id"],
+            filename=(file.filename or "bundle.zip")[:120], sha256=digest,
+            size_bytes=len(data), raw_path=raw_path,
+            source_ip=(request.client.host if request.client else None),
+        )
+    except ValueError as exc:
+        if str(exc) == "upload_link_unavailable":
+            raise HTTPException(status_code=410, detail="This upload link was already used")
+        raise
     # Provenance from the authorizing LINK row, joined server-side (PRD-I §2.1).
     # This door had no such call at all, which is why its purpose column was dead.
     store.attach_upload_provenance(upload["upload_id"], link_id=link["link_id"])

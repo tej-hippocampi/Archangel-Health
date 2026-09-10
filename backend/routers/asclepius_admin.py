@@ -29,6 +29,7 @@ from audit import audit_log
 from onboarding_emails import build_asclepius_invite_email
 from ratelimit import rate_limiter
 
+from asclepius import hs_mail
 from asclepius import auth as asc_auth
 from asclepius import auto_generate as asc_auto_generate
 from asclepius import capabilities as asc_caps
@@ -2822,6 +2823,7 @@ async def health_system_detail(
         # and a later query should filter on `needs_baa`.
         "applications": [_hs_application_admin_view(r)
                          for r in store.list_hs_applications(hs_id)],
+        "email_delivery": hs_mail.status(store, hs_id),
         "agreements": [_hs_agreement_admin_view(r)
                        for r in store.list_signed_agreements(hs_id)],
         "invoices": store.list_hs_invoices(hs_id),
@@ -4846,7 +4848,7 @@ class HsOrgDeclineRequest(BaseModel):
 
 @router.post("/health-systems/{hs_id}/approve", include_in_schema=False)
 async def approve_health_system(
-    hs_id: str, body: HsOrgApproveRequest,
+    hs_id: str, body: HsOrgApproveRequest, background: BackgroundTasks,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Approve the ORGANIZATION and ask it for a signature.
@@ -4867,6 +4869,9 @@ async def approve_health_system(
     hs = store.get_health_system(hs_id)
     if not hs:
         raise HTTPException(status_code=404, detail="Health system not found")
+    readiness = hs_states.data_readiness_error(store, hs_id)
+    if readiness:
+        raise HTTPException(status_code=409, detail=readiness)
     current = hs_states.state_of(hs)
     try:
         hs_states.check_transition(current, hs_states.AWAITING_DLA)
@@ -4879,48 +4884,25 @@ async def approve_health_system(
             status_code=400,
             detail=f"purpose must be one of {', '.join(asc_ingestion.PURPOSES)}.")
 
-    accounts = [u for u in store.list_hs_portal_users(hs_id) if u.get("active")]
-    for account in accounts:
-        # Only rows that were actually waiting. An account provisioned before
-        # approval existed carries NULL and already reaches everything; stamping
-        # it here would rewrite a decision nobody made.
-        if (account.get("approval_status") or "").strip().lower() == "pending":
-            store.set_hs_approval(account["username"], "approved", by=admin["email"])
-        if purpose:
-            store.set_hs_portal_purpose(account["username"], purpose)
-    store.set_hs_onboarding_state(hs_id, hs_states.AWAITING_DLA)
+    try:
+        approved_count = store.approve_hs_organization(hs_id, by=admin['email'], purpose=purpose or None)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    accounts = [u for u in store.list_hs_portal_users(hs_id) if u.get('active')]
     store.log_event(entity_type="health_system", entity_id=hs_id,
                     event_type="onboarding_approved", actor=admin["email"],
                     payload={"accounts": [a["username"] for a in accounts],
                              "purpose": purpose or None})
 
-    notified = await _mail_dla_request(store, hs, accounts)
+    from main import _drain_admin_notifications
+    background.add_task(_drain_admin_notifications)
+    delivery = [r for r in hs_mail.status(store, hs_id) if r['kind'] == 'hs_dla_request']
     return {"ok": True, "hs_id": hs_id,
             "onboarding_state": hs_states.AWAITING_DLA,
-            "accounts_approved": len(accounts), "emailed": notified}
-
-
-async def _mail_dla_request(store: Any, hs: Dict[str, Any],
-                            accounts: List[Dict[str, Any]]) -> int:
-    """One letter per member. Awaited rather than backgrounded: this is an admin
-    route with no time budget, and the operator clicking Approve needs to know
-    whether the thing that unblocks the deal actually went out."""
-    if not is_email_transport_configured():
-        return 0
-    from onboarding_emails import build_hs_dla_request_email
-
-    body = build_hs_dla_request_email(organization=hs["name"],
-                                      portal_url=_portal_url())
-    sent = 0
-    for account in accounts:
-        to = (account.get("email") or "").strip()
-        if not to:
-            continue
-        ok = await send_html_email(
-            to, "One signature away: your data licensing agreement", body,
-            importance_headers=True)
-        sent += 1 if ok else 0
-    return sent
+            "accounts_approved": approved_count,
+            "emailed": sum(r['status'] == 'sent' for r in delivery),
+            "email_pending": sum(r['status'] == 'pending' for r in delivery),
+            "email_delivery": delivery}
 
 
 @router.post("/health-systems/{hs_id}/decline", include_in_schema=False)

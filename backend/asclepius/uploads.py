@@ -122,8 +122,7 @@ def max_parts() -> int:
 
 
 def session_ttl_hours() -> int:
-    """How long an unfinished session's parts survive (PRD-I §1.1: the reaper
-    deletes unverified parts older than 24 h)."""
+    """Legacy idle-window setting. Acknowledged parts are no longer age-deleted."""
     try:
         return max(1, int(os.getenv("ASCLEPIUS_UPLOAD_SESSION_TTL_HOURS", "24")))
     except ValueError:
@@ -341,9 +340,11 @@ def store_part(session: Dict[str, Any], n: int, data: bytes,
     with contextlib.suppress(OSError):
         os.chmod(tmp, 0o600)
     os.replace(tmp, data_path)
+    from durable_files import atomic_write, sync_directory
+    sync_directory(data_path.parent)
     # Sidecar LAST: it is the commit marker session_state reads, so a crash between
     # the two leaves the part correctly reported as not yet received.
-    meta_path.write_text(f"{actual} {len(data)}", encoding="utf-8")
+    atomic_write(meta_path, f"{actual} {len(data)}".encode("utf-8"))
     with contextlib.suppress(OSError):
         os.chmod(meta_path, 0o600)
     return {"part": n, "size": len(data), "sha256": actual}
@@ -409,28 +410,19 @@ def complete(store: Any, session: Dict[str, Any]) -> Dict[str, Any]:
     try:
         raw_path = asc_ingestion.store_raw_stream(upload_id, _counted())
     except BaseException:
-        # A failed assembly must hand the session back, or our own crash locks the
-        # partner out of an upload they can still finish. Suppressed on purpose:
-        # anything raised here would replace the REAL failure with a bookkeeping
-        # error, and the original is the one the operator can act on.
         with contextlib.suppress(Exception):
-            if store.release_upload_session_claim(session["session_id"]) == "aborted":
-                # Retired in favour of a live replacement the partner already
-                # opened — its parts are dead weight on the durable volume.
-                _purge_parts(session)
+            store.release_upload_session_claim(session['session_id'])
         raise
     actual = digest.hexdigest()
     if actual != session["declared_sha256"] or total != int(session["declared_size"]):
         # Destroy the assembled blob. A blob with no verified row is invisible to
         # the application by design, but leaving it on disk would still be PHI we
         # cannot account for.
-        asc_ingestion.delete_raw(raw_path)
         store.update_upload_session(session["session_id"], status="failed")
-        _purge_parts(session)
         raise UploadIntegrityError(
             "digest_mismatch",
             "The assembled upload did not match the checksum you declared. "
-            "Nothing was stored: please start the upload again.", status=409)
+            "The upload was not accepted. Your received parts are retained for investigation; please check the source file and retry.", status=409)
 
     # Naive UTC to whole seconds, matching every other timestamp in this schema.
     # A tz-aware value sorts and compares differently from its naive neighbours
@@ -443,12 +435,11 @@ def complete(store: Any, session: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def finalize(store: Any, session: Dict[str, Any], result: Dict[str, Any]) -> None:
-    """Mark the session verified and drop its parts. Called by the router AFTER the
-    upload row exists, so a crash in between leaves the parts on disk and the
-    session resumable rather than leaving a verified session with no upload."""
-    store.update_upload_session(session["session_id"], status="verified",
-                                upload_id=result["upload_id"],
-                                verified_at=result["verified_at"])
+    """Remove redundant parts only after the receipt/session commit is verified."""
+    current = store.get_upload_session(session['session_id'])
+    upload = store.get_ingest_upload(result['upload_id'])
+    if not current or current.get('status') != 'verified' or current.get('upload_id') != result['upload_id'] or not upload:
+        raise UploadSessionError('The durable upload receipt is not committed; parts retained.')
     _purge_parts(session)
 
 
@@ -487,58 +478,22 @@ def last_activity_epoch(session: Dict[str, Any]) -> Optional[float]:
 
 
 def reap_stale_sessions(store: Any) -> int:
-    """Delete unverified parts IDLE longer than the TTL (PRD-I §1.1). Best-effort;
-    never raises — a reaper that can crash the request path it is called from is
-    worse than a reaper that occasionally skips a run."""
-    ttl_seconds = session_ttl_hours() * 3600
-    # Candidate rows are still selected on the row timestamp, which is a cheap
-    # index-friendly filter that can only OVER-select — every candidate is then
-    # checked against real disk activity before anything is deleted.
-    cutoff_iso = (datetime.utcnow() - timedelta(seconds=ttl_seconds)
-                  ).replace(microsecond=0).isoformat()
-    idle_before = time.time() - ttl_seconds
-    reaped = 0
-    try:
-        stale = store.list_stale_upload_sessions(older_than_iso=cutoff_iso)
-    except Exception as exc:  # pragma: no cover - defensive
-        log.warning("upload session reaper could not list sessions: %s", exc)
-        return 0
-    for session in stale:
-        try:
-            status = session.get("status")
-            if status in ("aborted", "failed"):
-                # Already retired; only its disk is outstanding. Convergent
-                # cleanup — a session retired by any path eventually gives its
-                # parts back, without every caller having to remember to purge.
-                if _session_dir(session).exists():
-                    _purge_parts(session)
-                    reaped += 1
-                continue
-            activity = last_activity_epoch(session)
-            if activity is not None and activity > idle_before:
-                continue  # parts arrived recently — this upload is in flight
-            if status == "completing":
-                # A claim that outlived the process that took it. Hand it back
-                # rather than deleting: the parts are all present by definition
-                # (assembly had started), so the partner can simply retry. If a
-                # replacement session already exists the release retires this one
-                # instead, and only THEN are its parts dead weight.
-                if store.release_upload_session_claim(session["session_id"]) == "aborted":
-                    _purge_parts(session)
-                    reaped += 1
-                continue
-            _purge_parts(session)
-            store.update_upload_session(session["session_id"], status="aborted")
-            reaped += 1
-        except Exception as exc:  # pragma: no cover - defensive per-session
-            log.warning("upload session reaper failed for %s: %s",
-                        session.get("session_id"), exc)
-    if reaped:
-        with contextlib.suppress(Exception):
-            store.log_event(entity_type="ingest_upload_session",
-                            event_type="sessions_reaped",
-                            payload={"reaped": reaped, "ttl_hours": session_ttl_hours()})
-    return reaped
+    """Age is not consent to discard acknowledged parts.
+
+    A stale-session SELECT races a resumed upload in another worker. Keep the
+    parts and session available; explicit abort and successful completion own
+    their cleanup. Storage capacity must be monitored, never silently reclaimed
+    by dropping a hospital's interrupted upload.
+    """
+    cutoff = (datetime.utcnow() - timedelta(hours=session_ttl_hours())).isoformat()
+    # Recover abandoned completion claims; never remove their parts. Ordinary
+    # uploading sessions, including long pauses, remain resumable unchanged.
+    for session in store.list_stale_upload_sessions(older_than_iso=cutoff):
+        if session.get('status') == 'completing':
+            store.release_upload_session_claim(session['session_id'])
+    return 0
+
+
 
 
 def public_session(session: Dict[str, Any], state: Optional[Dict[str, Any]] = None,

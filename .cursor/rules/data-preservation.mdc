@@ -1,0 +1,21 @@
+---
+description: Preserve all accepted data throughout every data-related PRD and implementation.
+alwaysApply: true
+---
+
+# Data preservation is a release invariant
+
+For every feature, PRD, migration, cleanup or refactor that touches data:
+- Read `docs/data-safety/POLICY.md` and complete its change record before editing.
+- Preserve original uploads, submitted form answers, signed documents, source
+  charts, physician work, lineage, financial records and audit history.
+- Never use destructive migrations, replacement inserts, silent truncation,
+  age-only deletion, or success responses for unaccounted input.
+- Commit business state and durable work/email receipts atomically. Retry must
+  recover the same operation without replacing evidence or mixing patients.
+- Snapshot all affected stores and blob trees before and after; prove every
+  old ID and unchanged value/blob survives. Missing evidence blocks release.
+- Test crashes, write failures, retries, partial input and concurrent operations.
+- Require independent audit, verified backups and a restore drill before release.
+- Authorized legal retention/deletion is a separate, scoped, reviewed procedure;
+  an ordinary PRD is never authorization to delete product data.

@@ -40,18 +40,14 @@ def tick(store, storage):
     """One durable work item. Multiple workers use fenced leases, not RAM jobs."""
     now = time.time()
     with store.transaction() as q:
-        raw = q("SELECT * FROM media_files WHERE scope=? AND (state IN ('completing','verifying','cancelling','importing') OR (state IN ('uploading','initiating') AND updated<?)) AND lease<? ORDER BY updated LIMIT 1", (store.scope, now-7*86400, now)).fetchone()
+        raw = q("SELECT * FROM media_files WHERE scope=? AND state IN ('completing','verifying','cancelling','importing') AND lease<? ORDER BY updated LIMIT 1", (store.scope, now)).fetchone()
         if not raw:
             return False
     with store.transaction(raw["org"]) as q:
         raw = q("SELECT * FROM media_files WHERE scope=? AND org=? AND id=?", (store.scope, raw["org"], raw["id"])).fetchone()
         row = json.loads(raw["data"])
-        if raw["lease"] >= now or row["state"] not in ("completing", "verifying", "cancelling", "uploading", "initiating", "importing"):
+        if raw["lease"] >= now or row["state"] not in ("completing", "verifying", "cancelling", "importing"):
             return False
-        if row["state"] in ("uploading", "initiating") and raw["updated"] > now-7*86400:
-            return False
-        if row["state"] in ("uploading", "initiating"):
-            row["state"] = "cancelling"
         updated = q("UPDATE media_files SET lease=?,state=?,data=? WHERE scope=? AND org=? AND id=? AND lease<? AND updated=?", (now+120, row["state"], json.dumps(row), store.scope, row["org"], row["id"], now, raw["updated"]))
         if updated.rowcount != 1:
             return False

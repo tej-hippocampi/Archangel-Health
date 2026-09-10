@@ -5,7 +5,7 @@ window.ArchangelMedia = {
     if (!root.isConnected) return;
     const box = document.createElement("section");
     box.className = "asc-card-pad";
-    box.innerHTML = '<h3>Large files and video</h3><p>Upload files or a folder. Keep this tab open while sending. After reopening, choose the same files to resume. Originals stay on hold until reviewed.</p><label>Files <input type="file" multiple data-files></label> <label>Folder <input type="file" multiple webkitdirectory data-folder></label> <button type="button" data-pause>Pause</button> <button type="button" data-new>New collection</button><ul aria-live="polite"></ul>';
+    box.innerHTML = '<h3>Large files and video</h3><p>Upload files or a folder. Keep this tab open while sending. After reopening, choose the same files to resume. Originals stay on hold until reviewed. For clinical case creation, use the chart upload form. Large files and video are stored for review.</p><label>Files <input type="file" multiple data-files></label> <label>Folder <input type="file" multiple webkitdirectory data-folder></label> <button type="button" data-pause>Pause</button> <button type="button" data-new>New collection</button><ul aria-live="polite"></ul><button type="button" data-receipts>Refresh saved receipts</button><div data-history aria-live="polite"></div>';
     root.appendChild(box);
     const list = box.querySelector("ul");
     const scope = location.pathname.startsWith("/sandbox") ? "sandbox" : "live";
@@ -34,6 +34,48 @@ window.ArchangelMedia = {
       await persisted(saved);
       list.replaceChildren();
     };
+    const history = box.querySelector('[data-history]');
+    const stateLabel = row => row.state === 'stored' ? 'Storage verified; held for review' :
+      row.state === 'integrity_failed' || row.state === 'attention_required' ? 'Needs attention: verification did not complete' :
+      row.state === 'uploading' ? 'Upload paused or in progress; choose the same file to resume' : row.state;
+    async function receipts() {
+      try {
+        const result = {collections: []};
+        let collectionAfter = '';
+        do {
+          const page = await api('GET', '/hs/media/collections?after=' + encodeURIComponent(collectionAfter));
+          result.collections.push(...(page.collections || []));
+          collectionAfter = page.collections?.length === 100 ? page.collections[99].id : '';
+        } while (collectionAfter && box.isConnected);
+        history.replaceChildren();
+        for (const collection of result.collections || []) {
+          const details = document.createElement('details');
+          const summary = document.createElement('summary');
+          summary.textContent = 'Collection ' + collection.id + ' · ' + collection.files + ' files';
+          const rows = document.createElement('ul');
+          details.append(summary, rows); history.append(details);
+          let loaded = false;
+          details.ontoggle = async () => {
+            if (!details.open || loaded) return;
+            try {
+              let after = '';
+              do {
+                const page = await api('GET', '/hs/media/collections/' + collection.id + '?after=' + encodeURIComponent(after));
+                for (const row of page.files || []) {
+                  const li = document.createElement('li');
+                  li.textContent = row.path + ' · ' + stateLabel(row) + ' · receipt ' + row.id + (row.sha256 ? ' · SHA-256 ' + row.sha256 : '');
+                  rows.append(li);
+                }
+                after = page.files?.length === 100 ? page.files[99].id : '';
+              } while (after && box.isConnected);
+              loaded = true;
+            } catch (error) { rows.textContent = error.message; }
+          };
+        }
+      } catch (error) { history.textContent = 'Receipts could not be loaded: ' + error.message; }
+    }
+    box.querySelector('[data-receipts]').onclick = receipts;
+    await receipts();
     const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
     async function checksum(blob) {
       const worker = new Worker("/static/provider/media-hash-worker.js");
@@ -108,8 +150,18 @@ window.ArchangelMedia = {
             }
             if (!cancelled) {
               await api("POST", "/hs/media/files/" + row.id + "/complete", {});
-              label.textContent = path + ": received; storage verification queued";
+              label.textContent = path + ": received; storage verification queued; receipt " + row.id;
               cancel.disabled = true;
+              (async () => {
+                for (let attempt = 0; attempt < 60 && box.isConnected; attempt++) {
+                  await wait(5000);
+                  try {
+                    const status = await api('GET', '/hs/media/files/' + row.id);
+                    label.textContent = path + ': ' + stateLabel(status) + '; receipt ' + row.id;
+                    if (!['completing', 'verifying', 'importing'].includes(status.state)) break;
+                  } catch (_) { break; }
+                }
+              })();
             } else if (entry.id) { await api("DELETE", "/hs/media/files/" + entry.id); }
           } catch (e) { label.textContent = path + ": " + e.message; }
         }

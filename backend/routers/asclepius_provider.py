@@ -1190,6 +1190,9 @@ def _hs_upload_preconditions(store: Any, portal_user: Dict[str, Any]) -> None:
     if not hs_states.can_upload(portal_user.get("health_system")):
         raise HTTPException(status_code=403, detail=_hs_locked_message(
             portal_user.get("health_system")))
+    readiness = hs_states.data_readiness_error(store, portal_user['hs_id'])
+    if readiness:
+        raise HTTPException(status_code=403, detail=readiness)
     if portal_user.get("must_reset"):
         raise HTTPException(status_code=403, detail="Reset your password before uploading.")
     if _is_production():
@@ -1392,7 +1395,8 @@ async def hs_upload_complete(
 
     Order matters and is the invariant: the blob is written and verified BEFORE
     the ``ingest_uploads`` row exists, so there is never a row pointing at bytes
-    we have not proven. A digest mismatch creates nothing at all."""
+    we have not proven. A digest mismatch retains recovery bytes without an
+    accepted receipt."""
     from asclepius import uploads as asc_uploads
 
     store = _store()
@@ -1418,29 +1422,33 @@ async def hs_upload_complete(
         return {"upload_id": result["upload_id"], "status": "received",
                 "sha256": result["sha256"], "total_bytes": result["byte_size"]}
 
-    upload = store.insert_ingest_upload(
-        upload_id=result["upload_id"], link_id=_HS_LINK_ID, partner_id=hs_id,
-        filename=session.get("filename") or "bundle.zip",
-        sha256=result["sha256"], size_bytes=result["byte_size"],
-        raw_path=result["raw_path"],
-        source_ip=(request.client.host if request.client else None))
-    store.set_upload_health_system(upload["upload_id"], hs_id)
-    # Copied off the session the partner declared, not off this request: what an
-    # upload answers was decided at declare and cannot be renamed at complete.
-    if session.get("request_id"):
-        store.set_upload_request(upload["upload_id"], session["request_id"])
-    # (sha256, byte_size, verified_at) — the chain-of-custody triple. Stamped only
-    # after the digest was recomputed over the assembled bytes and matched.
-    store.mark_upload_verified(upload["upload_id"], verified_at=result["verified_at"])
-    # Provenance carried forward from the session the server itself stamped at
-    # declare — a server-side join, not a value that passed through this door.
-    store.attach_upload_provenance(upload["upload_id"], session_id=session_id)
-    asc_uploads.finalize(store, session, result)
-    store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
-                    event_type="upload_received", actor=portal_user["username"],
-                    payload={"health_system_id": hs_id, "sha256": result["sha256"],
-                             "bytes": result["byte_size"], "via": "hs_portal_chunked",
-                             "parts": session["part_count"]})
+    try:
+        upload = store.insert_ingest_upload(
+            upload_id=result["upload_id"], link_id=_HS_LINK_ID, partner_id=hs_id,
+            filename=session.get("filename") or "bundle.zip",
+            sha256=result["sha256"], size_bytes=result["byte_size"],
+            raw_path=result["raw_path"],
+            source_ip=(request.client.host if request.client else None),
+            session_id=session_id, verified_at=result["verified_at"])
+    except Exception:
+        store.release_upload_session_claim(session_id)
+        raise
+    try:
+        asc_uploads.finalize(store, session, result)
+    except Exception:
+        log.exception("post-receipt part cleanup deferred; original and receipt are committed")
+    try:
+        store.apply_auto_generate_default(upload["upload_id"])
+    except Exception:
+        log.exception("auto-generation default could not be applied after durable receipt")
+    try:
+        store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
+                        event_type="upload_received", actor=portal_user["username"],
+                        payload={"health_system_id": hs_id, "sha256": result["sha256"],
+                                 "bytes": result["byte_size"], "via": "hs_portal_chunked",
+                                 "parts": session["part_count"]})
+    except Exception:
+        log.exception("upload event deferred after durable receipt")
     background.add_task(asc_ingestion.process_upload, store, upload["upload_id"])
     return {"upload_id": upload["upload_id"], "status": "received",
             "sha256": result["sha256"], "total_bytes": result["byte_size"]}
@@ -2017,38 +2025,36 @@ async def hs_intake_post(
     answers: Dict[str, Any] = {}
     for prompt in _HS_INTAKE_PROMPTS:
         raw = getattr(body, prompt["key"], None) or ""
-        value = str(raw).strip()[:_HS_INTAKE_MAX_CHARS]
+        value = str(raw).strip()
+        if len(value) > _HS_INTAKE_MAX_CHARS:
+            raise HTTPException(status_code=422, detail=f"{prompt['label']}: maximum {_HS_INTAKE_MAX_CHARS} characters; nothing was submitted.")
         if prompt["required"] and not value:
             raise HTTPException(status_code=400,
                                 detail="Please answer the two required questions.")
         answers[prompt["key"]] = value
+    from asclepius import hs_mail
+    import notifications
+    from onboarding_emails import build_hs_intake_alert
+    org = portal_user["health_system"]["name"]
+    event = _uuid.uuid4().hex
+    html = build_hs_intake_alert(full_name=portal_user.get("full_name") or "",
+        email=portal_user.get("email") or "", organization=org,
+        answers=answers, hs_id=portal_user["hs_id"])
+    jobs = [hs_mail.message(portal_user["hs_id"], "hs_intake", event, addr,
+        f"[Health system] Intake: {org}", html)
+        for addr in notifications.founder_recipients(store)]
     row = store.record_hs_intake(hs_id=portal_user["hs_id"],
-                                 username=portal_user["username"], answers=answers)
+        username=portal_user["username"], answers=answers, outbox=jobs)
     store.log_event(entity_type="health_system", entity_id=portal_user["hs_id"],
                     event_type="intake_submitted", actor=portal_user["username"])
     # Background, not awaited: this route sits behind the portal time budget and
     # a mail round trip is several times it, so awaiting would make response
     # time a function of whether email is configured.
-    background.add_task(_notify_hs_intake, store, portal_user, answers)
+    from main import _drain_admin_notifications
+    background.add_task(_drain_admin_notifications)
     return {"ok": True, "submitted_at": row["submitted_at"]}
 
 
-def _notify_hs_intake(store: Any, portal_user: Dict[str, Any],
-                      answers: Dict[str, Any]) -> None:
-    try:
-        import notifications
-        from onboarding_emails import build_hs_intake_alert
-        org = portal_user["health_system"]["name"]
-        notifications.notify_founders(
-            store, kind="hs_intake", subject=f"[Health system] Intake: {org}",
-            body_html=build_hs_intake_alert(
-                full_name=portal_user.get("full_name") or "",
-                email=portal_user.get("email") or "", organization=org,
-                answers=answers, hs_id=portal_user["hs_id"]),
-            dedupe_key=f"{portal_user['hs_id']}|{answers.get('data_held', '')[:40]}",
-            coalesce=False)
-    except Exception:
-        log.exception("hs intake: notification failed")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -2529,29 +2535,31 @@ async def hs_application_post(
         answers[key] = value
     allowed = set(_HS_SPECIALTIES)
     specialties = []
-    for raw in (body.scale_specialties or [])[:len(_HS_SPECIALTIES)]:
+    for raw in (body.scale_specialties or []):
         value = str(raw).strip()
-        if value in allowed and value not in specialties:
+        if value not in allowed:
+            raise HTTPException(status_code=422, detail=f"Unknown specialty: {value}. Nothing was submitted.")
+        if value not in specialties:
             specialties.append(value)
 
+    outbox = _hs_application_messages(store, portal_user, {**answers, 'scale_specialties': specialties})
     row = store.record_hs_application(
         hs_id=hs["hs_id"], username=portal_user["username"],
         authority=answers["authority"], deid_capability=answers["deid_capability"],
         export_scope=answers["export_scope"], scale_patients=answers["scale_patients"],
-        scale_years=answers["scale_years"], scale_specialties=specialties)
+        scale_years=answers["scale_years"], scale_specialties=specialties, outbox=outbox)
     store.log_event(entity_type="health_system", entity_id=hs["hs_id"],
                     event_type="application_submitted", actor=portal_user["username"])
     # Background, not awaited: this route sits behind the portal time budget and
     # a mail round trip is several times it, so awaiting would make response
     # time a function of whether email is configured.
-    background.add_task(_notify_hs_application, store, portal_user, row)
     fresh = store.get_health_system(hs["hs_id"])
     return {"ok": True, "submitted_at": row["submitted_at"],
             **hs_states.public_view(fresh)}
 
 
-def _notify_hs_application(store: Any, portal_user: Dict[str, Any],
-                           row: Dict[str, Any]) -> None:
+def _hs_application_messages(store: Any, portal_user: Dict[str, Any],
+                           row: Dict[str, Any]) -> list:
     try:
         import notifications
         from onboarding_emails import build_hs_application_alert
@@ -2571,18 +2579,20 @@ def _notify_hs_application(store: Any, portal_user: Dict[str, Any],
         ]
         members = [u.get("email") or u.get("username")
                    for u in store.list_hs_portal_users(portal_user["hs_id"])]
-        notifications.notify_founders(
-            store, kind="hs_application",
-            subject=f"[Health system] Application: {org}",
-            body_html=build_hs_application_alert(
+        from asclepius import hs_mail
+        import uuid
+        event = uuid.uuid4().hex
+        body = build_hs_application_alert(
                 organization=org, hs_id=portal_user["hs_id"],
                 full_name=portal_user.get("full_name") or "",
                 email=portal_user.get("email") or "",
-                answers=answers, members=members),
-            dedupe_key=f"{portal_user['hs_id']}|{row.get('submitted_at')}",
-            coalesce=False)
+                answers=answers, members=members)
+        return [hs_mail.message(portal_user['hs_id'], 'hs_application', event, addr,
+            f"[Health system] Application: {org}", body)
+            for addr in notifications.founder_recipients(store)]
     except Exception:
-        log.exception("hs application: notification failed")
+        log.exception("hs application: notification preparation failed")
+        raise
 
 
 # ─── The team ────────────────────────────────────────────────────────────────
@@ -2772,6 +2782,7 @@ async def hs_agreement_get(
                             detail="The agreement could not be loaded just now. "
                                    "Please try again in a moment.")
     signed = _hs_agreement_summary(store, hs)
+    readiness = hs_states.data_readiness_error(store, hs['hs_id'])
     return {
         "doc_version": asc_dla.CURRENT_VERSION,
         "doc_sha256": sha,
@@ -2779,10 +2790,11 @@ async def hs_agreement_get(
         "organization": hs["name"],
         # Whether THIS session may sign right now. False once somebody has, and
         # false before approval, and the reason is in `next_step` either way.
-        "can_sign": bool(hs_states.can_sign(hs) and not signed),
+        "can_sign": bool(hs_states.can_sign(hs) and not signed and not readiness),
         "signed": signed,
         "signer_name_prefill": portal_user.get("full_name") or "",
         **hs_states.public_view(hs),
+        **({"next_step": readiness} if readiness else {}),
     }
 
 
@@ -2825,6 +2837,9 @@ async def hs_agreement_sign(
             status_code=409,
             detail="Your organization's agreement is already signed. "
                    "Reload the page to see who signed it and when.")
+    readiness = hs_states.data_readiness_error(store, hs['hs_id'])
+    if readiness:
+        raise HTTPException(status_code=409, detail=readiness)
     if not hs_states.can_sign(hs):
         raise HTTPException(status_code=409, detail=_hs_locked_message(hs))
     if not body.authority_affirmed or not body.consent_esign:
@@ -2844,7 +2859,7 @@ async def hs_agreement_sign(
         raise HTTPException(status_code=503,
                             detail="The agreement could not be loaded just now. "
                                    "Please try again in a moment.")
-    if (body.doc_sha256 or "").strip() and body.doc_sha256.strip() != sha:
+    if (body.doc_sha256 or "").strip() != sha:
         # The document on their screen is not the document we would record. That
         # is either a deploy landing mid-read or a tampered client, and both
         # produce the same wrong outcome: a signature against text nobody agreed
@@ -2877,71 +2892,31 @@ async def hs_agreement_sign(
             detail="We could not file your signed copy just now, so nothing was "
                    "signed. Please try again in a moment.")
 
-    row = store.record_signed_agreement(
-        hs_id=hs["hs_id"], doc_version=asc_dla.CURRENT_VERSION, doc_sha256=sha,
-        pdf_sha256=pdf_sha, signer_user_id=portal_user["username"],
-        signer_email=portal_user.get("email") or "", typed_name=typed_name,
-        typed_title=typed_title, consent_esign=True, authority_affirmed=True,
-        ip=signature["ip"], user_agent=signature["user_agent"])
-    store.set_hs_onboarding_state(hs["hs_id"], hs_states.ACTIVE)
+    from asclepius import hs_mail
+    import notifications
+    outbox = hs_mail.signed_messages(hs, store.list_hs_portal_users(hs['hs_id']), signature, pdf_sha, notifications.founder_recipients(store))
+    try:
+        row = store.record_signed_agreement(
+            hs_id=hs["hs_id"], doc_version=asc_dla.CURRENT_VERSION, doc_sha256=sha,
+            pdf_sha256=pdf_sha, signer_user_id=portal_user["username"],
+            signer_email=portal_user.get("email") or "", typed_name=typed_name,
+            typed_title=typed_title, consent_esign=True, authority_affirmed=True,
+            ip=signature["ip"], user_agent=signature["user_agent"], signed_at=signed_at,
+            activate=True, outbox=outbox)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     store.log_event(entity_type="health_system", entity_id=hs["hs_id"],
                     event_type="agreement_signed", actor=portal_user["username"],
                     payload={"agreement_id": row["agreement_id"],
                              "doc_version": asc_dla.CURRENT_VERSION,
                              "doc_sha256": sha, "pdf_sha256": pdf_sha})
 
-    background.add_task(_notify_agreement_signed, store, hs["hs_id"], hs["name"],
-                        dict(row), pdf)
+    from main import _drain_admin_notifications
+    background.add_task(_drain_admin_notifications)
     fresh = store.get_health_system(hs["hs_id"])
     return {"ok": True, "signed": _hs_agreement_summary(store, fresh),
             **hs_states.public_view(fresh)}
 
-
-def _notify_agreement_signed(store: Any, hs_id: str, organization: str,
-                             row: Dict[str, Any], pdf: bytes) -> None:
-    """Three letters: the countersigned copy to the signer and to us, and the
-    door-is-open note to everyone on the account."""
-    try:
-        from asclepius.ingest_notify import _run_coro
-        from onboarding_emails import (
-            build_hs_agreement_receipt_email, build_hs_uploads_open_email,
-        )
-        import notifications
-        filename = asc_dla.pdf_filename(organization=organization,
-                                        version=str(row.get("doc_version") or ""))
-        receipt = build_hs_agreement_receipt_email(
-            organization=organization, doc_version=str(row.get("doc_version") or ""),
-            signer_name=str(row.get("typed_name") or ""),
-            signer_title=str(row.get("typed_title") or ""),
-            signed_at=str(row.get("signed_at") or ""),
-            doc_sha256=str(row.get("doc_sha256") or ""))
-        attachment = [(filename, "application/pdf", pdf)]
-        if is_email_transport_configured():
-            signer_to = (row.get("signer_email") or "").strip()
-            if signer_to:
-                _run_coro(send_html_email(
-                    signer_to, f"Signed: your data licensing agreement, {organization}",
-                    receipt, attachments=attachment))
-            opened = build_hs_uploads_open_email(
-                organization=organization, portal_url=_hs_portal_url(),
-                signer_name=str(row.get("typed_name") or ""),
-                signed_at=str(row.get("signed_at") or ""))
-            for member in store.list_hs_portal_users(hs_id):
-                addr = (member.get("email") or "").strip()
-                if addr and member.get("active"):
-                    _run_coro(send_html_email(
-                        addr, f"Uploads are open for {organization}", opened))
-        # Our own copy goes through the founder alerts, which carry their own
-        # addressing and their own dedupe. No attachment: it is one click away
-        # in the admin card and mailing a contract to a distribution list is a
-        # habit worth not starting.
-        notifications.notify_founders(
-            store, kind="hs_agreement_signed",
-            subject=f"[Health system] Agreement signed: {organization}",
-            body_html=receipt, dedupe_key=str(row.get("agreement_id") or hs_id),
-            coalesce=False)
-    except Exception:
-        log.exception("agreement: notification failed")
 
 
 @portal_router.get("/hs/agreement/document")

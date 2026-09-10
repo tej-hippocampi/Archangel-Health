@@ -1,5 +1,5 @@
 {
-  "count": 669,
+  "count": 671,
   "routes": [
     "DELETE /api/asclepius/hs/media/files/{fid}",
     "DELETE /api/asclepius/hs/uploads/sessions/{session_id}",
@@ -63,6 +63,7 @@
     "GET /api/asclepius/admin/hs-referrals",
     "GET /api/asclepius/admin/hs-requests",
     "GET /api/asclepius/admin/hs-requests/{request_id}",
+    "GET /api/asclepius/admin/media/{org}/collections",
     "GET /api/asclepius/admin/media/{org}/collections/{cid}",
     "GET /api/asclepius/admin/metrics/questions",
     "GET /api/asclepius/admin/physicians",
@@ -114,6 +115,7 @@
     "GET /api/asclepius/hs/invite/{token}",
     "GET /api/asclepius/hs/me",
     "GET /api/asclepius/hs/media/capabilities",
+    "GET /api/asclepius/hs/media/collections",
     "GET /api/asclepius/hs/media/collections/{cid}",
     "GET /api/asclepius/hs/media/files/{fid}",
     "GET /api/asclepius/hs/members",

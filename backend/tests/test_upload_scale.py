@@ -237,10 +237,11 @@ def test_internally_consistent_parts_that_are_the_wrong_file_fail_the_whole_dige
     r = client.post(f"{API}/hs/uploads/sessions/{session['session_id']}/complete")
     assert r.status_code == 409
     assert "checksum" in r.json()["detail"]
-    # Nothing was created: no row, and no orphaned blob left behind.
+    # No accepted receipt; recovery bytes and acknowledged parts remain.
     assert store.count_ingest_uploads() == 0
     blobs = list((Path(asc_ingestion.quarantine_root())).glob("*.zip.enc"))
-    assert blobs == []
+    assert len(blobs) == 1
+    assert Path(store.get_upload_session(session["session_id"])["storage_dir"]).exists()
 
 
 def test_a_short_part_is_refused_before_it_is_stored(client):
@@ -308,7 +309,7 @@ def test_the_partner_sees_the_chunked_upload_in_their_history(client):
     rows = client.get(f"{API}/hs/uploads").json()["uploads"]
     assert len(rows) == 1
     assert rows[0]["total_bytes"] == len(data)
-    assert rows[0]["status"] in ("received", "processing", "accepted")
+    assert rows[0]["status"] in ("received", "processing", "accepted", "needs_attention")
 
 
 # ── memory stays flat ────────────────────────────────────────────────────────
@@ -455,7 +456,7 @@ def test_zip_slip_and_nested_archives_are_rejected_per_entry(monkeypatch, tmp_pa
     assert by_name["note.txt"]["kind"] == "note_text"
 
 
-def test_the_reaper_deletes_unverified_parts(client, monkeypatch):
+def test_age_does_not_delete_acknowledged_upload_parts(client, monkeypatch):
     store = A.fresh_store()
     _portal(client, store)
     data = _bundle(1024 * 1024)
@@ -474,9 +475,9 @@ def test_the_reaper_deletes_unverified_parts(client, monkeypatch):
                      "WHERE session_id = ?", (session["session_id"],))
     for p in parts_dir.iterdir():
         os.utime(p, (0, 0))
-    assert asc_uploads.reap_stale_sessions(store) == 1
-    assert not parts_dir.exists()
-    assert store.get_upload_session(session["session_id"])["status"] == "aborted"
+    assert asc_uploads.reap_stale_sessions(store) == 0
+    assert parts_dir.exists()
+    assert store.get_upload_session(session["session_id"])["status"] is None
 
 
 # ── the two doors must accept the same files ─────────────────────────────────
@@ -811,7 +812,7 @@ def test_releasing_a_stuck_claim_does_not_collide_with_a_fresh_session(client):
         "the reaper aborted the partner's live retry")
     assert store.get_upload_session(stuck["session_id"])["status"] == "aborted", (
         "the stuck session was left behind, holding its parts on the volume")
-    assert not stuck_dir.exists(), "the retired session's parts were not released"
+    assert stuck_dir.exists(), "acknowledged parts must survive retirement of a conflicting session"
 
 
 def test_an_assembly_failure_surfaces_its_own_reason(client, monkeypatch):
@@ -900,7 +901,7 @@ def test_a_timeout_holds_the_upload_for_review_instead_of_rejecting_it(client, m
 
 
 # ── M1: an unreferenced PHI blob must not live forever ──────────────────────
-def test_a_blob_with_no_upload_row_is_eventually_released(client, monkeypatch, tmp_path):
+def test_a_blob_with_no_upload_row_is_preserved_for_recovery(client, monkeypatch, tmp_path):
     """A crash between ``complete()`` and the upload row leaves an encrypted
     bundle on the durable volume that no row points at. ``purge_expired_raw``
     iterates DB ROWS, so it never sees it, and the scratch sweeper's prefixes do
@@ -917,8 +918,8 @@ def test_a_blob_with_no_upload_row_is_eventually_released(client, monkeypatch, t
     assert Path(orphan).exists()
 
     os.utime(orphan, (0, 0))
-    assert asc_ingestion.purge_orphan_raw(store) == 1
-    assert not Path(orphan).exists()
+    assert asc_ingestion.purge_orphan_raw(store) == 0
+    assert Path(orphan).exists()
 
 
 def test_a_referenced_blob_is_never_treated_as_an_orphan(client, monkeypatch, tmp_path):

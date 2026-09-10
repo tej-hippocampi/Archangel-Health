@@ -558,6 +558,32 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
         "_synthetic_declared": False,     # §2 A5 — recorded, NEVER trusted
     }
 
+    # Resolve patient fullUrl aliases before comparing subject ownership. A
+    # Bundle fullUrl UUID need not match the resource's logical Patient.id.
+    patient_aliases = {}
+    for entry in raw.get('entry') or []:
+        resource = entry.get('resource') if isinstance(entry, dict) else None
+        if isinstance(resource, dict) and resource.get('resourceType') == 'Patient' and resource.get('id'):
+            pid = str(resource['id'])
+            for alias in (entry.get('fullUrl'), 'Patient/' + pid, '#' + pid, 'urn:uuid:' + pid):
+                if alias:
+                    if alias in patient_aliases and patient_aliases[alias] != pid:
+                        raise FhirParseError('ambiguous patient fullUrl')
+                    patient_aliases[alias] = pid
+    # Ownership may exist only in subject references, even without Patient rows.
+    for resource in resources:
+        subject = resource.get('subject') or {}
+        reference = subject.get('reference') if isinstance(subject, dict) else None
+        if reference:
+            frag['_patient_keys'].append(patient_aliases.get(str(reference), _reference_id(reference)))
+    def vital_timestamp(value):
+        from datetime import datetime, timezone
+        try:
+            parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+            return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+        except (ValueError, TypeError):
+            return None
+
     birth_date = None
     declared_age_years: Optional[int] = None
     lab_by_key: Dict[tuple, Dict[str, Any]] = {}
@@ -654,17 +680,20 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
                 continue
             name = _codeable_text(res.get("code")) or "Observation"
             if cat == "vital-signs":
-                frag["vitals"][name] = f"{value} {unit}".strip() if unit else value
-                # Vitals collapse into ONE flat dict, so they carry one timing marker
-                # for the set: the LATEST vital-sign date (the most recent set is what
-                # a "current vitals" read returns). ``timeline`` converts it to a
-                # relative offset so V5 can gate the set. Reserved key, stripped
-                # before the dict is ever returned to an agent.
+                rendered = f"{value} {unit}".strip() if unit else value
                 veff = _effective(res)
-                if veff:
-                    prior = frag.get("_vitals_at")
-                    if not prior or str(veff) > str(prior):
-                        frag["_vitals_at"] = str(veff)
+                # Preserve every reading as a dated source observation. The flat
+                # current-vitals set contains only observations from its own date.
+                frag['notes'].append({'note_type': 'vital_signs', 'author_role': 'clinical record',
+                    'text': f"Recorded vital sign observation: {name}: {rendered}.", 'collected_at': veff})
+                prior = frag.get('_vitals_at')
+                if vital_timestamp(veff) and (not vital_timestamp(prior) or vital_timestamp(veff) > vital_timestamp(prior)):
+                    frag['vitals'] = {name: rendered}
+                    frag['_vitals_at'] = str(veff)
+                elif vital_timestamp(veff) and vital_timestamp(veff) == vital_timestamp(prior):
+                    frag['vitals'][name] = rendered
+                elif not veff and not prior:
+                    frag['vitals'][name] = rendered
                 continue
             if cat != "laboratory":
                 continue

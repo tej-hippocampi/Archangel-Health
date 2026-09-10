@@ -224,16 +224,18 @@ def test_unsafe_paths_rejected(media, path):
     with pytest.raises(M.MediaError): store.declare(org, "actor", store.collection(org), "token", path, 3)
 
 
-def test_expiry_cannot_abort_a_renewed_session(media, monkeypatch):
+def test_idle_session_retains_acknowledged_parts(media, monkeypatch):
     store, remote = media
     row = new(store, remote)
+    remote.uploads[row['upload_id']][1] = b'abc'
     with store.transaction() as q:
         q("UPDATE media_files SET updated=? WHERE scope=? AND org=? AND id=?", (time.time()-8*86400, store.scope, row["org"], row["id"]))
     def abort(r):
-        with pytest.raises(M.MediaError): store.change(r["org"], r["id"], ("uploading",))
+        pytest.fail('age alone cannot authorize deleting acknowledged parts')
     monkeypatch.setattr(remote, "abort", abort)
     S.tick(store, remote)
-    assert store.get(row["org"], row["id"])["state"] == "cancelled"
+    assert store.get(row["org"], row["id"])["state"] == "uploading"
+    assert remote.uploads[row['upload_id']][1] == b'abc'
 
 
 def test_delivery_requires_inspection_and_is_buyer_bound(media):

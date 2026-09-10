@@ -31,6 +31,11 @@ class Delivery(BaseModel):
     buyer: str = Field(min_length=1, max_length=128)
 
 
+@router.get("/admin/media/{org}/collections")
+def collections(org: str, after: str = Query("", max_length=64), admin=Depends(auth.require_admin)):
+    return execute(lambda: {"collections": M.get_store().collections(org, after)})
+
+
 @router.get("/admin/media/{org}/collections/{cid}")
 def catalog(org: str, cid: str, after: str = Query("", max_length=64), admin=Depends(auth.require_admin)):
     return execute(lambda: {"files": M.get_store().catalog(org, cid, after)})

@@ -273,19 +273,22 @@ def test_storage_failure_does_not_burn_the_link_or_strand_a_row(monkeypatch):
     assert res["status"] == "received"
 
 
-def test_lost_one_time_claim_cleans_up_the_orphan_blob(monkeypatch):
-    """If two uploads race and this one loses the atomic claim AFTER writing its
-    bytes, the orphan blob is deleted — no accumulating unreferenced files."""
+def test_lost_one_time_claim_preserves_the_original_for_reconciliation(monkeypatch):
     link = _mint(_admin_h())
     zb = _zip({"manifest.json": _manifest(), "labs.csv": _CSV})
     st = _store()
-    monkeypatch.setattr(st, "consume_upload_link", lambda *a, **k: False)
+    original = st.insert_ingest_upload
+    def competing_claim(**kwargs):
+        st.consume_upload_link(link['link_id'], one_time=True)
+        return original(**kwargs)
+    monkeypatch.setattr(st, 'insert_ingest_upload', competing_claim)
     before = set(glob.glob(str(asc_ingestion.quarantine_root() / "*.zip.enc")))
     r = client.post(f"/api/asclepius/partner/uploads?t={link['token']}",
                     files={"file": ("b.zip", zb, "application/zip")})
     assert r.status_code == 410
     after = set(glob.glob(str(asc_ingestion.quarantine_root() / "*.zip.enc")))
-    assert before == after                               # orphan cleaned up
+    assert len(after - before) == 1
+    assert not st.list_ingest_uploads()
 
 
 # ─── Recovery after a redeploy interrupts the pipeline ────────────────────────
