@@ -468,8 +468,10 @@ function applyCvParse(
     patch.fellowship = fellowships.map((t) => ({
       rowId: newRowId("fel"),
       institution: t.institution || "",
-      // The parse knows WHERE and WHEN. It does not reliably know the
-      // fellowship's subject, so that box is left for the physician.
+      // THE DOCUMENT'S OWN WORD, or nothing (PRD C §6-C). The server fills this
+      // only where the training line names a field it recognises, normalised to
+      // how a person writes it; an unrecognised subject leaves the box genuinely
+      // empty. Never inferred from their current specialty.
       specialty: t.specialty || "",
       year: t.end_year || "",
     }));
