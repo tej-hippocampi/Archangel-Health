@@ -526,7 +526,8 @@ def test_the_portal_renders_the_rail_and_hides_it_when_nothing_is_priced():
     zeroes on a money page read as "you are owed nothing", which is a different
     and false statement from "nobody has priced this yet"."""
     js = (PORTAL_DIR / "provider.js").read_text(encoding="utf-8")
-    assert "renderRail(data.rail || {})" in js, "the rail is never rendered"
+    assert "renderPayoutRail(data.rail || {})" in js, "the payout summary is never rendered"
+    assert js.count("function renderRail(") == 1, "payout rendering must not shadow portal navigation"
     for field in ("accrued_cents", "invoiced_cents", "settled_cents"):
         assert field in js
     assert "if (!rail.priced)" in js, "the unpriced case is not hidden"

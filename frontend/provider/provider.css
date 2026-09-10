@@ -7,6 +7,15 @@
    ═══════════════════════════════════════════════════════════ */
 
 .prv-body { min-height: 100vh; }
+.prv-body .asc-header-right { min-width: 0; max-width: 100%; }
+#prvUserBadge {
+  display: grid;
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+#prvUserBadge .asc-user-role { font-size: 12px; color: var(--asc-muted); }
+.prv-body #prvLogoutBtn { flex-shrink: 0; }
 
 /* Utility: visually hide but keep accessible (the real file input). */
 .prv-visually-hidden {
@@ -347,7 +356,7 @@ body.prv-has-rail .prv-main { padding-left: calc(var(--asc-rail-w, 220px) + 8px)
    Accrued, invoiced, settled: the same stat treatment as the payout summary
    above, under its own rule so the two can be read as one row of numbers
    without either block owning the other's spacing. */
-.prv-rail {
+#prvPayoutRail {
   margin-top: 18px;
   padding-top: 16px;
   border-top: 1px solid var(--asc-line);
@@ -553,6 +562,10 @@ body.prv-has-rail .prv-main { padding-left: calc(var(--asc-rail-w, 220px) + 8px)
 
 @media (max-width: 900px) {
   /* The rail becomes a strip along the top rather than eating a phone's width. */
+  .prv-body { display: flex; flex-direction: column; }
+  #prvHeader { order: 0; }
+  #prvRail { order: 1; }
+  #prvRoot { order: 2; }
   body.prv-has-rail .prv-main { padding-left: 0; }
   .prv-rail {
     position: static;

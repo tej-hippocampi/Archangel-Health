@@ -61,8 +61,8 @@
         </div>
         <div class="asc-login-body">
           <p class="prv-lead">
-            Welcome. Sign in with the username and password from your welcome
-            email to begin a secure, encrypted data handover.
+            Welcome. Sign in with your portal username and the password you
+            chose when setting up your account.
           </p>
           <div class="asc-login-error" id="prvLoginError" role="alert" hidden></div>
           <form id="prvLoginForm" novalidate>
@@ -105,8 +105,8 @@
         </div>
         <div class="asc-login-body">
           <p class="prv-lead">
-            For your security, please replace the temporary password from your
-            welcome email with a private password of your own.
+            Choose a private password to secure your account. You will use it
+            with your portal username when you return.
           </p>
           <div class="asc-login-error" id="prvResetError" role="alert" hidden></div>
           <div class="asc-inline-ok" id="prvResetOk" hidden></div>
@@ -399,6 +399,7 @@
           <p class="asc-login-hint">
             It expires in 15 minutes.
             <button type="button" class="prv-linkbtn" id="prvResendBtn">Send it again</button>
+            <button type="button" class="prv-linkbtn" id="prvVerifyBack">Change signup details</button>
           </p>
         </div>
       </div>
@@ -593,6 +594,7 @@
           <div class="asc-login-error" id="prvAppError" role="alert" hidden></div>
           <form id="prvAppForm" novalidate>
             <div id="prvAppFields"></div>
+            <p class="asc-help">Unsubmitted answers stay in this browser tab. Submit to send them to our team.</p>
             <button type="submit" class="asc-btn asc-btn-primary asc-btn-lg"
                     id="prvAppBtn">Submit</button>
           </form>
