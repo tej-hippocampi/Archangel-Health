@@ -339,6 +339,14 @@ def _serialize_team_member(m: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _director_password_hash(row: Dict[str, Any], director: Optional[Dict[str, Any]] = None) -> str:
+    """Current identity-screen hashes and older person-screen hashes both count."""
+    return next((value for value in (
+        (row.get("director_password_hash") or "").strip(),
+        ((director or {}).get("password_hash") or "").strip(),
+    ) if value and value != asc_store_mod.NO_PASSWORD_HASH), "")
+
+
 def _hydrate_session_fields(ts: Any, row: Dict[str, Any]) -> Dict[str, Any]:
     """Subset of a health_system row that's safe + useful for the wizard to resume from.
 
@@ -370,7 +378,7 @@ def _hydrate_session_fields(ts: Any, row: Dict[str, Any]) -> Dict[str, Any]:
         # A BOOLEAN, never the hash. The docstring above promises no secrets
         # leave here and this keeps that promise: the wizard only needs to know
         # whether to ask again, which is what a resumed session is deciding.
-        "director_password_set": bool((row.get("director_password_hash") or "").strip()),
+        "director_password_set": bool(_director_password_hash(row)),
         "director_license_state": (row.get("director_license_state") or "").strip(),
         "team_members": members,
     }
@@ -393,6 +401,7 @@ def _hydrate_session_fields(ts: Any, row: Dict[str, Any]) -> Dict[str, Any]:
         ]
         director = next((p for p in people if p.get("is_director")), None)
         if director:
+            out["director_password_set"] = bool(_director_password_hash(row, director))
             creds = director.get("credentials") or {}
             out["director_credentials"] = creds
             out["director_attestations"] = director.get("attestations") or {}
@@ -765,16 +774,18 @@ async def step1_identity(body: Step1Body, request: Request):
     # screen 1 and corrects a typo in their name legitimately sends no password.
     # Reading the stored hash rather than the request is what keeps that from
     # being a wall in the middle of their own signup.
+    pw_hash: Optional[str] = None
     _product = (row.get("product") or "archangel").strip().lower()
     _is_clinical = ACCOUNT_KIND_BY_FLAVOR.get(
         (row.get("signup_flavor") or "").strip().lower()) is None
     if not body.password and _product == "asclepius" and _is_clinical:
-        if not (row.get("director_password_hash") or "").strip():
+        director = ts.get_asclepius_person(row["id"], row.get("director_email") or "")
+        pw_hash = _director_password_hash(row, director)
+        if not pw_hash:
             raise HTTPException(
                 status_code=400,
                 detail="Choose a password to finish setting up your account.")
 
-    pw_hash: Optional[str] = None
     if body.password:
         try:
             asc_passwords.validate(body.password, email=str(body.email))
@@ -806,11 +817,12 @@ async def step1_identity(body: Step1Body, request: Request):
         except Exception:
             log.exception("[referral] could not follow an email change (non-fatal)")
     row = ts.get_health_system_by_id(row["id"]) or row
+    director = ts.get_asclepius_person(row["id"], row.get("director_email") or "")
     return {
         "ok": True,
         "step": 1,
         # A resumed session must not ask again for something already set.
-        "password_set": bool((row.get("director_password_hash") or "").strip()),
+        "password_set": bool(_director_password_hash(row, director)),
     }
 
 
@@ -1235,27 +1247,31 @@ def _provision_asclepius_user(
     except (TypeError, ValueError):
         years = None
     store = _asclepius_store(request)
-    user = store.provision_user(
-        email=email,
-        password=password,
-        password_hash=password_hash,
-        role=role,
-        full_name=full_name or None,
-        org_name=org_name or None,
-        clinical_role=clinical_role or None,
-        specialty=primary_specialty,
-        specialty_niche=specialty_niche,
-        board_cert=board_cert,
-        # B-5.1: store the NORMALIZED NPI. Every lookup uses the cleaned form
-        # (get_cached_npi_fetch, find_users_by_npi), so a value posted as
-        # "1234-567893" through the API matched no cache row and no duplicate
-        # row — a dash defeated the duplicate-NPI blocker outright.
-        npi=(_asc_credentialing().clean_npi(creds.get("npi") or "") or None),
-        years_experience=years,
-        credentials=creds,
-        attestations=attestations or {},
-        account_kind=account_kind,
-    )
+    try:
+        user = store.provision_user(
+            email=email,
+            password=password,
+            password_hash=password_hash,
+            role=role,
+            full_name=full_name or None,
+            org_name=org_name or None,
+            clinical_role=clinical_role or None,
+            specialty=primary_specialty,
+            specialty_niche=specialty_niche,
+            board_cert=board_cert,
+            # Every registry lookup uses the normalized NPI.
+            npi=(_asc_credentialing().clean_npi(creds.get("npi") or "") or None),
+            years_experience=years,
+            credentials=creds,
+            attestations=attestations or {},
+            account_kind=account_kind,
+            reject_existing_password=True,
+        )
+    except asc_store_mod.AccountAlreadyClaimed as exc:
+        raise HTTPException(status_code=409, detail={
+            "code": "account_exists",
+            "message": "This email already has an account. Sign in or reset your password.",
+        }) from exc
     # Attach this signup to whichever physician referred
     # them. Resolution is by the address the invite was addressed to — see
     # ``store.find_open_referral_for_email``. Best-effort: a referral that
@@ -2108,12 +2124,13 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     # row is honoured rather than replaced, because this is "we were not given
     # one", never "we are erasing the one you have" (``provision_user`` enforces
     # the same rule a second time).
-    director_hash = (
-        (director.get("password_hash") or "").strip()
-        or (row.get("director_password_hash") or "").strip()
-        or asc_store_mod.NO_PASSWORD_HASH
-    )
+    director_hash = _director_password_hash(row, director) or asc_store_mod.NO_PASSWORD_HASH
     credentials_deferred = director_hash == asc_store_mod.NO_PASSWORD_HASH
+    if is_clinical and credentials_deferred:
+        raise HTTPException(status_code=400, detail={
+            "code": "password_required",
+            "message": "Choose a password to finish setting up your account. Your application is saved.",
+        })
     awaiting_review = is_clinical
     org_name = (row.get("name") or "").strip()
     specialty = (row.get("specialty") or "").strip()

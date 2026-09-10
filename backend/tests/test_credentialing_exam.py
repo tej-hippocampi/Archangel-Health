@@ -341,7 +341,8 @@ def test_the_examination_can_be_paused_without_losing_the_answers():
     options: guess, or abandon the tab."""
     fn = _CODE[_CODE.index("function pauseExam"):][:400]
     assert "saveDraft()" in fn
-    assert "renderApplicantHome()" in fn
+    assert "stopTimer()" in fn
+    assert "renderDashboardView()" in fn
     assert "clearDraft" not in fn, "pausing must not throw the answers away"
 
 

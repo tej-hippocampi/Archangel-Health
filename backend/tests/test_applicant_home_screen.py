@@ -153,7 +153,7 @@ def test_exactly_one_primary_button_on_the_page():
     assert view.count("asc-btn-primary") == 1
 
 
-def test_nothing_else_on_the_page_changes_with_state():
+def test_heading_lede_and_resources_do_not_change_with_state():
     """The heading, the lede and card 1 are the same in all three states. The
     old screen changed its own copy by stage, which is what made a second visit
     unrecognisable."""
@@ -162,8 +162,9 @@ def test_nothing_else_on_the_page_changes_with_state():
     card_one = view[view.index("const howToLabel"):view.index("const examBody")]
     for state_read in ("submitted", "resuming", "stage ==="):
         assert state_read not in card_one, f"card 1 branches on {state_read}"
-    # The heading and the lede: from the setRoot to the grid.
-    heading = view[view.index("setRoot("):view.index("asc-applicant-grid")]
+    # The heading and lede precede the review status, which distinguishes an
+    # available examination from one already submitted for review.
+    heading = view[view.index("setRoot("):view.index("asc-applicant-review")]
     for state_read in ("submitted", "resuming", "stage ==="):
         assert state_read not in heading, f"the heading branches on {state_read}"
 
@@ -222,7 +223,8 @@ def test_the_practice_case_is_offered_and_never_required():
 
 def test_pausing_the_examination_returns_to_this_screen():
     fn = _CODE[_CODE.index("function pauseExam"):][:500]
-    assert "renderApplicantHome()" in fn
+    assert "renderDashboardView()" in fn
+    assert "renderApplicantHome()" in _fn("renderDashboardView")
     assert "saveDraft()" in fn
     assert "clearDraft" not in fn, "pausing must not throw the answers away"
 
