@@ -1025,15 +1025,6 @@ _NAME_STOPWORDS = (
     "education", "research", "membership", "contact", "reference", "board",
 )
 
-#: Training lines: "Residency, Internal Medicine — Johns Hopkins, 2014–2017".
-#: The role nouns a training line is built around. Removed before a specialty is
-#: looked for, so "Fellow, Nephrology" offers "Nephrology" rather than the whole
-#: phrase — and so "Internal Medicine Residency" cannot have "Resident" mistaken
-#: for part of the subject.
-_ROLE_WORDS_RE = re.compile(
-    r"\b(fellowship|fellow|residency|resident|internship|intern|"
-    r"chief|clinical|research|program|training)\b", re.IGNORECASE)
-
 _TRAINING_KIND = (
     ("fellowship", re.compile(r"\bfellowship\b|\bfellow\b", re.IGNORECASE)),
     ("residency",  re.compile(r"\bresidency\b|\bresident\b", re.IGNORECASE)),
@@ -1545,48 +1536,6 @@ def _extract_training(lines: List[str]) -> List[Dict[str, Any]]:
             seen.add(key)
             out.append(entry)
     return out
-
-
-def _training_specialty(*lines: str) -> str:
-    """The subject a training entry is IN, when the document says so.
-
-    "Fellow, Nephrology" and "Nephrology Fellowship, Cleveland Clinic" both name
-    it plainly, and neither used to reach the form: the review page showed the
-    institution and the year with the specialty box empty, wearing the grey
-    placeholder "Nephrology", which reads as a populated field. A physician whose
-    CV said it in as many words retyped it (PRD C §6-C).
-
-    DETERMINISTIC AND VOCABULARY-BOUND, deliberately. Rather than guessing at the
-    words around the role, each comma/dash-separated fragment is offered to
-    ``specialties.match_specialty`` and only a fragment that resolves to a
-    specialty we recognise is returned. A fragment that does not resolve produces
-    nothing, which leaves the box empty — the correct outcome under §5's rule
-    that an empty field beats an unsupported value.
-
-    The ORIGINAL wording is returned, not the canonical key: "nephrology" typed
-    into a form asking a physician to vouch for their own credentials reads as
-    carelessness, exactly as it does for the primary specialty.
-
-    It is never inferred from the physician's current specialty. A cardiologist
-    who trained in internal medicine is common, and filling their fellowship with
-    "Cardiology" because that is what they do now would be inventing a credential.
-    """
-    from asclepius import specialties as _specialties  # noqa: PLC0415  (cycle)
-
-    for line in lines:
-        if not line or len(line) > 200:
-            continue
-        # Drop the role words and anything that looks like dates, then consider
-        # what is left one fragment at a time.
-        stripped = _ROLE_WORDS_RE.sub(" ", line)
-        stripped = _YEAR_RANGE.sub(" ", stripped)
-        for fragment in re.split(r"[,;|\u2013\u2014\-\n]+", stripped):
-            fragment = fragment.strip(" .:\t")
-            if not fragment or len(fragment) > 60:
-                continue
-            if _specialties.match_specialty(fragment):
-                return fragment
-    return ""
 
 
 def _extract_employer(lines: List[str]) -> str:
