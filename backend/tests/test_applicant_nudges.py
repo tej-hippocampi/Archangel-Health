@@ -65,6 +65,13 @@ def mail(monkeypatch):
     sent = []
     import email_utils
     monkeypatch.setattr(email_utils, "send_html_email", _capture(sent))
+    async def send_exam(to, subject, body, **kwargs):
+        kwargs["delivery_info"]["outcome"] = "accepted"
+        await _capture(sent)(to, subject, body)
+        return True, "sent"
+    monkeypatch.setattr(email_utils, "send_html_email_with_reason", send_exam)
+    monkeypatch.setattr(email_utils, "is_email_dev_mode", lambda: False)
+    monkeypatch.setenv("ASCLEPIUS_PORTAL_URL", "https://app.archangelhealth.ai")
     monkeypatch.setattr(email_utils, "is_email_transport_configured", lambda: True)
     return sent
 
@@ -94,6 +101,7 @@ def _applicant(store, *, hours_old=48, creds=None, npi=None, cv=None,
         current["exam"] = {"state": "submitted", "attempt": 1,
                            "submitted_at": datetime.utcnow().isoformat()}
         store.set_tutorial_state(user["id"], current)
+    store.mark_application_completed(user["id"], created)
     return store.get_user_by_id(user["id"])
 
 
@@ -171,17 +179,16 @@ def test_each_kind_is_sent_once_and_only_once(mail):
     doc = _applicant(store)
 
     first = _sweep(store)
-    assert first["credentials"] == 1 and first["practice"] == 1 and first["exam"] == 1
+    assert first["credentials"] == 1 and first["practice"] == 1 and first["exam"] == 0
     assert sorted(_subjects(mail, doc["email"])) == sorted([
         "One thing missing from your application",
         "Your practice case is waiting",
-        "Your examination is the last piece",
     ])
 
     second = _sweep(store)
     assert second["credentials"] == 0 and second["practice"] == 0
     assert second["exam"] == 0
-    assert len(_subjects(mail, doc["email"])) == 3
+    assert len(_subjects(mail, doc["email"])) == 2
 
 
 def test_the_two_kinds_have_separate_stamps():
@@ -266,7 +273,7 @@ def test_no_applicant_email_carries_a_long_dash_or_a_deadline(mail):
     _sweep(store)
 
     bodies = [m["body"] for m in mail if m["to"] == doc["email"]]
-    assert len(bodies) == 3
+    assert len(bodies) == 2
     for body in bodies:
         assert "—" not in body and "–" not in body
         for word in ("deadline", "expires", "last chance", "final"):
@@ -288,17 +295,17 @@ def test_the_practice_nudge_stops_chasing_somebody_who_sat_the_examination(mail)
     assert _subjects(mail, doc["email"]) == []
 
 
-def test_an_examination_in_progress_is_left_alone(mail):
-    """They are doing it right now. A mail saying it is the last piece would
-    arrive while they are looking at it."""
+def test_an_unfinished_examination_is_reminded_once(mail):
+    """A saved draft is still unfinished at the 36-hour mark."""
     store = A.fresh_store()
     doc = _applicant(store, cv="sha-of-a-real-cv", practice_passed=True)
     current = store.get_tutorial_state(doc["id"])
     current["exam"] = {"state": "in_progress", "attempt": 1}
     store.set_tutorial_state(doc["id"], current)
 
+    assert _sweep(store)["exam"] == 1
+    assert _subjects(mail, doc["email"]) == ["One last step for your application"]
     assert _sweep(store)["exam"] == 0
-    assert _subjects(mail, doc["email"]) == []
 
 
 def test_the_examination_waits_longer_than_the_other_two():
@@ -316,6 +323,7 @@ def test_the_examination_nudge_says_it_is_the_decision_and_not_more_homework(mai
     _sweep(store)
     body = [m["body"] for m in mail if m["to"] == doc["email"]][0].lower()
     assert "examination" in body
-    assert "own specialty" in body
+    assert "this is the last step!" in body
+    assert "so we can review your application" in body
     for verdict in ("passed", "failed", "score", "grade you"):
         assert verdict not in body

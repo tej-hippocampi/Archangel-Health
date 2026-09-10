@@ -1300,6 +1300,10 @@ def _provision_asclepius_user(
     # lands, NOT a pending state that an admin could clear by accident.
     if verify:
         _run_signup_verification(store, user, creds)
+        # This function is reached only after a completed, mailbox-verified
+        # application is accepted. Never use user.created_at for this clock:
+        # an invited account can predate the credential form by weeks.
+        store.mark_application_completed(user["id"])
 
 
 # A signup does NOT announce anybody in #introductions. The helper that did it

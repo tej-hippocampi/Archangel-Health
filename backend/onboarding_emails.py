@@ -1229,33 +1229,51 @@ def build_practice_case_nudge_email(*, first_name: str, portal_url: str) -> str:
                   body_html=body)
 
 
+EXAM_REMINDER_SUBJECT = "One last step for your application"
+_EXAM_REMINDER_COPY = "Complete your examination case so we can review your application."
+
+
+def _exam_reminder_greeting(name: str) -> str:
+    name = " ".join((name or "").split())
+    return f"Hi {name}," if name else "Hello,"
+
+
+def build_exam_nudge_text(*, first_name: str, portal_url: str) -> str:
+    return ("Archangel Health\n\nThis is the last step!\n\n"
+            + _exam_reminder_greeting(first_name) + "\n\n" + _EXAM_REMINDER_COPY
+            + "\n\nSign in & complete case: " + _exam_url(portal_url)
+            + "\n\nUse the email and password you applied with.\n\n"
+            + "Archangel Health · Physician applications")
+
+
 def build_exam_nudge_email(*, first_name: str, portal_url: str) -> str:
-    """The examination has not been sat. Once ever, at 48 hours.
+    """Approved, brief 36-hour reminder. Same light palette as existing mail.
 
-    Later than the other two on purpose: somebody who chose to start onboarding
-    usually finishes in the same sitting, so a chase the next morning mostly
-    reaches people who were always going to do it.
-
-    The one thing this mail has to carry is that the examination is not more
-    homework, it is the decision. An applicant who thinks it is optional waits
-    for a verdict that is waiting on them.
+    Uses its own compact shell so other transactional messages retain their
+    layout. System fonts, inline styles, table CTA, no image dependency.
     """
-    body = (
-        _eyebrow("Your application")
-        + _h1("One case, and then it is with us.")
-        + _p(f"{_strong(_first_name(first_name))}, your credentials are in and read. "
-             "What is left is the examination: one real case in your own "
-             "specialty, in the interface you would work in.")
-        + _p("It is the piece we read when we make the decision, so it is the "
-             "only thing still standing between you and an answer. Most people "
-             "take about fifteen minutes over it.")
-        + _cta(portal_url, "Take my examination")
-        + _p("You can stop part way and pick it up where you left it. No grade "
-             "is ever published.", muted=True, small=True)
-        + _founder_signoff("Tej and Aryaa, founders")
-    )
-    return _shell(subject="Your examination is the last piece",
-                  body_html=body)
+    greeting = html.escape(_exam_reminder_greeting(first_name))
+    url = html.escape(_exam_url(portal_url), quote=True)
+    return f'''<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="x-apple-disable-message-reformatting"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">
+<title>{EXAM_REMINDER_SUBJECT}</title>
+<style>@media only screen and (max-width:420px) {{ .exam-pad {{ padding:31px 26px !important; }} .exam-heading {{font-size:31px !important;}} .exam-footer {{padding:15px 26px !important;}} }}</style>
+</head><body style="margin:0;padding:0;background:{_CANVAS};font-family:{_SANS};color:{_INK};">
+<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">{_EXAM_REMINDER_COPY}</div>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:{_CANVAS};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;background:{_CARD};border:1px solid {_HAIRLINE};border-radius:12px;overflow:hidden;">
+<tr><td class="exam-pad" style="padding:40px 44px 36px;">
+<p style="margin:0 0 42px;font-family:{_MONO};font-size:11px;line-height:1.5;letter-spacing:1.6px;color:{_INK_SOFT};">ARCHANGEL HEALTH</p>
+<h1 class="exam-heading" style="margin:0 0 25px;font-family:{_SANS};font-size:34px;line-height:1.15;font-weight:400;letter-spacing:-1px;color:{_INK};">This is the last step!</h1>
+<p style="margin:0 0 10px;font-size:15px;line-height:1.6;color:{_INK};">{greeting}</p>
+<p style="margin:0;max-width:390px;font-size:16px;line-height:1.65;color:{_INK_SOFT};">{_EXAM_REMINDER_COPY}</p>
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:27px 0 13px;"><tr><td align="center" bgcolor="{_LIME}" style="border-radius:999px;background:{_LIME};mso-padding-alt:15px 24px;">
+<a href="{url}" style="display:inline-block;padding:15px 24px;font-family:{_SANS};font-size:15px;line-height:1.35;font-weight:500;color:{_INK};background:{_LIME};border-radius:999px;text-decoration:none;">Sign in &amp; complete case&nbsp; →</a>
+</td></tr></table>
+<p style="margin:0;font-size:12px;line-height:1.65;color:{_INK_SOFT};">Use the email and password you applied with.</p>
+</td></tr><tr><td class="exam-footer" style="padding:16px 44px;font-size:11px;line-height:1.5;color:{_INK_SOFT};background:{_CARD_IN};border-top:1px solid {_HAIRLINE};">Archangel Health · Physician applications</td></tr>
+</table></td></tr></table></body></html>'''
 
 
 def build_onboarding_started_email(*, first_name: str, portal_url: str) -> str:
