@@ -1126,3 +1126,13 @@ def test_the_data_dictionary_documents_every_shipped_trajectory_field():
     for claim in ("Survivorship", "counterfactual", "study_findings_policy",
                   "Yield per chart is not predictable"):
         assert claim in doc
+
+
+def test_authored_time_units_survive_normalization_and_repeated_reads():
+    for value, unit, days in [(6, 'hours', .25), (2, 'days', 2), (3, 'weeks', 21), (.5, 'hours', 1/48)]:
+        raw = {'expectations': [{'expectation': 'bilirubin falls steadily', 'horizon_value': value, 'horizon_unit': unit}]}
+        got = asc_trajectory.normalize_expected_trajectory(raw)
+        row = got['expectations'][0]
+        assert row['horizon_days'] == days
+        assert row['horizon_value'] == value and row['horizon_unit'] == unit
+        assert asc_trajectory.normalize_expected_trajectory(got) == got

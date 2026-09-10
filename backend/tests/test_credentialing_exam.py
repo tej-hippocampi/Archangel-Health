@@ -376,8 +376,42 @@ def test_the_standalone_demo_cannot_close_a_walkthrough_stop():
     # first occurrence found the wrong one.
     open_demo = code[code.index("function openDemo"):]
     open_demo = open_demo[:open_demo.index("function attachDemoSource")]
-    assert "if (standaloneDemo) return;" in open_demo, (
+    assert "if (standaloneDemo) { closeDemo(); return; }" in open_demo, (
         "the panel after the video can still close a stop that is not open")
     # And the flag is cleared on close, or a later walkthrough run inherits it.
     close_fn = code[code.index("function closeDemo"):][:200]
     assert "standaloneDemo = false" in close_fn
+
+
+def test_exam_snapshot_is_persistent_admin_only_and_export_is_user_scoped(client):
+    from routers.asclepius_verify import _examination_block
+    store = fresh_store()
+    user = _applicant(store)
+    task_id = client.get('/api/asclepius/exam/task', headers=headers_for(user)).json()['task']['task_id']
+    response = _submit(client, user, task_id)
+    assert response.status_code == 200
+    assert 'score_version' not in response.text and 'key_data_matched' not in response.text
+    saved = store.list_credentialing_exams(user['id'])[0]
+    assert saved['metadata']['reconstructed'] is False
+    original = store.get_task
+    store.get_task = lambda task_id: {}
+    try:
+        block = _examination_block(store, store.get_user_by_id(user['id']))
+        assert block['submissions'][0]['metadata'] == saved['metadata']
+    finally:
+        store.get_task = original
+    admin = make_user(store, role='admin')
+    path = f"/api/asclepius/verify/queue/{user['id']}/examination/{saved['exam_id']}/export"
+    assert client.get(path, headers=headers_for(user)).status_code == 403
+    result = client.get(path, headers=headers_for(admin))
+    assert result.status_code == 200
+    assert result.json()['physician_answers']['task_id'] == task_id
+    assert result.json()['answer_key']
+    assert result.json()['case']['candidate_answers'] == store.get_task(task_id)['candidate_answers']
+    assert result.json()['case']['prompt'] == store.get_task(task_id)['prompt']
+    assert result.headers['cache-control'] == 'private, no-store'
+    other = _applicant(store)
+    assert client.get(path.replace(user['id'], other['id']), headers=headers_for(admin)).status_code == 404
+    with store._conn() as conn:
+        conn.execute('UPDATE credentialing_exams SET metadata_json = NULL WHERE exam_id = ?', (saved['exam_id'],))
+    assert client.get(path, headers=headers_for(admin)).json()['reconstructed'] is True

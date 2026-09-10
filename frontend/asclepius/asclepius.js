@@ -1880,7 +1880,8 @@
     // anything, that account would sit on a dashboard where every button 403s
     // with no route back to the one thing that unlocks it.
     const tut = (state.user && state.user.tutorial) || {};
-    const gateOpen = tut.gate_state === 'passed' || tut.gate_state === 'grandfathered';
+    const gateOpen = state.user.verification_status === 'approved'
+      || tut.gate_state === 'passed' || tut.gate_state === 'grandfathered';
     if (state.user.role === 'evaluator' && !isAdvisor() && !gateOpen) {
       startTutorial({});
       return;
@@ -3112,16 +3113,18 @@
    *  would be making it first and getting it wrong half the time.
    */
   function renderExamSubmitted() {
-    setRoot(h('div', { class: 'asc-wrap' },
-      h('div', { class: 'asc-card asc-card-pad' },
+    setRoot(h('div', { class: 'asc-wrap asc-exam-complete' },
+      h('div', { class: 'asc-card asc-exam-receipt' },
+        h('span', { class: 'asc-exam-receipt-icon', 'aria-hidden': 'true' }, '✓'),
         h('div', { class: 'chrome' }, 'EXAMINATION FILED'),
-        h('h2', {}, 'That is everything we needed.'),
-        h('p', {},
-          'Your examination is with us. One of us reads it personally, '
-          + 'alongside the credentials you sent, and we will email you either '
-          + 'way. Usually one to two business days.'),
-        h('button', { class: 'asc-btn', onClick: renderDashboardView },
-          'Back to my dashboard'))));
+        h('h1', {}, 'Your examination is with us.'),
+        h('p', { class: 'asc-exam-receipt-intro' }, 'Thank you for taking the time to share your clinical reasoning. Your answers have been saved.'),
+        h('div', { class: 'asc-exam-next' },
+          h('div', { class: 'asc-chrome' }, 'WHAT HAPPENS NEXT'),
+          h('h2', {}, 'We’ll take it from here'),
+          h('p', {}, 'Our team will read your examination alongside the credentials you sent. We will email you either way, usually within one to two business days.')),
+        h('button', { class: 'asc-btn asc-btn-primary', onClick: renderDashboardView }, 'Back to my application →'),
+        h('p', { class: 'asc-dim asc-small' }, 'Nothing else is needed from you right now.'))));
   }
 
   /* ─── The founders' introduction ────────────────────────────────────────────
@@ -3229,24 +3232,44 @@
       return el;
     };
 
-    // Left out rather than offered dead: probeDemo has not necessarily run, and
-    // a row that opens nothing is worse than one less row.
-    const demoAvailable = !!(window.FirstRunWalkthrough
-      && window.FirstRunWalkthrough.demoAvailable
-      && window.FirstRunWalkthrough.demoAvailable());
+    // Probe on click: applicants bypass the walkthrough that populates its
+    // availability cache. A cold cache must never hide their labeling video.
+    const videoStatus = h('p', { class: 'asc-applicant-video-status', role: 'status' });
+    let videoOpening = false;
+    const videoButton = h('button', {
+      class: 'asc-applicant-video', type: 'button',
+      onClick: async () => {
+        if (videoOpening) return;
+        videoOpening = true;
+        videoButton.setAttribute('aria-busy', 'true');
+        videoStatus.textContent = 'Loading the labeling video…';
+        try {
+          const player = window.FirstRunWalkthrough;
+          const opened = player && player.playDemo
+            && await window.FirstRunWalkthrough.playDemo(firstRunCtx());
+          videoStatus.textContent = opened ? ''
+            : 'The video is unavailable right now. Try again, or use the labeling guide below.';
+        } catch (_) {
+          videoStatus.textContent = 'The video could not load. Select the video to try again.';
+        } finally {
+          videoOpening = false;
+          videoButton.removeAttribute('aria-busy');
+        }
+      },
+    },
+      h('span', { class: 'asc-applicant-play', 'aria-hidden': 'true' }, '▶'),
+      h('span', { class: 'asc-applicant-video-copy' },
+        h('span', { class: 'asc-chrome' }, 'VIDEO WALKTHROUGH'),
+        h('span', { class: 'asc-applicant-video-title' }, 'How to label a case'),
+        h('span', { class: 'asc-applicant-row-body' }, 'Watch the workflow, then try it yourself.')),
+      h('span', { class: 'asc-applicant-row-go', 'aria-hidden': 'true' }, '↗'));
 
-    const howToLabel = h('div', { class: 'asc-card asc-applicant-card' },
+    const howToLabel = h('section', { class: 'asc-card asc-applicant-card' },
       h('div', { class: 'asc-chrome' }, '1 · HOW TO LABEL A CASE'),
+      h('h2', { class: 'asc-applicant-card-title' }, 'Get familiar with the work'),
+      h('p', { class: 'asc-dim' }, 'A short walkthrough and a guide to a strong clinical read.'),
+      videoButton, videoStatus,
       h('div', { class: 'asc-applicant-rows' },
-        demoAvailable
-          ? row('▶', 'Watch a labeled case',
-              'A physician walks through one real case start to finish. 3 min.',
-              () => {
-                if (window.FirstRunWalkthrough && window.FirstRunWalkthrough.playDemo) {
-                  window.FirstRunWalkthrough.playDemo(firstRunCtx());
-                }
-              })
-          : null,
         row('≡', 'Read the labeling guide',
             'What we look for, what a strong answer contains, common mistakes.',
             openGuideOverlay)),
@@ -3269,8 +3292,12 @@
           + 'case. About 15 minutes. You can stop and come back; your answers '
           + 'are saved.');
 
-    const takeExam = h('div', { class: 'asc-card asc-applicant-card' },
+    const takeExam = h('section', { class: 'asc-card asc-applicant-card asc-applicant-exam' },
       h('div', { class: 'asc-chrome' }, '2 · TAKE THE EXAMINATION'),
+      h('h2', { class: 'asc-applicant-card-title' }, submitted ? 'You’re all set' : 'Your clinical examination'),
+      h('div', { class: 'asc-applicant-exam-meta' },
+        h('span', {}, specialty || 'Your specialty'),
+        h('span', {}, '1 case'), h('span', {}, 'About 15 min')),
       examBody,
       // THE ONLY PRIMARY ON THE PAGE, and absent entirely once it is filed —
       // a disabled button still reads as an action somebody failed to take.
@@ -3296,17 +3323,16 @@
       });
     }
 
-    setRoot(h('div', { class: 'asc-wrap' },
-      h('div', { class: 'asc-card asc-card-pad asc-credentialing' },
+    setRoot(h('div', { class: 'asc-wrap asc-applicant-home' },
+      h('header', { class: 'asc-applicant-heading' },
         h('div', { class: 'asc-chrome' }, 'YOUR APPLICATION'),
-        h('h2', {}, 'We are checking your credentials, and there is one '
-          + 'thing left for you to do.'),
-        h('p', { class: 'asc-dim' },
-          'Credential review takes one to two business days and needs nothing '
-          + 'from you; we email you the moment it is decided. The last step of '
-          + 'your application is the examination below: one real case in your '
-          + 'specialty, in the interface you would work in. We read it when we '
-          + 'decide.')),
+        h('h1', {}, 'Your next step starts here.'),
+        h('p', {}, 'Show us how you think through a case, using the same workspace you’ll use on the platform.')),
+      h('div', { class: 'asc-applicant-review', role: 'status' },
+        h('span', { class: 'asc-applicant-review-dot', 'aria-hidden': 'true' }),
+        h('div', {},
+          h('strong', {}, 'We are checking your credentials'),
+          h('p', {}, 'Review takes one to two business days. We’ll email you when it’s decided.'))),
       h('div', { class: 'asc-applicant-grid' }, howToLabel, takeExam),
       h('p', { class: 'asc-applicant-help' },
         'Any questions: ',
@@ -4382,7 +4408,8 @@
       rows.appendChild(h('div', { class: 'asc-field', style: i ? 'margin-top:18px' : '' },
         h('div', { class: 'asc-prompt-text' },
           exp.expectation
-          + (exp.horizon_days ? ' (within ' + exp.horizon_days + ' days)' : '')),
+          + (exp.horizon_value ? ' (within ' + exp.horizon_value + ' ' + exp.horizon_unit + ')'
+            : exp.horizon_days ? ' (within ' + exp.horizon_days + ' days)' : '')),
         pills, note));
     });
 
@@ -5977,7 +6004,7 @@
 
   function validatePrompt() {
     const d = state.draft;
-    d.prompt_review = { reviewed: true, verdict: 'valid', note: '', reviewed_at: new Date().toISOString() };
+    d.prompt_review = { reviewed: true, verdict: 'valid', attest_clinically_valid: true, note: '', reviewed_at: new Date().toISOString() };
     d.stage = 'independent_answer';
     saveDraft();
     renderTaskWorkspace();
@@ -7333,109 +7360,10 @@
     // The expected-trajectory card sits above BOTH, because on a longitudinal case
     // it is the highest-value thing the physician writes and must not read as an
     // afterthought bolted to the submit button.
-    // The clinical-validity attestation sits ABOVE the confidence card for the
-    // same reason the optional cards do: it is a statement about the case, made
-    // before committing to a label, and wedging it into the commit moment would
-    // turn a signed assertion into a checkbox somebody clears on the way past.
+    // Clinical validity is captured once, in the opening case review.
     const parts = [renderExpectedTrajectoryCard(), renderDecisiveActionCard(),
-      renderClinicalValidityCard(), confidenceCard].filter(Boolean);
+      confidenceCard].filter(Boolean);
     return parts.length > 1 ? h('div', {}, ...parts) : confidenceCard;
-  }
-
-  // ── Clinical-validity attestation (Gap U2) ─────────────────────────────────
-  // The physician says this case could occur in practice and is internally
-  // consistent, BEFORE they label it. Under section 3 of the contributor
-  // agreement that is an attestation with a consequence, which is why the copy
-  // says so plainly rather than reading as one more box.
-  //
-  // REJECTING IS AS EASY AS ATTESTING, and is the second control here rather
-  // than something buried elsewhere. A physician who has to hunt for the honest
-  // path takes the dishonest one, and the reject button is the whole reason it
-  // is fair to hold them to the attestation at all. It routes through the
-  // Stage-1 flag the backend already has, so a rejected case leaves the queue
-  // and lands on the admin flagged list exactly as it always did.
-  function renderClinicalValidityCard() {
-    const d = state.draft;
-    if (!isV3()) return null;
-    d.prompt_review = d.prompt_review || {};
-    const pr = d.prompt_review;
-
-    const box = h('input', { type: 'checkbox', class: 'asc-validity-check' });
-    box.checked = pr.attest_clinically_valid === true;
-    // The Stage-1 verdict as it stood before this checkbox touched it, so an
-    // uncheck restores the prompt-gate answer instead of erasing it.
-    const verdictBeforeAttest = pr.verdict;
-    box.addEventListener('change', () => {
-      // Unchecking is "I am no longer asserting", not "I assert the opposite":
-      // an explicit false is a statement a finding could be made against, and
-      // the physician never made it. Null keeps the tri-state honest.
-      pr.attest_clinically_valid = box.checked ? true : null;
-      pr.reviewed = true;
-      pr.verdict = box.checked ? 'valid' : verdictBeforeAttest;
-      pr.reviewed_at = new Date().toISOString();
-      saveDraft();
-      updateSubmitState();
-    });
-
-    const reject = h('button', {
-      class: 'asc-btn asc-btn-subtle asc-btn-sm asc-validity-reject', type: 'button',
-    }, 'This case is not clinically valid');
-    reject.addEventListener('click', rejectCaseAsInvalid);
-
-    const info = infoDot('Why we ask', [
-      'Cases may be modified, and your attestation is what lets us treat a modified '
-      + 'case as clinically sound. If you say a case is valid when it is not, that is '
-      + 'on you and the case is not paid.',
-      'Rejecting costs you nothing. It is the right answer for a case that is wrong, '
-      + 'it never counts against your standing or your pay, and it moves you straight '
-      + 'to the next case.',
-    ]);
-
-    return h('div', { class: 'asc-card asc-card-pad asc-substage' },
-      h('div', { class: 'asc-substage-head' },
-        h('div', { class: 'asc-substage-step' }, 'Required'),
-        h('div', { class: 'asc-substage-title' }, 'Clinical validity', info)),
-      h('label', { class: 'asc-validity-row' }, box,
-        h('span', {},
-          'I attest that this case is clinically valid: it could occur in practice '
-          + 'and it holds together as a clinical picture.')),
-      h('div', { class: 'asc-validity-out' }, reject));
-  }
-
-  async function rejectCaseAsInvalid() {
-    // The practice case is deliberately valid; rejecting it would otherwise
-    // POST a REAL submission (this path bypasses the tutorial submit branch).
-    if (tutorialActive()) {
-      toast('This is the practice case: it’s deliberately valid. Attest and continue instead.', 'info');
-      return;
-    }
-    const d = state.draft;
-    d.prompt_review = d.prompt_review || {};
-    d.prompt_review.attest_clinically_valid = false;
-    d.prompt_review.reviewed = true;
-    d.prompt_review.verdict = 'flagged';
-    d.prompt_review.reviewed_at = new Date().toISOString();
-    saveDraft();
-    if (state.submitting) return;
-    state.submitting = true;
-    try {
-      // Straight to POST /submissions, mirroring flagPrompt. The gated submit
-      // path would swallow the rejection: this card mounts exactly where the
-      // staged flow's required state (confidence, the attestation itself) is
-      // still unset, and those client gates early-return without a request.
-      // The backend's Stage-1 branch reads the flagged verdict before it
-      // validates a verdict or a rubric, so a half-filled case rejects cleanly
-      // and produces zero records.
-      await api('/submissions', { method: 'POST', body: buildSubmissionPayload() });
-      clearDraft(d.task_id);
-      stopTimer();
-      toast('Case rejected as not clinically valid. Loading the next task', 'success');
-      renderEvalView();
-    } catch (e) {
-      if (e.status !== 401) toast('Could not reject the case: ' + e.message, 'error');
-    } finally {
-      state.submitting = false;
-    }
   }
 
   // ── Expected trajectory (Longitudinal Cases §3.3, field 3) ─────────────────
@@ -7466,14 +7394,20 @@
         }, exp.expectation || ''));
         text.addEventListener('input', () => { exp.expectation = text.value; saveDraft(); });
         const days = h('input', {
-          class: 'asc-input', type: 'number', min: '1', max: '1825',
-          style: 'max-width:150px', placeholder: 'within … days',
-          value: exp.horizon_days === '' || exp.horizon_days == null ? '' : String(exp.horizon_days),
+          class: 'asc-input', type: 'number', min: '0.01', step: 'any',
+          'aria-label': 'Time window amount', style: 'max-width:150px', placeholder: 'Within…',
+          value: exp.horizon_value == null ? (exp.horizon_days || '') : exp.horizon_value,
         });
         // A prediction with no horizon is not falsifiable — "bilirubin will fall"
         // is true eventually. Optional, because a specialist may genuinely not want
         // to commit to a window, but asked for every time.
-        days.addEventListener('input', () => { exp.horizon_days = days.value; saveDraft(); });
+        days.addEventListener('input', () => { exp.horizon_value = days.value; saveDraft(); });
+        const unit = h('select', { class: 'asc-input', 'aria-label': 'Time window unit', style: 'max-width:130px' },
+          ...['hours', 'days', 'weeks'].map((value) => h('option', { value }, value)));
+        unit.value = exp.horizon_unit || 'days';
+        unit.addEventListener('change', () => {
+          exp.horizon_value = days.value; exp.horizon_unit = unit.value; saveDraft();
+        });
         const remove = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button' }, 'Remove');
         remove.addEventListener('click', () => {
           et.expectations.splice(i, 1);
@@ -7483,7 +7417,7 @@
         rows.appendChild(h('div', { class: 'asc-field', style: i ? 'margin-top:14px' : '' },
           text,
           h('div', { class: 'asc-submit-row', style: 'margin-top:8px' },
-            days, et.expectations.length > 1 ? remove : null)));
+            days, unit, et.expectations.length > 1 ? remove : null)));
       });
     };
     paintRows();
@@ -9084,8 +9018,9 @@
         // Gap U2: the attestation gates the LABEL, never the rejection. The
         // reject button is its own control and is never disabled by this, which
         // is the whole point of putting it beside the checkbox.
-        else if (isV3() && (d.prompt_review || {}).attest_clinically_valid !== true) {
-          ok = false; msg = 'attest the case is clinically valid, or reject it, to submit';
+        else if (isV3() && ((d.prompt_review || {}).verdict !== 'valid'
+            || (d.prompt_review || {}).attest_clinically_valid === false)) {
+          ok = false; msg = 'review the case before submitting';
         }
       }
     }
@@ -9435,10 +9370,14 @@
     const expectations = (et.expectations || [])
       .filter((e) => e && (e.expectation || '').trim())
       .map((e) => {
-        const days = parseInt(e.horizon_days, 10);
+        const unit = e.horizon_unit || 'days';
+        const value = Number(e.horizon_value == null ? e.horizon_days : e.horizon_value);
+        const days = value * ({ hours: 1 / 24, days: 1, weeks: 7 }[unit] || 1);
         return {
           expectation: e.expectation.trim(),
-          horizon_days: Number.isFinite(days) ? days : null,
+          horizon_days: Number.isFinite(days) && days > 0 ? days : null,
+          horizon_value: Number.isFinite(value) && value > 0 ? value : null,
+          horizon_unit: unit,
         };
       });
     if (expectations.length) {
@@ -11046,7 +10985,7 @@
         } }, 'Skip this step'));
     }
     row.appendChild(h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button',
-      onClick: confirmSkipTutorial }, 'Leave for now'));
+      onClick: confirmSkipTutorial }, state.user && state.user.verification_status === 'approved' ? 'Skip practice and go to my cases' : 'Leave for now'));
     pop.appendChild(row);
     const frac = h('div', { class: 'asc-tour-bar' });
     frac.appendChild(h('div', { class: 'asc-tour-bar-fill',
@@ -11069,7 +11008,7 @@
       h('div', { style: 'display:flex;gap:10px;align-items:center' },
         h('button', { class: 'asc-btn asc-btn-primary', type: 'button', onClick: proceed }, 'Start the case →'),
         h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button', onClick: () => { overlay.remove(); confirmSkipTutorial(); } },
-          'Leave for now')));
+          state.user && state.user.verification_status === 'approved' ? 'Skip practice and go to my cases' : 'Leave for now')));
     function proceed() {
       state.tutorial.welcomed = true;
       overlay.remove();
@@ -11149,14 +11088,10 @@
     tutTick();
   }
 
-  // "Leave", not "skip". Skipping is retired: the practice case gates all real
-  // work, so a skip grants nothing, and a button that appears to let somebody
-  // out while leaving every other button 403ing is worse than no button.
-  //
-  // But nobody should be trapped in a modal either, so this still exists and
-  // still lets them out. It just tells the truth about what leaving means, and
-  // it does NOT clear the draft: they can come back to the work they did.
+  // Approved physicians can leave the entire practice immediately. Applicants
+  // keep the optional exercise's existing leave confirmation and saved draft.
   function confirmSkipTutorial() {
+    if (state.user && state.user.verification_status === 'approved') { skipPracticeToCases(); return; }
     if (document.getElementById('ascTourSkipConfirm')) return;
     // The spotlight box + tooltip sit ABOVE this confirm dialog (z 1200 vs
     // 1000): hide them first, or the old highlight and copy stay pasted on
@@ -11179,6 +11114,21 @@
           onClick: () => { overlay.remove(); leaveTutorial(); } }, 'Leave')));
     overlay.appendChild(popup);
     document.body.appendChild(overlay);
+  }
+
+  async function skipPracticeToCases() {
+    // Persist the opt-out across devices without claiming a pass or completion.
+    if (state.submitting) return;
+    state.submitting = true;
+    try {
+      const user = await api('/me/first-run', { method: 'PATCH', body: { action: 'dismiss' } });
+      if (user) state.user = user;
+      state.submitting = false;
+      leaveTutorial();
+    } catch (error) {
+      state.submitting = false;
+      toast('Could not save your preference. Please try skipping again.', 'error');
+    }
   }
 
   function leaveTutorial() {
@@ -11260,6 +11210,7 @@
     // `result.passed` is deliberately NOT read. The grade goes to the admin
     // dossier; this screen shows a physician what the reference panel saw and
     // nothing about how they scored against it.
+    const approved = state.user && state.user.verification_status === 'approved';
     const mustAck = (result.must_acknowledge || []).slice();
     // A miss the physician never opened is a miss they never read. The primary
     // button waits on them opening each one: one click per miss, not a quiz.
@@ -11267,7 +11218,7 @@
     let primaryBtn = null;
 
     function primaryEnabled() {
-      return mustAck.every((id) => acked[id]);
+      return approved || mustAck.every((id) => acked[id]);
     }
     function syncPrimary() {
       if (!primaryBtn) return;
@@ -11342,7 +11293,7 @@
      * findings shown as things to notice rather than as marks. That is the
      * reason to do a practice case at all, and it contains no verdict.
      */
-    const closing = isAdvisor()
+    const closing = approved ? 'Practice is optional. You can return to your cases now and revisit this guide anytime.' : isAdvisor()
       ? 'Nothing from this run was recorded.'
       : 'Nothing here is scored for you. The examination is the case we read, '
         + 'and a person reads it.';
@@ -11351,11 +11302,12 @@
       onClick: () => {
         if (!primaryEnabled()) return;
         state.portalChosen = false; state.specialtyChosen = false;
+        if (approved) { skipPracticeToCases(); return; }
         if (isAdvisor()) { renderDashboardView(); return; }
         if (firstRunTourPending()) { resumeFirstRun(); return; }
         renderDashboardView();
       } },
-      isAdvisor() ? 'Back to the dashboard' : 'Take my examination →');
+      approved ? 'Go to my cases →' : isAdvisor() ? 'Back to the dashboard' : 'Take my examination →');
 
     const card = h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-tour-chrome' }, 'PRACTICE CASE'),

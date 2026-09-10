@@ -13,7 +13,8 @@ the one this case was authored to make wrong". The first is the admin's call.
 The second is reading, and doing it in code is only automating the part that was
 never a judgement.
 
-So: no score, no total, no band, no pass, no fail, anywhere.
+Observations remain factual; the separately versioned score is a screening aid
+whose components and limitations are shown to the administrator.
 """
 
 from __future__ import annotations
@@ -113,6 +114,23 @@ def test_an_empty_answer_matches_nothing():
     assert len(obs["key_data_missed"]) == 3
 
 
+def test_supplied_candidate_text_does_not_earn_physician_evidence_credit():
+    supplied = "urine osm 120, urine sodium 14, recent thiazide"
+    for flag in (False, None):
+        metadata = exam_grading.examination_metadata(_CASE, _payload(
+            independent_answer={"text": "Unrelated reasoning."},
+            chosen_revision={"edited": flag, "revised_text": supplied}), captured_at="test")
+        assert metadata["observations"]["key_data_matched"] == []
+        assert metadata["score"]["value"] == 50
+
+    notes = exam_grading.observations(_CASE, _payload(chosen_revision={
+        "edited": False, "revised_text": supplied, "why_better_notes": "urine sodium 14"}))
+    assert notes["key_data_matched"] == ["urine sodium 14"]
+    edited = exam_grading.observations(_CASE, _payload(chosen_revision={
+        "edited": True, "revised_text": "urine sodium 14"}))
+    assert edited["key_data_matched"] == ["urine sodium 14"]
+
+
 # ── Whose specialty was it ──────────────────────────────────────────────────
 
 def test_an_unrecorded_own_specialty_flag_is_unknown_and_not_no():
@@ -157,23 +175,24 @@ def test_the_decision_screen_renders_the_examination():
     had a card on the row and the dossier; the piece we actually read had
     neither."""
     assert "function examinationCard" in _ADMIN_JS
-    assert "examinationCard(ctx, d.examination)" in _ADMIN_JS
+    assert "examinationCard(ctx, d.examination, userId)" in _ADMIN_JS
     assert "examCell(h, r.examination)" in _ADMIN_JS
 
 
 def test_the_examination_sits_above_the_practice_case():
     """One is a guided tour with a skip button on every screen. The other is
     the one we read. Order on the page is an argument about which."""
-    assert (_ADMIN_JS.index("examinationCard(ctx, d.examination)")
+    assert (_ADMIN_JS.index("examinationCard(ctx, d.examination, userId)")
             < _ADMIN_JS.index("practiceCaseCard(ctx, d.practice_case"))
 
 
-def test_the_card_prints_no_verdict_words():
+def test_the_card_shows_a_compact_band_and_keeps_evidence_behind_inspect():
     start = _ADMIN_JS.index("function examinationCard")
-    card = _ADMIN_JS[start:_ADMIN_JS.index("\n  function practiceCaseCard")]
-    for forbidden in ("Passed", "Failed", "Score", "out of", "%"):
-        assert forbidden not in card, forbidden
-    assert "Facts, not a verdict" in card
+    card = _ADMIN_JS[start:_ADMIN_JS.index("\n  function detailDialog")]
+    assert "Inspect score" in card
+    for word in ("Did well", "Did alright", "Did poorly", "Needs review"):
+        assert word in card
+    assert "JSON.stringify" not in card
 
 
 def test_the_abbreviation_rule_does_not_become_a_coincidence_generator():
@@ -199,3 +218,17 @@ def test_the_flawed_candidate_is_found_on_a_stored_task_row():
     obs = exam_grading.observations(stored, _payload(rejected_id="B"))
     assert obs["intended_flawed_id"] == "B"
     assert obs["rejected_the_flawed_candidate"] is True
+
+
+def test_versioned_score_bands_are_explainable_and_missing_keys_are_unscored():
+    from asclepius.exam_grading import examination_metadata
+    good = examination_metadata(_CASE, _payload(independent_answer={"text": "urine osm 120 urine sodium 14 thiazide"}), captured_at="test")
+    assert good['score']['band'] == 'well' and good['score']['value'] == 100
+    medium = examination_metadata(_CASE, _payload(), captured_at="test")
+    assert medium['score']['band'] == 'alright' and medium['score']['value'] == 50
+    poor = examination_metadata(_CASE, _payload(rejected_id='A'), captured_at="test")
+    assert poor['score']['band'] == 'poorly' and poor['score']['value'] == 0
+    unknown = examination_metadata({}, _payload(), captured_at="test")
+    assert unknown['score']['value'] is None and unknown['score']['band'] == 'unscored'
+    assert good['answer_key'] == _CASE['case']['ground_truth']
+    assert good['score_version'] and good['case_sha256']

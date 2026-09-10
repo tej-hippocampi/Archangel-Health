@@ -177,7 +177,7 @@ def test_a_password_free_signup_is_mailed_a_claim_link_and_no_credential(mail):
     body = access[0]["body"]
     # §2.3: the mission block and the bookmark line survive; the credentials
     # card is gone and what replaced it is one button.
-    assert "Doctors earn from their judgment" in body
+    assert "doctors earn from their judgment" in body
     assert "Bookmark this email" in body
     assert "Set up your account" in body
     assert "Temporary password" not in body

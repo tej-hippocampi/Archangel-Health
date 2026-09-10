@@ -1166,6 +1166,8 @@ class AsclepiusStore:
             # exactly true of every row written before this, and is read as
             # unknown rather than as False everywhere downstream.
             exam_cols = cols("credentialing_exams")
+            if "metadata_json" not in exam_cols:
+                conn.execute("ALTER TABLE credentialing_exams ADD COLUMN metadata_json TEXT")
             if "is_own_specialty" not in exam_cols:
                 conn.execute("ALTER TABLE credentialing_exams ADD COLUMN is_own_specialty INTEGER")
             if "applied_specialty" not in exam_cols:
@@ -6172,6 +6174,10 @@ class AsclepiusStore:
         both attempts and how they differ. That comparison is most of what a
         second look is for.
         """
+        from asclepius.exam_grading import examination_metadata
+        captured_at = _utcnow_iso()
+        metadata = examination_metadata(self.get_task(task_id), payload,
+                                        captured_at=captured_at)
         exam_id = "ce-" + uuid.uuid4().hex[:12]
         with self._conn() as conn:
             conn.execute(
@@ -6179,13 +6185,13 @@ class AsclepiusStore:
                 INSERT INTO credentialing_exams
                     (exam_id, user_id, task_id, specialty, attempt,
                      payload_json, time_spent_sec, submitted_at,
-                     is_own_specialty, applied_specialty)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     is_own_specialty, applied_specialty, metadata_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (exam_id, user_id, task_id, specialty, int(attempt or 1),
                  json.dumps(payload or {}), int(time_spent_sec or 0), _utcnow_iso(),
                  None if is_own_specialty is None else int(bool(is_own_specialty)),
-                 (applied_specialty or "").strip() or None),
+                 (applied_specialty or "").strip() or None, json.dumps(metadata)),
             )
         return exam_id
 
@@ -6204,6 +6210,10 @@ class AsclepiusStore:
                 item["payload"] = json.loads(item.pop("payload_json") or "{}")
             except (TypeError, ValueError):
                 item["payload"] = {}
+            try:
+                item["metadata"] = json.loads(item.pop("metadata_json", None) or "null")
+            except (TypeError, ValueError):
+                item["metadata"] = None
             out.append(item)
         return out
 

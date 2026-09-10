@@ -2031,25 +2031,6 @@ body.asc-sheet-open { overflow: hidden; }
   flex-wrap: wrap;
 }
 
-/* ─── Clinical-validity attestation (Gap U2) ───────────────────────────── */
-/* The reject control is given the same visual weight as the checkbox rather
-   than being tucked away, because the whole fairness of holding a physician to
-   an attestation rests on the honest path being just as easy to reach. */
-.asc-validity-row {
-  display: flex; align-items: flex-start; gap: 10px;
-  font-size: 14px; line-height: 1.6; color: var(--asc-text);
-  cursor: pointer;
-}
-.asc-validity-check {
-  margin-top: 3px; flex: 0 0 auto; accent-color: var(--green);
-  width: 16px; height: 16px;
-}
-.asc-validity-out {
-  display: flex; justify-content: flex-start;
-  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--asc-line);
-}
-.asc-validity-reject { flex: 0 0 auto; }
-
 /* ─── §2 info-dot ──────────────────────────────────────────────────────── */
 .asc-info-wrap { position: relative; display: inline-flex; }
 .asc-info-dot {
@@ -5952,7 +5933,6 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
    like the work, because that is the whole reason to judge somebody on it. */
 .asc-exam-banner { margin-bottom: var(--sp-3, 14px); }
 .asc-exam-banner .chrome { margin-bottom: 6px; }
-.asc-credentialing h2 { margin: 8px 0 10px; font-weight: 400; }
 .asc-small { font-size: 0.85rem; }
 
 /* ── THE APPLICANT'S ONE SCREEN (PRD A §1.2) ─────────────────────────────────
@@ -5972,18 +5952,39 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
    more, and a rule for a class nothing emits is a rule nobody can check, so
    test_applicant_journey asserts their absence as well as these rules'
    presence. */
+.asc-applicant-home { max-width: 1120px; }
+.asc-applicant-heading { padding: 12px 0 28px; }
+.asc-applicant-heading h1 { font-size: clamp(28px, 3.5vw, 42px); font-weight: 400; letter-spacing: -.035em; line-height: 1.15; margin: 12px 0; }
+.asc-applicant-heading p { max-width: 62ch; color: var(--ink-soft); margin: 0; line-height: 1.65; }
+.asc-applicant-review { display: flex; align-items: flex-start; gap: 12px; padding: 18px 22px; border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--card-in); margin-bottom: 24px; }
+.asc-applicant-review strong { font-weight: 500; }
+.asc-applicant-review p { color: var(--ink-soft); margin: 4px 0 0; font-size: var(--t-sm); }
+.asc-applicant-review-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); flex: none; margin-top: 7px; }
+.asc-applicant-card-title { font-size: 24px; font-weight: 400; letter-spacing: -.025em; margin: 6px 0 0; line-height: 1.25; }
+.asc-applicant-video { display: flex; align-items: center; gap: 16px; width: 100%; padding: 26px 20px; margin-top: 16px; background: var(--green-wash); border: 1px solid var(--green-line); border-radius: var(--r-md); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.asc-applicant-video:hover { border-color: var(--green-deep); }
+.asc-applicant-video:focus-visible { outline: 2px solid var(--green-deep); outline-offset: 3px; }
+.asc-applicant-video-copy { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+.asc-applicant-video-title { font-size: 20px; line-height: 1.25; }
+.asc-applicant-play { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--card); color: var(--green-deep); flex: none; }
+.asc-applicant-video-status:empty { display: none; }
+.asc-applicant-video-status { color: var(--ink-soft); font-size: var(--t-sm); }
+.asc-applicant-exam-meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 10px; }
+.asc-applicant-exam-meta span { background: var(--card-in); border: 1px solid var(--hairline); border-radius: var(--r-chip); padding: 5px 10px; font-size: var(--t-sm); text-transform: capitalize; }
+.asc-applicant-exam .asc-btn-primary { margin-top: auto; }
+.asc-applicant-exam > p { margin-bottom: 20px; line-height: 1.65; }
 .asc-applicant-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--sp-3, 14px);
   margin-top: var(--sp-3, 14px);
-  align-items: start;
+  align-items: stretch;
 }
 @media (min-width: 900px) {
-  .asc-applicant-grid { grid-template-columns: 1fr 1fr; }
+  .asc-applicant-grid { grid-template-columns: 1.2fr 1fr; }
 }
 .asc-applicant-card {
-  padding: var(--sp-4, 18px);
+  padding: clamp(20px, 3vw, 32px);
   display: flex;
   flex-direction: column;
   gap: var(--sp-2, 10px);
@@ -6124,3 +6125,35 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   text-transform: uppercase;
   color: var(--ink-faint);
 }
+
+/* Examination receipt uses the applicant page's typography and spacing. */
+.asc-exam-complete { max-width: 800px; padding-top: 48px; }
+.asc-exam-receipt { padding: clamp(24px, 5vw, 56px); }
+.asc-exam-receipt-icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: var(--green-wash); color: var(--green-deep); font-size: 24px; margin-bottom: 28px; }
+.asc-exam-receipt h1 { font-size: clamp(28px, 4vw, 38px); font-weight: 400; letter-spacing: -.035em; margin: 12px 0; }
+.asc-exam-receipt-intro { color: var(--ink-soft); line-height: 1.65; max-width: 55ch; }
+.asc-exam-next { padding: 24px; margin: 32px 0; background: var(--card-in); border: 1px solid var(--hairline); border-radius: var(--r-md); }
+.asc-exam-next h2 { font-size: 20px; font-weight: 400; margin: 10px 0; }
+.asc-exam-next p { color: var(--ink-soft); line-height: 1.65; margin: 0; }
+.vq-exam-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 8px 0; }
+.vq-exam-summary p { margin: 6px 0 0; }
+.vq-exam-band { display: inline-flex; padding: 6px 12px; border-radius: var(--r-chip); background: var(--card-in); }
+.vq-exam-band--well { background: var(--green-wash); color: var(--green-deep); }
+.vq-exam-band--alright { background: var(--orange-wash); color: var(--orange-deep); }
+.vq-exam-band--poorly { background: var(--pink-wash); color: var(--pink-deep); }
+.vq-detail-overlay { position: fixed; inset: 0; z-index: 200; background: var(--hairline-strong); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.vq-detail-frame { display: flex; flex-direction: column; width: min(980px, 100%); max-height: 90dvh; background: var(--card); border: 1px solid var(--hairline); border-radius: var(--r-lg); box-shadow: var(--shadow-float); overflow: hidden; }
+.vq-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--hairline); }
+.vq-detail-head h2 { font-size: 22px; font-weight: 400; margin: 0; }
+.vq-detail-body { overflow: auto; padding: 24px; min-height: 0; }
+.vq-score-lead h3 { font-size: 32px; font-weight: 400; margin: 0; }
+.vq-score-details { margin: 16px 0; padding: 16px; border: 1px solid var(--hairline); border-radius: var(--r-sm); }
+.vq-json, .vq-cv-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.6; }
+.vq-cv-viewer { display: block; width: 100%; height: 65dvh; border: 1px solid var(--hairline); margin-bottom: 16px; background: var(--card-in); }
+
+.vq-cv-image { display: block; max-width: 100%; height: auto; margin-bottom: 16px; }
+.vq-detail-body .asc-phys-kv { display: grid; grid-template-columns: minmax(100px, 30%) minmax(0, 1fr); gap: 10px 20px; margin: 24px 0; }
+.vq-detail-body .asc-phys-kv dt, .vq-detail-body .asc-phys-kv dd { margin: 0; overflow-wrap: anywhere; }
+.vq-detail-body > p { margin: 10px 0; line-height: 1.6; }
+.vq-detail-body > h3 { margin: 24px 0 12px; }
+.asc-exam-receipt > .asc-small { margin-top: 12px; }

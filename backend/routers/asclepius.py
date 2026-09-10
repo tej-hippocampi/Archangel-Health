@@ -1966,12 +1966,9 @@ async def submit_exam(
     body: Dict[str, Any],
     user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL)),
 ):
-    """File the examination. Nothing here is graded, and that is deliberate.
+    """Store the examination and its admin-only evidence snapshot.
 
-    The founders were explicit: no applicant is ever told they are not ready,
-    and the person operating the admin console has the only say. So this
-    records the work and stamps the state; it computes no verdict, and there is
-    nothing for a client to read one out of.
+    The physician receives a receipt, never the score or answer key.
     """
     from asclepius import exam_case  # noqa: PLC0415
 
@@ -3413,6 +3410,9 @@ def require_first_run_stops(
     thing for them to do next, so the body carries an ``action`` and the two
     remaining stops rather than prose.
     """
+    # Informational walkthroughs must not re-lock an approved physician.
+    if user.get("verification_status") == "approved":
+        return user
     if asc_caps.practice_gate_state(user) == asc_caps.GATE_GRANDFATHERED:
         return user
     state = _store().get_first_run(user["id"])

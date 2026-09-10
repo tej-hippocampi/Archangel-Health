@@ -387,6 +387,10 @@ def practice_gate_reason(user: Optional[Dict[str, Any]], *,
     if u.get("role") == "admin" or u.get("is_mock"):
         return None
 
+    # Human approval opens work; practice remains an optional learning tool.
+    if u.get("verification_status") == "approved":
+        return None
+
     gate = practice_gate(u)
     state = practice_gate_state(u)
 
