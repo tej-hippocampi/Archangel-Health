@@ -7614,23 +7614,31 @@ except Exception:
 # answer is the one answer a health check must never give).
 #: Only /static. It is the mount whose absence means the product is not being
 #: served at all. The other two mounts are deliberately NOT here. /audio serves
-#: /tmp, which is scratch. /email-assets is the narrower call, and the old
-#: reason for excluding it -- that backend/assets was not in the repo, so the
-#: mount never registered -- expired when the physician welcome artwork landed
-#: there. It stays out because a missing image degrades one email rather than
-#: meaning the product is unserved, and redding this check rolls a working
-#: deployment back. A health check that reds on something optional gets
-#: ignored, and an ignored health check is the one we started with.
+#: /tmp, which is scratch. /email-assets is the narrower call. Its old reason
+#: for being left out -- backend/assets is not in the repo, so the mount never
+#: registers -- died in 1d7aff3, which added a README and with it the directory.
+#: StaticFiles needs only the directory, so the mount has registered ever since,
+#: carrying whatever artwork happens to be beside that README or none at all.
+#: It stays out because a missing image degrades one email rather than meaning
+#: the product is unserved, and redding this check rolls a working deployment
+#: back. A health check that reds on something optional gets ignored, and an
+#: ignored health check is the one we started with.
 #:
-#: What that leaves uncovered, and where not to look for it. The mount above is
-#: wrapped in try/except, so a backend/assets missing from the RUNNING image
-#: serves 404s while this check still reports healthy. Deleting the artwork from
-#: the repo is not the gap -- test_physician_acceptance_welcome.py asserts both
-#: files return 200 image/png, so CI reds loudly on that. The gap is packaging
-#: and serving. Do not reason about that from the Dockerfile: railway.json sets
-#: the RAILPACK builder and backend/Procfile says in as many words that Railway
-#: uses the Procfile and not the Dockerfile, so neither it nor .dockerignore
-#: governs what production runs.
+#: What that leaves uncovered is two failures, not one, and neither is visible
+#: here. The directory absent, which the try/except above swallows. And the
+#: directory present with the PNGs gone, which does not raise at all: the mount
+#: registers, this check never looks, and every welcome letter 404s its images.
+#: The second is the likelier one, which is why "does /email-assets mount?" is
+#: the wrong question to ask of it.
+#:
+#: Losing the artwork from the REPO is not that gap --
+#: tests/test_physician_acceptance_welcome.py fetches both files and asserts 200
+#: image/png. The gap is packaging and serving. Do not reason about those from
+#: the Dockerfile: railway.json sets the RAILPACK builder and backend/Procfile
+#: says Railway starts from the Procfile, so its COPY instructions never run in
+#: production. (What .dockerignore still constrains under that builder is
+#: unsettled here, and docs/prds/prd-sandbox-e2e.md:159 leans on it excluding
+#: .env* -- do not read the line above as saying it is inert.)
 #:
 #: Such a 404 does reach the uvicorn access log (the Procfile passes no
 #: --no-access-log), but nothing alerts on it, and most mail clients show the
