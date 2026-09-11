@@ -6,13 +6,15 @@ agreements, email work, admin review, source-to-case processing and future chang
 
 Status: repository audit completed and corrections implemented for review. **Production
 release is not certified.** No production data was changed, no real mail was sent,
-and no deployment was performed. Railway rejected both read-only metadata requests
-with HTTP 403, so deployed settings could not be verified.
+and no production deployment was performed. Initial Railway metadata requests
+returned HTTP 403. A later account probe reached GraphQL and returned `Not
+Authorized` for the saved login. The browser sign-in attempt was blocked because
+its security policy check was unavailable. Deployed settings remain unverified.
 
 | Requested area | Repository result | Remaining production evidence |
 | --- | --- | --- |
 | Uploads and preservation | Originals/acknowledged parts retained; durable writes and atomic receipts; visible integrity/partial-input holds | Mounted storage, capacity alerts, off-volume backups and key recovery |
-| Forms, contracts and email | Complete accepted answers; privacy gates; immutable signature evidence; encrypted, retryable invitation jobs | Approved PHI policy/contracts and actual provider delivery/bounce checks |
+| Forms, contracts and email | Complete accepted answers; privacy gates; immutable signature evidence; encrypted, retryable invitation jobs; owner confirmed de-identified-only intake | Contract review and actual provider delivery/bounce checks |
 | Admin review | Submitted answers/history, decision state, signed documents and email/large-file receipts visible; decisions atomic | Staging and live admin walkthrough; older application history beyond the latest 50 requires a database query |
 | Case creation | Patient mappings held when uncertain; source observations retained; failed/partial extraction cannot claim complete ingestion | Real-format partner acceptance fixtures and durable worker operations |
 | Future changes | Mandatory policy/rule, complete-content inventory and destructive-SQL CI check | Main branch currently unprotected; require checks and verify infrastructure controls |
@@ -26,7 +28,8 @@ recoverable. Human approval and the required signed agreement precede self-servi
 upload access. Derived cases retain the complete source chart and provenance.
 
 The current approved path is de-identification **at the health system before
-upload**. An application reporting uncertain authority, uncertain de-identification,
+upload**, explicitly confirmed by the product owner on 10 September 2026.
+An application reporting uncertain authority, uncertain de-identification,
 or a need for a BAA cannot be approved through the ordinary DLA flow. This is a
 technical gate, not a legal opinion or certification of a partner's data. A separate
 PHI/BAA product workflow has not been authorized or implemented in this audit.
@@ -174,8 +177,8 @@ Do not loosen privacy, identity or quality holds to make a test green.
    admin review → case generation in staging, plus email provider acceptance,
    failure/retry and bounce/webhook verification. No live end-to-end result is
    claimed in this report.
-4. Resolve the PHI/BAA product policy and review actual contract templates with the
-   responsible privacy/legal owner. Legacy operator-provisioned accounts and
+4. The product owner confirmed de-identified-only intake; review actual contract
+   templates with the responsible privacy/legal owner. Legacy operator-provisioned accounts and
    existing partner-link doors keep their existing contractual compatibility;
    this audit does not invent missing historic agreement evidence.
 5. Expired invitation jobs are safely voided after their existing 14-day lifetime;

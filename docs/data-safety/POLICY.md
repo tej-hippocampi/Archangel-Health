@@ -11,6 +11,15 @@ This applies to PRDs, migrations, integrations, jobs, UI edits, configuration,
 retention, cleanup, refactoring and infrastructure changes, in every realm.
 A test suite is not proof of a live backup or an absolute zero-loss guarantee.
 
+## Approved data intake scope
+
+The product owner confirmed on 10 September 2026 that health systems must
+de-identify patient data before uploading it. Accepting identifiable patient
+data under a BAA is not an approved intake path. Preserve the existing privacy
+gates; a future PHI workflow requires a separately approved product scope and
+privacy/security review. This requirement does not itself verify a file's
+de-identification or certify legal compliance.
+
 ## Required change record
 
 Create a dated record alongside the PRD with:
