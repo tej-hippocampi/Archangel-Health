@@ -537,6 +537,8 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
             raw = json.loads(raw)
         except Exception as exc:
             raise FhirParseError(f"not valid JSON: {exc}") from exc
+    if isinstance(raw, dict) and raw.get('resourceType') == 'Patient':
+        raw = {'resourceType': 'Bundle', 'entry': [{'resource': raw}]}
     if not isinstance(raw, dict) or raw.get("resourceType") != "Bundle":
         raise FhirParseError("not a FHIR R4 Bundle (resourceType != 'Bundle')")
 
@@ -584,6 +586,7 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
         except (ValueError, TypeError):
             return None
 
+    vital_notes = []
     birth_date = None
     declared_age_years: Optional[int] = None
     lab_by_key: Dict[tuple, Dict[str, Any]] = {}
@@ -684,7 +687,7 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
                 veff = _effective(res)
                 # Preserve every reading as a dated source observation. The flat
                 # current-vitals set contains only observations from its own date.
-                frag['notes'].append({'note_type': 'vital_signs', 'author_role': 'clinical record',
+                vital_notes.append({'note_type': 'vital_signs', 'author_role': 'clinical record',
                     'text': f"Recorded vital sign observation: {name}: {rendered}.", 'collected_at': veff})
                 prior = frag.get('_vitals_at')
                 if vital_timestamp(veff) and (not vital_timestamp(prior) or vital_timestamp(veff) > vital_timestamp(prior)):
@@ -846,4 +849,5 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
     # the true latest; the manifest's index_event still overrides downstream.
     if latest_obs is not None:
         frag["_index_event"] = str(latest_obs)
+    frag['notes'].extend(vital_notes)
     return frag

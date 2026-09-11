@@ -93,6 +93,7 @@ def _dcm_bytes(ds) -> bytes:
 
 
 def _zip(files: dict) -> bytes:
+    files = {'manifest.json': json.dumps({'specialty': 'radiology', 'patient_key': 'fixture-patient'}), **files}
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
         for name, data in files.items():
@@ -154,7 +155,7 @@ def test_burned_in_missing_tag_is_suspect():
     assert risk == "suspect"
     store = _store()
     summary = _ingest(store, _zip({"scan.dcm": _dcm_bytes(ds),
-                                   "manifest.json": json.dumps({"specialty": "radiology"})}))
+                                   "manifest.json": json.dumps({"specialty": "radiology", "patient_key": "fixture-patient"})}))
     # Nothing gradable was produced (suspect is not auto-ingested).
     files_out = summary.get("files") or store.get_ingest_upload(summary["upload_id"])["files"]
     assert any("needs_burnin_review" in json.dumps(o) for o in files_out)
@@ -170,8 +171,9 @@ def test_burned_in_blocked_rejects_entry():
                                    "b.dcm": _dcm_bytes(clear)}))
     files = summary["files"]
     assert any("rejected_burned_in_phi" in json.dumps(o) for o in files)
-    # The clear entry still ingested — one blocked entry does not sink the bundle.
-    assert summary["status"] == "ingested"
+    # The partial bundle stays held; all original images remain recoverable.
+    assert summary['status'] == 'needs_review'
+    assert store.get_ingest_upload(summary['upload_id'])['retain_raw']
 
 
 # ─── test 22 ──────────────────────────────────────────────────────────────────
@@ -193,7 +195,7 @@ def test_imaging_only_bundle_now_valid():
     ds = _make_ds(bia="NO")
     store = _store()
     summary = _ingest(store, _zip({"only.dcm": _dcm_bytes(ds),
-                                   "manifest.json": json.dumps({"specialty": "radiology"})}))
+                                   "manifest.json": json.dumps({"specialty": "radiology", "patient_key": "fixture-patient"})}))
     assert summary["status"] == "ingested", summary
     cases = store.list_ingest_cases(upload_id=summary["upload_id"])
     assert len(cases) == 1
@@ -215,8 +217,8 @@ def test_undecodable_dicom_does_not_crash_upload():
     files = summary.get("files") or store.get_ingest_upload(summary["upload_id"])["files"]
     assert any("rejected_unreadable" in json.dumps(o) for o in files)
     # terminal status reached (never stuck in 'parsing'); the good image still lands.
-    assert store.get_ingest_upload(summary["upload_id"])["status"] in ("ingested", "quarantined", "rejected")
-    assert summary["status"] == "ingested"
+    assert store.get_ingest_upload(summary['upload_id'])['status'] == 'needs_review'
+    assert summary['status'] == 'needs_review'
 
 
 # ─── test 24 ──────────────────────────────────────────────────────────────────
@@ -225,7 +227,7 @@ def test_key_image_designation_required(monkeypatch):
     series = generate_uid()
     files = {f"img{i}.dcm": _dcm_bytes(_make_ds(bia="NO", series_uid=series))
              for i in range(20)}
-    files["manifest.json"] = json.dumps({"specialty": "radiology"})
+    files["manifest.json"] = json.dumps({"specialty": "radiology", "patient_key": "fixture-patient"})
     store = _store()
     summary = _ingest(store, _zip(files))
     # A 20-instance series over the cap with no designated key images promotes NO

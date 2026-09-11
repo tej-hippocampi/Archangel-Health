@@ -1704,12 +1704,15 @@ async def hs_signup_verify(body: HsSignupVerifyRequest, background: BackgroundTa
     organization = staged["organization"]
     wants_temp = bool(staged.get("needs_temp_password"))
     claim_token = secrets.token_urlsafe(32) if wants_temp else ""
+    collisions = [h['hs_id'] for h in store.health_systems_named_like(organization)]
     try:
         minted = store.complete_hs_signup(
             staged["signup_id"], expected_code_hash=staged["code_hash"],
             invite_token_hash=asc_hs_provisioning.invite_token_hash(claim_token) if claim_token else None,
             invite_expires_at=(datetime.utcnow() + timedelta(days=asc_hs_provisioning.INVITE_TTL_DAYS)).isoformat()
-            if claim_token else None)
+            if claim_token else None,
+            outbox_factory=lambda hs_id, username: _hs_signup_messages(store,
+                staged['full_name'], email, organization, hs_id, username, collisions, claim_token))
     except Exception:
         log.exception("hs signup: account creation failed")
         raise HTTPException(status_code=503,
@@ -1722,11 +1725,8 @@ async def hs_signup_verify(body: HsSignupVerifyRequest, background: BackgroundTa
                     event_type="self_signup_verified", actor=username,
                     payload={"organization": organization})
 
-    collisions = [h["hs_id"] for h in
-                  store.health_systems_named_like(organization, exclude_hs_id=hs["hs_id"])]
-    background.add_task(_notify_hs_signup, store, staged["full_name"], email,
-                        organization, hs["hs_id"], username, collisions,
-                        claim_token)
+    from main import _drain_admin_notifications
+    background.add_task(_drain_admin_notifications)
 
     fresh = store.get_hs_portal_user(username) or {}
     _set_hs_cookie(response, _hs_token(username, hs["hs_id"],
@@ -1736,58 +1736,34 @@ async def hs_signup_verify(body: HsSignupVerifyRequest, background: BackgroundTa
             "must_reset": wants_temp}
 
 
-def _notify_hs_signup(store: Any, full_name: str, email: str, organization: str,
-                      hs_id: str, username: str, collisions: List[str],
-                      claim_token: str = "") -> None:
-    """Background because this route is behind the portal time budget on the way
-    out, and a SendGrid round trip is several times it.
 
-    Two welcome letters, one per door. A signup that chose its own password gets
-    the letter that delivers the USERNAME, because that is the only thing they
-    do not already have. A three-field signup gets the §2.3 access letter, which
-    carries the mission, the claim link, and the line telling them to bookmark
-    it -- and it has to go out immediately, because for that door this email is
-    the only record of how to get back in.
 
-    ``claim_token`` is a live secret: anyone holding it can set the password on
-    that account. It exists in this process, in this email, and as a hash on the
-    row. Never log it, and never put it in an event payload.
-    """
-    try:
-        import notifications
-        from onboarding_emails import (
-            build_hs_access_email, build_hs_signup_alert,
-            build_hs_signup_welcome_email,
-        )
-        notifications.notify_founders(
-            store, kind="hs_signup",
-            subject=f"[Health system] New signup: {organization}",
-            body_html=build_hs_signup_alert(
-                full_name=full_name, email=email, organization=organization,
-                hs_id=hs_id, username=username, name_collisions=collisions),
-            dedupe_key=hs_id, coalesce=False)
-    except Exception:
-        log.exception("hs signup: founder notification failed")
-    try:
-        if is_email_transport_configured():
-            if claim_token:
-                subject = "Welcome to Archangel Health: your portal access"
-                body = build_hs_access_email(
-                    organization=organization, full_name=full_name,
-                    claim_url=_hs_claim_url(claim_token),
-                    portal_url=_hs_portal_url())
-            else:
-                subject = "Your Archangel Health upload portal"
-                body = build_hs_signup_welcome_email(
-                    organization=organization, username=username,
-                    portal_url=_hs_portal_url())
-            # The house bridge, which copes whether or not a loop is running.
-            # A sync BackgroundTask has none, but that is a property of how
-            # FastAPI happens to schedule this today, not one to depend on.
-            from asclepius.ingest_notify import _run_coro
-            _run_coro(send_html_email(email, subject, body))
-    except Exception:
-        log.exception("hs signup: notification failed")
+def _hs_signup_messages(store, full_name, email, organization, hs_id, username, collisions, claim_token=''):
+    from asclepius import hs_mail
+    import notifications
+    from onboarding_emails import build_hs_signup_alert, build_hs_access_email, build_hs_signup_welcome_email
+    event = asc_hs_provisioning.invite_token_hash(claim_token) if claim_token else username
+    body = build_hs_access_email(organization=organization, full_name=full_name,
+        claim_url=_hs_claim_url(claim_token), portal_url=_hs_portal_url()) if claim_token else build_hs_signup_welcome_email(
+        organization=organization, username=username, portal_url=_hs_portal_url())
+    jobs = [hs_mail.message(hs_id, 'hs_access' if claim_token else 'hs_welcome', event, email,
+        'Welcome to Archangel Health: your portal access' if claim_token else 'Your Archangel Health upload portal',
+        body, sensitive=bool(claim_token))]
+    alert = build_hs_signup_alert(full_name=full_name, email=email, organization=organization,
+        hs_id=hs_id, username=username, name_collisions=collisions)
+    jobs.extend(hs_mail.message(hs_id, 'hs_signup', username, addr,
+        f'[Health system] New signup: {organization}', alert) for addr in notifications.founder_recipients(store))
+    return jobs
+
+
+def _hs_member_messages(hs, inviter, email, username, token):
+    from asclepius import hs_mail
+    from onboarding_emails import build_hs_member_added_email
+    return [hs_mail.message(hs['hs_id'], 'hs_access', asc_hs_provisioning.invite_token_hash(token), email,
+        f"{inviter} added you to {hs['name']}'s Archangel Health workspace",
+        build_hs_member_added_email(organization=hs['name'], added_by=inviter,
+            claim_url=_hs_claim_url(token), portal_url=_hs_portal_url(),
+            awaiting_dla=hs_states.state_of(hs) == hs_states.AWAITING_DLA), sensitive=True)]
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -2682,6 +2658,7 @@ async def hs_members_post(
                    "Reply to any email from us and we will raise it.")
 
     added: List[Dict[str, Any]] = []
+    inviter = (portal_user.get('full_name') or '').strip() or 'A colleague'
     for addr in wanted:
         minted = asc_hs_provisioning.provision_account(
             store, hs_id=hs["hs_id"], org_name=hs["name"], email=addr,
@@ -2689,7 +2666,8 @@ async def hs_members_post(
             # The same decision their colleague's account got. A member is not a
             # lesser account: they can answer the questions and they can sign.
             approval_status=(portal_user.get("approval_status") or None),
-            mint_invite=True)
+            mint_invite=True,
+            mail_factory=lambda username, token: _hs_member_messages(hs, inviter, addr, username, token))
         store.log_event(entity_type="health_system", entity_id=hs["hs_id"],
                         event_type="member_added", actor=portal_user["username"],
                         payload={"username": minted["username"], "email": addr})
@@ -2699,13 +2677,8 @@ async def hs_members_post(
         added.append({"email": addr, "username": minted["username"],
                       "claim_token": minted["invite_token"]})
 
-    inviter = (portal_user.get("full_name") or "").strip() or "A colleague"
-    # Read here, on the row this request already holds, rather than inside the
-    # background task: the task runs after the response and a refetch there would
-    # be a second read of a row that could have moved under it, which would mail
-    # a member the wrong story about their own organization.
-    background.add_task(_notify_hs_members_added, hs["name"], inviter, added,
-                        hs_states.state_of(hs) == hs_states.AWAITING_DLA)
+    from main import _drain_admin_notifications
+    background.add_task(_drain_admin_notifications)
     fresh = [u for u in store.list_hs_portal_users(hs["hs_id"]) if u.get("active")]
     return {
         # The claim links are NOT echoed. They go to the address they belong to
@@ -2718,31 +2691,6 @@ async def hs_members_post(
     }
 
 
-def _notify_hs_members_added(organization: str, inviter: str,
-                             added: List[Dict[str, Any]],
-                             awaiting_dla: bool = False) -> None:
-    """One letter per new member, each carrying only its own claim link.
-
-    ``awaiting_dla`` is passed in rather than looked up. This runs after the
-    response has gone out, so there is no request row to read and no session to
-    read it from; the caller resolved the organization's state while it still
-    had both.
-    """
-    if not is_email_transport_configured():
-        return
-    try:
-        from asclepius.ingest_notify import _run_coro
-        from onboarding_emails import build_hs_member_added_email
-        for member in added:
-            _run_coro(send_html_email(
-                member["email"],
-                f"{inviter} added you to {organization}'s Archangel Health workspace",
-                build_hs_member_added_email(
-                    organization=organization, added_by=inviter,
-                    claim_url=_hs_claim_url(member["claim_token"]),
-                    portal_url=_hs_portal_url(), awaiting_dla=awaiting_dla)))
-    except Exception:
-        log.exception("hs members: invite email failed")
 
 
 # ─── The agreement ───────────────────────────────────────────────────────────

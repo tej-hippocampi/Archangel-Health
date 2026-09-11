@@ -1148,7 +1148,7 @@
       const delivery = h('section', { class: 'asc-card' }, h('div', { class: 'asc-card-title' }, 'Agreement email delivery'));
       data.email_delivery.forEach(row => delivery.appendChild(h('p', {},
         row.recipient_email + ': ' + (row.status === 'sent' ? 'Accepted by email provider' : row.status === 'void' ? 'Superseded; will not send' : 'Queued; automatic retry') +
-        ' (' + row.send_attempts + ' attempts)' + (row.last_error ? ' — ' + row.last_error : ''))));
+        ' (' + row.send_attempts + ' attempts)' + (row.last_error ? ': ' + row.last_error : ''))));
       container.appendChild(delivery);
     }
     const receiptHsId = data.health_system?.hs_id;
@@ -1184,7 +1184,12 @@
           card.appendChild(details);
         });
         container.appendChild(card);
-      }).catch(() => {});
+      }).catch(error => {
+        if (!container.isConnected || String(error.message).includes('Bulk uploads are not enabled')) return;
+        container.appendChild(h('section', {class: 'asc-card'},
+          h('div', {class: 'asc-card-title'}, 'Large-file receipts'),
+          h('p', {}, 'Receipts could not be loaded: ' + error.message)));
+      });
     }
     const entries = data.applications || [];
     if (!entries.length) return;

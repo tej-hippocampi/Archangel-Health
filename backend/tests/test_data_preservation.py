@@ -108,6 +108,121 @@ def onboard():
     return client, I._store(), org
 
 
+def decision_fixture():
+    _, store, org = onboard()
+    hs_id = org['hs_id']
+    store.create_hs_portal_user(username='second-member', hs_id=hs_id,
+                               password=H.PASSWORD, email='second@example.org', approval_status='pending')
+    store.record_signed_agreement(hs_id=hs_id, doc_version='historical-fixture', doc_sha256='c' * 64,
+                                  signer_user_id=org['username'], typed_name='Historical Signer',
+                                  typed_title='Officer', consent_esign=True, authority_affirmed=True)
+    with store._conn() as conn:
+        hs_mail.enqueue(conn, [hs_mail.message(hs_id, kind, 'fixture', 'notice@example.org', 'Synthetic notice', 'Synthetic body')
+                               for kind in ('hs_access', 'hs_dla_request', 'hs_uploads_open', 'hs_agreement_receipt')])
+    return store, org, store.get_health_system(hs_id)
+
+
+@pytest.mark.parametrize('fault', ['account', 'organization', 'outbox', 'event'])
+def test_decline_rolls_back_the_entire_decision_on_each_write_failure(fault):
+    from scripts import data_inventory as inventory
+    store, org, observed = decision_fixture()
+    before = inventory.snapshot(store.db_path)
+    triggers = {
+        'account': "BEFORE UPDATE OF active ON hs_portal_users WHEN OLD.username='second-member'",
+        'organization': "BEFORE UPDATE OF onboarding_state ON health_systems WHEN NEW.onboarding_state='declined'",
+        'outbox': "BEFORE UPDATE OF status ON admin_notify_outbox WHEN NEW.status='void'",
+        'event': "BEFORE INSERT ON events WHEN NEW.event_type='onboarding_declined'",
+    }
+    with store._conn() as conn:
+        conn.execute('CREATE TRIGGER fail_decision ' + triggers[fault] + " BEGIN SELECT RAISE(ABORT,'injected decision failure'); END")
+    with pytest.raises(sqlite3.IntegrityError, match='injected decision failure'):
+        store.decline_hs_organization(org['hs_id'], by='admin@example.org', reason='No authority',
+                                     expected_state='submitted', expected_changed_at=observed.get('state_changed_at'))
+    assert inventory.compare(before, inventory.snapshot(store.db_path)) == []
+    assert len(store.list_hs_pending_signups()) == 2
+
+
+def test_decline_preserves_source_evidence_and_voids_only_unsent_access_notices():
+    from scripts import data_inventory as inventory
+    store, org, observed = decision_fixture()
+    before = inventory.snapshot(store.db_path)
+    assert store.decline_hs_organization(org['hs_id'], by='admin@example.org', reason='No authority',
+                                        expected_state='submitted', expected_changed_at=observed.get('state_changed_at')) == 2
+    allowed = ['hs_portal_users.' + c for c in ('approval_status', 'active', 'approved_by', 'approved_at', 'decision_reason', 'session_epoch')]
+    allowed += ['health_systems.onboarding_state', 'health_systems.state_changed_at', 'admin_notify_outbox.status', 'admin_notify_outbox.last_error']
+    assert inventory.compare(before, inventory.snapshot(store.db_path), allowed) == []
+    for account in store.list_hs_portal_users(org['hs_id']):
+        assert account['active'] == 0 and account['approval_status'] == 'rejected'
+        assert account['decision_reason'] == 'No authority'
+    notices = hs_mail.status(store, org['hs_id'])
+    assert all(r['status'] == 'void' for r in notices if r['kind'] in ('hs_access', 'hs_dla_request', 'hs_uploads_open'))
+    assert [r['status'] for r in notices if r['kind'] == 'hs_agreement_receipt'] == ['pending']
+    decisions = [e for e in store.list_events(entity_id=org['hs_id']) if e['event_type'] == 'onboarding_declined']
+    assert len(decisions) == 1 and decisions[0]['payload']['reason'] == 'No authority'
+    # A later click cannot silently put an organization with no active signer
+    # back into the agreement queue.
+    with pytest.raises(ValueError, match='No eligible active portal account'):
+        store.approve_hs_organization(org['hs_id'], by='admin@example.org')
+    assert store.get_health_system(org['hs_id'])['onboarding_state'] == 'declined'
+
+
+@pytest.mark.parametrize('other_action', ['decline', 'approve'])
+def test_concurrent_admin_decisions_reject_the_stale_action(other_action):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    store, org, observed = decision_fixture()
+    ready = Barrier(2)
+
+    def decide(action):
+        ready.wait(timeout=10)
+        args = dict(by=action + '@example.org', expected_state='submitted', expected_changed_at=observed.get('state_changed_at'))
+        try:
+            if action == 'decline':
+                store.decline_hs_organization(org['hs_id'], reason='No authority', **args)
+            else:
+                store.approve_hs_organization(org['hs_id'], **args)
+            return action, True
+        except ValueError as exc:
+            assert 'changed during review' in str(exc)
+            return action, False
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(decide, ['decline', other_action]))
+    winner = [action for action, ok in results if ok]
+    assert len(winner) == 1
+    state = store.get_health_system(org['hs_id'])['onboarding_state']
+    assert state == ('declined' if winner[0] == 'decline' else 'approved_awaiting_dla')
+    decisions = [e for e in store.list_events(entity_id=org['hs_id']) if e['event_type'] in ('onboarding_declined', 'onboarding_approved')]
+    assert len(decisions) == 1
+
+
+def test_approval_cannot_commit_without_its_decision_evidence():
+    from scripts import data_inventory as inventory
+    store, org, observed = decision_fixture()
+    before = inventory.snapshot(store.db_path)
+    with store._conn() as conn:
+        conn.execute("CREATE TRIGGER fail_approval_event BEFORE INSERT ON events WHEN NEW.event_type='onboarding_approved' BEGIN SELECT RAISE(ABORT,'event unavailable'); END")
+    with pytest.raises(sqlite3.IntegrityError, match='event unavailable'):
+        store.approve_hs_organization(org['hs_id'], by='admin@example.org', expected_state='submitted', expected_changed_at=observed.get('state_changed_at'))
+    assert inventory.compare(before, inventory.snapshot(store.db_path)) == []
+
+
+def test_unknown_storage_headroom_refuses_a_new_upload_session(monkeypatch):
+    from asclepius import uploads
+
+    def unavailable(_path):
+        raise OSError('Storage probe unavailable')
+
+    monkeypatch.setattr('shutil.disk_usage', unavailable)
+    store = I._store()
+    with pytest.raises(uploads.UploadSessionError) as error:
+        uploads.declare(store, owner_kind='hs', owner_id='fixture', actor='fixture',
+                        filename='original.zip', size=100, sha256='a' * 64, content_type='application/zip')
+    assert error.value.status == 507
+    with store._conn() as conn:
+        assert conn.execute('SELECT COUNT(*) FROM ingest_upload_sessions').fetchone()[0] == 0
+
+
 def test_approval_and_outbox_failure_leave_application_in_pending_review():
     client, store, org = onboard()
     with store._conn() as conn:
@@ -313,3 +428,64 @@ def test_intake_and_notification_commit_together(monkeypatch):
     assert client.post('/api/asclepius/hs/intake', json=body).status_code == 200
     assert store.list_hs_intake(org['hs_id'])[0]['answers'] == body
     assert any(r['kind'] == 'hs_intake' for r in hs_mail.status(store, org['hs_id']))
+
+
+def test_unknown_onboarding_states_cannot_open_the_upload_gate():
+    from asclepius import hs_states
+    assert not hs_states.can_upload({'onboarding_state': 'future_privacy_hold'})
+    assert not hs_states.can_upload(None)
+
+
+def test_invitation_queue_failure_rolls_back_account_and_challenge():
+    store = I._store()
+    store.create_hs_signup(email='new@example.org', full_name='New Partner', organization='New Fixture Hospital',
+        password=H.PASSWORD, code='123456', needs_temp_password=True)
+    with store._conn() as conn:
+        conn.execute("CREATE TRIGGER fail_access BEFORE INSERT ON admin_notify_outbox WHEN NEW.kind='hs_access' BEGIN SELECT RAISE(ABORT,'queue failed'); END")
+    client = TestClient(A.app, base_url='https://testserver', raise_server_exceptions=False)
+    response = client.post('/api/asclepius/hs/signup/verify', json={'email':'new@example.org','code':'123456'})
+    assert response.status_code == 503
+    assert not store.list_hs_portal_users()
+    assert not store.list_health_systems()
+    assert store.get_live_hs_signup('new@example.org') is not None
+
+
+def test_invitation_tokens_are_encrypted_and_expired_jobs_are_suppressed(monkeypatch):
+    from asclepius import hs_provisioning
+    from routers.asclepius_provider import _hs_member_messages
+    from field_crypto import decrypt_field, is_encrypted
+    import main
+    store = I._store()
+    hs = store.create_health_system_unclaimed('Invitation Fixture')
+    minted = hs_provisioning.provision_account(store, hs_id=hs['hs_id'], org_name=hs['name'], email='invite@example.org',
+        mint_invite=True, mail_factory=lambda username, token: _hs_member_messages(hs, 'Colleague', 'invite@example.org', username, token))
+    with store._conn() as conn:
+        job = dict(conn.execute("SELECT * FROM admin_notify_outbox WHERE kind='hs_access'").fetchone())
+        assert minted['invite_token'] not in '\n'.join(conn.iterdump())
+    assert is_encrypted(job['body_html'])
+    assert minted['invite_token'] in decrypt_field(job['body_html'])
+    sent = []
+    async def accepted(*args, **kwargs): sent.append(args); return True
+    monkeypatch.setattr('email_utils.is_email_transport_configured', lambda: True)
+    monkeypatch.setattr('email_utils.send_html_email', accepted)
+    with store._conn() as conn:
+        conn.execute("UPDATE hs_portal_users SET invite_expires_at='2000-01-01' WHERE username=?", (minted['username'],))
+    asyncio.run(main._drain_admin_notifications())
+    assert not sent
+    assert hs_mail.status(store, hs['hs_id'])[0]['status'] == 'void'
+
+
+def test_sparse_inventory_baselines_cannot_pass():
+    sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
+    from data_inventory import compare
+    legacy = {'tables': {'tasks': {'table': 'tasks', 'count': 1, 'ids': ['same-id']}}}
+    assert compare(legacy, legacy)
+    assert compare({**legacy, 'version': 2}, legacy)
+
+
+def test_inventory_requires_hashes_for_every_baselined_field():
+    sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
+    from data_inventory import compare
+    sparse = {'version': 2, 'tables': {'tasks': {'table': 'tasks', 'columns': ['id', 'answer'],
+        'ids': ['a'], 'count': 1, 'fields': {'a': {}}}}}
+    assert compare(sparse, sparse)

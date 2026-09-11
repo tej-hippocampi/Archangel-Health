@@ -120,7 +120,7 @@ def test_fhir_bundle_maps_all_sections():
 
 def test_fhir_not_a_bundle_raises():
     with pytest.raises(fhir_r4.FhirParseError):
-        fhir_r4.parse('{"resourceType": "Patient"}')
+        fhir_r4.parse('{"resourceType": "UnsupportedType"}')
 
 
 # ─── hl7v2 ────────────────────────────────────────────────────────────────────

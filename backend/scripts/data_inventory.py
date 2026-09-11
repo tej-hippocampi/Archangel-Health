@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import sqlite3
 import sys
 
@@ -66,7 +67,7 @@ def snapshot(db=None, blob_roots=None):
                 fields[key] = {c: _digest(v) for c, v in values.items()}
             label = 'uploads' if table == 'ingest_uploads' and 'uploads' not in tables else table
             out[label] = {'table': table, 'id_columns': pk or ['rowid'],
-                          'count': len(fields), 'ids': sorted(fields), 'fields': fields}
+                          'columns': names, 'count': len(fields), 'ids': sorted(fields), 'fields': fields}
     finally:
         conn.close()
     blobs = {}
@@ -90,15 +91,32 @@ def snapshot(db=None, blob_roots=None):
 
 
 def compare(before, now, allowed=()):
+    if before.get('version') != 2:
+        return ['legacy or unversioned baseline lacks content evidence; take a version-2 snapshot']
     if not before.get('tables'):
         return ['empty baseline is not preservation evidence']
     problems = []
     allowed = set(allowed)
     for name, previous in before['tables'].items():
+        ids, fields = previous.get('ids'), previous.get('fields')
+        if not isinstance(ids, list) or not isinstance(fields, dict) or not previous.get('columns'):
+            problems.append(f'{name}: baseline is missing IDs, content hashes or columns')
+            continue
+        if len(ids) != len(set(ids)) or len(ids) != previous.get('count') or set(ids) != set(fields):
+            problems.append(f'{name}: inconsistent baseline IDs/content: {sorted(set(ids) ^ set(fields))[:10]}')
+            continue
+        invalid_rows = [identity for identity, values in fields.items()
+                        if not isinstance(values, dict) or set(values) != set(previous['columns'])
+                        or any(not isinstance(v, str) or not re.fullmatch(r'[0-9a-f]{64}', v) for v in values.values())]
+        if invalid_rows:
+            problems.append(f'{name}: baseline rows lack complete field hashes: {invalid_rows[:10]}')
+            continue
         current = now['tables'].get(name)
         if current is None:
             problems.append(f'{name}: table disappeared')
             continue
+        if not set(previous['columns']).issubset(current.get('columns', [])):
+            problems.append(f'{name}: existing columns disappeared')
         missing = set(previous.get('ids') or []) - set(current.get('ids') or [])
         if missing:
             problems.append(f'{name}: {len(missing)} missing ids: {sorted(missing)[:10]}')

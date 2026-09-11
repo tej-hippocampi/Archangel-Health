@@ -80,6 +80,7 @@ def provision_account(
     approval_status: Optional[str] = None,
     must_reset: bool = True,
     mint_invite: bool = False,
+    mail_factory=None,
 ) -> Dict[str, Any]:
     """Create-or-rotate one portal account. Returns
     ``{username, passphrase, invite_token, action, reused}``.
@@ -125,13 +126,11 @@ def provision_account(
         u for u in store.list_hs_portal_users(hs_id)
         if (u.get("email") or "").strip().lower() == addr.lower() and u.get("active")
     ]
+    invite = (invite_token_hash(token), expires_at, invited_by) if mint_invite else None
     if existing:
         username = existing[0]["username"]
-        store.set_hs_portal_password(username, passphrase, must_reset=must_reset)
-        if mint_invite:
-            store.set_hs_portal_invite(
-                username, token_hash=invite_token_hash(token),
-                expires_at=expires_at, invited_by=invited_by)
+        jobs = mail_factory(username, token) if mail_factory else None
+        store.set_hs_portal_password(username, passphrase, must_reset=must_reset, invite=invite, outbox=jobs)
         return {"username": username,
                 # Never a live credential on the invite path. The caller has a
                 # token to put in a link and nothing it could accidentally
@@ -141,15 +140,12 @@ def provision_account(
                 "action": ROTATED, "reused": True}
 
     username = unique_hs_username(store, derive_hs_username(org_name))
+    jobs = mail_factory(username, token) if mail_factory else None
     store.create_hs_portal_user(
         username=username, hs_id=hs_id, password=passphrase, email=addr,
         must_reset=must_reset, full_name=full_name, signup_source=signup_source,
-        approval_status=approval_status)
-    if mint_invite:
-        store.set_hs_portal_invite(
-            username, token_hash=invite_token_hash(token),
-            expires_at=expires_at, invited_by=invited_by)
-    elif invited_by:
+        approval_status=approval_status, invite=invite, outbox=jobs)
+    if invited_by and not mint_invite:
         store.set_hs_portal_invited_by(username, invited_by)
     return {"username": username,
             "passphrase": "" if mint_invite else passphrase,

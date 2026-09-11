@@ -65,18 +65,8 @@ def client():
 
 
 def _fresh(client):
-    """A fresh store that BOTH code paths see.
-
-    ``fresh_store()`` rebinds the module-level store, but
-    ``onboarding._asclepius_store(request)`` prefers ``app.state.asclepius_store``
-    (set once at startup) and ``asclepius.auth`` reads the module-level one. In
-    production those are the same object; in a test they diverge, so onboarding
-    provisions into one store and authentication looks in the other. Point them
-    at the same place rather than writing tests against a split brain.
-    """
-    store = fresh_store()
-    client.app.state.asclepius_store = store
-    return store
+    """Reset the realm store; app.state's RealmProxy follows it automatically."""
+    return fresh_store()
 
 
 def _invite(client, *, email=None, flavor=None, verified=True):

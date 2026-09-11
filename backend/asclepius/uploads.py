@@ -160,9 +160,9 @@ def disk_headroom_for(size: int) -> Tuple[bool, str]:
     need = int(size * disk_amplification_factor())
     try:
         usage = shutil.disk_usage(str(sessions_root()))
-    except OSError as exc:  # pragma: no cover - cannot stat: do not block on it
-        log.warning("disk headroom check skipped: %s", exc)
-        return True, "headroom check unavailable"
+    except OSError as exc:
+        log.warning("disk headroom is unavailable; refusing a new upload: %s", exc)
+        return False, "Available storage could not be verified. Please retry or contact your Archangel Health point of contact."
     if usage.free < need:
         return False, ("There is not enough storage available to accept an upload "
                        "this size right now. Please contact your Archangel Health "
@@ -415,9 +415,9 @@ def complete(store: Any, session: Dict[str, Any]) -> Dict[str, Any]:
         raise
     actual = digest.hexdigest()
     if actual != session["declared_sha256"] or total != int(session["declared_size"]):
-        # Destroy the assembled blob. A blob with no verified row is invisible to
-        # the application by design, but leaving it on disk would still be PHI we
-        # cannot account for.
+        # Keep the failed assembly and received parts as recovery evidence.
+        # A mismatch must not create a successful receipt or erase the only
+        # available copy of the bytes the sender transmitted.
         store.update_upload_session(session["session_id"], status="failed")
         raise UploadIntegrityError(
             "digest_mismatch",
@@ -439,7 +439,7 @@ def finalize(store: Any, session: Dict[str, Any], result: Dict[str, Any]) -> Non
     current = store.get_upload_session(session['session_id'])
     upload = store.get_ingest_upload(result['upload_id'])
     if not current or current.get('status') != 'verified' or current.get('upload_id') != result['upload_id'] or not upload:
-        raise UploadSessionError('The durable upload receipt is not committed; parts retained.')
+        raise UploadSessionError('receipt_not_committed', 'The durable upload receipt is not committed; parts retained.')
     _purge_parts(session)
 
 

@@ -856,7 +856,7 @@ def _classify(name: str, head: bytes, text_head: str) -> str:
     if base == "manifest.json":
         return "manifest"
     if lower.endswith((".json",)):
-        return "fhir_r4" if '"resourceType"' in text_head and '"Bundle"' in text_head else "unsupported"
+        return "fhir_r4" if re.search(r'"resourceType"\s*:\s*"(?:Bundle|Patient)"', text_head) else "unsupported"
     if lower.endswith((".hl7", ".oru")) or text_head.startswith("MSH|"):
         return "hl7v2"
     if lower.endswith((".csv", ".tsv")):

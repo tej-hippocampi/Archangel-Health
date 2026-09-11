@@ -4885,15 +4885,11 @@ async def approve_health_system(
             detail=f"purpose must be one of {', '.join(asc_ingestion.PURPOSES)}.")
 
     try:
-        approved_count = store.approve_hs_organization(hs_id, by=admin['email'], purpose=purpose or None)
+        approved_count = store.approve_hs_organization(
+            hs_id, by=admin['email'], purpose=purpose or None,
+            expected_state=current, expected_changed_at=hs.get('state_changed_at'))
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    accounts = [u for u in store.list_hs_portal_users(hs_id) if u.get('active')]
-    store.log_event(entity_type="health_system", entity_id=hs_id,
-                    event_type="onboarding_approved", actor=admin["email"],
-                    payload={"accounts": [a["username"] for a in accounts],
-                             "purpose": purpose or None})
-
     from main import _drain_admin_notifications
     background.add_task(_drain_admin_notifications)
     delivery = [r for r in hs_mail.status(store, hs_id) if r['kind'] == 'hs_dla_request']
@@ -4931,18 +4927,14 @@ async def decline_health_system(
     except hs_states.TransitionRefused as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
-    accounts = [u for u in store.list_hs_portal_users(hs_id) if u.get("active")]
-    for account in accounts:
-        store.set_hs_approval(account["username"], "rejected",
-                              by=admin["email"], reason=reason)
-        store.set_hs_portal_active(account["username"], False)
-    store.set_hs_onboarding_state(hs_id, hs_states.DECLINED)
-    store.log_event(entity_type="health_system", entity_id=hs_id,
-                    event_type="onboarding_declined", actor=admin["email"],
-                    payload={"reason": reason,
-                             "accounts": [a["username"] for a in accounts]})
+    try:
+        closed_count = store.decline_hs_organization(
+            hs_id, by=admin['email'], reason=reason,
+            expected_state=hs_states.state_of(hs), expected_changed_at=hs.get('state_changed_at'))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     return {"ok": True, "hs_id": hs_id, "onboarding_state": hs_states.DECLINED,
-            "accounts_closed": len(accounts)}
+            "accounts_closed": closed_count}
 
 
 @router.get("/agreements/{agreement_id}/document", include_in_schema=False)

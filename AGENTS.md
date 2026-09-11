@@ -1,19 +1,14 @@
 # AGENTS.md — the map
-
 Read this first. It is a map, not a tutorial: where things live, what will bite
 you, and what the words mean. Every claim here is checkable against the file
 named next to it.
-
 ## What the company sells
-
 Archangel Health sells physician-verified medical data: evaluation sets, graded
 reasoning traces, and RL environments, bought by frontier AI labs. The raw
 material is real de-identified patient records contributed by health systems,
 plus synthetic cases authored to be genuinely hard. Practising physicians grade
 and verify every item, and that verification is the product.
-
 ## The three planes
-
 | Plane | Lives in | What it is |
 |---|---|---|
 | Product | `backend/asclepius/` | The evaluation portal: task store, routing, export, payments |
@@ -119,12 +114,6 @@ cd backend && python3 scripts/route_baseline.py --diff
 cd backend && python3 scripts/check_dangling_imports.py
 ```
 
-## Mandatory data preservation for every future PRD
-
-Every data-related PRD and implementation follows `docs/data-safety/POLICY.md`.
-Preserve accepted originals, full form answers, contracts, source charts and all
-product records. No age-only cleanup, destructive migrations, replacement of
-existing evidence, silent truncation, or successful partial ingestion. Snapshot
-all affected databases and file trees before and after, test failure/retry paths,
-and obtain independent review. A missing inventory or untested restore blocks a
-production safety claim. Authorized retention disposition is a separate process.
+Every data-related PRD/change must follow `docs/data-safety/POLICY.md`: preserve
+accepted originals and source records, snapshot all affected stores and file
+hashes, test failure/retry paths, obtain independent review and verify restore.

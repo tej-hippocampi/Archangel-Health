@@ -11649,7 +11649,8 @@ class AsclepiusStore:
                               must_reset: bool = True,
                               full_name: Optional[str] = None,
                               signup_source: Optional[str] = None,
-                              approval_status: Optional[str] = None) -> Dict[str, Any]:
+                              approval_status: Optional[str] = None,
+                              invite=None, outbox=None) -> Dict[str, Any]:
         """Create a portal login.
 
         ``must_reset`` defaults True because the admin-provisioned path mails a
@@ -11683,6 +11684,10 @@ class AsclepiusStore:
                  # The column's default belongs with the column anyway.
                  DEFAULT_PURPOSE),
             )
+            if invite:
+                conn.execute('UPDATE hs_portal_users SET invite_token_hash=?, invite_expires_at=?, invited_by=? WHERE username=?', (*invite, uname))
+            from asclepius.hs_mail import enqueue
+            enqueue(conn, outbox)
         return self.get_hs_portal_user_public(uname)  # type: ignore[return-value]
 
     def get_hs_portal_user(self, username: str) -> Optional[Dict[str, Any]]:
@@ -11719,7 +11724,7 @@ class AsclepiusStore:
         return row is not None
 
     def set_hs_portal_password(self, username: str, new_password: str, *,
-                               must_reset: bool = False) -> None:
+                               must_reset: bool = False, invite=None, outbox=None) -> None:
         """Set the password and stamp ``password_changed_at``. The stamp is what
         invalidates outstanding session cookies (FIX-C C-2.3) — without it a
         leaked cookie outlived the victim's own password reset by up to the full
@@ -11742,6 +11747,11 @@ class AsclepiusStore:
                 (hash_password(new_password), 1 if must_reset else 0, _utcnow_iso(),
                  (username or "").lower()),
             )
+
+            if invite:
+                conn.execute('UPDATE hs_portal_users SET invite_token_hash=?, invite_expires_at=?, invited_by=? WHERE username=?', (*invite, (username or '').lower()))
+            from asclepius.hs_mail import enqueue
+            enqueue(conn, outbox)
 
     # ─── The claim link ─────────────────────────────────────────────────────
     # An invited member never receives a credential. They receive a one-time
@@ -12391,7 +12401,7 @@ class AsclepiusStore:
 
     def complete_hs_signup(self, signup_id: str, *, expected_code_hash: str,
                             invite_token_hash: Optional[str] = None,
-                            invite_expires_at: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                            invite_expires_at: Optional[str] = None, outbox_factory=None) -> Optional[Dict[str, Any]]:
         """Consume the verified challenge and create its isolated portal atomically.
 
         A stale verification must create nothing. A storage failure must roll
@@ -12439,6 +12449,9 @@ class AsclepiusStore:
                  staged["email"], now, staged["full_name"], DEFAULT_PURPOSE,
                  invite_token_hash, invite_expires_at),
             )
+            if outbox_factory:
+                from asclepius.hs_mail import enqueue
+                enqueue(conn, outbox_factory(hs_id, username))
         return {"hs_id": hs_id, "username": username}
 
     def bump_hs_signup_attempts(self, signup_id: str) -> int:
@@ -12918,7 +12931,8 @@ class AsclepiusStore:
     # ═══ END HS SELF-SERVE + PAYOUTS STORE METHODS ═══
     # ═══ HS ONBOARDING STORE METHODS ═══
     # ─── State ───────────────────────────────────────────────────────────────
-    def approve_hs_organization(self, hs_id, *, by, purpose=None):
+    def approve_hs_organization(self, hs_id, *, by, purpose=None,
+                                expected_state=None, expected_changed_at=None):
         from asclepius import hs_states, hs_mail
         with self._conn() as conn:
             conn.execute('BEGIN IMMEDIATE')
@@ -12926,18 +12940,50 @@ class AsclepiusStore:
             if not hs:
                 raise ValueError('Health system not found')
             hs = dict(hs)
+            if expected_state is not None and (hs_states.state_of(hs) != expected_state or hs.get('state_changed_at') != expected_changed_at):
+                raise ValueError('The organization changed during review. Refresh before deciding.')
             hs_states.check_transition(hs_states.state_of(hs), hs_states.AWAITING_DLA)
             application = conn.execute('SELECT * FROM hs_applications WHERE hs_id=? ORDER BY submitted_at DESC,rowid DESC LIMIT 1', (hs_id,)).fetchone()
             issue = hs_states.application_readiness_error(dict(application) if application else None)
             if issue:
                 raise ValueError(issue)
-            accounts = [dict(r) for r in conn.execute('SELECT * FROM hs_portal_users WHERE hs_id=? AND active=1', (hs_id,))]
+            accounts = [dict(r) for r in conn.execute("SELECT * FROM hs_portal_users WHERE hs_id=? AND active=1 AND COALESCE(approval_status,'approved') IN ('pending','approved')", (hs_id,))]
+            if not accounts:
+                raise ValueError('No eligible active portal account is available. Restore the intended account before approval.')
             now = _utcnow_iso()
             conn.execute("UPDATE hs_portal_users SET approval_status='approved',approved_by=?,approved_at=?,decision_reason=NULL WHERE hs_id=? AND active=1 AND approval_status='pending'", (by, now, hs_id))
             if purpose:
                 conn.execute('UPDATE hs_portal_users SET purpose=? WHERE hs_id=? AND active=1', (purpose, hs_id))
             conn.execute('UPDATE health_systems SET onboarding_state=?,state_changed_at=? WHERE hs_id=?', (hs_states.AWAITING_DLA, now, hs_id))
             hs_mail.enqueue(conn, hs_mail.request_messages(hs, accounts, event=uuid.uuid4().hex))
+            conn.execute("INSERT INTO events (entity_type,entity_id,event_type,actor,occurred_at,payload_json) VALUES ('health_system',?,'onboarding_approved',?,?,?)",
+                         (hs_id, by, now, json.dumps({'accounts': [a['username'] for a in accounts], 'purpose': purpose})))
+        return len(accounts)
+
+    def decline_hs_organization(self, hs_id, *, by, reason,
+                                expected_state=None, expected_changed_at=None):
+        """Commit the complete decision and its evidence, or change nothing."""
+        from asclepius import hs_states
+        reason = ' '.join((reason or '').split())
+        if not reason:
+            raise ValueError('A reason is required to decline.')
+        with self._conn() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            row = conn.execute('SELECT * FROM health_systems WHERE hs_id=?', (hs_id,)).fetchone()
+            if not row:
+                raise ValueError('Health system not found')
+            hs = dict(row)
+            if expected_state is not None and (hs_states.state_of(hs) != expected_state or hs.get('state_changed_at') != expected_changed_at):
+                raise ValueError('The organization changed during review. Refresh before deciding.')
+            hs_states.check_transition(hs_states.state_of(hs), hs_states.DECLINED)
+            accounts = [r['username'] for r in conn.execute('SELECT username FROM hs_portal_users WHERE hs_id=? AND active=1', (hs_id,))]
+            now = _utcnow_iso()
+            conn.execute("UPDATE hs_portal_users SET approval_status='rejected',active=0,approved_by=?,approved_at=?,decision_reason=?,session_epoch=session_epoch+1 WHERE hs_id=? AND active=1",
+                         (by, now, reason, hs_id))
+            conn.execute('UPDATE health_systems SET onboarding_state=?,state_changed_at=? WHERE hs_id=?', (hs_states.DECLINED, now, hs_id))
+            conn.execute("UPDATE admin_notify_outbox SET status='void',last_error='Organization declined' WHERE status='pending' AND idempotency_key LIKE ? AND kind IN ('hs_access','hs_dla_request','hs_uploads_open')", (f'hs:{hs_id}:%',))
+            conn.execute("INSERT INTO events (entity_type,entity_id,event_type,actor,occurred_at,payload_json) VALUES ('health_system',?,'onboarding_declined',?,?,?)",
+                         (hs_id, by, now, json.dumps({'reason': reason, 'accounts': accounts})))
         return len(accounts)
 
     def set_hs_onboarding_state(self, hs_id: str, state: str, *, outbox=None) -> Optional[Dict[str, Any]]:

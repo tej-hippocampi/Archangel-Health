@@ -12,7 +12,14 @@ def portal_url():
     return base if base.endswith('/provider') else base + '/provider'
 
 
-def message(hs_id, kind, event, to, subject, body, attachment=None):
+def message(hs_id, kind, event, to, subject, body, attachment=None, *, sensitive=False):
+    if sensitive:
+        from field_crypto import is_configured, encrypt_field, is_encrypted
+        if not is_configured():
+            raise ValueError('Encrypted invitation delivery requires a configured data encryption key')
+        body = encrypt_field(body)
+        if not is_encrypted(body):
+            raise ValueError('Invitation encryption failed')
     return dict(idempotency_key=f"hs:{hs_id}:{kind}:{event}:" + hashlib.sha256(to.strip().lower().encode()).hexdigest(),
                 kind=kind, recipient_email=to.strip(), subject=subject, body_html=body,
                 attachment_json=json.dumps(attachment) if attachment else None)
