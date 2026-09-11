@@ -283,15 +283,6 @@ const PRACTICE_STATUS_OPTIONS = [
   { value: "not_practising", label: "Not currently in clinical practice" },
 ];
 
-const STRUCTURED_REVIEW_SUGGESTIONS = [
-  "cec_dsmb",
-  "journal_peer_review",
-  "board_item_writing",
-  "guideline_panel",
-  "core_faculty",
-  "program_director",
-];
-
 export type Attestations = {
   consentCredentialShare: boolean;
   attestIndependentJudgment: boolean;
@@ -1565,7 +1556,11 @@ function Stat({ label, value }: { label: string; value: string }) {
    ASCLEPIUS (data-training product) — Steps 3–8.
    ═══════════════════════════════════════════════════════════════ */
 
-const THREE_COL: CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 };
+const THREE_COL: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))",
+  gap: 14,
+};
 
 function SectionHeading({ title, sub }: { title: ReactNode; sub?: ReactNode }) {
   return (
@@ -3035,15 +3030,6 @@ export function Step5Credentials({
         label="Participating in continuing certification (MOC/CC)?"
         value={c.continuingCertification}
         onChange={(v) => set({ continuingCertification: v })}
-      />
-
-      <ChipMultiSelect
-        label="Structured review experience"
-        value={c.structuredReviewExperience}
-        onChange={(v) => set({ structuredReviewExperience: v })}
-        placeholder="Select all that apply"
-        suggestions={STRUCTURED_REVIEW_SUGGESTIONS}
-        hint="Adjudicating against a rubric is the skill this work needs, and it is learned in these rooms."
       />
 
       {/* Focus areas */}
