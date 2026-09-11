@@ -1998,7 +1998,17 @@ class AsclepiusStore:
             if "needs_temp_password" not in cols("hs_signups"):
                 conn.execute("ALTER TABLE hs_signups ADD COLUMN "
                              "needs_temp_password INTEGER NOT NULL DEFAULT 0")
-
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS hs_signup_delivery_reservations (
+                    reservation_id TEXT PRIMARY KEY,
+                    email TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    finished_at TEXT
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_signup_delivery_email "
+                         "ON hs_signup_delivery_reservations(email, finished_at, expires_at)")
 
             # Append-only, never UPDATE. Not health_systems.notes: that column is
             # already written by ensure_health_system(notes=...), has no timestamp
@@ -11788,7 +11798,7 @@ class AsclepiusStore:
         return self._hs_user_public(row) if row else None
 
     def claim_hs_portal_invite(self, username: str, *, password: str,
-                               full_name: Optional[str] = None) -> None:
+                               token_hash: str, full_name: Optional[str] = None) -> bool:
         """Spend an invite: set the password and the name, clear the token.
 
         ONE statement, so the token cannot survive a partial write. Single use is
@@ -11806,14 +11816,18 @@ class AsclepiusStore:
         uname = (username or "").strip().lower()
         name = (full_name or "").strip()
         with self._conn() as conn:
-            conn.execute(
+            changed = conn.execute(
                 "UPDATE hs_portal_users SET password_hash = ?, must_reset = 0, "
                 "failed_logins = 0, locked_until = NULL, password_changed_at = ?, "
                 "session_epoch = session_epoch + 1, invite_token_hash = NULL, "
                 "invite_expires_at = NULL, full_name = COALESCE(NULLIF(?, ''), full_name) "
-                "WHERE username = ?",
-                (hash_password(password), _utcnow_iso(), name, uname),
+                "WHERE username = ? AND invite_token_hash = ? AND invite_expires_at > ? "
+                "AND active = 1 AND EXISTS (SELECT 1 FROM health_systems h "
+                "WHERE h.hs_id = hs_portal_users.hs_id AND h.active = 1)",
+                (hash_password(password), _utcnow_iso(), name, uname, token_hash,
+                 datetime.utcnow().isoformat()),
             )
+            return changed.rowcount == 1
 
     def set_hs_portal_active(self, username: str, active: bool) -> None:
         with self._conn() as conn:
@@ -12253,9 +12267,44 @@ class AsclepiusStore:
         return [dict(r) for r in rows]
 
     # ─── Signup staging (unverified mailboxes never reach the partner list) ──
+    def reserve_hs_signup_delivery(self, email: str, *, limit: int = 3) -> Optional[str]:
+        """Count in-flight sends across workers without retiring a working code.
+
+        Failed sends release their slot. A process crash expires its slot after
+        five minutes; neither failure uses the address's daily signup allowance.
+        """
+        addr = (email or "").strip().lower()
+        now = datetime.now(timezone.utc)
+        since = (now - timedelta(hours=24)).isoformat()
+        reservation_id = uuid.uuid4().hex
+        with self._conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            staged = conn.execute("SELECT COUNT(*) FROM hs_signups WHERE email = ? AND created_at >= ?",
+                                  (addr, since)).fetchone()[0]
+            pending = conn.execute(
+                "SELECT COUNT(*) FROM hs_signup_delivery_reservations "
+                "WHERE email = ? AND finished_at IS NULL AND expires_at > ?",
+                (addr, now.isoformat()),
+            ).fetchone()[0]
+            if staged + pending >= limit:
+                return None
+            conn.execute(
+                "INSERT INTO hs_signup_delivery_reservations "
+                "(reservation_id, email, created_at, expires_at) VALUES (?, ?, ?, ?)",
+                (reservation_id, addr, now.isoformat(), (now + timedelta(minutes=5)).isoformat()),
+            )
+        return reservation_id
+
+    def release_hs_signup_delivery(self, reservation_id: str) -> None:
+        with self._conn() as conn:
+            conn.execute("UPDATE hs_signup_delivery_reservations SET finished_at = ? "
+                         "WHERE reservation_id = ? AND finished_at IS NULL",
+                         (_utcnow_iso(), reservation_id))
+
     def create_hs_signup(self, *, email: str, full_name: str, organization: str,
                          password: str, code: str, ttl_minutes: int = 15,
                          client_ip: Optional[str] = None,
+                         delivery_reservation: Optional[str] = None,
                          needs_temp_password: bool = False) -> Dict[str, Any]:
         """Stage a signup and its emailed code. Both secrets are hashed at rest:
         the code guards account creation, so it is a credential.
@@ -12270,6 +12319,14 @@ class AsclepiusStore:
         now = datetime.now(timezone.utc)
         expires = (now + timedelta(minutes=ttl_minutes)).replace(microsecond=0).isoformat()
         with self._conn() as conn:
+            if delivery_reservation:
+                claimed = conn.execute(
+                    "UPDATE hs_signup_delivery_reservations SET finished_at = ? "
+                    "WHERE reservation_id = ? AND email = ? AND finished_at IS NULL AND expires_at > ?",
+                    (now.isoformat(), delivery_reservation, addr, now.isoformat()),
+                )
+                if claimed.rowcount != 1:
+                    raise ValueError("signup delivery reservation expired")
             # One live challenge per address: re-requesting supersedes rather
             # than accumulating, so the 5-attempt cap cannot be farmed by simply
             # signing up again.
@@ -12317,6 +12374,82 @@ class AsclepiusStore:
             ).fetchone()
         return dict(row) if row else None
 
+    def get_hs_signup_for_resend(self, email: str) -> Optional[Dict[str, Any]]:
+        """Allow a recently expired challenge to be renewed, never a consumed one."""
+        since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_signups WHERE email = ? AND consumed_at IS NULL "
+                "AND created_at > ? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+                ((email or "").strip().lower(), since),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def renew_hs_signup_code(self, signup_id: str, *, previous_code_hash: str,
+                             code: str, ttl_minutes: int = 15) -> bool:
+        """Replace a delivered challenge only if no newer request superseded it."""
+        expires = (datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)).isoformat()
+        digest = hash_password(code)
+        with self._conn() as conn:
+            changed = conn.execute(
+                "UPDATE hs_signups SET code_hash = ?, expires_at = ?, attempts = 0 "
+                "WHERE signup_id = ? AND code_hash = ? AND consumed_at IS NULL",
+                (digest, expires, signup_id, previous_code_hash),
+            )
+            return changed.rowcount == 1
+
+    def complete_hs_signup(self, signup_id: str, *, expected_code_hash: str,
+                            invite_token_hash: Optional[str] = None,
+                            invite_expires_at: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Consume the verified challenge and create its isolated portal atomically.
+
+        A stale verification must create nothing. A storage failure must roll
+        everything back, including the challenge, so the same code is retryable.
+        The write lock also serializes organization and username allocation.
+        """
+        from asclepius.ingestion import DEFAULT_PURPOSE
+        from asclepius.hs_states import INTAKE
+        from asclepius.portal_accounts import derive_hs_username
+
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            changed = conn.execute(
+                "UPDATE hs_signups SET consumed_at = ? WHERE signup_id = ? "
+                "AND code_hash = ? AND consumed_at IS NULL AND expires_at > ? AND attempts < 5",
+                (now, signup_id, expected_code_hash, now),
+            )
+            if changed.rowcount != 1:
+                return None
+            staged = dict(conn.execute("SELECT * FROM hs_signups WHERE signup_id = ?",
+                                       (signup_id,)).fetchone())
+            name = staged["organization"]
+            base = self.hs_id_for_name(name)
+            hs_id = base
+            while conn.execute("SELECT 1 FROM health_systems WHERE hs_id = ?", (hs_id,)).fetchone():
+                hs_id = f"{base}-{secrets.token_hex(2)}"
+            base_username = derive_hs_username(name)
+            username = base_username
+            suffix = 2
+            while conn.execute("SELECT 1 FROM hs_portal_users WHERE username = ?", (username,)).fetchone():
+                username = (f"{base_username}{suffix}" if suffix < 10
+                            else f"{base_username}-{secrets.token_hex(2)}")
+                suffix += 1
+            conn.execute(
+                "INSERT INTO health_systems (hs_id, name, contact_email, active, created_at, "
+                "origin, onboarding_state, state_changed_at) VALUES (?, ?, ?, 1, ?, ?, ?, ?)",
+                (hs_id, name, staged["email"], now, _hs_origin_for_new_row(), INTAKE, now),
+            )
+            conn.execute(
+                "INSERT INTO hs_portal_users (username, hs_id, password_hash, must_reset, "
+                "email, active, created_at, full_name, signup_source, approval_status, purpose, "
+                "invite_token_hash, invite_expires_at) "
+                "VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'self_serve', 'pending', ?, ?, ?)",
+                (username, hs_id, staged["password_hash"], int(bool(staged["needs_temp_password"])),
+                 staged["email"], now, staged["full_name"], DEFAULT_PURPOSE,
+                 invite_token_hash, invite_expires_at),
+            )
+        return {"hs_id": hs_id, "username": username}
+
     def bump_hs_signup_attempts(self, signup_id: str) -> int:
         """Count a wrong code. Returns the new total so the caller can burn the
         challenge at the cap rather than leaving it open to be ground down."""
@@ -12326,6 +12459,17 @@ class AsclepiusStore:
             row = conn.execute("SELECT attempts FROM hs_signups WHERE signup_id = ?",
                                (signup_id,)).fetchone()
         return int(row["attempts"]) if row else 0
+
+    def reject_hs_signup_code(self, signup_id: str, *, expected_code_hash: str,
+                              max_attempts: int = 5) -> None:
+        """Count and, at the cap, retire only the challenge actually checked."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_signups SET attempts = attempts + 1, "
+                "consumed_at = CASE WHEN attempts + 1 >= ? THEN ? ELSE NULL END "
+                "WHERE signup_id = ? AND code_hash = ? AND consumed_at IS NULL",
+                (max_attempts, _utcnow_iso(), signup_id, expected_code_hash),
+            )
 
     def burn_hs_signup(self, signup_id: str) -> None:
         """End a challenge without creating anything (attempt cap, or expiry

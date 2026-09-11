@@ -12,7 +12,7 @@
      cookie automatically (fetch + XHR both).
    - Every dynamic, server-provided string is written with textContent
      (never innerHTML) to prevent injection.
-   - A mid-session 401/403 bounces to login (session expired/revoked).
+   - A mid-session 401 bounces to login (session expired/revoked).
    ═══════════════════════════════════════════════════════════ */
 (function () {
   "use strict";
@@ -170,14 +170,14 @@
   // "Answering:" chip above the drop zone renders exactly this variable.
   let answeringRequest = null;
 
-  // Thrown for 401/403 so callers can trigger a bounce to login.
+  // Only an authentication failure ends the session; a denied action does not.
   class AuthError extends Error {}
 
   async function parseJson(res) {
     return res.json().catch(() => ({}));
   }
 
-  // GET/POST JSON. Throws AuthError on 401/403, Error otherwise.
+  // GET/POST JSON. Throws AuthError on 401, Error otherwise.
   async function apiJson(method, path, body) {
     const opts = { method, headers: realmHeaders({ Accept: "application/json" }), credentials: "same-origin" };
     if (body !== undefined) {
@@ -186,7 +186,7 @@
     }
     const res = await fetch(API_BASE + path, opts);
     const data = await parseJson(res);
-    if (res.status === 401 || res.status === 403) {
+    if (res.status === 401) {
       throw new AuthError(data.detail || "Your session has ended.");
     }
     if (!res.ok) {
@@ -213,6 +213,37 @@
     if (!el) return;
     el.textContent = msg || "";
     el.hidden = !msg;
+  }
+
+  function retryButton(host, retry) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "asc-btn asc-btn-secondary";
+    btn.textContent = "Try again";
+    btn.addEventListener("click", retry);
+    host.appendChild(btn);
+  }
+
+  // Only this tab, realm and account may restore an unfinished application.
+  // The in-memory fallback also preserves tab navigation when storage is blocked.
+  const tabMemory = {};
+  function readTab(key) {
+    try { return sessionStorage.getItem(key) || tabMemory[key] || null; }
+    catch (_) { return tabMemory[key] || null; }
+  }
+  function writeTab(key, value) {
+    tabMemory[key] = value;
+    try { sessionStorage.setItem(key, value); } catch (_) {}
+  }
+  function removeTab(key) {
+    delete tabMemory[key];
+    try { sessionStorage.removeItem(key); } catch (_) {}
+  }
+  function applicationDraftKey() {
+    return "prv_application_draft:" + REALM + ":" + currentUser.username;
+  }
+  function applicationVersion(value) {
+    return JSON.stringify(value, value ? Object.keys(value).sort() : undefined);
   }
 
   function toast(msg, kind) {
@@ -291,6 +322,7 @@
   // ══════════════════════════════════════════════════════════
   function renderLogin() {
     header.hidden = true;
+    hideRail();
     mountTemplate("tplLogin");
     const form = document.getElementById("prvLoginForm");
     const errBox = document.getElementById("prvLoginError");
@@ -910,7 +942,8 @@
   //  SCREEN 4 — SIGN UP
   // ══════════════════════════════════════════════════════════
   // The address a signup is waiting on, held only between the two screens.
-  let pendingSignupEmail = "";
+  const pendingSignupKey = "prv_pending_signup:" + REALM;
+  let pendingSignupEmail = readTab(pendingSignupKey) || "";
 
   function renderSignup() {
     header.hidden = true;
@@ -925,6 +958,7 @@
     const pwEl = document.getElementById("prvSuPw");
     const strength = document.getElementById("prvSuStrength");
     const hpEl = document.getElementById("prvSuHp");
+    emailEl.value = pendingSignupEmail;
     nameEl.focus();
 
     pwEl.addEventListener("input", () => {
@@ -932,7 +966,11 @@
       strength.className = "prv-strength " + s.cls;
       strength.textContent = pwEl.value ? s.label : "";
     });
-    document.getElementById("prvToLogin").addEventListener("click", renderLogin);
+    document.getElementById("prvToLogin").addEventListener("click", () => {
+      pendingSignupEmail = "";
+      removeTab(pendingSignupKey);
+      renderLogin();
+    });
 
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
@@ -957,6 +995,7 @@
       try {
         await apiPost("/hs/signup", payload);
         pendingSignupEmail = payload.email;
+        writeTab(pendingSignupKey, pendingSignupEmail);
         renderVerify();
       } catch (e) {
         showError(errBox, e.message || "We could not start that. Please try again.");
@@ -981,17 +1020,27 @@
       "We sent a six-digit code to " + pendingSignupEmail;
     codeEl.focus();
 
-    document.getElementById("prvResendBtn").addEventListener("click", async () => {
+    document.getElementById("prvVerifyBack").addEventListener("click", renderSignup);
+    const resend = document.getElementById("prvResendBtn");
+    resend.addEventListener("click", async () => {
+      if (resend.disabled || btn.disabled) return;
+      resend.disabled = true;
+      btn.disabled = true;
+      showError(errBox, "");
       try {
         await apiPost("/hs/signup/resend", { email: pendingSignupEmail });
-        toast("Sent. Check your inbox.", "info");
-      } catch (_) {
-        toast("Sent. Check your inbox.", "info");
+        toast("If your signup is still pending, a new code is on its way. Check your inbox.", "info");
+      } catch (e) {
+        showError(errBox, e.message || "Could not send your code. Please try again.");
+      } finally {
+        resend.disabled = false;
+        btn.disabled = false;
       }
     });
 
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
+      if (btn.disabled) return;
       showError(errBox, "");
       const code = (codeEl.value || "").trim();
       if (code.length !== 6) {
@@ -1009,6 +1058,7 @@
         try { localStorage.setItem("prv_last_username", data.username); } catch (_) {}
         toast("Your username is " + data.username + ". It is in your email too.", "info");
         pendingSignupEmail = "";
+        removeTab(pendingSignupKey);
         await loadProfileAndRoute();
       } catch (e) {
         showError(errBox, e.message || "That code is not right, or it has expired.");
@@ -1071,17 +1121,20 @@
     const pwEl = document.getElementById("prvClaimPw");
     const confirmEl = document.getElementById("prvClaimConfirm");
     const strengthEl = document.getElementById("prvClaimStrength");
+    btn.disabled = true;
+    document.getElementById("prvClaimForm").addEventListener("submit", (ev) => ev.preventDefault());
 
     let invite;
     try {
       invite = await apiGet("/hs/invite/" + encodeURIComponent(token));
-    } catch (_) {
-      // A lookup that could not complete is not a dead link, but it is not a
-      // form we can fill in either. Same screen, because the alternative is an
-      // empty box that fails on submit.
-      showClaimDead();
+    } catch (e) {
+      if (!btn.isConnected) return;
+      showError(errBox, e.message || "Could not load your invitation. Please try again.");
+      retryButton(errBox, () => renderClaim(token));
       return;
     }
+    if (!btn.isConnected) return;
+    btn.disabled = false;
     // found:false covers used, expired and never-existed, and the server
     // answers 200 for all three on purpose: a 404 would turn this route into a
     // way to test which tokens are live.
@@ -1371,6 +1424,9 @@
     const okBox = document.getElementById("prvAppOk");
     const btn = document.getElementById("prvAppBtn");
     const form = document.getElementById("prvAppForm");
+    btn.disabled = true;
+    form.addEventListener("submit", (ev) => ev.preventDefault());
+    const draftKey = applicationDraftKey();
 
     if (opts && opts.firstRun) {
       document.getElementById("prvAppSub").textContent =
@@ -1382,11 +1438,32 @@
     try {
       data = await apiGet("/hs/application");
     } catch (e) {
+      if (!form.isConnected) return;
       if (e instanceof AuthError) { bounceToLogin(e.message); return; }
       showError(errBox, e.message || "Could not load the questions.");
+      retryButton(errBox, () => renderApplication(opts));
       return;
     }
-    const previous = data.submitted || {};
+    if (!form.isConnected) return;
+    let previous = data.submitted || {};
+    let savedBase = applicationVersion(data.submitted || null);
+    try {
+      const draft = JSON.parse(readTab(draftKey) || "null");
+      if (draft && draft.answers && typeof draft.answers === "object") {
+        previous = draft.answers;
+        if (draft.base !== savedBase) {
+          okBox.textContent = "Your organization has submitted newer answers. Your unfinished changes are shown below; review them before submitting. ";
+          okBox.hidden = false;
+          const useSaved = document.createElement("button");
+          useSaved.type = "button";
+          useSaved.className = "prv-linkbtn";
+          useSaved.textContent = "Use submitted answers";
+          useSaved.addEventListener("click", () => { removeTab(draftKey); renderApplication(opts); });
+          okBox.appendChild(useSaved);
+        }
+      }
+      else if (draft) removeTab(draftKey);
+    } catch (_) { removeTab(draftKey); }
     (data.prompts || []).forEach((q) => {
       if (q.options) {
         fieldsEl.appendChild(radioGroup(q, previous[q.key]));
@@ -1413,12 +1490,33 @@
       fieldsEl.appendChild(group);
     });
 
-    if (previous.submitted_at) {
+    if (data.submitted) {
       btn.textContent = "Update answers";
     }
+    btn.disabled = false;
+
+    function answers() {
+      const body = {};
+      (data.prompts || []).forEach((q) => {
+        if (q.options) {
+          const picked = form.querySelector('input[name="' + q.key + '"]:checked');
+          body[q.key] = picked ? picked.value : "";
+        } else (q.fields || []).forEach((f) => {
+          body[f.key] = f.kind === "multiselect"
+            ? Array.from(form.querySelectorAll('input[name="' + f.key + '"]:checked')).map((el) => el.value)
+            : form.querySelector('select[name="' + f.key + '"]').value;
+        });
+      });
+      return body;
+    }
+    function saveDraft() {
+      writeTab(draftKey, JSON.stringify({ base: savedBase, answers: answers() }));
+    }
+    form.addEventListener("change", saveDraft);
 
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
+      if (btn.disabled) return;
       showError(errBox, "");
       okBox.hidden = true;
       const body = {};
@@ -1448,20 +1546,31 @@
       }
       btn.disabled = true;
       btn.textContent = "Submitting…";
+      saveDraft();
+      const submittedDraft = readTab(draftKey);
+      const inputs = Array.from(form.querySelectorAll("input, select"));
+      inputs.forEach((el) => { el.disabled = true; });
       try {
-        await apiPost("/hs/application", body);
+        const result = await apiPost("/hs/application", body);
+        // A response from a page the person left must not erase edits made
+        // after they reopened the application while this request was pending.
+        if (readTab(draftKey) === submittedDraft) removeTab(draftKey);
+        if (!form.isConnected) return;
+        savedBase = applicationVersion(Object.assign({ submitted_at: result.submitted_at }, body));
+        currentUser = Object.assign({}, currentUser, result);
         okBox.textContent =
           "Thank you. We are reading it, and we will come back to you within " +
           "one to two business days.";
         okBox.hidden = false;
-        try { currentUser = await apiGet("/hs/me"); } catch (_) {}
         paintState();
         renderRail();
       } catch (e) {
+        if (!form.isConnected) return;
         if (e instanceof AuthError) { bounceToLogin(e.message); return; }
         showError(errBox, e.message || "Could not save that. Please try again.");
       }
       btn.disabled = false;
+      inputs.forEach((el) => { el.disabled = false; });
       btn.textContent = "Update answers";
     });
 
@@ -1651,11 +1760,13 @@
     try {
       data = await apiGet("/hs/agreement");
     } catch (e) {
+      if (!textEl.isConnected) return;
       if (e instanceof AuthError) { bounceToLogin(e.message); return; }
-      textEl.textContent =
-        "We could not load the agreement just now. Please refresh in a moment.";
+      textEl.textContent = "We could not load the agreement just now. ";
+      retryButton(textEl, renderAgreement);
       return;
     }
+    if (!textEl.isConnected) return;
 
     version.textContent = data.doc_version || "";
     // textContent into a <pre>-styled box: the agreement is TEXT and must never
@@ -1706,11 +1817,12 @@
 
     document.getElementById("prvSignForm").addEventListener("submit", async (ev) => {
       ev.preventDefault();
+      if (btn.disabled) return;
       showError(errBox, "");
       btn.disabled = true;
       btn.textContent = "Signing…";
       try {
-        await apiPost("/hs/agreement/sign", {
+        const result = await apiPost("/hs/agreement/sign", {
           typed_name: (name.value || "").trim(),
           typed_title: (title.value || "").trim(),
           authority_affirmed: authority.checked,
@@ -1719,11 +1831,13 @@
           // that changed while this page was open.
           doc_sha256: data.doc_sha256 || ""
         });
-        try { currentUser = await apiGet("/hs/me"); } catch (_) {}
+        if (!btn.isConnected) return;
+        currentUser = Object.assign({}, currentUser, result, { agreement: result.signed });
         toast("Signed. Uploading is open.", "success");
         setPanel("upload");
         return;
       } catch (e) {
+        if (!btn.isConnected) return;
         if (e instanceof AuthError) { bounceToLogin(e.message); return; }
         showError(errBox, e.message || "We could not record that signature.");
       }
@@ -1788,7 +1902,7 @@
     summaryEl.appendChild(summaryStat("Paid", formatMoney(s.paid_cents)));
     summaryEl.appendChild(summaryStat("Awaiting payment", formatMoney(s.pending_cents)));
 
-    renderRail(data.rail || {});
+    renderPayoutRail(data.rail || {});
 
     renderAccrual(data.accrual || {});
 
@@ -1845,7 +1959,7 @@
   // The server does every sum. This page turns cents into dollars and nothing
   // else: arithmetic here would be a second answer to a question the ledger has
   // already answered.
-  function renderRail(rail) {
+  function renderPayoutRail(rail) {
     const host = document.getElementById("prvPayoutRail");
     if (!host) return;
     if (!rail.priced) {
@@ -1997,6 +2111,9 @@
     try {
       const me = await apiGet("/hs/me");
       currentUser = me;
+      if (me.username) {
+        try { localStorage.setItem("prv_last_username", me.username); } catch (_) {}
+      }
       // 1. A passphrase we mailed has to be replaced before it guards anything.
       //    A self-signup never lands here: it chose its own password.
       if (me && me.must_reset === true) {
@@ -2040,15 +2157,35 @@
         : (currentPanel === "upload" || !currentPanel ? "application" : currentPanel);
       setPanel(dest);
     } catch (e) {
-      if (e instanceof AuthError) { hideRail(); renderLogin(); return; }
-      // Non-auth error fetching profile: show login with a note.
-      bounceToLogin(e.message || "Could not load your account. Please sign in again.");
+      if (e instanceof AuthError) {
+        currentUser = null;
+        hideRail();
+        if (pendingSignupEmail) renderVerify();
+        else renderLogin();
+        return;
+      }
+      // A temporary profile failure must not strand a verified, password-free
+      // signup at a login form asking for a password they have not set yet.
+      hideRail();
+      header.hidden = true;
+      clear(root);
+      const error = document.createElement("div");
+      error.className = "asc-login-card asc-card-pad";
+      error.setAttribute("role", "alert");
+      error.textContent = "Could not load your account. Your session is still available; please try again. ";
+      retryButton(error, loadProfileAndRoute);
+      root.appendChild(error);
     }
   }
 
   // ─── Global chrome events ───────────────────────────────────
   logoutBtn.addEventListener("click", async () => {
-    try { await apiPost("/hs/logout", {}); } catch (_) { /* cookie clears anyway */ }
+    if (logoutBtn.disabled) return;
+    logoutBtn.disabled = true;
+    try { await apiPost("/hs/logout", {}); }
+    catch (_) { toast("Could not sign out. Please try again.", "error"); return; }
+    finally { logoutBtn.disabled = false; }
+    if (currentUser) removeTab(applicationDraftKey());
     currentUser = null;
     header.hidden = true;
     renderLogin();
