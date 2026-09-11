@@ -202,8 +202,6 @@ export function reviewSections(
         f("linkedinUrl", "LinkedIn", c.linkedinUrl),
         f("healthSystem", "Health system or practice", c.healthSystem),
         f("subspecialties", "Subspecialty and focus areas", c.subspecialties),
-        f("structuredReviewExperience", "Structured review experience",
-          c.structuredReviewExperience),
         f("practiceSettings", "Practice setting", c.practiceSettings),
         f("practiceCity", "City you practise in", c.practiceCity),
         f("languages", "Languages", c.languages),
