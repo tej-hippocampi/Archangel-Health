@@ -124,6 +124,7 @@ function tidy(el) { return textOf(el).replace(/\\s+/g, ' ').trim(); }
 # ``isFresh`` depends on it reading a bare server timestamp as UTC, and a stub
 # built on Date.parse would hide the exact defect that dependency exists to fix.
 _HARNESS += "\n" + _fn(JS, "toUtcDate") + "\n"
+_HARNESS += "\n" + _fn(JS, "chartWalkSummary") + "\n"
 
 # The REAL ``copyableId`` and its clipboard helpers (Export & Approval PRD §1.3).
 # Task Routing renders every case id through it. Spliced rather than stubbed for

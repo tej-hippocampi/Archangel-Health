@@ -336,8 +336,10 @@ def test_a_content_gate_refuses_per_encounter_with_a_reason():
     be able to read WHICH encounter was refused and why, not just a count."""
     store = _store()
     chart = build_chart()
-    # Strip the medication list: every encounter should now be refused, by name.
-    chart["medications"] = []
+    # Recorded but unparseable medication evidence must still fail the floor;
+    # an explicitly absent prior medication record is now allowed in a walk.
+    chart["medications"] = [{"drug": "unreadable medication order",
+                              "collected_offset_days": -1811}]
     cid = _ingest_chart(store, chart)
     h = _admin_headers(store)
     plan = _plan(store, cid, h)

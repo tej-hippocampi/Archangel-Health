@@ -7196,8 +7196,9 @@ class AsclepiusStore:
         """How far THIS evaluator has walked this chart — for the session header.
 
         Progress is per-evaluator on purpose: two physicians walking the same
-        chart are two independent trajectories that happen to share a case set,
-        and a shared "7 of 13" would be a lie to both of them.
+        chart are two independent trajectories that happen to share a case set.
+        Relay navigation additionally follows live assignments and the shared
+        predecessor gate: waiting for another physician is not completion.
         """
         points = self.trajectory_points(trajectory_id)
         if not points:
@@ -7206,14 +7207,22 @@ class AsclepiusStore:
         ids = [p["task_id"] for p in points]
         placeholders = ",".join("?" for _ in ids)
         with self._conn() as conn:
-            answered = {
-                r["task_id"] for r in conn.execute(
-                    f"SELECT DISTINCT task_id FROM submissions "
-                    f"WHERE evaluator_id = ? AND task_id IN ({placeholders})",
-                    tuple([evaluator_id] + ids),
-                ).fetchall()
-            }
-        remaining = [p for p in points if p["task_id"] not in answered]
+            submissions = conn.execute(
+                f"SELECT DISTINCT task_id, evaluator_id FROM submissions "
+                f"WHERE task_id IN ({placeholders})", tuple(ids),
+            ).fetchall()
+        answered = {r["task_id"] for r in submissions if r["evaluator_id"] == evaluator_id}
+        answered_any = {r["task_id"] for r in submissions}
+        from asclepius import trajectory as asc_trajectory
+        remaining = [p for p in points if p["task_id"] not in answered and not asc_trajectory.is_retired(p)
+                     and (asc_trajectory.walk_mode(p) != asc_trajectory.WALK_MODE_RELAY
+                          or (p["task_id"] not in answered_any and self.holds_label_assignment(
+                              task_id=p["task_id"], user_id=evaluator_id)))]
+        next_point = remaining[0] if remaining else None
+        if next_point and asc_trajectory.walk_mode(next_point) == asc_trajectory.WALK_MODE_RELAY \
+                and self.unanswered_earlier_points_any(
+                    trajectory_id=trajectory_id, sequence_index=next_point["sequence_index"]):
+            next_point = None
         return {
             "trajectory_id": trajectory_id,
             "n_points": len(points),
@@ -7224,9 +7233,9 @@ class AsclepiusStore:
             # this single query already knew.
             "answered_task_ids": sorted(answered),
             # The next point this evaluator may open — which, under the sequence
-            # gate, is always the earliest unanswered one.
-            "next_task_id": remaining[0]["task_id"] if remaining else None,
-            "next_sequence_index": remaining[0].get("sequence_index") if remaining else None,
+            # gate, is the earliest eligible unanswered assignment in a relay.
+            "next_task_id": next_point["task_id"] if next_point else None,
+            "next_sequence_index": next_point.get("sequence_index") if next_point else None,
             "complete": not remaining,
         }
 

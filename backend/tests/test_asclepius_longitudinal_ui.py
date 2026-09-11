@@ -382,7 +382,7 @@ def test_the_client_never_enforces_the_sequence_itself():
 # §3.5 / §5 — the walk is visible to the physician
 # ═══════════════════════════════════════════════════════════════════════════════
 def test_the_banner_names_the_step_and_the_seal_executed():
-    out = _harness(["h", "appendChildren", "renderTrajectoryBanner"], """
+    out = _harness(["h", "appendChildren", "trajectoryStepLabel", "renderTrajectoryBanner"], """
     const none = renderTrajectoryBanner();
     state.task.trajectory_id = 'traj-abc';
     state.task.sequence_index = 2;
@@ -391,20 +391,20 @@ def test_the_banner_names_the_step_and_the_seal_executed():
     console.log(JSON.stringify({ none: none, text: withWalk.textContent }));
     """)
     assert out["none"] is None, "an ordinary case must render no banner at all"
-    assert "Decision 3 of 13" in out["text"]
+    assert "Step 3 of 13" in out["text"]
     assert "sealed" in out["text"]
 
 
 def test_the_banner_degrades_rather_than_lying_executed():
     """The walk metadata is fetched best-effort. A stale or missing count must
-    never produce "Decision 4 of 13" on a chart with a different length."""
-    out = _harness(["h", "appendChildren", "renderTrajectoryBanner"], """
+    never produce "Step 4 of 13" on a chart with a different length."""
+    out = _harness(["h", "appendChildren", "trajectoryStepLabel", "renderTrajectoryBanner"], """
     state.task.trajectory_id = 'traj-abc';
     state.task.sequence_index = 0;
     state.trajectoryProgress = null;
     console.log(JSON.stringify({ text: renderTrajectoryBanner().textContent }));
     """)
-    assert "Decision 1" in out["text"]
+    assert "Step 1" in out["text"]
     assert " of " not in out["text"].split("One patient")[0]
 
 
@@ -418,12 +418,61 @@ def test_progress_is_reset_before_it_is_rehydrated():
         assert "trajectories/" in body[reset:], f"{fn} resets but never rehydrates"
 
 
+@pytest.mark.parametrize('point_class,label', [('interval', 'interval visit'), ('decision', 'decision point')])
+def test_both_physician_headers_show_the_point_class(point_class, label):
+    out = _harness(["h", "appendChildren", "trajectoryStepLabel", "renderTrajectoryBanner",
+                    "paintTrajectoryOutcome"], """
+    state.task = {task_id:'t3',trajectory_id:'walk',sequence_index:2,generation:{point_class:CLASS}};
+    state.trajectoryProgress = {n_points:7};
+    const banner = renderTrajectoryBanner().textContent;
+    let outcomeText;
+    setRoot = n => {outcomeText=n.textContent;};
+    function trajectoryContinueButton() {return h('button',{},'Continue');}
+    paintTrajectoryOutcome(state.task, {sequence_index:2,outcome:null});
+    console.log(JSON.stringify({banner,outcomeText}));
+    """.replace('CLASS', json.dumps(point_class)))
+    assert f'Step 3 of 7 · {label}' in out['banner']
+    assert f'Step 3 of 7 · {label}' in out['outcomeText']
+
+
+def test_terminal_reveal_with_a_prediction_has_continue_but_no_score_card_executed():
+    out = _harness(["h", "appendChildren", "trajectoryStepLabel", "paintTrajectoryOutcome",
+                    "trajectoryContinueButton", "continueTrajectory"], """
+    let root;
+    setRoot = n => {root=n;};
+    function renderSelfScoreCard() {throw new Error('terminal point offered a score');}
+    paintTrajectoryOutcome(state.task, {outcome:null,
+      expected_trajectory:{expectations:[{expectation:'Symptoms improve.'}]},
+      progress:{next_task_id:'next-live-point'}});
+    root.querySelector('.asc-btn').dispatch('click');
+    console.log(JSON.stringify({text:root.textContent,opened:globalThis.__opened}));
+    """)
+    assert 'no later outcome to score' in out['text']
+    assert 'Continue' in out['text']
+    assert out['opened'] == 'next-live-point'
+
+
+def test_interval_rows_include_downgrades_and_honest_terminal_state():
+    out = _harness(["h", "appendChildren", "renderDensityLine"], """
+    const p = {point_class:'interval',qualifies_as_point:true,outcome_verifiable:true};
+    console.log(JSON.stringify({
+      interval:renderDensityLine(p).textContent,
+      downgraded:renderDensityLine({...p,downgraded:'no presenting narrative'}).textContent,
+      terminal:renderDensityLine({...p,outcome_verifiable:false,downgraded:'no presenting narrative'}).textContent,
+    }));
+    """)
+    assert out['interval'] == 'Interval visit · graded by the next point'
+    assert 'Interval visit (downgraded: no presenting narrative from this encounter)' in out['downgraded']
+    assert 'terminal point' in out['terminal'] and 'graded by the next point' not in out['terminal']
+    assert 'held' not in json.dumps(out).lower()
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # §2 / §9.3 — the admin console tells the truth about count and cost
 # ═══════════════════════════════════════════════════════════════════════════════
 def test_the_plan_states_both_the_gate_count_and_the_verifiable_count():
     """They are never the same number: a walk of N points yields N−1 verifiable
-    ones, and pricing is per decision point."""
+    ones, and physician pay is per submission for both classes."""
     src = JS_CODE
     assert "plan.decision_points" in src
     assert "plan.verifiable_decision_points" in src

@@ -41,6 +41,7 @@ LAB_FLAGS = ("", "L", "H", "LL", "HH")
 # the hard content requirements ``assert_multimodal_content`` enforces before a
 # generated case can be stored + stamped ``modality="multimodal"``. Env-tunable
 # so the bar can be moved without a code change.
+import re
 import os as _os
 
 
@@ -313,6 +314,11 @@ class ClinicalCase(BaseModel):
     # so existing V3 cases (whose findings ARE the evidence) are unchanged; the V4
     # image path sets "hidden" so the model must read the pixels, not the caption.
     study_findings_policy: Literal["hidden", "visible", "post_hoc"] = "visible"
+    # Chart Walk PRD §4: the export begins at this encounter and carries no earlier
+    # medication. Rendered as "No medications on record" and accepted by the content
+    # floor for real charts only. Default False, so no existing case changes shape.
+    medications_absent_on_record: bool = False
+    problems_absent_on_record: bool = False
     # Tri-state completeness outcome (Audit PRD §P1): "verified" (all declared
     # modalities resolved), "unverified" (a declared token we could not parse — a
     # parser gap, NOT missing evidence; surfaced as an advisory review reason), or
@@ -338,6 +344,11 @@ def public_case(case: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     return {k: v for k, v in case.items() if k not in _INTERNAL_CASE_KEYS}
 
 
+# Analytes that are dimensionless by definition; "INR 0.99 (0.9-1.5)" is a
+# well-formed result that forces interpretation exactly as "K 2.6 mmol/L" does.
+_UNITLESS_ANALYTE_RE = re.compile(r"\b(?:inr|ph|ratio|index|hba1c|a1c|titer|titre)\b", re.I)
+
+
 def _lab_result_ok(r: Dict[str, Any]) -> bool:
     """A lab result carries enough to force INTERPRETATION (not just reading):
     an analyte, a value, a unit, and a reference range OR an out-of-range flag."""
@@ -347,7 +358,7 @@ def _lab_result_ok(r: Dict[str, Any]) -> bool:
         return False
     if r.get("value") in (None, ""):
         return False
-    if not str(r.get("unit") or "").strip():
+    if not str(r.get("unit") or "").strip() and not _UNITLESS_ANALYTE_RE.search(str(r.get("analyte") or "")):
         return False
     has_range = (r.get("ref_low") is not None) or (r.get("ref_high") is not None)
     has_flag = bool(str(r.get("flag") or "").strip())
@@ -496,9 +507,17 @@ def assert_multimodal_content(case: Optional[Dict[str, Any]]) -> None:
         )
 
     if not (c.get("problem_list") or []):
-        raise MultimodalContentError("case has an empty problem_list")
+        if not (c.get("case_source") == "real_deid" and c.get("problems_absent_on_record") is True):
+            raise MultimodalContentError("case has an empty problem_list")
     if not (c.get("medications") or []):
-        raise MultimodalContentError("case has an empty medication list")
+        # A real chart's FIRST encounter can legitimately carry no medication on
+        # record: the export starts at that admission. The absence is chart state the
+        # physician reads ("no medications on record"), not a hole in the case. Only a
+        # real, dated chart may say so, and it must say so explicitly on the case.
+        if c.get("case_source") == "real_deid" and c.get("medications_absent_on_record") is True:
+            pass
+        else:
+            raise MultimodalContentError("case has an empty medication list")
 
 
 def case_type_signature(case: Optional[Dict[str, Any]]) -> str:
@@ -642,6 +661,10 @@ def render_case_prompt(case: Any, question: str) -> str:
             for p in problems))
 
     meds = c.get("medications") or []
+    if not meds and c.get("medications_absent_on_record"):
+        parts.append("Medications: no medications on record before this encounter.")
+    if not (c.get("problem_list") or []) and c.get("problems_absent_on_record"):
+        parts.append("Problem list: no problems on record before this encounter.")
     if meds:
         parts.append("Medications:\n" + "\n".join(
             "  - " + " ".join(x for x in [m.get("drug"), m.get("dose"), m.get("route"), m.get("freq")] if x)

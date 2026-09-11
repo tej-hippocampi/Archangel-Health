@@ -182,7 +182,7 @@ _EXPECTED = {
     "patient-1": (22, 9, 8),
     "patient-2": (12, 2, 1),
     "patient-3": (5, 4, 3),
-    "patient-4": (8, 3, 2),
+    "patient-4": (7, 3, 2),
 }
 
 
@@ -250,7 +250,10 @@ def test_the_other_three_ingest_clean(store):
 # probe, candidate generation, the two judges) using the same stubs
 # ``test_asclepius_longitudinal_e2e`` uses. What is NOT stubbed is anything that
 # decides how many points there are or what order they are in.
-def test_patient_one_becomes_a_sealed_ordered_walk(store, monkeypatch):
+@pytest.mark.parametrize('bundle,decisions,intervals,downgraded', [
+    ('patient-1', 2, 20, 7), ('patient-3', 3, 2, 1),
+])
+def test_hepatology_charts_become_sealed_ordered_walks(store, monkeypatch, bundle, decisions, intervals, downgraded):
     from fastapi.testclient import TestClient
 
     from tests.test_asclepius_longitudinal_e2e import _stub_model_legs
@@ -259,7 +262,7 @@ def test_patient_one_becomes_a_sealed_ordered_walk(store, monkeypatch):
     client = TestClient(A.app)
     admin_h = A.headers_for(A.make_user(store, role="admin"))
 
-    res = _run(store, bundles=["patient-1"])
+    res = _run(store, bundles=[bundle])
     upload_id = res["bundles"][0]["upload_id"]
     ic = store.list_ingest_cases(upload_id=upload_id)[0]
 
@@ -280,11 +283,13 @@ def test_patient_one_becomes_a_sealed_ordered_walk(store, monkeypatch):
     assert r.status_code == 200, r.text
     body = r.json()
 
-    assert body["decision_points"] == 9
-    assert body["review_required_points"] == 8
-    assert body["ready_decision_points"] == 1
-    assert body["trajectory_points"] == 1, body
-    assert body["trajectory_points"] <= body["ready_decision_points"], body
+    assert body["decision_points"] == decisions
+    assert body["review_required_points"] == 0
+    assert body["ready_decision_points"] == decisions
+    assert body["interval_points"] == intervals
+    assert body["downgraded_points"] == downgraded
+    assert body["trajectory_points"] == body["ready_walk_points"] == decisions + intervals, body["details"]
+    assert body["walk_verifiable_points"] == decisions + intervals - 1
     points = store.trajectory_points(body["trajectory_id"])
     assert len(points) == body["trajectory_points"]
 
@@ -305,6 +310,8 @@ def test_patient_one_becomes_a_sealed_ordered_walk(store, monkeypatch):
         # And held back from every queue until an admin routes it: promoting a
         # chart and releasing it to doctors are two decisions.
         assert task["distribution"] == "assigned_only"
+        assert task['specialty'] == 'hepatology'
+        assert task['generation']['point_class'] in {'decision', 'interval'}
 
     # Absent from EVERY doctor's queue, both versions, while unrouted.
     doc = A.make_user(store, role="evaluator", specialty="hepatology")
