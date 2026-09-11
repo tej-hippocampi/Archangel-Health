@@ -89,10 +89,10 @@ contract alone establishes neither method. [HHS de-identification guidance](http
   Sent means provider acceptance, not inbox delivery.
   Large-file collections and their receipt/hash histories paginate for both admin
   and health-system users; they remain separate from clinical case ingestion.
-- Evidence: `approve_hs_organization` at backend/asclepius/store.py:12961;
-  `decline_hs_organization` at backend/asclepius/store.py:12990;
-  `record_signed_agreement` at backend/asclepius/store.py:13117;
-  `complete_hs_signup` at backend/asclepius/store.py:12429;
+- Evidence: `approve_hs_organization` at backend/asclepius/store.py:12970;
+  `decline_hs_organization` at backend/asclepius/store.py:12999;
+  `record_signed_agreement` at backend/asclepius/store.py:13126;
+  `complete_hs_signup` at backend/asclepius/store.py:12438;
   `message` at backend/asclepius/hs_mail.py:15;
   `_drain_admin_notifications` at backend/main.py:782.
 
