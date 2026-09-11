@@ -185,12 +185,26 @@ def test_invite_lookup_outage_is_retryable(portal):
     hs = portal.store.create_health_system_unclaimed("Invited Health")
     minted = hs_provisioning.provision_account(portal.store, hs_id=hs["hs_id"],
                                               org_name=hs["name"], email="dana@example.org", mint_invite=True)
-    portal.failures[("GET", API + "/invite/" + minted["invite_token"])] = 503
+    key = ("GET", API + "/invite/" + minted["invite_token"])
+    portal.failures[key] = 503
     portal.page.goto("https://testserver/provider?invite=" + minted["invite_token"])
-    portal.page.get_by_role("button", name="Try again", exact=True).click()
-    # Retry mounts the form before the lookup finishes. Wait for the response's
-    # value, not merely the input's presence, on slower CI workers.
+    retry = portal.page.get_by_role("button", name="Try again", exact=True)
+    retry.wait_for()
+    # Hold the successful retry so a fast local response cannot hide the
+    # loading state. Clicking starts the lookup; it does not finish it.
+    portal.held[key] = None
+    with portal.page.expect_request(lambda req: req.method == key[0]
+                                    and urlsplit(req.url).path == key[1]):
+        retry.click()
+    expect(portal.page.locator("#prvClaimBtn")).to_be_disabled()
+    expect(portal.page.locator("#prvClaimEmail")).to_have_value("")
+    route, response = portal.held.pop(key)
+    assert response.status_code == 200
+    route.fulfill(status=response.status_code, body=response.content, content_type="application/json")
+    # Wait for the response to populate the form, as a user would. input_value
+    # reads immediately and raced the async lookup on the CI runner.
     expect(portal.page.locator("#prvClaimEmail")).to_have_value("dana@example.org")
+    expect(portal.page.locator("#prvClaimBtn")).to_be_enabled()
     portal.page.locator("#prvClaimName").fill("Dana Reyes")
     portal.page.locator("#prvClaimPw").fill(PASSWORD)
     portal.page.locator("#prvClaimConfirm").fill(PASSWORD)

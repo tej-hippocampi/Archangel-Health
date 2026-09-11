@@ -11,7 +11,7 @@ Two kinds share the machinery:
 
 Failure policy: every run is recorded in ``community_digest_runs``
 (three-outcome ``ok``: NULL running / 1 / 0); a failed source is skipped
-(feeds.py), a failed LLM parse posts nothing and fails the run, and the
+(feeds.py), invalid compose output gets up to two corrective attempts, and the
 scheduler loop can never crash. Three consecutive failures of a kind logs a
 grep-able ``ADMIN ATTENTION`` line.
 
@@ -24,10 +24,10 @@ dormant in production looking exactly like a quiet week.
 ``/internal/community/status`` still reports which way the gate resolved and
 whether the loop actually started, because those two can differ.
 
-Every run also records WHY it posted nothing. ``ok=1, items_posted=0`` is
-written for a real quiet day and for a run with no model key, and an operator
-cannot tell a dead pipeline from a slow news week without the reason beside the
-count.
+Every run records WHY it posted nothing. A scheduled news run only succeeds
+when it publishes stories. Empty runs release the day and retry after the
+same two-hour backoff as other failures. Manual runs and weekly papers retain
+their quiet outcome. Neither retries nor corrective calls bypass validation.
 """
 
 from __future__ import annotations
@@ -216,10 +216,10 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[Dict
         return None, summaries
 
     # Below the floor there is no digest to shape, so the compose call is not
-    # made at all: a two-item day is a quiet day, and spending a model call to
-    # be told so is the kind of cost that only shows up on the bill.
+    # made at all. A scheduled news run holds these stories and retries later
+    # in case another fresh story arrives.
     if len(kept) < digest_contract.MIN_ITEMS:
-        log.info("[digest] %s: %d item(s) kept, floor is %d; treating as a quiet day",
+        log.info("[digest] %s: %d item(s) kept, floor is %d; holding candidates",
                  kind, len(kept), digest_contract.MIN_ITEMS)
         return None, summaries
 
@@ -228,28 +228,44 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[Dict
          "one_liner": k.get("summary") or "", "source": k["source"]}
         for k in kept
     ]
-    resp2, _meta2 = await call_llm(
-        role="community_digest",
-        system=_COMPOSE_SYSTEM,
-        messages=[{"role": "user", "content": _json.dumps(
-            {"digest_kind": kind, "items": compose_input})}],
-        prompt_id=f"community_digest_compose_{kind}",
-        purpose="community news digest: compose post",
-        temperature=0.2,
-        max_tokens=max_tokens(),
-    )
-    raw = first_text(resp2) or ""
-    if not raw.strip():
-        raise ValueError("digest compose pass returned empty text")
-    composed = extract_json(raw)
-    if composed is None:
-        raise ValueError("digest compose pass returned unparseable JSON")
-    # Raises DigestContractError on a violation, which the caller records as a
-    # failed run. Deliberately NOT repaired into something publishable: the
-    # rules exist because an unconstrained model wrote the post, and a
-    # post-processor that quietly rewrites a 30-word headline is the same
-    # problem with an extra step.
-    payload = digest_contract.validate_payload(composed, kind=kind)
+    messages = [{"role": "user", "content": _json.dumps(
+        {"digest_kind": kind, "items": compose_input})}]
+    allowed_urls = {feeds.normalize_url(it["url"]) for it in compose_input}
+    # Give the writer the actual validation error before abandoning this run.
+    # Every attempt uses the same sources and the same strict validator; no
+    # unvalidated draft reaches the channel. At most two corrective calls.
+    for attempt in range(3):
+        resp2, _meta2 = await call_llm(
+            role="community_digest", system=_COMPOSE_SYSTEM, messages=messages,
+            prompt_id=f"community_digest_compose_{kind}",
+            purpose="community news digest: compose post", temperature=0.2,
+            max_tokens=max_tokens(),
+        )
+        raw = first_text(resp2) or ""
+        try:
+            composed = extract_json(raw)
+            if composed is None:
+                raise digest_contract.DigestContractError(
+                    "compose pass returned empty or unparseable JSON")
+            payload = digest_contract.validate_payload(composed, kind=kind)
+            urls = [feeds.normalize_url(it["url"]) for it in payload["items"]]
+            if any(url not in allowed_urls for url in urls):
+                raise digest_contract.DigestContractError("url is not in the selected sources")
+            if len(set(urls)) != len(urls):
+                raise digest_contract.DigestContractError("duplicate source url")
+            break
+        except digest_contract.DigestContractError as exc:
+            if attempt == 2:
+                raise
+            log.warning("[digest] %s compose attempt %d rejected: %s; correcting",
+                        kind, attempt + 1, exc)
+            messages.extend([
+                {"role": "assistant", "content": raw or "{}"},
+                {"role": "user", "content": (
+                    f"Validation failed: {exc}. Return the complete corrected JSON. "
+                    "Keep facts and URLs grounded in the original selected items. "
+                    "Check every item against every rule, including word limits.")},
+            ])
 
     # The TOP STORY (§2.2). ``kept`` is already sorted by the select pass's
     # relevance, so the lead is its first entry — matched into the payload on
@@ -441,7 +457,9 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
     if kind not in ("news", "papers"):
         return {"ok": False, "error": f"unknown digest kind {kind!r}"}
     cstore = get_community_store()
-    run_id = cstore.claim_digest_run(kind, window_key=claim_window)
+    daily_news = kind == "news" and claim_window is not None
+    run_id = cstore.claim_digest_run(kind, window_key=claim_window,
+                                     require_posted=daily_news)
     if run_id is None:
         log.info("[digest] %s already claimed for %s", kind, claim_window)
         return {"ok": True, "kind": kind, "outcome": "already_running",
@@ -460,10 +478,10 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
                  if str(it.get("source") or "").startswith(prefixes)]
         if not fresh:
             reason = REASON_NOTHING_FETCHED if not fetched else REASON_NOTHING_FRESH
-            cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched,
+            cstore.finish_digest_run(run_id, ok=not daily_news, items_fetched=fetched,
                                      items_posted=0, reason=reason)
             log.info("[digest] %s run: nothing fresh (%d fetched), no post", kind, fetched)
-            return {"ok": True, "kind": kind, "fetched": fetched, "fresh": 0,
+            return {"ok": not daily_news, "kind": kind, "fetched": fetched, "fresh": 0,
                     "posted": 0, "emailed": 0, "reason": reason}
 
         payload, summaries = await _curate(kind, fresh)
@@ -475,11 +493,11 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
             held = sum(1 for it in fresh
                        if (summaries.get(it["id"]) or {}).get("selected"))
             reason = REASON_BELOW_FLOOR if held else REASON_NOTHING_KEPT
-            cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched,
+            cstore.finish_digest_run(run_id, ok=not daily_news, items_fetched=fetched,
                                      items_posted=0, reason=reason)
             log.info("[digest] %s run: %d fresh, %d selected, no post (%s)",
                      kind, len(fresh), held, reason)
-            return {"ok": True, "kind": kind, "fetched": fetched,
+            return {"ok": not daily_news, "kind": kind, "fetched": fetched,
                     "fresh": len(fresh), "posted": 0, "emailed": 0,
                     "reason": reason}
 
@@ -661,7 +679,7 @@ async def run_spotlight_digest(*, force: bool = False) -> Dict[str, Any]:
         return {"ok": False, "kind": SPOTLIGHT_KIND, "error": str(exc)[:500]}
 
 
-# ─── Scheduler (in-process, restart-safe, gated OFF by default) ──────────────
+# ─── Scheduler (in-process, restart-safe, enabled by default) ────────────────
 def news_enabled() -> bool:
     # Defaults to ON, with COMMUNITY_NEWS_ENABLED=0 as the operator kill
     # switch. It defaulted to off, and an unset variable disabled the whole
@@ -729,7 +747,8 @@ def next_run_at(kind: str = "news", *, now: Optional[datetime] = None) -> Option
         return None
     now = now or datetime.utcnow()
     try:
-        last_ok = get_community_store().last_successful_run_at(kind)
+        last_ok = get_community_store().last_successful_run_at(
+            kind, require_posted=kind == "news")
     except Exception:  # noqa: BLE001 - a schedule line is not worth an exception
         last_ok = None
     # Outstanding right now: the honest answer is this window, not the next one.
@@ -764,7 +783,8 @@ async def run_scheduled_digest(
         return {"ok": False, "kind": kind, "error": f"unknown digest kind {kind!r}"}
     cstore = get_community_store()
     at = now or datetime.utcnow()
-    if not _due(kind, at, cstore.last_successful_run_at(kind)):
+    if not _due(kind, at, cstore.last_successful_run_at(
+            kind, require_posted=kind == "news")):
         return {"ok": True, "kind": kind, "outcome": "not_due", "posted": 0}
     # Failure backoff: after a failed attempt, wait 2h before retrying (not
     # every tick) — an all-day-broken source or a missing API key must not
