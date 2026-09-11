@@ -87,6 +87,31 @@ settings remain unverified. Sandbox is a realm sharing the deployment, not
 independent staging. Clinical worker ownership and aggregate capacity admission
 remain open. No reviewer accessed production records or sent real mail.
 
+## CI sandbox-isolation fixture correction
+
+Both failed jobs on `229807a` (Backend and Keyless shard 1/4) stopped at the same
+sandbox-isolation test. The passwordless health-system signup correctly refused
+to queue an unencrypted claim link, but the test fixture supplied no encryption
+key and expected signup to succeed. The failure reproduced when running that
+test alone.
+
+The builder added a synthetic encryption key scoped by pytest's monkeypatch
+fixture, preserving the production refusal. The existing scenario now also
+checks that the sandbox invitation is encrypted, decrypts to an invitation link,
+and creates no recipient entry in the live queue. The focused sandbox,
+invitation and preservation suite passed 52 tests.
+The exact CI shard 1 file list then passed 1,754 tests with one skip in 152.17
+seconds, starting without vendor API keys or inherited encryption keys. The
+earlier full-suite pass had masked the missing fixture because another module
+sets an encryption key at collection time. Preservation inventory, SQL gate,
+PRD citation, merge-readiness and diff checks also passed.
+
+The independent reviewer approved the change with no findings. A fresh isolated
+run passed the sandbox leak test in 3.65 seconds with all encryption-key variables
+initially absent and network connections blocked. The reviewer verified that
+fixture teardown restored the encryption key to absent. No production calls or
+application-code changes were made for this correction.
+
 ## Limits
 
 These reviews support the repository changes. They do not establish live backup,

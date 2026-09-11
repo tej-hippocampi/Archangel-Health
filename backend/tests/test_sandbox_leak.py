@@ -22,6 +22,7 @@ Run with ``-s`` to print the report the PR carries.
 
 from __future__ import annotations
 
+import base64
 import json
 import pathlib
 import re
@@ -99,6 +100,10 @@ def _dump_ids(conn) -> Set[str]:
 def realms(monkeypatch):
     monkeypatch.setenv(realm.ADMIN_PASSWORD_VAR, ADMIN_PW)
     monkeypatch.setenv(realm.DOCTOR_PASSWORD_VAR, DOCTOR_PW)
+    # The real passwordless signup queues an encrypted claim link. Keep this
+    # synthetic key scoped to the test instead of depending on another module
+    # having configured encryption during full-suite collection.
+    monkeypatch.setenv("DATA_ENCRYPTION_KEY", base64.b64encode(b"s" * 32).decode())
     from community.store import reset_community_store_for_tests
     live = A.fresh_store()
     live_c = reset_community_store_for_tests(str(pathlib.Path(A.TMP_DIR) / f"community_live_{A.uniq()}.db"))
@@ -164,6 +169,20 @@ def _exercise_sandbox(realms, monkeypatch) -> Dict[str, Any]:
     r = client.post("/api/asclepius/hs/signup/verify", headers={realm.HEADER: "sandbox"},
                     json={"email": org_email, "code": msgs[0]["codes"][0]})
     assert r.status_code == 200, r.text
+    from field_crypto import decrypt_field, is_encrypted
+    with realms["sb"]._conn() as conn:
+        invitations = conn.execute(
+            "SELECT body_html FROM admin_notify_outbox "
+            "WHERE kind = 'hs_access' AND recipient_email = ?", (org_email,)
+        ).fetchall()
+    assert len(invitations) == 1
+    assert is_encrypted(invitations[0]["body_html"])
+    assert "/provider?invite=" in decrypt_field(invitations[0]["body_html"])
+    with realms["live"]._conn() as conn:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM admin_notify_outbox WHERE recipient_email = ?",
+            (org_email,),
+        ).fetchone()[0] == 0
 
     # Build an export.
     r = client.post("/api/asclepius/exports", headers=sb_admin_h, json={"profile": "default"})
