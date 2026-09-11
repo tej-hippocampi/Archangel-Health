@@ -44,7 +44,7 @@ TESTS_DIR = "tests"
 # Owned by the ``visual`` job in tests.yml — it needs a browser, and a browser
 # flake must read as "the visual gate is red", not as a backend failure. Excluded
 # here so it is never double-run, and asserted excluded by the sharding test.
-EXCLUDED = frozenset({"tests/test_asclepius_visual.py"})
+EXCLUDED = frozenset({"tests/test_asclepius_visual.py", "tests/test_hs_onboarding_browser.py", "tests/test_physician_onboarding_browser.py"})
 
 # Seconds, measured with ``pytest --durations=0`` and summed per file. Refresh
 # with ``python3 scripts/ci_shard.py --measure`` after a big change if shards

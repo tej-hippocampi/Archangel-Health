@@ -126,6 +126,10 @@ def verify_password(plain: str, hashed: str) -> bool:
 NO_PASSWORD_HASH = "!no-password-set"
 
 
+class AccountAlreadyClaimed(ValueError):
+    """An onboarding attempt cannot replace an existing account's credential."""
+
+
 def password_is_unset(user: Dict[str, Any]) -> bool:
     """True when this account has never had a password of any kind."""
     return (user or {}).get("password_hash") == NO_PASSWORD_HASH
@@ -1218,6 +1222,23 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE users ADD COLUMN nudge_practice_sent_at TEXT")
             if "nudge_exam_sent_at" not in user_cols:
                 conn.execute("ALTER TABLE users ADD COLUMN nudge_exam_sent_at TEXT")
+            if "application_completed_at" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN application_completed_at TEXT")
+            # A send claim is not a successful delivery. Retain uncertain
+            # attempts for reconciliation rather than resending after a crash.
+            conn.execute("""CREATE TABLE IF NOT EXISTS exam_reminder_deliveries (
+                user_id TEXT PRIMARY KEY REFERENCES users(id),
+                status TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                claim_token TEXT,
+                claimed_at TEXT,
+                next_attempt_at TEXT,
+                accepted_at TEXT,
+                recipient_email TEXT,
+                provider_id TEXT,
+                detail TEXT,
+                updated_at TEXT NOT NULL
+            )""")
 
             # The shareable verified card. Opt-in and revocable, so the token is
             # stored hashed like every other token here: a read of the users
@@ -1977,7 +1998,17 @@ class AsclepiusStore:
             if "needs_temp_password" not in cols("hs_signups"):
                 conn.execute("ALTER TABLE hs_signups ADD COLUMN "
                              "needs_temp_password INTEGER NOT NULL DEFAULT 0")
-
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS hs_signup_delivery_reservations (
+                    reservation_id TEXT PRIMARY KEY,
+                    email TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    finished_at TEXT
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_signup_delivery_email "
+                         "ON hs_signup_delivery_reservations(email, finished_at, expires_at)")
 
             # Append-only, never UPDATE. Not health_systems.notes: that column is
             # already written by ensure_health_system(notes=...), has no timestamp
@@ -3928,6 +3959,7 @@ class AsclepiusStore:
         credentials: Optional[Dict[str, Any]] = None,
         attestations: Optional[Dict[str, Any]] = None,
         account_kind: Optional[str] = None,
+        reject_existing_password: bool = False,
     ) -> Dict[str, Any]:
         """Idempotent upsert used by the Asclepius onboarding flow.
 
@@ -3948,19 +3980,22 @@ class AsclepiusStore:
         email = email.lower().strip()
         if password_hash is None and password is not None:
             password_hash = hash_password(password)
-        existing_probe = self.get_user_by_email(email)
-        # Onboarding v2 §2: the wizard provisions with NO_PASSWORD_HASH. On a
-        # RE-onboard that must never touch a credential the physician is signing
-        # in with today — the sentinel means "we were not given one", not "erase
-        # the one you have". Same reasoning as the None case documented above,
-        # which this is the second spelling of.
-        if password_hash == NO_PASSWORD_HASH and existing_probe \
-                and (existing_probe.get("password_hash") or "") != NO_PASSWORD_HASH:
-            password_hash = None
         creds_json = json.dumps(credentials or {})
         atts_json = json.dumps(attestations or {})
-        existing = existing_probe
         with self._conn() as conn:
+            # Serialize the existence check with the write: two open invitations
+            # for one address must not race to replace each other's password.
+            conn.execute("BEGIN IMMEDIATE")
+            found = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+            existing = dict(found) if found else None
+            if reject_existing_password and existing \
+                    and (existing.get("password_hash") or "").strip() \
+                    and not password_is_unset(existing):
+                raise AccountAlreadyClaimed(email)
+            # A sentinel means no credential was supplied, never erase one.
+            if password_hash == NO_PASSWORD_HASH and existing \
+                    and not password_is_unset(existing):
+                password_hash = None
             if existing:
                 # password_hash is set in its own clause, and only when supplied,
                 # so a re-onboard that carries no password cannot blank or
@@ -4003,7 +4038,7 @@ class AsclepiusStore:
                         creds_json, atts_json, account_kind, *pw_stamp_param, email,
                     ),
                 )
-                return self.get_user_by_email(email)  # type: ignore[return-value]
+                return dict(conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone())
             uid = _new_id("u")
             id_hashed = hashlib.sha256(uid.encode("utf-8")).hexdigest()[:16]
             conn.execute(
@@ -4174,6 +4209,16 @@ class AsclepiusStore:
         return row["user_id"] if row else None
 
     # ── Applicant nudges (post-submission) ───────────────────────────────────
+
+    def mark_application_completed(self, user_id: str, completed_at: Optional[str] = None) -> bool:
+        """First successful credential submission, never a profile edit."""
+        at = completed_at or _utcnow_iso()
+        with self._conn() as conn:
+            return conn.execute(
+                "UPDATE users SET application_completed_at = ? "
+                "WHERE id = ? AND application_completed_at IS NULL",
+                (at, user_id),
+            ).rowcount > 0
 
     def stamp_applicant_nudge(self, user_id: str, kind: str) -> bool:
         """Claim the right to send one nudge, returning whether we got it.
@@ -6166,8 +6211,8 @@ class AsclepiusStore:
         self, *, user_id: str, task_id: str, specialty: str,
         attempt: int, payload: Dict[str, Any], time_spent_sec: int = 0,
         is_own_specialty: Optional[bool] = None, applied_specialty: str = "",
-    ) -> str:
-        """File an applicant's examination. Returns the exam id.
+    ) -> tuple[str, bool]:
+        """File an applicant's examination. Returns (exam id, newly created).
 
         Append-only: a retake writes a new row rather than replacing the old
         one, so an admin looking at somebody who was asked to try again can see
@@ -6180,6 +6225,16 @@ class AsclepiusStore:
                                         captured_at=captured_at)
         exam_id = "ce-" + uuid.uuid4().hex[:12]
         with self._conn() as conn:
+            # The check, insert and application receipt share a write lock.
+            # Simultaneous tabs and retries cannot file the same attempt twice.
+            conn.execute("BEGIN IMMEDIATE")
+            previous = conn.execute(
+                "SELECT exam_id, task_id, submitted_at FROM credentialing_exams "
+                "WHERE user_id = ? AND attempt = ? ORDER BY rowid LIMIT 1",
+                (user_id, int(attempt or 1)),
+            ).fetchone()
+            if previous:
+                return previous["exam_id"], False
             conn.execute(
                 """
                 INSERT INTO credentialing_exams
@@ -6193,7 +6248,20 @@ class AsclepiusStore:
                  None if is_own_specialty is None else int(bool(is_own_specialty)),
                  (applied_specialty or "").strip() or None, json.dumps(metadata)),
             )
-        return exam_id
+            row = conn.execute("SELECT tutorial_json FROM users WHERE id = ?", (user_id,)).fetchone()
+            try:
+                tutorial = json.loads(row["tutorial_json"] or "{}") if row else {}
+            except (TypeError, ValueError):
+                tutorial = {}
+            if not isinstance(tutorial, dict):
+                tutorial = {}
+            tutorial.setdefault("status", "not_started")
+            tutorial["exam"] = {"state": "submitted", "attempt": int(attempt or 1),
+                                "submitted_at": captured_at + "Z", "exam_id": exam_id,
+                                "task_id": task_id}
+            conn.execute("UPDATE users SET tutorial_json = ? WHERE id = ?",
+                         (json.dumps(tutorial), user_id))
+        return exam_id, True
 
     def list_credentialing_exams(self, user_id: str) -> List[Dict[str, Any]]:
         """Every examination this applicant has filed, newest first."""
@@ -11739,7 +11807,7 @@ class AsclepiusStore:
         return self._hs_user_public(row) if row else None
 
     def claim_hs_portal_invite(self, username: str, *, password: str,
-                               full_name: Optional[str] = None) -> None:
+                               token_hash: str, full_name: Optional[str] = None) -> bool:
         """Spend an invite: set the password and the name, clear the token.
 
         ONE statement, so the token cannot survive a partial write. Single use is
@@ -11757,14 +11825,18 @@ class AsclepiusStore:
         uname = (username or "").strip().lower()
         name = (full_name or "").strip()
         with self._conn() as conn:
-            conn.execute(
+            changed = conn.execute(
                 "UPDATE hs_portal_users SET password_hash = ?, must_reset = 0, "
                 "failed_logins = 0, locked_until = NULL, password_changed_at = ?, "
                 "session_epoch = session_epoch + 1, invite_token_hash = NULL, "
                 "invite_expires_at = NULL, full_name = COALESCE(NULLIF(?, ''), full_name) "
-                "WHERE username = ?",
-                (hash_password(password), _utcnow_iso(), name, uname),
+                "WHERE username = ? AND invite_token_hash = ? AND invite_expires_at > ? "
+                "AND active = 1 AND EXISTS (SELECT 1 FROM health_systems h "
+                "WHERE h.hs_id = hs_portal_users.hs_id AND h.active = 1)",
+                (hash_password(password), _utcnow_iso(), name, uname, token_hash,
+                 datetime.utcnow().isoformat()),
             )
+            return changed.rowcount == 1
 
     def set_hs_portal_active(self, username: str, active: bool) -> None:
         with self._conn() as conn:
@@ -12204,9 +12276,44 @@ class AsclepiusStore:
         return [dict(r) for r in rows]
 
     # ─── Signup staging (unverified mailboxes never reach the partner list) ──
+    def reserve_hs_signup_delivery(self, email: str, *, limit: int = 3) -> Optional[str]:
+        """Count in-flight sends across workers without retiring a working code.
+
+        Failed sends release their slot. A process crash expires its slot after
+        five minutes; neither failure uses the address's daily signup allowance.
+        """
+        addr = (email or "").strip().lower()
+        now = datetime.now(timezone.utc)
+        since = (now - timedelta(hours=24)).isoformat()
+        reservation_id = uuid.uuid4().hex
+        with self._conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            staged = conn.execute("SELECT COUNT(*) FROM hs_signups WHERE email = ? AND created_at >= ?",
+                                  (addr, since)).fetchone()[0]
+            pending = conn.execute(
+                "SELECT COUNT(*) FROM hs_signup_delivery_reservations "
+                "WHERE email = ? AND finished_at IS NULL AND expires_at > ?",
+                (addr, now.isoformat()),
+            ).fetchone()[0]
+            if staged + pending >= limit:
+                return None
+            conn.execute(
+                "INSERT INTO hs_signup_delivery_reservations "
+                "(reservation_id, email, created_at, expires_at) VALUES (?, ?, ?, ?)",
+                (reservation_id, addr, now.isoformat(), (now + timedelta(minutes=5)).isoformat()),
+            )
+        return reservation_id
+
+    def release_hs_signup_delivery(self, reservation_id: str) -> None:
+        with self._conn() as conn:
+            conn.execute("UPDATE hs_signup_delivery_reservations SET finished_at = ? "
+                         "WHERE reservation_id = ? AND finished_at IS NULL",
+                         (_utcnow_iso(), reservation_id))
+
     def create_hs_signup(self, *, email: str, full_name: str, organization: str,
                          password: str, code: str, ttl_minutes: int = 15,
                          client_ip: Optional[str] = None,
+                         delivery_reservation: Optional[str] = None,
                          needs_temp_password: bool = False) -> Dict[str, Any]:
         """Stage a signup and its emailed code. Both secrets are hashed at rest:
         the code guards account creation, so it is a credential.
@@ -12221,6 +12328,14 @@ class AsclepiusStore:
         now = datetime.now(timezone.utc)
         expires = (now + timedelta(minutes=ttl_minutes)).replace(microsecond=0).isoformat()
         with self._conn() as conn:
+            if delivery_reservation:
+                claimed = conn.execute(
+                    "UPDATE hs_signup_delivery_reservations SET finished_at = ? "
+                    "WHERE reservation_id = ? AND email = ? AND finished_at IS NULL AND expires_at > ?",
+                    (now.isoformat(), delivery_reservation, addr, now.isoformat()),
+                )
+                if claimed.rowcount != 1:
+                    raise ValueError("signup delivery reservation expired")
             # One live challenge per address: re-requesting supersedes rather
             # than accumulating, so the 5-attempt cap cannot be farmed by simply
             # signing up again.
@@ -12268,6 +12383,82 @@ class AsclepiusStore:
             ).fetchone()
         return dict(row) if row else None
 
+    def get_hs_signup_for_resend(self, email: str) -> Optional[Dict[str, Any]]:
+        """Allow a recently expired challenge to be renewed, never a consumed one."""
+        since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_signups WHERE email = ? AND consumed_at IS NULL "
+                "AND created_at > ? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+                ((email or "").strip().lower(), since),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def renew_hs_signup_code(self, signup_id: str, *, previous_code_hash: str,
+                             code: str, ttl_minutes: int = 15) -> bool:
+        """Replace a delivered challenge only if no newer request superseded it."""
+        expires = (datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)).isoformat()
+        digest = hash_password(code)
+        with self._conn() as conn:
+            changed = conn.execute(
+                "UPDATE hs_signups SET code_hash = ?, expires_at = ?, attempts = 0 "
+                "WHERE signup_id = ? AND code_hash = ? AND consumed_at IS NULL",
+                (digest, expires, signup_id, previous_code_hash),
+            )
+            return changed.rowcount == 1
+
+    def complete_hs_signup(self, signup_id: str, *, expected_code_hash: str,
+                            invite_token_hash: Optional[str] = None,
+                            invite_expires_at: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Consume the verified challenge and create its isolated portal atomically.
+
+        A stale verification must create nothing. A storage failure must roll
+        everything back, including the challenge, so the same code is retryable.
+        The write lock also serializes organization and username allocation.
+        """
+        from asclepius.ingestion import DEFAULT_PURPOSE
+        from asclepius.hs_states import INTAKE
+        from asclepius.portal_accounts import derive_hs_username
+
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            changed = conn.execute(
+                "UPDATE hs_signups SET consumed_at = ? WHERE signup_id = ? "
+                "AND code_hash = ? AND consumed_at IS NULL AND expires_at > ? AND attempts < 5",
+                (now, signup_id, expected_code_hash, now),
+            )
+            if changed.rowcount != 1:
+                return None
+            staged = dict(conn.execute("SELECT * FROM hs_signups WHERE signup_id = ?",
+                                       (signup_id,)).fetchone())
+            name = staged["organization"]
+            base = self.hs_id_for_name(name)
+            hs_id = base
+            while conn.execute("SELECT 1 FROM health_systems WHERE hs_id = ?", (hs_id,)).fetchone():
+                hs_id = f"{base}-{secrets.token_hex(2)}"
+            base_username = derive_hs_username(name)
+            username = base_username
+            suffix = 2
+            while conn.execute("SELECT 1 FROM hs_portal_users WHERE username = ?", (username,)).fetchone():
+                username = (f"{base_username}{suffix}" if suffix < 10
+                            else f"{base_username}-{secrets.token_hex(2)}")
+                suffix += 1
+            conn.execute(
+                "INSERT INTO health_systems (hs_id, name, contact_email, active, created_at, "
+                "origin, onboarding_state, state_changed_at) VALUES (?, ?, ?, 1, ?, ?, ?, ?)",
+                (hs_id, name, staged["email"], now, _hs_origin_for_new_row(), INTAKE, now),
+            )
+            conn.execute(
+                "INSERT INTO hs_portal_users (username, hs_id, password_hash, must_reset, "
+                "email, active, created_at, full_name, signup_source, approval_status, purpose, "
+                "invite_token_hash, invite_expires_at) "
+                "VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'self_serve', 'pending', ?, ?, ?)",
+                (username, hs_id, staged["password_hash"], int(bool(staged["needs_temp_password"])),
+                 staged["email"], now, staged["full_name"], DEFAULT_PURPOSE,
+                 invite_token_hash, invite_expires_at),
+            )
+        return {"hs_id": hs_id, "username": username}
+
     def bump_hs_signup_attempts(self, signup_id: str) -> int:
         """Count a wrong code. Returns the new total so the caller can burn the
         challenge at the cap rather than leaving it open to be ground down."""
@@ -12277,6 +12468,17 @@ class AsclepiusStore:
             row = conn.execute("SELECT attempts FROM hs_signups WHERE signup_id = ?",
                                (signup_id,)).fetchone()
         return int(row["attempts"]) if row else 0
+
+    def reject_hs_signup_code(self, signup_id: str, *, expected_code_hash: str,
+                              max_attempts: int = 5) -> None:
+        """Count and, at the cap, retire only the challenge actually checked."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_signups SET attempts = attempts + 1, "
+                "consumed_at = CASE WHEN attempts + 1 >= ? THEN ? ELSE NULL END "
+                "WHERE signup_id = ? AND code_hash = ? AND consumed_at IS NULL",
+                (max_attempts, _utcnow_iso(), signup_id, expected_code_hash),
+            )
 
     def burn_hs_signup(self, signup_id: str) -> None:
         """End a challenge without creating anything (attempt cap, or expiry

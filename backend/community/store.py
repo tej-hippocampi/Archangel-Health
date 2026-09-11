@@ -2085,7 +2085,8 @@ class CommunityStore:
             )
             return int(cur.lastrowid)
 
-    def claim_digest_run(self, kind: str, *, window_key: Optional[str]) -> Optional[int]:
+    def claim_digest_run(self, kind: str, *, window_key: Optional[str],
+                         require_posted: bool = False) -> Optional[int]:
         """Reserve ``(kind, window_key)`` and return the run id, or None if
         another runner already holds that window.
 
@@ -2100,6 +2101,9 @@ class CommunityStore:
         forced or manual run wants: the operator asked for this run and is the
         authority on whether it should happen.
 
+        ``require_posted`` lets daily news retry a completed empty window
+        recorded by older versions. Active and published claims stay reserved.
+
         A window whose runner died mid-run is released after
         ``RUN_CLAIM_LEASE_SECONDS`` and marked abandoned, because the honest
         alternative, a window held forever by a process that no longer exists,
@@ -2113,6 +2117,16 @@ class CommunityStore:
         conn = self._conn()
         try:
             self._immediate(conn)
+            if require_posted:
+                # Older versions counted empty news runs as a completed day.
+                # Release only completed, empty claims; preserve their audit
+                # rows and never release a published or active run.
+                conn.execute(
+                    "UPDATE community_digest_runs SET window_key = NULL "
+                    "WHERE kind = ? AND window_key = ? AND ok = 1 "
+                    "AND items_posted = 0 AND finished_at IS NOT NULL",
+                    (kind, window_key),
+                )
             # Release first, in the same transaction as the insert, so the
             # reclaim cannot land between another claimer's release and its
             # insert. ok=0 rather than left running: an abandoned run IS a
@@ -2197,13 +2211,15 @@ class CommunityStore:
             out = [r for r in out if not str(r.get("kind") or "").startswith(prefix)]
         return out
 
-    def last_successful_run_at(self, kind: str) -> Optional[str]:
-        """Started-at of the newest ok run — the restart-safe schedule marker."""
+    def last_successful_run_at(self, kind: str, *,
+                               require_posted: bool = False) -> Optional[str]:
+        """Newest successful run; daily news requires an actual publication."""
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT started_at FROM community_digest_runs "
-                "WHERE kind = ? AND ok = 1 ORDER BY id DESC LIMIT 1",
-                (kind,),
+                "WHERE kind = ? AND ok = 1 AND (? = 0 OR items_posted > 0) "
+                "ORDER BY id DESC LIMIT 1",
+                (kind, int(require_posted)),
             ).fetchone()
         return row["started_at"] if row else None
 

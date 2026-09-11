@@ -4741,7 +4741,7 @@ _HS_ANSWER_WORDS: Dict[str, Dict[str, str]] = {
                         "not_sure": "Not sure"},
     "export_scope": {"notes_and_structured": "Notes and structured",
                      "structured_only": "Structured only",
-                     "varies": "Depends by system"},
+                     "varies": "Depends by system", "not_sure": "Not sure"},
     "scale_patients": {"under_10k": "Under 10,000", "10k_50k": "10,000 to 50,000",
                        "50k_250k": "50,000 to 250,000",
                        "250k_1m": "250,000 to 1 million",

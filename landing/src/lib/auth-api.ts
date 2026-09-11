@@ -685,6 +685,10 @@ export async function asclepiusForgotPassword(email: string): Promise<{ message:
     body: JSON.stringify({ email }),
   });
   const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(typeof body.detail === "string" ? body.detail
+      : "Could not send the password link. Please try again.");
+  }
   return {
     message:
       (body && body.message) ||
@@ -758,12 +762,15 @@ export async function healthSystemSignup(input: {
 }
 
 export async function healthSystemResendCode(email: string): Promise<void> {
-  await fetch(`${API_BASE}/api/asclepius/hs/signup/resend`, {
+  const res = await fetch(`${API_BASE}/api/asclepius/hs/signup/resend`, {
     method: "POST",
     headers: apiHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ email }),
-  }).catch(() => undefined);
+  });
+  if (!res.ok) {
+    throw new Error(await readDetail(res, "Could not send your code. Please try again."));
+  }
 }
 
 export async function healthSystemVerify(

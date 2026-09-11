@@ -167,6 +167,8 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
 
   const handleOrgSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    setResendStatus(null);
     setApiError(null);
     clearError();
     setSubmitting(true);
@@ -187,6 +189,7 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
 
   const handleOrgVerify = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setApiError(null);
     setSubmitting(true);
     try {
@@ -612,13 +615,24 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
             <button
               type="button"
               className="adg-linkish"
-              onClick={() => {
-                void authApi.healthSystemResendCode(orgEmail.trim().toLowerCase());
+              disabled={submitting}
+              onClick={async () => {
+                setSubmitting(true);
                 setApiError(null);
+                setResendStatus(null);
+                try {
+                  await authApi.healthSystemResendCode(orgEmail.trim().toLowerCase());
+                  setResendStatus("If your signup is still pending, a new code is on its way. Check your inbox.");
+                } catch (err) {
+                  setApiError(err instanceof Error ? err.message : "Could not send your code. Please try again.");
+                } finally {
+                  setSubmitting(false);
+                }
               }}
             >
               Send it again
             </button>
+            {resendStatus && <p className="adg-sub" role="status">{resendStatus}</p>}
             <div className="adg-actions">
               <button type="button" className="adg-btn adg-btn-secondary" onClick={() => setStep("org")}>
                 Back
@@ -639,8 +653,8 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
           <div className="adg-form">
             <p className="adg-sub">
               Your portal for <strong>{orgName.trim()}</strong> is open. You sign
-              in as <strong>{orgUsername}</strong> — it is in your email too,
-              with a temporary password to replace on your first sign-in.
+              in as <strong>{orgUsername}</strong>. Choose your password in the
+              portal. Your welcome email also includes a link to set up your account.
             </p>
             <div className="adg-actions">
               <a
