@@ -18,9 +18,9 @@
    phone is a checklist that nags. It is also why closing a stop is a network
    call and not a variable.
 
-   THREE STOPS ARE REQUIRED, THREE ARE OPTIONAL (Welcome package v2 §1). The
-   welcome, choosing a start and the practice case render NO skip control, and
-   the server 400s a defer against them. The other three offer "Do this later",
+   Welcome and choosing a start render no skip control. Approved physicians
+   can explicitly skip the practice walkthrough; it is not counted as done.
+   Community, earnings and the manual offer "Do this later",
    which writes `deferred` — "asked, declined this session" — and is deliberately
    NOT terminal. The previous model made every skip permanent, which is why the
    walkthrough asked about the community exactly once and then went silent
@@ -38,7 +38,7 @@
 
    THE PRACTICE CASE IS NOT REIMPLEMENTED. Stop 3 calls `startTutorial()` and
    gets out of the way. Its completion is checked off by the SERVER, from the
-   tutorial's own PATCH /me/tutorial transition, so a doctor who finishes it
+   tutorial's own completion transition, so a doctor who finishes it
    later — from the help menu, on another device — still finds the box ticked.
    There is deliberately no client-side tutorial tracker here to disagree with
    that one.
@@ -82,9 +82,11 @@
 
   var DEMO_URL = '/api/asclepius/assets/onboarding-demo';   // absolute: it is a <video src>, not an api() call
 
-  /** §1's split. REQUIRED renders no skip control anywhere and the server 400s
-   *  a defer against any of them; OPTIONAL may be put off, as often as asked.
+  /** §1's split. The server rejects generic defer against REQUIRED stops;
+   *  OPTIONAL may be put off, as often as asked.
    *  Mirrors REQUIRED_STOPS / OPTIONAL_STOPS in asclepius/first_run.py. */
+  // Approved physicians may explicitly skip practice via skip_practice; it
+  // remains separate from generic deferral and is never counted as done.
   var REQUIRED = ['welcome', 'start', 'practice'];
   var OPTIONAL = ['community', 'earnings', 'manual'];
 
@@ -97,6 +99,7 @@
 
   var DONE = 'done';
   var DEFERRED = 'deferred';
+  var SKIPPED = 'skipped'; // practice-only opt-out, never a completed case
 
   /** Logins 2 and 3 get the re-entry page; the 4th onwards gets the banner.
    *  Mirrors REENTRY_THROUGH_SESSION in asclepius/first_run.py — named on both
@@ -130,13 +133,15 @@
   /** Finished for good. A deferred stop is NOT closed — that is the §1 change. */
   function isDone(id) { return stops[id] === DONE; }
 
+  function isResolved(id) { return isDone(id) || (id === 'practice' && stops[id] === SKIPPED); }
+
   /** Stops still owed, in order. Deferred ones are in here: deferred is "not
    *  now", not "no", and the whole cadence depends on the difference. */
-  function openStops() { return STOPS.filter(function (s) { return !isDone(s); }); }
+  function openStops() { return STOPS.filter(function (s) { return !isResolved(s); }); }
 
-  function doneCount() { return STOPS.length - openStops().length; }
+  function doneCount() { return STOPS.filter(isDone).length; }
 
-  function requiredOpen() { return REQUIRED.filter(function (s) { return !isDone(s); }); }
+  function requiredOpen() { return REQUIRED.filter(function (s) { return !isResolved(s); }); }
 
   function optionalRemaining() { return OPTIONAL.filter(function (s) { return !isDone(s); }); }
 
@@ -156,6 +161,9 @@
       if (v === DONE) out[id] = DONE;
       else if (v && !isRequired(id)) out[id] = DEFERRED;
     });
+    // An explicit practice-only choice survives reloads without migrating a
+    // legacy skip into a pass or silently closing any other walkthrough stop.
+    if (fr.practice_skipped_at && out.practice !== DONE) out.practice = SKIPPED;
     return out;
   }
 
@@ -312,14 +320,15 @@
       var state = stops[id];
       var cls = 'asc-fr-check-item'
         + (state === DONE ? ' is-done' : '')
-        + (state === DEFERRED ? ' is-later' : '')
+        + (state === DEFERRED || state === SKIPPED ? ' is-later' : '')
         + (id === current ? ' is-current' : '');
       return h('li', { class: cls },
         h('span', { class: 'asc-fr-check-box', 'aria-hidden': 'true' }, state === DONE ? '✓' : ''),
         h('span', { class: 'asc-fr-check-label' }, STOP_LABEL[id]),
         // "later", not "skipped". The word is the model: this is a thing they
         // have not done yet, not a thing they declined for good.
-        state === DEFERRED ? h('span', { class: 'asc-fr-later' }, 'later') : null);
+        state === DEFERRED ? h('span', { class: 'asc-fr-later' }, 'later') :
+          state === SKIPPED ? h('span', { class: 'asc-fr-later' }, 'skipped') : null);
     }
     var items = REQUIRED.map(row);
     items.push(h('li', { class: 'asc-fr-eyebrow', 'aria-hidden': 'true' }, 'OPTIONAL'));
@@ -999,7 +1008,9 @@
       var fr = (user && user.first_run) || {};
       if (fr.dismissed_at) return 'none';
       var s = readState(user);
-      var reqOpen = REQUIRED.some(function (id) { return s[id] !== DONE; });
+      var reqOpen = REQUIRED.some(function (id) {
+        return s[id] !== DONE && !(id === 'practice' && s[id] === SKIPPED);
+      });
       if (reqOpen) return 'walkthrough';
       var optLeft = OPTIONAL.some(function (id) { return s[id] !== DONE; });
       if (!optLeft) return 'none';

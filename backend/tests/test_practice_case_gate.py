@@ -384,20 +384,152 @@ def test_the_pass_mark_needs_the_right_answer_and_enough_of_it():
     assert result["passed"] is False
 
 
-def test_approved_doctor_can_skip_practice_without_faking_a_pass():
+def test_approved_doctor_can_skip_practice_without_dismissing_other_stops(tmp_path):
+    from asclepius.first_run import mode
     from routers.asclepius import require_first_run_stops
+    from scripts.data_inventory import snapshot, compare
+    import sqlite3
+    import os
+    from pathlib import Path
+
     store = A.fresh_store()
     user = A.make_user(store, practice_case=False)
-    store.set_verification_status(user['id'], 'approved')
-    store.set_first_run(user['id'], {'version': 2, 'stops': {'welcome': 'done'}, 'sessions_seen': 1})
-    user = store.get_user_by_id(user['id'])
+    store.set_verification_status(user["id"], "approved")
+    store.set_first_run(user["id"], {
+        "version": store.FIRST_RUN_VERSION,
+        "stops": {"welcome": "done", "start": "done", "earnings": "deferred"},
+        "sessions_seen": 2,
+    })
+    user = store.get_user_by_id(user["id"])
+    headers = A.headers_for(user)
+    # Count this token before freezing the before/after inventory.
+    client.get("/api/asclepius/auth/me", headers=headers)
+    before_state = store.get_first_run(user["id"])
+    before_tutorial = store.get_tutorial_state(user["id"])
+    before = snapshot(store.db_path)
+    backup = tmp_path / "before.db"
+    with sqlite3.connect(store.db_path) as source, sqlite3.connect(backup) as target:
+        source.backup(target)
+
+    response = client.patch("/api/asclepius/me/first-run",
+                            json={"action": "skip_practice"}, headers=headers)
+    assert response.status_code == 200, response.text
+    first_run = response.json()["first_run"]
+    assert first_run["practice_skipped_at"]
+    assert first_run["dismissed_at"] is None
+    assert first_run["completed_at"] is None
+    assert first_run["stops"] == before_state["stops"]
+    assert store.get_tutorial_state(user["id"]) == before_tutorial
     assert asc_caps.practice_gate_reason(user, required_version=999) is None
     assert require_first_run_stops(user) == user
-    before = store.get_tutorial_state(user['id'])
-    response = client.patch('/api/asclepius/me/first-run', json={'action': 'dismiss'}, headers=A.headers_for(user))
-    assert response.status_code == 200 and response.json()['first_run']['dismissed_at']
-    assert store.get_tutorial_state(user['id']) == before
-    session = client.get('/api/asclepius/auth/me', headers=A.headers_for(user))
-    assert session.json()['first_run']['dismissed_at']
+    retried = client.patch("/api/asclepius/me/first-run",
+                           json={"action": "skip_practice"}, headers=headers)
+    assert retried.json()["first_run"] == first_run
+    session = client.get("/api/asclepius/auth/me", headers=headers).json()
+    assert session["first_run"] == first_run
+    assert mode(session["first_run"]) == "reentry"
+    new_session = client.get("/api/asclepius/auth/me", headers=A.headers_for(user)).json()["first_run"]
+    assert new_session["practice_skipped_at"] == first_run["practice_skipped_at"]
+    assert new_session["stops"] == first_run["stops"]
+    assert new_session["dismissed_at"] is None
+    assert mode(new_session) in ("reentry", "banner")
+    after = snapshot(store.db_path)
+    assert compare(before, after, allowed=("users.first_run_json",)) == []
+    restored = tmp_path / "restored.db"
+    with sqlite3.connect(backup) as source, sqlite3.connect(restored) as target:
+        source.backup(target)
+    assert compare(before, snapshot(restored)) == []
+    evidence = os.getenv("ONBOARDING_SKIP_EVIDENCE_DIR")
+    if evidence:
+        output = Path(evidence)
+        output.mkdir(parents=True, exist_ok=True)
+        for name, value in (("before", before), ("after", after)):
+            (output / (name + ".json")).write_text(json.dumps(value, indent=2))
+        (output / "preservation.json").write_text(json.dumps({
+            "diff": [], "allowed_changes": ["users.first_run_json"],
+            "restore_diff": [], "backup": str(backup), "restored": str(restored),
+            "scope": "Isolated synthetic Asclepius database, all tables",
+        }, indent=2))
+
+
+def test_practice_skip_is_only_available_after_approval():
+    store = A.fresh_store()
+    user = A.make_user(store, practice_case=False, tier=None)
+    before = store.get_first_run(user["id"])
+    response = client.patch("/api/asclepius/me/first-run",
+                            json={"action": "skip_practice"}, headers=A.headers_for(user))
+    assert response.status_code == 403
+    assert store.get_first_run(user["id"]) == before
+
+
+def test_practice_skip_does_not_rewrite_a_completed_case_or_other_stops():
+    store = A.fresh_store()
+    user = A.make_user(store)
+    store.set_verification_status(user["id"], "approved")
+    headers = A.headers_for(user)
+    store.set_first_run(user["id"], {"version": store.FIRST_RUN_VERSION,
+                                    "stops": {"practice": "done"}})
+    before = store.get_first_run(user["id"])
+    response = client.patch("/api/asclepius/me/first-run",
+                            json={"action": "skip_practice"}, headers=headers)
+    assert response.status_code == 200
+    assert store.get_first_run(user["id"]) == before
+    response = client.patch("/api/asclepius/me/first-run",
+                            json={"action": "skip_practice", "stop": "community"}, headers=headers)
+    assert response.status_code == 400
+    assert store.get_first_run(user["id"]) == before
+
+
+def test_remaining_stops_can_complete_after_skipping_practice():
     from asclepius.first_run import mode
-    assert mode(session.json()['first_run']) == 'none'
+    store = A.fresh_store()
+    user = A.make_user(store, practice_case=False)
+    store.set_verification_status(user["id"], "approved")
+    headers = A.headers_for(user)
+    client.patch("/api/asclepius/me/first-run", json={"action": "skip_practice"}, headers=headers)
+    for stop in ("welcome", "start", "community", "earnings", "manual"):
+        response = client.patch("/api/asclepius/me/first-run",
+                                json={"action": "done", "stop": stop}, headers=headers)
+        assert response.status_code == 200
+    state = store.get_first_run(user["id"])
+    assert "practice" not in state["stops"]
+    assert state["completed_at"] and state["practice_skipped_at"]
+    assert mode(state) == "none"
+
+
+@pytest.mark.parametrize("good", [True, False])
+def test_submitting_practice_resolves_just_the_practice_stop(good):
+    store = A.fresh_store()
+    user = A.make_user(store, practice_case=False)
+    store.set_first_run(user["id"], {"version": store.FIRST_RUN_VERSION,
+                                    "stops": {"welcome": "done", "start": "done"}})
+    payload = _good_payload() if good else {"task_id": TUTORIAL_TASK_ID}
+    response = client.post("/api/asclepius/tutorial/submit", json=payload, headers=A.headers_for(user))
+    assert response.status_code == 200, response.text
+    first_run = response.json()["user"]["first_run"]
+    assert first_run["stops"] == {"welcome": "done", "start": "done", "practice": "done"}
+    assert first_run["dismissed_at"] is None
+    assert first_run["practice_skipped_at"] is None
+
+
+def test_failed_skip_write_leaves_onboarding_unchanged_and_retryable(monkeypatch):
+    import sqlite3
+    store = A.fresh_store()
+    user = A.make_user(store, practice_case=False)
+    store.set_verification_status(user["id"], "approved")
+    before = store.get_first_run(user["id"])
+    original = store.set_first_run
+
+    def fail_write(*args, **kwargs):
+        raise sqlite3.OperationalError("test database unavailable")
+
+    monkeypatch.setattr(store, "set_first_run", fail_write)
+    with pytest.raises(sqlite3.OperationalError):
+        client.patch("/api/asclepius/me/first-run", json={"action": "skip_practice"},
+                     headers=A.headers_for(user))
+    assert store.get_first_run(user["id"]) == before
+    monkeypatch.setattr(store, "set_first_run", original)
+    response = client.patch("/api/asclepius/me/first-run", json={"action": "skip_practice"},
+                            headers=A.headers_for(user))
+    assert response.status_code == 200
+    assert response.json()["first_run"]["practice_skipped_at"]

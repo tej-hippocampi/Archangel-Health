@@ -10812,8 +10812,10 @@
     clearTimeout(_tourPatchTimer);
     TUTORIAL_STEPS.forEach((s) => { s._waitSince = null; });
     _tourScrolledFor = null;
-    const layer = document.getElementById('ascTourLayer');
-    if (layer) layer.remove();
+    ['ascTourLayer', 'ascTourInterstitial', 'ascTourSkipConfirm'].forEach((id) => {
+      const overlay = document.getElementById(id);
+      if (overlay) overlay.remove();
+    });
     state.tutorial = null;
   }
 
@@ -11037,7 +11039,7 @@
         } }, 'Skip this step'));
     }
     row.appendChild(h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button',
-      onClick: confirmSkipTutorial }, state.user && state.user.verification_status === 'approved' ? 'Skip practice and go to my cases' : 'Leave for now'));
+      onClick: confirmSkipTutorial }, state.user && state.user.verification_status === 'approved' ? 'Skip practice case walkthrough' : 'Leave for now'));
     pop.appendChild(row);
     const frac = h('div', { class: 'asc-tour-bar' });
     frac.appendChild(h('div', { class: 'asc-tour-bar-fill',
@@ -11059,8 +11061,13 @@
         + 'reference panel. Nothing here is recorded or sold.'),
       h('div', { style: 'display:flex;gap:10px;align-items:center' },
         h('button', { class: 'asc-btn asc-btn-primary', type: 'button', onClick: proceed }, 'Start the case →'),
-        h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button', onClick: () => { overlay.remove(); confirmSkipTutorial(); } },
-          state.user && state.user.verification_status === 'approved' ? 'Skip practice and go to my cases' : 'Leave for now')));
+        h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button', onClick: () => {
+          // Keep the approved user's skip button available until the write
+          // succeeds. A failed request must be retryable on this same screen.
+          if (!state.user || state.user.verification_status !== 'approved') overlay.remove();
+          confirmSkipTutorial();
+        } },
+          state.user && state.user.verification_status === 'approved' ? 'Skip practice case walkthrough' : 'Leave for now')));
     function proceed() {
       state.tutorial.welcomed = true;
       overlay.remove();
@@ -11143,7 +11150,7 @@
   // Approved physicians can leave the entire practice immediately. Applicants
   // keep the optional exercise's existing leave confirmation and saved draft.
   function confirmSkipTutorial() {
-    if (state.user && state.user.verification_status === 'approved') { skipPracticeToCases(); return; }
+    if (state.user && state.user.verification_status === 'approved') { skipPracticeWalkthrough(); return; }
     if (document.getElementById('ascTourSkipConfirm')) return;
     // The spotlight box + tooltip sit ABOVE this confirm dialog (z 1200 vs
     // 1000): hide them first, or the old highlight and copy stay pasted on
@@ -11168,22 +11175,23 @@
     document.body.appendChild(overlay);
   }
 
-  async function skipPracticeToCases() {
-    // Persist the opt-out across devices without claiming a pass or completion.
+  async function skipPracticeWalkthrough() {
+    // Resolve only the practice stop. Dismissing first-run here hid Community,
+    // payouts and the manual too, including their entry points on later logins.
     if (state.submitting) return;
     state.submitting = true;
     try {
-      const user = await api('/me/first-run', { method: 'PATCH', body: { action: 'dismiss' } });
+      const user = await api('/me/first-run', { method: 'PATCH', body: { action: 'skip_practice' } });
       if (user) state.user = user;
       state.submitting = false;
-      leaveTutorial();
+      leaveTutorial({ continueOnboarding: true });
     } catch (error) {
       state.submitting = false;
       toast('Could not save your preference. Please try skipping again.', 'error');
     }
   }
 
-  function leaveTutorial() {
+  function leaveTutorial(opts) {
     const wasReplay = state.tutorial && state.tutorial.replay;
     // No PATCH. There is nothing to record: leaving grants nothing and takes
     // nothing away, and the old `action: 'skip'` wrote a terminal state that
@@ -11197,26 +11205,21 @@
     state.task = null;
     state.portalChosen = false;
     state.specialtyChosen = false;
-    // "LEAVE FOR NOW" NOW LEAVES.
-    //
-    // It did not. The walkthrough's practice stop stays open when somebody
-    // leaves (the server refuses to record a skip), so firstRunTourPending()
-    // was still true, resumeFirstRun() asked the walkthrough where to go, and
-    // the walkthrough's first open stop was the practice case. Leave landed
-    // straight back in the case it had just left, twice, and the only way out
-    // was to close the tab.
-    //
-    // The loop is gone rather than patched: leaving means the dashboard, every
-    // time. An approved physician mid-walkthrough gets back to the remaining
-    // stops through the first-run chip and banner on that dashboard, which is
-    // the mechanism designed for exactly this and does not trap anybody.
-    //
-    // /auth/me is still refreshed, because the dashboard renders from it and
-    // the attempt that just happened changes what it should say.
+    // Ordinary leaving and replays return to the dashboard. An approved
+    // practice-only skip has already been saved, so it resumes the remaining
+    // welcome package without looping back into the case. Refresh the session
+    // before either destination so its checklist and account details agree.
     api('/auth/me')
       .then((u) => { if (u) state.user = u; })
       .catch(() => { /* the dashboard renders from what we already hold */ })
-      .then(() => { state.view = 'home'; state.panel = 'tasks'; renderDashboardView(); });
+      .then(() => {
+        state.view = 'home'; state.panel = 'tasks';
+        if (opts && opts.continueOnboarding && !wasReplay && firstRunPending()) {
+          resumeFirstRun();
+        } else {
+          renderDashboardView();
+        }
+      });
     // First skip: pulse the corner ? tab once so they know where the written
     // instructions live: never auto-open a panel over their screen.
     let seen = null;
@@ -11263,6 +11266,7 @@
     // dossier; this screen shows a physician what the reference panel saw and
     // nothing about how they scored against it.
     const approved = state.user && state.user.verification_status === 'approved';
+    const continueOnboarding = approved && !opts.replay && firstRunTourPending();
     const mustAck = (result.must_acknowledge || []).slice();
     // A miss the physician never opened is a miss they never read. The primary
     // button waits on them opening each one: one click per miss, not a quiz.
@@ -11345,7 +11349,8 @@
      * findings shown as things to notice rather than as marks. That is the
      * reason to do a practice case at all, and it contains no verdict.
      */
-    const closing = approved ? 'Practice is optional. You can return to your cases now and revisit this guide anytime.' : isAdvisor()
+    const closing = continueOnboarding ? 'Next, meet the community, see how you get paid, and explore the manual.'
+      : approved ? 'Practice is optional. You can return to your cases now and revisit this guide anytime.' : isAdvisor()
       ? 'Nothing from this run was recorded.'
       : 'Nothing here is scored for you. The examination is the case we read, '
         + 'and a person reads it.';
@@ -11354,12 +11359,14 @@
       onClick: () => {
         if (!primaryEnabled()) return;
         state.portalChosen = false; state.specialtyChosen = false;
-        if (approved) { skipPracticeToCases(); return; }
+        if (continueOnboarding) { resumeFirstRun(); return; }
+        if (approved) { renderDashboardView(); return; }
         if (isAdvisor()) { renderDashboardView(); return; }
         if (firstRunTourPending()) { resumeFirstRun(); return; }
         renderDashboardView();
       } },
-      approved ? 'Go to my cases →' : isAdvisor() ? 'Back to the dashboard' : 'Take my examination →');
+      continueOnboarding ? 'Continue onboarding →'
+        : approved ? 'Go to my cases →' : isAdvisor() ? 'Back to the dashboard' : 'Take my examination →');
 
     const card = h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-tour-chrome' }, 'PRACTICE CASE'),

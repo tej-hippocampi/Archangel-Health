@@ -1612,7 +1612,8 @@ def _close_first_run_stop(store: Any, user_id: str, stop: str, outcome: str) -> 
         return
     stops[stop] = asc_first_run.DONE
     state["stops"] = stops
-    if not state.get("completed_at") and asc_first_run.is_complete(stops):
+    if not state.get("completed_at") and asc_first_run.is_complete(
+            stops, practice_skipped=bool(state.get("practice_skipped_at"))):
         state["completed_at"] = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
     store.set_first_run(user_id, state)
 
@@ -1659,6 +1660,18 @@ async def update_my_first_run(
         if not body.stop:
             raise HTTPException(status_code=400, detail="Which stop?")
         _close_first_run_stop(store, user["id"], body.stop, asc_first_run.DONE)
+    elif body.action == "skip_practice":
+        if user.get("verification_status") != "approved":
+            raise HTTPException(status_code=403, detail="Available after approval.")
+        if body.stop not in (None, "practice"):
+            raise HTTPException(status_code=400, detail="Only the practice walkthrough can be skipped.")
+        state = store.get_first_run(user["id"])
+        if not state.get("practice_skipped_at") and (state.get("stops") or {}).get("practice") != asc_first_run.DONE:
+            now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+            state["practice_skipped_at"] = now
+            if asc_first_run.is_complete(state.get("stops") or {}, practice_skipped=True):
+                state["completed_at"] = state.get("completed_at") or now
+            store.set_first_run(user["id"], state)
     elif body.action in ("defer", "skip"):
         # ``skip`` is the previous bundle's word for this. It is accepted so a
         # physician holding a stale tab through the deploy is not 422'd
@@ -2158,6 +2171,12 @@ async def tutorial_submit(
     if not current.get("version"):
         current["version"] = TUTORIAL_VERSION
     store.set_tutorial_state(user["id"], current)
+
+    # Resolve practice within an existing welcome package, regardless of grade.
+    # A standalone practice attempt must not enroll an applicant or a returning
+    # contributor in onboarding by creating their first checklist entry.
+    if store.get_first_run(user["id"]).get("stops"):
+        _close_first_run_stop(store, user["id"], "practice", asc_first_run.DONE)
 
     store.log_event(
         entity_type="user", entity_id=user["id"],

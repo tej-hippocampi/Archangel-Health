@@ -286,3 +286,64 @@ def test_next_account_practice_does_not_inherit_exam_state(portal, session_exit)
     assert any(user["id"] in key for key in keys), "A's saved draft must survive"
     assert not any(second["id"] in key for key in keys), "B's practice is not an exam"
     assert not errors
+
+
+@pytest.mark.parametrize("mid_case", [False, True])
+def test_approved_practice_skip_continues_onboarding_and_survives_reload(portal, mid_case):
+    page, store, user, errors = portal
+    store.set_verification_status(user["id"], "approved")
+    store.set_first_run(user["id"], {"version": store.FIRST_RUN_VERSION,
+        "stops": {"welcome": "done", "start": "done"}, "sessions_seen": 1})
+    page.reload()
+    page.get_by_role("button", name="Start the case →", exact=True).wait_for()
+    if mid_case:
+        page.get_by_role("button", name="Start the case →", exact=True).click()
+        page.get_by_role("button", name="Looks clinically valid, continue").click()
+        page.locator(".asc-instinct-input").fill("My saved practice note.")
+    before_tutorial = store.get_tutorial_state(user["id"])
+    attempts = []
+
+    def fail_once(route):
+        if route.request.post_data_json.get("action") != "skip_practice":
+            route.fallback()
+            return
+        attempts.append(1)
+        if len(attempts) == 1:
+            route.fulfill(status=503, content_type="application/json",
+                          body='{"detail":"Temporary test outage"}')
+        else:
+            route.fallback()
+
+    page.route("**/me/first-run", fail_once)
+    skip = page.get_by_role("button", name="Skip practice case walkthrough", exact=True)
+    skip.click()
+    page.get_by_text("Could not save your preference. Please try skipping again.").wait_for()
+    assert store.get_first_run(user["id"])["practice_skipped_at"] is None
+    skip.click()
+    page.get_by_role("button", name="Open the community", exact=True).wait_for()
+    assert len(attempts) == 2
+    first_run = store.get_first_run(user["id"])
+    assert first_run["practice_skipped_at"]
+    assert first_run["dismissed_at"] is None
+    assert first_run["stops"] == {"welcome": "done", "start": "done"}
+    assert store.get_tutorial_state(user["id"]) == before_tutorial
+    if mid_case:
+        assert page.evaluate("Object.values(localStorage).some(v => v.includes('My saved practice note.'))")
+    screenshot(page, "practice-skipped-community.png")
+    page.get_by_role("button", name="Do this later", exact=True).click()
+    page.get_by_role("button", name="Do this later", exact=True).click()
+    page.get_by_role("button", name="Open the manual", exact=True).wait_for()
+    page.get_by_role("button", name="Open the manual", exact=True).click()
+    page.locator(".asc-guide-content").wait_for()
+    assert not store.get_first_run(user["id"])["dismissed_at"]
+    page.reload()
+    page.get_by_role("button", name="Finish these now", exact=False).wait_for()
+    assert page.locator("#ascTourInterstitial").count() == 0
+    assert page.get_by_text("Join the community", exact=True).is_visible()
+    page.get_by_role("button", name="Sign out", exact=True).click()
+    page.locator('input[autocomplete="username"]').fill(user["email"])
+    page.locator('input[type="password"]').fill(PASSWORD)
+    page.get_by_role("button", name="Sign in", exact=True).click()
+    page.get_by_role("button", name="Finish these now", exact=False).wait_for()
+    assert page.locator("#ascTourInterstitial").count() == 0
+    assert not errors

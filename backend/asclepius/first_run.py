@@ -8,8 +8,12 @@ asked about exactly once and then never again.
 
 The model here is three states over two classes of stop:
 
-    REQUIRED (welcome, start, practice)   null → done.        No skip exists.
+    REQUIRED (welcome, start, practice)   null → done.
     OPTIONAL (community, earnings, manual) null → deferred → done.
+
+Approved physicians may opt out of the practice walkthrough. A separate
+``practice_skipped_at`` records that choice without claiming a completed case
+or dismissing any other stop. Legacy skipped outcomes retain their migration.
 
 ``deferred`` means "asked, declined this session". It is deliberately NOT
 terminal: it may be rewritten every session, and it is what lets the cadence in
@@ -27,10 +31,9 @@ from typing import Any, Dict, Optional, Tuple
 
 from asclepius.schemas import FIRST_RUN_STOPS
 
-#: The three stops a physician must actually do. There is no skip control on
-#: any of them, in the UI or on the wire: ``PATCH /me/first-run`` refuses a
-#: defer against one with a 400, and ``/tasks/next`` refuses real work while any
-#: of them is open. The gate ends here — nothing after ``practice`` blocks work.
+#: These stops do not accept the generic defer action. Approved physicians
+#: can resolve practice with the separate practice_skipped_at opt-out; this
+#: changes checklist navigation only and never grants access to paid cases.
 REQUIRED_STOPS: Tuple[str, ...] = ("welcome", "start", "practice")
 
 #: The three that are genuinely optional. A physician who never opens any of
@@ -126,6 +129,7 @@ def normalize(parsed: Any, *, version: int) -> Dict[str, Any]:
         "last_session_counted": None,
         "completed_at": None,
         "dismissed_at": None,
+        "practice_skipped_at": None,
     }
     if not isinstance(parsed, dict):
         return empty
@@ -145,24 +149,28 @@ def normalize(parsed: Any, *, version: int) -> Dict[str, Any]:
         # optional stops is stored as complete while, under §1, it has three
         # stops still open. Trusting the stored stamp there would silence the
         # re-entry cadence for exactly the physicians it was written for.
-        "completed_at": parsed.get("completed_at") if is_complete(stops) else None,
+        "completed_at": parsed.get("completed_at") if is_complete(
+            stops, practice_skipped=bool(parsed.get("practice_skipped_at"))) else None,
         # Carried, and still honoured. ``dismiss`` is an explicit "stop asking
         # me" a physician clicked on the finish card, and §4.2's "no don't-show-
         # again" governs the NEW screens rather than retracting a choice someone
         # already made. It never opens the required gate — see ``mode()``.
         "dismissed_at": parsed.get("dismissed_at"),
+        "practice_skipped_at": parsed.get("practice_skipped_at"),
     }
     return state
 
 
-def is_complete(stops: Dict[str, str]) -> bool:
-    """True only when all six are ``done``. Deferred never completes the set."""
-    return all(stops.get(s) == DONE for s in FIRST_RUN_STOPS)
+def is_complete(stops: Dict[str, str], *, practice_skipped: bool = False) -> bool:
+    """Every stop is done or the practice was explicitly skipped; never deferred."""
+    return all(stops.get(s) == DONE or (s == "practice" and practice_skipped)
+               for s in FIRST_RUN_STOPS)
 
 
-def required_open(stops: Dict[str, str]) -> Tuple[str, ...]:
+def required_open(stops: Dict[str, str], *, practice_skipped: bool = False) -> Tuple[str, ...]:
     """The required stops still owed, in order."""
-    return tuple(s for s in REQUIRED_STOPS if stops.get(s) != DONE)
+    return tuple(s for s in REQUIRED_STOPS if stops.get(s) != DONE
+                 and not (s == "practice" and practice_skipped))
 
 
 def optional_remaining(stops: Dict[str, str]) -> Tuple[str, ...]:
@@ -210,7 +218,7 @@ def mode(state: Optional[Dict[str, Any]]) -> str:
     if (state or {}).get("dismissed_at"):
         return MODE_NONE
     stops = normalize_stops((state or {}).get("stops"))
-    if required_open(stops):
+    if required_open(stops, practice_skipped=bool((state or {}).get("practice_skipped_at"))):
         return MODE_WALKTHROUGH
     if not optional_remaining(stops):
         return MODE_NONE

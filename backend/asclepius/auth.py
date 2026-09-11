@@ -319,6 +319,7 @@ def _project_first_run(state: Dict[str, Any]) -> Dict[str, Any]:
         "sessions_seen": state["sessions_seen"],
         "completed_at": state["completed_at"],
         "dismissed_at": state["dismissed_at"],
+        "practice_skipped_at": state["practice_skipped_at"],
     }
 
 

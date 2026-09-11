@@ -702,3 +702,33 @@ def test_the_two_choice_cards_on_stop_two_share_one_accent():
     assert len(thumbs) == 2, f"expected two choice thumbs, found {thumbs}"
     assert thumbs[0] == thumbs[1], f"peer cards carry different accents: {thumbs}"
 
+
+
+def test_skipping_practice_keeps_each_remaining_stop_interactive():
+    out = _run_node(_ctx(user={"first_run": {
+        "version": 2, "stops": {"welcome": "done", "start": "done"},
+        "practice_skipped_at": "2026-09-11T00:00:00Z",
+    }}) + """
+      window.FirstRunWalkthrough.resume(ctx);
+      var community = textOf(rootNode);
+      var count = textOf(find(rootNode, 'asc-fr-check-count')[0]);
+      find(rootNode, 'asc-btn-primary')[0].dispatch('click');
+      var earnings = textOf(rootNode);
+      find(rootNode, 'asc-fr-skip')[0].dispatch('click');
+      var manual = textOf(rootNode);
+      find(rootNode, 'asc-btn-primary')[0].dispatch('click');
+      done(function () { console.log(JSON.stringify({
+        community: community, earnings: earnings, manual: manual,
+        count: count, calls: apiCalls, handoffs: handoffs,
+      })); });
+    """)
+    assert "This is our Slack." in out["community"]
+    assert "skipped" in out["community"]
+    assert out["count"] == "2 of 6", "skipping must not claim the case was completed"
+    assert "paid" in out["earnings"].lower()
+    assert "manual" in out["manual"].lower()
+    assert out["handoffs"] == ["community", "panel:guide"]
+    writes = [c["body"] for c in out["calls"] if c["path"] == "/me/first-run"]
+    assert writes == [{"action": "done", "stop": "community"},
+                      {"action": "defer", "stop": "earnings"},
+                      {"action": "done", "stop": "manual"}]
