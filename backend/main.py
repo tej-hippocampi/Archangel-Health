@@ -7613,22 +7613,29 @@ except Exception:
 # database. No application queries, no writes, and no caching (a cached health
 # answer is the one answer a health check must never give).
 #: Only /static. It is the mount whose absence means the product is not being
-#: served at all, and the Dockerfile copies frontend/ explicitly for it. The
-#: other two mounts are deliberately NOT here. /audio serves /tmp, which is
-#: scratch. /email-assets is the narrower call, and the reason has changed:
-#: backend/assets now ships (it holds the physician welcome artwork, and
-#: `COPY backend/ backend/` carries it past a .dockerignore that only drops
-#: *.md), so the mount registers. It stays out because a missing image degrades
-#: one email rather than meaning the product is not being served, and redding
-#: this check rolls a working deployment back. A health check that reds on
-#: something optional gets ignored, and an ignored health check is the one we
-#: started with.
+#: served at all. The other two mounts are deliberately NOT here. /audio serves
+#: /tmp, which is scratch. /email-assets is the narrower call, and the old
+#: reason for excluding it -- that backend/assets was not in the repo, so the
+#: mount never registered -- expired when the physician welcome artwork landed
+#: there. It stays out because a missing image degrades one email rather than
+#: meaning the product is unserved, and redding this check rolls a working
+#: deployment back. A health check that reds on something optional gets
+#: ignored, and an ignored health check is the one we started with.
 #:
-#: Know the cost of that choice: the mount above is wrapped in try/except, so if
-#: backend/assets ever stops shipping, every physician welcome letter renders
-#: two broken images while this check still reports healthy. Nothing else
-#: alarms on it -- the images are fetched by the recipient's mail client, not by
-#: us, so a 404 leaves no trace in our logs either.
+#: What that leaves uncovered, and where not to look for it. The mount above is
+#: wrapped in try/except, so a backend/assets missing from the RUNNING image
+#: serves 404s while this check still reports healthy. Deleting the artwork from
+#: the repo is not the gap -- test_physician_acceptance_welcome.py asserts both
+#: files return 200 image/png, so CI reds loudly on that. The gap is packaging
+#: and serving. Do not reason about that from the Dockerfile: railway.json sets
+#: the RAILPACK builder and backend/Procfile says in as many words that Railway
+#: uses the Procfile and not the Dockerfile, so neither it nor .dockerignore
+#: governs what production runs.
+#:
+#: Such a 404 does reach the uvicorn access log (the Procfile passes no
+#: --no-access-log), but nothing alerts on it, and most mail clients show the
+#: alt text rather than a broken-image glyph. Expect the first report to be a
+#: physician mentioning it, not a page.
 _HEALTH_MOUNTS = (
     ("static", os.path.join(os.path.dirname(__file__), "../frontend"), "index.html"),
 )
