@@ -1222,6 +1222,23 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE users ADD COLUMN nudge_practice_sent_at TEXT")
             if "nudge_exam_sent_at" not in user_cols:
                 conn.execute("ALTER TABLE users ADD COLUMN nudge_exam_sent_at TEXT")
+            if "application_completed_at" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN application_completed_at TEXT")
+            # A send claim is not a successful delivery. Retain uncertain
+            # attempts for reconciliation rather than resending after a crash.
+            conn.execute("""CREATE TABLE IF NOT EXISTS exam_reminder_deliveries (
+                user_id TEXT PRIMARY KEY REFERENCES users(id),
+                status TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                claim_token TEXT,
+                claimed_at TEXT,
+                next_attempt_at TEXT,
+                accepted_at TEXT,
+                recipient_email TEXT,
+                provider_id TEXT,
+                detail TEXT,
+                updated_at TEXT NOT NULL
+            )""")
 
             # The shareable verified card. Opt-in and revocable, so the token is
             # stored hashed like every other token here: a read of the users
@@ -4192,6 +4209,16 @@ class AsclepiusStore:
         return row["user_id"] if row else None
 
     # ── Applicant nudges (post-submission) ───────────────────────────────────
+
+    def mark_application_completed(self, user_id: str, completed_at: Optional[str] = None) -> bool:
+        """First successful credential submission, never a profile edit."""
+        at = completed_at or _utcnow_iso()
+        with self._conn() as conn:
+            return conn.execute(
+                "UPDATE users SET application_completed_at = ? "
+                "WHERE id = ? AND application_completed_at IS NULL",
+                (at, user_id),
+            ).rowcount > 0
 
     def stamp_applicant_nudge(self, user_id: str, kind: str) -> bool:
         """Claim the right to send one nudge, returning whether we got it.
