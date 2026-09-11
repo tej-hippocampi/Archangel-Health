@@ -3070,7 +3070,7 @@
     // that happen to share a chart".
     const nDensityPoints = plan.decision_points || 0;
     const nPoints = trajectory ? (plan.ready_walk_points || 0) : nDensityPoints;
-    const nVerifiable = trajectory ? Math.max(0, nPoints - 1) : (plan.verifiable_decision_points || 0);
+    const nVerifiable = trajectory ? (plan.walk_verifiable_points || 0) : (plan.verifiable_decision_points || 0);
     const trajBtn = h('button', { class: 'asc-btn asc-btn-primary' },
       trajectory ? 'Chain ' + nPoints + ' point(s) into one trajectory' : 'Preview chart walk');
     if (!nPoints || declarationRequired || reviewOnly) trajBtn.setAttribute('disabled', '');

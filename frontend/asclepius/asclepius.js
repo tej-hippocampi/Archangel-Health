@@ -4314,15 +4314,15 @@
     const wrap = h('div', { class: 'asc-wrap' }, head);
     if (outcome) wrap.appendChild(renderOutcomePanel(outcome));
 
-    if (expected.length) {
+    if (outcome && expected.length) {
       wrap.appendChild(renderSelfScoreCard(task, data, expected, falsifiers));
     } else {
-      // No prediction was recorded, so there is nothing to grade. Say that
-      // plainly rather than showing an empty scoring card.
+      // A missing prediction or terminal outcome leaves nothing to grade.
       wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
         h('div', { class: 'asc-help' },
-          'You did not record an expected trajectory on this case, so there is '
-          + 'nothing here to check against the record.'),
+          outcome ? 'You did not record an expected trajectory on this case, so there is '
+          + 'nothing here to check against the record.'
+          : 'This point has no later outcome to score.'),
         h('div', { style: 'margin-top:16px' }, trajectoryContinueButton(data))));
     }
     // §6, in front of the physician at the moment they grade — not only in the

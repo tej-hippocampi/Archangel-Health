@@ -195,9 +195,20 @@ identifiers. Stored source payloads and internal audit timestamps remain intact.
 Calendar-dated license expiry is rejected without changing the license or export
 state. Every text companion is scanned before records are marked exported.
 
-P5 is still pending: the reveal endpoint currently derives its delta from the
-next stored task. The separate P5 branch must persist the sealed per-point
-outcome so a failed or retired successor cannot change the reveal boundary.
+P5 seals each new point's outcome from the source chart before model generation.
+Its window is `index < offset <= until_offset`, ending at the next planned point;
+the terminal point explicitly has no later outcome. The stored window retains
+the full bounded evidence, without the next task's note/lab budget. A failed,
+retired or edited successor therefore cannot change that point's reveal. Partial
+walks count verifiable seals, so their count need not equal generated points minus
+one. Continue follows live sequence and assignment gates independently of the
+sealed endpoint, and terminal points cannot receive a verification self-score.
+
+The seal stays in private task generation metadata and is released only through
+the post-submission reveal. Admin previews, blinded task responses and buyer
+generation provenance omit it. Missing seals on legacy tasks keep their existing
+next-task reconstruction path; malformed present seals fail closed with a 409.
+No existing rows are rewritten or removed. See [CHART_WALK_P5_CHECK.md](CHART_WALK_P5_CHECK.md).
 
 Everything above is in `data_dictionary.md`, along with the limits — an
 undocumented field in a delivered artifact is indistinguishable from a leak.

@@ -1318,22 +1318,15 @@ def _ground_truth_from_held_out(held_out: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def build_encounter_case(
-    case: Optional[Dict[str, Any]], encounter: Dict[str, Any], index_offset: int,
-    *, until_offset: Optional[int] = None, trajectory: bool = False,
-    encounters: Optional[Sequence[Dict[str, Any]]] = None,
-) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
-    """``(visible_case, held_out, curation_stats)`` for one decision point.
-
-    VISIBLE is everything recorded at or before the index event, re-based so day 0
-    is the decision point. HELD OUT is everything after it. The split is temporal
-    and total: no collection is exempt, because a problem added afterwards is
-    literally the answer and a drug started afterwards names the diagnosis.
-    """
+def _encounter_timed_chart(
+    case: Optional[Dict[str, Any]], index_offset: int,
+    encounters: Sequence[Dict[str, Any]], *, trajectory: bool,
+) -> Dict[str, Any]:
+    """Curated chart copy with admission/resolution notes on their own dates."""
     c = prepare_longitudinal_chart(case)
     # Resolution documents belong to the end of their own encounter. Prior
     # resolutions remain available as history and as the next point's reveal.
-    spans = encounters if encounters is not None else [encounter]
+    spans = encounters
     presentation_notes: List[Dict[str, Any]] = []
     for note in c.get("notes") or []:
         off = _offset_of(note)
@@ -1360,6 +1353,23 @@ def build_encounter_case(
                     note.update(model_visible=False, withheld_reason="encounter_resolution")
     if presentation_notes:
         c["notes"] = list(c.get("notes") or []) + presentation_notes
+    return c
+
+
+def build_encounter_case(
+    case: Optional[Dict[str, Any]], encounter: Dict[str, Any], index_offset: int,
+    *, until_offset: Optional[int] = None, trajectory: bool = False,
+    encounters: Optional[Sequence[Dict[str, Any]]] = None,
+) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+    """``(visible_case, held_out, curation_stats)`` for one decision point.
+
+    VISIBLE is everything recorded at or before the index event, re-based so day 0
+    is the decision point. HELD OUT is everything after it. The split is temporal
+    and total: no collection is exempt, because a problem added afterwards is
+    literally the answer and a drug started afterwards names the diagnosis.
+    """
+    c = _encounter_timed_chart(case, index_offset,
+        encounters if encounters is not None else [encounter], trajectory=trajectory)
     lookback = encounter.get("start_offset")
     if not isinstance(lookback, int):
         lookback = index_offset
@@ -1543,6 +1553,44 @@ def outcome_delta(
     delta["n_events"] = sum(len(delta[k]) for k in
                             ("lab_panels", "notes", "studies", "medications", "problem_list"))
     return delta
+
+
+def seal_outcome_window(
+    case: Dict[str, Any], encounters: Sequence[Dict[str, Any]], *,
+    index_offset: int, until_offset: Optional[int], outcome_encounter_index: Optional[int],
+) -> Dict[str, Any]:
+    """Freeze this point's full bounded evidence, independently of task creation.
+
+    Discharge sections use the same timing as visible cases, but this window is
+    not subject to a later task's note/lab budget or model-generation success.
+    The envelope is internal; only its outcome is released after submission.
+    """
+    sealed = {"version": 1, "index_event_offset": index_offset,
+              "until_offset": until_offset, "outcome_encounter_index": outcome_encounter_index,
+              "outcome": None}
+    if until_offset is not None:
+        c = _encounter_timed_chart(case, until_offset, encounters, trajectory=True)
+        window = {key: [_rebase(item, until_offset) for item in c.get(key) or []
+                        if (off := _offset_of(item)) is not None and index_offset < off <= until_offset]
+                  for key in _TIMED_COLLECTIONS}
+        window["lab_panels"], _ = curate_lab_panels(window["lab_panels"])
+        panel_offsets = set(_timed_offsets(window, ("lab_panels",)))
+        window["notes"] = [n for n in window["notes"]
+                           if not (_is_panel_note(n) and _offset_of(n) in panel_offsets)]
+        window["vitals"] = _visible_vitals(c, until_offset)
+        window["study_findings_policy"] = c.get("study_findings_policy") or "visible"
+        sealed["outcome"] = outcome_delta(public_case(window),
+            outcome_index_offset=until_offset, decision_index_offset=index_offset)
+    validate_sealed_outcome(sealed, index_offset=index_offset)
+    return sealed
+
+
+def validate_sealed_outcome(sealed: Any, *, index_offset: Any) -> Optional[Dict[str, Any]]:
+    from asclepius.sealed_outcomes import validate_sealed_outcome as validate
+    try:
+        return validate(sealed, index_offset=index_offset)
+    except ValueError as exc:
+        raise RealCaseError(str(exc)) from exc
 
 
 def _visible_vitals(case: Dict[str, Any], index_offset: int) -> Dict[str, Any]:
@@ -2313,6 +2361,10 @@ async def plan_cases(
         later = [e for e in encounters if e["index"] > enc["index"]
                  and (point_class.get(e["index"]) if trajectory else qualify_encounter(c, e)["qualifies"])]
         until_offset = select_decision_point(c, later[0])[0] if later else max(_timed_offsets(c), default=index_offset)
+        if trajectory:
+            proposal["sealed_outcome"] = seal_outcome_window(c, encounters,
+                index_offset=index_offset, until_offset=until_offset if later else None,
+                outcome_encounter_index=later[0]["index"] if later else None)
         visible, held_out, stats = build_encounter_case(
             c, enc, index_offset, until_offset=until_offset, trajectory=trajectory,
             encounters=encounters)

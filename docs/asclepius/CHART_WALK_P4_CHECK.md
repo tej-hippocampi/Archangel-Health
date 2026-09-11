@@ -2,7 +2,8 @@
 
 Implements the supplied Chart Walk Seven Points PRD through P4. The source PRD
 describes the pre-change tree; the verified implementation locations below refer
-to this checkout. P5's independently sealed reveal is still pending.
+to this checkout. P5 was pending at this checkpoint; its implementation and
+verification are recorded in [CHART_WALK_P5_CHECK.md](CHART_WALK_P5_CHECK.md).
 
 ## Design and invariants
 
@@ -46,7 +47,7 @@ generatable count is 3, which is preserved; the source PRD's claim of 4 was stal
 
 | Concern | Verified location |
 | --- | --- |
-| Planner | `plan_cases` — `backend/asclepius/real_cases.py:2225` |
+| Planner | `plan_cases` — `backend/asclepius/real_cases.py:2273` |
 | Conservative sentence boundary | `_leading_presentation` — `backend/asclepius/real_cases.py:192` |
 | Record annex | `trajectory_block` — `backend/asclepius/packaging.py:1095` |
 | Distinct shipped counts | `_walk_point_counts` — `backend/asclepius/export.py:791` |

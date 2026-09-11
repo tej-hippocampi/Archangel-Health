@@ -435,6 +435,23 @@ def test_both_physician_headers_show_the_point_class(point_class, label):
     assert f'Step 3 of 7 · {label}' in out['outcomeText']
 
 
+def test_terminal_reveal_with_a_prediction_has_continue_but_no_score_card_executed():
+    out = _harness(["h", "appendChildren", "trajectoryStepLabel", "paintTrajectoryOutcome",
+                    "trajectoryContinueButton", "continueTrajectory"], """
+    let root;
+    setRoot = n => {root=n;};
+    function renderSelfScoreCard() {throw new Error('terminal point offered a score');}
+    paintTrajectoryOutcome(state.task, {outcome:null,
+      expected_trajectory:{expectations:[{expectation:'Symptoms improve.'}]},
+      progress:{next_task_id:'next-live-point'}});
+    root.querySelector('.asc-btn').dispatch('click');
+    console.log(JSON.stringify({text:root.textContent,opened:globalThis.__opened}));
+    """)
+    assert 'no later outcome to score' in out['text']
+    assert 'Continue' in out['text']
+    assert out['opened'] == 'next-live-point'
+
+
 def test_interval_rows_include_downgrades_and_honest_terminal_state():
     out = _harness(["h", "appendChildren", "renderDensityLine"], """
     const p = {point_class:'interval',qualifies_as_point:true,outcome_verifiable:true};

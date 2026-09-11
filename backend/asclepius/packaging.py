@@ -251,12 +251,12 @@ def _first_anchor(obj: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
 def _generation_provenance(task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Buyer-facing synthetic-prompt provenance (PRD §9.1): a record's prompt was
     auto-generated (not lab-supplied), traceable to the corpus version + models.
-    The server-side ``intended_flawed_id`` is stripped — it never leaves the
-    portal in a delivered record."""
+    The server-side answer key and sealed future outcome are stripped; neither
+    belongs in a delivered record's generation provenance."""
     gen = task.get("generation")
     if not gen or not isinstance(gen, dict):
         return None
-    out = {k: v for k, v in gen.items() if k != "intended_flawed_id"}
+    out = {k: v for k, v in gen.items() if k not in ("intended_flawed_id", "sealed_outcome")}
     return out
 
 

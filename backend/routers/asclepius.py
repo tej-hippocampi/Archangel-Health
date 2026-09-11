@@ -2809,6 +2809,8 @@ async def list_tasks(
             t["needs_baseline"] = True
         if gen.get("ab_source"):
             t["ab_source"] = gen.get("ab_source")
+        if "sealed_outcome" in gen:
+            t["generation"] = {k: v for k, v in gen.items() if k != "sealed_outcome"}
     return {"tasks": tasks}
 
 
@@ -4364,7 +4366,7 @@ def _trajectory_submission(store: Any, task: Dict[str, Any], user: Dict[str, Any
 
 
 def _outcome_point(store: Any, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """The next point in this walk — the encounter that verifies this decision.
+    """Legacy fallback: the next stored point in a walk with no persisted seal.
 
     The point with the SMALLEST sequence index greater than this one, not
     ``idx + 1``. A walk can have a hole in it: generation is per-point isolated so
@@ -4373,8 +4375,7 @@ def _outcome_point(store: Any, task: Dict[str, Any]) -> Optional[Dict[str, Any]]
     a hole report "this is the last decision point in this chart" — false, and
     false in the direction that silently drops a verifiable point from the corpus.
 
-    The wider window that results is still a truthful outcome, and
-    ``days_after_decision`` states the gap it actually covers.
+    New tasks never derive their evidence window through this fallback.
     """
     idx = asc_trajectory.sequence_index(task)
     if idx is None:
@@ -4382,6 +4383,17 @@ def _outcome_point(store: Any, task: Dict[str, Any]) -> Optional[Dict[str, Any]]
     later = [p for p in store.trajectory_points(task.get("trajectory_id"))
              if isinstance(p.get("sequence_index"), int) and p["sequence_index"] > idx]
     return later[0] if later else None
+
+
+def _stored_outcome(task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    from asclepius import real_cases
+    generation = task.get("generation") or {}
+    try:
+        return real_cases.validate_sealed_outcome(generation.get("sealed_outcome"),
+            index_offset=generation.get("index_event_offset"))
+    except real_cases.RealCaseError as exc:
+        raise HTTPException(status_code=409, detail={
+            "error": "outcome_not_reconstructible", "message": str(exc)})
 
 
 @router.get("/tasks/{task_id}/trajectory-outcome")
@@ -4427,30 +4439,44 @@ async def trajectory_outcome(
     # for the reveal to refuse a physician their own committed work.
     submission = _trajectory_submission(store, task, user)
 
-    outcome_task = _outcome_point(store, task)
-    if outcome_task is None:
+    generation = task.get("generation") or {}
+    sealed = "sealed_outcome" in generation
+    progress = store.evaluator_trajectory_progress(
+        trajectory_id=task["trajectory_id"], evaluator_id=user["id"])
+    if sealed:
+        delta = _stored_outcome(task)
+        # This id describes the originally planned endpoint, never a substitute
+        # later task. Navigation is separate and comes from progress.next_task_id.
+        envelope = generation["sealed_outcome"]
+        outcome_task = next((p for p in store.trajectory_points(task["trajectory_id"])
+            if (p.get("generation") or {}).get("encounter_index") == envelope.get("outcome_encounter_index")
+            and (p.get("generation") or {}).get("index_event_offset") == envelope.get("until_offset")), None)
+    else:
+        outcome_task = _outcome_point(store, task)
+        delta = None
+    if (sealed and delta is None) or (not sealed and outcome_task is None):
         return {
             "task_id": task_id,
             "trajectory_id": task.get("trajectory_id"),
             "sequence_index": task.get("sequence_index"),
             "outcome": None,
-            # The terminal point of a walk. Named, not silently empty: a walk of N
-            # points yields N−1 verifiable ones, and a physician who reaches the
-            # end should be told that rather than left looking at a blank panel.
+            # A terminal point has no planned future window to score.
             "reason": "This is the last decision point in this chart. There is no "
                       "later encounter in the record to check it against.",
             "expected_trajectory": submission.get("expected_trajectory"),
             "self_score": submission.get("trajectory_self_score"),
+            "progress": progress,
         }
 
     decision_offset = ((task.get("generation") or {}).get("index_event_offset"))
-    outcome_offset = ((outcome_task.get("generation") or {}).get("index_event_offset"))
+    outcome_offset = (((outcome_task or {}).get("generation") or {}).get("index_event_offset"))
     try:
-        delta = real_cases.outcome_delta(
-            asc_cases.public_case(outcome_task.get("case")),
-            outcome_index_offset=outcome_offset,
-            decision_index_offset=decision_offset,
-        )
+        if not sealed:
+            delta = real_cases.outcome_delta(
+                asc_cases.public_case(outcome_task.get("case")),
+                outcome_index_offset=outcome_offset,
+                decision_index_offset=decision_offset,
+            )
     except real_cases.RealCaseError as exc:
         # FAIL CLOSED and say so. The alternative — serving the outcome case whole
         # — would show the physician chart state they had already read as if it
@@ -4463,7 +4489,7 @@ async def trajectory_outcome(
         actor=user["id"],
         payload={"trajectory_id": task.get("trajectory_id"),
                  "sequence_index": task.get("sequence_index"),
-                 "outcome_task_id": outcome_task["task_id"],
+                 "outcome_task_id": (outcome_task or {}).get("task_id"),
                  "days_after_decision": delta.get("days_after_decision"),
                  "n_events": delta.get("n_events")},
     )
@@ -4472,7 +4498,8 @@ async def trajectory_outcome(
         "trajectory_id": task.get("trajectory_id"),
         "sequence_index": task.get("sequence_index"),
         "outcome": delta,
-        "outcome_task_id": outcome_task["task_id"],
+        "outcome_task_id": (outcome_task or {}).get("task_id"),
+        "progress": progress,
         # The physician's own sealed prediction, handed back so the client scores
         # against what was actually stored rather than against a local draft that
         # may have been edited after the commit.
@@ -4508,6 +4535,9 @@ async def trajectory_self_score(
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)
     submission = _trajectory_submission(store, task, user)
+    if "sealed_outcome" in (task.get("generation") or {}) and _stored_outcome(task) is None:
+        raise HTTPException(status_code=409, detail={
+            "error": "no_outcome_to_score", "message": "This terminal point has no later outcome to score."})
     expected = submission.get("expected_trajectory") or {}
     n_expected = len(expected.get("expectations") or [])
     if not n_expected:
@@ -4577,10 +4607,10 @@ async def get_trajectory(
                 # cannot advertise a card the next click refuses.
                 "openable": (p["task_id"] in answered
                              or p["task_id"] == progress.get("next_task_id")),
-                # A walk of N points yields N−1 verifiable ones: the terminal point
-                # has no later encounter to be checked against.
-                "outcome_verifiable": p.get("sequence_index") is not None
-                and p.get("sequence_index") < len(points) - 1,
+                # A failed successor does not invalidate a stored outcome window.
+                "outcome_verifiable": asc_trajectory.outcome_verifiable(p,
+                    has_later_point=any(q.get("sequence_index", -1) > p.get("sequence_index", -1)
+                                        for q in points)),
             }
             for p in points
         ],
@@ -7847,6 +7877,14 @@ async def _generate_one_real_case(
         p["question_source"] = "deterministic"
     result: Dict[str, Any] = {"encounter_index": p.get("encounter_index"),
                               "task_id": None, "failures": [], "error": None}
+    if trajectory_id is not None:
+        try:
+            sealed_delta = real_cases.validate_sealed_outcome(p.get("sealed_outcome"),
+                index_offset=p.get("index_event_offset"))
+        except real_cases.RealCaseError as exc:
+            result["error"] = str(exc)
+            return result
+        result["outcome_verifiable"] = sealed_delta is not None
     if not specialty or not asc_specialties.is_enabled(specialty):
         result["error"] = "specialty not served"
         return result
@@ -7972,12 +8010,8 @@ async def _generate_one_real_case(
         # The walk, echoed on the generation block for the admin and the buyer; the
         # COLUMNS are what the sequence gate and the export read.
         #
-        # Deliberately absent: trajectory length and "is this point verifiable".
-        # Both are functions of which points actually exist, and a generation run
-        # can produce fewer than it planned (a per-encounter gate failure, an admin
-        # deleting a point later). Stamping either here would freeze a number that
-        # the next event makes wrong, on a buyer-facing field. Both are derived at
-        # read time from ``store.trajectory_points``, which cannot go stale.
+        # Length follows the surviving tasks. Evidence is fixed to this point's
+        # planned window even when its successor fails generation or is retired.
         generation.update({
             "mode": "real_case_trajectory",
             "trajectory_id": trajectory_id,
@@ -7986,6 +8020,7 @@ async def _generate_one_real_case(
             "point_class": p.get("point_class"),
             "presenting_narrative": bool(p.get("presenting_narrative")),
             "downgraded": p.get("downgraded"),
+            "sealed_outcome": p["sealed_outcome"],
         })
     task = store.insert_task(
         prompt=prompt, specialty=specialty,
@@ -8139,7 +8174,7 @@ async def generate_real_cases(
             "ready_walk_points": plan.get("ready_walk_points", 0),
             "downgraded_points": plan.get("downgraded_points", 0),
             "trajectory_points": len(selected) if body.dry_run else 0,
-            "walk_verifiable_points": max(0, len(selected) - 1) if body.dry_run else 0,
+            "walk_verifiable_points": sum(bool(p.get("outcome_verifiable")) for p in selected) if body.dry_run else 0,
         })
     if body.dry_run:
         store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
@@ -8167,10 +8202,8 @@ async def generate_real_cases(
 
     generated, gated, failed = [], [], []
     # The sequence index advances ONLY on a point that actually became a task, so a
-    # walk is dense 0…n−1 even when an encounter fails its case judge. (The reveal
-    # tolerates a hole anyway — see ``_outcome_point`` — but a dense walk is what
-    # the physician's "step 3 of 13" should count, and a gap in it would read as a
-    # missing case rather than as a rejected one.)
+    # walk is dense 0…n−1 even when an encounter fails its case judge. Each seal
+    # retains its original chart boundary independently of that numbering.
     seq = 0
     for p in selected:
         try:
@@ -8242,13 +8275,11 @@ async def generate_real_cases(
         n = len(generated)
         response["trajectory_id"] = trajectory_id
         response["trajectory_points"] = n
-        # A walk of N points yields N−1 verifiable ones: the terminal point has no
-        # later encounter in the record to be checked against. Stated in the
-        # response because it is the number this artifact is SOLD on (§7), and
-        # because an admin reading "13 points" should not have to infer that 12 of
-        # them carry outcome verification.
-        response["trajectory_verifiable_points"] = max(0, n - 1)
-        response["walk_verifiable_points"] = max(0, n - 1)
+        # Count persisted windows, not surviving successors. A failed terminal
+        # task does not erase its predecessor's already sealed evidence.
+        n_verifiable = sum(bool(g.get("outcome_verifiable")) for g in generated)
+        response["trajectory_verifiable_points"] = n_verifiable
+        response["walk_verifiable_points"] = n_verifiable
         # The cost, before anyone asks. A trajectory is not a discount on physician
         # time; it is N tasks that happen to share a chart (§9.3).
         from asclepius import payments as asc_payments
@@ -8256,6 +8287,6 @@ async def generate_real_cases(
         store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
                         event_type="real_case_trajectory_generated", actor=admin["id"],
                         payload={"trajectory_id": trajectory_id, "points": n,
-                                 "verifiable_points": max(0, n - 1),
+                                 "verifiable_points": n_verifiable,
                                  "max_labels": asc_trajectory.TRAJECTORY_MAX_LABELS})
     return response
