@@ -1,20 +1,7 @@
-"""Every path that approves a physician tells the physician, exactly once.
+"""Every acceptance path queues the same personal welcome, once per physician.
 
-Three code paths set verification_status='approved': the admin console, the
-verification agent's auto-approval, and /admin/physicians/restore. Only the
-console sent anything, and nothing failed: a silent path fails nothing.
-
-Onboarding v2 made that worse rather than moot. Its wizard has no password
-step, so approval is the moment an account becomes usable at all, and only the
-console minted a credential. An agent-approved or operator-repaired physician
-therefore had no mail AND no password: they could not sign in, and nobody was
-told.
-
-The split now is: the console keeps its inline, synchronous welcome when it
-MINTS credentials, because that mail carries a secret this request created and
-nothing else can. Every other approval, on any path, is queued by the hook on
-store.record_verification_decision, which is the only production writer of that
-status and of the tier columns. One mail per approval between them.
+Legacy passwordless accounts use the existing reset flow. Delivery is guarded
+by current acceptance, active status and physician role, independent of tier.
 """
 
 from __future__ import annotations
@@ -26,6 +13,7 @@ from fastapi.testclient import TestClient
 
 import tests._asclepius as A
 from onboarding_emails import (
+    application_welcome_subject,
     build_asclepius_approved_email,
     build_asclepius_rejected_email,
 )
@@ -58,14 +46,7 @@ def _physician(store, **kw):
 # ─── The point of the whole change ───────────────────────────────────────────
 @pytest.mark.parametrize("path", ["agent", "restore"])
 def test_the_paths_that_used_to_say_nothing_now_tell_the_physician(path):
-    """Onboarding v2 made approval the moment credentials come into existence,
-    and only the admin console mints them. So under v2 an agent-approved or
-    operator-repaired physician had no mail AND no password: they could not sign
-    in at all, and nothing anywhere said so.
-
-    The console path is v2's and is left alone; it sends synchronously and warns
-    the admin when the send fails. These two are the ones nobody was watching.
-    """
+    """Automatic approval and restoration use the same durable welcome queue."""
     store = A.fresh_store()
     admin = A.make_user(store, role="admin", practice_case=False)
 
@@ -85,7 +66,7 @@ def test_the_paths_that_used_to_say_nothing_now_tell_the_physician(path):
 
     rows = _outbox(store, email=user["email"], kind="physician_approved")
     assert len(rows) == 1, f"{path} told the physician nothing"
-    assert rows[0]["subject"] == "You're approved for Archangel Health"
+    assert rows[0]["subject"] == application_welcome_subject(user.get("full_name") or "")
 
 
 def test_approving_twice_emails_once():
@@ -147,14 +128,13 @@ def test_a_broken_outbox_never_costs_a_physician_their_approval(monkeypatch):
 
 
 # ─── What it says ────────────────────────────────────────────────────────────
-def test_the_approval_names_the_tier_as_a_word_and_never_as_a_token():
-    body = build_asclepius_approved_email(
-        full_name="Ada Reyes", workspace_url="https://x/asclepius",
-        tier_word="Reviewer", can_review=True)
-    assert "Reviewer" in body
-    assert "both queues" in body, "a reviewer should be told what the tier opens"
-    # The raw column value must never reach a physician.
-    assert not re.search(r">\s*reviewer\b", body)
+def test_labelers_and_reviewers_receive_the_same_personal_welcome():
+    kwargs = dict(full_name="Ada Reyes", workspace_url="https://x/asclepius")
+    reviewer = build_asclepius_approved_email(**kwargs, tier_word="Reviewer", can_review=True)
+    labeler = build_asclepius_approved_email(**kwargs, tier_word="Labeler", can_review=False)
+    assert reviewer == labeler
+    assert "Welcome, Ada." in reviewer
+    assert "That’s you." in reviewer
 
 
 def test_an_approval_with_no_tier_omits_the_paragraph_rather_than_saying_unassigned():
@@ -164,7 +144,7 @@ def test_an_approval_with_no_tier_omits_the_paragraph_rather_than_saying_unassig
         full_name="Ada Reyes", workspace_url="https://x/asclepius", tier_word="")
     assert "Unassigned" not in body
     assert "approved as a" not in body
-    assert "You&rsquo;re approved." in body
+    assert "You’re approved." in body
 
 
 def test_the_approval_promises_no_promotion():
@@ -242,10 +222,8 @@ def test_the_approval_keeps_its_high_importance_when_it_moved_to_the_outbox():
     assert "IMPORTANT_KINDS" in drain
 
 
-def test_the_credentials_welcome_stays_inline_and_is_not_also_queued():
-    """A v2 account has no password until approval mints one, and that mail
-    carries the secret. It must go from the request that created it, and it must
-    not be doubled by a queued notice pointing at a door with no key."""
+def test_a_passwordless_physician_gets_one_queued_setup_welcome():
+    """Legacy accounts receive setup instructions without minting a lost secret."""
     import tests._asclepius as _A
     from asclepius import store as _sm
 
@@ -260,14 +238,14 @@ def test_the_credentials_welcome_stays_inline_and_is_not_also_queued():
     r = client.post(f"/api/asclepius/verify/queue/{user['id']}/approve",
                     json={"tier": "labeler", "note": "ok"}, headers=A.headers_for(admin))
     assert r.status_code == 200
-    assert r.json()["credentials_issued"] is True
-    assert _outbox(store, email=user["email"]) == [], (
-        "the queued notice would be a second mail, and one with no password in it"
-    )
-    assert not _sm.password_is_unset(store.get_user_by_id(user["id"]))
+    assert r.json()["credentials_issued"] is False
+    assert r.json()["welcome_email_queued"] is True
+    rows = _outbox(store, email=user["email"], kind="physician_approved")
+    assert len(rows) == 1 and "Forgot your password?" in rows[0]["body_html"]
+    assert _sm.password_is_unset(store.get_user_by_id(user["id"]))
 
 
-def test_the_silent_paths_issue_a_credential_before_they_announce_one():
+def test_restore_provides_setup_instructions_without_discarding_a_password():
     """Under v2 these two left the physician with no password at all. Telling
     them they are approved without giving them a way in would be the same bug
     wearing an email."""
@@ -286,7 +264,6 @@ def test_the_silent_paths_issue_a_credential_before_they_announce_one():
                     json={"approve_verification": True, "tier": "labeler"},
                     headers=A.headers_for(admin))
     assert r.status_code == 200, r.text
-    assert not _sm.password_is_unset(store.get_user_by_id(user["id"])), (
-        "restore approved them and left them unable to sign in"
-    )
-    assert len(_outbox(store, email=user["email"], kind="physician_approved")) == 1
+    assert _sm.password_is_unset(store.get_user_by_id(user["id"]))
+    rows = _outbox(store, email=user["email"], kind="physician_approved")
+    assert len(rows) == 1 and "Forgot your password?" in rows[0]["body_html"]

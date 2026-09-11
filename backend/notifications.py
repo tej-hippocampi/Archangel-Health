@@ -282,87 +282,81 @@ def _person_key(kind: str, dedupe_key: str, addr: str) -> str:
     return _alert_keys(kind, dedupe_key, [addr], False)[0][1]
 
 
+def physician_welcome_eligible(user: Optional[Dict[str, Any]]) -> bool:
+    """Platform acceptance is the gate; the labeling/reviewing tier is irrelevant."""
+    return bool(user and user.get("active")
+                and user.get("role") in ("evaluator", "qa_reviewer")
+                and user.get("verification_status") == "approved")
+
+
+def physician_welcome_content(store: Any, user: Dict[str, Any]) -> tuple[str, str]:
+    """Render current account details for the queue and its delivery check."""
+    from onboarding_emails import application_welcome_subject, build_application_welcome_email
+    email = (user.get("email") or "").strip()
+    name = (user.get("full_name") or "").strip()
+    subject = application_welcome_subject(name)
+    body = build_application_welcome_email(
+        full_name=name, email=email, sign_in_url=_portal_base() + "/asclepius",
+        needs_password_setup=_password_is_unset(store, user) or bool(user.get("must_change_password")),
+    )
+    return subject, body
+
+
+def physician_welcome_is_legacy_void(mail: Optional[Dict[str, Any]]) -> bool:
+    """Old manual sends voided a second queued notice after sending inline.
+
+    Their sent_at is empty, so it cannot be used as evidence of non-delivery.
+    Never revive these ambiguous records automatically.
+    """
+    from physician_welcome_email import TEMPLATE_MARKER
+    return bool(mail and mail.get("status") == "void" and not mail.get("sent_at")
+                and TEMPLATE_MARKER not in (mail.get("body_html") or ""))
+
+
+def queue_physician_welcome(store: Any, *, user: Optional[Dict[str, Any]],
+                            revive: bool = False) -> int:
+    """One welcome for all acceptance paths, with no passwords in the outbox."""
+    if not physician_welcome_eligible(user):
+        return 0
+    from physician_welcome_email import TEMPLATE_MARKER
+    email = (user.get("email") or "").strip()
+    if not email:
+        return 0
+    subject, body = physician_welcome_content(store, user)
+    key = _person_key("physician_approved", f"approved:{user.get('id')}", email)
+    if revive and store.revive_unsent_admin_notification(
+            key, subject=subject, body_html=body, prior_body_marker=TEMPLATE_MARKER):
+        return 1
+    return notify_person(store, kind="physician_approved", to=email, subject=subject,
+                         body_html=body, dedupe_key=f"approved:{user.get('id')}")
+
+
 def on_verification_decision(store: Any, *, user: Optional[Dict[str, Any]],
                              status: str, tier: Optional[str] = None,
                              prior: Optional[str] = None) -> None:
-    """Queue the physician's own copy of a verification decision.
-
-    Called from ``store.record_verification_decision``, so the console, the
-    agent's auto-approval and ``/admin/physicians/restore`` are all covered by
-    one hook rather than by three call sites that each have to remember.
-
-    Once-per-physician comes free from the UNIQUE idempotency key plus INSERT OR
-    IGNORE: a retried request, a double-click, a restore re-stamp and a
-    multi-worker race all produce one row. Documented consequence: an
-    approve -> reject -> re-approve sequence sends no second approval mail. That
-    is the right trade, because the alternative keys on a timestamp and loses
-    idempotency across retries, which is the failure that actually happens.
-
-    Never raises. Never sends: it queues.
-    """
+    """Queue one personal letter after acceptance; cancel obsolete decisions."""
     try:
         if not user or status not in ("approved", "rejected"):
             return
         email = (user.get("email") or "").strip()
         if not email:
             return
-        from asclepius import capabilities as _caps  # noqa: PLC0415
-        from onboarding_emails import (  # noqa: PLC0415
-            build_asclepius_approved_email, build_asclepius_rejected_email,
-        )
-        full_name = (user.get("full_name") or "").strip()
-
         if status == "approved":
-            # Onboarding v2 made approval the moment credentials come into
-            # existence: the wizard has no password step, so the console mints a
-            # temporary password and sends a welcome carrying it, synchronously,
-            # and tells the admin when that send failed. That design is right and
-            # this does not replace it.
-            #
-            # What it covers is the two paths that still send nothing: the
-            # verification agent's auto-approval and /admin/physicians/restore.
-            # Under v2 those leave a physician with no mail AND no credential, so
-            # they cannot sign in at all, and nothing anywhere says so.
-            #
-            # `mint_credentials` is the seam. When the account already has a
-            # password there is nothing to issue and the plain approval notice is
-            # the whole job; when it does not, the caller has to have issued one
-            # before this runs, because a queued "your temporary password is ..."
-            # with no password in it is worse than silence.
-            if _password_is_unset(store, user):
-                log.warning(
-                    "notifications: %s approved with no credential; not queuing a "
-                    "welcome it cannot carry", user.get("id"))
-                return
-            tier_word = _caps.tier_word(tier) if tier else ""
-            notify_person(
-                store, kind="physician_approved", to=email,
-                subject="You're approved for Archangel Health",
-                body_html=build_asclepius_approved_email(
-                    full_name=full_name, workspace_url=_portal_base() + "/asclepius",
-                    tier_word=tier_word,
-                    can_review=(tier == getattr(_caps, "REVIEWER", "reviewer")),
-                ),
-                dedupe_key=f"approved:{user.get('id')}",
-            )
-            # An admin who rejects and then approves inside the grace window
-            # must not deliver both.
-            try:
-                store.void_pending_admin_notification(
-                    _person_key("physician_rejected", f"rejected:{user.get('id')}", email))
-            except Exception:
-                log.exception("notifications: could not void a pending rejection")
+            queue_physician_welcome(store, user=user, revive=True)
+            store.void_pending_admin_notification(
+                _person_key("physician_rejected", f"rejected:{user.get('id')}", email))
             return
-
+        store.void_pending_admin_notification(
+            _person_key("physician_approved", f"approved:{user.get('id')}", email))
+        if not user.get("active") or user.get("role") not in ("evaluator", "qa_reviewer"):
+            return
+        from onboarding_emails import build_asclepius_rejected_email
         notify_person(
             store, kind="physician_rejected", to=email,
             subject="About your Archangel Health application",
-            # The door back in. A rejection is now an invitation to re-sit the
-            # case work, so the message needs somewhere to send them.
             body_html=build_asclepius_rejected_email(
-                full_name=full_name, sign_in_url=_portal_base() + "/asclepius"),
-            dedupe_key=f"rejected:{user.get('id')}",
-            send_after=_iso_in(_REJECT_GRACE_SECONDS),
+                full_name=(user.get("full_name") or "").strip(), sign_in_url=_portal_base() + "/asclepius"),
+            dedupe_key=f"rejected:{user.get('id')}", send_after=_iso_in(_REJECT_GRACE_SECONDS),
         )
     except Exception:
         log.exception("notifications: verification decision mail failed")

@@ -4,7 +4,17 @@ Served at `/email-assets/<file>` by the mount in `main.py`. Everything here is
 public: an email client fetches it with no session, so nothing private belongs
 in this directory.
 
-## Why no image is committed
+## Personal acceptance-letter artwork
+
+`welcome-monogram-v1.png` and `welcome-signature-v1.png` are the approved public
+brand artwork, exported from the approved design. They are committed and ship
+with the backend at `/email-assets/`. The signature is typeset artwork, not a
+scan of a legal signature. Versioned filenames preserve already-sent messages.
+
+The artwork URL uses the backend `BASE_URL`, falling back to the sign-in origin.
+Both images have text alternatives; essential copy and actions remain live HTML.
+
+## Why founder photographs are not committed
 
 Three files are referenced by name below and none of them is in git, on
 purpose, and the reason is not only privacy:

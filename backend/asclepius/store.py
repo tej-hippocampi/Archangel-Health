@@ -4605,6 +4605,24 @@ class AsclepiusStore:
             )
             return int(cur.lastrowid) if cur.rowcount else None
 
+    def get_admin_notification(self, idempotency_key: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM admin_notify_outbox WHERE idempotency_key = ?",
+                               (idempotency_key,)).fetchone()
+            return dict(row) if row else None
+
+    def revive_unsent_admin_notification(self, idempotency_key: str, *,
+                                        subject: str, body_html: str, prior_body_marker: str) -> bool:
+        """Restore a canceled welcome without releasing an in-flight sender."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE admin_notify_outbox SET status='pending', subject=?, body_html=?, "
+                "send_after=NULL WHERE idempotency_key=? "
+                "AND status='void' AND sent_at IS NULL AND instr(body_html, ?) > 0",
+                (subject, body_html, idempotency_key, prior_body_marker),
+            )
+            return cur.rowcount > 0
+
     def update_pending_admin_notification(
         self, idempotency_key: str, *, subject: str, body_html: str
     ) -> bool:
@@ -4626,14 +4644,9 @@ class AsclepiusStore:
     def void_pending_admin_notification(self, idempotency_key: str) -> bool:
         """Drop a queued mail that has not gone out yet.
 
-        Returns True only when THIS call claimed it. The guarded UPDATE is the
-        arbiter, the same shape as mark_community_welcomed, so a concurrent
-        drain and a void cannot both win.
-
-        Exists for exactly one case: a rejection queued behind a grace window,
-        and an admin who then approves inside that window. Once status is no
-        longer 'pending' the mail is gone and this is a no-op, which is the
-        honest answer rather than a pretend one.
+        Preserve the claim: an already-started provider request cannot be
+        recalled, and reviving this row must not give a second sender ownership.
+        The owning drainer releases its claim if it cancels before sending.
         """
         with self._conn() as conn:
             cur = conn.execute(
@@ -4667,13 +4680,26 @@ class AsclepiusStore:
             ).fetchall()
             return [dict(r) for r in rows]
 
-    def mark_admin_notification_sent(self, row_id: int, *, ok: bool, error: str = "") -> None:
+    def release_admin_notification_claim(self, row_id: int, claimed_at: str) -> None:
+        """Release only this drainer's lease when it cancels before sending."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE admin_notify_outbox SET claimed_at=NULL WHERE id=? AND claimed_at=?",
+                (row_id, claimed_at),
+            )
+
+    def mark_admin_notification_sent(self, row_id: int, *, ok: bool, error: str = "",
+                                     claimed_at: Optional[str] = None) -> None:
+        # A slow sender must not clear or complete a replacement lease. Keep
+        # the optional argument for existing direct callers of this store API.
+        guard = " AND claimed_at=?" if claimed_at is not None else ""
+        claim_args = (claimed_at,) if claimed_at is not None else ()
         with self._conn() as conn:
             if ok:
                 conn.execute(
                     "UPDATE admin_notify_outbox SET status='sent', sent_at=?, "
-                    "send_attempts=send_attempts+1 WHERE id=?",
-                    (_utcnow_iso(), row_id),
+                    "send_attempts=send_attempts+1 WHERE id=?" + guard,
+                    (_utcnow_iso(), row_id) + claim_args,
                 )
             else:
                 # The row stays 'pending', which is how an admin alert retries,
@@ -4682,8 +4708,8 @@ class AsclepiusStore:
                 # which is a delay nobody asked for on a verification decision.
                 conn.execute(
                     "UPDATE admin_notify_outbox SET send_attempts=send_attempts+1, "
-                    "last_error=?, claimed_at=NULL WHERE id=?",
-                    ((error or "")[:500], row_id),
+                    "last_error=?, claimed_at=NULL WHERE id=?" + guard,
+                    ((error or "")[:500], row_id) + claim_args,
                 )
 
     def count_live_password_resets(self, user_id: str) -> int:

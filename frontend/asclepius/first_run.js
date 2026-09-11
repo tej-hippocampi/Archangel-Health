@@ -364,7 +364,6 @@
       h('h1', { class: 'asc-fr-letter-title' }, 'Welcome to Archangel Health.'),
       // The first line is the mission, and it carries the weight of a pull
       // quote rather than being one more paragraph.
-      h('div', { class: 'asc-chrome' }, 'OUR MISSION'),
       h('p', { class: 'asc-fr-letter-lead' }, LETTER[0]),
       h('p', { class: 'asc-fr-letter-body' }, LETTER[1]),
       h('p', { class: 'asc-fr-letter-body' }, LETTER[2]),

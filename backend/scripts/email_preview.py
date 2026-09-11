@@ -246,12 +246,18 @@ def _cases() -> list[tuple[str, str, str, str]]:
             oe.build_application_submitted_email(full_name="Amara Okafor"),
         ),
         (
-            "30-application-welcome", "Application: approved (credentials)",
-            "§4.4 — sent on admin approval. Carries the TEMPORARY password that "
-            "is rotated at first sign-in, the mission block, and the founder intro.",
+            "30-application-welcome", "Physician: accepted personal welcome",
+            "The same personalized letter for accepted labelers and reviewers, "
+            "with the approved artwork and small serif sign-in button.",
             oe.build_application_welcome_email(
-                full_name="Amara Okafor", email="a.okafor@riverside.example.org",
-                temp_password="Kf3-tQ92mXbW7p", sign_in_url=WORKSPACE),
+                full_name="Sarah Patel", email="s.patel@example.org", sign_in_url=WORKSPACE),
+        ),
+        (
+            "30b-application-welcome-setup", "Physician: accepted, password setup needed",
+            "Legacy accounts use the existing Forgot your password flow; no temporary secret is queued.",
+            oe.build_application_welcome_email(
+                full_name="Sarah Patel", email="s.patel@example.org", sign_in_url=WORKSPACE,
+                needs_password_setup=True),
         ),
         (
             "31-hs-access", "Health system: portal access",

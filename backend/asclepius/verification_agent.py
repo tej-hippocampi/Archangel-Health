@@ -347,18 +347,8 @@ async def run_one(store: Any, job: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     if verdict["decision"] == "auto_approve" and auto_approve_enabled():
-        # Credentials BEFORE the decision is recorded, because recording it is
-        # what queues the physician's mail and that mail has to be able to carry
-        # them. Onboarding v2 made approval the moment an account becomes usable
-        # at all: the wizard has no password step, so without this an
-        # agent-approved physician has no password, is never told they were
-        # approved, and cannot sign in. The console path mints one; this is the
-        # same thing on the path nobody was watching.
-        #
-        # Nothing here can fail the approval. A mint that throws leaves the
-        # account approved and credential-less, which is what happens today, and
-        # the notification layer declines to send a welcome it cannot fill in.
-        await _issue_credentials_if_needed(store, user)
+        # The shared acceptance queue supplies password-setup instructions for
+        # legacy accounts. Never mint a secret this background path cannot deliver.
         store.record_verification_decision(
             user["id"], status="approved", decided_by=ACTOR,
             tier=verdict["tier"], note=verdict["recommendation"],
