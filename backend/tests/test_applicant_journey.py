@@ -314,9 +314,12 @@ def test_no_founder_image_is_committed():
     worse than nothing, and a real one is a photo of real people on a public
     unauthenticated path, in permanent history."""
     assets = pathlib.Path(__file__).resolve().parents[1] / "assets"
-    images = [p.name for p in assets.iterdir()
-              if p.suffix.lower() in {".png", ".jpg", ".jpeg"}]
-    assert not images, f"committed founder imagery: {images}"
+    approved_brand_art = {"welcome-monogram-v1.png", "welcome-signature-v1.png"}
+    images = {p.name for p in assets.iterdir()
+              if p.suffix.lower() in {".png", ".jpg", ".jpeg"}}
+    # The owner-approved logo and typeset signoff are public brand artwork,
+    # distinct from the personal founder photographs this guard protects.
+    assert images == approved_brand_art, f"unexpected or missing imagery: {images ^ approved_brand_art}"
     readme = (assets / "README.md").read_text(encoding="utf-8")
     for named in ("founders.jpg", "community-persona.png", "founders-wide.jpg"):
         assert named in readme, f"{named} is referenced by code but undocumented"

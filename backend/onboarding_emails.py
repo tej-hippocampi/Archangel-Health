@@ -1427,120 +1427,34 @@ def application_welcome_subject(full_name: str) -> str:
 
 
 def build_application_welcome_email(
-    *,
-    full_name: str,
-    email: str,
+    *, full_name: str, email: str, sign_in_url: str,
     temp_password: Optional[str] = None,
-    sign_in_url: str,
     calendly_url: str = FOUNDER_INTRO_CALENDLY,
+    needs_password_setup: bool = False,
 ) -> str:
-    """§4.4, sent on admin approval. The one email that welcomes a physician.
+    """The personal acceptance letter for every approved physician.
 
-    ``temp_password`` is now optional, and that is the whole change. It used to
-    be required because approval was the moment a credential came into
-    existence: the wizard had no password step, so every approved physician
-    needed one minted and mailed.
-
-    Screen one of the wizard now takes a password, so most approvals have
-    nothing to mint. That branch used to fall through to a plain queued notice,
-    which meant a physician who chose their own password silently lost the
-    mission block, the sign-in button and the founders' Calendly: the entire
-    content of the welcome, missing, because of an implementation detail about
-    where their password came from.
-
-    So the credentials CARD is what is conditional, not the email. Everything
-    else is byte for byte the same message either way.
+    Delivery is owned by the verification-decision outbox, independent of tier.
+    The optional temporary-password rendering remains available to existing
+    callers; new acceptance sends use the existing password-recovery flow for
+    legacy accounts, so no secret needs to be persisted in the mail queue.
     """
-    subject = application_welcome_subject(full_name)
-    if temp_password:
-        credentials_block = (
-            _section_label("Your credentials")
-            + _inset_card(_detail_rows([
-                ("Email", email, True),
-                ("Temporary password", temp_password, True),
-            ]))
-            + _p("You&rsquo;ll choose your own password when you first sign in. This one is "
-                 "temporary and stops working the moment you do.", muted=True, small=True)
-        )
-    else:
-        credentials_block = _p(
-            "Sign in with the email and the password you chose when you applied.",
-            muted=True, small=True)
-    body = (
-        _eyebrow("Approved · Archangel Health")
-        + _h1("You’re approved. Welcome to Archangel Health.")
-        + _section_label("Our mission")
-        + _p("Our mission is to help doctors earn from their judgment, models learn "
-             "from it, and the hardest cases become the most valuable data.")
-        + _p("Medical AI needs more than benchmark scores. The physicians who carry "
-             "the consequences of care should define what correct means. That&rsquo;s you.", muted=True)
-        # §4.4 section 3: the credentials card, or the line that replaces it.
-        + credentials_block
-        + _cta(sign_in_url, "Sign in")
-        # §4.4 section 4: meet us.
-        + _section_label("Meet us")
-        + _p("Meet the founders for a 20-minute conversation about your specialty, "
-             "the platform, or what you hope to contribute.")
-        + _cta(calendly_url, "Book 20 minutes")
-        + _founder_signoff("Tej and Aryaa, co-founders")
+    from physician_welcome_email import render_welcome_email
+    return render_welcome_email(
+        full_name=full_name, subject=application_welcome_subject(full_name),
+        email=email, sign_in_url=sign_in_url, calendly_url=calendly_url,
+        temp_password=temp_password, needs_password_setup=needs_password_setup,
     )
-    return _shell(subject=subject, body_html=body)
 
 
 def build_asclepius_approved_email(*, full_name: str, workspace_url: str,
-                                   tier_word: str = "", can_review: bool = False) -> str:
-    """Credential verification passed and the account is open for real work.
-
-    Names the tier, framed as what work opens rather than as a rank. It is the
-    decision, it is written in the same transaction, and it decides which queue
-    is populated: a Labeler who expected Reviewer used to find out from an empty
-    review queue, which reads as a broken product rather than as a decision
-    somebody made.
-
-    There is deliberately no promotion sentence HERE, and that is now a
-    different decision than it used to be. It used to mean there was no
-    promotion mechanism at all, so implying one was a promise the codebase
-    could not keep. A promotion flow exists now
-    (``build_asclepius_promoted_email`` below), and this email still does not
-    mention it: on the day somebody is approved, what work opens today is the
-    useful thing to say, and a sentence about a rung above the one they just
-    reached reads as a hint that this one is not enough.
-
-    ``tier_word`` is a WORD, resolved by the caller. Empty means the paragraph
-    is omitted entirely rather than rendering "Unassigned" at a physician:
-    restore_physician can approve carrying no tier, and a placeholder in a
-    congratulations email is worse than silence about it.
-    """
-    first = (full_name or "").strip() or "Doctor"
-    tier_para = ""
-    if (tier_word or "").strip():
-        tier_para = _p(
-            f"You are approved as a {_strong(tier_word)}. "
-            + ("That opens both queues. You can label cases in your specialty, and "
-               "you can review the work other physicians have filed."
-               if can_review else
-               "Cases in your specialty are in your queue now. You read each one and "
-               "record your clinical judgment, and every case you file is graded.")
-        )
-    body = (
-        _eyebrow("Verified · Archangel Health")
-        + _h1("You&rsquo;re approved.")
-        + _p(
-            f"{_strong(first)}, your credentials have been verified and your Archangel Health "
-            "account is now open for evaluation work."
-        )
-        + tier_para
-        + _cta(workspace_url, "Open your workspace →")
-        + _p(
-            "Your seat in the "
-            + _strong("Archangel Health Community")
-            + " is open too, a private space for verified physicians. Find it in the "
-            "side panel: introduce yourself, follow the medical-AI digest, and meet the "
-            "colleagues you will be working alongside."
-        )
-        + _p("Questions? Reply to this email and a person will read it.", muted=True, small=True)
+                                   tier_word: str = "", can_review: bool = False,
+                                   needs_password_setup: bool = False) -> str:
+    """Compatibility entry point: labeling and reviewing get the same welcome."""
+    return build_application_welcome_email(
+        full_name=full_name, email="", sign_in_url=workspace_url,
+        needs_password_setup=needs_password_setup,
     )
-    return _shell(subject="You're approved for Archangel Health", body_html=body)
 
 
 def build_asclepius_promoted_email(*, full_name: str, workspace_url: str,

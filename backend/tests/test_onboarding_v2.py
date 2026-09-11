@@ -509,168 +509,77 @@ def test_a_second_link_for_an_applicant_reports_the_review_not_a_signin(client: 
 # credentials
 # ═════════════════════════════════════════════════════════════════════════════
 
-def test_approve_mints_a_hashed_temp_password_and_sends_the_welcome(client: TestClient, monkeypatch):
-    """§8: approve mints hashed temp password + must_change_password=1 + sends 4.4."""
+def test_approval_queues_password_setup_without_minting_an_undeliverable_secret(client, monkeypatch):
     store = fresh_store()
     admin = make_user(store, role="admin")
     applicant = store.provision_user(
         email=f"dr_{uuid.uuid4().hex[:8]}@hospital.example.org",
-        password_hash=asc_store_mod.NO_PASSWORD_HASH,
-        role="evaluator", full_name="Amara Okafor", specialty="nephrology",
-        credentials={}, attestations={},
-    )
+        password_hash=asc_store_mod.NO_PASSWORD_HASH, role="evaluator",
+        full_name="Amara Okafor", credentials={}, attestations={})
     store.set_verification_status(applicant["id"], "pending")
-
-    sent: list = []
-
-    async def _send(to, subject, html_body, **kwargs):  # noqa: ANN001
-        sent.append({"to": to, "subject": subject, "html": html_body})
-        return True
-
-    import routers.asclepius_verify as verify_module
-    monkeypatch.setattr(verify_module, "send_html_email", _send)
-    monkeypatch.setattr(verify_module, "is_email_transport_configured", lambda: True)
-
-    c = TestClient(app)
-    r = c.post(f"/api/asclepius/verify/queue/{applicant['id']}/approve",
-               json={"tier": "labeler"}, headers=headers_for(admin))
-    assert r.status_code == 200, r.text
-
-    fresh = store.get_user_by_id(applicant["id"])
-    assert fresh["must_change_password"] == 1
-    assert not asc_store_mod.password_is_unset(fresh)
-    assert fresh["password_hash"] not in ("", None)
-
-    assert len(sent) == 1
-    assert sent[0]["subject"] == "Welcome to Archangel Health, Dr. Okafor"
-    html = sent[0]["html"]
-    # The credential is in the email, which is the whole ask...
-    assert "Temporary password" in html
-    # ...and the mission block and the founders' intro are there with it (§4.4).
-    assert "the hardest cases become the most valuable data." in html
-    assert "calendly.com/aryaabhatia-berkeley" in html
-    # The plaintext password is never written to the audit log.
-    events = store.list_events(entity_type="user", entity_id=applicant["id"]) \
-        if hasattr(store, "list_events") else []
-    for e in events:
-        assert "password" not in json.dumps(e.get("payload") or {}).lower() \
-            or e.get("event_type") == "temp_password_issued"
+    monkeypatch.setattr(store, "set_temp_password", lambda *a: pytest.fail("approval must not mint a password"))
+    response = client.post(f"/api/asclepius/verify/queue/{applicant['id']}/approve",
+                           json={"tier":"labeler"}, headers=headers_for(admin))
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["welcome_email_queued"] is True
+    assert result["welcome_email_sent"] is False
+    assert result["credentials_issued"] is False
+    assert result["warning"] is None
+    assert asc_store_mod.password_is_unset(store.get_user_by_id(applicant["id"]))
+    with store._conn() as conn:
+        rows = list(conn.execute("SELECT * FROM admin_notify_outbox WHERE kind='physician_approved' AND recipient_email=?", (applicant["email"],)))
+    assert len(rows) == 1
+    assert rows[0]["subject"] == "Welcome to Archangel Health, Dr. Okafor"
+    assert "Welcome, Amara." in rows[0]["body_html"]
+    assert "Forgot your password?" in rows[0]["body_html"]
+    assert "calendly.com/aryaabhatia-berkeley" in rows[0]["body_html"]
 
 
-def test_a_failed_credential_mint_sends_nothing_and_says_so(client: TestClient, monkeypatch):
-    """"You're approved, open your workspace" pointing at a door this physician
-    has no key to is worse than silence — and the admin who clicked approve is
-    the only person positioned to notice, so the response has to say it."""
-    store = fresh_store()
-    admin = make_user(store, role="admin")
-    applicant = store.provision_user(
-        email=f"dr_{uuid.uuid4().hex[:8]}@hospital.example.org",
-        password_hash=asc_store_mod.NO_PASSWORD_HASH,
-        role="evaluator", full_name="Amara Okafor", credentials={}, attestations={},
-    )
-    store.set_verification_status(applicant["id"], "pending")
-
-    sent: list = []
-
-    async def _send(to, subject, html_body, **kwargs):  # noqa: ANN001
-        sent.append(subject)
-        return True
-
-    def _boom(*_a, **_k):
-        raise RuntimeError("disk is full")
-
-    import routers.asclepius_verify as verify_module
-    monkeypatch.setattr(verify_module, "send_html_email", _send)
-    monkeypatch.setattr(verify_module, "is_email_transport_configured", lambda: True)
-    monkeypatch.setattr(store, "set_temp_password", _boom)
-
-    c = TestClient(app)
-    r = c.post(f"/api/asclepius/verify/queue/{applicant['id']}/approve",
-               json={"tier": "labeler"}, headers=headers_for(admin))
-    # The approval still commits — a credential-minting failure must never undo
-    # a decision an admin has made.
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["verification_status"] == "approved"
-    assert body["credentials_issued"] is False
-    assert body["welcome_email_sent"] is False
-    assert "no sign-in details" in body["warning"]
-    assert sent == [], "an approval with no credential must not promise a workspace"
+def test_a_failed_welcome_enqueue_preserves_approval_and_reports_retry(client, monkeypatch):
+    store = fresh_store(); admin = make_user(store, role="admin")
+    user = make_user(store, tier=None)
+    store.set_verification_status(user["id"], "pending")
+    original = store.get_user_by_id(user["id"])["password_hash"]
+    enqueue = store.enqueue_admin_notification
+    def fail(*args, **kwargs):
+        raise RuntimeError("disk full")
+    monkeypatch.setattr(store, "enqueue_admin_notification", fail)
+    response = client.post(f"/api/asclepius/verify/queue/{user['id']}/approve",
+                           json={"tier":"labeler"}, headers=headers_for(admin))
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["verification_status"] == "approved"
+    assert not result["welcome_email_queued"] and not result["welcome_email_sent"]
+    assert "Retry welcome email" in result["warning"]
+    assert store.get_user_by_id(user["id"])["password_hash"] == original
+    monkeypatch.setattr(store, "enqueue_admin_notification", enqueue)
+    retry = client.post(f"/api/asclepius/verify/queue/{user['id']}/approve",
+                        json={"tier":"labeler"}, headers=headers_for(admin))
+    assert retry.json()["welcome_email_queued"] is True
+    assert retry.json()["warning"] is None
 
 
-def test_a_successful_approval_reports_that_the_welcome_went_out(client: TestClient, monkeypatch):
-    store = fresh_store()
-    admin = make_user(store, role="admin")
-    applicant = store.provision_user(
-        email=f"dr_{uuid.uuid4().hex[:8]}@hospital.example.org",
-        password_hash=asc_store_mod.NO_PASSWORD_HASH,
-        role="evaluator", full_name="Amara Okafor", credentials={}, attestations={},
-    )
-    store.set_verification_status(applicant["id"], "pending")
-
-    async def _send(to, subject, html_body, **kwargs):  # noqa: ANN001
-        return True
-
-    import routers.asclepius_verify as verify_module
-    monkeypatch.setattr(verify_module, "send_html_email", _send)
-    monkeypatch.setattr(verify_module, "is_email_transport_configured", lambda: True)
-
-    c = TestClient(app)
-    body = c.post(f"/api/asclepius/verify/queue/{applicant['id']}/approve",
-                  json={"tier": "labeler"}, headers=headers_for(admin)).json()
-    assert body["credentials_issued"] is True
-    assert body["welcome_email_sent"] is True
-    assert body["warning"] is None
-
-
-def test_approving_an_account_that_already_has_a_password_does_not_rotate_it(client: TestClient, monkeypatch):
-    """An invited member or a pre-v2 signup chose their own password. Minting
-    over it would replace a credential they are using today."""
-    store = fresh_store()
-    admin = make_user(store, role="admin")
+def test_approving_an_account_that_already_has_a_password_does_not_rotate_it(client, monkeypatch):
+    store = fresh_store(); admin = make_user(store, role="admin")
     member = make_user(store, tier=None)
     original = store.get_user_by_id(member["id"])["password_hash"]
     store.set_verification_status(member["id"], "pending")
-
-    sent: list = []
-
-    async def _send(to, subject, html_body, **kwargs):  # noqa: ANN001
-        sent.append(subject)
-        return True
-
     import routers.asclepius_verify as verify_module
-    monkeypatch.setattr(verify_module, "send_html_email", _send)
-    monkeypatch.setattr(verify_module, "is_email_transport_configured", lambda: True)
-
-    c = TestClient(app)
-    assert c.post(f"/api/asclepius/verify/queue/{member['id']}/approve",
-                  json={"tier": "labeler"}, headers=headers_for(admin)).status_code == 200
-
+    async def forbidden(*args, **kwargs):
+        pytest.fail("acceptance delivery belongs to the queue")
+    monkeypatch.setattr(verify_module, "send_html_email", forbidden)
+    response = client.post(f"/api/asclepius/verify/queue/{member['id']}/approve",
+                           json={"tier":"labeler"}, headers=headers_for(admin))
+    assert response.status_code == 200, response.text
+    assert response.json()["welcome_email_queued"] is True
+    assert response.json()["welcome_email_sent"] is False
     fresh = store.get_user_by_id(member["id"])
-    assert fresh["password_hash"] == original
-    assert not fresh["must_change_password"]
-
-    # The welcome IS sent here now, and that is the change. It used to fall
-    # through to a plain queued notice, so a physician who chose their own
-    # password silently lost the mission block, the sign-in button and the
-    # founders' Calendly: the whole content of the welcome, missing, because of
-    # an implementation detail about where their password came from. Since the
-    # wizard started taking a password on screen one, that is nearly everyone.
-    assert len(sent) == 1, f"expected exactly one welcome, got {sent}"
-    assert "Welcome" in sent[0] or "welcome" in sent[0].lower(), sent
-
-    # And exactly one. The hook on record_verification_decision queued the plain
-    # notice before this handler ran, and the handler voids it: two "you're
-    # approved" emails for one approval is the visible failure here. Read off
-    # the real drain queue rather than a guess, so this cannot pass vacuously.
-    due = store.due_admin_notifications(limit=100)
-    approvals = [r for r in due if "approved" in str(r.get("idempotency_key") or "")]
-    assert not approvals, f"the queued notice was not voided: {approvals}"
+    assert fresh["password_hash"] == original and not fresh["must_change_password"]
     with store._conn() as conn:
-        rows = [dict(r) for r in conn.execute(
-            "SELECT subject FROM admin_notify_outbox WHERE recipient_email = ? "
-            "AND kind = 'physician_approved'", (member["email"],))]
-    assert [r["subject"] for r in rows] == ["You're approved for Archangel Health"]
+        rows = list(conn.execute("SELECT * FROM admin_notify_outbox WHERE kind='physician_approved' AND recipient_email=?",(member["email"],)))
+    assert len(rows) == 1 and rows[0]["status"] == "pending"
+    assert "Use the email and password from your application." in rows[0]["body_html"]
 
 
 def test_first_login_forces_a_password_change_and_the_second_does_not(client: TestClient):
@@ -1277,7 +1186,8 @@ def test_the_four_builders_render_and_are_in_the_preview():
     assert "within 24&ndash;48 hours" in built["submitted"] \
         or "24–48 hours" in built["submitted"]
     assert "We keep review human on purpose" in built["submitted"]
-    assert "Our mission" in built["welcome"]
+    assert "Our mission" not in built["welcome"]
+    assert "Welcome, Amara." in built["welcome"]
     assert "doctors earn from their judgment" in built["welcome"]
     assert "the hardest cases become the most valuable data." in built["welcome"]
     assert "physicians who carry" in built["welcome"]

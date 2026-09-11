@@ -788,7 +788,7 @@ async def _drain_admin_notifications() -> None:
     """
     from asclepius.store import get_store as _asc_store  # noqa: PLC0415
     from email_utils import is_email_transport_configured, send_html_email  # noqa: PLC0415
-    from notifications import IMPORTANT_KINDS  # noqa: PLC0415
+    from notifications import IMPORTANT_KINDS, physician_welcome_eligible, physician_welcome_content, _person_key  # noqa: PLC0415
 
     # Per realm (Sandbox PRD §1.4): a founder alert raised by a sandbox event
     # sits in the sandbox store and, drained under the sandbox realm, lands in
@@ -800,6 +800,24 @@ async def _drain_admin_notifications() -> None:
             store = _asc_store()
             for row in store.due_admin_notifications():
                 try:
+                    if row["kind"] == "physician_approved":
+                        recipient = store.get_user_by_email(row["recipient_email"])
+                        current_mail = store.get_admin_notification(row["idempotency_key"])
+                        if current_mail and current_mail.get("claimed_at") != row.get("claimed_at"):
+                            # Only the current lease may send this row.
+                            continue
+                        expected_key = _person_key("physician_approved",
+                            f"approved:{recipient.get('id')}", row["recipient_email"]) if recipient else None
+                        if (not physician_welcome_eligible(recipient)
+                                or row["idempotency_key"] != expected_key
+                                or not current_mail or current_mail["status"] != "pending"):
+                            store.void_pending_admin_notification(row["idempotency_key"])
+                            store.release_admin_notification_claim(row["id"], row["claimed_at"])
+                            continue
+                        # Use the approved design even for an older pending
+                        # notice, and current password-setup instructions if the
+                        # account changed while delivery was retrying.
+                        row["subject"], row["body_html"] = physician_welcome_content(store, recipient)
                     from asclepius import hs_states, hs_access
                     if row['kind'] in ('hs_dla_request', 'hs_uploads_open') and row['idempotency_key'].startswith('hs:'):
                         hs_id = row['idempotency_key'].split(':')[1]
@@ -836,9 +854,9 @@ async def _drain_admin_notifications() -> None:
                         # recipient is actually waiting on.
                         importance_headers=row["kind"] in IMPORTANT_KINDS,
                     )
-                    store.mark_admin_notification_sent(row["id"], ok=bool(ok), error="" if ok else "Email provider did not accept the message")
+                    store.mark_admin_notification_sent(row["id"], ok=bool(ok), error="" if ok else "Email provider did not accept the message", claimed_at=row["claimed_at"])
                 except Exception as exc:
-                    store.mark_admin_notification_sent(row["id"], ok=False, error=str(exc))
+                    store.mark_admin_notification_sent(row["id"], ok=False, error=str(exc), claimed_at=row["claimed_at"])
 
 
 async def _task_notification_loop() -> None:

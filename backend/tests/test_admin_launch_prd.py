@@ -284,7 +284,7 @@ _DOSSIER = {
 }
 
 
-def _console_decision(button_label: str) -> dict:
+def _console_decision(button_label: str, *, approval=None, retry=False) -> dict:
     """Open the pending physician and press one of the approve buttons."""
     responses = {
         "/admin/physicians": {"physicians": [], "counts": {"all": 0}},
@@ -292,7 +292,7 @@ def _console_decision(button_label: str) -> dict:
         "/admin/signups": _NO_SIGNUPS,
         "/verify/queue/u1": _DOSSIER,
         "/verify/tiering/u1/decide": {"ok": True, "decision": {"was_flip": 0}},
-        "/verify/queue/u1/approve": {"ok": True, "tier": "reviewer"},
+        "/verify/queue/u1/approve": approval or {"ok": True, "tier": "reviewer"},
         "/verify/tiering-weights": {"pending_decisions": 7, "weights": []},
     }
     script = (_CONSOLE_HARNESS % {
@@ -300,6 +300,12 @@ def _console_decision(button_label: str) -> dict:
         "module": json.dumps(str(_FRONTEND / "admin_physicians.js")),
         "responses": json.dumps(responses),
     }) + """
+var scheduledReturns = 0;
+var originalTimeout = setTimeout;
+global.setTimeout = function (fn, ms) {
+  if (ms === 900) scheduledReturns++;
+  return originalTimeout(fn, ms);
+};
 window.AdminPhysiciansSection.reset();
 window.AdminPhysiciansSection.render(body, ctx);
 later(function () {
@@ -309,11 +315,20 @@ later(function () {
   later(function () {
     clickText(body, %s);
     later(function () {
-      console.log(JSON.stringify({ calls: CALLS, text: textOf(body) }));
+      if (%s) {
+        RESPONSES['/verify/queue/u1/welcome/retry'] = {ok: true, welcome_email_queued: true};
+        clickText(body, 'Retry welcome email');
+        clickText(body, 'Retry welcome email');
+        later(function () {
+          console.log(JSON.stringify({calls: CALLS, text: textOf(body), scheduledReturns: scheduledReturns}));
+        }, 6);
+      } else {
+        console.log(JSON.stringify({ calls: CALLS, text: textOf(body), scheduledReturns: scheduledReturns }));
+      }
     }, 6);
   }, 6);
 }, 6);
-""" % json.dumps(button_label)
+""" % (json.dumps(button_label), json.dumps(retry))
     return _run_node(script)
 
 
@@ -363,6 +378,35 @@ def test_the_recorded_line_is_shown_after_a_decision():
     assert "Recorded." in out["text"]
     # Read from /verify/tiering-weights, not invented client-side.
     assert "7 decisions" in out["text"]
+
+
+def test_welcome_queue_warning_stays_visible_after_approval():
+    out = _console_decision('Approve as Reviewer', approval={
+        'ok': True, 'warning': 'Approval recorded; welcome queue unavailable.',
+        'welcome_email_retryable': True})
+    assert 'welcome queue unavailable' in out['text']
+    assert 'Retry welcome email' in out['text']
+    assert out['scheduledReturns'] == 0
+
+
+def test_welcome_retry_does_not_repeat_training_decision_or_double_click():
+    out = _console_decision('Approve as Reviewer', approval={
+        'ok': True, 'warning': 'Approval recorded; welcome queue unavailable.',
+        'welcome_email_retryable': True}, retry=True)
+    assert len([c for c in out['calls'] if c['path'] == '/verify/tiering/u1/decide']) == 1
+    assert len([c for c in out['calls'] if c['path'] == '/verify/queue/u1/approve']) == 1
+    assert len([c for c in out['calls'] if c['path'] == '/verify/queue/u1/welcome/retry']) == 1
+    assert 'Welcome email queued.' in out['text']
+    assert out['scheduledReturns'] == 1
+
+
+def test_ambiguous_legacy_delivery_has_no_automatic_retry_button():
+    out = _console_decision('Approve as Reviewer', approval={
+        'ok': True, 'warning': 'A previous welcome may already have been sent.',
+        'welcome_email_retryable': False})
+    assert 'previous welcome may already have been sent' in out['text']
+    assert 'Retry welcome email' not in out['text']
+    assert out['scheduledReturns'] == 0
 
 
 def test_a_failing_decide_means_approve_never_runs():

@@ -111,7 +111,7 @@ exclamation marks, calendar dates. Rejection = no post that day.
 - **Pinned home card**: the community landing (the view before a channel is opened)
   shows the latest digest in the same card component, collapsed to title + lead +
   `Read all {n} →` which opens the channel post. One component, two contexts.
-- Email (`build_community_digest_post_email`, `onboarding_emails.py:2108`): same hierarchy — Top story with deck
+- Email (`build_community_digest_post_email`, `onboarding_emails.py:2022`): same hierarchy — Top story with deck
   and why-it-matters, then compact items — rendered from `payload_json`, never from
   the body string.
 

@@ -1,5 +1,5 @@
 {
-  "count": 671,
+  "count": 672,
   "routes": [
     "DELETE /api/asclepius/hs/media/files/{fid}",
     "DELETE /api/asclepius/hs/uploads/sessions/{session_id}",
@@ -506,6 +506,7 @@
     "POST /api/asclepius/verify/queue/{user_id}/password-setup-link",
     "POST /api/asclepius/verify/queue/{user_id}/recheck-npi",
     "POST /api/asclepius/verify/queue/{user_id}/reject",
+    "POST /api/asclepius/verify/queue/{user_id}/welcome/retry",
     "POST /api/asclepius/verify/recheck-pending",
     "POST /api/asclepius/verify/retier/{user_id}",
     "POST /api/asclepius/verify/tiering-weights/apply",

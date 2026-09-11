@@ -152,8 +152,8 @@ def test_a_fresh_physician_lands_in_the_welcome_letter():
       });
     """)
     assert "Welcome to Archangel Health." in out["text"]
-    # The mission lines, verbatim from the PRD.
-    assert "OUR MISSION" in out["text"]
+    # The mission sentence stays; its redundant gray heading is removed.
+    assert "OUR MISSION" not in out["text"]
     assert "doctors earn from their judgment" in out["text"]
     assert "A 70% benchmark score is irrelevant when a patient is downstream." in out["text"]
     # House spelling, normalised across every founder signature: six sites

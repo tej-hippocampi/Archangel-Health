@@ -1836,6 +1836,38 @@
       });
     }
 
+    function showApproval(result) {
+      clearNode(status);
+      status.appendChild(h('div', { class: 'vq-reason' }, result.line));
+      pendingCache = null;
+      if (result.warning) {
+        // Keep this visible after approval. Leaving the queue immediately hid
+        // delivery failures, and retrying the whole decision duplicated signals.
+        status.appendChild(h('div', { class: 'asc-inline-error', role: 'alert' }, result.warning));
+        if (result.retryable) {
+          const retry = h('button', { type: 'button', class: 'asc-btn asc-btn-sm asc-btn-ghost' }, 'Retry welcome email');
+          retry.addEventListener('click', () => {
+            if (retry.disabled) return;
+            retry.disabled = true;
+            api('/verify/queue/' + encodeURIComponent(userId) + '/welcome/retry',
+                { method: 'POST' })
+              .then((response) => showApproval({
+                line: response.welcome_email_sent ? 'Approval recorded. Welcome email sent.' :
+                  response.welcome_email_queued ? 'Approval recorded. Welcome email queued.' : 'Approval recorded.',
+                warning: response.warning, retryable: response.welcome_email_retryable,
+              }))
+              .catch((e) => {
+                retry.disabled = false;
+                status.appendChild(h('div', { class: 'asc-inline-error', role: 'alert' }, errText(e)));
+              });
+          });
+          status.appendChild(retry);
+        }
+        return;
+      }
+      setTimeout(() => { pendingId = null; rerender(); }, 900);
+    }
+
     TIERS.forEach((tier) => {
       // The recommended tier is primary; the other stays ghost. Both are always
       // present and always enabled — see the blocker note above.
@@ -1850,14 +1882,7 @@
         clearNode(status);
         status.appendChild(h('div', { class: 'asc-dim' }, 'Recording…'));
         approveWithSignal(ctx, userId, tier, note.value || null)
-          .then((line) => {
-            clearNode(status);
-            status.appendChild(h('div', { class: 'vq-reason' }, line));
-            // The physician has left the pending queue, so the cached list is
-            // stale. Drop it and go back — the queue reloads on the way.
-            pendingCache = null;
-            setTimeout(() => { pendingId = null; rerender(); }, 900);
-          })
+          .then(showApproval)
           .catch((e) => {
             setBusy(false);
             clearNode(status);
@@ -1908,7 +1933,7 @@
               { method: 'POST', body: { tier: tier, note: note } });
     // 2. Only now the lifecycle change. An explicit tier is required — the
     //    proposal is advice and the endpoint refuses to infer one.
-    await api('/verify/queue/' + uid + '/approve',
+    const approval = await api('/verify/queue/' + uid + '/approve',
               { method: 'POST', body: { tier: tier, note: note } });
     // 3. What the decision did to the model. Best-effort: a failure to read the
     //    weights must not make a completed approval look like it failed.
@@ -1919,9 +1944,10 @@
     } catch (e) {
       pending = null;
     }
-    if (pending == null) return 'Recorded.';
-    return 'Recorded. ' + pending + ' decision' + (pending === 1 ? '' : 's')
+    const line = pending == null ? 'Recorded.' : 'Recorded. ' + pending + ' decision' + (pending === 1 ? '' : 's')
       + ' waiting to be folded into the model.';
+    return { line: line, warning: approval && approval.warning,
+      retryable: approval && approval.welcome_email_retryable };
   }
 
   /* §0.3 — background research is rendered BELOW the decision buttons, under a

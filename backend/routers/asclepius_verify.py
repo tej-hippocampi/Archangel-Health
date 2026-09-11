@@ -15,7 +15,6 @@ import html as html_mod
 import json
 import logging
 import os
-import secrets
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -33,9 +32,6 @@ from asclepius import tiering as asc_tiering
 from asclepius.store import get_store
 from email_utils import is_email_transport_configured, send_html_email
 from onboarding_emails import (
-    application_welcome_subject,
-    build_application_welcome_email,
-    build_asclepius_approved_email,
     build_asclepius_promoted_email,
 )
 
@@ -709,8 +705,8 @@ def _password_setup_refusal(user: Dict[str, Any]) -> Optional[str]:
     if (user.get("role") or "") != "evaluator":
         return "This control is for physician applicants only."
     if (user.get("verification_status") or "pending") == "approved":
-        return ("This physician is already approved. Approval mints their "
-                "credentials; it does not need this.")
+        return ("This physician is already approved. They can use "
+                "Forgot your password on the sign-in page.")
     if not _needs_credentials(user):
         return ("This physician already has a password. They can use "
                 "Forgot your password on the sign-in page.")
@@ -757,6 +753,8 @@ async def approve_signup(
             detail=f"Approval requires an explicit tier: {allowed}.")
     store = _store()
     user = _load_user_or_404(user_id)
+    if user.get("role") not in ("evaluator", "qa_reviewer") or not user.get("active"):
+        raise HTTPException(status_code=400, detail="Only active physician accounts can be approved here.")
     prop = _proposal(store, user)
     # PRD C §5.3 — **the override IS the training signal.** Recorded BEFORE the approval
     # commits, and recorded on agreement as well as disagreement: a model that only ever sees
@@ -838,118 +836,53 @@ async def approve_signup(
         await welcome_new_member(updated or user)
     except Exception:
         log.exception("[verify] community welcome failed (decision stands)")
-    # ── Onboarding v2 §5: the ONE added side-effect ──────────────────────────
-    # Approval is where credentials come into existence. Before v2 a physician
-    # chose a password during signup, so approval only had to say "you're in";
-    # now the wizard has no password step and this is the moment the account
-    # becomes usable at all.
-    #
-    # The password is TEMPORARY and rotated at first sign-in (§0.1 decision 1).
-    # The ask was a permanent password in the email, and the doctor's experience
-    # here is identical to that ask — credentials in the email, sign in from the
-    # website, works first time. What differs is what is left behind: a permanent
-    # plaintext credential sits in an inbox forever, survives an inbox breach,
-    # and is the wrong answer to the security-posture question a hospital partner
-    # and a SOC 2 auditor both ask. One extra screen buys all of that.
-    #
-    # Nothing about it can fail the approval, which has already committed above.
-    temp_password: Optional[str] = None
-    needs_credentials = _needs_credentials(user)
-    if needs_credentials:
-        try:
-            # token_urlsafe(9) — 12 characters, ~72 bits. Long enough that it
-            # cannot be guessed in the hours it is alive, short enough to retype
-            # from a phone, which is where most of these emails are opened.
-            temp_password = secrets.token_urlsafe(9)
-            await run_in_threadpool(store.set_temp_password, user_id, temp_password)
-            store.log_event(
-                entity_type="user", entity_id=user_id,
-                event_type="temp_password_issued", actor=admin["email"],
-                # The password itself is NEVER in the payload. This row exists so
-                # an auditor can see that a credential was minted and by whom,
-                # which is the opposite of a place to write the credential down.
-                payload={"reason": "approval"},
-            )
-        except Exception:
-            log.exception("[verify] could not mint a temporary password "
-                          "(approval stands; the physician has no credential yet)")
-            temp_password = None
-
-    welcome_sent = False
-    if is_email_transport_configured():
-        try:
-            if temp_password:
-                # §4.4 — the welcome. Carries the credentials, the mission block,
-                # and the founders' intro link.
-                welcome_sent = bool(await send_html_email(
-                    user["email"],
-                    application_welcome_subject((user.get("full_name") or "").strip()),
-                    build_application_welcome_email(
-                        full_name=(user.get("full_name") or "").strip(),
-                        email=user["email"],
-                        temp_password=temp_password,
-                        sign_in_url=_portal_base() + "/asclepius",
-                    ), importance_headers=True))
-            elif not needs_credentials:
-                # An account that already HAS a password. Once that meant an
-                # invited member or a pre-v2 signup; since the wizard started
-                # taking a password on screen one it means almost every
-                # physician, which is what makes this branch load bearing.
-                #
-                # It used to fall through to the plain queued notice, and the
-                # result was that choosing your own password silently cost you
-                # the welcome: no mission block, no sign-in button, no founders'
-                # Calendly, because of an implementation detail about where the
-                # password came from. So the welcome is sent here too, with the
-                # credentials card swapped for one line pointing at the password
-                # they already have.
-                welcome_sent = bool(await send_html_email(
-                    user["email"],
-                    application_welcome_subject((user.get("full_name") or "").strip()),
-                    build_application_welcome_email(
-                        full_name=(user.get("full_name") or "").strip(),
-                        email=user["email"],
-                        sign_in_url=_portal_base() + "/asclepius",
-                    ), importance_headers=True))
-                if welcome_sent:
-                    # The hook on record_verification_decision has already queued
-                    # the plain notice, because it cannot see that this handler
-                    # is about to send the richer one. Void it. Two "you're
-                    # approved" emails for one approval is the visible failure
-                    # here, and this is the same mechanism the reject-then-
-                    # approve race already uses.
-                    try:
-                        import notifications  # noqa: PLC0415
-                        store.void_pending_admin_notification(
-                            notifications._person_key(
-                                "physician_approved",
-                                f"approved:{user_id}",
-                                user["email"]))
-                    except Exception:
-                        log.exception(
-                            "[verify] could not void the queued approval notice; "
-                            "this physician may receive two")
-            # The remaining case — credentials were NEEDED and the mint failed —
-            # sends nothing on purpose. "You're approved, open your workspace"
-            # pointing at a door this physician has no key to is worse than
-            # silence, and the response below tells the admin so.
-        except Exception:
-            log.exception("[verify] welcome email failed (decision stands)")
-    # An approval whose welcome never left is an approval the physician does not
-    # know about, and for a v2 application it is also an account they cannot sign
-    # in to. The admin who clicked approve is the only person positioned to
-    # notice, so say it here rather than only in a log they will not read.
+    # All acceptance paths use the same durable queue. No competing inline
+    # send, and no temporary password that can be lost between mint and email.
     return {"ok": True, "user_id": user_id, "tier": tier,
             "verification_status": "approved",
             "verified_by": updated.get("verified_by"),
             "verified_at": updated.get("verified_at"),
-            "credentials_issued": bool(temp_password),
-            "welcome_email_sent": welcome_sent,
-            "warning": (
-                None if welcome_sent or not is_email_transport_configured()
-                else "The approval is recorded, but the welcome email did not send. "
-                     "The physician has not been told, and has no sign-in details."
-            )}
+            "credentials_issued": False,
+            **_welcome_delivery_status(store, updated)}
+
+
+def _welcome_delivery_status(store, user: Dict[str, Any]) -> Dict[str, Any]:
+    """Confirm or retry mail without changing the physician's approval."""
+    import notifications
+    mail_key = notifications._person_key("physician_approved", f"approved:{user['id']}", user["email"])
+    mail = None
+    try:
+        mail = store.get_admin_notification(mail_key)
+        if mail is None or (mail.get("status") == "void" and not mail.get("sent_at")):
+            # A failed enqueue is visible and safely retryable by this admin action.
+            # The unique key prevents a repeated approval from sending another copy.
+            notifications.queue_physician_welcome(store, user=user, revive=True)
+            mail = store.get_admin_notification(mail_key)
+    except Exception:
+        log.exception("[verify] could not confirm welcome queue status (approval stands)")
+    queued = bool(mail and mail.get("status") == "pending")
+    sent = bool(mail and mail.get("status") == "sent")
+    legacy = notifications.physician_welcome_is_legacy_void(mail)
+    return {"welcome_email_queued": queued,
+            "welcome_email_sent": sent,
+            "welcome_email_retryable": not queued and not sent and not legacy,
+            "warning": None if queued or sent else (
+                "A previous welcome may already have been sent. No duplicate was queued; "
+                "check the email delivery history before resending." if legacy else
+                "The approval is recorded, but the welcome email queue could not be confirmed. Use Retry welcome email to check or queue it.")}
+
+
+@router.post("/queue/{user_id}/welcome/retry")
+async def retry_welcome_email(
+    user_id: str,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    import notifications
+    store = _store()
+    user = _load_user_or_404(user_id)
+    if not notifications.physician_welcome_eligible(user):
+        raise HTTPException(status_code=409, detail="The physician must still be active and approved to receive a welcome email.")
+    return {"ok": True, "user_id": user_id, **_welcome_delivery_status(store, user)}
 
 
 @router.post("/queue/{user_id}/reject")
