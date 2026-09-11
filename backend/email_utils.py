@@ -213,6 +213,8 @@ async def send_html_email_with_reason(
     importance_headers: bool = False,
     attachments: Optional[list] = None,
     reply_to: str | None = None,
+    text_body: str | None = None,
+    delivery_info: dict | None = None,
 ) -> "tuple[bool, str]":
     """Send an HTML email OFF the event loop. Returns (ok, reason).
 
@@ -226,12 +228,18 @@ async def send_html_email_with_reason(
     and the timeout inside is the second half. A thread hung forever is a leaked
     thread rather than a frozen server, which is better but still not fine.
     """
+    optional = {}
+    if text_body is not None:
+        optional["text_body"] = text_body
+    if delivery_info is not None:
+        optional["delivery_info"] = delivery_info
     return await asyncio.to_thread(
         _send_html_email_blocking,
         to_email, subject, html_body,
         importance_headers=importance_headers,
         attachments=attachments,
         reply_to=reply_to,
+        **optional,
     )
 
 
@@ -243,6 +251,8 @@ def _send_html_email_blocking(
     importance_headers: bool = False,
     attachments: Optional[list] = None,
     reply_to: str | None = None,
+    text_body: str | None = None,
+    delivery_info: dict | None = None,
 ) -> "tuple[bool, str]":
     """The actual send. Blocking, and must only ever run on a worker thread.
 
@@ -267,6 +277,10 @@ def _send_html_email_blocking(
     input, and a CR/LF in a MIME header is header injection on the SMTP path;
     anything that does not look like a bare address is dropped rather than sent.
     """
+    # Opt-in machine-readable outcome for durable sends. Unknown means a
+    # provider MAY have accepted the request: never infer safe retry from False.
+    info = delivery_info if delivery_info is not None else {}
+    info["outcome"] = "unknown"
     # Sandbox PRD §1.4: in the sandbox realm NOTHING is ever sent. The message
     # is written to the sandbox store's outbox — with the OTP code / magic
     # link / DLA link extracted so the Outbox tab can show them clickable —
@@ -274,12 +288,14 @@ def _send_html_email_blocking(
     # BEFORE dev mode so a sandbox running with EMAIL_DEV_MODE=1 (the test
     # suite) still lands in the outbox rather than on stdout.
     if _realm.is_sandbox():
+        info["outcome"] = "sandbox_outbox"
         return _sandbox_outbox_write(to_email, subject, html_body,
                                      attachments=attachments, reply_to=reply_to)
 
     # Dev mode short-circuit: print the message to stdout and return success.
     # This lets onboarding / OTP / invite flows run end-to-end without SendGrid.
     if _is_dev_mode():
+        info["outcome"] = "dev_mode"
         print("\n" + "=" * 72)
         print(f"[email_utils] DEV MODE — pretending to send email")
         print(f"  To:      {to_email}")
@@ -301,6 +317,7 @@ def _send_html_email_blocking(
         print(f"[email_utils] ignoring malformed reply_to={clean_reply_to!r}")
         clean_reply_to = ""
 
+    smtp_accepted = False
     try:
         api_key = _normalize_sendgrid_api_key(os.getenv("SENDGRID_API_KEY"))
         from_email = (os.getenv("SENDGRID_FROM_EMAIL") or "noreply@archangelhealth.ai").strip()
@@ -314,7 +331,11 @@ def _send_html_email_blocking(
                 to_emails=to_email,
                 subject=subject,
                 html_content=html_body,
+                **({"plain_text_content": text_body} if text_body is not None else {}),
             )
+            if info.get("reminder_id"):
+                from sendgrid.helpers.mail import CustomArg
+                message.add_custom_arg(CustomArg("exam_reminder_id", info["reminder_id"]))
             if importance_headers:
                 message.add_header(Header("Importance", "high"))
                 message.add_header(Header("X-Priority", "1"))
@@ -341,6 +362,10 @@ def _send_html_email_blocking(
             response = sg.send(message)
             status_code = getattr(response, "status_code", None)
             if status_code not in (200, 202):
+                if status_code == 429:
+                    info["outcome"] = "retryable"
+                elif status_code in (400, 401, 403, 404, 413, 422):
+                    info["outcome"] = "failed"
                 raw = getattr(response, "body", b"") or b""
                 try:
                     body_preview = raw.decode("utf-8", errors="replace")[:4000]
@@ -358,6 +383,10 @@ def _send_html_email_blocking(
                 else:
                     reason = f"SendGrid returned HTTP {status_code}."
                 return False, reason
+            info["outcome"] = "accepted"
+            headers = getattr(response, "headers", None) or {}
+            info["provider_id"] = next((str(value) for key, value in headers.items()
+                                        if str(key).lower() == "x-message-id"), None)
             return True, "sent"
 
         import smtplib
@@ -372,11 +401,15 @@ def _send_html_email_blocking(
             msg["Subject"] = subject
             msg["From"] = f"{from_name} <{from_email}>"
             msg["To"] = to_email
+            if info.get("reminder_id"):
+                msg["X-Archangel-Reminder-ID"] = info["reminder_id"]
             if importance_headers:
                 msg["Importance"] = "high"
                 msg["X-Priority"] = "1"
             if clean_reply_to:
                 msg["Reply-To"] = clean_reply_to
+            if text_body is not None:
+                msg.attach(MIMEText(text_body, "plain", "utf-8"))
             msg.attach(MIMEText(html_body, "html", "utf-8"))
             if attachments:
                 # "alternative" means "the same content in two formats", so a
@@ -407,10 +440,35 @@ def _send_html_email_blocking(
             with smtplib.SMTP(smtp_host, port, timeout=_send_timeout_seconds()) as server:
                 server.starttls()
                 server.login(smtp_user, smtp_pass)
-                server.send_message(msg)
+                refused = server.send_message(msg)
+                if refused:
+                    info["outcome"] = "suppressed"
+                    return False, "Recipient rejected by the mail server."
+                smtp_accepted = True
+            info["outcome"] = "accepted"
             return True, "sent"
+        info["outcome"] = "retryable"
         return False, "Email transport is not configured (no SendGrid key or SMTP credentials)."
     except Exception as e:
+        # A failing QUIT after successful DATA cannot turn an accepted email
+        # into a retry and mail the same applicant twice.
+        if smtp_accepted:
+            info["outcome"] = "accepted"
+            return True, "sent"
+        code = getattr(e, "status_code", None)
+        if code == 429:
+            info["outcome"] = "retryable"
+        elif code in (400, 401, 403, 404, 413, 422):
+            info["outcome"] = "failed"
+        # SMTP exposes an explicit recipient refusal before accepting DATA.
+        import smtplib
+        if isinstance(e, smtplib.SMTPRecipientsRefused):
+            codes = [value[0] for value in e.recipients.values()]
+            info["outcome"] = "retryable" if codes and all(400 <= c < 500 for c in codes) else "suppressed"
+        elif isinstance(e, smtplib.SMTPResponseException):
+            info["outcome"] = "retryable" if 400 <= e.smtp_code < 500 else "failed"
+        elif isinstance(e, ConnectionRefusedError):
+            info["outcome"] = "retryable"
         if _is_timeout(e):
             # A timeout is an ORDINARY send failure, handled before the generic
             # cases below rather than swallowed into them. The outbox rows this
@@ -420,6 +478,8 @@ def _send_html_email_blocking(
             # than rejected us.
             timeout = _send_timeout_seconds()
             print(f"[email_utils] send to {to_email!r} timed out after {timeout:g}s: {e}")
+            if delivery_info is not None:
+                return False, "Provider response timed out; acceptance is unknown. Reconcile before retrying."
             return False, (
                 f"The email provider did not respond within {timeout:g}s. "
                 "The message was not sent and will be retried."

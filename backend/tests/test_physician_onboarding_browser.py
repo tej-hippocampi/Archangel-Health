@@ -149,6 +149,22 @@ def test_applicant_can_start_and_resume_examination(portal):
     assert not errors
 
 
+def test_reminder_link_preserves_examination_destination_through_signin(portal):
+    page, store, user, errors = portal
+    page.evaluate("localStorage.clear()")
+    page.context.clear_cookies()
+    page.goto("about:blank")
+    page.goto("http://testserver/asclepius#examination")
+    page.locator('input[autocomplete="username"]').fill(user["email"])
+    page.locator('input[type="password"]').fill(PASSWORD)
+    page.get_by_role("button", name="Sign in", exact=True).click()
+    page.locator("#ascExamStart").wait_for()
+    page.wait_for_function("document.activeElement && document.activeElement.id === 'ascExamStart'")
+    assert store.get_user_by_id(user["id"])["application_completed_at"]
+    assert store.get_tutorial_state(user["id"]).get("exam", {}).get("state", "not_started") == "not_started"
+    assert not errors
+
+
 def test_applicant_guide_matches_guide_tab(portal):
     page, store, user, errors = portal
     page.get_by_role("button", name="Read the labeling guide").click()

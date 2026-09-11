@@ -70,20 +70,10 @@ With the gate on the app drives itself: an hourly in-process tick calls the
 same code the endpoint does. That is enough, and it is why this feature does
 not *depend* on anything outside Railway.
 
-The more reliable path is an external trigger, because it survives a restart at
-the wrong moment and leaves a log a person can read. `community-morning.workflow.yml`
-in this directory is ready to use:
-
-```bash
-mkdir -p .github/workflows
-cp docs/asclepius/community-morning.workflow.yml .github/workflows/community-morning.yml
-git add .github/workflows/community-morning.yml && git commit && git push
-```
-
-It could not be committed from the PR that added it: pushing a file under
-`.github/workflows/` needs a token with GitHub's `workflow` scope, which the
-agent's did not have. Adding it by hand, or through the GitHub web UI, works
-fine.
+The external backup is committed at `.github/workflows/community-morning.yml`.
+It runs hourly at ten past; GitHub scheduling can be delayed, so the app's
+15-minute news loop remains the primary clock. Do not replace the committed
+workflow with the older example file in this directory.
 
 Then two repository secrets (Settings → Secrets and variables → Actions):
 
@@ -98,6 +88,38 @@ per-doctor newsletter, the news and papers digests
 posting on every call), the staff spotlight and the weekend webinar series.
 Both triggers share the run ledger, so running both cannot double-post:
 whichever arrives first marks the run and the other finds nothing due.
+
+News runs in its own job before the other routines, so an email or morning
+timeout cannot prevent its attempt. Missing secrets and application errors
+(including HTTP 200 with `ok=false`) fail the workflow. A green setup check is
+not proof that a digest was published: inspect the news result and the admin
+Community run ledger.
+
+News is due daily at `COMMUNITY_DIGEST_NEWS_HOUR_UTC` (default 13:00 UTC,
+06:00 Pacific during daylight saving time). A successful scheduled news day
+requires a published digest. Empty or failed attempts retry after two hours,
+keeping selected stories available; a restart does not erase the daily claim.
+Invalid compose output receives at most two correction requests with the
+validator's feedback. Every corrected draft must still pass all format, source
+URL and write-path checks. If sources or the model remain unavailable, the run
+fails visibly instead of filling the channel with invented or duplicated news.
+
+## Diagnosing a missed news day
+
+1. Open Operations → Community → The daily routine. Check the `news` row's
+   timestamp, item count and reason. `contract_violation` means the writer's
+   output failed validation; `no_source_items` means no source candidates.
+2. Inspect the `community-morning` GitHub Actions run. Confirm both repository
+   secrets above exist. Historical runs before the recovery fix returned
+   success even when both were missing and no endpoint was called.
+3. Read `GET /internal/community/status` with the existing internal bearer
+   credential for loop state and attempt/failure timestamps. Railway runtime
+   logs contain the specific validation error.
+4. After resolving the cause, use
+   `POST /internal/community/run-digest?kind=news&scheduled=true` and verify
+   the published post and ledger. It honors backoff and today's claim. A bare
+   trigger bypasses the schedule and may queue subscriber email, so do not use
+   it merely as a diagnostic probe.
 
 ## 3. Check it
 

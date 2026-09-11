@@ -51,6 +51,8 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
+from asclepius import exam_reminder
+
 log = logging.getLogger("asclepius.onboarding_nudge")
 
 #: How long after starting the "pick up any time" mail goes out.
@@ -87,19 +89,13 @@ SWEEP_INTERVAL_SECONDS = float(os.getenv("ASCLEPIUS_NUDGE_SWEEP_SECONDS", "900")
 APPLICANT_NUDGE_AFTER_HOURS = int(
     os.getenv("ASCLEPIUS_APPLICANT_NUDGE_AFTER_HOURS", "24") or 24)
 
-#: The examination waits longer than the other two, on purpose. Somebody who
-#: chose "start onboarding now" usually finishes in the same sitting, so a
-#: chase at twenty four hours mostly reaches people who are still going to do
-#: it and reads as impatience. Two days is a pause, not a pester.
-EXAM_NUDGE_AFTER_HOURS = int(
-    os.getenv("ASCLEPIUS_EXAM_NUDGE_AFTER_HOURS", "48") or 48)
+# Examination reminders have their own completion clock and delivery ledger.
+EXAM_NUDGE_AFTER_HOURS = exam_reminder.AFTER_HOURS
 
-#: One place the per-kind schedule lives, so adding a fourth kind is a line
-#: here rather than a branch inside the loop.
+#: Legacy account-age nudges; examination delivery has its own durable sweep.
 _APPLICANT_NUDGE_HOURS = {
     "credentials": APPLICANT_NUDGE_AFTER_HOURS,
     "practice": APPLICANT_NUDGE_AFTER_HOURS,
-    "exam": EXAM_NUDGE_AFTER_HOURS,
 }
 
 #: The floor between two profile questions to the same physician. Enforced in
@@ -171,7 +167,7 @@ def _still_owes(kind: str, user: Dict[str, Any]) -> bool:
     if kind == "credentials":
         return not _has_credential_evidence(user)
     if kind == "exam":
-        return _exam_state(user) not in ("submitted", "in_progress")
+        return _has_credential_evidence(user) and _exam_state(user) in ("not_started", "in_progress")
     # THE PRACTICE CASE IS NOT WHAT WE READ, so somebody who has already sat
     # the examination must not be chased about the optional warm-up in front
     # of it. Before this, they were: the gate stays locked when a physician
@@ -195,6 +191,7 @@ def _exam_state(user: Dict[str, Any]) -> str:
 async def _send_applicant_one(kind: str, user: Dict[str, Any]) -> bool:
     from email_utils import send_html_email  # noqa: PLC0415
     from onboarding_emails import (  # noqa: PLC0415
+        EXAM_REMINDER_SUBJECT,
         build_credentials_nudge_email, build_exam_nudge_email,
         build_practice_case_nudge_email,
     )
@@ -208,7 +205,7 @@ async def _send_applicant_one(kind: str, user: Dict[str, Any]) -> bool:
         subject = "One thing missing from your application"
         html_body = build_credentials_nudge_email(first_name=name, portal_url=url)
     elif kind == "exam":
-        subject = "Your examination is the last piece"
+        subject = EXAM_REMINDER_SUBJECT
         html_body = build_exam_nudge_email(first_name=name, portal_url=url)
     else:
         subject = "Your practice case is waiting"
@@ -396,6 +393,10 @@ async def sweep(ts: Optional[Any] = None, store: Optional[Any] = None) -> Dict[s
             store = None
     if store is not None:
         await _sweep_applicants(store, sent)
+        try:
+            sent["exam"] = await exam_reminder.sweep(store, ts, limit=_BATCH)
+        except Exception:
+            log.exception("[nudge] examination sweep failed")
         await _sweep_profiles(store, sent)
 
     if any(sent.values()):

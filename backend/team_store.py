@@ -2218,13 +2218,28 @@ class TeamStore:
             conn.execute(
                 """
                 UPDATE asclepius_people SET
-                    password_hash = ?, onboarding_completed_at = ?,
+                    password_hash = ?, onboarding_completed_at = COALESCE(onboarding_completed_at, ?),
                     member_token_hash = NULL, member_token_expires_at = NULL,
                     updated_at = ?
                 WHERE health_system_id = ? AND email = ?
                 """,
                 (password_hash, now, now, hs_id, email.lower().strip()),
             )
+
+    def completed_physician_applications(self) -> List[Dict[str, Any]]:
+        """Historical completion evidence for the examination reminder.
+
+        Does not infer completion from account age or a saved password.
+        Missing historical evidence stays missing and is visible in preview.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT lower(trim(email)) AS email, MIN(onboarding_completed_at) AS completed_at "
+                "FROM asclepius_people WHERE onboarding_completed_at IS NOT NULL "
+                "AND credentials_json NOT IN ('{}', '') "
+                "AND attestations_json NOT IN ('{}', '') GROUP BY lower(trim(email))"
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def set_asclepius_person_password_hash(
         self, hs_id: str, email: str, password_hash: str
