@@ -251,12 +251,12 @@ def _first_anchor(obj: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
 def _generation_provenance(task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Buyer-facing synthetic-prompt provenance (PRD §9.1): a record's prompt was
     auto-generated (not lab-supplied), traceable to the corpus version + models.
-    The server-side ``intended_flawed_id`` is stripped — it never leaves the
-    portal in a delivered record."""
+    The server-side answer key and sealed future outcome are stripped; neither
+    belongs in a delivered record's generation provenance."""
     gen = task.get("generation")
     if not gen or not isinstance(gen, dict):
         return None
-    out = {k: v for k, v in gen.items() if k != "intended_flawed_id"}
+    out = {k: v for k, v in gen.items() if k not in ("intended_flawed_id", "sealed_outcome")}
     return out
 
 
@@ -1133,6 +1133,10 @@ def trajectory_block(
     return {
         "trajectory_id": t.get("trajectory_id"),
         "sequence_index": t.get("sequence_index"),
+        # Older walks have no class metadata; never invent a decision label.
+        "point_class": (t.get("generation") or {}).get("point_class"),
+        "presenting_narrative": (t.get("generation") or {}).get("presenting_narrative"),
+        "downgraded": (t.get("generation") or {}).get("downgraded"),
         # §8.1 — WHICH PRODUCT produced this record. A solo walk is one physician's
         # judgment evolving over a patient; a relay is N physicians handing off,
         # each reading the last one's commitment. The rows look identical, so a

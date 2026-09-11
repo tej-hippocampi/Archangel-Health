@@ -132,6 +132,26 @@ def prepare_longitudinal_chart(case: Optional[Dict[str, Any]]) -> Dict[str, Any]
         suspect = {o for n in c.get("notes") or []
                    if (o := _offset_of(n)) is not None and earliest - o > 3 * 365
                    and not any(abs(o - d) <= 30 for d in structured)}
+        # A page dated a year or more before any structured record, with no
+        # structured record near it, whose drug orders are the drug orders of a
+        # later dated page, is a mis-read handwritten year, not history.
+        later_drugs = {_drug_identity(m.get("drug")) for m in c.get("medications") or []
+                       if (o := _offset_of(m)) is not None and o >= earliest and m.get("drug")}
+        for n in c.get("notes") or []:
+            o = _offset_of(n)
+            if o is not None and o >= earliest:
+                for line in str(n.get("text") or "").splitlines():
+                    parsed = parse_medication_line(line)
+                    if parsed and parsed.get("drug"):
+                        later_drugs.add(_drug_identity(parsed["drug"]))
+        for n in c.get("notes") or []:
+            o = _offset_of(n)
+            if o is None or o in suspect or earliest - o <= 365 or any(abs(o - d) <= 30 for d in structured):
+                continue
+            drugs = {_drug_identity(p["drug"]) for line in str(n.get("text") or "").splitlines()
+                     if (p := parse_medication_line(line)) and p.get("drug")}
+            if len(drugs) >= 3 and len(drugs & later_drugs) / len(drugs) >= 0.75:
+                suspect.add(o)
         for key in ("notes", "medications", "problem_list"):
             for item in c.get(key) or []:
                 if _offset_of(item) in suspect:
@@ -141,6 +161,79 @@ def prepare_longitudinal_chart(case: Optional[Dict[str, Any]]) -> Dict[str, Any]
                     elif key == "problem_list":
                         item["since"] = None
     return c
+
+
+# ── Discharge summaries carry BOTH halves of a decision point ────────────────
+# The presenting record (complaints, history, examination) is what the physician
+# had when the decision was made; the diagnosis, course and discharge orders are
+# the outcome. The two are split by section header. Unknown headers fall to the
+# resolution side: a section we cannot classify is withheld, never shown.
+_DS_HEADER_RE = re.compile(r"^[ \t]*(?P<h>[A-Z][A-Za-z0-9/&' \-]{2,60}?)[ \t]*:[ \t]*(?P<rest>.*)$", re.M)
+_DS_PRESENTATION_RE = re.compile(
+    r"present|complain|chief|history|h/o|known case|past medical|drug history|"
+    r"allerg|examination|on exam|vital|social|family|personal|review of system", re.I)
+_DS_DROP_RE = re.compile(r"^(?:rmo|consultant|signature|name|initial|page)\b", re.I)
+_DS_COURSE_RE = re.compile(r"course", re.I)
+_DS_RESOLUTION_HEADER_RE = re.compile(
+    r"discharg|diagnos|treatment|procedure|instruction|follow[ -]?up|status|resolution", re.I)
+# A course narrative usually OPENS with the presentation ("Known case of HTN, DM
+# and IHD. Presented with ...") before it turns into the outcome. The leading run
+# of sentences that carry presentation language and no resolution language is
+# visible; the first sentence that resolves anything ends the run.
+_DS_PRESENT_SENTENCE_RE = re.compile(
+    r"\b(?:known case|k/c|presented|presenting|complain|c/o|history|on examination|vitally|"
+    r"on arrival|brought|referred with)\b", re.I)
+_DS_RESOLVE_SENTENCE_RE = re.compile(
+    r"\b(?:suggest\w*|diagnos\w*|consistent with|impression|managed|treat\w*|start\w*|"
+    r"commenc\w*|initiat\w*|consult\w*|improv\w*|discharg\w*|shift\w*|admit\w*|icu|ward|"
+    r"respond\w*|recover\w*|expired|transferr?ed|operat\w*|procedure|stent\w*|dialys\w*)\b", re.I)
+
+
+def _leading_presentation(course_text: str) -> str:
+    body = re.sub(r"^[^:]{2,60}:\s*", "", course_text.strip(), count=1)
+    kept: List[str] = []
+    # A semicolon can connect an examination to treatment in the same sentence.
+    # Keep the sentence intact so resolution language seals the whole statement.
+    for sentence in re.split(r"(?<=[.!?])\s+", body):
+        if not sentence.strip():
+            continue
+        if _DS_RESOLVE_SENTENCE_RE.search(sentence) or not _DS_PRESENT_SENTENCE_RE.search(sentence):
+            break
+        kept.append(sentence.strip())
+    return " ".join(kept)
+
+
+def split_discharge_summary(text: str) -> Tuple[Optional[str], str]:
+    """``(presentation, resolution)`` — the visible half and the held-out half of a
+    discharge summary. ``presentation`` is None when no presenting section parses
+    (a continuation page of discharge orders, for example)."""
+    raw = str(text or "")
+    heads = list(_DS_HEADER_RE.finditer(raw))
+    if not heads:
+        return None, raw
+    pres: List[str] = []
+    reso: List[str] = []
+    for i, m in enumerate(heads):
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(raw)
+        block = raw[m.start():end].strip()
+        head = m.group("h").strip()
+        if _DS_DROP_RE.match(head):
+            continue
+        # Outcome qualifiers outrank an otherwise presenting heading: an
+        # examination or vitals AT DISCHARGE are not admission observations.
+        if _DS_RESOLUTION_HEADER_RE.search(head):
+            reso.append(block)
+            continue
+        if _DS_COURSE_RE.search(head) and not _DS_PRESENTATION_RE.search(head):
+            lead = _leading_presentation(block)
+            if lead:
+                pres.append("History (opening of the hospital course): " + lead)
+            reso.append(block)
+            continue
+        (pres if _DS_PRESENTATION_RE.search(head) else reso).append(block)
+    presentation = "\n".join(pres).strip()
+    resolution = ("\n".join(reso).strip()) or raw
+    return (presentation if len(presentation) >= 40 else None), resolution
 
 
 def _activity_case(case: Dict[str, Any]) -> Dict[str, Any]:
@@ -1085,10 +1178,37 @@ def _drug_identity(name: Any) -> str:
     return re.sub(r"[^a-z0-9]", "", str(name or "").lower())
 
 
+def _discharge_medication_orders(text: str) -> List[Dict[str, str]]:
+    """Read line orders and explicit inline orders in a discharge narrative.
+
+    Hospital-course lists often use commas rather than newlines. These orders
+    already appear in the visible history, so repeating one later cannot make it
+    a newly revealed treatment. Keep the conservative medication-line parser and
+    require an order at the start or an affirmative medication-list lead-in.
+    """
+    orders = []
+    lead_in = re.compile(
+        r"(?:^|;)\s*(?:inpatient\s+)?(?:meds|medications|treatment)"
+        r"\s+(?:included|includes?|given|administered)\s*:?\s+", re.I)
+    for line in str(text or "").splitlines():
+        if not parse_medication_line(re.split(r"[,;]", line)[0]):
+            # Do not mine a list introduced by 'avoid' or 'allergic to' for orders.
+            if not (match := lead_in.search(line)):
+                continue
+            line = line[match.end():]
+        for fragment in re.split(r"[,;]", line):
+            parsed = parse_medication_line(fragment)
+            if not parsed or not parsed.get("drug"):
+                break
+            orders.append(parsed)
+    return orders
+
+
 def _held_out_summary(case: Dict[str, Any], index_offset: int,
                       visible_text: str = "",
                       visible_drugs: Optional[set] = None,
-                      until_offset: Optional[int] = None) -> Dict[str, Any]:
+                      until_offset: Optional[int] = None, *,
+                      include_discharge_orders: bool = True) -> Dict[str, Any]:
     """What actually happened after the decision point — the outcome the
     physician's answer is checked against. Assembled deterministically from the
     chart itself, never invented.
@@ -1128,6 +1248,16 @@ def _held_out_summary(case: Dict[str, Any], index_offset: int,
         if text:
             lines.append(f"[+{_offset_of(note) - index_offset}d {note.get('note_type') or 'Note'}] "
                          + text[:600])
+        # Discharge orders are the treatment decision the answer key is graded on,
+        # and in many exports they exist only as text. Parse them like an order
+        # sheet so "dapagliflozin started" reaches the key, not just the reveal.
+        if include_discharge_orders and re.search("discharge", str(note.get("note_type") or ""), re.I):
+            for parsed in _discharge_medication_orders(text):
+                drugs.append((
+                    _drug_identity(parsed["drug"]),
+                    " ".join(x for x in (parsed.get("drug"), parsed.get("dose"),
+                                         parsed.get("route"), parsed.get("freq")) if x),
+                ))
     abnormal: List[str] = []
     for panel in after("lab_panels"):
         for r in panel.get("results") or []:
@@ -1147,6 +1277,9 @@ def _held_out_summary(case: Dict[str, Any], index_offset: int,
     # Matched on the WHOLE cleaned drug name, not its first word: "c̄ Clenil" and
     # "Clenil" must resolve to the same drug or the same order reads as new.
     on_board = visible_drugs or set()
+    if include_discharge_orders:
+        seen_keys: set = set()
+        drugs = [(k, d) for k, d in drugs if d and not (k in seen_keys or seen_keys.add(k))]
     started = [display for _key, display in drugs if display]
     newly_started = [display for key, display in drugs if display and key not in on_board]
     return {
@@ -1188,6 +1321,44 @@ def _ground_truth_from_held_out(held_out: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _encounter_timed_chart(
+    case: Optional[Dict[str, Any]], index_offset: int,
+    encounters: Sequence[Dict[str, Any]], *, trajectory: bool,
+) -> Dict[str, Any]:
+    """Curated chart copy with admission/resolution notes on their own dates."""
+    c = prepare_longitudinal_chart(case)
+    # Resolution documents belong to the end of their own encounter. Prior
+    # resolutions remain available as history and as the next point's reveal.
+    spans = encounters
+    presentation_notes: List[Dict[str, Any]] = []
+    for note in c.get("notes") or []:
+        off = _offset_of(note)
+        if off is not None and re.search("discharge", str(note.get("note_type") or ""), re.I):
+            span = next((e for e in spans if e["start_offset"] <= off <= e["end_offset"]), None)
+            if span:
+                # The presenting record inside the summary is contemporaneous with
+                # admission and is the only presenting narrative some exports carry.
+                # It becomes its own visible note at the encounter start; the summary
+                # keeps only its resolution half, dated to the encounter end.
+                presentation, resolution = (split_discharge_summary(note.get("text"))
+                                            if trajectory else (None, note.get("text")))
+                if presentation:
+                    presentation_notes.append({
+                        **{k: v for k, v in note.items() if k not in ("model_visible", "withheld_reason")},
+                        "note_type": "Admission",
+                        "text": "Presenting record (from the encounter's discharge summary):\n" + presentation,
+                        "collected_offset_days": span["start_offset"],
+                        "source_section": "discharge_summary_presentation",
+                    })
+                    note["text"] = resolution
+                note["collected_offset_days"] = span["end_offset"]
+                if index_offset < span["end_offset"]:
+                    note.update(model_visible=False, withheld_reason="encounter_resolution")
+    if presentation_notes:
+        c["notes"] = list(c.get("notes") or []) + presentation_notes
+    return c
+
+
 def build_encounter_case(
     case: Optional[Dict[str, Any]], encounter: Dict[str, Any], index_offset: int,
     *, until_offset: Optional[int] = None, trajectory: bool = False,
@@ -1200,18 +1371,8 @@ def build_encounter_case(
     and total: no collection is exempt, because a problem added afterwards is
     literally the answer and a drug started afterwards names the diagnosis.
     """
-    c = prepare_longitudinal_chart(case)
-    # Resolution documents belong to the end of their own encounter. Prior
-    # resolutions remain available as history and as the next point's reveal.
-    spans = encounters if encounters is not None else [encounter]
-    for note in c.get("notes") or []:
-        off = _offset_of(note)
-        if off is not None and re.search("discharge", str(note.get("note_type") or ""), re.I):
-            span = next((e for e in spans if e["start_offset"] <= off <= e["end_offset"]), None)
-            if span:
-                note["collected_offset_days"] = span["end_offset"]
-                if index_offset < span["end_offset"]:
-                    note.update(model_visible=False, withheld_reason="encounter_resolution")
+    c = _encounter_timed_chart(case, index_offset,
+        encounters if encounters is not None else [encounter], trajectory=trajectory)
     lookback = encounter.get("start_offset")
     if not isinstance(lookback, int):
         lookback = index_offset
@@ -1264,10 +1425,16 @@ def build_encounter_case(
         [str(n.get("text") or "") for n in notes]
         + [str(p.get("condition") or "") for p in problems]
         + [str(s.get(f) or "") for s in studies for f in ("findings", "impression")])
+    # Drugs the physician can already read in a visible discharge summary are on
+    # board; re-ordering them later is continuity, not a new treatment decision.
+    on_board = {_drug_identity(m.get("drug")) for m in meds if m.get("drug")}
+    for n in notes if trajectory else []:
+        if re.search("discharge", str(n.get("note_type") or ""), re.I):
+            for parsed in _discharge_medication_orders(n.get("text")):
+                on_board.add(_drug_identity(parsed["drug"]))
     held_out = _held_out_summary(
-        c, index_offset, seen_before,
-        {_drug_identity(m.get("drug")) for m in meds if m.get("drug")},
-        until_offset=until_offset)
+        c, index_offset, seen_before, on_board,
+        until_offset=until_offset, include_discharge_orders=trajectory)
     visible = {
         "case_source": "real_deid",
         "specialty": c.get("specialty") or "general",
@@ -1283,6 +1450,13 @@ def build_encounter_case(
         "study_findings_policy": c.get("study_findings_policy") or "visible",
         "ground_truth": _ground_truth_from_held_out(held_out),
     }
+    if trajectory:
+        # Keep static cases and their content floors unchanged. Only a walk can
+        # explicitly render an absent prior record as the state of its first point.
+        visible.update(
+            medications_absent_on_record=(not meds and not _visible("medications")),
+            problems_absent_on_record=(not problems),
+        )
     # §4.2.1 — the declaration is computed FROM THIS WINDOW, never inherited from
     # the parent chart. See ``ingestion.modalities_present_in`` for why inheriting
     # quarantines every early decision point with a clinical-sounding rejection for
@@ -1382,6 +1556,44 @@ def outcome_delta(
     delta["n_events"] = sum(len(delta[k]) for k in
                             ("lab_panels", "notes", "studies", "medications", "problem_list"))
     return delta
+
+
+def seal_outcome_window(
+    case: Dict[str, Any], encounters: Sequence[Dict[str, Any]], *,
+    index_offset: int, until_offset: Optional[int], outcome_encounter_index: Optional[int],
+) -> Dict[str, Any]:
+    """Freeze this point's full bounded evidence, independently of task creation.
+
+    Discharge sections use the same timing as visible cases, but this window is
+    not subject to a later task's note/lab budget or model-generation success.
+    The envelope is internal; only its outcome is released after submission.
+    """
+    sealed = {"version": 1, "index_event_offset": index_offset,
+              "until_offset": until_offset, "outcome_encounter_index": outcome_encounter_index,
+              "outcome": None}
+    if until_offset is not None:
+        c = _encounter_timed_chart(case, until_offset, encounters, trajectory=True)
+        window = {key: [_rebase(item, until_offset) for item in c.get(key) or []
+                        if (off := _offset_of(item)) is not None and index_offset < off <= until_offset]
+                  for key in _TIMED_COLLECTIONS}
+        window["lab_panels"], _ = curate_lab_panels(window["lab_panels"])
+        panel_offsets = set(_timed_offsets(window, ("lab_panels",)))
+        window["notes"] = [n for n in window["notes"]
+                           if not (_is_panel_note(n) and _offset_of(n) in panel_offsets)]
+        window["vitals"] = _visible_vitals(c, until_offset)
+        window["study_findings_policy"] = c.get("study_findings_policy") or "visible"
+        sealed["outcome"] = outcome_delta(public_case(window),
+            outcome_index_offset=until_offset, decision_index_offset=index_offset)
+    validate_sealed_outcome(sealed, index_offset=index_offset)
+    return sealed
+
+
+def validate_sealed_outcome(sealed: Any, *, index_offset: Any) -> Optional[Dict[str, Any]]:
+    from asclepius.sealed_outcomes import validate_sealed_outcome as validate
+    try:
+        return validate(sealed, index_offset=index_offset)
+    except ValueError as exc:
+        raise RealCaseError(str(exc)) from exc
 
 
 def _visible_vitals(case: Dict[str, Any], index_offset: int) -> Dict[str, Any]:
@@ -2013,6 +2225,47 @@ def has_encounter_narrative(visible: Dict[str, Any], encounter: Dict[str, Any],
     return False
 
 
+def has_encounter_observation(visible: Dict[str, Any], encounter: Dict[str, Any],
+                              index_offset: int) -> bool:
+    """An INTERVAL point needs an observation from its own window: a lab panel, a
+    report, an order sheet, or a narrative. Chart state (problems, medications)
+    does not count — it was there before the visit."""
+    lo = encounter.get("start_offset")
+    if not isinstance(lo, int):
+        return False
+    def _in_window(item: Dict[str, Any]) -> bool:
+        off = _offset_of(item)
+        return off is not None and lo <= off + index_offset <= index_offset
+    if any(_in_window(p) and (p.get("results") or []) for p in visible.get("lab_panels") or []):
+        return True
+    if any(_in_window(s) for s in visible.get("studies") or []):
+        return True
+    return any(_in_window(n) and n.get("model_visible") is not False
+               and not n.get("withheld_reason")
+               and len(str(n.get("text") or "").strip()) >= 40
+               for n in visible.get("notes") or [])
+
+
+def interval_content_blockers(visible: Dict[str, Any], encounter: Dict[str, Any],
+                              index_offset: int) -> List[str]:
+    """The content floor for an INTERVAL point. Lighter than the decision-point
+    floor by design: a follow-up visit is graded by the next encounter exactly as
+    a decision point is, but it is a checkpoint, not a workup, and is priced and
+    exported as one (``point_class``)."""
+    blockers: List[str] = []
+    if not (visible.get("problem_list") or []) and not visible.get("problems_absent_on_record"):
+        blockers.append("case has an empty problem_list")
+    if not (visible.get("medications") or []) and not visible.get("medications_absent_on_record"):
+        blockers.append("case has an empty medication list")
+    if not has_encounter_observation(visible, encounter, index_offset):
+        blockers.append("interval visit recorded no observation (lab, report, order or note) in its own window")
+    try:
+        assert_temporal_split(visible)
+    except TemporalLeak as exc:
+        blockers.append(str(exc))
+    return blockers
+
+
 def _hold_proposal(proposal: Dict[str, Any], reason: str, message: str) -> None:
     proposal["review_required"] = True
     proposal.setdefault("review_reasons", []).append({"reason": reason, "message": message})
@@ -2024,7 +2277,7 @@ async def plan_cases(
     case: Optional[Dict[str, Any]], *, max_cases: Optional[int] = None,
     min_gap_days: int = 7, specialty_hint: Optional[str] = None,
     derive_questions: bool = True, question_indices: Optional[Sequence[int]] = None,
-    trajectory: bool = False,
+    trajectory: bool = False, include_interval_points: bool = True,
 ) -> Dict[str, Any]:
     """One ingested chart → the full list of proposed cases, WITHOUT writing
     anything. This is what the admin dry-run returns and what generation iterates.
@@ -2050,6 +2303,32 @@ async def plan_cases(
     verifiable_pairs = pair_decision_points(c, encounters)
     verifiable_indices = {p["decision_index"] for p in verifiable_pairs}
 
+    # Point classes (Chart Walk PRD §3). ``decision`` = the §2 density gate,
+    # unchanged. ``interval`` = a dated contact between decision points that
+    # recorded an observation; it is a checkpoint the next point grades, never a
+    # substitute for a decision point, and it is never terminal. The gate is not
+    # lowered: the two classes are counted, priced and exported separately.
+    point_class: Dict[int, Optional[str]] = {}
+    for enc in encounters:
+        d = qualify_encounter(c, enc)
+        if d["qualifies"]:
+            point_class[enc["index"]] = "decision"
+        elif trajectory and include_interval_points and not enc.get("undated") \
+                and enc.get("n_events", 0) >= 1:
+            point_class[enc["index"]] = "interval"
+        else:
+            point_class[enc["index"]] = None
+    # An interval visit with no later point has nothing to grade it. A density-
+    # qualifying encounter may close the walk even when it is later downgraded to
+    # interval class for lack of a presenting narrative: it is a real encounter,
+    # and the walk's terminal point is sealed rather than graded either way.
+    last_decision = max((e["index"] for e in encounters if point_class.get(e["index"]) == "decision"), default=None)
+    for enc in encounters:
+        if point_class.get(enc["index"]) == "interval" and (last_decision is None or enc["index"] > last_decision):
+            point_class[enc["index"]] = None
+    point_indices = [e["index"] for e in encounters if point_class.get(e["index"])]
+    walk_verifiable = {i for i in point_indices if any(j > i for j in point_indices)}
+
     for enc in encounters:
         index_offset, index_rationale = select_decision_point(c, enc)
         density = qualify_encounter(c, enc)
@@ -2065,9 +2344,17 @@ async def plan_cases(
             # to see which threshold each one missed rather than only that it did.
             "density": density,
             "qualifies_as_decision_point": density["qualifies"],
-            "outcome_verifiable": enc["index"] in verifiable_indices,
+            "outcome_verifiable": (enc["index"] in walk_verifiable) if trajectory
+                                  else (enc["index"] in verifiable_indices),
             "blockers": [],
         }
+        if trajectory:
+            proposal.update(point_class=point_class.get(enc["index"]),
+                            qualifies_as_point=bool(point_class.get(enc["index"])))
+        if trajectory and point_class.get(enc["index"]) is None and not density["qualifies"]:
+            proposal["blockers"].append(
+                "not a walk point: " + ("terminal interval visit has no later encounter to grade it"
+                                        if enc.get("n_events", 0) >= 1 else "no recorded observation"))
         if index_offset is None:
             proposal["blockers"].append(
                 "no decision point: " + str(index_rationale.get("reason")))
@@ -2075,8 +2362,12 @@ async def plan_cases(
             continue
 
         later = [e for e in encounters if e["index"] > enc["index"]
-                 and qualify_encounter(c, e)["qualifies"]]
+                 and (point_class.get(e["index"]) if trajectory else qualify_encounter(c, e)["qualifies"])]
         until_offset = select_decision_point(c, later[0])[0] if later else max(_timed_offsets(c), default=index_offset)
+        if trajectory:
+            proposal["sealed_outcome"] = seal_outcome_window(c, encounters,
+                index_offset=index_offset, until_offset=until_offset if later else None,
+                outcome_encounter_index=later[0]["index"] if later else None)
         visible, held_out, stats = build_encounter_case(
             c, enc, index_offset, until_offset=until_offset, trajectory=trajectory,
             encounters=encounters)
@@ -2108,32 +2399,40 @@ async def plan_cases(
             "case_type": case_type_signature(visible),
             "decision_offset_days": 0,      # the case is re-based on its own index
         })
-        proposal["blockers"].extend(_content_blockers(visible))
+        if trajectory and point_class.get(enc["index"]) == "interval":
+            proposal["blockers"].extend(interval_content_blockers(visible, enc, index_offset))
+        else:
+            proposal["blockers"].extend(_content_blockers(visible))
         if specialty is None:
             proposal["blockers"].append(
                 "specialty not served: this chart's signal does not clear the "
                 f"confidence floor for any enabled specialty (best {confidence:.2f} "
                 f"of {sorted(scores)}) — an admin must set it")
         proposal["generatable"] = not proposal["blockers"]
-        if trajectory and not has_encounter_narrative(visible, enc, index_offset):
-            _hold_proposal(proposal, "missing_encounter_narrative",
-                "Review required: no visible clinical narrative from this encounter. "
-                "Review source timing/type or upload additional contemporaneous notes; historical discharge "
-                "summaries and report/order forms cannot clear this hold.")
+        # A decision point is a presentation plus a decision. An encounter that
+        # clears the density gate but carries no presenting narrative (labs and
+        # reports only) is still a real contact the next encounter grades, so it
+        # stays in the walk as an INTERVAL point rather than being held. The
+        # downgrade is recorded on the proposal and the export, never silent.
+        narrative = has_encounter_narrative(visible, enc, index_offset)
+        if trajectory:
+            proposal["presenting_narrative"] = narrative
+        if trajectory and point_class.get(enc["index"]) == "decision" and not narrative:
+            point_class[enc["index"]] = "interval"
+            proposal["point_class"] = "interval"
+            proposal["qualifies_as_decision_point"] = False
+            proposal["downgraded"] = ("no presenting narrative from this encounter: labs and reports only. "
+                                      "Kept as an interval point; upload the admission or progress notes to "
+                                      "restore it as a decision point.")
+            # re-run the class-appropriate floor
+            proposal["blockers"] = [b for b in proposal["blockers"] if b not in _content_blockers(visible)]
+            proposal["blockers"].extend(interval_content_blockers(visible, enc, index_offset))
+            proposal["generatable"] = not proposal["blockers"]
         proposals.append(proposal)
 
-    if trajectory:
-        # A's answer key ends at B. If B is held, do not silently connect A to C
-        # and grade it against a different reveal. Propagate the hold backwards;
-        # the unaffected suffix can still become an ordered, bounded walk.
-        successor = None
-        for point in reversed(proposals):
-            if successor and successor.get("review_required") and not point.get("review_required"):
-                _hold_proposal(point, "outcome_requires_review",
-                    "Review required: the next decision point's evidence is held. "
-                    "Resolve its narrative hold before building this preceding point.")
-            if point.get("qualifies_as_decision_point"):
-                successor = point
+    # No backward hold propagation: every point's answer key and reveal window are
+    # sealed at generation against ITS OWN bounded window (``until_offset``), so a
+    # later point that fails to generate cannot widen an earlier point's reveal.
 
     # Authoring a question is the ONE plan step that costs a model call, so it is
     # scoped: generating a single encounter must not author six questions.
@@ -2159,12 +2458,12 @@ async def plan_cases(
             p["blockers"].append(f"beyond max_cases={max_cases}")
         generatable = [p for p in generatable if id(p) in keep]
 
-    return {
+    result = {
         "encounters": total_encounters,
         "proposals": proposals,
         "generatable": len(generatable),
         "review_required_points": sum(bool(p.get("review_required")) for p in proposals
-                                      if p.get("qualifies_as_decision_point")),
+                                      if p.get("qualifies_as_point" if trajectory else "qualifies_as_decision_point")),
         "ready_decision_points": sum(bool(p.get("generatable")) for p in proposals
                                      if p.get("qualifies_as_decision_point")),
         "min_gap_days": min_gap_days,
@@ -2183,3 +2482,12 @@ async def plan_cases(
             "min_resource_types": ENCOUNTER_MIN_RESOURCE_TYPES,
         },
     }
+    if trajectory:
+        result.update(
+            interval_points=sum(1 for p in proposals if p.get("point_class") == "interval"),
+            walk_points=sum(1 for p in proposals if p.get("qualifies_as_point")),
+            walk_verifiable_points=sum(1 for p in proposals if p.get("qualifies_as_point") and p.get("outcome_verifiable")),
+            ready_walk_points=sum(bool(p.get("generatable")) for p in proposals if p.get("qualifies_as_point")),
+            downgraded_points=sum(1 for p in proposals if p.get("downgraded")),
+        )
+    return result

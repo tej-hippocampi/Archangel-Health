@@ -36,64 +36,38 @@ That claim is not taken on trust. Every bundle runs the shipped
 `deid_verify.verify_deid` hard guard on the way in, and three of the four pass it
 clean. The fourth does not, and it does not for a reason worth reading:
 
-## Accepted pipeline v5 yield — detection and evidence readiness
+## Chart Walk yield
 
-Applying the longitudinal-fix PRD literally yields **47 encounters → 18 decision
-points → 14 verifiable** across these exact fixture trees:
+The density gate remains two distinct dates, eight events and two resource
+types. These diagnostic density counts are measured on the committed fixtures:
 
-| bundle | encounters | decision points | verifiable | status |
-|---|---|---|---|---|
-| patient-1 | 22 | 9 | 8 | ingested |
-| patient-2 | 12 | 2 | 1 | quarantined; diagnostic counts only |
-| patient-3 | 5 | 4 | 3 | ingested |
-| patient-4 | 8 | 3 | 2 | ingested; 167 curated notes, 157 panels |
+| bundle | encounters | density-qualified points | verifiable density points | walk points | status |
+| --- | --- | --- | --- | --- | --- |
+| patient-1 | 22 | 9 | 8 | 22 | ingested |
+| patient-2 | 12 | 2 | 1 | — | quarantined; diagnostic counts only |
+| patient-3 | 5 | 4 | 3 | 5 | ingested |
+| patient-4 | 7 | 3 | 2 | 7 | ingested |
 
-The user approved these measured yields. Density thresholds and the three-year
-date rule were not relaxed. Detected decision points are distinct from points
-that can safely become physician tasks:
+Walk decisions additionally require a presenting clinical narrative. Other
+observation visits are intervals; density-qualified visits lacking narrative
+are downgraded to intervals, with the reason recorded. A sparse trailing visit
+is excluded; a density-qualified terminal interval can close the walk.
 
-| bundle | detected points | held for evidence review | ready before model gates |
-|---|---|---|---|
-| patient-1 | 9 | 8 | 1 |
-| patient-2 | 2 | 1 | 0; upload remains quarantined |
-| patient-3 | 4 | 3 | 1 |
-| patient-4 | 3 | 2 | 1 |
+| bundle | walk decisions | intervals | generatable | verifiable walk points | held |
+| --- | --- | --- | --- | --- | --- |
+| patient-1 | 2 | 20 | 22 | 21 | 0 |
+| patient-2 | — | — | 0 | — | — |
+| patient-3 | 3 | 2 | 5 | 4 | 0 |
+| patient-4 | 3 | 4 | 7 | 6 | 0 |
 
-A point needs a visible contemporaneous clinical narrative. Prior discharge
-summaries, reports and order/nursing forms do not satisfy that requirement.
-Predecessors whose next outcome is held are also held; generation cannot silently
-bridge across unresolved evidence. The ready suffix can be built independently.
-For patient-4, the first two points remain review-only and the terminal point is
-ready. No three-point labelable walk is claimed. See
-`prd-longitudinal-fix/IMPLEMENTATION_STATUS.md` for the accepted policy.
+Before Chart Walk, the narrative hold cascade left patient-1, patient-3 and
+patient-4 with one ready point each (8, 3 and 2 held respectively). Patient-4 had
+eight encounters; matching a misdated medication page to its later drug orders
+removes the unsupported early encounter. No date threshold was relaxed.
 
-## Previous pipeline yield — 55 encounters → 22 decision points → 18 verifiable
-
-Measured on these exact trees, through the shipped ingestion path, and pinned by
-`tests/test_longitudinal_front_door.py` so a gate change cannot move it quietly.
-
-| bundle | specialty | encounters | decision points | verifiable | status |
-|---|---|---|---|---|---|
-| patient-1 | hepatology | 22 | **13** | 12 | ingested |
-| patient-2 | oncology | 16 | 2 | 1 | **quarantined** — see below |
-| patient-3 | hepatology | 5 | 4 | 3 | ingested |
-| patient-4 | cardiology | 12 | 3 | 2 | ingested |
-
-`LONGITUDINAL_CASES.md` quotes **59 → 25 → 21** for these four charts. That figure
-was inherited from the PRD and measured elsewhere; what this repository's code
-does to this repository's copies of the charts is 55 → 22 → 18. The difference is
-three encounters and three decision points, and it is **not** gate drift:
-patient-1's thirteen-point walk — the number the product is demoed on — reproduces
-exactly. Treat 55/22/18 as the reproducible figure and the published one as
-provenance.
-
-If a change makes these numbers move, read §2 of `LONGITUDINAL_CASES.md` before
-deciding it is progress. (patient-3 is declared **hepatology** — decompensated
-HCV cirrhosis with renal monitoring; the chart's own signal splits hepatology and
-nephrology almost evenly, which is why the declaration matters. See
-`docs/asclepius/CASE_GENERATION_CHECK.md` for the run that measured it.) Lowering the event floor raises `decision_points` (the
-number quoted in a pitch) and leaves `verifiable_decision_points` (the number that
-matters) alone — which is precisely how a lowered gate misleads.
+Patient-3's declared specialty remains hepatology. Every walk uses its chart's
+declared specialty; both point classes pay $75 per physician submission.
+The front-door, reference-walk and Chart Walk acceptance tests pin these counts.
 
 ## Why patient-2 quarantines
 
@@ -147,6 +121,6 @@ Two reasons, either sufficient:
   the archive reproducible across environments, not just across two calls on one
   disk.
 
-Measured both ways: the encounter counts are identical (22 / 16 / 5 / 12 = 55), so
-no yield number in this file moves. Pinned by
-`test_longitudinal_front_door.test_the_bytes_are_the_same_in_the_deployed_image`.
+The deployment-parity check remains
+`test_longitudinal_front_door.test_the_bytes_are_the_same_in_the_deployed_image`:
+README exclusion makes local and deployed fixture archive bytes identical.

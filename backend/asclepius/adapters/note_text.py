@@ -51,6 +51,8 @@ _DATE_HEADER_RES = tuple(re.compile(
     ))
 # The partner's filename convention: ``<index>_<YYYY-MM-DD>_<document-type>.txt``.
 _FILENAME_DATE_RE = re.compile(r"^\d+_(\d{4}-\d{2}-\d{2})_")
+_SYNOPSIS_RE = re.compile(r"^\s*(?:de-?identified\s+)?clinical\s+summary\b", re.I)
+_MULTIDOC_DELIM_RE = re.compile(r"^-{3,}\s*Image\s+\d+\s*\|\s*([^|\n]*?)\s*(?:\|\s*([^|\n]*?)\s*)?-{3,}\s*$", re.M)
 # The shapes ``timeline.parse_datetime`` reads. Anything else — ``unknown-date``,
 # ``n/a``, a stray sentence — is NOT a date and is never emitted as one.
 _DATE_SHAPED_RE = re.compile(
@@ -183,6 +185,34 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
     if not text:
         return {"notes": []}
     m = manifest or {}
+    # An exporter's synopsis ("DE-IDENTIFIED CLINICAL SUMMARY … PRIMARY DIAGNOSES …
+    # first noted ~") is documentation ABOUT the chart, not a note IN it, and it
+    # names outcomes. Never a note; recorded as a skipped entry by the caller.
+    if _SYNOPSIS_RE.match(text):
+        return {"notes": [], "_adapter_warnings": ["exporter synopsis skipped (not a clinical note)"]}
+    # A concatenated export ("--- Image 113 | 2025-01-23 | discharge summary ---" …)
+    # is many documents in one file. Split on the delimiter so each keeps its own
+    # date and type; the per-document files, when also present, dedupe against them.
+    parts = _MULTIDOC_DELIM_RE.split(text)
+    if len(parts) >= 5:                       # preamble + ≥2 (date, type, body) groups
+        notes = []
+        for i in range(1, len(parts) - 2, 3):
+            when, typ, body = parts[i], parts[i + 1], parts[i + 2].strip()
+            if len(body) < 40:
+                continue
+            note: Dict[str, Any] = {
+                "note_type": _note_type_from(None, (typ or "").strip() or None) if (typ or "").strip() else "Progress",
+                "author_role": _safe_role(m.get("author_role"), specialty),
+                "text": body,
+            }
+            d = _date_shaped((when or "").strip())
+            if d:
+                note["collected_at"] = d
+            notes.append(note)
+        frag: Dict[str, Any] = {"notes": notes}
+        if m.get("patient_key"):
+            frag["_patient_keys"] = [str(m["patient_key"])]
+        return frag
     note: Dict[str, Any] = {
         "note_type": _note_type_from(m.get("filename"), m.get("note_type")),
         "author_role": _safe_role(m.get("author_role"), specialty),

@@ -2831,12 +2831,25 @@
   const _diffBadgeClass = (band) => (
     band === 'hard' ? 'asc-badge-red' : band === 'medium' ? 'asc-badge-amber' : 'asc-badge-gray');
 
-  // Longitudinal density (PRD 2 §2): why this encounter is or is not a decision
-  // point, WITH the measurements. 34 of the 59 encounters across the four real
-  // charts fail this gate; an admin looking at a chart that yielded 3 points out
-  // of 17 needs to read which threshold each one missed, or the gate is
-  // unarguable — and the gate is the product.
+  function chartWalkSummary(plan) {
+    return (plan.encounters || 0) + ' encounters · ' + (plan.walk_points || 0)
+      + ' points (' + (plan.decision_points || 0) + ' decision · '
+      + (plan.interval_points || 0) + ' interval) · '
+      + (plan.walk_verifiable_points || 0) + ' verifiable · '
+      + (plan.ready_walk_points || 0) + ' ready';
+  }
+
+  // Density determines class; dated interval observations also belong in a walk.
   function renderDensityLine(p) {
+    if (p.point_class === 'interval') {
+      const label = p.downgraded
+        ? 'Interval visit (downgraded: no presenting narrative from this encounter)'
+        : 'Interval visit';
+      return h('div', { class: 'asc-case-note-meta' }, label
+        + (!p.qualifies_as_point ? ' · not included in this walk'
+          : p.outcome_verifiable ? ' · graded by the next point'
+          : ' · terminal point; nothing later in the record to check it against'));
+    }
     const d = p.density;
     if (!d) return null;
     if (p.qualifies_as_decision_point) {
@@ -2851,7 +2864,7 @@
       'Below the decision-point gate: ' + (d.reasons || []).join('; '));
   }
 
-  function renderProposalRow(ic, p, refresh, trajectory = false) {
+  function renderProposalRow(ic, p, refresh, trajectory = false, includeIntervalPoints = true, setPending = null) {
     const wrap = h('div', {
       class: 'asc-card-pad',
       style: 'border:1px solid var(--asc-line);border-radius:10px;margin-bottom:12px'
@@ -2935,13 +2948,15 @@
     const btn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', style: 'margin-top:10px' },
       'Generate this case');
     btn.addEventListener('click', async () => {
+      if (setPending && !setPending(true)) return;
       btn.setAttribute('disabled', '');
       btn.textContent = 'Measuring difficulty and generating…';
       clear(status);
       try {
         const r = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate', {
           method: 'POST',
-          body: { dry_run: false, trajectory, encounter_indices: [p.encounter_index] },
+          body: { dry_run: false, trajectory, encounter_indices: [p.encounter_index],
+            ...(trajectory ? { include_interval_points: includeIntervalPoints } : {}) },
         });
         const ok = (r.task_ids || []).length;
         status.appendChild(h('div', { class: ok ? 'asc-inline-ok' : 'asc-inline-warn' },
@@ -2954,6 +2969,7 @@
       }
       btn.removeAttribute('disabled');
       btn.textContent = 'Generate this case';
+      if (setPending) setPending(false);
     });
     wrap.appendChild(btn);
     wrap.appendChild(status);
@@ -2969,17 +2985,37 @@
   function openCasePlanModal(upload, ic, plan, statusBox, opts) {
     const trajectory = !!(opts && opts.trajectory);
     const reviewOnly = !!(opts && opts.reviewOnly);
+    const includeIntervalPoints = !opts || opts.includeIntervalPoints !== false;
     const overlay = h('div', {
       class: 'call-team-overlay is-open',
-      onClick: (e) => { if (e.target === overlay) overlay.remove(); },
+      onClick: (e) => { if (e.target === overlay && !pending) overlay.remove(); },
     });
     const list = h('div', {});
     const proposals = plan.proposals || [];
+    let pending = false;
+    let disabledControls = [];
+    const setPending = (value) => {
+      if (value) {
+        if (pending) return false;
+        disabledControls = [...popup.querySelectorAll('button'), ...popup.querySelectorAll('input'),
+          ...popup.querySelectorAll('select')].map((control) => [control, control.hasAttribute('disabled')]);
+        disabledControls.forEach(([control]) => control.setAttribute('disabled', ''));
+      } else {
+        disabledControls.forEach(([control, disabled]) => { if (!disabled) control.removeAttribute('disabled'); });
+      }
+      pending = value;
+      return true;
+    };
     // `refresh('specialty')` comes from the row-level picker (§A5): the upload
     // now declares a specialty, so the plan this modal shows is stale. Close it
     // and re-plan through the caller's `replan`, which re-runs the same dry run
     // that opened this one.
     const onRowRefresh = (why) => {
+      if (why === 'specialty' && trajectory) {
+        loadIngestionLists();
+        replanTrajectory(includeIntervalPoints).catch((e) => toast(errText(e, 'Could not plan this walk.'), 'error'));
+        return;
+      }
       if (why === 'specialty' && opts && typeof opts.replan === 'function') {
         overlay.remove();
         opts.replan();
@@ -2989,25 +3025,27 @@
     };
     const declarationRequired = trajectory && !plan.specialty_hint;
     if (declarationRequired) list.appendChild(specialtyResolver(upload.upload_id, () => onRowRefresh('specialty')));
-    proposals.forEach((p) => list.appendChild(renderProposalRow(ic, (declarationRequired || reviewOnly) ? { ...p, generatable: false, blockers: reviewOnly && !p.review_required ? ['Existing tasks are preserved; this is a read-only review.'] : p.blockers } : p, onRowRefresh, trajectory)));
+    proposals.forEach((p) => list.appendChild(renderProposalRow(ic, (declarationRequired || reviewOnly) ? { ...p, generatable: false, blockers: reviewOnly && !p.review_required ? ['Existing tasks are preserved; this is a read-only review.'] : p.blockers } : p, onRowRefresh, trajectory, includeIntervalPoints, setPending)));
 
     const status = h('div', { style: 'margin-top:12px' });
-    const nGen = trajectory ? (plan.ready_decision_points || 0) : (plan.generatable || 0);
+    const nGen = trajectory ? (plan.ready_walk_points || 0) : (plan.generatable || 0);
     const allBtn = h('button', { class: 'asc-btn asc-btn-primary' },
       'Generate all ' + nGen + ' case(s)');
     if (!nGen || declarationRequired || reviewOnly) allBtn.setAttribute('disabled', '');
     allBtn.addEventListener('click', async () => {
+      if (!setPending(true)) return;
       allBtn.setAttribute('disabled', '');
       allBtn.textContent = 'Generating…';
       clear(status);
       try {
         const r = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate',
-          { method: 'POST', body: { dry_run: false, trajectory } });
+          { method: 'POST', body: { dry_run: false, trajectory,
+            ...(trajectory ? { include_interval_points: includeIntervalPoints } : {}) } });
         overlay.remove();
         clear(statusBox);
         statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
           (trajectory
-            ? 'Built a chart walk of ' + r.generated + ' decision point(s). They are '
+            ? 'Built a chart walk of ' + r.generated + ' point(s). They are '
               + 'held back from every queue until you send them from Task Routing.'
             : 'Generated ' + r.generated + ' V4 case(s)')
           + (r.review_required_points ? ' · ' + r.review_required_points + ' held for evidence review' : '')
@@ -3021,6 +3059,7 @@
         allBtn.removeAttribute('disabled');
         allBtn.textContent = 'Generate all ' + nGen + ' case(s)';
       }
+      setPending(false);
     });
 
     // ── Longitudinal trajectory (PRD 2 §4 Phase 5) ───────────────────────────
@@ -3030,25 +3069,46 @@
     // because "a trajectory is not a discount on physician time — it is N tasks
     // that happen to share a chart".
     const nDensityPoints = plan.decision_points || 0;
-    const nPoints = trajectory ? (plan.ready_decision_points || 0) : nDensityPoints;
-    const nVerifiable = trajectory ? Math.max(0, nPoints - 1) : (plan.verifiable_decision_points || 0);
+    const nPoints = trajectory ? (plan.ready_walk_points || 0) : nDensityPoints;
+    const nVerifiable = trajectory ? (plan.walk_verifiable_points || 0) : (plan.verifiable_decision_points || 0);
     const trajBtn = h('button', { class: 'asc-btn asc-btn-primary' },
-      'Chain ' + nPoints + ' decision point(s) into one trajectory');
+      trajectory ? 'Chain ' + nPoints + ' point(s) into one trajectory' : 'Preview chart walk');
     if (!nPoints || declarationRequired || reviewOnly) trajBtn.setAttribute('disabled', '');
-    const replanTrajectory = async () => {
-      const walkPlan = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate',
-        { method: 'POST', body: { dry_run: true, trajectory: true } });
-      overlay.remove();
-      openCasePlanModal(upload, ic, walkPlan, statusBox,
-        { ...opts, trajectory: true, replan: replanTrajectory });
+    const replanTrajectory = async (include = includeIntervalPoints) => {
+      // A changed toggle invalidates every generation control until the new plan
+      // arrives. On failure keep the old plan and restore its original setting.
+      if (!setPending(true)) return;
+      try {
+        const walkPlan = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate',
+          { method: 'POST', body: { dry_run: true, trajectory: true,
+            derive_questions: false, include_interval_points: include } });
+        clear(statusBox);
+        statusBox.appendChild(h('div', { class: 'asc-card-sub' }, chartWalkSummary(walkPlan)));
+        overlay.remove();
+        openCasePlanModal(upload, ic, walkPlan, statusBox,
+          { ...opts, trajectory: true, includeIntervalPoints: include });
+      } catch (e) {
+        intervalBox.checked = includeIntervalPoints;
+        throw e;
+      } finally {
+        setPending(false);
+      }
     };
+    const intervalBox = h('input', { type: 'checkbox', checked: includeIntervalPoints,
+      style: 'width:auto;flex:0 0 auto',
+      'aria-label': 'Include interval visits' });
+    intervalBox.addEventListener('change', async () => {
+      if (pending) { intervalBox.checked = includeIntervalPoints; return; }
+      try { await replanTrajectory(intervalBox.checked); }
+      catch (e) { toast(errText(e, 'Could not plan this walk.'), 'error'); }
+    });
     trajBtn.addEventListener('click', async () => {
+      if (pending) return;
       if (!trajectory) {
-        // A static preview has not applied longitudinal evidence holds.
-        trajBtn.disabled = true;
+        // A static preview has not applied the walk's point classification.
         try {
           await replanTrajectory();
-        } catch (e) { trajBtn.disabled = false; toast(errText(e, 'Could not plan this walk.'), 'error'); }
+        } catch (e) { toast(errText(e, 'Could not plan this walk.'), 'error'); }
         return;
       }
       const cost = (nPoints * 75).toLocaleString();
@@ -3060,12 +3120,14 @@
         + 'construction, so a second label buys no agreement statistic.\n'
         + '· Physician cost at the standard rate: about $' + cost + '.\n\n'
         + 'Each physician answers the points in order and cannot read ahead.')) return;
+      if (!setPending(true)) return;
       trajBtn.setAttribute('disabled', '');
       trajBtn.textContent = 'Generating trajectory…';
       clear(status);
       try {
         const r = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate',
-          { method: 'POST', body: { dry_run: false, trajectory: true } });
+          { method: 'POST', body: { dry_run: false, trajectory: true,
+            include_interval_points: includeIntervalPoints } });
         overlay.remove();
         clear(statusBox);
         statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
@@ -3074,14 +3136,15 @@
           + (r.estimated_cost_usd ? ' · est. $' + r.estimated_cost_usd : '')
           + (r.gated ? ' · ' + r.gated + ' gated' : '')
           + (r.failed ? ' · ' + r.failed + ' failed' : '') + '.'));
-        toast('Chained ' + (r.trajectory_points || 0) + ' decision points into one trajectory.', 'success');
+        toast('Chained ' + (r.trajectory_points || 0) + ' points into one trajectory.', 'success');
         loadIngestionLists();
       } catch (e) {
         status.appendChild(h('div', { class: 'asc-inline-error' },
           errText(e, 'Trajectory generation failed.')));
         trajBtn.removeAttribute('disabled');
-        trajBtn.textContent = 'Chain ' + nPoints + ' decision point(s) into one trajectory';
+        trajBtn.textContent = 'Chain ' + nPoints + ' point(s) into one trajectory';
       }
+      setPending(false);
     });
 
     const popup = h('div', {
@@ -3090,10 +3153,11 @@
       onClick: (e) => e.stopPropagation(),
     },
       h('div', { class: 'call-team-title' },
-        'Proposed cases: ' + (upload.partner_label || upload.partner_id || 'partner')),
+        (trajectory ? 'Chart walk: ' : 'Proposed cases: ') + (upload.partner_label || upload.partner_id || 'partner')),
       h('div', { class: 'call-team-sub' },
-        (ic.patient_key || '') + ' · ' + (plan.encounters || 0) + ' encounters detected · '
-        + nGen + ' generatable'
+        (ic.patient_key ? ic.patient_key + ' · ' : '')
+        + (trajectory ? chartWalkSummary(plan)
+          : (plan.encounters || 0) + ' encounters detected · ' + nGen + ' generatable')
         + (plan.specialty_hint ? ' · specialty ' + plan.specialty_hint : '')),
       reviewOnly ? h('div', { class: 'asc-inline-warn' }, 'Read-only chart review: existing tasks are preserved. Provide a corrected upload to build additional points.') : null,
       plan.why ? h('div', { class: 'asc-dim' }, plan.why) : null,
@@ -3104,15 +3168,17 @@
       h('div', { class: 'asc-card-sub', style: 'margin-bottom:6px' },
         'Nothing here has been written. Difficulty is measured only when you generate, '
         + 'a band shown as "proposed" is the structural prior, not a frontier failure rate.'),
-      // Both numbers, always, because they are what a chart walk is priced on and
-      // they are never the same number.
       h('div', { class: 'asc-card-sub', style: 'margin-bottom:14px' },
-        nDensityPoints + ' encounter(s) clear the decision-point gate (≥2 dates, ≥8 events, '
-        + '≥2 resource types) · ' + nVerifiable + ' have a later encounter to be checked '
-        + 'against. Encounters below the gate are single-contact draws, not decisions.'),
-      trajectory ? h('div', { class: 'asc-inline-warn' }, (plan.review_required_points || 0)
-        + ' decision point(s) held for evidence review · ' + nPoints + ' ready to build. '
-        + 'Held points and predecessors that depend on them cannot be generated until the evidence is resolved.') : null,
+        trajectory
+          ? 'Decision points meet the density gate (≥2 dates, ≥8 events, ≥2 resource types) '
+            + 'and have a presenting narrative. Other eligible contacts are interval visits.'
+          : nDensityPoints + ' encounter(s) clear the decision-point gate (≥2 dates, ≥8 events, '
+            + '≥2 resource types) · ' + nVerifiable + ' have a later encounter to be checked against.'),
+      trajectory ? h('label', { class: 'asc-field', style: 'display:flex;flex-direction:row;align-items:center;gap:8px' },
+        intervalBox, 'Include interval visits') : null,
+      trajectory && plan.review_required_points ? h('div', { class: 'asc-inline-warn' }, plan.review_required_points
+        + ' point(s) held for evidence review · ' + nPoints + ' ready to build. '
+        + 'Review the evidence issues shown on those rows.') : null,
       list,
       status,
       h('div', { style: 'display:flex;gap:10px;margin-top:16px;flex-wrap:wrap' },
@@ -3363,6 +3429,7 @@
                      { method: 'POST', body: { dry_run: true, trajectory: true, derive_questions: false } })
             .then((plan) => {
               clear(statusBox);
+              statusBox.appendChild(h('div', { class: 'asc-card-sub' }, chartWalkSummary(plan)));
               openCasePlanModal(upload, first, plan, statusBox, {
                 trajectory: true, reviewOnly: first.status === 'promoted',
                 // A specialty set from inside the modal re-plans the walk (§A5)

@@ -4274,15 +4274,22 @@
   //
   // Rendered from ``state.trajectoryProgress``, hydrated by ``openTaskById`` on the
   // way in. Absent on every ordinary case, so V1–V4 render byte-for-byte as before.
+  function trajectoryStepLabel(task, sequenceIndex) {
+    const step = sequenceIndex == null ? null : sequenceIndex + 1;
+    const prog = state.trajectoryProgress;
+    const of = prog && prog.n_points ? (' of ' + prog.n_points) : '';
+    const pointClass = (task.generation || {}).point_class;
+    const label = pointClass === 'interval' ? ' · interval visit'
+      : pointClass === 'decision' ? ' · decision point' : '';
+    return (step ? 'Step ' + step + of : 'Longitudinal case') + label;
+  }
+
   function renderTrajectoryBanner() {
     const task = state.task;
     if (!task || !task.trajectory_id) return null;
-    const prog = state.trajectoryProgress;
-    const step = (task.sequence_index == null) ? null : (task.sequence_index + 1);
-    const of = prog && prog.n_points ? (' of ' + prog.n_points) : '';
     return h('div', { class: 'asc-meta-row', style: 'margin-top:6px' },
       h('span', { class: 'asc-badge asc-badge-accent' },
-        step ? ('Decision ' + step + of) : 'Longitudinal case'),
+        trajectoryStepLabel(task, task.sequence_index)),
       h('span', { class: 'asc-case-note-meta' },
         'One patient, in order. You are seeing this chart as it stood at this '
         + 'moment; what happened afterwards is sealed until you submit.'));
@@ -4333,11 +4340,11 @@
     const outcome = data.outcome;
     const expected = (data.expected_trajectory || {}).expectations || [];
     const falsifiers = (data.expected_trajectory || {}).falsifiers || [];
-    const step = (data.sequence_index == null) ? null : (data.sequence_index + 1);
 
     const head = h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-substage-head' },
-        h('div', { class: 'asc-substage-step' }, step ? ('Step ' + step) : 'Outcome'),
+        h('div', { class: 'asc-substage-step' }, data.sequence_index == null
+          ? 'Outcome' : trajectoryStepLabel(task, data.sequence_index)),
         h('div', { class: 'asc-substage-title' }, 'What happened next')),
       h('div', { class: 'asc-help' },
         outcome
@@ -4349,15 +4356,15 @@
     const wrap = h('div', { class: 'asc-wrap' }, head);
     if (outcome) wrap.appendChild(renderOutcomePanel(outcome));
 
-    if (expected.length) {
+    if (outcome && expected.length) {
       wrap.appendChild(renderSelfScoreCard(task, data, expected, falsifiers));
     } else {
-      // No prediction was recorded, so there is nothing to grade. Say that
-      // plainly rather than showing an empty scoring card.
+      // A missing prediction or terminal outcome leaves nothing to grade.
       wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
         h('div', { class: 'asc-help' },
-          'You did not record an expected trajectory on this case, so there is '
-          + 'nothing here to check against the record.'),
+          outcome ? 'You did not record an expected trajectory on this case, so there is '
+          + 'nothing here to check against the record.'
+          : 'This point has no later outcome to score.'),
         h('div', { style: 'margin-top:16px' }, trajectoryContinueButton(data))));
     }
     // §6, in front of the physician at the moment they grade — not only in the

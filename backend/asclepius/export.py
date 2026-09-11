@@ -24,6 +24,7 @@ import json
 import logging
 import os
 import re
+import uuid
 import zipfile
 import realm as _realm
 from datetime import datetime, timezone
@@ -268,6 +269,43 @@ def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+_WALK_AUDIT_FIELDS = frozenset({
+    "captured_at", "exported_at", "created_at", "generated_at", "submitted_at",
+    "reviewed_at", "scored_at", "updated_at", "validated_at", "verified_at",
+})
+
+
+def _walk_buyer_copy(value: Any) -> Any:
+    """Omit operational timestamps and monetary fields from buyer copies only.
+
+    Clinical text is never silently rewritten here: the final date guard rejects
+    unresolved dates. Stored records and the internal export audit remain intact.
+    """
+    if isinstance(value, dict):
+        return {k: (_walk_version(v) if k in ("taxonomy_version", "config_version", "ai_config_version")
+                    else _walk_buyer_copy(v)) for k, v in value.items()
+                if k not in _WALK_AUDIT_FIELDS
+                and not re.search(r"price|_usd$|_cents$", k, re.I)}
+    if isinstance(value, list):
+        return [_walk_buyer_copy(v) for v in value]
+    return value
+
+
+def _walk_version(value: Any) -> Any:
+    from asclepius.timeline import datelike_leftovers_in_text
+    if isinstance(value, str) and datelike_leftovers_in_text(value):
+        return "sha256:" + _sha256_text(value)
+    return value
+
+
+def _assert_date_free_bundle(out_dir: Path, files: List[str]) -> None:
+    from asclepius.timeline import datelike_leftovers_in_text
+    for name in files:
+        if datelike_leftovers_in_text((out_dir / name).read_text(encoding="utf-8")):
+            raise ExportValidationError(
+                f"Calendar date in chart-walk export {name}. Batch rejected before export state changes.")
+
+
 def _rec_modality(rec: Dict[str, Any]) -> str:
     """Record modality (Synthetic Multimodal Cases PRD §5, §8): 'multimodal' when
     the record carries a structured case, else 'text'. Stamped into
@@ -478,10 +516,10 @@ def _passes_filters(
 
 
 # ─── Companions ───────────────────────────────────────────────────────────────
-def _data_dictionary_md(profile_name: str) -> str:
+def _data_dictionary_md(profile_name: str, *, date_free: bool = False) -> str:
     return f"""# Archangel Health Export: Data Dictionary
 
-Buyer profile: `{profile_name}` · Taxonomy version: `{ASCLEPIUS_TAXONOMY_VERSION}` · Config version: `{ASCLEPIUS_CONFIG_VERSION}`
+Buyer profile: `{profile_name}` · Taxonomy version: `{_walk_version(ASCLEPIUS_TAXONOMY_VERSION) if date_free else ASCLEPIUS_TAXONOMY_VERSION}` · Config version: `{_walk_version(ASCLEPIUS_CONFIG_VERSION) if date_free else ASCLEPIUS_CONFIG_VERSION}`
 
 Each line in `{JSONL_NAME}` is one JSON record mapped to the target buyer profile.
 The `type` field selects the schema. Canonical fields (pre-mapping) below.
@@ -566,7 +604,7 @@ answer, so the two observations are not independent and κ does not apply. The
 review acceptance rate and Cohen's κ are reported as two separately named
 figures in `{QUALITY_NAME}`; κ covers only the independently double-labeled slice.
 
-## Longitudinal decision points — the `trajectory` annex
+## Longitudinal walk points — the `trajectory` annex
 
 A **longitudinal case** is a real chart truncated at one encounter. The physician
 answers with the record sealed at that moment, and the chart's own next encounter
@@ -580,6 +618,10 @@ the buyer profile's schema, and documented here because it ships.
 | field | meaning |
 | --- | --- |
 | `trajectory.trajectory_id` | **the reassembly key.** Every decision point taken from one chart walk shares it. `records.jsonl` is one line per record, so without this a thirteen-point chart arrives as thirteen unrelated rows |
+| `trajectory.point_class` | `decision` (density-qualified with a presenting narrative) or `interval` (follow-up observations); `null` for unclassified legacy walks |
+| `trajectory.presenting_narrative` | whether the point has a contemporaneous presenting clinical narrative; `null` when legacy metadata is absent |
+| `trajectory.downgraded` | reason a density-qualified point became an interval; otherwise `null` |
+| `trajectory.point_counts` | decision, interval and unclassified counts of distinct shipped points in this trajectory, after profile filtering; multiple record types or labels count once |
 | `trajectory.sequence_index` | 0-based position in the walk. **Ordering is the point** — point *n*'s visible chart is the state before point *n*'s decision, and point *n+1*'s chart contains what happened after it. Sort on this, never on `captured_at` |
 | `trajectory.expected_trajectory.expectations[]` | what the physician said should happen next if their assessment was right, each with an optional `horizon_days` |
 | `trajectory.expected_trajectory.falsifiers[]` | **what would tell them they were wrong.** Specialist-authored, written before the next encounter was revealed, attached to a real chart. This is the falsifier corpus |
@@ -604,9 +646,10 @@ what was done.
 ending in death or transfer are absent by construction — and that is exactly where
 the interesting failures live.
 
-**Yield per chart is not predictable.** One five-year chart yields thirteen
-decision points; one twenty-year chart yields two. Count decision points, not
-records and not charts.
+**Yield per chart is not predictable.** Count distinct walk points by class.
+The same class metadata and counts appear at case level in `cases.jsonl`.
+Chart-walk bundles omit operational calendar timestamps and monetary fields;
+clinical time is relative. Internal audit timestamps remain in the store.
 
 **`study_findings_policy` varies within a single walk.** It is computed per
 truncation: a window carrying no imaging is `visible`, a later one carrying a
@@ -745,33 +788,46 @@ def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
   credentialed specialist's work. Generated prompts are never auto-marked grounded."""
 
 
-def _longitudinal_scope_md(records: List[Dict[str, Any]]) -> str:
-    """The Composition line naming what a longitudinal batch actually contains
-    (Longitudinal E2E PRD §5.3): how many WALKS, and how many points across them.
-
-    Two numbers because they are never the same number and the pair is what the
-    artifact is priced on. "21 records" says nothing about whether that is two
-    complete chart walks or twenty-one unrelated fragments, and those are
-    different products at very different prices. Emitted only when the batch
-    carries a trajectory, so a V1–V4 datasheet is byte-for-byte unchanged.
-    """
-    walks: Dict[str, int] = {}
+def _walk_point_counts(records: List[Dict[str, Any]]) -> Dict[str, Dict[str, int]]:
+    """Count distinct shipped points, after profile filtering, not record lines."""
+    points: Dict[str, Dict[Any, str]] = {}
     for rec in records:
-        payload = rec.get("payload") or {}
+        # A buyer profile may itself name a field "payload". The canonical
+        # trajectory annex always wins over that arbitrary mapped field.
+        payload = rec if "trajectory" in rec else (rec.get("payload") or rec)
+        if not isinstance(payload, dict):
+            continue
         block = payload.get("trajectory") or {}
+        if not isinstance(block, dict):
+            continue
         tid = block.get("trajectory_id") or payload.get("trajectory_id")
         if tid:
-            walks[str(tid)] = walks.get(str(tid), 0) + 1
+            seq = block.get("sequence_index", payload.get("sequence_index"))
+            key = ("sequence", seq) if seq is not None else ("task", payload.get("task_id"))
+            cls = block.get("point_class")
+            points.setdefault(str(tid), {})[key] = cls if cls in ("decision", "interval") else "unclassified"
+    return {tid: {cls: list(rows.values()).count(cls)
+                  for cls in ("decision", "interval", "unclassified")}
+            for tid, rows in points.items()}
+
+
+def _longitudinal_scope_md(records: List[Dict[str, Any]]) -> str:
+    walks = _walk_point_counts(records)
     if not walks:
         return ""
-    n_walks, n_points = len(walks), sum(walks.values())
+    n_walks, n_points = len(walks), sum(sum(c.values()) for c in walks.values())
+    rows = "\n".join(f"| `{tid}` | {c['decision']} | {c['interval']} | {c['unclassified']} |"
+                     for tid, c in sorted(walks.items()))
     return (
         f"- Scope: **V5 longitudinal** · {n_walks} trajector"
         f"{'y' if n_walks == 1 else 'ies'} · {n_points} point"
-        f"{'' if n_points == 1 else 's'}. Records are one line per POINT; the "
+        f"{'' if n_points == 1 else 's'}. Multiple record lines may describe one point; the "
         "reassembly key is `trajectory.trajectory_id` and the order is "
         "`trajectory.sequence_index`. Never sort a walk on `captured_at` — that is "
-        "when the physician worked, not when the patient did."
+        "when the physician worked, not when the patient did.\n\n"
+        "Counts below cover distinct shipped points; a filtered export may contain only part of a walk.\n\n"
+        "| Trajectory | Decision | Interval | Unclassified (legacy) |\n"
+        "| --- | --- | --- | --- |\n" + rows
     )
 
 
@@ -888,7 +944,9 @@ def _multimodal_section_md(records: List[Dict[str, Any]], counts: Dict[str, Any]
 def _datasheet_md(*, export_id: str, profile_name: str, counts: Dict[str, Any],
                   records: List[Dict[str, Any]], contributors: List[Dict[str, Any]],
                   scope: Optional[Dict[str, Any]] = None,
-                  eval_pack: Optional[Dict[str, Any]] = None) -> str:
+                  eval_pack: Optional[Dict[str, Any]] = None,
+                  longitudinal_records: Optional[List[Dict[str, Any]]] = None,
+                  date_free: bool = False) -> str:
     # No ``or "unspecified"`` fallback (Buyer Response PRD §6 E1): packaging now
     # fails closed when a credential cannot be resolved, so a None here would be a
     # bug, not a routine gap. Drop any stray None rather than manufacture a
@@ -906,7 +964,7 @@ def _datasheet_md(*, export_id: str, profile_name: str, counts: Dict[str, Any],
     ) or "- n/a"
     return f"""{SANDBOX_STAMP_MD if _realm.is_sandbox() else ""}# Datasheet: Archangel Health Expert Evaluation Export `{export_id}`
 
-Generated: {datetime.utcnow().isoformat()}Z · Buyer profile: `{profile_name}`
+{'' if date_free else 'Generated: ' + datetime.utcnow().isoformat() + 'Z · '}Buyer profile: `{profile_name}`
 
 ## Motivation
 Credentialed-specialist judgments comparing AI-generated answers to medical
@@ -920,7 +978,7 @@ examples, and PRM800K-style step-level reasoning traces for frontier-lab trainin
 - By product version: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_portal_version', {}).items())) or "n/a"} (V1 classic · V2 assisted · V3 seamless synthetic · **V4 REAL de-identified static cases** · **V5 REAL longitudinal chart walks**)
 - By modality: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_modality', {}).items())) or "n/a"} (text vs structured-multimodal case)
 {_composition_scope_line(scope)}
-{_longitudinal_scope_md(records)}
+{_longitudinal_scope_md(records if longitudinal_records is None else longitudinal_records)}
 {_scope_section_md(scope)}
 {_multimodal_section_md(records, counts)}
 {_synthetic_provenance_md(records)}
@@ -1037,7 +1095,7 @@ def _multimodal_quality_md(records: List[Dict[str, Any]], counts: Dict[str, Any]
 
 
 def _quality_report_md(*, export_id: str, profile_name: str, records: List[Dict[str, Any]],
-                       stats: Dict[str, Any]) -> str:
+                       stats: Dict[str, Any], date_free: bool = False) -> str:
     counts = _counts(records)
     grounded = sum(1 for r in records if (r.get("payload") or {}).get("grounded"))
     grounded_pct = round(100 * grounded / counts["total"], 1) if counts["total"] else 0.0
@@ -1116,7 +1174,7 @@ is reported separately below.
     ) or "- n/a"
     return f"""# Quality Report: Archangel Health Export `{export_id}`
 
-Generated: {datetime.utcnow().isoformat()}Z · Buyer profile: `{profile_name}`
+{'' if date_free else 'Generated: ' + datetime.utcnow().isoformat() + 'Z · '}Buyer profile: `{profile_name}`
 
 ## Totals by record type
 - Total records: **{counts['total']}**
@@ -1164,7 +1222,7 @@ more than by an hourly rate. The count is stated so the pool is fully described.
 ## Contributor breakdown (credential mix, hours, counts)
 {contrib_lines}
 
-Taxonomy version: `{ASCLEPIUS_TAXONOMY_VERSION}` · Config version: `{ASCLEPIUS_CONFIG_VERSION}`
+Taxonomy version: `{_walk_version(ASCLEPIUS_TAXONOMY_VERSION) if date_free else ASCLEPIUS_TAXONOMY_VERSION}` · Config version: `{_walk_version(ASCLEPIUS_CONFIG_VERSION) if date_free else ASCLEPIUS_CONFIG_VERSION}`
 """
 
 
@@ -1510,6 +1568,8 @@ def _eval_pack_md(export_id: str, summary: Dict[str, Any]) -> str:
     standalone reusable grader that re-licenses per model version (recurring), and how
     to run it. This file is what makes the eval pack legible as a separate line item."""
     files = "\n".join(f"- `{f}`" for f in summary["files"])
+    value_line = (f"- Recurring value (this batch): **${summary['recurring_value_usd']:.2f}**"
+                  if "recurring_value_usd" in summary else "")
     return f"""# Archangel Health Rubric Eval Pack: `{export_id}`
 
 **SKU:** `{summary['sku']}` · **Billing:** {summary['billing']} ·
@@ -1538,7 +1598,7 @@ against it. Re-validation is the recurring event ({summary['revalidation_trigger
 - Gameable (verbose-wrong beats terse-right): **{summary['n_gameable']}**
 - Premium graders: **{summary['n_premium']}** · grounded: **{summary['n_grounded']}** ·
   name a critical negative: **{summary['n_critical_negative']}**
-- Recurring value (this batch): **${summary['recurring_value_usd']:.2f}**
+{value_line}
 
 See `{VALIDITY_REPORT_NAME}` for the per-rubric breakdown.
 
@@ -1558,6 +1618,10 @@ def _eval_pack_datasheet_md(summary: Optional[Dict[str, Any]]) -> str:
     Empty when the batch carries no rubric records."""
     if not summary:
         return ""
+    if "recurring_value_usd" not in summary:
+        return (f"\n## Rubric eval pack\nThis batch includes {summary['n_rubrics']} rubrics; "
+                f"{summary['n_validated']} validated. Validity is specific to the model version. "
+                f"See `{EVAL_PACK_NAME}` for the scorer and validity report.")
     return f"""
 ## Eval pack (separate recurring SKU)
 This batch includes a **rubric eval pack** (`{summary['sku']}`), reported and priced
@@ -1620,7 +1684,7 @@ def _case_bundle(
             # label rather than on the case: two physicians walking the same
             # decision point write two different predictions, and folding them to
             # case level would lose whose was whose.
-            "trajectory": asc_packaging.trajectory_block(tasks[tid], sub),
+            "trajectory": mapped.get("trajectory"),
             "records": [],
         })
         # The case-level ``review``/``supervision`` blocks are authoritative;
@@ -1651,6 +1715,9 @@ def _case_bundle(
             # group cases.jsonl by chart walk without joining through records.
             "trajectory_id": task.get("trajectory_id"),
             "sequence_index": task.get("sequence_index"),
+            **({key: (labels[0].get("trajectory") or {}).get(key)
+                for key in ("point_class", "presenting_narrative", "downgraded", "point_counts")}
+               if task.get("trajectory_id") else {}),
             "specialty": task.get("specialty"),
             "difficulty": task.get("difficulty"),
             "prompt": task.get("prompt"),
@@ -1879,6 +1946,31 @@ def build_export(
     ]
     if not records:
         raise ValueError("No export-ready records match the selected filters.")
+    # Packaging predates classification and does not persist the export annex.
+    # Resolve current task metadata on copies, before ordering or profile mapping.
+    _tasks_by_tid: Dict[Any, Optional[Dict[str, Any]]] = {}
+    hydrated = []
+    for rec in records:
+        payload = dict(rec.get("payload") or {})
+        rtype = payload.get("type") or rec.get("type")
+        if rtype not in (prof.get("record_types") or []) or not profiles.field_map_for(prof, rtype):
+            continue
+        tid = rec.get("task_id") or payload.get("task_id")
+        if tid not in _tasks_by_tid:
+            task = store.get_task(tid) if tid else None
+            if task and task.get("trajectory_id"):
+                task = {**task, "_reassigned": store.point_was_reassigned(tid)}
+            _tasks_by_tid[tid] = task
+        block = asc_packaging.trajectory_block(_tasks_by_tid[tid], None)
+        if block:
+            payload["trajectory"] = block
+        hydrated.append({**rec, "payload": payload})
+    records = hydrated
+    date_free = any((r["payload"].get("trajectory") or {}).get("trajectory_id") for r in records)
+    if date_free and license_expires_at:
+        raise ExportValidationError(
+            "A chart-walk export cannot carry a calendar-dated license expiry. "
+            "No licensing terms or export state were changed.")
     # ORDERED, and this is the product rather than tidiness. Point n's visible
     # chart is the state before point n's decision and point n+1's contains what
     # happened after it, so a walk delivered out of order reads as a contradictory
@@ -1886,7 +1978,7 @@ def build_export(
     # sort key is constant for them and Python's sort is stable.
     records.sort(key=lambda r: _trajectory_sort_key(r))
 
-    export_id = _new_export_id()
+    export_id = "exp-" + uuid.uuid4().hex if date_free else _new_export_id()
     exported_at = datetime.utcnow().isoformat()
     # Resolved once per batch, not per record: one bundle ships under one license.
     from asclepius.constants import default_license as _default_license
@@ -1904,7 +1996,6 @@ def build_export(
     # Same caching discipline for the longitudinal annex (PRD 2 §4.2.5): the task
     # carries the walk identity, the submission carries the falsifier, and a
     # thirteen-point chart would otherwise re-read both on every record.
-    _tasks_by_tid: Dict[Any, Optional[Dict[str, Any]]] = {}
     _subs_by_sid: Dict[Any, Optional[Dict[str, Any]]] = {}
     # Related-party disclosure on records packaged before the field existed
     # (audit H3). Packaging runs once, at submit, so the entire back catalogue
@@ -1934,10 +2025,14 @@ def build_export(
                     payload, rec, store)
             payload["related_party"] = _rp_by_sid[_sid]
         rtype = payload.get("type") or rec.get("type")
+        if date_free:
+            payload = _walk_buyer_copy(payload)
         mapped = profiles.map_record(prof, payload)
         if mapped is None:
             # Record type not emitted by this profile — skip it.
             continue
+        if date_free:
+            mapped = _walk_buyer_copy(mapped)
         schema = profiles.schema_for(prof, rtype)
         if schema:
             errs = profiles.validate_against_schema(mapped, schema)
@@ -1992,6 +2087,8 @@ def build_export(
         _traj = asc_packaging.trajectory_block(_tasks_by_tid[tid], _subs_by_sid[sid])
         if _traj:
             mapped["trajectory"] = _traj
+        if date_free:
+            mapped = _walk_buyer_copy(mapped)
         # THE CORE RULE (spec §4, §5): buyer-facing records carry credential
         # ATTRIBUTES only. Reject the whole batch loudly if ANY Tier B
         # (identifying / locating) field appears in ANY record.
@@ -2010,7 +2107,6 @@ def build_export(
                     f"Tier B value leak: record {rec.get('record_id')} ({rtype}) "
                     f"contains a private-vault value ({vleak!r}). Batch rejected."
                 )
-        lines.append(json.dumps(mapped, ensure_ascii=False, sort_keys=True))
         emitted.append(rec)
         mapped_objs.append(mapped)
 
@@ -2018,6 +2114,13 @@ def build_export(
         raise ValueError(
             f"No records match the buyer profile {profile_name!r} record types."
         )
+
+    point_counts = _walk_point_counts(mapped_objs)
+    for mapped in mapped_objs:
+        block = mapped.get("trajectory") or {}
+        if block.get("trajectory_id"):
+            block["point_counts"] = point_counts[str(block["trajectory_id"])]
+        lines.append(json.dumps(mapped, ensure_ascii=False, sort_keys=True))
 
     # Exclusivity gate (audit U5). Placed here and not earlier because ``emitted``
     # is the first point at which we know precisely which records would leave the
@@ -2042,6 +2145,8 @@ def build_export(
     # per case (every labeler + every review + consensus). Same CORE RULE: every
     # case line passes the Tier B leak gate or the whole batch is rejected.
     cases = _case_bundle(store, emitted, mapped_objs, _reviews_by_sid, _obs_by_tid)
+    if date_free:
+        cases = _walk_buyer_copy(cases)
     case_lines: List[str] = []
     for case_obj in cases:
         leak = asc_credentials.find_tier_b_leak(case_obj)
@@ -2109,19 +2214,23 @@ def build_export(
     # as a separate recurring line. Empty when the batch carries no rubric records.
     _rubric_records = [r for r in emitted if r.get("type") == "rubric"]
     eval_pack_summary = _eval_pack_summary(_rubric_records) if _rubric_records else None
+    if date_free:
+        eval_pack_summary = _walk_buyer_copy(eval_pack_summary)
 
     # 4. companions
-    (out_dir / DICTIONARY_NAME).write_text(_data_dictionary_md(profile_name), encoding="utf-8")
+    (out_dir / DICTIONARY_NAME).write_text(_data_dictionary_md(profile_name, date_free=date_free), encoding="utf-8")
     (out_dir / DATASHEET_NAME).write_text(
         _datasheet_md(
             export_id=export_id, profile_name=profile_name, counts=counts,
             records=emitted, contributors=contributors, scope=scope,
             eval_pack=eval_pack_summary,
+            longitudinal_records=mapped_objs, date_free=date_free,
         ),
         encoding="utf-8",
     )
     (out_dir / QUALITY_NAME).write_text(
-        _quality_report_md(export_id=export_id, profile_name=profile_name, records=emitted, stats=stats),
+        _quality_report_md(export_id=export_id, profile_name=profile_name, records=emitted,
+                           stats=stats, date_free=date_free),
         encoding="utf-8",
     )
 
@@ -2214,6 +2323,7 @@ def build_export(
     image_assets = _collect_and_write_image_assets(emitted, out_dir)
     manifest = {
         "export_id": export_id,
+        **({"date_free_chart_walk": True, "trajectory_point_counts": point_counts} if date_free else {}),
         "created_at": exported_at,
         "created_by": created_by,
         "profile": profile_name,
@@ -2285,6 +2395,9 @@ def build_export(
         encoding="utf-8",
     )
 
+    if date_free:
+        _assert_date_free_bundle(out_dir, companion_files)
+
     # 6. mark exported + provenance
     record_ids = [r["record_id"] for r in emitted]
     submission_ids = sorted({r["submission_id"] for r in emitted})
@@ -2349,7 +2462,12 @@ _INTERNAL_MANIFEST_KEYS = ("created_by", "dir_path", "destination")
 def _shippable_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
     """The manifest as a BUYER sees it — everything about the data, nothing about
     the operator who built it or the machine it was built on."""
-    return {k: v for k, v in manifest.items() if k not in _INTERNAL_MANIFEST_KEYS}
+    shipped = {k: v for k, v in manifest.items() if k not in _INTERNAL_MANIFEST_KEYS}
+    if manifest.get("date_free_chart_walk"):
+        shipped = _walk_buyer_copy(shipped)
+        shipped["filters"] = {k: v for k, v in shipped.get("filters", {}).items()
+                              if k not in ("since", "until")}
+    return shipped
 
 
 def _mime_ext(mime: str) -> str:

@@ -87,6 +87,19 @@ def is_trajectory_point(task: Optional[Dict[str, Any]]) -> bool:
     return bool((task or {}).get("trajectory_id"))
 
 
+def outcome_verifiable(task: Dict[str, Any], *, has_later_point: bool = False) -> bool:
+    """New walks follow their immutable seal; legacy walks follow stored points."""
+    generation = task.get("generation") or {}
+    if "sealed_outcome" not in generation:
+        return has_later_point
+    from asclepius.sealed_outcomes import validate_sealed_outcome
+    try:
+        return validate_sealed_outcome(generation["sealed_outcome"],
+            index_offset=generation.get("index_event_offset")) is not None
+    except ValueError:
+        return False
+
+
 def sequence_index(task: Optional[Dict[str, Any]]) -> Optional[int]:
     """This point's 0-based position, or None for an ordinary V1–V4 task."""
     if not is_trajectory_point(task):
