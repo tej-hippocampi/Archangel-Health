@@ -128,14 +128,14 @@ def test_the_two_required_answers_are_required():
     assert r.status_code == 200
 
 
-def test_long_answers_are_truncated_rather_than_refused():
+def test_overflow_is_rejected_without_persisting_a_truncated_answer():
     """Someone pasting a data dictionary into a textarea should not lose the
     submission over it."""
     client, uname, hs = _account("pending")
     r = client.post("/api/asclepius/hs/intake",
                     json={**ANSWERS, "data_held": "E" * 9000})
-    assert r.status_code == 200
-    assert len(_store().list_hs_intake(hs["hs_id"])[0]["answers"]["data_held"]) == 4000
+    assert r.status_code == 422
+    assert _store().list_hs_intake(hs['hs_id']) == []
 
 
 # ─── The prompts themselves ──────────────────────────────────────────────────
@@ -182,9 +182,9 @@ def test_the_founder_alert_is_dispatched_in_the_background_not_awaited():
     from routers import asclepius_provider as P
 
     src = inspect.getsource(P.hs_intake_post)
-    assert "background.add_task(_notify_hs_intake" in src, \
+    assert "background.add_task(_drain_admin_notifications" in src, \
         "the intake alert is no longer dispatched as a background task"
-    assert "await _notify_hs_intake" not in src
+    assert "await _drain_admin_notifications" not in src
     assert "await send_html_email" not in src, \
         "a mail round trip was moved inside the handler"
     # The route must still be handed a BackgroundTasks to dispatch onto.
@@ -197,16 +197,9 @@ def test_the_founder_alert_is_dispatched_in_the_background_not_awaited():
 
 
 def test_the_alert_actually_fires_and_carries_the_answers(monkeypatch):
-    seen = {}
-
-    def _capture(store, portal_user, answers):
-        seen["org"] = portal_user["health_system"]["name"]
-        seen["answers"] = answers
-
-    from routers import asclepius_provider as P
-    monkeypatch.setattr(P, "_notify_hs_intake", _capture)
-
-    client, uname, hs = _account("pending")
-    assert client.post("/api/asclepius/hs/intake", json=ANSWERS).status_code == 200
-    assert seen["answers"]["data_held"].startswith("Epic")
-    assert seen["org"] == hs["name"]
+    monkeypatch.setattr('notifications.founder_recipients', lambda store: ['founder@example.org'])
+    client, uname, hs = _account('pending')
+    assert client.post('/api/asclepius/hs/intake', json=ANSWERS).status_code == 200
+    with _store()._conn() as conn:
+        row = conn.execute("SELECT body_html FROM admin_notify_outbox WHERE kind='hs_intake'").fetchone()
+    assert row and 'Epic' in row['body_html'] and hs['name'] in row['body_html']

@@ -864,7 +864,10 @@ def curate_lab_panels(panels: Sequence[Dict[str, Any]]) -> Tuple[List[Dict[str, 
                 stats["dropped_furniture"] += 1
                 continue
             result = _repair_result(result, stats)
-            ident = _result_identity(off, result)
+            ident = (_result_identity(off, result),
+                     str(panel.get("panel") or "").strip().lower(),
+                     str(result.get("unit") or "").strip().lower(),
+                     str(result.get("loinc") or "").strip())
             first = seen.get(ident)
             if first is not None:
                 stats["dropped_duplicate"] += 1
@@ -976,7 +979,7 @@ def curate_notes(notes: Sequence[Dict[str, Any]], *, min_chars: int = 40,
             stats["dropped_non_clinical"] += 1
             continue
         # Repeated templates on different visits remain distinct observations.
-        norm = (_offset_of(note), _normalized_note_text(text)[:300])
+        norm = (_offset_of(note), _normalized_note_text(text))
         if norm in seen:
             stats["dropped_duplicate"] += 1
             continue

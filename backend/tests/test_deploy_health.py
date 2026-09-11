@@ -12,8 +12,11 @@ a working one.
 from __future__ import annotations
 
 import json
+import sqlite3
 import sys
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -24,6 +27,24 @@ from fastapi.testclient import TestClient  # noqa: E402
 client = TestClient(A.app)
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+@pytest.fixture(autouse=True)
+def initialized_health_databases(monkeypatch, tmp_path):
+    """Healthy checks start with real schemas, independent of prior suite runs."""
+    import realm
+    import team_store
+    from community import store as community_store
+
+    monkeypatch.setenv("TEAM_DB_PATH", str(tmp_path / "team.db"))
+    monkeypatch.setenv("COMMUNITY_DB_PATH", str(tmp_path / "community.db"))
+    # Restore both caches after the test so temporary stores cannot leak into
+    # later modules. Use the same realm-scoped accessors as the application.
+    monkeypatch.setattr(team_store, "_STORES", {})
+    monkeypatch.setattr(community_store, "_stores", {})
+    with realm.scoped("live"):
+        team_store.get_team_store()
+        community_store.get_community_store()
 
 
 def test_healthz_is_ok_on_a_working_process():
@@ -103,6 +124,45 @@ def test_healthz_never_creates_the_database_it_reports_on(monkeypatch, tmp_path)
     monkeypatch.setenv("COMMUNITY_DB_PATH", str(missing))
     client.get("/healthz")
     assert not missing.parent.exists()
+
+
+@pytest.mark.parametrize("variable,label", [("TEAM_DB_PATH", "team"),
+                                            ("COMMUNITY_DB_PATH", "community")])
+def test_healthz_missing_database_in_existing_directory_fails_without_creating(
+        monkeypatch, tmp_path, variable, label):
+    missing = tmp_path / "missing.db"
+    monkeypatch.setenv(variable, str(missing))
+    r = client.get("/healthz")
+    assert r.status_code == 503
+    assert r.json()["checks"][f"db:{label}"] == "UNAVAILABLE"
+    assert not missing.exists()
+
+
+@pytest.mark.parametrize("contents", [b"", b"not a SQLite database"])
+def test_healthz_rejects_empty_or_corrupt_database(monkeypatch, tmp_path, contents):
+    database = tmp_path / "invalid-community.db"
+    database.write_bytes(contents)
+    monkeypatch.setenv("COMMUNITY_DB_PATH", str(database))
+    r = client.get("/healthz")
+    assert r.status_code == 503
+    assert r.json()["checks"]["db:community"] == "UNAVAILABLE"
+    assert database.read_bytes() == contents
+
+
+def test_healthz_reads_committed_wal_with_uri_characters_in_path(monkeypatch, tmp_path):
+    database = tmp_path / "community?#.db"
+    with sqlite3.connect(database) as writer:
+        writer.execute("PRAGMA journal_mode=WAL")
+        writer.execute("CREATE TABLE health_fixture (id INTEGER PRIMARY KEY)")
+        writer.execute("INSERT INTO health_fixture VALUES (1)")
+        writer.commit()
+        # Keep the writer open so committed schema/data can remain in the WAL.
+        assert Path(str(database) + "-wal").exists()
+        monkeypatch.setenv("COMMUNITY_DB_PATH", str(database))
+        r = client.get("/healthz")
+        assert r.status_code == 200, r.text
+        assert r.json()["checks"]["db:community"] == "ok"
+        assert writer.execute("SELECT id FROM health_fixture").fetchall() == [(1,)]
 
 
 def test_railway_healthcheck_points_at_healthz():

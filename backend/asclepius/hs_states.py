@@ -107,16 +107,16 @@ class TransitionRefused(ValueError):
 def state_of(health_system: Optional[Dict[str, Any]]) -> str:
     """Map a ``health_systems`` row to its state. Reads the dict, never SQL.
 
-    NULL and any unrecognised value collapse to ACTIVE. The unrecognised case
-    matters as much as the NULL one: if a future release adds a state and is
-    then rolled back, the older code reading the newer rows must not lock a
-    partner out of a door they were already through.
+    A legacy NULL state on an existing organization retains its compatibility
+    path. Missing organizations and unknown future states require intake review;
+    a rollback must never turn a new compliance hold into upload permission.
     """
-    row = health_system or {}
-    raw = (row.get("onboarding_state") or "").strip().lower()
+    if health_system is None:
+        return INTAKE
+    raw = (health_system.get("onboarding_state") or "").strip().lower()
     if raw in STATES:
         return raw
-    return ACTIVE
+    return ACTIVE if not raw else INTAKE
 
 
 def can_upload(health_system: Optional[Dict[str, Any]]) -> bool:
@@ -157,3 +157,20 @@ def public_view(health_system: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         "state_label": LABELS.get(state, LABELS[ACTIVE]),
         "next_step": NEXT_STEP.get(state, NEXT_STEP[ACTIVE]),
     }
+
+
+def data_readiness_error(store, hs_id, *, require_application=False):
+    application = store.latest_hs_application(hs_id)
+    if not application:
+        return "Submit the organization application before approval." if require_application else None
+    return application_readiness_error(application)
+
+
+def application_readiness_error(application):
+    if not application:
+        return None
+    if application.get("authority") != "yes":
+        return "Licensing authority needs review before approval or upload. Update the application once authority is confirmed."
+    if application.get("deid_capability") != "in_our_environment":
+        return "Privacy review required: this portal accepts data de-identified in your environment. A DLA does not authorize identified-data transfer; a separate BAA workflow is required."
+    return None

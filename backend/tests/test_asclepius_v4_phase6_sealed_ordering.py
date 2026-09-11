@@ -86,7 +86,7 @@ def test_sealed_key_staged_before_case_row(monkeypatch):
 
     summary = _ingest(store, _FIXTURE.read_bytes())
     # process_upload never raised, and no case row landed (ingested OR quarantined).
-    assert summary["status"] in ("rejected", "quarantined"), summary
+    assert summary["status"] == "needs_review", summary
     assert store.list_ingest_cases(upload_id=summary["upload_id"]) == []
     # The staged key is on disk, keyed to (upload_id, patient_key), UNBOUND.
     rows = _sealed_rows(store, summary["upload_id"])

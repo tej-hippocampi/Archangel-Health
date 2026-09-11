@@ -15,14 +15,14 @@ from asclepius import hs_provisioning
 API = "/api/asclepius/hs"
 PASSWORD = "harbor-thistle-meadow-41"
 EMAIL = "dana@example.org"
-NOTIFY_SIGNUP = P._notify_hs_signup
+NOTIFY_SIGNUP = P._hs_signup_messages
 
 
 @pytest.fixture()
 def setup(monkeypatch):
     store = A.fresh_store()
     monkeypatch.setenv("ASCLEPIUS_PORTAL_BUDGET_MS", "0")
-    monkeypatch.setattr(P, "_notify_hs_signup", lambda *a, **kw: None)
+    monkeypatch.setattr(P, "_hs_signup_messages", lambda *a, **kw: [])
     monkeypatch.setattr(P, "is_email_transport_configured", lambda: True)
     sent = []
 
@@ -198,17 +198,17 @@ def test_late_wrong_code_does_not_burn_a_successfully_resent_challenge(setup, mo
     assert client.post(API + "/signup/verify", json={"email": EMAIL, "code": "654321"}).status_code == 200
 
 
-def test_founder_alert_failure_does_not_suppress_the_access_email(setup, monkeypatch):
+def test_signup_mail_is_prepared_without_sending_before_commit(setup, monkeypatch):
     store, _, sent = setup
-
-    def fail(*args, **kwargs):
-        raise RuntimeError("notification unavailable")
-
-    monkeypatch.setattr("notifications.notify_founders", fail)
-    NOTIFY_SIGNUP(store, "Dana", EMAIL, "Recovery Health", "hs-test", "recovery", [], "claim-token")
-    assert len(sent) == 1
-    assert sent[0][0] == EMAIL
-    assert "your portal access" in sent[0][1]
+    import base64
+    from field_crypto import decrypt_field, is_encrypted
+    monkeypatch.setenv('DATA_ENCRYPTION_KEY', base64.b64encode(b'm' * 32).decode())
+    jobs = NOTIFY_SIGNUP(store, "Dana", EMAIL, "Recovery Health", "hs-test", "recovery", [], "claim-token")
+    access = next(job for job in jobs if job['kind'] == 'hs_access')
+    assert sent == []
+    assert access['recipient_email'] == EMAIL
+    assert is_encrypted(access['body_html'])
+    assert 'claim-token' in decrypt_field(access['body_html'])
 
 
 def test_invalid_teammate_email_is_rejected_before_any_account_is_created(setup):

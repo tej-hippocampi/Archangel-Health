@@ -1,0 +1,14 @@
+{
+  "scope": "synthetic fixture only; no production DB or cloud bucket accessed",
+  "base_commit": "7a59f708c7e2eac54ea34d3f1e121ce244399b8a",
+  "tables": 70,
+  "rows": 7,
+  "blob_files": 2,
+  "migration_missing_or_changed": [],
+  "restore_missing_or_changed": [],
+  "legacy_fields_preserved": true,
+  "new_columns_allowed": [
+    "admin_notify_outbox.attachment_json"
+  ],
+  "fixture_directory": "/var/folders/yq/llwsy6gj12l482bt66x88htw0000gn/T/ingestion-preservation-proof-9qq3i34p"
+}

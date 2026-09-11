@@ -800,8 +800,35 @@ async def _drain_admin_notifications() -> None:
             store = _asc_store()
             for row in store.due_admin_notifications():
                 try:
+                    from asclepius import hs_states, hs_access
+                    if row['kind'] in ('hs_dla_request', 'hs_uploads_open') and row['idempotency_key'].startswith('hs:'):
+                        hs_id = row['idempotency_key'].split(':')[1]
+                        hs = store.get_health_system(hs_id)
+                        expected = hs_states.AWAITING_DLA if row['kind'] == 'hs_dla_request' else hs_states.ACTIVE
+                        recipient_active = any(u.get('active') and hs_access.can_surface(u, hs_access.UPLOAD) and
+                            (u.get('email') or '').strip().lower() == row['recipient_email'].strip().lower()
+                            for u in store.list_hs_portal_users(hs_id))
+                        if not hs or not hs.get('active') or not recipient_active or hs_states.state_of(hs) != expected or hs_states.data_readiness_error(store, hs_id):
+                            store.void_pending_admin_notification(row['idempotency_key'])
+                            continue
+                    if row['kind'] == 'hs_access' and row['idempotency_key'].startswith('hs:'):
+                        from datetime import datetime
+                        _, hs_id, _, expected_hash, _ = row['idempotency_key'].split(':')
+                        hs = store.get_health_system(hs_id)
+                        eligible = hs and hs.get('active') and any(u.get('active') and
+                            u.get('approval_status') not in ('rejected', 'declined') and
+                            (u.get('email') or '').strip().lower() == row['recipient_email'].strip().lower() and
+                            u.get('invite_token_hash') == expected_hash and
+                            str(u.get('invite_expires_at') or '') > datetime.utcnow().isoformat()
+                            for u in store.list_hs_portal_users(hs_id))
+                        if not eligible:
+                            store.void_pending_admin_notification(row['idempotency_key'])
+                            continue
+                    from asclepius.hs_mail import attachments
+                    from field_crypto import decrypt_field
                     ok = await send_html_email(
-                        row["recipient_email"], row["subject"], row["body_html"],
+                        row["recipient_email"], row["subject"], decrypt_field(row["body_html"]),
+                        attachments=attachments(row),
                         # Preserved from the inline send this outbox replaced.
                         # Moving the approval mail here would otherwise have
                         # quietly dropped the flag it was sent with, and a
@@ -809,7 +836,7 @@ async def _drain_admin_notifications() -> None:
                         # recipient is actually waiting on.
                         importance_headers=row["kind"] in IMPORTANT_KINDS,
                     )
-                    store.mark_admin_notification_sent(row["id"], ok=bool(ok))
+                    store.mark_admin_notification_sent(row["id"], ok=bool(ok), error="" if ok else "Email provider did not accept the message")
                 except Exception as exc:
                     store.mark_admin_notification_sent(row["id"], ok=False, error=str(exc))
 
@@ -7564,7 +7591,7 @@ except Exception:
 # deploy replaces a working one.
 #
 # Cheap on purpose, because the platform polls this for the life of the
-# deployment: one isdir() per mounted tree and one connect + "SELECT 1" per
+# deployment: one isdir() per mounted tree and one read-only schema query per
 # database. No application queries, no writes, and no caching (a cached health
 # answer is the one answer a health check must never give).
 #: Only /static. It is the mount whose absence means the product is not being
@@ -7711,9 +7738,19 @@ def healthz(response: Response) -> Dict[str, Any]:
     for label, var, default_name in _HEALTH_DATABASES:
         path = _health_db_path(var, default_name)
         try:
-            conn = sqlite3.connect(path, timeout=2)
+            # Never recreate a lost database during a health probe. Use a URI
+            # so read-only mode is enforced by SQLite, including filenames
+            # containing characters such as '?' or '#'. Do not use immutable
+            # mode: committed writes may still be in the database's WAL.
+            conn = sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro",
+                                   timeout=2, uri=True)
             try:
-                conn.execute("SELECT 1").fetchone()
+                table = conn.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1"
+                ).fetchone()
+                if table is None:
+                    raise sqlite3.DatabaseError("database has no application tables")
             finally:
                 conn.close()
             checks[f"db:{label}"] = "ok"

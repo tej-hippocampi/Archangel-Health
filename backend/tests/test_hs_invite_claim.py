@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from tests import _asclepius as A  # noqa: E402
 
 API = "/api/asclepius"
-_KEY = base64.urlsafe_b64encode(b"hs-invite-claim-test-key-32byte!").decode()
+_KEY = base64.urlsafe_b64encode(b"i" * 32).decode()
 PASSWORD = "harbor-thistle-meadow-41"
 REPO = Path(__file__).resolve().parents[2]
 PROVIDER_JS = REPO / "frontend" / "provider" / "provider.js"

@@ -25,8 +25,8 @@ def portal(request, monkeypatch, tmp_path):
     monkeypatch.setenv("ASCLEPIUS_ASSET_STORE", str(tmp_path / "assets"))
     monkeypatch.setenv("DATA_ENCRYPTION_KEY", base64.urlsafe_b64encode(b"a" * 32).decode())
     monkeypatch.setattr(P.secrets, "randbelow", lambda n: 123456)
-    monkeypatch.setattr(P, "_notify_hs_signup", lambda *a, **kw: None)
-    monkeypatch.setattr(P, "_notify_hs_application", lambda *a, **kw: None)
+    monkeypatch.setattr(P, "_hs_signup_messages", lambda *a, **kw: [])
+    monkeypatch.setattr(P, "_hs_application_messages", lambda *a, **kw: [])
     failures, errors, calls, held = {}, [], [], {}
     client = TestClient(A.app, base_url="https://testserver")
     with playwright.sync_playwright() as p:
@@ -261,6 +261,8 @@ def test_application_approval_agreement_and_first_upload(portal):
     hs_id = portal.store.list_health_systems()[0]["hs_id"]
     assert portal.store.latest_hs_application(hs_id) is None
     answer(page)
+    page.locator('input[name="authority"][value="yes"]').check()
+    page.locator('input[name="deid_capability"][value="in_our_environment"]').check()
     page.locator("#prvAppBtn").click()
     page.locator("#prvAppOk").wait_for()
     page.get_by_role("button", name="Upload Locked", exact=True).click()

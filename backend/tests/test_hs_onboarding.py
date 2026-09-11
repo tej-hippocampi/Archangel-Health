@@ -119,7 +119,7 @@ def _rotate(client, new_password=PASSWORD):
 
 
 def _apply(client, **overrides):
-    body = {"authority": "not_sure", "deid_capability": "needs_baa",
+    body = {"authority": "yes", "deid_capability": "in_our_environment",
             "export_scope": "varies", "scale_patients": "10k_50k",
             "scale_years": "5_10", "scale_specialties": ["Nephrology"]}
     body.update(overrides)
@@ -128,6 +128,8 @@ def _apply(client, **overrides):
 
 def _sign(client, *, name="Dana Reyes", title="Chief Information Officer",
           authority=True, esign=True, sha=None):
+    if sha is None:
+        sha = client.get(f"{API}/hs/agreement").json().get('doc_sha256') or ''
     return client.post(f"{API}/hs/agreement/sign", json={
         "typed_name": name, "typed_title": title,
         "authority_affirmed": authority, "consent_esign": esign,
@@ -320,12 +322,12 @@ def test_an_invented_answer_is_refused():
     _signup(client)
     _rotate(client)
     assert _apply(client, authority="maybe").status_code == 400
-    # And a specialty we do not offer is dropped rather than stored.
+    # An unsupported specialty rejects the entire submission, preserving intent.
     r = _apply(client, scale_specialties=["Nephrology", "Astrology"])
-    assert r.status_code == 200
+    assert r.status_code == 422
     store = _store()
     hs = store.list_health_systems()[0]
-    assert store.latest_hs_application(hs["hs_id"])["scale_specialties"] == ["Nephrology"]
+    assert store.latest_hs_application(hs["hs_id"]) is None
 
 
 def test_resubmitting_appends_and_never_overwrites():
@@ -604,7 +606,8 @@ def test_approve_flips_the_state_and_mails_every_member(mail):
 
     dla = [m for m in mail if "One signature away" in m["subject"]]
     assert sorted(m["to"] for m in dla) == sorted([org["email"], "k.patel@example.org"])
-    assert r.json()["emailed"] == 2
+    assert r.json()["emailed"] == 0
+    assert r.json()["email_pending"] == 2
     # Every account is now full, so the only remaining gate is the signature.
     for account in store.list_hs_portal_users(org["hs_id"]):
         assert account["approval_status"] == "approved"

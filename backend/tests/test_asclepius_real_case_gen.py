@@ -162,16 +162,12 @@ def test_dates_in_medication_and_problem_text_are_rewritten():
 # ═════════════════════════════════════════════════════════════════════════════
 # §2.3 — one patient is one case; the upload reports the WORST status
 # ═════════════════════════════════════════════════════════════════════════════
-def test_one_patient_across_three_formats_becomes_one_case():
-    per_patient = {"patient-4-patient": [{"a": 1}], "hl7-abc123": [{"b": 2}],
-                   "default": [{"c": 3}]}
+def test_unmapped_patient_keys_from_different_formats_require_review():
+    per_patient = {"patient-4-patient": [{"a": 1}], "hl7-abc123": [{"b": 2}], "default": [{"c": 3}]}
     sources = {"patient-4-patient": "fhir_r4", "hl7-abc123": "hl7v2", "default": "default"}
     out, report = asc_ingestion.unify_patient_keys(per_patient, sources)
-    assert list(out) == ["patient-4-patient"]
-    assert len(out["patient-4-patient"]) == 3
-    assert report["unified"] is True and report["into_source"] == "fhir_r4"
-    # Only opaque keys are ever reported — a raw key may be an MRN.
-    assert all(k.startswith("pk-") for k in report["merged"])
+    assert out == per_patient
+    assert report['requires_review'] and not report['unified']
 
 
 def test_two_patients_from_one_source_are_never_merged():
@@ -427,7 +423,7 @@ def test_report_furniture_is_not_a_lab_result(result, keep):
     assert real_cases.keep_lab_result(result) is keep
 
 
-def test_the_same_result_from_three_formats_appears_once_and_keeps_the_flag():
+def test_results_without_matching_panel_identity_preserve_both_observations():
     """The CSV carries the LOINC and no flag; the HL7 export carries the flag.
     Keeping whichever arrived first threw the flag away on every duplicated
     analyte and zeroed the abnormal-ratio difficulty axis."""
@@ -441,9 +437,9 @@ def test_the_same_result_from_three_formats_appears_once_and_keeps_the_flag():
     ]
     out, stats = real_cases.curate_lab_panels(panels)
     results = [r for p in out for r in p["results"]]
-    assert len(results) == 1
-    assert results[0]["flag"] == "L" and results[0]["loinc"] == "2823-3"
-    assert stats["dropped_duplicate"] == 1
+    assert len(results) == 2
+    assert any(r.get("flag") == "L" for r in results) and results[0]["loinc"] == "2823-3"
+    assert stats["dropped_duplicate"] == 0
 
 
 def test_an_out_of_range_value_is_flagged_even_when_the_lab_did_not_flag_it():
@@ -700,7 +696,8 @@ def _ingest_a_chart(admin_h, specialty="nephrology") -> dict:
 
     res = client.post(f"/api/asclepius/partner/uploads?t={token}",
                       files={"file": ("bundle.zip",
-                                      _zip({"fhir/bundle.json": fhir,
+                                      _zip({"manifest.json": json.dumps({"patient_key": "patient-4"}),
+                                            "fhir/bundle.json": fhir,
                                             "labs/lab_results.csv": csv_text}),
                                       "application/zip")})
     assert res.status_code == 200, res.text

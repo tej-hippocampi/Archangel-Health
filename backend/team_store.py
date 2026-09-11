@@ -91,7 +91,9 @@ def connect_team_db(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout = 30000")
-    conn.execute("PRAGMA synchronous = NORMAL")
+    # An acknowledged form must survive a host/power failure, not only a
+    # process restart. WAL + NORMAL may roll back acknowledged transactions.
+    conn.execute("PRAGMA synchronous = FULL")
     key = os.path.abspath(db_path)
     if key not in _WAL_APPLIED:
         with _WAL_LOCK:

@@ -586,9 +586,11 @@ class AsclepiusStore:
         # never lost or corrupted. journal_mode persists on the file itself.
         with self._conn() as conn:
             conn.execute("PRAGMA journal_mode = WAL")
-            conn.execute("PRAGMA synchronous = NORMAL")
         self._init_schema()
         self._ensure_sandbox_tables()
+        with self._conn() as conn:
+            if 'attachment_json' not in {r[1] for r in conn.execute('PRAGMA table_info(admin_notify_outbox)')}:
+                conn.execute('ALTER TABLE admin_notify_outbox ADD COLUMN attachment_json TEXT')
 
     # ─── Connection ──────────────────────────────────────────────────────────
     def _connect_uri(self) -> str:
@@ -608,6 +610,8 @@ class AsclepiusStore:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA busy_timeout = 30000")
+        if not self.read_only:
+            conn.execute("PRAGMA synchronous = FULL")
         return conn
 
     def _init_schema(self) -> None:
@@ -5681,10 +5685,23 @@ class AsclepiusStore:
         self, *, link_id: str, partner_id: str, filename: Optional[str],
         sha256: Optional[str], size_bytes: Optional[int], raw_path: Optional[str],
         source_ip: Optional[str], upload_id: Optional[str] = None,
+        consume_link: bool = False, session_id: Optional[str] = None, verified_at: Optional[str] = None,
     ) -> Dict[str, Any]:
         uid = upload_id or _new_id("upl")
         now = _utcnow_iso()
         with self._conn() as conn:
+            if session_id:
+                conn.execute('BEGIN IMMEDIATE')
+                session = conn.execute("SELECT * FROM ingest_upload_sessions WHERE session_id=? AND status='completing'", (session_id,)).fetchone()
+                if not session:
+                    raise ValueError('upload_session_changed')
+            if consume_link:
+                claimed = conn.execute(
+                    "UPDATE ingest_upload_links SET used_count = used_count + 1 "
+                    "WHERE link_id = ? AND revoked = 0 AND (one_time = 0 OR used_count = 0)",
+                    (link_id,))
+                if claimed.rowcount != 1:
+                    raise ValueError("upload_link_unavailable")
             conn.execute(
                 """INSERT INTO ingest_uploads
                    (upload_id, link_id, partner_id, filename, sha256, size_bytes,
@@ -5693,6 +5710,11 @@ class AsclepiusStore:
                 (uid, link_id, partner_id, filename, sha256, size_bytes,
                  raw_path, source_ip, now, now),
             )
+            if consume_link:
+                conn.execute("UPDATE ingest_uploads SET purpose=(SELECT purpose FROM ingest_upload_links WHERE link_id=?) WHERE upload_id=?", (link_id, uid))
+            if session_id:
+                conn.execute("UPDATE ingest_uploads SET health_system_id=?, request_id=?, verified_at=?, purpose=(SELECT purpose FROM hs_portal_users WHERE username=?) WHERE upload_id=?", (session['owner_id'], session['request_id'], verified_at, session['actor'], uid))
+                conn.execute("UPDATE ingest_upload_sessions SET status='verified',upload_id=?,verified_at=?,updated_at=? WHERE session_id=?", (uid, verified_at, now, session_id))
         return self.get_ingest_upload(uid)  # type: ignore[return-value]
 
     def update_ingest_upload(self, upload_id: str, **fields: Any) -> None:
@@ -6830,15 +6852,8 @@ class AsclepiusStore:
             if sequence_index < 0:
                 raise ValueError("sequence_index is 0-based and cannot be negative")
         elif task_id:
-            # This statement is INSERT OR REPLACE, so re-inserting an existing
-            # ``task_id`` without the trajectory columns would NULL them — and a
-            # trajectory point that loses its position stops being one. The
-            # sequence gate would then wave it through as an ordinary task, which
-            # is the §9.1 blocker returning through a side door, silently, on an
-            # admin's task upload.
-            #
-            # One indexed lookup, only on the explicit-id path (generation always
-            # mints its own id and skips this entirely).
+            # Give a specific lineage error for an existing trajectory point.
+            # All existing IDs are rejected by the insert transaction below.
             with self._conn() as conn:
                 prior = conn.execute(
                     "SELECT trajectory_id FROM tasks WHERE task_id = ?", (task_id,)
@@ -6879,6 +6894,9 @@ class AsclepiusStore:
             (generation or {}).get("empirical_difficulty")
         )
         with self._conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            if conn.execute("SELECT 1 FROM tasks WHERE task_id = ?", (tid,)).fetchone():
+                raise ValueError("task_id already exists; create a new task revision instead of replacing evidence")
             if ingest_case_id is not None:
                 # Shares SQLite's write lock with begin_ingest_retry: either the
                 # task wins and retry refuses, or retry wins and no task is inserted.
@@ -6891,7 +6909,7 @@ class AsclepiusStore:
                     raise ValueError("ingest_case_changed: chart was superseded or held during generation; re-plan it")
             conn.execute(
                 """
-                INSERT OR REPLACE INTO tasks
+                INSERT INTO tasks
                   (task_id, specialty, difficulty, capture_reasoning, source, prompt,
                    candidate_answers_json, max_labels, grounding_mode, independent_mode,
                    buyer_request_id, generation_json, value_tier, modality, case_json,
@@ -11667,7 +11685,8 @@ class AsclepiusStore:
                               must_reset: bool = True,
                               full_name: Optional[str] = None,
                               signup_source: Optional[str] = None,
-                              approval_status: Optional[str] = None) -> Dict[str, Any]:
+                              approval_status: Optional[str] = None,
+                              invite=None, outbox=None) -> Dict[str, Any]:
         """Create a portal login.
 
         ``must_reset`` defaults True because the admin-provisioned path mails a
@@ -11701,6 +11720,10 @@ class AsclepiusStore:
                  # The column's default belongs with the column anyway.
                  DEFAULT_PURPOSE),
             )
+            if invite:
+                conn.execute('UPDATE hs_portal_users SET invite_token_hash=?, invite_expires_at=?, invited_by=? WHERE username=?', (*invite, uname))
+            from asclepius.hs_mail import enqueue
+            enqueue(conn, outbox)
         return self.get_hs_portal_user_public(uname)  # type: ignore[return-value]
 
     def get_hs_portal_user(self, username: str) -> Optional[Dict[str, Any]]:
@@ -11737,7 +11760,7 @@ class AsclepiusStore:
         return row is not None
 
     def set_hs_portal_password(self, username: str, new_password: str, *,
-                               must_reset: bool = False) -> None:
+                               must_reset: bool = False, invite=None, outbox=None) -> None:
         """Set the password and stamp ``password_changed_at``. The stamp is what
         invalidates outstanding session cookies (FIX-C C-2.3) — without it a
         leaked cookie outlived the victim's own password reset by up to the full
@@ -11760,6 +11783,11 @@ class AsclepiusStore:
                 (hash_password(new_password), 1 if must_reset else 0, _utcnow_iso(),
                  (username or "").lower()),
             )
+
+            if invite:
+                conn.execute('UPDATE hs_portal_users SET invite_token_hash=?, invite_expires_at=?, invited_by=? WHERE username=?', (*invite, (username or '').lower()))
+            from asclepius.hs_mail import enqueue
+            enqueue(conn, outbox)
 
     # ─── The claim link ─────────────────────────────────────────────────────
     # An invited member never receives a credential. They receive a one-time
@@ -12409,7 +12437,7 @@ class AsclepiusStore:
 
     def complete_hs_signup(self, signup_id: str, *, expected_code_hash: str,
                             invite_token_hash: Optional[str] = None,
-                            invite_expires_at: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                            invite_expires_at: Optional[str] = None, outbox_factory=None) -> Optional[Dict[str, Any]]:
         """Consume the verified challenge and create its isolated portal atomically.
 
         A stale verification must create nothing. A storage failure must roll
@@ -12457,6 +12485,9 @@ class AsclepiusStore:
                  staged["email"], now, staged["full_name"], DEFAULT_PURPOSE,
                  invite_token_hash, invite_expires_at),
             )
+            if outbox_factory:
+                from asclepius.hs_mail import enqueue
+                enqueue(conn, outbox_factory(hs_id, username))
         return {"hs_id": hs_id, "username": username}
 
     def bump_hs_signup_attempts(self, signup_id: str) -> int:
@@ -12579,7 +12610,7 @@ class AsclepiusStore:
 
     # ─── Intake ──────────────────────────────────────────────────────────────
     def record_hs_intake(self, *, hs_id: str, username: Optional[str],
-                         answers: Dict[str, Any]) -> Dict[str, Any]:
+                         answers: Dict[str, Any], outbox=None) -> Dict[str, Any]:
         """Append the answers and stamp the gate in ONE connection block.
 
         Both writes together, per the C-5.5 lesson on ensure_health_system: a
@@ -12596,13 +12627,15 @@ class AsclepiusStore:
                 (intake_id, hs_id, (username or None), json.dumps(answers, sort_keys=True), now),
             )
             conn.execute("UPDATE health_systems SET intake_at = ? WHERE hs_id = ?", (now, hs_id))
+            from asclepius.hs_mail import enqueue
+            enqueue(conn, outbox)
         return {"intake_id": intake_id, "hs_id": hs_id, "username": username,
                 "answers": answers, "submitted_at": now}
 
     def list_hs_intake(self, hs_id: str) -> List[Dict[str, Any]]:
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM hs_intake WHERE hs_id = ? ORDER BY submitted_at DESC", (hs_id,)
+                "SELECT * FROM hs_intake WHERE hs_id = ? ORDER BY submitted_at DESC, rowid DESC", (hs_id,)
             ).fetchall()
         out = []
         for r in rows:
@@ -12934,7 +12967,62 @@ class AsclepiusStore:
     # ═══ END HS SELF-SERVE + PAYOUTS STORE METHODS ═══
     # ═══ HS ONBOARDING STORE METHODS ═══
     # ─── State ───────────────────────────────────────────────────────────────
-    def set_hs_onboarding_state(self, hs_id: str, state: str) -> Optional[Dict[str, Any]]:
+    def approve_hs_organization(self, hs_id, *, by, purpose=None,
+                                expected_state=None, expected_changed_at=None):
+        from asclepius import hs_states, hs_mail
+        with self._conn() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            hs = conn.execute('SELECT * FROM health_systems WHERE hs_id=?', (hs_id,)).fetchone()
+            if not hs:
+                raise ValueError('Health system not found')
+            hs = dict(hs)
+            if expected_state is not None and (hs_states.state_of(hs) != expected_state or hs.get('state_changed_at') != expected_changed_at):
+                raise ValueError('The organization changed during review. Refresh before deciding.')
+            hs_states.check_transition(hs_states.state_of(hs), hs_states.AWAITING_DLA)
+            application = conn.execute('SELECT * FROM hs_applications WHERE hs_id=? ORDER BY submitted_at DESC,rowid DESC LIMIT 1', (hs_id,)).fetchone()
+            issue = hs_states.application_readiness_error(dict(application) if application else None)
+            if issue:
+                raise ValueError(issue)
+            accounts = [dict(r) for r in conn.execute("SELECT * FROM hs_portal_users WHERE hs_id=? AND active=1 AND COALESCE(approval_status,'approved') IN ('pending','approved')", (hs_id,))]
+            if not accounts:
+                raise ValueError('No eligible active portal account is available. Restore the intended account before approval.')
+            now = _utcnow_iso()
+            conn.execute("UPDATE hs_portal_users SET approval_status='approved',approved_by=?,approved_at=?,decision_reason=NULL WHERE hs_id=? AND active=1 AND approval_status='pending'", (by, now, hs_id))
+            if purpose:
+                conn.execute('UPDATE hs_portal_users SET purpose=? WHERE hs_id=? AND active=1', (purpose, hs_id))
+            conn.execute('UPDATE health_systems SET onboarding_state=?,state_changed_at=? WHERE hs_id=?', (hs_states.AWAITING_DLA, now, hs_id))
+            hs_mail.enqueue(conn, hs_mail.request_messages(hs, accounts, event=uuid.uuid4().hex))
+            conn.execute("INSERT INTO events (entity_type,entity_id,event_type,actor,occurred_at,payload_json) VALUES ('health_system',?,'onboarding_approved',?,?,?)",
+                         (hs_id, by, now, json.dumps({'accounts': [a['username'] for a in accounts], 'purpose': purpose})))
+        return len(accounts)
+
+    def decline_hs_organization(self, hs_id, *, by, reason,
+                                expected_state=None, expected_changed_at=None):
+        """Commit the complete decision and its evidence, or change nothing."""
+        from asclepius import hs_states
+        reason = ' '.join((reason or '').split())
+        if not reason:
+            raise ValueError('A reason is required to decline.')
+        with self._conn() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            row = conn.execute('SELECT * FROM health_systems WHERE hs_id=?', (hs_id,)).fetchone()
+            if not row:
+                raise ValueError('Health system not found')
+            hs = dict(row)
+            if expected_state is not None and (hs_states.state_of(hs) != expected_state or hs.get('state_changed_at') != expected_changed_at):
+                raise ValueError('The organization changed during review. Refresh before deciding.')
+            hs_states.check_transition(hs_states.state_of(hs), hs_states.DECLINED)
+            accounts = [r['username'] for r in conn.execute('SELECT username FROM hs_portal_users WHERE hs_id=? AND active=1', (hs_id,))]
+            now = _utcnow_iso()
+            conn.execute("UPDATE hs_portal_users SET approval_status='rejected',active=0,approved_by=?,approved_at=?,decision_reason=?,session_epoch=session_epoch+1 WHERE hs_id=? AND active=1",
+                         (by, now, reason, hs_id))
+            conn.execute('UPDATE health_systems SET onboarding_state=?,state_changed_at=? WHERE hs_id=?', (hs_states.DECLINED, now, hs_id))
+            conn.execute("UPDATE admin_notify_outbox SET status='void',last_error='Organization declined' WHERE status='pending' AND idempotency_key LIKE ? AND kind IN ('hs_access','hs_dla_request','hs_uploads_open')", (f'hs:{hs_id}:%',))
+            conn.execute("INSERT INTO events (entity_type,entity_id,event_type,actor,occurred_at,payload_json) VALUES ('health_system',?,'onboarding_declined',?,?,?)",
+                         (hs_id, by, now, json.dumps({'reason': reason, 'accounts': accounts})))
+        return len(accounts)
+
+    def set_hs_onboarding_state(self, hs_id: str, state: str, *, outbox=None) -> Optional[Dict[str, Any]]:
         """Write the organization's state and stamp when it changed.
 
         Validation of the EDGE (may this state follow that one) lives in
@@ -12947,6 +13035,8 @@ class AsclepiusStore:
         if target not in hs_states.STATES:
             raise ValueError(f"unknown onboarding state: {state!r}")
         with self._conn() as conn:
+            from asclepius.hs_mail import enqueue
+            enqueue(conn, outbox)
             conn.execute(
                 "UPDATE health_systems SET onboarding_state = ?, state_changed_at = ? "
                 "WHERE hs_id = ?",
@@ -12968,7 +13058,7 @@ class AsclepiusStore:
     def record_hs_application(self, *, hs_id: str, username: Optional[str],
                               authority: str, deid_capability: str, export_scope: str,
                               scale_patients: str, scale_years: str,
-                              scale_specialties: List[str]) -> Dict[str, Any]:
+                              scale_specialties: List[str], outbox=None) -> Dict[str, Any]:
         """Append one submission and move the organization to `submitted`, in ONE
         connection block.
 
@@ -12982,6 +13072,8 @@ class AsclepiusStore:
         now = _utcnow_iso()
         specialties = [str(s) for s in (scale_specialties or [])]
         with self._conn() as conn:
+            from asclepius.hs_mail import enqueue
+            enqueue(conn, outbox)
             conn.execute(
                 "INSERT INTO hs_applications (application_id, hs_id, username, authority, "
                 "deid_capability, export_scope, scale_patients, scale_years, "
@@ -13037,12 +13129,29 @@ class AsclepiusStore:
                                 signer_email: Optional[str] = None,
                                 pdf_sha256: Optional[str] = None,
                                 ip: Optional[str] = None,
-                                user_agent: Optional[str] = None) -> Dict[str, Any]:
+                                user_agent: Optional[str] = None,
+                                activate: bool = False, outbox=None,
+                                signed_at: Optional[str] = None) -> Dict[str, Any]:
         """Insert one signature. There is no update counterpart, by design and by
         trigger: a corrected agreement is a new document version and a new row."""
         agreement_id = uuid.uuid4().hex
-        now = _utcnow_iso()
+        now = signed_at or _utcnow_iso()
         with self._conn() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            if activate:
+                current = conn.execute('SELECT onboarding_state FROM health_systems WHERE hs_id=?', (hs_id,)).fetchone()
+                if not current or current['onboarding_state'] != 'approved_awaiting_dla':
+                    raise ValueError('agreement_state_changed')
+                if conn.execute('SELECT 1 FROM signed_agreements WHERE hs_id=?', (hs_id,)).fetchone():
+                    raise ValueError('agreement_already_signed')
+                from asclepius import hs_states
+                app = conn.execute('SELECT * FROM hs_applications WHERE hs_id=? ORDER BY submitted_at DESC,rowid DESC LIMIT 1', (hs_id,)).fetchone()
+                issue = hs_states.application_readiness_error(dict(app) if app else None)
+                if issue:
+                    raise ValueError(issue)
+                from asclepius.hs_mail import enqueue
+                enqueue(conn, outbox)
+                conn.execute("UPDATE health_systems SET onboarding_state='active',state_changed_at=? WHERE hs_id=?", (now, hs_id))
             conn.execute(
                 "INSERT INTO signed_agreements (agreement_id, hs_id, doc_version, "
                 "doc_sha256, pdf_sha256, signer_user_id, signer_email, typed_name, "

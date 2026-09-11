@@ -475,10 +475,11 @@ def test_reinserting_a_trajectory_point_without_its_position_is_refused():
     with pytest.raises(ValueError) as exc:
         store.insert_task(task_id=points[0]["task_id"], prompt="replaced")
     assert "chart walk" in str(exc.value)
-    # An ordinary task is still replaceable, exactly as before.
+    # Ordinary clinical evidence is protected too, including its original prompt.
     plain = store.insert_task(task_id="t-plain", prompt="one", specialty="gastroenterology")
-    again = store.insert_task(task_id="t-plain", prompt="two", specialty="gastroenterology")
-    assert again["prompt"] == "two" and plain["task_id"] == again["task_id"]
+    with pytest.raises(ValueError):
+        store.insert_task(task_id="t-plain", prompt="two", specialty="gastroenterology")
+    assert store.get_task(plain['task_id'])['prompt'] == 'one'
 
 
 def test_insert_task_refuses_half_a_trajectory_identity():

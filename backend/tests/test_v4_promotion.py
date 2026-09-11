@@ -153,7 +153,7 @@ def _stub_promote_llm(monkeypatch, *, coherence=0.9):
 def test_a_bundle_with_no_manifest_resolves_to_general_and_promote_409s(monkeypatch):
     """The exact failure the PRD reproduced. The gate is right; the input was wrong."""
     _stub_promote_llm(monkeypatch)
-    cases, _ = _ingest({"labs.csv": _CSV, "note.txt": _NOTE})
+    cases, _ = _ingest({"labs.csv": _CSV})
     ic = [c for c in cases if c["status"] == "ingested"][0]
     assert ic["specialty"] == "general"
     r = client.post(f"/api/asclepius/ingestion/cases/{ic['ingest_case_id']}/promote",
@@ -178,7 +178,7 @@ def test_a_manifest_specialty_carries_the_case_past_the_specialty_gate(monkeypat
 
 def test_the_link_specialty_applies_when_the_manifest_has_none(monkeypatch):
     _stub_promote_llm(monkeypatch)
-    cases, _ = _ingest({"labs.csv": _CSV, "note.txt": _NOTE}, link_specialty="cardiology")
+    cases, _ = _ingest({"manifest.json": json.dumps({"patient_key": "pt1"}), "labs.csv": _CSV, "note.txt": _NOTE}, link_specialty="cardiology")
     ic = [c for c in cases if c["status"] == "ingested"][0]
     assert ic["specialty"] == "cardiology"
 
@@ -529,13 +529,13 @@ def test_an_implausible_value_is_dropped_even_when_the_lab_coded_it():
 # ═════════════════════════════════════════════════════════════════════════════
 # Unification — REGRESSION ONLY (§0.3, §8: do not touch)
 # ═════════════════════════════════════════════════════════════════════════════
-def test_one_patient_across_fhir_hl7_notes_and_csv_is_exactly_one_case():
+def test_unmapped_cross_format_patient_keys_are_held_separately():
     per_patient = {"ehr-1-patient": [{"a": 1}], "hl7-abc123": [{"b": 2}],
                    "default": [{"c": 3}]}
     sources = {"ehr-1-patient": "fhir_r4", "hl7-abc123": "hl7v2", "default": "default"}
     out, report = asc_ingestion.unify_patient_keys(per_patient, sources)
-    assert list(out) == ["ehr-1-patient"] and len(out["ehr-1-patient"]) == 3
-    assert report["unified"] is True and report["into_source"] == "fhir_r4"
+    assert out == per_patient
+    assert report['requires_review'] and not report['unified']
 
 
 def test_two_distinct_fhir_patient_ids_are_never_unified():
@@ -732,7 +732,7 @@ def test_a_dry_run_still_refuses_brokering_data(monkeypatch):
 
 def test_a_dry_run_still_refuses_an_undetermined_specialty(monkeypatch):
     _stub_promote_llm(monkeypatch)
-    cases, _ = _ingest({"labs.csv": _CSV, "note.txt": _NOTE})
+    cases, _ = _ingest({"labs.csv": _CSV})
     ic = [c for c in cases if c["status"] == "ingested"][0]
     assert _dry_run(ic, _admin_h()).status_code == 409
 

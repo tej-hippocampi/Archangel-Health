@@ -1,131 +1,182 @@
 #!/usr/bin/env python3
-"""Id+count snapshot of the tables that hold the product. Harness PRD H3.
+"""Read-only preservation check for every SQLite table and selected file trees.
 
-"56 tasks, none may be lost." Rows in these tables are physician work that was
-paid for; a migration that drops one is not a bug you can fix forward, because
-the row is gone. So: snapshot before the change, diff after, and fail if any id
-disappeared.
-
-  --snapshot           write docs/asclepius/INVENTORY_<date>.json
-  --diff BEFORE.json   compare the live tables to that snapshot
-
-Exit 2 if any id present in BEFORE is missing now. Added ids are reported but
-never fail — growth is normal, loss is not.
-
-Usage:
-  python3 scripts/data_inventory.py --snapshot
-  ... make the change ...
-  python3 scripts/data_inventory.py --diff docs/asclepius/INVENTORY_2026-09-03.json
+Snapshot before a migration; diff afterward with writers paused. Added columns
+and rows are allowed. Missing rows/files or changed existing values fail closed.
+Use --allow-change table.column only for reviewed, intentional transformations.
+Run separately for every live database (including team, community and media).
+This detects change; it is not a backup or a proof of production durability.
 """
-
 from __future__ import annotations
-
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 import pathlib
+import re
 import sqlite3
 import sys
 
 BACKEND = pathlib.Path(__file__).resolve().parent.parent
-OUT_DIR = BACKEND.parent / "docs" / "asclepius"
-
-# The five from the Export PRD §0, plus the two that carry assignment and
-# provenance and are just as unrecoverable.
-TABLES = ("tasks", "submissions", "records", "earnings", "uploads",
-          "assignments", "exports")
-
-# Each table's id column, best-effort: the first of these that exists.
-ID_CANDIDATES = ("id", "task_id", "submission_id", "record_id", "earning_id",
-                 "upload_id", "export_id", "assignment_id")
+OUT_DIR = BACKEND.parent / 'docs' / 'asclepius'
+TABLES = ('tasks', 'submissions', 'records', 'earnings', 'uploads', 'assignments', 'exports')
 
 
-def _db_path() -> str:
-    return os.getenv("ASCLEPIUS_DB_PATH") or str(BACKEND / "asclepius.db")
+def _db_path():
+    sys.path.insert(0, str(BACKEND))
+    import realm
+    return realm.live_asclepius_db()
 
 
-def _table_names(conn) -> set[str]:
-    return {r[0] for r in conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'")}
+def _quote(name):
+    return '"' + name.replace('"', '""') + '"'
 
 
-def snapshot() -> dict:
-    path = _db_path()
-    if not pathlib.Path(path).exists():
-        print(f"no database at {path}", file=sys.stderr)
-        return {"db": path, "tables": {}}
-    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-    present = _table_names(conn)
-    out: dict[str, dict] = {}
-    for table in TABLES:
-        # `uploads` is really ingest_uploads in this schema; accept either.
-        real = table if table in present else f"ingest_{table}"
-        if real not in present:
+def _digest(value):
+    if isinstance(value, bytes):
+        value = {'bytes': value.hex()}
+    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False,
+                                    separators=(',', ':')).encode()).hexdigest()
+
+
+def snapshot(db=None, blob_roots=None):
+    path = pathlib.Path(db or _db_path()).resolve()
+    if not path.is_file():
+        raise ValueError(f'no database at {path}; refusing an empty baseline')
+    conn = sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)
+    try:
+        conn.execute('BEGIN')
+        if conn.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
+            raise ValueError('database integrity check failed')
+        tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+        if not tables:
+            raise ValueError('database has no application tables')
+        out = {}
+        for table in tables:
+            columns = list(conn.execute(f'PRAGMA table_info({_quote(table)})'))
+            names = [r[1] for r in columns]
+            pk = [r[1] for r in sorted(columns, key=lambda r: r[5]) if r[5]]
+            selection = '*' if pk else 'rowid, *'
+            fields = {}
+            for row in conn.execute(f'SELECT {selection} FROM {_quote(table)}'):
+                values = dict(zip(names, row if pk else row[1:]))
+                key = json.dumps([values[c] for c in pk], default=str) if len(pk) > 1 else str(values[pk[0]]) if pk else str(row[0])
+                if key in fields:
+                    raise ValueError(f'{table}: non-unique row identity')
+                fields[key] = {c: _digest(v) for c, v in values.items()}
+            label = 'uploads' if table == 'ingest_uploads' and 'uploads' not in tables else table
+            out[label] = {'table': table, 'id_columns': pk or ['rowid'],
+                          'columns': names, 'count': len(fields), 'ids': sorted(fields), 'fields': fields}
+    finally:
+        conn.close()
+    blobs = {}
+    for label, directory in (blob_roots or {}).items():
+        base = pathlib.Path(directory).resolve()
+        if not base.is_dir():
+            raise ValueError(f'blob root {label} is missing')
+        files = {}
+        for file in sorted(base.rglob('*')):
+            if file.is_symlink():
+                raise ValueError(f'blob root {label} contains a symlink; resolve its scope explicitly')
+            if file.is_file():
+                digest = hashlib.sha256()
+                with file.open('rb') as source:
+                    for chunk in iter(lambda: source.read(1024 * 1024), b''):
+                        digest.update(chunk)
+                files[str(file.relative_to(base))] = {'sha256': digest.hexdigest(), 'bytes': file.stat().st_size}
+        blobs[label] = {'root': str(base), 'files': files}
+    return {'version': 2, 'db': str(path), 'taken_at': dt.datetime.now(dt.timezone.utc).isoformat(),
+            'tables': out, 'blobs': blobs}
+
+
+def compare(before, now, allowed=()):
+    if before.get('version') != 2:
+        return ['legacy or unversioned baseline lacks content evidence; take a version-2 snapshot']
+    if not before.get('tables'):
+        return ['empty baseline is not preservation evidence']
+    problems = []
+    allowed = set(allowed)
+    for name, previous in before['tables'].items():
+        ids, fields = previous.get('ids'), previous.get('fields')
+        if not isinstance(ids, list) or not isinstance(fields, dict) or not previous.get('columns'):
+            problems.append(f'{name}: baseline is missing IDs, content hashes or columns')
             continue
-        cols = {r[1] for r in conn.execute(f"PRAGMA table_info({real})")}
-        id_col = next((c for c in ID_CANDIDATES if c in cols), None)
-        if id_col is None:
-            count = conn.execute(f"SELECT COUNT(*) FROM {real}").fetchone()[0]
-            out[table] = {"table": real, "count": count, "ids": None}
+        if len(ids) != len(set(ids)) or len(ids) != previous.get('count') or set(ids) != set(fields):
+            problems.append(f'{name}: inconsistent baseline IDs/content: {sorted(set(ids) ^ set(fields))[:10]}')
             continue
-        ids = [str(r[0]) for r in conn.execute(f"SELECT {id_col} FROM {real}")]
-        out[table] = {"table": real, "id_column": id_col,
-                      "count": len(ids), "ids": sorted(ids)}
-    conn.close()
-    return {"db": path, "taken_at": dt.datetime.now().isoformat(timespec="seconds"),
-            "tables": out}
-
-
-def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--snapshot", action="store_true")
-    ap.add_argument("--diff", metavar="BEFORE.json")
-    args = ap.parse_args(argv[1:])
-    if not (args.snapshot or args.diff):
-        ap.error("choose --snapshot or --diff")
-
-    now = snapshot()
-
-    if args.snapshot:
-        OUT_DIR.mkdir(parents=True, exist_ok=True)
-        out = OUT_DIR / f"INVENTORY_{dt.date.today().isoformat()}.json"
-        out.write_text(json.dumps(now, indent=2) + "\n")
-        total = sum(t["count"] for t in now["tables"].values())
-        print(f"wrote {out.relative_to(BACKEND.parent)} — "
-              f"{len(now['tables'])} table(s), {total} row(s)")
-        for name, t in sorted(now["tables"].items()):
-            print(f"  {name:12} {t['count']:>6}")
-        return 0
-
-    before = json.loads(pathlib.Path(args.diff).read_text())
-    lost: list[str] = []
-    for name, prev in before.get("tables", {}).items():
-        cur = now["tables"].get(name)
-        if cur is None:
-            lost.append(f"{name}: table is gone (had {prev['count']} rows)")
+        invalid_rows = [identity for identity, values in fields.items()
+                        if not isinstance(values, dict) or set(values) != set(previous['columns'])
+                        or any(not isinstance(v, str) or not re.fullmatch(r'[0-9a-f]{64}', v) for v in values.values())]
+        if invalid_rows:
+            problems.append(f'{name}: baseline rows lack complete field hashes: {invalid_rows[:10]}')
             continue
-        if prev.get("ids") is None or cur.get("ids") is None:
-            if cur["count"] < prev["count"]:
-                lost.append(f"{name}: {prev['count']} -> {cur['count']} rows")
+        current = now['tables'].get(name)
+        if current is None:
+            problems.append(f'{name}: table disappeared')
             continue
-        missing = sorted(set(prev["ids"]) - set(cur["ids"]))
-        added = len(set(cur["ids"]) - set(prev["ids"]))
+        if not set(previous['columns']).issubset(current.get('columns', [])):
+            problems.append(f'{name}: existing columns disappeared')
+        missing = set(previous.get('ids') or []) - set(current.get('ids') or [])
         if missing:
-            lost.append(f"{name}: {len(missing)} id(s) missing — "
-                        f"{missing[:10]}{' ...' if len(missing) > 10 else ''}")
-        print(f"  {name:12} {prev['count']:>6} -> {cur['count']:<6} "
-              f"(+{added}, -{len(missing)})")
+            problems.append(f'{name}: {len(missing)} missing ids: {sorted(missing)[:10]}')
+        if previous.get('ids') is None and current['count'] < previous['count']:
+            problems.append(f'{name}: row count decreased')
+        for identity, values in previous.get('fields', {}).items():
+            if identity not in current.get('fields', {}):
+                continue
+            for column, digest in values.items():
+                updated = current['fields'][identity]
+                # A column disappearing cannot be authorized as a value change.
+                if column not in updated or (digest != updated[column] and f"{previous['table']}.{column}" not in allowed):
+                    problems.append(f'{name}: existing content changed in {column} (row {identity})')
+    for label, previous in before.get('blobs', {}).items():
+        current = now.get('blobs', {}).get(label, {}).get('files', {})
+        for name, value in previous['files'].items():
+            if current.get(name) != value:
+                problems.append(f'{label}: file missing or changed: {name}')
+    return problems
 
-    if lost:
-        print("\nDATA LOSS — ids present before the change are gone:", file=sys.stderr)
-        for line in lost:
-            print(f"  {line}", file=sys.stderr)
-        print("\nThis is not fixable forward. Restore before continuing.", file=sys.stderr)
+
+def main(argv):
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--snapshot', action='store_true')
+    mode.add_argument('--diff', metavar='BEFORE.json')
+    parser.add_argument('--db')
+    parser.add_argument('--output')
+    parser.add_argument('--blob-root', action='append', default=[], metavar='NAME=PATH')
+    parser.add_argument('--allow-change', action='append', default=[], metavar='TABLE.COLUMN')
+    args = parser.parse_args(argv[1:])
+    try:
+        before = json.loads(pathlib.Path(args.diff).read_text()) if args.diff else None
+        roots = dict(x.split('=', 1) for x in args.blob_root)
+        if before and not roots:
+            roots = {k: v['root'] for k, v in before.get('blobs', {}).items()}
+        now = snapshot(args.db, roots)
+        if args.snapshot:
+            OUT_DIR.mkdir(parents=True, exist_ok=True)
+            output = pathlib.Path(args.output) if args.output else OUT_DIR / f"INVENTORY_{dt.datetime.now().strftime('%Y-%m-%d_%H%M%S_%f')}.json"
+            fd = os.open(output, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            with os.fdopen(fd, 'w') as target:
+                json.dump(now, target, indent=2)
+                target.write('\n')
+                target.flush()
+                os.fsync(target.fileno())
+            print(f"wrote {output}: {len(now['tables'])} tables, {sum(t['count'] for t in now['tables'].values())} rows")
+            return 0
+        problems = compare(before, now, args.allow_change)
+        if problems:
+            print('PRESERVATION CHECK FAILED:\n' + '\n'.join(problems[:50]), file=sys.stderr)
+            return 2
+        if before.get('version') != 2:
+            print('Legacy baseline: IDs only; content and blobs were not measured.', file=sys.stderr)
+        print('no ids lost; all baselined content and files preserved')
+        return 0
+    except (ValueError, OSError, sqlite3.Error) as exc:
+        print(f'PRESERVATION CHECK FAILED: {exc}', file=sys.stderr)
         return 2
-    print("\nno ids lost")
-    return 0
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     raise SystemExit(main(sys.argv))

@@ -295,3 +295,19 @@ jobs:
             echo "::error::the onboarding component tests ran nothing"
             exit 1
           fi
+
+  data-preservation:
+    name: Data preservation SQL gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Reject destructive changes to product data
+        env:
+          DATA_REVIEW_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'origin/main' }}
+        run: python backend/scripts/data_change_guard.py --base "$DATA_REVIEW_BASE"

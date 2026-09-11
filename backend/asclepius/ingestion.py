@@ -10,7 +10,7 @@ Design rules enforced here:
     ENTRY and the rest of the bundle continues — unless imaging was the only
     content, which rejects the upload.
   * The raw partner zip lives ONLY as an AES-GCM-encrypted blob under the
-    quarantine dir (0700), auto-purged after ``ASCLEPIUS_RAW_RETENTION_DAYS``.
+    quarantine dir (0700), retained until a separately authorized disposition.
   * Chain of custody: every step emits a ``store.log_event`` audit event.
   * Malware scanning is a pluggable hook (``ASCLEPIUS_MALWARE_SCAN_CMD`` — any
     command returning non-zero rejects the upload); the built-in baseline
@@ -315,7 +315,8 @@ def store_raw(upload_id: str, data: bytes) -> str:
     only when no DATA_ENCRYPTION_KEY is configured — dev). 0700 dir, 0600 file."""
     from field_crypto import encrypt_bytes
     path = _raw_path_for(upload_id)
-    path.write_bytes(encrypt_bytes(data))
+    from durable_files import atomic_write
+    atomic_write(path, encrypt_bytes(data))
     _chmod_600(path)
     return str(path)
 
@@ -356,6 +357,8 @@ def store_raw_stream(upload_id: str, chunks: Iterable[bytes]) -> str:
             os.fsync(fh.fileno())
         _chmod_600(tmp)
         os.replace(tmp, path)
+        from durable_files import sync_ancestors
+        sync_ancestors(path.parent)
     except BaseException:
         with contextlib.suppress(OSError):
             tmp.unlink()
@@ -533,36 +536,16 @@ def ingest_storage_durable() -> Tuple[bool, str]:
 
 
 def purge_expired_raw(store: Any) -> int:
-    """Delete raw blobs older than the retention window (PRD §4: we keep the
-    derived case, not the partner file). Called opportunistically on ingestion
-    activity — no cron needed at pod scale. Returns files deleted."""
-    cutoff = time.time() - raw_retention_days() * 86400
-    # Retain-raw (Audit §9.4): an upload whose entries ALL failed to parse keeps its
-    # raw blob past the window so it can be re-run after a parser fix. Skip those paths.
-    retained: set = set()
-    try:
-        for u in store.list_uploads_with_retained_raw():
-            rp = u.get("raw_path")
-            if rp:
-                retained.add(os.path.basename(rp))
-    except Exception:  # Fail closed: unavailable retention metadata is not consent.
-        return 0
-    deleted = 0
-    for p in quarantine_root().glob("*.zip.enc"):
-        try:
-            if p.name in retained:
-                continue
-            if p.stat().st_mtime < cutoff:
-                p.unlink()
-                deleted += 1
-        except OSError:
-            continue
-    if deleted:
-        store.log_event(entity_type="ingest", event_type="raw_purged",
-                        payload={"deleted": deleted, "retention_days": raw_retention_days()})
+    """Compatibility entry point. Age alone never authorizes source deletion.
+
+    Derived cases cannot reconstruct originals or unparsed entries. A separately
+    reviewed retention disposition must establish scope, holds and recoverability
+    before removing accepted data. Ordinary ingestion performs no such deletion.
+    """
     purge_stale_scratch()
-    purge_orphan_raw(store)
-    return deleted
+    return 0
+
+
 
 
 def orphan_raw_grace_hours() -> int:
@@ -579,42 +562,10 @@ def orphan_raw_grace_hours() -> int:
 
 
 def purge_orphan_raw(store: Any) -> int:
-    """Delete raw blobs that NO upload row references (Audit M1).
+    """Do not destroy recovery evidence merely because its catalog row is absent."""
+    return 0
 
-    ``purge_expired_raw`` walks database rows, so a blob whose row was never
-    written is invisible to it — and a crash between ``complete()`` (which writes
-    the bytes) and ``insert_ingest_upload`` leaves exactly that. The result was
-    encrypted PHI sitting on the durable volume forever, referenced by nothing and
-    counted by nothing, which is an accounting problem before it is a disk one.
 
-    Deliberately conservative in the dangerous direction: a blob is removed only
-    when it is older than the grace window AND no row of any status names it. A
-    wrongly-deleted blob is a bundle the partner has to re-send; an orphan kept one
-    day too long costs disk."""
-    try:
-        referenced = {os.path.basename(u.get("raw_path") or "")
-                      for u in store.list_ingest_uploads(limit=1000000)}
-    except Exception as exc:  # pragma: no cover - never delete on a failed read
-        log.warning("orphan raw sweep skipped: could not list uploads: %s", exc)
-        return 0
-    referenced.discard("")
-    cutoff = time.time() - orphan_raw_grace_hours() * 3600
-    deleted = 0
-    for p in quarantine_root().glob("*.zip.enc"):
-        try:
-            if p.name in referenced or p.stat().st_mtime >= cutoff:
-                continue
-            p.unlink()
-            deleted += 1
-        except OSError:
-            continue
-    if deleted:
-        with contextlib.suppress(Exception):
-            store.log_event(entity_type="ingest", event_type="orphan_raw_purged",
-                            payload={"deleted": deleted})
-        log.warning("released %d raw blob(s) that no upload row referenced, a crash "
-                    "between assembly and row insert leaves these behind", deleted)
-    return deleted
 
 
 # Scratch that ``process_upload`` normally removes itself: the decrypted archive
@@ -905,7 +856,7 @@ def _classify(name: str, head: bytes, text_head: str) -> str:
     if base == "manifest.json":
         return "manifest"
     if lower.endswith((".json",)):
-        return "fhir_r4" if '"resourceType"' in text_head and '"Bundle"' in text_head else "unsupported"
+        return "fhir_r4" if re.search(r'"resourceType"\s*:\s*"(?:Bundle|Patient)"', text_head) else "unsupported"
     if lower.endswith((".hl7", ".oru")) or text_head.startswith("MSH|"):
         return "hl7v2"
     if lower.endswith((".csv", ".tsv")):
@@ -1225,14 +1176,20 @@ def _merge_fragments(parts: List[Dict[str, Any]]) -> Dict[str, Any]:
     eval_task = None
     case_provenance = None
     synthetic_declared = False
+    def timestamp(value):
+        from datetime import datetime, timezone
+        try:
+            parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+            return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+        except (TypeError, ValueError):
+            return None
+
     for p in parts:
         for k in ("lab_panels", "notes", "medications", "problem_list", "studies",
                   "source_refs"):
             out[k].extend(p.get(k) or [])
         for k, v in (p.get("demographics") or {}).items():
             out["demographics"].setdefault(k, v)
-        for k, v in (p.get("vitals") or {}).items():
-            out["vitals"].setdefault(k, v)
         ie = p.get("_index_event")
         if ie and (index_event is None or str(ie) > str(index_event)):
             index_event = ie
@@ -1250,8 +1207,13 @@ def _merge_fragments(parts: List[Dict[str, Any]]) -> Dict[str, Any]:
         # the latest vital-sign date across fragments — the timing marker for the
         # merged (flat) vitals set, used by the V5 temporal gate.
         va = p.get("_vitals_at")
-        if va and (out.get("_vitals_at") is None or str(va) > str(out["_vitals_at"])):
-            out["_vitals_at"] = va
+        current_time, prior_time = timestamp(va), timestamp(out.get('_vitals_at'))
+        if current_time and (not prior_time or current_time > prior_time):
+            out['vitals'] = dict(p.get('vitals') or {})
+            out['_vitals_at'] = va
+        elif current_time == prior_time:
+            for key, value in (p.get('vitals') or {}).items():
+                out['vitals'].setdefault(key, value)
     if index_event:
         out["_index_event"] = index_event
     if sealed:
@@ -1465,6 +1427,15 @@ def _dicom_entries_to_studies(
 
     key_ids = {str(k).strip().lower() for k in (manifest.get("key_images") or [])}
     cap = key_image_series_cap()
+
+    identities = set()
+    for entry in dicom_entries:
+        original = dicom_deid.read(entry['data'])
+        patient = str(getattr(original, 'PatientID', '') or '').strip()
+        if patient:
+            identities.add((str(getattr(original, 'IssuerOfPatientID', '') or ''), patient))
+    if len(identities) > 1 or not manifest.get('patient_key'):
+        raise BundleRejected('DICOM patient ownership requires one patient per upload and an explicit manifest patient_key')
 
     # First pass: parse + de-id, group by series, so we know each series' size.
     parsed: List[Dict[str, Any]] = []
@@ -1687,6 +1658,12 @@ def _patient_key_and_source(
     """``(grouping_key, how_we_got_it)``. The source matters because reconciling
     keys across formats (``unify_patient_keys``) is only safe when we know which
     system minted each one."""
+    # No manifest or filename may collapse multiple patients into one chart.
+    # These adapters currently return a combined fragment; hold the original
+    # until it can be separated with explicit patient ownership.
+    keys = list(dict.fromkeys(str(k) for k in fragment.get("_patient_keys") or []))
+    if len(keys) > 1:
+        raise BundleRejected("multiple patients in one file; provide one patient per file")
     # The manifest is the AUTHORITATIVE grouping hint (PRD §5): when the partner
     # declares a patient_key, every entry in the bundle belongs to that one case
     # (FHIR ids / CSV keys are per-system and would otherwise split the case).
@@ -1757,35 +1734,13 @@ def unify_patient_keys(
                 "sources": {s: len(k) for s, k in identity_by_source.items()},
             }
 
-    winner_source = next(
-        (s for s in _KEY_SOURCE_PRECEDENCE if s in identity_by_source), None)
-    if winner_source is None:               # pragma: no cover - defensive
-        return per_patient, None
-    winner = sorted(identity_by_source[winner_source])[0]
-
-    merged: List[Dict[str, Any]] = []
-    for key in sorted(per_patient, key=lambda k: (k != winner, k)):
-        merged.extend(per_patient[key])
-    unkeyed = len(per_patient.get("default") or [])
-    report = {
-        "unified": True,
-        "into_source": winner_source,
-        "into": opaque_patient_key(winner),
-        # Opaque forms only: a raw key may be an MRN and never passes the case-body
-        # PHI scan (see ``opaque_patient_key``).
-        "merged": [opaque_patient_key(k) for k in per_patient if k != winner],
-        "sources": {s: sorted(opaque_patient_key(k) for k in ks)
-                    for s, ks in identity_by_source.items()},
+    # One key per format is not proof that the keys identify the same patient.
+    # Require an explicit manifest declaration; keep all fragments for review.
+    return per_patient, {
+        "unified": False, "requires_review": True,
+        "reason": "patient identity across files is ambiguous; provide an explicit patient mapping",
+        "sources": {s: len(k) for s, k in identity_by_source.items()},
     }
-    if unkeyed:
-        # Named in the report (Case Generation Fix PRD §A2): the plain-text notes
-        # and a CSV with no patient column carry no identity at all, and they were
-        # folded into the one keyed patient this bundle describes. Recorded so an
-        # admin reading "1 chart" can see that 80 unkeyed files were absorbed
-        # rather than assume every file minted the same id.
-        report["unification"] = "single_keyed_patient_absorbed_unkeyed"
-        report["unkeyed_fragments_absorbed"] = unkeyed
-    return {winner: merged}, report
 
 
 def opaque_patient_key(raw_key: str) -> str:
@@ -1953,8 +1908,8 @@ def process_upload(store: Any, upload_id: str, *, specialty_override: Optional[s
         entry_manifest["filename"] = name
         try:
             frag = cf.FORMATS[kind](e["data"], specialty=specialty, manifest=entry_manifest)
-            parsed_any = True
             pk, how = _patient_key_and_source(frag, name, manifest)
+            parsed_any = True
             # An adapter-minted key belongs to the FORMAT that minted it — that is
             # what makes "two distinct FHIR Patient.ids" (multi-patient, do not
             # merge) distinguishable from "a FHIR id and its own HL7 hash" (one
@@ -1966,6 +1921,14 @@ def process_upload(store: Any, upload_id: str, *, specialty_override: Optional[s
         except Exception as exc:
             file_outcomes.append({"name": name, "kind": kind, "outcome": f"parse_failed: {exc}"})
 
+    incomplete_files = [f for f in file_outcomes
+                        if f.get("outcome") not in ("parsed", "used", "ingested")
+                        and f.get("kind") != "dicom"]
+    # DICOM outcomes encode their detailed screening result separately.
+    incomplete_files.extend(f for f in file_outcomes if f.get("kind") == "dicom"
+                            and str(f.get("outcome") or "").startswith(("rejected", "parse_failed")))
+    if incomplete_files:
+        store.update_ingest_upload(upload_id, retain_raw=1)
     if not parsed_any:
         store.update_ingest_upload(upload_id, files_json=file_outcomes)
         # The "imaging-only bundle is rejected wholesale" invariant is RETIRED (Buyer
@@ -2087,6 +2050,14 @@ def process_upload(store: Any, upload_id: str, *, specialty_override: Optional[s
             # reasons hold the case out of the annotation queue; advisory reasons
             # ingest cleanly (the case is intact, only a claim about it is unverified).
             review_reasons: List[Dict[str, Any]] = []
+            if unify_report and unify_report.get("requires_review"):
+                _raise_review(review_reasons, "ambiguous_patient_identity", "blocking",
+                              unify_report["reason"])
+            if incomplete_files:
+                _raise_review(review_reasons, "incomplete_upload", "blocking",
+                              f"{len(incomplete_files)} file(s) were not parsed; "
+                              "the original is retained. Resolve or explicitly review "
+                              "the missing content before case creation.")
             for st in (case.get("studies") or []):
                 phi = st.get("phi_screening") or {}
                 if phi.get("burned_in_risk") == "suspect":
@@ -2132,8 +2103,9 @@ def process_upload(store: Any, upload_id: str, *, specialty_override: Optional[s
             # failure here must never change the ingest outcome.
             try:
                 from asclepius.real_cases import prepare_longitudinal_chart
-                case = prepare_longitudinal_chart(case)
-                report["content_summary"] = content_summary(case)
+                # Curation is for derived cases. Never replace the source chart
+                # with a version that discards short notes or alters timestamps.
+                report["content_summary"] = content_summary(prepare_longitudinal_chart(case))
             except Exception as exc:  # pragma: no cover - defensive
                 log.warning("content summary failed for upload %s: %s", upload_id, exc)
             ic = store.insert_ingest_case(upload_id=upload_id,
@@ -2220,9 +2192,15 @@ def process_upload(store: Any, upload_id: str, *, specialty_override: Optional[s
         log.warning("could not propagate purpose for upload %s: %s", upload_id, exc)
 
     status = _upload_status_from_cases(ingested, quarantined, needs_review)
+    unaccounted_patients = len(per_patient) - ingested - quarantined - needs_review
+    if incomplete_files or unaccounted_patients > 0:
+        status = "needs_review"
+        store.update_ingest_upload(upload_id, retain_raw=1)
     reason = None
     if status == "needs_review":
-        reason = "one or more cases held for admin review"
+        reason = ("incomplete processing: original retained for recovery and review"
+                  if incomplete_files or unaccounted_patients > 0
+                  else "one or more cases held for admin review")
     elif status == "quarantined":
         # Partial-failure wording matters: "all cases quarantined" over a 2-of-3
         # failure reads as a different (and smaller) problem than it is.

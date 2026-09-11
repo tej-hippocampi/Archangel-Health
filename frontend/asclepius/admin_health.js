@@ -708,7 +708,7 @@
                                   encodeURIComponent(r.hs_id) + '/approve',
                                   { method: 'POST', body: {} });
             toast(r.organization + ' has been asked to sign. ' +
-                  (res.emailed || 0) + ' invitation(s) sent.', 'success');
+                  (res.emailed || 0) + ' invitation(s) sent; ' + (res.email_pending || 0) + ' queued for retry.', res.email_pending ? 'warning' : 'success');
             render(listContainer.parentNode, ctx);
           } catch (e) {
             toast(e.message || 'Could not approve that.', 'error');
@@ -1144,6 +1144,53 @@
   // ─── The application: the four answers, verbatim ──────────
   function renderApplicationCard(container, ctx, data) {
     const { h, fmtDate } = ctx;
+    if ((data.email_delivery || []).length) {
+      const delivery = h('section', { class: 'asc-card' }, h('div', { class: 'asc-card-title' }, 'Agreement email delivery'));
+      data.email_delivery.forEach(row => delivery.appendChild(h('p', {},
+        row.recipient_email + ': ' + (row.status === 'sent' ? 'Accepted by email provider' : row.status === 'void' ? 'Superseded; will not send' : 'Queued; automatic retry') +
+        ' (' + row.send_attempts + ' attempts)' + (row.last_error ? ': ' + row.last_error : ''))));
+      container.appendChild(delivery);
+    }
+    const receiptHsId = data.health_system?.hs_id;
+    if (receiptHsId) {
+      (async () => {
+        const result = {collections: []};
+        let collectionAfter = '';
+        do {
+          const page = await ctx.api('/admin/media/' + encodeURIComponent(receiptHsId) + '/collections?after=' + encodeURIComponent(collectionAfter));
+          result.collections.push(...(page.collections || []));
+          collectionAfter = page.collections?.length === 100 ? page.collections[99].id : '';
+        } while (collectionAfter && container.isConnected);
+        return result;
+      })().then(result => {
+        if (!(result.collections || []).length || !container.isConnected) return;
+        const card = h('section', { class: 'asc-card' }, h('div', { class: 'asc-card-title' }, 'Large-file receipts'),
+          h('p', {}, 'Stored originals awaiting review. Clinical cases use the chart ingestion workflow.'));
+        result.collections.forEach(collection => {
+          const details = h('details', {}, h('summary', {}, collection.id + ' · ' + collection.files + ' files'));
+          let loaded = false;
+          details.addEventListener('toggle', async () => {
+            if (!details.open || loaded) return;
+            loaded = true;
+            try {
+              let after = '';
+              do {
+                const page = await ctx.api('/admin/media/' + encodeURIComponent(receiptHsId) + '/collections/' + encodeURIComponent(collection.id) + '?after=' + encodeURIComponent(after));
+                (page.files || []).forEach(row => details.appendChild(h('p', {}, row.path + ' · ' + row.state + ' · receipt ' + row.id + (row.sha256 ? ' · SHA-256 ' + row.sha256 : ''))));
+                after = page.files?.length === 100 ? page.files[99].id : '';
+              } while (after && details.isConnected);
+            } catch (error) { loaded = false; details.appendChild(h('p', {}, error.message)); }
+          });
+          card.appendChild(details);
+        });
+        container.appendChild(card);
+      }).catch(error => {
+        if (!container.isConnected || String(error.message).includes('Bulk uploads are not enabled')) return;
+        container.appendChild(h('section', {class: 'asc-card'},
+          h('div', {class: 'asc-card-title'}, 'Large-file receipts'),
+          h('p', {}, 'Receipts could not be loaded: ' + error.message)));
+      });
+    }
     const entries = data.applications || [];
     if (!entries.length) return;
     const card = h('div', { class: 'asc-card' },

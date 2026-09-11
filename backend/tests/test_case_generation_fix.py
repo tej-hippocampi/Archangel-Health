@@ -284,7 +284,10 @@ def _adapter_pass(data: bytes):
 @pytest.fixture(scope="module")
 def patient3_bare():
     manifest, before, per_patient, report = _adapter_pass(_bare_zip("patient-3"))
-    merged = ING._merge_fragments(next(iter(per_patient.values())))
+    # Timeline assertions use the fixture's explicit patient mapping; the bare
+    # archive below independently verifies that missing mappings are held.
+    _, _, mapped, _ = _adapter_pass(PF.pack_bundle("patient-3"))
+    merged = ING._merge_fragments(next(iter(mapped.values())))
     body = {k: v for k, v in merged.items() if not str(k).startswith("_")}
     norm, treport = TL.normalize_timeline(
         body, index_event=manifest.get("index_event") or merged.get("_index_event"),
@@ -293,17 +296,10 @@ def patient3_bare():
             "norm": norm, "treport": treport}
 
 
-def test_patient_three_without_a_manifest_is_one_ingest_case(patient3_bare):
-    """Three key sources (FHIR Patient.id, an HL7 PID-3 hash, and 80 unkeyed
-    text/CSV files) fold into ONE case, and the report says the unkeyed ones
-    were absorbed rather than merely that two keys merged."""
-    assert len(patient3_bare["before"]) == 3, sorted(patient3_bare["before"])
-    assert "default" in patient3_bare["before"]
-    assert len(patient3_bare["after"]) == 1
-    rep = patient3_bare["report"]
-    assert rep["unified"] is True and rep["into_source"] == "fhir_r4"
-    assert rep["unification"] == "single_keyed_patient_absorbed_unkeyed"
-    assert rep["unkeyed_fragments_absorbed"] == len(patient3_bare["before"]["default"]) >= 70
+def test_patient_three_without_a_manifest_requires_identity_review(patient3_bare):
+    assert len(patient3_bare['before']) == 3
+    assert patient3_bare['after'] == patient3_bare['before']
+    assert patient3_bare['report']['requires_review']
 
 
 def test_two_real_keys_are_still_never_merged():
@@ -315,11 +311,11 @@ def test_two_real_keys_are_still_never_merged():
     assert rep["unified"] is False
 
 
-def test_a_single_keyed_bundle_absorbs_its_unkeyed_files():
+def test_unkeyed_files_need_an_explicit_patient_mapping():
     out, rep = ING.unify_patient_keys(
         {"pat-a": [{}], "default": [{}, {}, {}]}, {"pat-a": "fhir_r4", "default": "default"})
-    assert list(out) == ["pat-a"] and len(out["pat-a"]) == 4
-    assert rep["unkeyed_fragments_absorbed"] == 3
+    assert set(out) == {'pat-a', 'default'}
+    assert rep['requires_review'] and len(out['default']) == 3
 
 
 def test_the_fixture_door_declares_the_patient_key_and_specialty():

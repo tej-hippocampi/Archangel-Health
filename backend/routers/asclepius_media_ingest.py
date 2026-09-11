@@ -16,6 +16,9 @@ def user_gate(user=Depends(require_hs_surface(hs_access.UPLOAD))):
         raise HTTPException(404, "Bulk uploads are not enabled.")
     if user.get("must_reset") or not hs_states.can_upload(user.get("health_system")):
         raise HTTPException(403, "This account cannot upload yet.")
+    readiness = hs_states.data_readiness_error(get_store(), user['hs_id'])
+    if readiness:
+        raise HTTPException(403, readiness)
     return user
 
 
@@ -61,6 +64,11 @@ def cloud_import(body: Import, user=Depends(user_gate)):
 @router.get("/capabilities")
 def capabilities(user=Depends(user_gate)):
     return {"enabled": True, "max_file_bytes": 1024**4, "max_collection_files": 100000}
+
+
+@router.get("/collections")
+def collections(after: str = Query("", max_length=64), user=Depends(user_gate)):
+    return execute(lambda: {"collections": media_store.get_store().collections(user['hs_id'], after)})
 
 
 @router.post("/collections")

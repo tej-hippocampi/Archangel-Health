@@ -78,6 +78,11 @@ class MediaStore:
             q("CREATE TABLE IF NOT EXISTS media_deliveries(scope TEXT NOT NULL,id TEXT NOT NULL,buyer TEXT NOT NULL,data TEXT NOT NULL,created DOUBLE PRECISION NOT NULL,PRIMARY KEY(scope,id))")
             q("CREATE INDEX IF NOT EXISTS media_buyer_deliveries ON media_deliveries(scope,buyer,id)")
 
+    def collections(self, org, after="", limit=100):
+        with self.transaction() as q:
+            rows = q("SELECT id,files,bytes FROM media_collections WHERE scope=? AND org=? AND id>? ORDER BY id LIMIT ?", (self.scope, org, after, min(100, max(1, limit)))).fetchall()
+        return [dict(row) for row in rows]
+
     def collection(self, org):
         cid = uuid.uuid4().hex
         with self.transaction(org) as q:
