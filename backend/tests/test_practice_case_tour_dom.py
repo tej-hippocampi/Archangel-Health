@@ -506,3 +506,52 @@ def test_a_click_step_is_unaffected_by_the_guard():
       out({ idx: state.tutorial.idx });
     """)
     assert out["idx"] > 1, "a click-gated step was held by the typing guard"
+
+
+@pytest.mark.parametrize("replay", [False, True])
+def test_approved_practice_completion_keeps_remaining_onboarding(replay):
+    out = _reveal_harness(_RESULT + """
+      state.user.verification_status = 'approved';
+      function firstRunTourPending() { return true; }
+      renderTutorialReveal(result, {replay: %s});
+      const btn = find((n) => n.tagName === 'BUTTON', rootNode);
+      const label = btn.textContent;
+      btn.dispatch('click');
+      out({label, calls});
+    """ % ("true" if replay else "false"))
+    assert out["label"] == ("Go to my cases →" if replay else "Continue onboarding →")
+    assert out["calls"] == (["dashboard"] if replay else ["first-run"])
+
+
+def test_failed_practice_skip_keeps_the_welcome_button_for_retry():
+    from tests.test_first_run_dom import _ctx
+    functions = "\n".join(_extract_function(JS, name) for name in
+        ("renderTourWelcome", "confirmSkipTutorial", "skipPracticeWalkthrough"))
+    out = _run_node(_ctx() + functions + """
+      var state = {user: {verification_status: 'approved'}, submitting: false};
+      var tries = 0, writes = [], notices = [];
+      function hideTourLayer() {}
+      function tutTick() {}
+      function leaveTutorial(options) { handoffs.push(options); }
+      function toast(message) { notices.push(message); }
+      function api(path, opts) {
+        writes.push(opts.body);
+        tries++;
+        return tries === 1 ? Promise.reject(new Error('temporary')) : Promise.resolve(state.user);
+      }
+      renderTourWelcome();
+      var button = find(document.body, 'asc-tour-skip')[0];
+      button.dispatch('click');
+      done(function () {
+        var retry = find(document.body, 'asc-tour-skip')[0];
+        var retryable = !!retry && !state.submitting;
+        if (retry) retry.dispatch('click');
+        done(function () { console.log(JSON.stringify({
+          retryable: retryable, notices: notices, writes: writes, handoffs: handoffs
+        })); });
+      });
+    """)
+    assert out["retryable"]
+    assert len(out["notices"]) == 1
+    assert out["writes"] == [{"action": "skip_practice"}] * 2
+    assert out["handoffs"] == [{"continueOnboarding": True}]

@@ -22,6 +22,7 @@ bug is now a red shard rather than a screenshot somebody happens to take.
 from __future__ import annotations
 
 import json
+from itertools import product
 import re
 import subprocess
 import sys
@@ -375,9 +376,11 @@ def test_the_python_and_javascript_cadence_agree():
     ]
     for stops in stop_sets:
         for sessions in (1, 2, 3, 4, 10):
-            for dismissed in (None, "2026-01-01T00:00:00Z"):
+            for dismissed, practice_skipped in product(
+                    (None, "2026-01-01T00:00:00Z"), (None, "2026-09-11T00:00:00Z")):
                 state = {"version": _VERSION, "stops": stops,
-                         "sessions_seen": sessions, "dismissed_at": dismissed}
+                         "sessions_seen": sessions, "dismissed_at": dismissed,
+                         "practice_skipped_at": practice_skipped}
                 cases.append({"state": state, "python": fr.mode(state)})
 
     out = _run_node(_ctx() + """
@@ -891,7 +894,7 @@ def test_auth_me_returns_the_stops_and_the_cadence_clock():
     c = TestClient(app)
     fr_payload = c.get("/api/asclepius/auth/me", headers=headers_for(user)).json()["first_run"]
     assert set(fr_payload) == {"version", "stops", "sessions_seen",
-                               "completed_at", "dismissed_at"}
+                               "completed_at", "dismissed_at", "practice_skipped_at"}
     # The idempotency key is a token id. Nothing on screen reads it, so it does
     # not ride in a payload returned on every request.
     assert "last_session_counted" not in fr_payload

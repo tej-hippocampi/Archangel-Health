@@ -914,7 +914,9 @@ class FirstRunUpdate(BaseModel):
     """PATCH /me/first-run — one transition on the caller's own walkthrough.
 
     ``done`` closes a stop for good; it is monotonic and it is the only outcome a
-    REQUIRED stop (welcome, start, practice) accepts.
+    REQUIRED stop (welcome, start, practice) stores in its stops map.
+    ``skip_practice`` is an approved physician's separate practice-only opt-out;
+    it records a timestamp without fabricating a completion or dismissing other stops.
 
     ``defer`` is Welcome package v2 §1's replacement for ``skip`` on the three
     OPTIONAL stops, and the difference is the whole point of that PRD: a skip was
@@ -936,7 +938,9 @@ class FirstRunUpdate(BaseModel):
     done, which is what the "You're all set" line reads from.
     """
 
-    action: Literal["done", "skip", "defer", "defer_all", "dismiss", "reset"]
+    # Approved physicians can skip just the practice walkthrough. This does not
+    # complete the tutorial, defer other stops, or dismiss the welcome package.
+    action: Literal["done", "skip", "skip_practice", "defer", "defer_all", "dismiss", "reset"]
     stop: Optional[Literal[FIRST_RUN_STOPS]] = None  # type: ignore[valid-type]
 
 
