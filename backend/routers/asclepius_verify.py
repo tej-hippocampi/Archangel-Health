@@ -838,32 +838,51 @@ async def approve_signup(
         log.exception("[verify] community welcome failed (decision stands)")
     # All acceptance paths use the same durable queue. No competing inline
     # send, and no temporary password that can be lost between mint and email.
+    return {"ok": True, "user_id": user_id, "tier": tier,
+            "verification_status": "approved",
+            "verified_by": updated.get("verified_by"),
+            "verified_at": updated.get("verified_at"),
+            "credentials_issued": False,
+            **_welcome_delivery_status(store, updated)}
+
+
+def _welcome_delivery_status(store, user: Dict[str, Any]) -> Dict[str, Any]:
+    """Confirm or retry mail without changing the physician's approval."""
     import notifications
-    mail_key = notifications._person_key("physician_approved", f"approved:{user_id}", user["email"])
+    mail_key = notifications._person_key("physician_approved", f"approved:{user['id']}", user["email"])
     mail = None
     try:
         mail = store.get_admin_notification(mail_key)
         if mail is None or (mail.get("status") == "void" and not mail.get("sent_at")):
             # A failed enqueue is visible and safely retryable by this admin action.
             # The unique key prevents a repeated approval from sending another copy.
-            notifications.queue_physician_welcome(store, user=updated, revive=True)
+            notifications.queue_physician_welcome(store, user=user, revive=True)
             mail = store.get_admin_notification(mail_key)
     except Exception:
         log.exception("[verify] could not confirm welcome queue status (approval stands)")
     queued = bool(mail and mail.get("status") == "pending")
     sent = bool(mail and mail.get("status") == "sent")
     legacy = notifications.physician_welcome_is_legacy_void(mail)
-    return {"ok": True, "user_id": user_id, "tier": tier,
-            "verification_status": "approved",
-            "verified_by": updated.get("verified_by"),
-            "verified_at": updated.get("verified_at"),
-            "credentials_issued": False,
-            "welcome_email_queued": queued,
+    return {"welcome_email_queued": queued,
             "welcome_email_sent": sent,
+            "welcome_email_retryable": not queued and not sent and not legacy,
             "warning": None if queued or sent else (
                 "A previous welcome may already have been sent. No duplicate was queued; "
                 "check the email delivery history before resending." if legacy else
-                "The approval is recorded, but the welcome email queue could not be confirmed. Retry approval to check or queue it.")}
+                "The approval is recorded, but the welcome email queue could not be confirmed. Use Retry welcome email to check or queue it.")}
+
+
+@router.post("/queue/{user_id}/welcome/retry")
+async def retry_welcome_email(
+    user_id: str,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    import notifications
+    store = _store()
+    user = _load_user_or_404(user_id)
+    if not notifications.physician_welcome_eligible(user):
+        raise HTTPException(status_code=409, detail="The physician must still be active and approved to receive a welcome email.")
+    return {"ok": True, "user_id": user_id, **_welcome_delivery_status(store, user)}
 
 
 @router.post("/queue/{user_id}/reject")

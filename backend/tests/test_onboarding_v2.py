@@ -551,7 +551,7 @@ def test_a_failed_welcome_enqueue_preserves_approval_and_reports_retry(client, m
     result = response.json()
     assert result["verification_status"] == "approved"
     assert not result["welcome_email_queued"] and not result["welcome_email_sent"]
-    assert "Retry approval" in result["warning"]
+    assert "Retry welcome email" in result["warning"]
     assert store.get_user_by_id(user["id"])["password_hash"] == original
     monkeypatch.setattr(store, "enqueue_admin_notification", enqueue)
     retry = client.post(f"/api/asclepius/verify/queue/{user['id']}/approve",

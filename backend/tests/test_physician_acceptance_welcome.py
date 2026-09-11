@@ -60,6 +60,7 @@ def test_all_acceptance_paths_queue_the_same_letter(path, tier, password_state, 
         assert result.status_code == 200, result.text
         assert result.json()['welcome_email_queued'] is True
         assert result.json()['welcome_email_sent'] is False
+        assert result.json()['welcome_email_retryable'] is False
     elif path == 'restore':
         result = client.post(f"/api/asclepius/admin/physicians/restore?email={user['email']}",
                              json={'approve_verification':True,'tier':tier}, headers=A.headers_for(admin))
@@ -227,6 +228,7 @@ def test_legacy_void_after_inline_send_is_not_revived(capture_delivery):
         json={'tier':'reviewer'},headers=A.headers_for(admin))
     assert response.status_code == 200
     assert not response.json()['welcome_email_queued'] and not response.json()['welcome_email_sent']
+    assert response.json()['welcome_email_retryable'] is False
     assert 'previous welcome may already have been sent' in response.json()['warning']
     for status in ('rejected','approved'):
         store.record_verification_decision(user['id'],status=status,decided_by='admin',tier='reviewer')
@@ -267,11 +269,48 @@ def test_outbox_failure_does_not_turn_committed_approval_into_http_error(operati
     assert response.status_code == 200
     assert response.json()['verification_status'] == 'approved'
     assert 'queue could not be confirmed' in response.json()['warning']
+    assert response.json()['welcome_email_retryable'] is True
     monkeypatch.setattr(store,operation,original)
     response = client.post(route,json={'tier':'reviewer'},headers=A.headers_for(admin))
     assert response.status_code == 200 and response.json()['welcome_email_queued'] is True
     asyncio.run(main._drain_admin_notifications())
     assert len([c for c in capture_delivery.await_args_list if c.args[0] == user['email']]) == 1
+
+
+@pytest.mark.parametrize('current_state', ['approved','rejected','inactive','nonphysician'])
+def test_mail_only_retry_preserves_the_current_approval_and_tier(current_state, capture_delivery):
+    store = A.fresh_store(); user = _user(store)
+    admin = A.make_user(store,role='admin',practice_case=False)
+    store.record_verification_decision(user['id'],status='approved',decided_by='first-admin',tier='labeler')
+    store.void_pending_admin_notification(_rows(store,user['email'])[0]['idempotency_key'])
+    # Another admin may have changed the decision after the first tab opened.
+    store.record_verification_decision(user['id'],status='rejected' if current_state == 'rejected' else 'approved',
+        decided_by='second-admin',tier='reviewer')
+    with store._conn() as conn:
+        if current_state == 'inactive':
+            conn.execute('UPDATE users SET active=0 WHERE id=?',(user['id'],))
+        elif current_state == 'nonphysician':
+            conn.execute("UPDATE users SET role='buyer' WHERE id=?",(user['id'],))
+    before = store.get_user_by_id(user['id'])
+    with store._conn() as conn:
+        tables = ['users','events','tiering_decisions']
+        snapshots = {t: [tuple(r) for r in conn.execute(f'SELECT * FROM {t}')] for t in tables}
+    response = TestClient(A.app).post(f"/api/asclepius/verify/queue/{user['id']}/welcome/retry",
+        headers=A.headers_for(admin))
+    assert response.status_code == (200 if current_state == 'approved' else 409), response.text
+    assert store.get_user_by_id(user['id']) == before
+    with store._conn() as conn:
+        assert snapshots == {t: [tuple(r) for r in conn.execute(f'SELECT * FROM {t}')] for t in tables}
+    asyncio.run(main._drain_admin_notifications())
+    assert len([c for c in capture_delivery.await_args_list if c.args[0] == user['email'] and 'Welcome, Sarah.' in c.args[2]]) == (1 if current_state == 'approved' else 0)
+
+
+def test_mail_only_retry_requires_an_admin(capture_delivery):
+    store = A.fresh_store(); user = _user(store)
+    store.record_verification_decision(user['id'],status='approved',decided_by='admin',tier='reviewer')
+    response = TestClient(A.app).post(f"/api/asclepius/verify/queue/{user['id']}/welcome/retry",
+        headers=A.headers_for(user))
+    assert response.status_code == 403
 
 
 @pytest.mark.parametrize('role', ['admin','buyer','health_system'])

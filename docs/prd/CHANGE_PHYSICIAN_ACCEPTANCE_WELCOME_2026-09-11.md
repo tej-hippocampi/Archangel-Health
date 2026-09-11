@@ -14,6 +14,8 @@ first-run page loses only the gray OUR MISSION label.
 - `backend/notifications.py:316` queues the common welcome.
 - `backend/main.py:782` checks current eligibility and claim ownership before sending.
 - `backend/routers/asclepius_verify.py:738` preserves approval when queue confirmation fails.
+- `backend/routers/asclepius_verify.py:876` retries only welcome delivery for a currently accepted physician.
+- `frontend/asclepius/admin_physicians.js:1839` keeps delivery warnings visible and provides a guarded retry action.
 - `frontend/asclepius/first_run.js:361` contains the one-line welcome-page edit.
 
 The source of truth remains the realm's Asclepius users table: active account,
@@ -31,6 +33,13 @@ rows remain untouched because the old inline sender voided a separate notice
 after success without recording sent_at on that notice. The admin receives an
 explicit uncertainty message for that historical state, not a delivery claim.
 Old pending notices render the current approved design at delivery.
+
+The admin console keeps queue warnings visible instead of leaving the page.
+Its Retry welcome email button calls an admin-only mail endpoint; it never
+replays approval or the training decision. The endpoint reloads eligibility and
+preserves the current verification, tier, audit events and training records.
+Thus a stale admin tab cannot undo a newer rejection or tier change while
+retrying mail. Historical ambiguous delivery warnings have no retry button.
 
 Existing passwords remain unchanged. Legacy accounts with an unset or temporary
 password receive directions to the existing Forgot your password flow. No new
@@ -59,6 +68,9 @@ provider acceptance, not confirmed inbox delivery.
 
 ## Tests and preservation evidence
 
+- **Final combined regression run: 616 passed** in 71.58 seconds after the
+  mail-only retry and CI corrections. This combines the targeted/related suites
+  below with applicant-journey, harness and final console/retry regressions.
 - **171 targeted tests passed**, including 47 acceptance tests covering all
   three acceptance paths, both tiers, chosen/unset/temporary password states,
   qa_reviewer role, name escaping, anonymous asset loading, password reset and
@@ -73,9 +85,17 @@ provider acceptance, not confirmed inbox delivery.
   essential actions remain available with images blocked. Desktop and mobile
   screenshots were visually inspected. Real Outlook/Gmail/Apple Mail inbox
   rendering has not been exercised.
-- Route baseline unchanged: **671 routes**. Dangling import scan: **708 files,
+- The final console/retry checks cover warning persistence, duplicate retry
+  clicks, legacy warnings without retries, admin-only access, and preserved
+  user/event/training rows after another admin changes approval or tier.
+- Route snapshot intentionally adds only the mail-retry POST: **672 routes**.
+  Dangling import scan: **708 files,
   none dangling**. New tests are automatically included by the total CI shard
   assignment.
+- CI exposed the old test's ban on every PNG and seven shifted PRD citations.
+  The artwork allowlist now permits exactly the approved monogram and typeset
+  signoff while still excluding founder photographs. The affected citations
+  were updated to the existing symbols; no ingestion or digest code changed.
 - Local preservation drill froze one existing user and one existing outbox row
   across **71 tables**, then exercised new labeler/reviewer approval, rejection,
   revival and failed-send state. After: **8 rows**, all original identities and
@@ -97,7 +117,7 @@ Outbox insertion failure, metadata failure, provider rejection, concurrent
 requests and stale ownership are tested. No new file ingestion or clinical
 parsing path exists in this change. Disk-full/process-death and real provider
 bounces were not injected. Approval and enqueue retain the existing separate
-commit boundary: a crash between them requires an admin approval retry. A crash
+commit boundary: a crash between them requires an admin welcome-email retry. A crash
 after provider acceptance but before its database receipt retains the existing
 at-least-once retry limitation; this is not an exactly-once delivery claim.
 
@@ -114,6 +134,13 @@ and outbox failures after approval. Final report:
 > sign-in. git diff --check also passed. The audit used isolated databases and
 > mocked delivery. Production provider behavior, real inbox rendering, and live
 > data-preservation gates remain outside this audit.
+
+The reviewer then independently confirmed the final admin-console/mail-retry
+delta: **98 acceptance and admin-console tests passed**. The mail-only endpoint
+preserves physician decisions, tiers and training records, rejects currently
+ineligible accounts, and retains warning persistence, legacy handling and
+duplicate-click protection. The asset allowlist and single-route addition were
+appropriately scoped; git diff --check passed. No remaining actionable findings.
 
 ## Rollback and release decision
 
