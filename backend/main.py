@@ -7614,10 +7614,21 @@ except Exception:
 # answer is the one answer a health check must never give).
 #: Only /static. It is the mount whose absence means the product is not being
 #: served at all, and the Dockerfile copies frontend/ explicitly for it. The
-#: other two mounts are deliberately NOT here: backend/assets is not in the repo
-#: (so /email-assets legitimately never registers) and /audio serves /tmp, which
-#: is scratch. A health check that reds on something optional gets ignored, and
-#: an ignored health check is the one we started with.
+#: other two mounts are deliberately NOT here. /audio serves /tmp, which is
+#: scratch. /email-assets is the narrower call, and the reason has changed:
+#: backend/assets now ships (it holds the physician welcome artwork, and
+#: `COPY backend/ backend/` carries it past a .dockerignore that only drops
+#: *.md), so the mount registers. It stays out because a missing image degrades
+#: one email rather than meaning the product is not being served, and redding
+#: this check rolls a working deployment back. A health check that reds on
+#: something optional gets ignored, and an ignored health check is the one we
+#: started with.
+#:
+#: Know the cost of that choice: the mount above is wrapped in try/except, so if
+#: backend/assets ever stops shipping, every physician welcome letter renders
+#: two broken images while this check still reports healthy. Nothing else
+#: alarms on it -- the images are fetched by the recipient's mail client, not by
+#: us, so a 404 leaves no trace in our logs either.
 _HEALTH_MOUNTS = (
     ("static", os.path.join(os.path.dirname(__file__), "../frontend"), "index.html"),
 )
