@@ -8,8 +8,12 @@ Status: repository audit completed and corrections implemented for review. **Pro
 release is not certified.** No production data was changed, no real mail was sent,
 and no production deployment was performed. Initial Railway metadata requests
 returned HTTP 403. A later account probe reached GraphQL and returned `Not
-Authorized` for the saved login. The browser sign-in attempt was blocked because
-its security policy check was unavailable. Deployed settings remain unverified.
+Authorized` for the saved login. The newly connected Railway integration now
+works. The [production follow-up](../data-safety/PRODUCTION_INGESTION_AUDIT_2026-09-10.md)
+identifies the main project, successful deployed revision, working routes and
+reported durable paths. Backup/restore, key recovery and authenticated workflow
+evidence remain unverified. The browser dashboard remains blocked because its
+admin-enforced security policy could not be verified.
 
 | Requested area | Repository result | Remaining production evidence |
 | --- | --- | --- |
@@ -53,7 +57,7 @@ contract alone establishes neither method. [HHS de-identification guidance](http
   session in one transaction. Failed commits preserve parts and allow retry;
   post-commit cleanup, event or convenience-default failures cannot undo success
   or suppress ingestion dispatch.
-- Evidence: `insert_ingest_upload` at backend/asclepius/store.py:5657;
+- Evidence: `insert_ingest_upload` at backend/asclepius/store.py:5684;
   `finalize` at backend/asclepius/uploads.py:437;
   `atomic_write` at backend/durable_files.py:23;
   `purge_expired_raw` at backend/asclepius/ingestion.py:538.
@@ -85,10 +89,10 @@ contract alone establishes neither method. [HHS de-identification guidance](http
   Sent means provider acceptance, not inbox delivery.
   Large-file collections and their receipt/hash histories paginate for both admin
   and health-system users; they remain separate from clinical case ingestion.
-- Evidence: `approve_hs_organization` at backend/asclepius/store.py:12934;
-  `decline_hs_organization` at backend/asclepius/store.py:12963;
-  `record_signed_agreement` at backend/asclepius/store.py:13090;
-  `complete_hs_signup` at backend/asclepius/store.py:12402;
+- Evidence: `approve_hs_organization` at backend/asclepius/store.py:12961;
+  `decline_hs_organization` at backend/asclepius/store.py:12990;
+  `record_signed_agreement` at backend/asclepius/store.py:13117;
+  `complete_hs_signup` at backend/asclepius/store.py:12429;
   `message` at backend/asclepius/hs_mail.py:15;
   `_drain_admin_notifications` at backend/main.py:782.
 
@@ -111,7 +115,7 @@ contract alone establishes neither method. [HHS de-identification guidance](http
 - Evidence: `unify_patient_keys` at backend/asclepius/ingestion.py:1688;
   `_merge_fragments` at backend/asclepius/ingestion.py:1160;
   `process_upload` at backend/asclepius/ingestion.py:1759;
-  `insert_task` at backend/asclepius/store.py:6760.
+  `insert_task` at backend/asclepius/store.py:6787.
 
 ### Future PRD enforcement
 
@@ -168,8 +172,10 @@ Do not loosen privacy, identity or quality holds to make a test green.
 
 ## Production release gates and remaining limits
 
-1. Obtain working deployment access; verify the actual deployed commit, live and
-   sandbox databases, mounted blob roots, space reservations and capacity alerts.
+1. Railway access now works: production is `easygoing-victory`, running
+   `a578b001` with the six reported storage paths under `/data`. Verify actual live
+   and sandbox inventories, capacity reservations and configured alerts; the
+   green public healthcheck and persistent mount are not a preservation proof.
 2. Take off-volume database and blob backups with separately recoverable keys;
    verify a consistent restore and full inventories on an isolated restored system.
    Confirm object versioning/PITR and lifecycle rules where object storage is used.

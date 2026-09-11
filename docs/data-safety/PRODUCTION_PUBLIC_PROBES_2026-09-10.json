@@ -1,0 +1,161 @@
+{
+  "checked_at": "2026-09-11T02:22:38.812908+00:00",
+  "results": [
+    {
+      "url": "https://app.archangelhealth.ai/healthz",
+      "status": 200,
+      "final_url": "https://app.archangelhealth.ai/healthz",
+      "content_type": "application/json",
+      "bytes_sampled": 888,
+      "health": {
+        "status": "ok",
+        "degraded": false,
+        "checks": {
+          "mount:static": "ok",
+          "db:team": "ok",
+          "db:community": "ok",
+          "storage_durable": true
+        },
+        "failures": [],
+        "storage_warnings": [],
+        "storage_stores": [
+          {
+            "store": "database",
+            "variable": "ASCLEPIUS_DB_PATH",
+            "path": "/data/asclepius.db",
+            "durable": true,
+            "gated": true
+          },
+          {
+            "store": "raw ingest",
+            "variable": "ASCLEPIUS_INGEST_DIR",
+            "path": "/data/asclepius-ingest",
+            "durable": true,
+            "gated": true
+          },
+          {
+            "store": "asset store",
+            "variable": "ASCLEPIUS_ASSET_STORE",
+            "path": "/data/assets",
+            "durable": true,
+            "gated": true
+          },
+          {
+            "store": "tenant database",
+            "variable": "TEAM_DB_PATH",
+            "path": "/data/team.db",
+            "durable": true,
+            "gated": true
+          },
+          {
+            "store": "community database",
+            "variable": "COMMUNITY_DB_PATH",
+            "path": "/data/community.db",
+            "durable": true,
+            "gated": true
+          },
+          {
+            "store": "export bundles",
+            "variable": "ASCLEPIUS_EXPORT_DIR",
+            "path": "/data/asclepius-exports",
+            "durable": true,
+            "gated": false
+          }
+        ],
+        "storage_gate_overridden": false
+      }
+    },
+    {
+      "url": "https://admin.archangelhealth.ai/healthz",
+      "status": 200,
+      "final_url": "https://admin.archangelhealth.ai/healthz",
+      "content_type": "application/json",
+      "bytes_sampled": 888,
+      "health": {
+        "status": "ok",
+        "degraded": false,
+        "checks": {
+          "mount:static": "ok",
+          "db:team": "ok",
+          "db:community": "ok",
+          "storage_durable": true
+        },
+        "failures": [],
+        "storage_warnings": [],
+        "storage_stores": [
+          {
+            "store": "database",
+            "variable": "ASCLEPIUS_DB_PATH",
+            "path": "/data/asclepius.db",
+            "durable": true,
+            "gated": true
+          },
+          {
+            "store": "raw ingest",
+            "variable": "ASCLEPIUS_INGEST_DIR",
+            "path": "/data/asclepius-ingest",
+            "durable": true,
+            "gated": true
+          },
+          {
+            "store": "asset store",
+            "variable": "ASCLEPIUS_ASSET_STORE",
+            "path": "/data/assets",
+            "durable": true,
+            "gated": true
+          },
+          {
+            "store": "tenant database",
+            "variable": "TEAM_DB_PATH",
+            "path": "/data/team.db",
+            "durable": true,
+            "gated": true
+          },
+          {
+            "store": "community database",
+            "variable": "COMMUNITY_DB_PATH",
+            "path": "/data/community.db",
+            "durable": true,
+            "gated": true
+          },
+          {
+            "store": "export bundles",
+            "variable": "ASCLEPIUS_EXPORT_DIR",
+            "path": "/data/asclepius-exports",
+            "durable": true,
+            "gated": false
+          }
+        ],
+        "storage_gate_overridden": false
+      }
+    },
+    {
+      "url": "https://app.archangelhealth.ai/provider",
+      "status": 200,
+      "final_url": "https://app.archangelhealth.ai/provider",
+      "content_type": "text/html; charset=utf-8",
+      "bytes_sampled": 34536
+    },
+    {
+      "url": "https://admin.archangelhealth.ai/asclepius/admin",
+      "status": 200,
+      "final_url": "https://admin.archangelhealth.ai/asclepius/admin",
+      "content_type": "text/html; charset=utf-8",
+      "bytes_sampled": 3159
+    },
+    {
+      "url": "https://admin.archangelhealth.ai/admin",
+      "status": 200,
+      "final_url": "https://admin.archangelhealth.ai/admin",
+      "content_type": "text/html; charset=utf-8",
+      "bytes_sampled": 116579
+    },
+    {
+      "url": "https://app.archangelhealth.ai/sandbox/admin",
+      "status": 200,
+      "final_url": "https://app.archangelhealth.ai/sandbox/admin",
+      "content_type": "text/html; charset=utf-8",
+      "bytes_sampled": 4655
+    }
+  ]
+}

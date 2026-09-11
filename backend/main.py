@@ -7591,7 +7591,7 @@ except Exception:
 # deploy replaces a working one.
 #
 # Cheap on purpose, because the platform polls this for the life of the
-# deployment: one isdir() per mounted tree and one connect + "SELECT 1" per
+# deployment: one isdir() per mounted tree and one read-only schema query per
 # database. No application queries, no writes, and no caching (a cached health
 # answer is the one answer a health check must never give).
 #: Only /static. It is the mount whose absence means the product is not being
@@ -7738,9 +7738,19 @@ def healthz(response: Response) -> Dict[str, Any]:
     for label, var, default_name in _HEALTH_DATABASES:
         path = _health_db_path(var, default_name)
         try:
-            conn = sqlite3.connect(path, timeout=2)
+            # Never recreate a lost database during a health probe. Use a URI
+            # so read-only mode is enforced by SQLite, including filenames
+            # containing characters such as '?' or '#'. Do not use immutable
+            # mode: committed writes may still be in the database's WAL.
+            conn = sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro",
+                                   timeout=2, uri=True)
             try:
-                conn.execute("SELECT 1").fetchone()
+                table = conn.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1"
+                ).fetchone()
+                if table is None:
+                    raise sqlite3.DatabaseError("database has no application tables")
             finally:
                 conn.close()
             checks[f"db:{label}"] = "ok"

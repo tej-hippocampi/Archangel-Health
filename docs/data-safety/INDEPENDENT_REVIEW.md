@@ -54,6 +54,39 @@ onboarding and upload tests passed, and the desktop/mobile health-system browser
 gate passed all 22 tests. The upload reviewer independently confirmed the 507
 response when capacity cannot be checked and visible receipt-loading errors.
 
+## Production follow-up and health-check review
+
+10 September 2026 Pacific / 11 September UTC. A fresh read-only reviewer compared
+deployed `a578b001` with the original PR head, then checked the follow-up after
+current main was merged. The reviewer independently reproduced a healthcheck
+that returned 200 and created zero-byte databases when their parent directories
+already existed. The builder changed probes to SQLite URI read-only mode and
+checks for application tables.
+
+The reviewer found two test-isolation defects: the healthy baseline depended on
+a community database from previous runs, and the malformed-file test reused a
+path with a valid WAL. The builder made temporary real schemas explicit, restored
+realm store caches after each test, and separated the malformed fixture path.
+The final cold independent run passed all 13 health tests in 1.37 seconds with
+network connections blocked. The reviewer found no remaining blocker in this
+follow-up, including encoded filenames and committed WAL reads. One documentation
+function-name correction was also confirmed.
+
+The builder's broader follow-up passed 220 focused storage/preservation,
+onboarding, reminder and news tests; after the fixture correction, the combined
+health/storage suite passed 44 tests. All PRD citation checks, the 671-route
+baseline, import scan, data-preservation SQL gate, AGENTS check, merge-readiness
+and diff formatting passed. A frozen synthetic inventory retained all content
+in 70 tables, seven rows and two files. These runs are distinct from the earlier
+full-suite run; a new full-suite result is not claimed here.
+
+The reviewer confirmed the production report's distinctions: six successful
+public GETs and reported `/data` storage establish limited availability, not
+backup, key recovery, full inventories or end-to-end workflows. Backup/alert
+settings remain unverified. Sandbox is a realm sharing the deployment, not
+independent staging. Clinical worker ownership and aggregate capacity admission
+remain open. No reviewer accessed production records or sent real mail.
+
 ## Limits
 
 These reviews support the repository changes. They do not establish live backup,

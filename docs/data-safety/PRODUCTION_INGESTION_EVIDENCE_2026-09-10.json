@@ -1,0 +1,388 @@
+{
+  "checked_at_utc": "2026-09-11T02:22:38.812908Z",
+  "scope": "easygoing-victory / production / Archangel-Health. Read-only infrastructure metadata and public routes.",
+  "intake_policy": "Patient uploads must be de-identified before upload. Identifiable intake under a BAA is not an approved path.",
+  "project": {
+    "project": {
+      "id": "932bbbfd-ab16-4246-be34-6c99835a2247",
+      "name": "easygoing-victory",
+      "workspaceName": "tej-hippocampi's Projects"
+    },
+    "environment": {
+      "id": "24a0d489-32b2-4b54-83de-9cc3c1b3eab1",
+      "name": "production",
+      "unmergedChangesCount": null,
+      "stagedChanges": null
+    },
+    "services": [
+      {
+        "id": "554c28e3-5cbe-404d-af72-6a7a7e62f14b",
+        "name": "Archangel-Health",
+        "numReplicas": null,
+        "cronSchedule": null,
+        "volumes": [
+          {
+            "id": "f549ed4a-d426-4b78-8114-6c5c76644856",
+            "name": "archangel-health-volume",
+            "mountPath": "/data",
+            "sizeMB": 5000,
+            "region": "europe-west4-drams3a"
+          }
+        ],
+        "latestDeployment": {
+          "id": "d2147538-8ca2-41aa-be27-c679a9c75f8e",
+          "status": "SUCCESS",
+          "createdAt": "2026-09-11T00:28:14.464Z",
+          "url": null
+        }
+      }
+    ],
+    "buckets": []
+  },
+  "service_config": {
+    "service": {
+      "id": "554c28e3-5cbe-404d-af72-6a7a7e62f14b",
+      "name": "Archangel-Health"
+    },
+    "environment": {
+      "id": "24a0d489-32b2-4b54-83de-9cc3c1b3eab1",
+      "name": "production"
+    },
+    "config": {
+      "source": {
+        "repo": "tej-hippocampi/Archangel-Health",
+        "branch": "main",
+        "checkSuites": false
+      },
+      "networking": {
+        "customDomains": {
+          "admin.archangelhealth.ai": {
+            "port": 8080
+          },
+          "app.archangelhealth.ai": {
+            "port": 8080
+          }
+        },
+        "privateNetworkEndpoint": "archangel-health"
+      },
+      "build": {
+        "builder": "RAILPACK",
+        "buildEnvironment": "V3"
+      },
+      "deploy": {
+        "useLegacyStacker": false,
+        "ipv6EgressEnabled": false,
+        "runtime": "V2",
+        "multiRegionConfig": {
+          "europe-west4-drams3a": {
+            "numReplicas": 1
+          }
+        }
+      },
+      "volumeMounts": {
+        "f549ed4a-d426-4b78-8114-6c5c76644856": {
+          "mountPath": "/data"
+        }
+      }
+    },
+    "variableNames": [
+      "ADMIN_PASSWORD",
+      "ADMIN_USERNAME",
+      "ALLOWED_ORIGINS",
+      "ANTHROPIC_API_KEY",
+      "ASCLEPIUS_ADMIN_EMAIL",
+      "ASCLEPIUS_ADMIN_PASSWORD",
+      "ASCLEPIUS_AUTH_SECRET",
+      "ASCLEPIUS_AUTOFILL",
+      "ASCLEPIUS_AUTOFILL_BATCH",
+      "ASCLEPIUS_AUTOFILL_COOLDOWN_SEC",
+      "ASCLEPIUS_DATA_DIR",
+      "ASCLEPIUS_DB_PATH",
+      "ASCLEPIUS_EXPORT_DIR",
+      "ASCLEPIUS_MOCK_PASSWORD",
+      "ASCLEPIUS_QA_SAMPLE_PCT",
+      "ASCLEPIUS_SANDBOX_ADMIN_PASSWORD",
+      "ASCLEPIUS_SANDBOX_DOCTOR_PASSWORD",
+      "AUTH_SECRET",
+      "BASE_URL",
+      "CARE_TEAM_PHONE",
+      "COMMUNITY_DB_PATH",
+      "DAILY_API_KEY",
+      "DAILY_DOMAIN",
+      "DATA_ENCRYPTION_KEY",
+      "DEMO_MODE",
+      "ELEVENLABS_API_KEY",
+      "ELEVENLABS_VOICE_ID",
+      "ENV",
+      "INTERNAL_TOOL_SECRET",
+      "LANDING_URL",
+      "OPENAI_API_KEY",
+      "SENDGRID_API_KEY",
+      "SENDGRID_FROM_EMAIL",
+      "SENDGRID_FROM_NAME",
+      "TAVUS_API_KEY",
+      "TAVUS_REPLICA_ID",
+      "TEAM_DB_PATH",
+      "TWILIO_ACCOUNT_SID",
+      "TWILIO_AUTH_TOKEN",
+      "TWILIO_FROM_NUMBER",
+      "VIDEO_PROVIDER"
+    ],
+    "staged": null
+  },
+  "domains": {
+    "service": {
+      "id": "554c28e3-5cbe-404d-af72-6a7a7e62f14b",
+      "name": "Archangel-Health"
+    },
+    "environment": {
+      "id": "24a0d489-32b2-4b54-83de-9cc3c1b3eab1",
+      "name": "production"
+    },
+    "serviceDomains": [],
+    "customDomains": [
+      {
+        "id": "e8cd154f-4c47-4d64-8c57-4eed4c14e6c5",
+        "domain": "admin.archangelhealth.ai",
+        "targetPort": 8080
+      },
+      {
+        "id": "258634e7-a1b0-419e-891d-536358ac645d",
+        "domain": "app.archangelhealth.ai",
+        "targetPort": 8080
+      }
+    ]
+  },
+  "deployment": {
+    "deploymentId": "d2147538-8ca2-41aa-be27-c679a9c75f8e",
+    "status": "SUCCESS",
+    "createdAt": "2026-09-11T00:28:14.464Z",
+    "failureStage": null,
+    "failureError": null,
+    "failedReason": null,
+    "configErrors": null,
+    "builder": "RAILPACK",
+    "railpackInfo": null,
+    "configFile": "/railway.json",
+    "propertyFileMapping": {
+      "build.builder": "$.build.builder",
+      "deploy.healthcheckPath": "$.deploy.healthcheckPath",
+      "deploy.restartPolicyType": "$.deploy.restartPolicyType",
+      "deploy.restartPolicyMaxRetries": "$.deploy.restartPolicyMaxRetries"
+    },
+    "fileServiceManifest": {
+      "build": {
+        "builder": "RAILPACK"
+      },
+      "deploy": {
+        "healthcheckPath": "/healthz",
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 10
+      }
+    },
+    "repo": "tej-hippocampi/Archangel-Health",
+    "branch": "main",
+    "commitHash": "a578b00125a0bbdf55f78ad88695e59e8c2fc7ad",
+    "commitMessage": "Remind physicians to complete their examination after 36 hours (#149)\n\nRemind physicians to complete their examination after 36 hours",
+    "commitAuthor": "tej-hippocampi",
+    "rootDirectory": null,
+    "prNumber": null,
+    "prTitle": null,
+    "prUrl": null,
+    "sourceImage": null,
+    "imageType": "DOCKER",
+    "dockerfilePath": null,
+    "startCommand": null,
+    "healthcheckPath": null,
+    "cronSchedule": null,
+    "events": [
+      {
+        "step": "SNAPSHOT_CODE",
+        "status": "completed",
+        "error": null,
+        "createdAt": "2026-09-11T00:28:16.106Z",
+        "completedAt": "2026-09-11T00:28:37.101Z"
+      },
+      {
+        "step": "BUILD_IMAGE",
+        "status": "completed",
+        "error": null,
+        "createdAt": "2026-09-11T00:28:17.416Z",
+        "completedAt": "2026-09-11T00:28:37.104Z"
+      },
+      {
+        "step": "PUBLISH_IMAGE",
+        "status": "completed",
+        "error": null,
+        "createdAt": "2026-09-11T00:28:37.107Z",
+        "completedAt": "2026-09-11T00:28:37.035Z"
+      },
+      {
+        "step": "CREATE_CONTAINER",
+        "status": "completed",
+        "error": null,
+        "createdAt": "2026-09-11T00:28:38.891Z",
+        "completedAt": "2026-09-11T00:28:53.416Z"
+      },
+      {
+        "step": "HEALTHCHECK",
+        "status": "completed",
+        "error": null,
+        "createdAt": "2026-09-11T00:28:53.918Z",
+        "completedAt": "2026-09-11T00:28:56.709Z"
+      },
+      {
+        "step": "CONFIGURE_NETWORK",
+        "status": "completed",
+        "error": null,
+        "createdAt": "2026-09-11T00:28:56.808Z",
+        "completedAt": "2026-09-11T00:28:59.534Z"
+      }
+    ]
+  },
+  "environments": [
+    {
+      "id": "24a0d489-32b2-4b54-83de-9cc3c1b3eab1",
+      "name": "production"
+    }
+  ],
+  "variables": {
+    "values_redacted": true,
+    "names": [
+      "ADMIN_PASSWORD",
+      "ADMIN_USERNAME",
+      "ALLOWED_ORIGINS",
+      "ANTHROPIC_API_KEY",
+      "ASCLEPIUS_ADMIN_EMAIL",
+      "ASCLEPIUS_ADMIN_PASSWORD",
+      "ASCLEPIUS_AUTH_SECRET",
+      "ASCLEPIUS_AUTOFILL",
+      "ASCLEPIUS_AUTOFILL_BATCH",
+      "ASCLEPIUS_AUTOFILL_COOLDOWN_SEC",
+      "ASCLEPIUS_DATA_DIR",
+      "ASCLEPIUS_DB_PATH",
+      "ASCLEPIUS_EXPORT_DIR",
+      "ASCLEPIUS_MOCK_PASSWORD",
+      "ASCLEPIUS_QA_SAMPLE_PCT",
+      "ASCLEPIUS_SANDBOX_ADMIN_PASSWORD",
+      "ASCLEPIUS_SANDBOX_DOCTOR_PASSWORD",
+      "AUTH_SECRET",
+      "BASE_URL",
+      "CARE_TEAM_PHONE",
+      "COMMUNITY_DB_PATH",
+      "DAILY_API_KEY",
+      "DAILY_DOMAIN",
+      "DATA_ENCRYPTION_KEY",
+      "DEMO_MODE",
+      "ELEVENLABS_API_KEY",
+      "ELEVENLABS_VOICE_ID",
+      "ENV",
+      "INTERNAL_TOOL_SECRET",
+      "LANDING_URL",
+      "OPENAI_API_KEY",
+      "RAILWAY_ENVIRONMENT",
+      "RAILWAY_ENVIRONMENT_ID",
+      "RAILWAY_ENVIRONMENT_NAME",
+      "RAILWAY_PRIVATE_DOMAIN",
+      "RAILWAY_PROJECT_ID",
+      "RAILWAY_PROJECT_NAME",
+      "RAILWAY_PUBLIC_DOMAIN",
+      "RAILWAY_SERVICE_ARCHANGEL_HEALTH_URL",
+      "RAILWAY_SERVICE_ID",
+      "RAILWAY_SERVICE_NAME",
+      "RAILWAY_STATIC_URL",
+      "RAILWAY_VOLUME_ID",
+      "RAILWAY_VOLUME_MOUNT_PATH",
+      "RAILWAY_VOLUME_NAME",
+      "SENDGRID_API_KEY",
+      "SENDGRID_FROM_EMAIL",
+      "SENDGRID_FROM_NAME",
+      "TAVUS_API_KEY",
+      "TAVUS_REPLICA_ID",
+      "TEAM_DB_PATH",
+      "TWILIO_ACCOUNT_SID",
+      "TWILIO_AUTH_TOKEN",
+      "TWILIO_FROM_NUMBER",
+      "VIDEO_PROVIDER"
+    ]
+  },
+  "metrics": {
+    "service": {
+      "id": "554c28e3-5cbe-404d-af72-6a7a7e62f14b",
+      "name": "Archangel-Health"
+    },
+    "environment": {
+      "id": "24a0d489-32b2-4b54-83de-9cc3c1b3eab1",
+      "name": "production"
+    },
+    "metrics": [
+      {
+        "measurement": "DISK_USAGE_GB",
+        "current": 0.249233408,
+        "average": 0.24939865502290354,
+        "min": 0.247578624,
+        "max": 0.251265024,
+        "sampleCount": 1441
+      },
+      {
+        "measurement": "MEMORY_USAGE_GB",
+        "current": 0.249102336,
+        "average": 0.22040545017071483,
+        "min": 0.134189056,
+        "max": 0.4603904,
+        "sampleCount": 1441
+      },
+      {
+        "measurement": "CPU_USAGE",
+        "current": 0.0015762833333333333,
+        "average": 0.001747485091371732,
+        "min": 0.0006037000000000001,
+        "max": 0.08252571666666668,
+        "sampleCount": 1441
+      }
+    ],
+    "window_hours": 24,
+    "scope_limit": "Service DISK_USAGE_GB is not proven to measure only /data; do not infer volume free space or remaining admission capacity."
+  },
+  "recovery_evidence": {
+    "backup_schedules": "unverified: connector output does not expose schedule metadata",
+    "backup_history_and_retention": "unverified: connector does not expose snapshot history/retention",
+    "independent_backup_destination": "unverified: absence of variable names is not proof of absence",
+    "capacity_and_error_alert_configuration": "unverified: notification events do not establish alert configuration",
+    "isolated_railway_environment": "not present in easygoing-victory: only production listed",
+    "key_recovery": "unverified: DATA_ENCRYPTION_KEY name exists, value is redacted; no isolated decryption performed",
+    "restore": "not performed",
+    "browser_dashboard": "blocked: admin-enforced browser security policy could not be verified"
+  },
+  "logs": {
+    "deployment_id": "d2147538-8ca2-41aa-be27-c679a9c75f8e",
+    "sample_entries": 154,
+    "from": "2026-09-11T00:28:52.187214574Z",
+    "to": "2026-09-11T02:19:19.850087819Z",
+    "findings": [
+      "Startup identifies SendGrid as active transport; no provider acceptance/delivery/bounce evidence obtained.",
+      "Startup says team scheduler disabled for demo startup stability. This does not establish whether the separate health-system mail drain is running."
+    ],
+    "raw_logs_saved": false
+  },
+  "github": {
+    "pr": 151,
+    "head": "7b4c85f606b0654e15e2fa000f996fb457f5165d",
+    "state": "open",
+    "merged": false,
+    "mergeable": false,
+    "main_protected": false,
+    "railway_waits_for_checks": false,
+    "latest_head_checks_seen": [
+      "Vercel Preview Comments: success",
+      "Vercel: success"
+    ],
+    "limitation": "No backend/data-preservation check was attached to the current head in the queried check-runs response; this is not a passing backend CI claim."
+  },
+  "limitations": [
+    "Public HTML responses establish page-shell reachability only, not authenticated workflows.",
+    "No production patient/account data or secret values were exported.",
+    "No production restart, deployment, backup, restore or test mail was performed.",
+    "Only the easygoing-victory production environment is in scope after owner confirmation."
+  ]
+}
