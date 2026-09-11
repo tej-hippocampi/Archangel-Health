@@ -180,6 +180,7 @@ def test_failed_signout_does_not_claim_the_session_was_closed(portal):
 
 
 def test_invite_lookup_outage_is_retryable(portal):
+    from playwright.sync_api import expect
     from asclepius import hs_provisioning
     hs = portal.store.create_health_system_unclaimed("Invited Health")
     minted = hs_provisioning.provision_account(portal.store, hs_id=hs["hs_id"],
@@ -187,7 +188,9 @@ def test_invite_lookup_outage_is_retryable(portal):
     portal.failures[("GET", API + "/invite/" + minted["invite_token"])] = 503
     portal.page.goto("https://testserver/provider?invite=" + minted["invite_token"])
     portal.page.get_by_role("button", name="Try again", exact=True).click()
-    assert portal.page.locator("#prvClaimEmail").input_value() == "dana@example.org"
+    # Retry mounts the form before the lookup finishes. Wait for the response's
+    # value, not merely the input's presence, on slower CI workers.
+    expect(portal.page.locator("#prvClaimEmail")).to_have_value("dana@example.org")
     portal.page.locator("#prvClaimName").fill("Dana Reyes")
     portal.page.locator("#prvClaimPw").fill(PASSWORD)
     portal.page.locator("#prvClaimConfirm").fill(PASSWORD)
