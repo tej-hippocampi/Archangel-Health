@@ -4,7 +4,7 @@ One product, three doors, and the difference between them is what the person
 holding the link is being asked to do:
 
   /join                     a physician signs up to do the work
-  /join?flavor=advisor      a supporter looks around and refers
+  /join?flavor=advisor      an advisor applies for reviewer access
   /join?flavor=referrer     someone holds a referral link and nothing else
 
 The last one is the one with teeth. A referral link handed to somebody's
@@ -48,15 +48,13 @@ def test_a_physician_account_reaches_the_whole_product():
 
 
 # ─── The advisor door ────────────────────────────────────────────────────────
-def test_an_advisor_can_look_around_and_refer():
-    """They are here to introduce people, which is easier if they have seen
-    the thing they are introducing."""
+def test_an_advisor_waits_for_reviewer_approval():
     store = fresh_store()
-    advisor = _user(store, account_kind=caps.ADVISOR)
-    surfaces = caps.surfaces(advisor)
-    assert caps.REFERRAL in surfaces
-    assert caps.COMMUNITY_READ in surfaces
-    assert caps.BROWSE in surfaces
+    advisor = _user(store, account_kind=caps.ADVISOR, status="pending", tier=None)
+    assert caps.surfaces(advisor) == {caps.BROWSE}
+    approved = _user(store, account_kind=caps.ADVISOR, status="approved", tier="reviewer")
+    assert caps.REAL_WORK in caps.surfaces(approved)
+    assert caps.COMMUNITY_WRITE in caps.surfaces(approved)
 
 
 # ─── The referral-only door ──────────────────────────────────────────────────
@@ -237,16 +235,15 @@ def test_finishing_a_signup_hands_back_a_session(signup_client):
     assert body.get("token"), "signup completed without signing the person in"
 
 
-def test_a_non_clinical_signup_is_not_queued_as_a_doctor_to_review(signup_client):
-    """There is no NPI to look up and no registration to match, so a row in the
-    verification queue is work no admin can do and a queue depth that lies."""
+def test_an_advisor_signup_is_queued_for_manual_review(signup_client):
+    """The short advisor application awaits an owner appointment as Reviewer."""
     fresh_store()
     token, email = _open_invite(signup_client, flavor="advisor")
     signup_client.post("/api/onboarding/asclepius/password",
                        json={"token": token, "password": _PW})
     signup_client.post("/api/onboarding/asclepius/finish", json={"token": token})
     user = signup_client.app.state.asclepius_store.get_user_by_email(email)
-    assert user["verification_status"] is None
+    assert user["verification_status"] == "pending"
 
 
 # ─── The wizard has to actually skip those screens ───────────────────────────

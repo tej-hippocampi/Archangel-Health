@@ -279,7 +279,7 @@ class SelfServeBody(BaseModel):
     # exact contract. Names prefill wizard step 1; the referral code attributes
     # a link signup. ``flavor`` says which door they came through:
     #   general   an invited non-clinical signer
-    #   advisor   a non-clinical supporter who will mostly refer
+    #   advisor   a manual application for reviewer access
     #   referrer  someone who holds a referral link and nothing else
     # All three relax the MD credential screens, which exist to check a
     # physician and have nothing to ask a person who is not claiming to be one.
@@ -1147,7 +1147,9 @@ def _queue_verification_and_alert(store: Any, user_id: str) -> None:
         email=user.get("email") or "",
         specialty=user.get("specialty") or "",
         decision="New signup",
-        recommendation="The verification agent has not reported yet.",
+        recommendation=("Advisor application: approve as Reviewer or reject."
+                        if user.get("account_kind") == "advisor"
+                        else "The verification agent has not reported yet."),
         reasons=[],
     )
     recipients = _admin_alert_recipients(store)
@@ -1270,17 +1272,23 @@ def _provision_asclepius_user(
     # ``run_in_threadpool`` — see the comment at each call site. Do not call it
     # directly from an async handler.
     #
-    # ``verify=False`` is for accounts that are not claiming to be physicians.
-    # It leaves verification_status NULL, which reads as access level FULL --
-    # and that is deliberate: what limits these accounts is the account_kind cap
-    # in ``capabilities.surfaces()``, which holds however their verification
-    # lands, NOT a pending state that an admin could clear by accident.
+    # ``verify=False`` skips automated physician credential checks. Advisors
+    # still require a manual reviewer decision; referrers retain their narrow
+    # referral-only access.
     if verify:
         _run_signup_verification(store, user, creds)
         # This function is reached only after a completed, mailbox-verified
         # application is accepted. Never use user.created_at for this clock:
         # an invited account can predate the credential form by weeks.
         store.mark_application_completed(user["id"])
+    elif account_kind == "advisor":
+        # provision_user commits pending with the account. An advisor is a
+        # manual reviewer appointment, never an automatic credential decision.
+        store.mark_application_completed(user["id"])
+        try:
+            _queue_verification_and_alert(store, user["id"])
+        except Exception:
+            log.exception("[onboarding] advisor admin alert unavailable; application remains pending")
 
 
 # A signup does NOT announce anybody in #introductions. The helper that did it
@@ -2112,7 +2120,7 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
             "code": "password_required",
             "message": "Choose a password to finish setting up your account. Your application is saved.",
         })
-    awaiting_review = is_clinical
+    awaiting_review = is_clinical or account_kind == "advisor"
     org_name = (row.get("name") or "").strip()
     specialty = (row.get("specialty") or "").strip()
     # B-1.1: _provision_asclepius_user is synchronous and reaches a synchronous
@@ -2235,7 +2243,8 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
             # moment they closed the tab.
             build_application_submitted_email(
                 full_name=director.get("full_name") or "",
-                portal_url=_asclepius_portal_url()),
+                portal_url=_asclepius_portal_url(),
+                advisor=account_kind == "advisor"),
             importance_headers=True,
         )
     else:

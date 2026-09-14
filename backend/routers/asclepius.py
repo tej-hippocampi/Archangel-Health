@@ -376,6 +376,12 @@ async def login(body: LoginRequest):
         pending = store.get_user_by_email((body.email or "").strip().lower())
         if pending and asc_store.password_is_unset(pending) \
                 and (pending.get("verification_status") or "pending") == "pending":
+            if asc_caps.account_kind(pending) == asc_caps.ADVISOR:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Your reviewer application is under review. We'll email you with our decision.",
+                    headers={asc_auth.AUTH_GATE_HEADER: "pending_advisor"},
+                )
             # TWO WAITING STATES, NOT ONE (Onboarding Master PRD §3.2 step 1).
             #
             # Both branches are a passwordless applicant whose decision has not

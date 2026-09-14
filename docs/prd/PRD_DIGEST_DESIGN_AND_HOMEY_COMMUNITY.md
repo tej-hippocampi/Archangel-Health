@@ -111,7 +111,7 @@ exclamation marks, calendar dates. Rejection = no post that day.
 - **Pinned home card**: the community landing (the view before a channel is opened)
   shows the latest digest in the same card component, collapsed to title + lead +
   `Read all {n} →` which opens the channel post. One component, two contexts.
-- Email (`build_community_digest_post_email`, `onboarding_emails.py:2022`): same hierarchy — Top story with deck
+- Email (`build_community_digest_post_email`, `onboarding_emails.py:2037`): same hierarchy — Top story with deck
   and why-it-matters, then compact items — rendered from `payload_json`, never from
   the body string.
 
@@ -268,7 +268,7 @@ Three cross-cutting items the agent would otherwise miss:
    existing token variables from `_tokens.css` (read, never edited). If a wash the
    palette lacks is needed, derive it in `community.css` from a token; do not add a
    token.
-3. **Founders' Calendly on profile cards.** `FOUNDER_CALENDLY` lives in `asclepius.js:3186`,
+3. **Founders' Calendly on profile cards.** `FOUNDER_CALENDLY` lives in `asclepius.js:3196`,
    which the community page does not load. Pass the URL through the shell data
    `community.html` already hands to `community.js` (a `data-` attribute or the `/me`
    payload) — do not import from the portal bundle and do not hardcode a second copy.
@@ -309,7 +309,7 @@ right fix if the two substitutions read wrong on screen.
 ### 9.2 Profile stats: the verified card's three, not cases · since · last active
 
 §3.2 asks for cases · since · last active. None exists on this plane:
-`member_map` (`community/router.py:328`) is Tier A plus the users table, case
+`member_map` (`community/router.py:330`) is Tier A plus the users table, case
 counts live behind the asclepius gate, and there is no join date or last-seen
 column. §8 forbids widening another router for it.
 

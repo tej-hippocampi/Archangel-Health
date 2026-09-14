@@ -162,6 +162,8 @@ def _still_owes(kind: str, user: Dict[str, Any]) -> bool:
     physician chased for something an admin can already see they did.
     """
     from asclepius import capabilities as caps  # noqa: PLC0415
+    if caps.account_kind(user) is not None:
+        return False
     from routers.asclepius_verify import _has_credential_evidence  # noqa: PLC0415
 
     if kind == "credentials":

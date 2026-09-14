@@ -22,6 +22,7 @@ fs.symlinkSync(path.resolve(deps), path.join(out, "node_modules"), "dir");
 const src = path.resolve(__dirname, "../src");
 esbuild.buildSync({
   stdin: { contents: `export {default as Wizard} from './app/components/OnboardingWizard';
+    export {StepApplicationSubmitted as Submitted} from './app/components/onboarding/steps';
     export {default as Reset} from './app/components/ResetPasswordPage';`, resolveDir: src },
   bundle: true, platform: "node", format: "cjs", jsx: "automatic",
   outfile: path.join(out, "components.cjs"),
@@ -29,7 +30,7 @@ esbuild.buildSync({
   alias: { "@/lib/auth-api": path.join(src, "lib/auth-api.ts"), "@/lib/npi": path.join(src, "lib/npi.ts") },
   define: { "import.meta.env": '{"DEV":true}' }, logLevel: "silent",
 });
-const { Wizard, Reset } = require(path.join(out, "components.cjs"));
+const { Wizard, Reset, Submitted } = require(path.join(out, "components.cjs"));
 let root;
 test.afterEach(async () => { if (root) await act(async () => root.unmount()); root = null; });
 test.after(() => { dom.window.close(); fs.rmSync(out, { recursive: true, force: true }); });
@@ -48,6 +49,19 @@ async function type(input, value) {
 async function submit() {
   await act(async () => document.querySelector("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
 }
+
+test("advisor submission explains manual review without an exam", async () => {
+  await mount(Submitted, { data: { firstName: "Test", lastName: "Advisor" }, advisor: true });
+  assert.match(document.body.textContent, /Reviewer access opens after approval/);
+  assert.ok([...document.querySelectorAll("button")].some(b => b.textContent.includes("Check my application status")));
+  assert.doesNotMatch(document.body.textContent, /examination|practice case|Dr\./i);
+});
+
+test("physician submission still leads to the examination", async () => {
+  await mount(Submitted, { data: { firstName: "Test", lastName: "Physician" } });
+  assert.match(document.body.textContent, /examination/i);
+  assert.doesNotMatch(document.body.textContent, /Check my application status/);
+});
 
 test("an invalid onboarding link offers physician signup and existing-account sign in", async () => {
   global.fetch = async () => new Response(JSON.stringify({ detail: "Invalid or expired onboarding link." }), { status: 404 });

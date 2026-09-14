@@ -118,6 +118,8 @@ def _passes_gate(user: Optional[Dict[str, Any]]) -> bool:
     if _cstore().is_banned(user["id"]):
         return False
     role = user.get("role")
+    if asc_caps.account_kind(user) == asc_caps.ADVISOR:
+        return asc_caps.can_surface(user, asc_caps.COMMUNITY_READ)
     if role in ("admin", "qa_reviewer"):
         return True
     if role != "evaluator":
@@ -343,7 +345,7 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
         # whether they exist -- an advisor belongs in none of those, and an
         # admin approving one must not quietly add them to a room of colleagues.
         # They read the community; they are not part of it.
-        if asc_caps.account_kind(user) is not None:
+        if asc_caps.account_kind(user) is not None and not asc_caps.approved_advisor(user):
             continue
         cred = creds_by_hash.get(user.get("id_hashed") or "")
         # Same bridge as the gate — an approval-path member (no vault row)
@@ -2405,7 +2407,16 @@ async def community_ws(websocket: WebSocket):
 
     members = member_map()
     me_member = members.get(user["id"]) or dict(_GHOST_MEMBER)
-    first = await hub.connect(websocket, user["id"])
+    authorize = None
+    if asc_caps.account_kind(user) == asc_caps.ADVISOR:
+        # Capture this connection's store, not the broadcasting request's realm.
+        # Rejection must also stop delivery to sessions opened before the decision.
+        connection_store = _astore()
+        def authorize():
+            current = connection_store.get_user_by_id(user["id"])
+            return bool(current and current.get("active") and
+                        asc_caps.can_surface(current, asc_caps.COMMUNITY_READ))
+    first = await hub.connect(websocket, user["id"], authorize=authorize)
     last_typing_relay = 0.0
     try:
         await websocket.send_json({"type": "hello", "online": await hub.online_user_ids()})
@@ -2418,6 +2429,9 @@ async def community_ws(websocket: WebSocket):
             try:
                 raw = await websocket.receive_text()
             except WebSocketDisconnect:
+                break
+            if authorize is not None and not authorize():
+                await websocket.close(code=4403)
                 break
             try:
                 event = json.loads(raw)
