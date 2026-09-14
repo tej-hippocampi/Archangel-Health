@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from fastapi import WebSocket
 
@@ -34,14 +34,18 @@ SEND_TIMEOUT_SEC = 5.0
 class Hub:
     def __init__(self) -> None:
         self._sockets: Dict[WebSocket, str] = {}  # socket -> user_id
+        self._authorizers: Dict[WebSocket, Callable[[], bool]] = {}
         self._lock = asyncio.Lock()
 
-    async def connect(self, ws: WebSocket, user_id: str) -> bool:
+    async def connect(self, ws: WebSocket, user_id: str, *,
+                      authorize: Optional[Callable[[], bool]] = None) -> bool:
         """Register an accepted socket. Returns True when this is the user's
         first live connection (a presence transition)."""
         async with self._lock:
             was_online = user_id in self._sockets.values()
             self._sockets[ws] = user_id
+            if authorize is not None:
+                self._authorizers[ws] = authorize
             return not was_online
 
     async def disconnect(self, ws: WebSocket) -> Optional[str]:
@@ -51,6 +55,7 @@ class Hub:
         the presence transition)."""
         async with self._lock:
             user_id = self._sockets.pop(ws, None)
+            self._authorizers.pop(ws, None)
             if user_id is None:
                 return None
             still_online = user_id in self._sockets.values()
@@ -62,6 +67,9 @@ class Hub:
 
     async def _send_one(self, sock: WebSocket, event: Dict[str, Any]) -> bool:
         try:
+            authorize = self._authorizers.get(sock)
+            if authorize is not None and not authorize():
+                return False
             await asyncio.wait_for(sock.send_json(event), timeout=SEND_TIMEOUT_SEC)
             return True
         except Exception:
@@ -82,6 +90,7 @@ class Hub:
         async with self._lock:
             for sock in dead:
                 user_id = self._sockets.pop(sock, None)
+                self._authorizers.pop(sock, None)
                 if user_id is not None and user_id not in self._sockets.values():
                     went_offline.add(user_id)
         # Close the reaped sockets CONCURRENTLY with a tight bound — a batch of

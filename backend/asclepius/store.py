@@ -1637,6 +1637,17 @@ class AsclepiusStore:
                             }),),
                         )
 
+            # Advisor signups require a human reviewer appointment. Repair the
+            # old no-decision state without changing any recorded decision or
+            # submitted evidence. Keep the old assignment attribution for audit.
+            conn.execute(
+                "UPDATE users SET verification_status = 'pending', "
+                "tier = CASE WHEN tier = 'labeler' "
+                "AND tier_assigned_by = 'migration:tier_backfill' THEN NULL ELSE tier END "
+                "WHERE account_kind = 'advisor' AND verification_status IS NULL "
+                "AND role IN ('evaluator', 'qa_reviewer')"
+            )
+
             # ── Tier backfill for pre-tiering accounts ───────────────────────
             # ``capabilities.LABEL`` is now ENFORCED at /tasks/next and
             # /submissions. It was defined and never checked, so those endpoints
@@ -1676,6 +1687,7 @@ class AsclepiusStore:
                 "tier_assigned_by = 'migration:tier_backfill' "
                 "WHERE tier IS NULL AND tier_assigned_at IS NULL "
                 "AND role IN ('evaluator', 'qa_reviewer') "
+                "AND COALESCE(account_kind, '') = '' "
                 # Pending and rejected are excluded. Neither can label anyway —
                 # the verification gate denies them — so a tier would change no
                 # access, and it would make the admin roster's "unassigned" chip
@@ -4042,6 +4054,11 @@ class AsclepiusStore:
                         creds_json, atts_json, account_kind, *pw_stamp_param, email,
                     ),
                 )
+                conn.execute(
+                    "UPDATE users SET verification_status = 'pending' "
+                    "WHERE email = ? AND account_kind = 'advisor' AND verification_status IS NULL",
+                    (email,),
+                )
                 return dict(conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone())
             uid = _new_id("u")
             id_hashed = hashlib.sha256(uid.encode("utf-8")).hexdigest()[:16]
@@ -4050,13 +4067,14 @@ class AsclepiusStore:
                 INSERT INTO users (id, email, password_hash, role, specialty, specialty_niche,
                                    board_cert, years_experience, organization, id_hashed, active,
                                    full_name, org_name, clinical_role, npi, credentials_json,
-                                   attestations_json, account_kind, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   attestations_json, account_kind, verification_status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     uid, email, password_hash or NO_PASSWORD_HASH, role, specialty, specialty_niche,
                     board_cert, years_experience, org_name, id_hashed, full_name, org_name,
-                    clinical_role, npi, creds_json, atts_json, account_kind, _utcnow_iso(),
+                    clinical_role, npi, creds_json, atts_json, account_kind,
+                    "pending" if account_kind == "advisor" else None, _utcnow_iso(),
                 ),
             )
         return self.get_user_by_id(uid)  # type: ignore[return-value]
@@ -4261,6 +4279,7 @@ class AsclepiusStore:
                 f"SELECT * FROM users "
                 f"WHERE {col} IS NULL "
                 f"  AND verification_status = 'pending' "
+                f"  AND COALESCE(account_kind, '') = '' "
                 f"  AND COALESCE(active, 1) = 1 "
                 f"  AND email IS NOT NULL AND email != '' "
                 f"  AND created_at <= ? "
@@ -4512,6 +4531,10 @@ class AsclepiusStore:
         the later, smaller thing: a role change on an account that was already
         approved, so it touches the tier column and nothing else, and it never
         creates a tier on an undecided account."""
+        from asclepius import capabilities as asc_caps
+        current = self.get_user_by_id(user_id)
+        if asc_caps.account_kind(current) == asc_caps.ADVISOR and tier != asc_caps.REVIEWER:
+            return False
         with self._conn() as conn:
             cur = conn.execute(
                 "UPDATE users SET tier = ? "
@@ -5276,9 +5299,11 @@ class AsclepiusStore:
         Returns the tier assigned, or None when nothing needed doing."""
         with self._conn() as conn:
             row = conn.execute(
-                "SELECT role, tier, verification_status FROM users WHERE id = ?",
+                "SELECT role, tier, verification_status, account_kind FROM users WHERE id = ?",
                 (user_id,)).fetchone()
             if row is None or row["tier"]:
+                return None
+            if row["account_kind"]:
                 return None
             if (row["role"] or "") not in ("evaluator", "qa_reviewer"):
                 return None
@@ -6220,7 +6245,7 @@ class AsclepiusStore:
         granted, revoked = [], []
         with self._conn() as conn:
             rows = [dict(r) for r in conn.execute(
-                "SELECT id, tier, verification_status, real_data_approved, "
+                "SELECT id, role, active, account_kind, tier, verification_status, real_data_approved, "
                 "       is_mock, real_data_approval_source FROM users"
             ).fetchall()]
         eligible = 0
@@ -6237,6 +6262,7 @@ class AsclepiusStore:
             if u.get("is_mock"):
                 continue
             qualifies = (u.get("verification_status") == "approved"
+                         and asc_caps.can_surface(u, asc_caps.REAL_WORK)
                          and asc_caps.can(u, asc_caps.LABEL))
             eligible += 1 if qualifies else 0
             if (u.get("real_data_approval_source") or "") == "admin":
@@ -10699,12 +10725,15 @@ class AsclepiusStore:
         """The human decision (PRD-B Phase 5). Stamps verified_by/verified_at on
         EVERY decision; tier fields are written only on approval — the tier is
         a decision, not a computation, so it arrives only from this method."""
+        from asclepius import capabilities as asc_caps
         now = _utcnow_iso()
         with self._conn() as conn:
             was = conn.execute(
-                "SELECT verification_status FROM users WHERE id = ?", (user_id,)
+                "SELECT verification_status, account_kind FROM users WHERE id = ?", (user_id,)
             ).fetchone()
             prior = was["verification_status"] if was else None
+            if was and was["account_kind"] == asc_caps.ADVISOR and status == "approved" and tier != asc_caps.REVIEWER:
+                raise ValueError("Advisor applications may only be approved as Reviewer.")
             if status == "approved":
                 conn.execute(
                     "UPDATE users SET verification_status = 'approved', "

@@ -3876,9 +3876,10 @@ export function Step8AsclepiusSuccess({
    ready: it opens ONE piece of work, the copy says what it is worth, and the
    24-48h reassurance stays above it.
    ═════════════════════════════════════════════════════════════ */
-export function StepApplicationSubmitted({ data, onSignIn }: {
+export function StepApplicationSubmitted({ data, onSignIn, advisor = false }: {
   data: OnboardingData;
   onSignIn?: () => void;
+  advisor?: boolean;
 }) {
   const last = (data.lastName || "").trim();
 
@@ -3895,21 +3896,21 @@ export function StepApplicationSubmitted({ data, onSignIn }: {
     // or arrives at an older portal build that does not read it.
     if (data.asclepiusToken) {
       try {
-        await redirectToAsclepiusPortal(data.asclepiusToken, "examination");
+        await redirectToAsclepiusPortal(data.asclepiusToken, advisor ? "" : "examination");
         return true;
       } catch {
         /* fall through to the plain portal URL + its emailed sign-in link */
       }
     }
     const base = data.workspaceUrl || asclepiusPortalUrl();
-    window.location.href = base.indexOf("#") === -1 ? base + "#examination" : base;
+    window.location.href = advisor ? base : base.indexOf("#") === -1 ? base + "#examination" : base;
     return true;
   };
   return (
     <OnboardingCard
       maxWidth={620}
       eyebrow="Application received"
-      title={last ? `Thank you, Dr. ${last}.` : "Thank you."}
+      title={advisor ? (data.firstName ? `Thank you, ${data.firstName}.` : "Thank you.") : last ? `Thank you, Dr. ${last}.` : "Thank you."}
     >
       <div
         style={{
@@ -3960,16 +3961,16 @@ export function StepApplicationSubmitted({ data, onSignIn }: {
       </p>
       <p style={{ fontSize: 15.5, lineHeight: 1.65, color: "var(--ink-soft)",
                   textAlign: "center", margin: "0 0 22px" }}>
-        <strong style={{ color: "var(--ink)" }}>
+        {advisor ? 'Reviewer access opens after approval. You can sign in to check your application status.' : <><strong style={{ color: "var(--ink)" }}>
           One step left: open your account and take the examination.
         </strong>{" "}
         It&rsquo;s one real case in your specialty, about 15 minutes, and it&rsquo;s
-        what we read when we decide.
+        what we read when we decide.</>}
       </p>
 
       <PrimaryButton fullWidth onClick={openAccount} loadingLabel="Opening&hellip;"
                      successLabel="Opening &#10003;">
-        Open my account and take the examination &rarr;
+        {advisor ? 'Check my application status' : 'Open my account and take the examination →'}
       </PrimaryButton>
 
       {/* The outbound "Or read our mission" link is gone with the rest. The

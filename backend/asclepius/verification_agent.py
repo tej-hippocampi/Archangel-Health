@@ -321,6 +321,8 @@ async def run_one(store: Any, job: Dict[str, Any]) -> Dict[str, Any]:
     user = await asyncio.to_thread(store.get_user_by_id, job["user_id"])
     if not user:
         return {"outcome": "skipped", "reason": "user no longer exists"}
+    if caps.account_kind(user) == caps.ADVISOR:
+        return {"outcome": "skipped", "reason": "Advisor applications require a human reviewer decision."}
 
     try:
         registry_result = await asyncio.to_thread(_run_registry_check, store, user)

@@ -169,9 +169,9 @@ _BY_ACCESS: Dict[str, FrozenSet[str]] = {
 }
 
 
-#: Account kinds that are not physicians. A physician is NULL here, which is
-#: who everyone was before there was more than one door into this product.
-ADVISOR = "advisor"       # a non-clinical supporter: sees the product, refers
+#: Signup origin. The ordinary physician path is NULL; advisors require a
+#: manual reviewer appointment before they can enter the platform.
+ADVISOR = "advisor"
 REFERRER = "referrer"     # holds a referral link and nothing else
 
 #: A referral-only account reaches exactly two things: the pages that explain
@@ -180,36 +180,23 @@ REFERRER = "referrer"     # holds a referral link and nothing else
 #: knows doctors, not to a doctor.
 _REFERRER_SURFACES: FrozenSet[str] = frozenset({BROWSE, REFERRAL})
 
-#: An advisor sees the product and can refer. That is the whole account: they
-#: are shown around so they can speak about us credibly, and the one thing they
-#: DO is introduce people.
-#:
-#: Read the omissions rather than the list. No REAL_WORK, because an advisor is
-#: not a clinician and a real case carries real patient data. No
-#: COMMUNITY_WRITE, because the physicians in those channels are talking to
-#: colleagues and a non-clinical voice among them changes what the room is;
-#: reading is enough to understand it, and the confidentiality line they sign at
-#: signup is what covers the reading. TUTORIAL is in, and it is the whole demo:
-#: the practice case is virtual end to end, so an advisor clicking through it
-#: touches no patient and writes no row.
-_ADVISOR_SURFACES: FrozenSet[str] = frozenset(
-    {BROWSE, TUTORIAL, COMMUNITY_READ, EARNINGS, REFERRAL}
-)
-
-#: Kind -> the ceiling that kind may ever reach. Intersected with whatever the
-#: access level grants, so the cap holds INDEPENDENTLY of verification: an admin
-#: clicking Approve on an advisor moves them to FULL and changes nothing about
-#: what they can do. A physician is absent from this map and is capped by
-#: nothing, which is the pre-existing behaviour for every account that predates
-#: there being more than one door.
+#: Referral accounts have a fixed ceiling. Advisors are handled separately:
+#: pending applicants can read their status; approved reviewers can work.
 _BY_ACCOUNT_KIND: Dict[str, FrozenSet[str]] = {
     REFERRER: _REFERRER_SURFACES,
-    ADVISOR: _ADVISOR_SURFACES,
 }
 
 
 def account_kind(user: Optional[Dict[str, Any]]) -> Optional[str]:
     return ((user or {}).get("account_kind") or "").strip().lower() or None
+
+
+def approved_advisor(user: Optional[Dict[str, Any]]) -> bool:
+    """Retain advisor origin; only a recorded reviewer approval opens work."""
+    u = user or {}
+    return (account_kind(u) == ADVISOR
+            and u.get("verification_status") == "approved"
+            and u.get("tier") == REVIEWER)
 
 
 def _retake_offered(user: Dict[str, Any]) -> bool:
@@ -239,6 +226,10 @@ def access_level(user: Optional[Dict[str, Any]]) -> str:
     if u.get("active") is not None and not u.get("active"):
         return NONE
     status = u.get("verification_status")
+    if account_kind(u) == ADVISOR:
+        if status == "rejected":
+            return NONE
+        return FULL if approved_advisor(u) else PROVISIONAL
     if status == "rejected":
         # REJECTED MEANS "TRY AGAIN", once a retake has been offered.
         #
@@ -268,9 +259,11 @@ def surfaces(user: Optional[Dict[str, Any]]) -> FrozenSet[str]:
         return frozenset(SURFACES)
     level = access_level(user)
     granted_by_access = _BY_ACCESS.get(level, frozenset())
-    # A non-physician account is capped no matter how its verification lands:
-    # approving one does not turn the person who introduced us to a hospital
-    # into someone who grades cases.
+    # Advisor origin is retained after the owner appoints them as a reviewer.
+    if account_kind(user) == ADVISOR:
+        if level == NONE:
+            return frozenset()
+        return granted_by_access if approved_advisor(user) else frozenset({BROWSE})
     cap = _BY_ACCOUNT_KIND.get(account_kind(user) or "")
     if cap is not None:
         # The cap is the ANSWER for these kinds, not merely a ceiling on the
@@ -287,8 +280,7 @@ def surfaces(user: Optional[Dict[str, Any]]) -> FrozenSet[str]:
         # The narrowing was aimed at applicants who ARE claiming to be
         # physicians, where the exposure is an unvetted account acting like a
         # colleague among verified clinicians. None of that reasoning reaches
-        # an advisor or a referrer, who are appointed rather than vetted and
-        # who never appear as clinicians anywhere.
+        # a referrer, whose only purpose is introducing colleagues.
         #
         # NONE still means none: refused and deactivated close every door, and
         # that is the check this branch must not skip.

@@ -84,6 +84,10 @@ def _proposal(store: Any, user: Dict[str, Any],
               dupe_counts: Optional[Dict[str, int]] = None) -> Dict[str, Any]:
     """B-5.8: when a caller already holds the grouped duplicate counts, use
     them instead of running one ``SELECT ... WHERE npi = ?`` per queue row."""
+    if asc_caps.account_kind(user) == asc_caps.ADVISOR:
+        return {"score": 0, "proposed_tier": asc_caps.REVIEWER,
+                "reasons": ["Advisor application: Reviewer appointment requires your decision."],
+                "blockers": []}
     if dupe_counts is None:
         dupe = _duplicate_npi(store, user)
     else:
@@ -171,6 +175,9 @@ def _tiering_proposal(
     Asking it without a domain at all would silently reintroduce ``P(TR | physician)``, which
     is the exact thing finding 1 says does not exist.
     """
+    if asc_caps.account_kind(user) == asc_caps.ADVISOR:
+        return {"proposed_tier": asc_caps.REVIEWER, "score": 0,
+                "features": {}, "was_exploration": False, "manual_appointment": True}
     uid = user["id"]
     npi = credentialing.clean_npi(user.get("npi") or "")
     if dupe_counts is None:
@@ -338,6 +345,8 @@ def _is_ready_for_review(user: Dict[str, Any]) -> bool:
     ability to reject an obviously bad application, or approve a known
     colleague, without waiting on a ledger.
     """
+    if asc_caps.account_kind(user) == asc_caps.ADVISOR:
+        return True  # The short advisor application has no physician examination.
     blob = asc_caps._tutorial_blob(user)
     exam = blob.get("exam") if isinstance(blob.get("exam"), dict) else {}
     return _has_credential_evidence(user) and exam.get("state") == "submitted"
@@ -377,6 +386,9 @@ def _queue_row(store: Any, user: Dict[str, Any],
         "country_of_practice": user.get("country_of_practice"),
         "created_at": user.get("created_at"),
         "verification_status": user.get("verification_status"),
+        "account_kind": asc_caps.account_kind(user),
+        "allowed_tiers": ([asc_caps.REVIEWER] if asc_caps.account_kind(user) == asc_caps.ADVISOR
+                          else list(_TIERS)),
         "email_domain_class": user.get("email_domain_class"),
         "phone": user.get("phone"),
         "linkedin_url": user.get("linkedin_url"),
@@ -755,47 +767,50 @@ async def approve_signup(
     user = _load_user_or_404(user_id)
     if user.get("role") not in ("evaluator", "qa_reviewer") or not user.get("active"):
         raise HTTPException(status_code=400, detail="Only active physician accounts can be approved here.")
+    if asc_caps.account_kind(user) == asc_caps.ADVISOR and tier != asc_caps.REVIEWER:
+        raise HTTPException(status_code=400, detail="Advisor applications may only be approved as Reviewer.")
     prop = _proposal(store, user)
     # PRD C §5.3 — **the override IS the training signal.** Recorded BEFORE the approval
     # commits, and recorded on agreement as well as disagreement: a model that only ever sees
     # its mistakes learns that it is always wrong. Non-fatal by construction — a learning-loop
     # bookkeeping failure must never cost a physician their approval.
-    try:
-        tprop = _tiering_proposal(store, user)
-        # Admin Launch PRD §3.3 has the console POST /tiering/{id}/decide FIRST and
-        # then /approve, so that agreement with the recommendation is recorded as a
-        # training observation and not only disagreement. That makes this call a
-        # potential DUPLICATE of an observation written moments ago: same
-        # physician, same features, same tier. Folding both would double-count one
-        # admin click into the likelihood and advance the pending-decision counter
-        # by two per approval — silently, since nothing about a doubled batch looks
-        # wrong from the outside.
-        #
-        # So: record here only when this judgment is not already queued. An API
-        # client calling /approve on its own still produces its observation, which
-        # is what keeps the learning loop honest for callers that never touch
-        # /decide.
-        if not store.has_unapplied_tiering_decision(user_id, tier):
-            store.record_tiering_decision(
-                user_id=user_id,
-                case_domain=tprop.get("case_domain"),
-                features=tprop.get("features") or {},
-                proposed_tier=tprop.get("proposed_tier"),
-                admin_tier=tier,
-                was_exploration=bool(tprop.get("was_exploration")),
-                outcome_source="admin",
-                score=tprop.get("score"),
-                decided_by=admin["email"],
-            )
-        # §6 fairness monitor. The decided tier AND the feature vector are COPIED ONTO the
-        # demographics row here, so the monitor later needs no join at all. Note what is NOT
-        # happening: nothing reads demographics off `user`. They are not on the users row and
-        # never will be — every feature path loads a physician with `SELECT * FROM users`, so
-        # a column there is a column the model can reach. This call writes a tier and a
-        # feature vector next to a pseudonym, in that direction only.
-        store.stamp_fairness_tier(user_id, tier, features=tprop.get("features"))
-    except Exception:
-        log.exception("[tiering] could not record the decision (approval stands)")
+    if asc_caps.account_kind(user) != asc_caps.ADVISOR:
+        try:
+            tprop = _tiering_proposal(store, user)
+            # Admin Launch PRD §3.3 has the console POST /tiering/{id}/decide FIRST and
+            # then /approve, so that agreement with the recommendation is recorded as a
+            # training observation and not only disagreement. That makes this call a
+            # potential DUPLICATE of an observation written moments ago: same
+            # physician, same features, same tier. Folding both would double-count one
+            # admin click into the likelihood and advance the pending-decision counter
+            # by two per approval — silently, since nothing about a doubled batch looks
+            # wrong from the outside.
+            #
+            # So: record here only when this judgment is not already queued. An API
+            # client calling /approve on its own still produces its observation, which
+            # is what keeps the learning loop honest for callers that never touch
+            # /decide.
+            if not store.has_unapplied_tiering_decision(user_id, tier):
+                store.record_tiering_decision(
+                    user_id=user_id,
+                    case_domain=tprop.get("case_domain"),
+                    features=tprop.get("features") or {},
+                    proposed_tier=tprop.get("proposed_tier"),
+                    admin_tier=tier,
+                    was_exploration=bool(tprop.get("was_exploration")),
+                    outcome_source="admin",
+                    score=tprop.get("score"),
+                    decided_by=admin["email"],
+                )
+            # §6 fairness monitor. The decided tier AND the feature vector are COPIED ONTO the
+            # demographics row here, so the monitor later needs no join at all. Note what is NOT
+            # happening: nothing reads demographics off `user`. They are not on the users row and
+            # never will be — every feature path loads a physician with `SELECT * FROM users`, so
+            # a column there is a column the model can reach. This call writes a tier and a
+            # feature vector next to a pseudonym, in that direction only.
+            store.stamp_fairness_tier(user_id, tier, features=tprop.get("features"))
+        except Exception:
+            log.exception("[tiering] could not record the decision (approval stands)")
     updated = store.record_verification_decision(
         user_id,
         status="approved",
@@ -897,7 +912,8 @@ async def reject_signup(
         # from — and this queue rejects real physicians only deliberately.
         raise HTTPException(status_code=400, detail="Rejection requires a note.")
     store = _store()
-    _load_user_or_404(user_id)
+    user = _load_user_or_404(user_id)
+    offer_retake = asc_caps.account_kind(user) != asc_caps.ADVISOR
 
     # A REJECTION OFFERS ANOTHER GO.
     #
@@ -910,25 +926,26 @@ async def reject_signup(
     # `access_level` return PROVISIONAL for a rejected row, so it has to be on
     # the account before the status lands or a concurrent sign-in in between
     # would be refused.
-    current = store.get_tutorial_state(user_id) or {}
-    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
-    store.set_tutorial_state(user_id, {
-        **current,
-        "retake_offered_at": now,
-        # Both pieces of case work reopen. `resources_seen_at` is cleared so
-        # the demo and the practice case are offered again, which is the point:
-        # somebody being asked to re-sit should be shown the help first, not
-        # dropped straight back into the examination that went badly.
-        "resources_seen_at": None,
-        "exam": {"state": "retake", "attempt": int(
-            ((current.get("exam") or {}).get("attempt") or 0)) + 1},
-    })
+    if offer_retake:
+        current = store.get_tutorial_state(user_id) or {}
+        now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+        store.set_tutorial_state(user_id, {
+            **current,
+            "retake_offered_at": now,
+            # Both pieces of case work reopen. `resources_seen_at` is cleared so
+            # the demo and the practice case are offered again, which is the point:
+            # somebody being asked to re-sit should be shown the help first, not
+            # dropped straight back into the examination that went badly.
+            "resources_seen_at": None,
+            "exam": {"state": "retake", "attempt": int(
+                ((current.get("exam") or {}).get("attempt") or 0)) + 1},
+        })
 
     updated = store.record_verification_decision(
         user_id, status="rejected", decided_by=admin["email"], note=note)
     store.log_event(
         entity_type="user", entity_id=user_id, event_type="verification_rejected",
-        actor=admin["email"], payload={"note": note, "retake_offered": True},
+        actor=admin["email"], payload={"note": note, "retake_offered": offer_retake},
     )
     try:
         store.advance_referral_for_user(user_id, "declined")
@@ -1150,6 +1167,11 @@ async def tiering_decide(
     store = _store()
     user = _load_user_or_404(user_id)
     prop = _tiering_proposal(store, user, case_domain=body.case_domain)
+    if asc_caps.account_kind(user) == asc_caps.ADVISOR:
+        if tier != asc_caps.REVIEWER:
+            raise HTTPException(status_code=400, detail="Advisor applications may only be approved as Reviewer.")
+        return {"ok": True, "decision": None, "proposal": _proposal(store, user),
+                "learning_signal_recorded": False}
     decision = store.record_tiering_decision(
         user_id=user_id,
         case_domain=prop.get("case_domain"),
@@ -1544,6 +1566,8 @@ async def retier_physician(
     user = _load_user_or_404(user_id)
     tier = (body.tier or "").strip().lower()
     note = " ".join((body.note or "").split())
+    if asc_caps.account_kind(user) == asc_caps.ADVISOR and tier != asc_caps.REVIEWER:
+        raise HTTPException(status_code=400, detail="Advisor applications may only be approved as Reviewer.")
 
     if tier not in _TIERS:
         raise HTTPException(status_code=400,

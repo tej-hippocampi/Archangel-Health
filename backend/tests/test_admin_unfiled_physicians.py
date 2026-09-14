@@ -182,7 +182,7 @@ def test_the_card_repairs_through_the_existing_route_not_a_new_one():
     body = js[start:start + 2600]
     assert "'/admin/physicians/restore?email='" in body
     assert "approve_verification: true" in body
-    assert "tier: 'labeler'" in body
+    assert "tier: advisor ? 'reviewer' : 'labeler'" in body
 
 
 def test_the_card_says_when_approval_did_not_unblock_real_cases():

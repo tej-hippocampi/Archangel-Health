@@ -755,12 +755,11 @@
     return !!(state.user && state.user.account_kind === 'referrer');
   }
 
-  /* An advisor: the whole product, view-only, with the referral page as the one
-     thing they can act on. They are not waiting for anything -- no credentials
-     are being checked -- so every "opens when your credentials clear" affordance
-     is wrong for them and is replaced rather than reused. */
+  /* Advisor applicants wait for a manual Reviewer appointment. Once approved,
+     they use the ordinary reviewer interface while retaining their origin. */
   function isAdvisor() {
-    return !!(state.user && state.user.account_kind === 'advisor');
+    return !!(state.user && state.user.account_kind === 'advisor'
+      && !(state.user.verification_status === 'approved' && state.user.tier === 'reviewer'));
   }
 
   function sessionHasSurface(surface) {
@@ -1598,7 +1597,7 @@
   function verificationGate(err) {
     if (!err || err.status !== 403) return null;
     const gate = err.authGate === 'pending' || err.authGate === 'rejected'
-      || err.authGate === 'pending_examination'
+      || err.authGate === 'pending_examination' || err.authGate === 'pending_advisor'
       ? err.authGate : null;
     // A 403 with no gate header is one of the other deny-by-default role gates
     // (data_partner, buyer). Those are not a waiting state and must not be
@@ -1607,9 +1606,12 @@
     const detail = err.detail;
     return {
       state: gate,
+      advisor: gate === 'pending_advisor',
       message: (typeof detail === 'string' && detail.trim())
         ? detail.trim()
-        : (gate === 'pending'
+        : (gate === 'pending_advisor'
+          ? 'Your reviewer application is under review.'
+          : gate === 'pending'
           ? 'Your credentials are still being verified.'
           : gate === 'pending_examination'
             ? 'One step left: your examination.'
@@ -1825,6 +1827,12 @@
     // unread count or (more importantly) their signed handoff token must never
     // bleed into the next login before the first poll overwrites it.
     resetCommunityState();
+    if (isAdvisor()) {
+      renderAwaitingVerification({ advisor: true,
+        message: 'Your advisor application is waiting for our decision. We will email you when it has been reviewed.' },
+        state.user.email);
+      return;
+    }
     renderHeader();
     renderSidePanel();
     startCommunityPolling();
@@ -2203,6 +2211,7 @@
           // already completed correctly. Every other failure stays inline.
           const gate = verificationGate(err);
           if (gate && (gate.state === 'pending'
+                       || gate.state === 'pending_advisor'
                        || gate.state === 'pending_examination')) {
             // `pending_examination` arrives from the LOGIN call itself (a
             // passwordless legacy applicant, so authenticate() failed), which is
@@ -2392,7 +2401,7 @@
   function renderAwaitingVerification(gate, email) {
     teardownSidePanel();
     document.getElementById('ascHeader').setAttribute('hidden', '');
-    const sec = awaitingVerificationSection();
+    const sec = gate.advisor ? null : awaitingVerificationSection();
 
     const body = h('div', { class: 'asc-login-body' });
     // The server's own sentence, first and unedited — it is the one that carries
@@ -2456,7 +2465,8 @@
       h('div', { class: 'asc-login-card' },
         h('div', { class: 'asc-login-head' },
           h('div', { class: 'asc-login-mark', 'aria-hidden': 'true' }),
-          h('h1', {}, (sec && sec.title) || 'Your credentials are being verified'),
+          h('h1', {}, gate.advisor ? 'Your reviewer application is under review'
+            : (sec && sec.title) || 'Your credentials are being verified'),
           h('p', {}, 'Archangel Health'),
         ),
         body)));
@@ -2579,7 +2589,7 @@
    *  login form carrying the reason for `rejected` (there is no wait to
    *  explain, and the account may not be the one they meant to use). */
   function renderGated(gate, email) {
-    if (gate.state === 'pending') renderAwaitingVerification(gate, email);
+    if (gate.state === 'pending' || gate.state === 'pending_advisor') renderAwaitingVerification(gate, email);
     else if (gate.state === 'pending_examination') renderExaminationOwed(gate, email);
     else renderLogin(gate.message, 'notice');
   }
