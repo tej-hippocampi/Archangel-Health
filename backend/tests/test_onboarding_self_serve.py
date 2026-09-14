@@ -115,26 +115,98 @@ def test_a_referral_code_never_breaks_the_mint(client):
     assert "/onboard/" in r.json()["onboarding_url"]
 
 
-def test_honeypot_returns_decoy_and_stores_nothing(client, store):
-    r = client.post(
-        "/api/onboarding/self-serve",
-        json={"email": "bot@spam.com", "company_website": "https://spam.example"},
-    )
+@pytest.mark.parametrize("email", [
+    "doctor@aiimsjodhpur.edu.in", "doctor@dpu.edu.in",
+    "doctor@atriushealth.org", "doctor@gmail.com",
+])
+@pytest.mark.parametrize("hidden_value", ["", "https://hospital.example", "saved profile"])
+def test_autofill_and_international_email_return_real_invites(client, store, email, hidden_value):
+    """The reported production failure must open a persisted wizard session."""
+    r = client.post("/api/onboarding/self-serve", json={
+        "email": email, "company_website": hidden_value,
+        "first_name": "Asha", "last_name": "Sharma",
+    })
     assert r.status_code == 200
-    body = r.json()
-    assert body["ok"] is True
-    assert "/onboard/" in body["onboarding_url"]
+    token = r.json()["onboarding_url"].rsplit("/onboard/", 1)[1]
+    session = client.get("/api/onboarding/session", params={"token": token})
+    assert session.status_code == 200
+    assert session.json()["director_email"] == email
+    assert session.json()["director_first_name"] == "Asha"
+    assert session.json()["status"] == "pending"
+    assert session.json()["step"] == 1  # names prefill identity, never verify inbox
+    assert len(_rows(store)) == 1
+    password = client.post("/api/onboarding/asclepius/password", json={
+        "token": token, "password": "correct-horse-battery-9876",
+    })
+    assert password.status_code == 403
+    assert "Verify your email" in password.json()["detail"]
+
+
+def test_autofilled_requests_still_obey_per_email_cap(client, store):
+    payload = {"email": "doctor@aiimsjodhpur.edu.in", "company_website": "saved profile"}
+    for _ in range(3):
+        assert client.post("/api/onboarding/self-serve", json=payload).status_code == 200
+    response = client.post("/api/onboarding/self-serve", json=payload)
+    assert response.status_code == 429
+    assert "onboarding_url" not in response.json()
+    assert len(_rows(store)) == 3
+
+
+def test_invite_storage_failure_never_returns_success(client, store, monkeypatch):
+    def unavailable(**kwargs):
+        raise RuntimeError("storage unavailable")
+    monkeypatch.setattr(store, "create_health_system_invite", unavailable)
+    with pytest.raises(RuntimeError, match="storage unavailable"):
+        client.post("/api/onboarding/self-serve", json={
+            "email": "doctor@aiimsjodhpur.edu.in", "company_website": "saved profile",
+        })
     assert _rows(store) == []
 
-    # Decoy must be indistinguishable from a real success by shape: pin key
-    # parity so the responses can't silently diverge.
-    real = client.post("/api/onboarding/self-serve", json={"email": "doc@hospital.org"}).json()
-    assert set(body.keys()) == set(real.keys())
 
-    # ...and the decoy token opens nothing.
-    token = body["onboarding_url"].rsplit("/onboard/", 1)[1]
-    s = client.get("/api/onboarding/session", params={"token": token})
-    assert s.status_code == 404
+@pytest.mark.parametrize("limit,rotate_ip", [(5, False), (60, True)])
+def test_legacy_autofill_cannot_bypass_request_limits(client, store, monkeypatch, limit, rotate_ip):
+    import ratelimit
+    from routers import onboarding
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "1")
+    monkeypatch.setattr(onboarding, "_email_configured", lambda: False)
+    ratelimit.reset()
+    try:
+        for n in range(limit + 1):
+            response = client.post("/api/onboarding/self-serve", json={
+                "email": f"doctor{n}@aiimsjodhpur.edu.in", "company_website": "saved profile",
+            }, headers={"X-Forwarded-For": f"192.0.2.{n + 1 if rotate_ip else 1}"})
+            assert response.status_code == (200 if n < limit else 429)
+        assert "onboarding_url" not in response.json()
+        assert int(response.headers["Retry-After"]) > 0
+        assert len(_rows(store)) == limit
+    finally:
+        ratelimit.reset()
+
+
+def test_new_signup_preserves_existing_answers_and_backup_is_restorable(client, store, tmp_path):
+    import sqlite3
+    from scripts.data_inventory import compare, snapshot
+
+    existing = store.create_health_system_invite(
+        invite_base_url="https://landing.test", director_email="existing@hospital.org", product="asclepius")
+    store.update_health_system_director_identity(
+        existing["health_system_id"], first_name="Existing", last_name="Doctor", email="existing@hospital.org")
+    before = snapshot(store.db_path)
+    backup_path = tmp_path / "recoverable-team.db"
+    with sqlite3.connect(store.db_path) as source, sqlite3.connect(backup_path) as target:
+        source.backup(target)
+
+    response = client.post("/api/onboarding/self-serve", json={
+        "email": "doctor@aiimsjodhpur.edu.in", "company_website": "saved profile",
+    })
+    assert response.status_code == 200
+    assert compare(before, snapshot(store.db_path)) == []
+    assert len(_rows(store)) == 2
+
+    restored = TeamStore(str(backup_path))
+    assert compare(before, snapshot(restored.db_path)) == []
+    token = existing["onboarding_url"].rsplit("/", 1)[1]
+    assert restored.get_health_system_by_onboarding_token(token)["director_first_name"] == "Existing"
 
 
 def test_per_email_cap(client, store):

@@ -1508,10 +1508,16 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center" }}>
           <h2 style={{ color: "var(--ink)", marginBottom: 12 }}>This onboarding link can&apos;t be loaded.</h2>
           <p style={{ color: "var(--ink-soft)", fontSize: 14 }}>{bootError}</p>
-          {/* An expired or already-used link is overwhelmingly likely to belong
-              to somebody who already HAS an account. This was a dead end with
-              no route anywhere, which is a strange thing to show a physician
-              whose only problem is that they finished signing up. */}
+          <p style={{ marginTop: 18 }}>
+            <button type="button" onClick={() => void loadSession()}>
+              Try again
+            </button>
+          </p>
+          {mode !== "member" && (
+            <p style={{ color: "var(--ink-soft)", fontSize: 14, marginTop: 18 }}>
+              Joining as a physician? <a href="/join">Start with a new onboarding link</a>
+            </p>
+          )}
           <p style={{ color: "var(--ink-soft)", fontSize: 14, marginTop: 18 }}>
             Already have an account?{" "}
             <button
@@ -1713,6 +1719,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
   }, [
     loading,
     bootError,
+    loadSession,
     step,
     data,
     setData,
