@@ -39,7 +39,6 @@ export default function JoinEntry() {
   const [firstName, setFirstName] = useState((params.get("first") || "").trim());
   const [lastName, setLastName] = useState((params.get("last") || "").trim());
   const [email, setEmail] = useState((params.get("email") || "").trim());
-  const [honeypot, setHoneypot] = useState("");
   const [busy, setBusy] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState("");
@@ -53,7 +52,6 @@ export default function JoinEntry() {
     try {
       const { onboarding_url } = await authApi.createPhysicianOnboardingLink({
         email: email.trim().toLowerCase(),
-        company_website: honeypot,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         // Attribution is the LINK and nothing else. A physician sends their
@@ -129,29 +127,6 @@ export default function JoinEntry() {
                 type="email"
                 value={email}
                 onChange={setEmail}
-              />
-              {/* Honeypot: never shown to a person, always filled by a naive
-                  bot. The name is deliberately NOT "company_website", and the
-                  field carries no id, label or placeholder. Chrome and Safari
-                  match address-profile fields on exactly those signals and fill
-                  them regardless of autocomplete="off", which both browsers
-                  ignore for address data. A real physician with a saved profile
-                  was therefore tripping the honeypot, being handed the decoy
-                  link, and dead-ending on "Invalid or expired onboarding link"
-                  with a 200 OK and no row written. Only the browser-visible
-                  signals move here; the API field is still company_website. */}
-              <input
-                type="text"
-                name="jn_ref_tag"
-                value={honeypot}
-                onChange={(e) => setHoneypot(e.target.value)}
-                tabIndex={-1}
-                autoComplete="off"
-                aria-hidden="true"
-                data-lpignore="true"
-                data-1p-ignore=""
-                data-form-type="other"
-                style={{ position: "absolute", left: -9999, width: 1, height: 1, opacity: 0 }}
               />
               <div style={{ marginTop: 20 }}>
                 <PrimaryButton onClick={handleSubmit} disabled={!emailValid || busy} loading={busy}>

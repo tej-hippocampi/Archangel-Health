@@ -272,7 +272,8 @@ class FinishBody(OnboardTokenBody):
 
 class SelfServeBody(BaseModel):
     email: EmailStr
-    # Honeypot — real users never see or fill this; a non-empty value is a bot.
+    # Legacy clients send this hidden field. Autofill can populate it for real
+    # physicians, so it is diagnostic only and must never invalidate a signup.
     company_website: str = Field(default="", max_length=200)
     # /join extras, all optional so the landing's email-only modal keeps its
     # exact contract. Names prefill wizard step 1; the referral code attributes
@@ -557,7 +558,7 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
     Issues the same magic link the admin "Generate Health System Link" button
     creates, so a physician clicking "Become a contributor" on the landing
     lands directly in the existing onboarding wizard. Abuse guards, layered:
-    IP rate limit (5 / 10 min) → global cap (60/h) → honeypot → per-email cap
+    IP rate limit (5 / 10 min) → global cap (60/h) → per-email cap
     (3 pending / 24h) → 7-day expiry (vs the admin default 30) → the wizard's
     own email-OTP step, which still gates every completion on proof of inbox
     control.
@@ -565,42 +566,18 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
     ts = _ts(request)
     email = str(body.email).lower().strip()
 
-    # Honeypot: accept silently with a decoy link so a bot can't tell it was
-    # caught. The token is random garbage — the wizard 404s it. Shape matches
-    # the real success exactly (ok / onboarding_url / expires_at).
-    #
-    # The response stays silent to the CALLER, but it is no longer silent to us.
-    # A false positive here is indistinguishable, from the physician's side, from
-    # a broken product: they get a 200, a link, and then "Invalid or expired
-    # onboarding link" with no way forward. That is exactly what happened when
-    # the field was named `company_website` with a "Company website" label —
-    # Chrome and Safari autofill address-profile fields on those signals and
-    # ignore autocomplete="off" for them, so real doctors with a saved profile
-    # were being classified as bots. Nothing was written and nothing was logged,
-    # which is why it took a manual walkthrough to find. Log it.
+    # A populated hidden field is not proof of a bot. Production logs confirm
+    # real physicians still hit this after the field was renamed to discourage
+    # autofill. Never return a made-up token: every successful response must
+    # refer to a stored invite, including requests from older cached clients.
+    # Rate limits and inbox verification remain the enforceable abuse guards.
     if body.company_website.strip():
-        # Local import: `asc_referrals` is imported further down in this same
-        # function for the referral path, which makes the name function-local
-        # for the whole body. A module-level import would be shadowed and this
-        # line would raise UnboundLocalError before it ever logged anything.
         from asclepius import referrals as asc_referrals  # noqa: PLC0415
-
-        log.warning(
-            "[self-serve] honeypot tripped for %s from %s, decoy link returned, "
-            "no invite created. If this fires for real signups, the honeypot "
-            "field is being autofilled; check its name/label/id.",
-            asc_referrals.mask_email(email), client_ip(request),
+        log.info(
+            "[self-serve] legacy hidden field populated for %s; "
+            "continuing through rate-limited signup",
+            asc_referrals.mask_email(email),
         )
-        decoy_expires = (
-            (datetime.utcnow() + timedelta(days=_SELF_SERVE_EXPIRES_DAYS))
-            .replace(microsecond=0)
-            .isoformat()
-        )
-        return {
-            "ok": True,
-            "onboarding_url": _realm.public_url(f"{_landing_base()}/onboard/{secrets.token_urlsafe(32)}"),
-            "expires_at": decoy_expires,
-        }
 
     # THE RETURNING PHYSICIAN.
     #

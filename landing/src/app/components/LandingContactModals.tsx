@@ -390,7 +390,6 @@ export function PhysicianOnboardModal({
   onClose: () => void;
 }) {
   const [email, setEmail] = React.useState("");
-  const [honeypot, setHoneypot] = React.useState("");
   const [emailErr, setEmailErr] = React.useState<string | null>(null);
   const [formErr, setFormErr] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
@@ -404,7 +403,6 @@ export function PhysicianOnboardModal({
   React.useEffect(() => {
     if (open) {
       setEmail("");
-      setHoneypot("");
       setEmailErr(null);
       setFormErr(null);
       setSubmitting(false);
@@ -438,7 +436,6 @@ export function PhysicianOnboardModal({
     try {
       const { onboarding_url } = await authApi.createPhysicianOnboardingLink({
         email: trimmed,
-        company_website: honeypot,
       });
       if (!onboarding_url) {
         throw new Error("Couldn't start onboarding just now. Please email us instead.");
@@ -479,28 +476,6 @@ export function PhysicianOnboardModal({
               {formErr && <p className="am-form-error" role="alert">{formErr}</p>}
 
               <form onSubmit={handleSubmit} noValidate>
-                {/* honeypot — visually hidden, off the tab order. The label
-                    text and field name deliberately avoid "company"/"website":
-                    Chrome and Safari match address-profile fields on label, id
-                    and name, and fill them regardless of autocomplete="off",
-                    which both ignore for address data. A physician with a saved
-                    profile was tripping this and being handed the decoy link. */}
-                <div className="am-hp" aria-hidden="true">
-                  <label htmlFor="am-ref-tag-phys">Leave this field empty</label>
-                  <input
-                    id="am-ref-tag-phys"
-                    name="am_ref_tag"
-                    type="text"
-                    tabIndex={-1}
-                    autoComplete="off"
-                    data-lpignore="true"
-                    data-1p-ignore=""
-                    data-form-type="other"
-                    value={honeypot}
-                    onChange={(e) => setHoneypot(e.target.value)}
-                  />
-                </div>
-
                 <div className="am-field">
                   <label htmlFor="am-email-phys" className="am-label">Email</label>
                   <input

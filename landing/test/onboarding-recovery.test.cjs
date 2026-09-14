@@ -49,6 +49,38 @@ async function submit() {
   await act(async () => document.querySelector("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
 }
 
+test("an invalid onboarding link offers physician signup and existing-account sign in", async () => {
+  global.fetch = async () => new Response(JSON.stringify({ detail: "Invalid or expired onboarding link." }), { status: 404 });
+  await mount(Wizard, { token: "recovery-token" });
+  assert.match(document.body.textContent, /Invalid or expired onboarding link/);
+  assert.equal(document.querySelector('a[href="/join"]').textContent, "Start with a new onboarding link");
+  assert.ok([...document.querySelectorAll("button")].some(b => b.textContent === "Sign in"));
+});
+
+test("a temporary session failure retries the same link", async () => {
+  const calls = [];
+  global.fetch = async (url) => {
+    calls.push(url);
+    return calls.length === 1
+      ? new Response(JSON.stringify({ detail: "Please try again." }), { status: 503 })
+      : new Response(JSON.stringify({ status: "pending", product: "asclepius", step: 0,
+          director_first_name: "Asha", director_email: "doctor@aiimsjodhpur.edu.in" }));
+  };
+  await mount(Wizard, { token: "recovery-token" });
+  const retry = [...document.querySelectorAll("button")].find(b => b.textContent === "Try again");
+  await act(async () => retry.click());
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0], calls[1]);
+  assert.equal(document.querySelector('input[type="email"]').value, "doctor@aiimsjodhpur.edu.in");
+  assert.doesNotMatch(document.body.textContent, /This onboarding link can't be loaded/);
+});
+
+test("an invalid member invitation does not start an unrelated physician signup", async () => {
+  global.fetch = async () => new Response(JSON.stringify({ detail: "Invalid invitation." }), { status: 404 });
+  await mount(Wizard, { token: "recovery-token", mode: "member" });
+  assert.equal(document.querySelector('a[href="/join"]'), null);
+});
+
 test("a returning applicant can request a password link without a reset token", async () => {
   const calls = [];
   global.fetch = async (url, init) => {

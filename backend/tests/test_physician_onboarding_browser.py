@@ -3,12 +3,93 @@ from urllib.parse import urlsplit
 import uuid
 import os
 from pathlib import Path
+import json
+import mimetypes
 
 import pytest
 from fastapi.testclient import TestClient
 
 from tests._asclepius import app, fresh_store, make_user
 from tests._physician_application import PASSWORD, submit_physician_application
+
+
+@pytest.mark.parametrize("width,legacy_autofill", [(1440, False), (390, True)])
+def test_public_join_opens_real_international_onboarding(tmp_path, monkeypatch, width, legacy_autofill):
+    """Serve the built /join page with real APIs; no request leaves this test."""
+    from team_store import TeamStore, get_team_store, set_team_store
+    from routers import onboarding
+
+    playwright = pytest.importorskip("playwright.sync_api")
+    from playwright.sync_api import expect
+    fresh_store()
+    previous_team = get_team_store()
+    team = TeamStore(str(tmp_path / "join.db"))
+    set_team_store(team)
+    monkeypatch.setenv("LANDING_URL", "https://www.archangelhealth.ai")
+    monkeypatch.setattr(onboarding, "_email_configured", lambda: False)
+    dist = Path(__file__).resolve().parents[2] / "landing" / "dist"
+    assert (dist / "index.html").is_file(), "Build landing before browser checks"
+    errors, requests = [], []
+    try:
+        with TestClient(app) as client, playwright.sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": width, "height": 900}, reduced_motion="reduce")
+            page.on("pageerror", lambda error: errors.append(str(error)))
+
+            def dispatch(route):
+                req = route.request
+                url = urlsplit(req.url)
+                if url.netloc == "www.archangelhealth.ai" and not url.path.startswith("/api/"):
+                    asset = dist / (url.path.lstrip("/") if url.path.startswith("/assets/") else "index.html")
+                    assert asset.resolve().is_relative_to(dist.resolve())
+                    route.fulfill(body=asset.read_bytes(), content_type=mimetypes.guess_type(str(asset))[0] or "application/octet-stream")
+                    return
+                if not url.path.startswith("/api/"):
+                    route.fulfill(status=200, body="")  # fonts and external assets
+                    return
+                content = req.post_data_buffer
+                if url.path == "/api/onboarding/self-serve":
+                    payload = json.loads(content)
+                    assert "company_website" not in payload  # current UI has no trap
+                    if legacy_autofill:
+                        payload["company_website"] = "https://aiimsjodhpur.edu.in"
+                    requests.append(payload)
+                    content = json.dumps(payload).encode()
+                response = client.request(req.method, url.path + ("?" + url.query if url.query else ""),
+                                          content=content,
+                                          headers={k: v for k, v in req.headers.items() if k not in ("host", "content-length")})
+                route.fulfill(status=response.status_code, body=response.content,
+                              headers={k: v for k, v in response.headers.items() if k not in ("content-length", "content-encoding")})
+
+            page.route("**/*", dispatch)
+            # The old failure page must also provide a usable way back to /join.
+            page.goto("https://www.archangelhealth.ai/onboard/old-decoy-token")
+            page.get_by_role("link", name="Start with a new onboarding link").click()
+            page.get_by_label("First name", exact=True).fill("Asha")
+            page.get_by_label("Last name", exact=True).fill("Sharma")
+            page.get_by_label("Work email", exact=True).fill("doctor@aiimsjodhpur.edu.in")
+            page.get_by_role("button", name="Start onboarding", exact=True).click()
+            page.wait_for_url("**/onboard/**")
+            expect(page.get_by_label("Choose a password", exact=True)).to_be_visible()
+            expect(page.get_by_label("First name", exact=True)).to_have_value("Asha")
+            expect(page.get_by_label("Work email", exact=True)).to_have_value("doctor@aiimsjodhpur.edu.in")
+            page.get_by_label("Choose a password", exact=True).fill(PASSWORD)
+            page.get_by_label("Confirm password", exact=True).fill(PASSWORD)
+            page.get_by_role("button", name="Continue", exact=True).click()
+            expect(page.get_by_role("heading", name="Verify your email.", exact=True)).to_be_visible()
+            token = urlsplit(page.url).path.rsplit("/", 1)[1]
+            row = team.get_health_system_by_onboarding_token(token)
+            assert row and row["director_email"] == "doctor@aiimsjodhpur.edu.in"
+            assert int(row["onboarding_step"]) == 1
+            page.reload()
+            expect(page.get_by_role("heading", name="Verify your email.", exact=True)).to_be_visible()
+            assert len(requests) == 1
+            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+            screenshot(page, f"join-international-{width}.png")
+            assert not errors, errors
+            browser.close()
+    finally:
+        set_team_store(previous_team)
 
 
 @pytest.fixture()

@@ -1,26 +1,4 @@
-"""The front door: can a physician who has never signed up actually get in?
-
-Two regressions live here, both found by walking the product rather than by
-reading it, and both invisible to every existing test.
-
-1. THE HONEYPOT WAS AUTOFILLABLE. The self-serve field was ``company_website``
-   with a visible "Company website" label. Chrome and Safari match
-   address-profile fields on name, id, label and placeholder, and both ignore
-   ``autocomplete="off"`` for address data — so a real physician with a saved
-   profile had the honeypot filled for them, was classified as a bot, and got
-   a decoy link that dead-ends on "Invalid or expired onboarding link".
-   ``test_honeypot_returns_decoy_and_stores_nothing`` passes throughout: it
-   tests that the trap fires, not that only bots step in it. The endpoint
-   answers 200 and writes nothing, so there was no failure to observe.
-
-2. THE SIGN-IN SCREEN HAD NO ROUTE TO SIGNUP. The portal door offered a
-   password form, a password reset, and a sentence telling you to contact an
-   administrator. A physician without an account had nowhere to go.
-
-Both are asserted against the source, in the idiom test_paired_review.py uses
-to keep payment vocabulary out of the review router: the property is
-structural, so the check is structural.
-"""
+"""Protect physician signup from hidden autofill traps; retain contact-form guards."""
 
 from __future__ import annotations
 
@@ -100,18 +78,23 @@ def test_the_honeypot_carries_no_autofill_magnets():
                     f"autocomplete=off for them, so a real physician gets the "
                     f"decoy link and a dead end."
                 )
-    assert checked >= 2, f"expected to find the signup honeypots, found {checked}"
+    assert checked >= 1, f"expected to find the signup honeypots, found {checked}"
 
 
-def test_the_honeypot_still_exists_and_still_posts_company_website():
-    """The trap must survive the rename. Only the browser signals moved; the
-    API contract the backend reads (`company_website`) is unchanged."""
-    found_field, found_wire = 0, 0
-    for _fname, src in _signup_sources():
-        found_field += len(_honeypot_blocks(src))
-        found_wire += len(re.findall(r"company_website:\s*honeypot", src))
-    assert found_field >= 2, "the honeypot field was removed, not renamed"
-    assert found_wire >= 2, "the honeypot is no longer posted as company_website"
+def test_physician_signup_has_no_hidden_autofill_trap():
+    join = (LANDING / "JoinEntry.tsx").read_text()
+    modal = (LANDING / "LandingContactModals.tsx").read_text().split(
+        "export function PhysicianOnboardModal", 1)[1]
+    for source in (join, modal):
+        assert not _honeypot_blocks(source)
+        assert "company_website:" not in source
+
+
+def test_contact_form_honeypot_remains_wired():
+    contact = (LANDING / "LandingContactModals.tsx").read_text().split(
+        "export function PhysicianOnboardModal", 1)[0]
+    assert _honeypot_blocks(contact)
+    assert "if (honeypot.trim())" in contact
 
 
 def test_the_honeypot_is_off_the_tab_order_and_hidden():
