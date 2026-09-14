@@ -499,7 +499,7 @@
         'They are filed correctly as physicians, but the roster shows only '
         + 'approved accounts and the queue shows only pending ones, so these '
         + 'appear in neither, and cannot be tiered or sent a real case from this '
-        + 'console. They can still sign in and label. Approving one here records '
+        + 'console. Access depends on each account’s status. Approving one here records '
         + 'the decision against your account, exactly as the queue would, and '
         + 'puts it in the roster below.'),
       list));
@@ -508,8 +508,9 @@
   function unfiledRow(ctx, p, container) {
     const { h, api } = ctx;
     const status = h('span', { class: 'asc-misfiled-status' }, '');
+    const advisor = p.account_kind === 'advisor';
     const btn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button' },
-      'Approve as labeler');
+      advisor ? 'Approve as Reviewer' : 'Approve as labeler');
     btn.onclick = async () => {
       btn.disabled = true;
       status.textContent = 'Approving\u2026';
@@ -521,7 +522,7 @@
         const res = await api('/admin/physicians/restore?email='
                               + encodeURIComponent(p.email || ''),
                               { method: 'POST',
-                                body: { approve_verification: true, tier: 'labeler',
+                                body: { approve_verification: true, tier: advisor ? 'reviewer' : 'labeler',
                                         note: 'Approved from the unfiled card' } });
         if (res && res.can_label_real_cases === false) {
           // Approved, but still not able to draw a real case. Say so here rather
@@ -647,6 +648,7 @@
     const rows = queue.map((q) => ({
       kind: 'queued',
       user_id: q.user_id,
+      account_kind: q.account_kind || null,
       name: q.full_name || q.email || q.user_id,
       specialty: q.specialty || null,
       created_at: q.created_at || null,
@@ -1252,8 +1254,8 @@
           : null),
       h('td', {}, r.specialty || '-'),
       waitingCell(h, r.created_at),
-      examCell(h, r.examination),
-      practiceCell(h, r.practice_case),
+      r.account_kind === 'advisor' ? h('td', {}, 'Not required') : examCell(h, r.examination),
+      r.account_kind === 'advisor' ? h('td', {}, 'Not required') : practiceCell(h, r.practice_case),
       // The proposal, not the score. A number in a queue invites deciding on
       // the number; the tier word says which rows need real thought.
       h('td', {}, r.proposed_tier_word || '-'),
@@ -1488,13 +1490,13 @@
     // examination shipped and no screen rendered it, so the artifact the whole
     // decision rests on was invisible while the optional warm-up beside it had
     // a card.
-    slot.appendChild(examinationCard(ctx, d.examination, userId));
+    if (d.account_kind !== 'advisor') slot.appendChild(examinationCard(ctx, d.examination, userId));
 
     // ── THE PRACTICE CASE ──
     // Open, and above the buttons, because it is the only piece of clinical
     // judgment we observe before deciding about somebody. Everything else on
     // this screen is a credential they hold; this is work they did.
-    slot.appendChild(practiceCaseCard(ctx, d.practice_case, d.ready_for_review));
+    if (d.account_kind !== 'advisor') slot.appendChild(practiceCaseCard(ctx, d.practice_case, d.ready_for_review));
 
     // ── RECOMMENDATION ──
     slot.appendChild(recommendationCard(ctx, d, proposed, words));
@@ -1810,6 +1812,10 @@
 
   function recommendationCard(ctx, d, proposed, words) {
     const { h } = ctx;
+    if (d.account_kind === 'advisor') {
+      return sectionCard(ctx, 'Proposed: Reviewer',
+        h('p', {}, 'Advisor application. Approve as Reviewer to grant access, or reject the application.'));
+    }
     const card = h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' },
         h('div', {}, h('div', { class: 'asc-card-title' }, 'Recommendation')),
@@ -1965,7 +1971,7 @@
       setTimeout(() => { pendingId = null; rerender(); }, 900);
     }
 
-    TIERS.forEach((tier) => {
+    (d.allowed_tiers || (d.account_kind === 'advisor' ? ['reviewer'] : TIERS)).forEach((tier) => {
       // The recommended tier is primary; the other stays ghost. Both are always
       // present and always enabled — see the blocker note above.
       const isProposed = tier === proposed;
@@ -1978,7 +1984,7 @@
         setBusy(true);
         clearNode(status);
         status.appendChild(h('div', { class: 'asc-dim' }, 'Recording…'));
-        approveWithSignal(ctx, userId, tier, note.value || null)
+        approveWithSignal(ctx, userId, tier, note.value || null, d.account_kind === 'advisor')
           .then(showApproval)
           .catch((e) => {
             setBusy(false);
@@ -2021,17 +2027,19 @@
     return card;
   }
 
-  async function approveWithSignal(ctx, userId, tier, note) {
+  async function approveWithSignal(ctx, userId, tier, note, advisor) {
     const { api } = ctx;
     const uid = encodeURIComponent(userId);
     // 1. The observation. No case_domain: the server defaults to the
     //    physician's own declared specialty, which is the question being asked.
-    await api('/verify/tiering/' + uid + '/decide',
+    if (!advisor) await api('/verify/tiering/' + uid + '/decide',
               { method: 'POST', body: { tier: tier, note: note } });
     // 2. Only now the lifecycle change. An explicit tier is required — the
     //    proposal is advice and the endpoint refuses to infer one.
     const approval = await api('/verify/queue/' + uid + '/approve',
               { method: 'POST', body: { tier: tier, note: note } });
+    if (advisor) return { line: 'Reviewer approval recorded.', warning: approval && approval.warning,
+      retryable: approval && approval.welcome_email_retryable };
     // 3. What the decision did to the model. Best-effort: a failure to read the
     //    weights must not make a completed approval look like it failed.
     let pending = null;
@@ -2235,7 +2243,7 @@
       + 'a move the other way does not, because that is a conversation.'));
 
     const select = h('select', { class: 'vq-tier-select' },
-      TIERS.map((t) => {
+      (p.account_kind === 'advisor' ? ['reviewer'] : TIERS).map((t) => {
         const opt = h('option', { value: t }, tierWord(t) || t);
         if (t === p.tier) opt.setAttribute('selected', '');
         return opt;

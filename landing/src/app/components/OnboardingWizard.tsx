@@ -1667,6 +1667,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         return (
           <StepApplicationSubmitted
             data={data}
+            advisor={signupKind === 'advisor'}
             onSignIn={() => {
               setSignInReason("complete");
               setStep("ascSignIn");

@@ -355,7 +355,8 @@ def on_verification_decision(store: Any, *, user: Optional[Dict[str, Any]],
             store, kind="physician_rejected", to=email,
             subject="About your Archangel Health application",
             body_html=build_asclepius_rejected_email(
-                full_name=(user.get("full_name") or "").strip(), sign_in_url=_portal_base() + "/asclepius"),
+                full_name=(user.get("full_name") or "").strip(), sign_in_url=_portal_base() + "/asclepius",
+                advisor=user.get("account_kind") == "advisor"),
             dedupe_key=f"rejected:{user.get('id')}", send_after=_iso_in(_REJECT_GRACE_SECONDS),
         )
     except Exception:

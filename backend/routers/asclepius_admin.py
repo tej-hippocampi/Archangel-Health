@@ -1717,7 +1717,8 @@ def _physician_users(store: Any) -> List[Dict[str, Any]]:
     contributors and non-physician roles (admin, qa, data_partner, buyer) are
     operator noise here, not supply."""
     return [u for u in store.list_users()
-            if u.get("role") == "evaluator" and not u.get("is_mock")]
+            if u.get("role") == "evaluator" and not u.get("is_mock")
+            and asc_caps.account_kind(u) != asc_caps.REFERRER]
 
 
 #: Row fields that only a physician account ever carries. Used to tell a real
@@ -1759,6 +1760,7 @@ def _misfiled_physicians(store: Any) -> List[Dict[str, Any]]:
             "specialty": u.get("specialty"),
             "tier": u.get("tier"),
             "verification_status": u.get("verification_status"),
+            "account_kind": asc_caps.account_kind(u),
             "real_data_approved": bool(u.get("real_data_approved")),
             "created_at": u.get("created_at"),
             # Why we think this is a doctor and not an operator — named, so the
@@ -1800,6 +1802,8 @@ def _unfiled_physicians(store: Any) -> List[Dict[str, Any]]:
     for u in _physician_users(store):
         if (u.get("verification_status") or None) in _TABBED_VERIFICATION:
             continue
+        if asc_caps.account_kind(u) == asc_caps.ADVISOR and u.get("verification_status") == "rejected":
+            continue
         out.append({
             "id": u["id"],
             "name": _display_name(u),
@@ -1808,6 +1812,7 @@ def _unfiled_physicians(store: Any) -> List[Dict[str, Any]]:
             "tier": u.get("tier"),
             "verification_status": u.get("verification_status"),
             "real_data_approved": bool(u.get("real_data_approved")),
+            "account_kind": asc_caps.account_kind(u),
             "active": bool(u.get("active", 1)),
             "created_at": u.get("created_at"),
             # Whether they have been WORKING while invisible. An operator
@@ -1868,6 +1873,7 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
             "name": _display_name(u),
             "email": u.get("email"),
             "phone": u.get("phone"),
+            "account_kind": asc_caps.account_kind(u),
             "specialty": u.get("specialty"),
             "tier": tier,
             "tier_word": asc_caps.tier_word(tier),
@@ -2000,6 +2006,7 @@ async def physician_profile(
             "years_experience": u.get("years_experience"),
             "tier": u.get("tier"),
             "tier_score": u.get("tier_score"),
+            "account_kind": asc_caps.account_kind(u),
             "tier_assigned_at": u.get("tier_assigned_at"),
             "verification_status": u.get("verification_status"),
             "verification_notes": u.get("verification_notes"),
@@ -2331,6 +2338,9 @@ async def restore_physician(
     if tier and tier not in asc_caps.TIERS:
         raise HTTPException(status_code=422,
                             detail=f"Tier must be one of {sorted(asc_caps.TIERS)}.")
+    if asc_caps.account_kind(target) == asc_caps.ADVISOR and (body.approve_verification or tier):
+        if tier != asc_caps.REVIEWER:
+            raise HTTPException(status_code=422, detail="Advisor applications may only be approved as Reviewer.")
 
     approving = bool(body.approve_verification
                      and target.get("verification_status") != "approved")

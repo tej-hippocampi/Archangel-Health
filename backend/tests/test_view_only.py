@@ -1,27 +1,8 @@
-"""Advisor accounts: the whole product, view-only.
+"""Advisor access requires an owner appointment as Reviewer.
 
-An advisor is here to understand what we do and introduce people to it. They
-are not a clinician, and the signup that produced them never asked them to be
-one: four screens, one confidentiality line, no NPI and none of the seven
-clinical attestations.
-
-Two things must hold for that to be safe, and they are what this file tests.
-
-The first is that asking for less at the door produces an account that can do
-less, permanently. The surface cap is applied on every call and intersected
-with whatever the access level grants, so an admin clicking Approve on an
-advisor -- which is the obvious thing to do with an unfamiliar row in a queue
--- moves them to FULL and changes nothing about what they can reach.
-
-The second is that ``view-only`` is enforced by the server rather than drawn by
-the client. Hiding a composer is a nicety; refusing the POST is the control.
-``COMMUNITY_WRITE`` was a dead constant before this -- declared, never imported
--- so reading and writing in the community were the same permission, and every
-content route would have accepted an advisor.
-
-Throughout: a physician's behaviour must not change. A doctor under review is
-PROVISIONAL, holds COMMUNITY_WRITE, and still posts exactly as they always did;
-several tests below exist only to pin that.
+Pending advisors may only read their application status. Approved reviewers
+receive ordinary reviewer access; rejected or inactive advisors receive none.
+The ordinary physician and referral-only account controls remain unchanged.
 """
 
 from __future__ import annotations
@@ -37,13 +18,23 @@ from tests._asclepius import app, fresh_store, headers_for
 client = TestClient(app)
 
 
-def _account(store, *, kind=None, status="approved", tier="labeler", name="Sam Okafor"):
+_DEFAULT = object()
+
+
+def _account(store, *, kind=None, status=_DEFAULT, tier=_DEFAULT, name="Sam Okafor"):
+    if status is _DEFAULT:
+        status = "pending" if kind == caps.ADVISOR else "approved"
+    if tier is _DEFAULT:
+        tier = None if kind == caps.ADVISOR else "labeler"
     user = store.provision_user(
         email=f"v_{uuid.uuid4().hex[:8]}@example.com", password="pw-12345678",
         role="evaluator", full_name=name, account_kind=kind,
     )
-    if status:
+    if status is not None:
         store.set_verification_status(user["id"], status)
+    else:
+        with store._conn() as conn:
+            conn.execute("UPDATE users SET verification_status=NULL WHERE id=?", (user["id"],))
     if tier:
         with store._conn() as conn:
             conn.execute("UPDATE users SET tier = ? WHERE id = ?", (tier, user["id"]))
@@ -56,25 +47,22 @@ def test_an_advisor_holds_neither_real_work_nor_community_write():
     surfaces = caps.surfaces(_account(store, kind=caps.ADVISOR))
     assert caps.REAL_WORK not in surfaces
     assert caps.COMMUNITY_WRITE not in surfaces
-    # ...and does hold everything the tour is made of.
-    assert {caps.BROWSE, caps.TUTORIAL, caps.COMMUNITY_READ,
-            caps.EARNINGS, caps.REFERRAL} <= surfaces
+    assert surfaces == {caps.BROWSE}
 
 
-@pytest.mark.parametrize("status,tier", [
-    ("approved", "reviewer"),   # the dangerous one: approval used to grant everything
-    ("approved", "labeler"),
-    ("pending", None),
-    (None, "reviewer"),         # the pre-verification-era NULL, which reads as FULL
+@pytest.mark.parametrize("status,tier,can_work", [
+    ("approved", "reviewer", True),
+    ("approved", "labeler", False),  # Historical invalid tier is no reviewer grant.
+    ("pending", None, False),
+    (None, "reviewer", False),       # A tier with no decision cannot open access.
+    ("rejected", "reviewer", False),
 ])
-def test_approving_an_advisor_does_not_make_them_a_physician(status, tier):
-    """The cap is intersected with the access level on every call, so there is
-    no state -- and no admin action -- that reaches REAL_WORK."""
+def test_only_reviewer_approval_opens_advisor_access(status, tier, can_work):
     store = fresh_store()
     advisor = _account(store, kind=caps.ADVISOR, status=status, tier=tier)
     surfaces = caps.surfaces(advisor)
-    assert caps.REAL_WORK not in surfaces
-    assert caps.COMMUNITY_WRITE not in surfaces
+    assert (caps.REAL_WORK in surfaces) is can_work
+    assert (caps.COMMUNITY_WRITE in surfaces) is can_work
 
 
 def test_a_deactivated_advisor_reaches_nothing():
@@ -93,14 +81,17 @@ def test_a_physician_is_capped_by_nothing():
 
 
 # ─── The community, enforced server-side ─────────────────────────────────────
-def test_an_advisor_can_read_the_community():
-    """They carry a NULL verification_status and no vault row, so the ordinary
-    gate would refuse them. The point of showing them around is that they can
-    see the room."""
+def test_a_pending_advisor_cannot_read_the_community():
     store = fresh_store()
     r = client.get("/api/community/channels",
                    headers=headers_for(_account(store, kind=caps.ADVISOR)))
-    assert r.status_code == 200
+    assert r.status_code == 403
+
+
+def test_an_approved_reviewer_advisor_can_read_the_community():
+    store = fresh_store()
+    advisor = _account(store, kind=caps.ADVISOR, status="approved", tier="reviewer")
+    assert client.get("/api/community/channels", headers=headers_for(advisor)).status_code == 200
 
 
 def test_a_referral_only_account_cannot_read_the_community():
@@ -119,14 +110,12 @@ def test_an_advisor_cannot_post_in_a_channel():
     assert r.status_code == 403
 
 
-def test_the_refusal_says_view_only_rather_than_unverified():
-    """An advisor is not waiting on a credential check. Telling them their
-    credentials are being verified would be telling them to wait for something
-    that is never going to arrive."""
+def test_a_pending_advisor_does_not_have_view_only_community_access():
     store = fresh_store()
     r = client.post("/api/community/channels/general/messages", json={"body": "hi"},
                     headers=headers_for(_account(store, kind=caps.ADVISOR)))
-    assert "view-only" in r.json()["detail"]
+    assert r.status_code == 403
+    assert "view-only" not in r.json()["detail"]
 
 
 def test_an_applicant_under_review_cannot_post_to_the_community():
@@ -187,22 +176,21 @@ def test_an_advisor_cannot_react_to_a_physicians_message():
     assert r.status_code == 403
 
 
-def test_the_composer_is_told_it_is_read_only():
-    """The server refuses either way; this is so the client can say why
-    instead of accepting a message and then failing to send it."""
+def test_pending_advisors_cannot_load_the_composer_but_approved_reviewers_can_post():
     store = fresh_store()
-    advisor = client.get("/api/community/me",
-                         headers=headers_for(_account(store, kind=caps.ADVISOR)))
-    assert advisor.json()["can_post"] is False
-    doctor = client.get("/api/community/me", headers=headers_for(_account(store)))
-    assert doctor.json()["can_post"] is True
+    pending = _account(store, kind=caps.ADVISOR)
+    assert client.get("/api/community/me", headers=headers_for(pending)).status_code == 403
+    approved = _account(store, kind=caps.ADVISOR, status="approved", tier="reviewer")
+    assert client.get("/api/community/me", headers=headers_for(approved)).json()["can_post"] is True
+    posted = client.post("/api/community/channels/general/messages", json={"body": "Hello colleagues."},
+                         headers=headers_for(approved))
+    assert posted.status_code == 200, posted.text
 
 
 def test_an_advisor_sees_their_own_name_rather_than_former_member():
-    """They are deliberately absent from the member directory, and the ghost
-    fallback would have introduced them to themselves as "Former member"."""
+    """An approved advisor appears as a colleague with their own identity."""
     store = fresh_store()
-    advisor = _account(store, kind=caps.ADVISOR, name="Dana Whitfield")
+    advisor = _account(store, kind=caps.ADVISOR, name="Dana Whitfield", status="approved", tier="reviewer")
     body = client.get("/api/community/me", headers=headers_for(advisor)).json()
     assert body["member"]["display_name"] == "Dana Whitfield"
     assert body["member"]["initials"] == "DW"
@@ -222,13 +210,11 @@ def test_an_advisor_is_not_in_the_member_directory():
 
 
 # ─── The practice case is theirs to run ──────────────────────────────────────
-def test_an_advisor_can_open_the_practice_case():
-    """It is the whole demo, and it is virtual end to end: assembled in memory,
-    never inserted into ``tasks``, and its submission never enters the
-    pipeline."""
+def test_an_approved_reviewer_advisor_can_open_optional_practice():
+    """Practice is available after approval, and is never an admission gate."""
     store = fresh_store()
     r = client.get("/api/asclepius/tutorial/task",
-                   headers=headers_for(_account(store, kind=caps.ADVISOR)))
+                   headers=headers_for(_account(store, kind=caps.ADVISOR, status="approved", tier="reviewer")))
     assert r.status_code == 200
 
 

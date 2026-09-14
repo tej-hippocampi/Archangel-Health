@@ -1353,7 +1353,7 @@ def build_profile_nudge_email(*, first_name: str, field_label: str,
                   body_html=body)
 
 
-def build_application_submitted_email(*, full_name: str, portal_url: str = "") -> str:
+def build_application_submitted_email(*, full_name: str, portal_url: str = "", advisor: bool = False) -> str:
     """§4.3 — sent the moment an application is submitted.
 
     The whole message is one paragraph in the founders' own words. It sets the
@@ -1369,6 +1369,13 @@ def build_application_submitted_email(*, full_name: str, portal_url: str = "") -
     Optional only so a preview or a test can render the copy without inventing
     a hostname; a caller that omits it sends the old dead end.
     """
+    if advisor:
+        return _shell(subject="Reviewer application received", body_html=(
+            _eyebrow("Application received") + _h1("Your reviewer application is with us.")
+            + _p(f"{_strong(full_name or 'Thank you')}, we will personally review your advisor application. "
+                 "Reviewer access opens only after we approve it. We will email you our decision.")
+            + (_cta(portal_url, "Check application status") if portal_url else "")
+            + _founder_signoff("Tej and Aryaa")))
     last = _last_name(full_name)
     # Unescaped here on purpose: ``_strong`` escapes what it is given, so
     # escaping first would render "O&#x27;Brien" to a physician named O'Brien.
@@ -1489,7 +1496,7 @@ def build_asclepius_promoted_email(*, full_name: str, workspace_url: str,
     return _shell(subject="You're now a reviewer on Archangel Health", body_html=body)
 
 
-def build_asclepius_rejected_email(*, full_name: str, sign_in_url: str = "") -> str:
+def build_asclepius_rejected_email(*, full_name: str, sign_in_url: str = "", advisor: bool = False) -> str:
     """Credential verification did not pass.
 
     We send one, unlike the health-system refusal above, and the reasoning does
@@ -1513,6 +1520,14 @@ def build_asclepius_rejected_email(*, full_name: str, sign_in_url: str = "") -> 
     offers another go at the case work, with every credential they already gave
     us kept, so the message has somewhere to send them.
     """
+    if advisor:
+        return _shell(subject="About your application", body_html=(
+            _eyebrow("Archangel Health") + _h1("About your application.")
+            + _p(f"{_strong(full_name or 'Thank you')}, thank you for your interest in Archangel Health. "
+                 "We have reviewed your advisor application and are not able to offer you "
+                 "a reviewer account. Platform access is closed.")
+            + _p("If you have questions about this decision, reply to this email.")
+            + _founder_signoff("Tej and Aryaa")))
     first = (full_name or "").strip() or "Doctor"
     body = (
         _eyebrow("Archangel Health")

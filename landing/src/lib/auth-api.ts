@@ -337,7 +337,7 @@ export type AsclepiusLoginResponse = {
 /** An Asclepius sign-in failure that carries WHY, not just a sentence. */
 export interface AsclepiusLoginError extends Error {
   status?: number;
-  /** "pending" | "pending_examination" | "rejected", or null for anything that
+  /** "pending" | "pending_advisor" | "pending_examination" | "rejected", or null for anything that
    *  is not a credential-verification gate (a 401, a 500). */
   authGate?: string | null;
 }
