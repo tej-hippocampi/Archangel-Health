@@ -94,6 +94,11 @@ remain independent and may occur near a manual send.
   after preview; missing names use the neutral greeting.
 - Repository-required affected suite against `origin/main`: 2,878 passed,
   1 skipped in 402 seconds. The new test file was staged before selection.
+- CI exposed six stale PRD function-line citations after the additive table
+  shifted existing definitions. Updated only the citation line numbers;
+  `prd_audit.py` and all 48 harness tests then passed. The independent auditor
+  confirmed every corrected citation against its function definition and that
+  the prior code audit remains valid.
 - Five fresh-browser tests using real local session APIs: saved wizard steps
   1, 2, 3, 4 and 5 all opened correctly from the actual personal link.
 - Built landing successfully. Browser checks of the shipped admin component
