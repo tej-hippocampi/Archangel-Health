@@ -710,7 +710,11 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       // which is also why a physician who uploaded a CV and closed the tab
       // comes back to their filled-in Review page and not to the drop zone.
       const cv = (d.director_cv || {}) as Record<string, unknown>;
-      if (savedAtts) setStep("attestations");
+      // Review's submit stores primarySpecialty at the top level. CV parsing
+      // stores suggestions under cvParsed, so an uploaded CV alone must not
+      // skip Review. A submitted Review resumes at step 5, even before the
+      // first attestation has been saved.
+      if (savedAtts || String(d.director_credentials?.primarySpecialty || "").trim()) setStep("attestations");
       else if (savedCreds || cv.uploaded) setStep("review");
       else setStep("cv");
     }
@@ -747,7 +751,11 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
           ? { ...emptyAttestations(), ...d.attestations }
           : emptyAttestations(),
     }));
-    setStep("credentials");
+    const savedAtts = d.attestations && Object.keys(d.attestations).length > 0;
+    if (savedAtts && d.email_verified) setStep("password");
+    else if (savedAtts) setStep("verify");
+    else if (savedCreds && String(d.credentials?.primarySpecialty || "").trim()) setStep("attestations");
+    else setStep("credentials");
   }, [token]);
 
   const loadSession = useCallback(async () => {

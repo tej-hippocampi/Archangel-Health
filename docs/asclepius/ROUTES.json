@@ -1,5 +1,5 @@
 {
-  "count": 672,
+  "count": 675,
   "routes": [
     "DELETE /api/asclepius/hs/media/files/{fid}",
     "DELETE /api/asclepius/hs/uploads/sessions/{session_id}",
@@ -63,6 +63,7 @@
     "GET /api/asclepius/admin/hs-referrals",
     "GET /api/asclepius/admin/hs-requests",
     "GET /api/asclepius/admin/hs-requests/{request_id}",
+    "GET /api/asclepius/admin/manual-reminders/history",
     "GET /api/asclepius/admin/media/{org}/collections",
     "GET /api/asclepius/admin/media/{org}/collections/{cid}",
     "GET /api/asclepius/admin/metrics/questions",
@@ -380,6 +381,8 @@
     "POST /api/asclepius/admin/hs-requests",
     "POST /api/asclepius/admin/hs-requests/{request_id}/close",
     "POST /api/asclepius/admin/hs-requests/{request_id}/retry-failed",
+    "POST /api/asclepius/admin/manual-reminders/preview",
+    "POST /api/asclepius/admin/manual-reminders/{reminder_id}/send",
     "POST /api/asclepius/admin/media/{org}/deliveries",
     "POST /api/asclepius/admin/media/{org}/files/{fid}/retry",
     "POST /api/asclepius/admin/media/{org}/files/{fid}/review",

@@ -2298,6 +2298,7 @@ async def member_session(token: str, request: Request):
     return {
         "status": "pending",
         "mode": "asclepius_member",
+        "email_verified": bool(person.get("email_verified_at")),
         "email": person.get("email") or "",
         "first_name": first,
         "last_name": last,

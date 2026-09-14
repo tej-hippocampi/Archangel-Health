@@ -1244,6 +1244,25 @@ class AsclepiusStore:
                 updated_at TEXT NOT NULL
             )""")
 
+            # Manual nudges have their own preview and delivery history; they
+            # never consume or reset the automated reminder stamps.
+            conn.execute("""CREATE TABLE IF NOT EXISTS manual_onboarding_reminders (
+                id TEXT PRIMARY KEY,
+                batch_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                recipient_email TEXT NOT NULL,
+                recipient_json TEXT NOT NULL,
+                actor TEXT NOT NULL,
+                template_version TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'preview',
+                claimed_at TEXT,
+                updated_at TEXT NOT NULL,
+                provider_id TEXT,
+                UNIQUE(batch_id, recipient_email)
+            )""")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_manual_reminder_email ON manual_onboarding_reminders(recipient_email, status)")
+
             # The shareable verified card. Opt-in and revocable, so the token is
             # stored hashed like every other token here: a read of the users
             # table must not be a list of working card URLs.

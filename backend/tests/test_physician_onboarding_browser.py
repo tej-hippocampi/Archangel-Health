@@ -92,6 +92,72 @@ def test_public_join_opens_real_international_onboarding(tmp_path, monkeypatch, 
         set_team_store(previous_team)
 
 
+@pytest.mark.parametrize("saved_step", [1, 2, 3, 4, 5])
+def test_reminder_link_opens_saved_wizard_step(tmp_path, monkeypatch, saved_step):
+    """The email's personal link uses real session state, never a fixed CV URL."""
+    from team_store import TeamStore
+    from asclepius import manual_reminders
+    from playwright.sync_api import sync_playwright, expect
+
+    store = fresh_store()
+    team = TeamStore(str(tmp_path / "wizard-steps.db"))
+    monkeypatch.setattr(app.state, "team_store", team)
+    monkeypatch.setenv("LANDING_URL", "https://www.archangelhealth.ai")
+    invite = team.create_health_system_invite(invite_base_url="https://www.archangelhealth.ai",
+        director_email="saved-step@example.com", product="asclepius")
+    token = invite["onboarding_url"].rsplit("/", 1)[-1]
+    hs = team.get_health_system_by_onboarding_token(token)
+    with TestClient(app) as client:
+        if saved_step >= 2:
+            response = client.post("/api/onboarding/step1-identity", json={"token": token,
+                "first_name": "Asha", "last_name": "Sharma", "email": "saved-step@example.com", "password": PASSWORD})
+            assert response.status_code == 200, response.text
+        if saved_step >= 3:
+            team.create_otp_challenge(hs["id"], "saved-step@example.com", "123456")
+            assert client.post("/api/onboarding/verify-otp", json={"token": token, "code": "123456"}).status_code == 200
+        if saved_step == 4:
+            team.upsert_asclepius_person(hs["id"], email="saved-step@example.com", full_name="Asha Sharma", clinical_role="director", is_director=True)
+            team.merge_asclepius_credentials(hs["id"], "saved-step@example.com", {"cvAssetSha": "saved-cv", "cvParseStage": "done"})
+        if saved_step == 5:
+            response = client.post("/api/onboarding/asclepius/credentials", json={"token": token,
+                "credentials": {"fullLegalName": "Asha Sharma", "primarySpecialty": "nephrology"}})
+            assert response.status_code == 200, response.text
+        recipient = next(r for r in manual_reminders.candidates(store, team, "wizard") if r["email"] == "saved-step@example.com")
+        link = manual_reminders.wizard_url(team, recipient)
+        assert token in link
+        dist = Path(__file__).resolve().parents[2] / "landing" / "dist"
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 390, "height": 900})
+            errors = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+
+            def dispatch(route):
+                req, url = route.request, urlsplit(route.request.url)
+                if url.path.startswith("/api/"):
+                    response = client.request(req.method, url.path + ("?" + url.query if url.query else ""),
+                        content=req.post_data_buffer, headers={k:v for k,v in req.headers.items() if k not in ("host", "content-length")})
+                    route.fulfill(status=response.status_code, body=response.content,
+                        headers={k:v for k,v in response.headers.items() if k not in ("content-length", "content-encoding")})
+                elif url.netloc == "www.archangelhealth.ai":
+                    asset = dist / (url.path.lstrip("/") if url.path.startswith("/assets/") else "index.html")
+                    route.fulfill(body=asset.read_bytes(), content_type=mimetypes.guess_type(str(asset))[0] or "application/octet-stream")
+                else:
+                    route.fulfill(status=200, body="")
+
+            page.route("**/*", dispatch)
+            page.goto(link)
+            if saved_step == 1:
+                expect(page.get_by_label("First name", exact=True)).to_be_visible()
+            else:
+                heading = {2: "Verify your email.", 3: "Upload your CV and we’ll fill this out for you.",
+                    4: "Review the fields.", 5: "Attestations & rights."}[saved_step]
+                expect(page.get_by_role("heading", name=heading, exact=True)).to_be_visible()
+            assert not errors, errors
+            screenshot(page, f"reminder-saved-step-{saved_step}.png")
+            browser.close()
+
+
 @pytest.fixture()
 def portal(tmp_path, monkeypatch):
     from team_store import TeamStore, get_team_store, set_team_store
