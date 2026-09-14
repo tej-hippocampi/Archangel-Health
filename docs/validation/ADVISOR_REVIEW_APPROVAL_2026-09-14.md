@@ -28,15 +28,23 @@ accounts and the regular physician workflow retain their existing behavior.
 
 Local validation completed on 14 September 2026:
 
-- 801 backend tests passed: 89 signup/access/decision/capability checks, 708
+- 876 backend tests passed: 89 signup/access/decision/capability checks, 708
   onboarding/auth/community/model/admin regressions, and 4 tests executing the
-  actual admin module's advisor proposal, approval, rejection and legacy repair.
+  actual admin module's advisor proposal, approval, rejection and legacy repair,
+  plus 75 advisor-access and engineering-harness checks.
 - 47 landing component tests passed, including advisor confirmation without an
   examination prompt and the unchanged physician examination handoff.
 - Production landing build and syntax checks for both portal JavaScript files
   passed. The build reports the existing large-chunk warning.
 - Data-change SQL guard passed; 710 files have no dangling imports; all 672
   routes are unchanged. Merge readiness is clear against main fced9c556.
+
+Full CI initially identified seven assertions for the superseded permanent
+view-only advisor policy and stale PRD line references. Those tests now enforce
+pending denial, explicit Reviewer approval and rejection, including actual
+community reads/posts. The cited lines were updated in the PRDs. Product code
+was unchanged during this CI correction; the complete 75-test access/harness
+group passes locally, including the PRD audit.
 
 The nonempty frozen preservation fixture contains advisor and physician user
 rows, credentials/attestations, an examination response, a submitted annotation,
