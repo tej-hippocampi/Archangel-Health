@@ -19,7 +19,7 @@ import realm as _realm
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
@@ -2407,8 +2407,10 @@ async def list_signups(request: Request,
     Sorted by most recent activity, because the person who touched the wizard an
     hour ago is the one a nudge still reaches.
     """
-    ts = _team_store(request)
-    store = _store()
+    return _signup_report(_team_store(request), _store())
+
+
+def _signup_report(ts, store):
     # Anyone already provisioned belongs on the roster, not here — including a
     # physician who re-onboards through a second link while holding an account.
     provisioned = {(u.get("email") or "").lower().strip()
@@ -2498,6 +2500,34 @@ async def list_signups(request: Request,
         "can_resend": is_email_transport_configured(),
         "stalled_after_days": _SIGNUP_STALLED_DAYS,
     }
+
+
+class ManualReminderPreview(BaseModel):
+    kind: Literal["examination", "wizard"]
+    target: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+
+@router.post("/manual-reminders/preview")
+async def preview_manual_reminders(body: ManualReminderPreview, request: Request,
+                                   admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    from asclepius import manual_reminders
+    return await run_in_threadpool(manual_reminders.preview, _store(), _team_store(request),
+                                   body.kind, admin["id"], target=body.target,
+                                   email=str(body.email) if body.email else None)
+
+
+@router.post("/manual-reminders/{reminder_id}/send")
+async def send_manual_reminder(reminder_id: str, request: Request,
+                               admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    from asclepius import manual_reminders
+    return await manual_reminders.send(_store(), _team_store(request), reminder_id, admin["id"])
+
+
+@router.get("/manual-reminders/history")
+async def manual_reminder_history(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    from asclepius import manual_reminders
+    return {"reminders": await run_in_threadpool(manual_reminders.history, _store())}
 
 
 class SignupResendRequest(BaseModel):

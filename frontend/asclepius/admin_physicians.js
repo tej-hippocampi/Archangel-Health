@@ -1063,7 +1063,8 @@
         h('div', { class: 'asc-card-head' },
           h('div', { class: 'asc-card-title' },
             'Waiting on your decision (' + meta.total + ')'),
-          readyFilter(ctx)),
+          h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' },
+            manualReminderBtn(ctx, 'examination'), readyFilter(ctx))),
         h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
           h('thead', {}, h('tr', {},
             h('th', {}, 'Name'), h('th', {}, 'Specialty'), h('th', {}, 'Waiting'),
@@ -1089,7 +1090,8 @@
       container.appendChild(h('div', { class: 'asc-card' },
         h('div', { class: 'asc-card-head' },
           h('div', { class: 'asc-card-title' },
-            'Still filling in the wizard (' + signups.length + ')')),
+            'Still filling in the wizard (' + signups.length + ')'),
+          manualReminderBtn(ctx, 'wizard')),
         h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
           h('thead', {}, h('tr', {},
             h('th', {}, 'Name'), h('th', {}, 'Specialty'), h('th', {}, ''))),
@@ -1236,7 +1238,8 @@
           h('span', { class: 'asc-dim', style: 'margin-left:6px' },
             'step ' + r.signup.stage_index + '/' + r.signup.stage_total)),
         h('td', {}, r.specialty || '-'),
-        h('td', {}, resendBtn(ctx, r.signup)));
+        h('td', {}, manualReminderBtn(ctx, 'wizard', { email: r.signup.email }),
+          resendBtn(ctx, r.signup)));
     }
     const tr = h('tr', { class: 'asc-row-click' + (r.ready_for_review ? ' vq-ready-row' : '') },
       h('td', {}, h('strong', {}, r.name),
@@ -1259,9 +1262,103 @@
       h('td', {}, r.look
         ? h('span', { class: 'asc-badge asc-badge-amber' }, String(r.look))
         : ''),
-      h('td', {}, '→'));
+      h('td', {},
+        (!r.examination || (!r.examination.attempts && ['not_started', 'in_progress'].includes(r.examination.state)))
+          ? manualReminderBtn(ctx, 'examination', { target: r.user_id }) : null,
+        ' →'));
     tr.addEventListener('click', () => { pendingId = r.user_id; rerender(); });
     return tr;
+  }
+
+  function manualReminderBtn(ctx, kind, selection) {
+    const btn = ctx.h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
+      selection ? 'Remind' : 'Preview reminders');
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      previewManualReminders(ctx, kind, selection || {});
+    });
+    return btn;
+  }
+
+  async function previewManualReminders(ctx, kind, selection) {
+    const { h, api } = ctx;
+    const modal = detailDialog(ctx, kind === 'wizard' ? 'Onboarding reminder' : 'Examination reminder');
+    const status = h('p', { role: 'status', 'aria-live': 'polite' }, 'Preparing your preview…');
+    modal.body.appendChild(status);
+    let preview;
+    try {
+      preview = await api('/admin/manual-reminders/preview', { method: 'POST', body: { kind, ...selection } });
+    } catch (error) { status.textContent = errText(error); return; }
+    if (modal.isClosed()) return;
+    status.textContent = 'Review the email and recipients below. This is an extra manual reminder; automated reminders continue as usual.';
+    modal.body.appendChild(h('p', {}, h('strong', {}, 'Subject: '), preview.template.subject));
+    if (preview.preview_recipient) modal.body.appendChild(h('p', { class: 'asc-dim asc-small' },
+      'Preview for ' + preview.preview_recipient + '. Each email uses that recipient’s saved signup name.'));
+    modal.body.appendChild(h('iframe', { title: 'Reminder email preview', sandbox: '',
+      srcdoc: preview.template.html, style: 'width:100%;height:610px;border:1px solid #e5e6e2;border-radius:12px;background:#fbfcfa' }));
+    modal.body.appendChild(h('p', { class: 'asc-dim' }, kind === 'wizard'
+      ? 'The button will use each recipient’s personal resume link. Repeated email addresses appear once, using the signup with the most progress.'
+      : 'The button opens sign-in and the examination. Filed examinations and completed decisions are excluded.'));
+    if (preview.recipients.some((r) => r.member)) modal.body.appendChild(h('p', { class: 'asc-dim' },
+      'Invited team members will receive a fresh link that replaces their previous link.'));
+    modal.body.appendChild(h('h3', {}, 'Recipients (' + preview.recipients.length + ')'));
+    const controls = preview.recipients.map((r) => {
+      const check = h('input', { type: 'checkbox', checked: true });
+      const outcome = h('span', { class: 'asc-dim', role: 'status', style: 'margin-left:8px' });
+      modal.body.appendChild(h('label', { style: 'display:block;padding:8px 0;overflow-wrap:anywhere' },
+        check, ' ' + (r.name || r.email) + (r.name ? ' · ' + r.email : ''), outcome));
+      return { r, check, outcome };
+    });
+    const send = h('button', { type: 'button', class: 'asc-btn asc-btn-primary', style: 'margin-top:16px' });
+    const update = () => {
+      const count = controls.filter((c) => c.check.checked && !c.done).length;
+      send.textContent = 'Send ' + count + ' reminder' + (count === 1 ? '' : 's');
+      send.disabled = !count || !preview.can_send;
+    };
+    controls.forEach((c) => c.check.addEventListener('change', update));
+    update();
+    modal.body.appendChild(send);
+    if (!preview.can_send) modal.body.appendChild(h('p', { class: 'asc-dim' }, preview.enabled
+      ? 'Sending requires a configured email service.' : 'Preview only. Sending will be enabled after the templates are approved.'));
+    modal.body.appendChild(h('p', { class: 'asc-dim asc-small' }, 'Recipients are checked again at send time. This preview expires in 30 minutes.'));
+    const history = h('button', { type: 'button', class: 'asc-btn asc-btn-ghost', style: 'margin-top:12px' }, 'Reminder history');
+    history.addEventListener('click', async () => {
+      history.disabled = true;
+      try {
+        const result = await api('/admin/manual-reminders/history');
+        const detail = h('div', {});
+        result.reminders.forEach((r) => detail.appendChild(h('p', { style: 'overflow-wrap:anywhere' },
+          r.recipient_email + ' · ' + r.kind + ' · ' + r.status + ' · ' + shortTime(r.updated_at)
+          + (r.provider_id ? ' · Provider ID: ' + r.provider_id : ''))));
+        if (!result.reminders.length) detail.appendChild(h('p', {}, 'No manual reminders have been attempted.'));
+        modal.body.appendChild(detail);
+      } catch (error) { history.disabled = false; status.textContent = errText(error); }
+    });
+    modal.body.appendChild(history);
+    let stopped = false;
+    modal.onClose(() => { stopped = true; });
+    send.addEventListener('click', async () => {
+      const selected = controls.filter((c) => c.check.checked && !c.done);
+      send.disabled = true;
+      controls.forEach((c) => { c.check.disabled = true; });
+      for (const c of selected) {
+        if (stopped) break;
+        c.outcome.textContent = 'Sending…';
+        try {
+          const result = await api('/admin/manual-reminders/' + encodeURIComponent(c.r.id) + '/send', { method: 'POST' });
+          const words = { accepted: 'Accepted by email service', skipped: 'Skipped: application changed',
+            held: 'Held: recent or unresolved reminder', failed: 'Failed: open a new preview to retry',
+            suppressed: 'Suppressed by email service', unknown: 'Outcome unknown: check delivery history before retrying',
+            sending: 'Already processing', sandbox: 'Captured in sandbox' };
+          c.outcome.textContent = words[result.status] || result.status;
+          c.done = true;
+        } catch (error) {
+          c.outcome.textContent = errText(error) + ' Rechecking this same reminder is safe.';
+        }
+      }
+      controls.forEach((c) => { c.check.disabled = !!c.done; });
+      update();
+    });
   }
 
   function resendBtn(ctx, s) {
@@ -1468,7 +1565,7 @@
       h('div', { class: 'vq-detail-head' }, h('h2', {}, title), closeBtn), body);
     const overlay = h('div', { class: 'vq-detail-overlay', role: 'dialog',
       'aria-modal': 'true', 'aria-label': title }, frame);
-    const controls = () => Array.from(frame.querySelectorAll('button, a[href], iframe, [tabindex="0"]'))
+    const controls = () => Array.from(frame.querySelectorAll('button, input, a[href], iframe, [tabindex="0"]'))
       .filter((el) => !el.disabled);
     overlay.insertBefore(h('span', { tabindex: '0', onFocus: () => {
       const all = controls(); (all[all.length - 1] || closeBtn).focus();
