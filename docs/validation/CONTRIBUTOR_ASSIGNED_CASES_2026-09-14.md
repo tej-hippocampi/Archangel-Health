@@ -120,6 +120,25 @@ The historical open-pool tests explicitly retain that deployment mode through
 browser scenarios use the shipped assignment-required default. Broad-suite
 success alone must not be described as testing every old scenario in default mode.
 
+### CI follow-up: shared stylesheet consumers
+
+Both remaining failed jobs at `fc624f8` (Backend pytest shard 2 and Keyless suite
+shard 2) reported the same assertion: `asc-empty-icon` was styled but supposedly
+never emitted. The class is still rendered by the buyer and provider HTML pages,
+which load the shared stylesheet. The redesign removed its last contributor-portal
+use, exposing a scanning gap: the guard only inspected contributor HTML/scripts.
+
+The test now discovers HTML pages that actually link the shared stylesheet and
+includes their markup and loaded local scripts. Unrelated pages, commented-out
+stylesheet links, remote assets and unloaded scripts do not establish usage.
+A positive/negative fixture preserves detection of truly unused styles. No CSS,
+product code, assignment permissions, stored data or class exception list changed.
+The original failure was reproduced locally; the full UI-overhaul and harness
+modules then passed **107 tests**. Independent review reproduced the failure,
+verified the corrected guard and negative fixture (**2 passed**), and reported
+no actionable findings. This follow-up changes test discovery only and requires
+no database migration or additional data inventory.
+
 Independent audit report, after the final image correction:
 
 > No outstanding actionable findings in the reviewed diff. Verified assignment

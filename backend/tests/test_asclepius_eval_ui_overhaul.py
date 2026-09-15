@@ -26,6 +26,8 @@ import pathlib
 import re
 import shutil
 import subprocess
+from html.parser import HTMLParser
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -1079,6 +1081,79 @@ def test_hyperscript_only_no_innerhtml():
         assert "`" not in body, f"{fn_name} uses a template string"
 
 
+def _shared_stylesheet_sources(frontend: Path, stylesheet: Path) -> str:
+    """Markup and loaded scripts from actual consumers of the shared CSS."""
+    class Assets(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.stylesheets = []
+            self.scripts = []
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag == "link" and "stylesheet" in (attrs.get("rel") or "").lower().split():
+                self.stylesheets.append(attrs.get("href") or "")
+            elif tag == "script" and attrs.get("src"):
+                self.scripts.append(attrs["src"])
+
+    frontend = frontend.resolve()
+    stylesheet = stylesheet.resolve()
+
+    def local_asset(url, page):
+        parsed = urlsplit(url)
+        if parsed.scheme or parsed.netloc or not parsed.path:
+            return None
+        if parsed.path.startswith("/static/"):
+            path = frontend / parsed.path.removeprefix("/static/")
+        elif parsed.path.startswith("/"):
+            return None
+        else:
+            path = page.parent / parsed.path
+        path = path.resolve()
+        return path if path.is_relative_to(frontend) else None
+
+    sources, modules = [], set()
+    for page in sorted(frontend.rglob("*.html")):
+        markup = page.read_text(encoding="utf-8")
+        assets = Assets()
+        assets.feed(markup)
+        if not any(local_asset(url, page) == stylesheet for url in assets.stylesheets):
+            continue
+        sources.append(markup)
+        for url in assets.scripts:
+            module = local_asset(url, page)
+            if module and module.suffix == ".js" and module.is_file():
+                modules.add(module)
+    sources.extend(module.read_text(encoding="utf-8") for module in sorted(modules))
+    return "\n".join(sources)
+
+
+def test_shared_stylesheet_sources_exclude_unrelated_pages_and_unloaded_scripts(tmp_path):
+    frontend = tmp_path / "frontend"
+    portal = frontend / "asclepius"
+    provider = frontend / "provider"
+    portal.mkdir(parents=True)
+    provider.mkdir()
+    stylesheet = portal / "asclepius.css"
+    stylesheet.write_text(".asc-static {} .asc-loaded {} .asc-unrelated {} .asc-unloaded {}")
+    (provider / "index.html").write_text("""
+        <link href='/static/asclepius/asclepius.css?v=2' rel='stylesheet'>
+        <div class='asc-static'></div>
+        <script src='./provider.js?v=2'></script>
+        <script src='https://example.invalid/outside.js'></script>
+    """)
+    (provider / "provider.js").write_text("node.className = 'asc-loaded';")
+    (portal / "unloaded.js").write_text("node.className = 'asc-unloaded';")
+    (frontend / "unrelated.html").write_text("""
+        <!-- <link rel='stylesheet' href='/static/asclepius/asclepius.css'> -->
+        <div class='asc-unrelated'></div>
+        <script src='/static/asclepius/unloaded.js'></script>
+    """)
+    sources = _shared_stylesheet_sources(frontend, stylesheet)
+    assert "asc-static" in sources and "asc-loaded" in sources
+    assert "asc-unrelated" not in sources and "asc-unloaded" not in sources
+
+
 def test_no_new_component_vocabulary_beyond_the_prd():
     """§0.4: no new component vocabulary unless this document specifies it.
 
@@ -1094,7 +1169,6 @@ def test_no_new_component_vocabulary_beyond_the_prd():
         "asc-rubric-stem", "asc-rubric-stem-lead", "asc-rubric-stem-toggle",
         "asc-rubric-matter-head", "asc-rubric-scale",
     }
-    html = (_FRONTEND / "index.html").read_text(encoding="utf-8")
     for cls in specified:
         assert f".{cls}" in CSS_CODE or f"body.{cls}" in CSS_CODE, f"{cls} is never styled"
         assert cls in JS, f"{cls} is styled but never emitted"
@@ -1107,30 +1181,16 @@ def test_no_new_component_vocabulary_beyond_the_prd():
     # surface, PRD-P's earnings, and PRD-R's review console, which is a separate
     # page (review.html) loading the same stylesheet to reuse `.asc-answers`.
     #
-    # The module list is DERIVED from the script tags of every page the app
-    # serves, rather than enumerated: "reachable from the app" is precisely
-    # "loaded by one of the app's pages". PRD-P and PRD-R each arrived at this
-    # test needing one more module counted, from opposite directions; deriving it
-    # covers both and means the next surface does not have to come back here at
-    # all. An enumeration is how a correct guard turns into a tax.
+    # The shared stylesheet also serves buyer/provider pages. Include actual
+    # markup as well as loaded scripts from every page linking this CSS. The
+    # previous scan only read the contributor index's HTML and portal scripts;
+    # it falsely called asc-empty-icon dead when its last portal use changed,
+    # even though buyer/provider HTML still rendered it.
     #
-    # The RULE is unchanged and no weaker: every styled class must still be
-    # emitted by a module the app actually loads. Only the way the module list is
-    # obtained has changed.
-    pages = sorted(_FRONTEND.glob("*.html"))
-    module_names = {
-        name
-        for page in pages
-        for name in re.findall(r'src="/static/asclepius/([\w.-]+\.js)"',
-                               page.read_text(encoding="utf-8"))
-        if name != JS_PATH.name
-    }
-    section_modules = "".join(
-        (_FRONTEND / name).read_text(encoding="utf-8")
-        for name in sorted(module_names) if (_FRONTEND / name).exists()
-    )
+    # Unrelated pages and unreferenced modules are not evidence of a live rule.
+    sources = _shared_stylesheet_sources(_FRONTEND.parent, CSS_PATH)
     styled = set(re.findall(r"\.(asc-[\w-]+)", CSS_CODE))
-    emitted = {c for c in styled if c in JS or c in html or c in section_modules}
+    emitted = {c for c in styled if c in sources}
     orphans = sorted(styled - emitted - _KNOWN_PREEXISTING_ORPHANS)
     assert not orphans, f"styled but never emitted: {orphans}"
 
