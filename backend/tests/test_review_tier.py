@@ -934,7 +934,8 @@ def test_admin_draw_is_never_blinded_and_is_excluded_from_kappa():
     labeler = A.make_user(store, specialty="nephrology")
     task = _mk_task(store)
     sub = _mk_submission(store, task, labeler)
-    admin = A.make_user(store, role="admin", specialty="nephrology")
+    # An operator without a reviewer tier only previews; this test adjudicates.
+    admin = A.make_user(store, role="admin", specialty="nephrology", tier="reviewer")
 
     drawn = _draw(admin)
     assert drawn["submission"] is not None

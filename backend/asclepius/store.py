@@ -34,6 +34,7 @@ from datetime import datetime, timedelta, timezone
 # Pure policy module (imports no store, no FastAPI) — safe at module scope, and
 # needed here because the sequence gate's SQL is built from its vocabulary.
 from asclepius import trajectory as _asc_trajectory
+from asclepius import case_access as _case_access
 from typing import Any, Dict, List, Optional, Sequence
 
 from passlib.context import CryptContext
@@ -7826,6 +7827,7 @@ class AsclepiusStore:
         against: it cannot hide eligible work behind ineligible work, because
         ineligible work is already gone.
         """
+        assignment_only = _case_access.assignment_required(self.get_user_by_id(evaluator_id) or {})
         clauses = [
             _PRD_R_SERVABLE,
             # Independence, in SQL rather than by caller discipline.
@@ -7842,7 +7844,9 @@ class AsclepiusStore:
             # dashboard COUNT and the list as well as the draw; a doctor told "3
             # cases available" who can draw two of them is the product knowing
             # something and not saying it.
-            _PRD_CB_DISTRIBUTION,
+            (_case_access.label_access_sql()
+             if assignment_only
+             else _PRD_CB_DISTRIBUTION),
             # An exact NECESSARY condition for remaining capacity: no policy can
             # raise a task's effective capacity above max(max_labels, 2). The
             # exact test still runs in Python, against ``routing`` — one policy,
@@ -7859,7 +7863,7 @@ class AsclepiusStore:
         # wrong slot, and nothing raises. ``test_asclepius_queue_placeholders``
         # exists to fail when they drift.
         params: List[Any] = [evaluator_id, evaluator_id, evaluator_id, evaluator_id]
-        if specialty:
+        if specialty and not assignment_only:
             # Launch-week fan-out (V4 PRD §4). ``open_to_all_specialties`` widens
             # VISIBILITY and nothing else: the task appears in this labeler's queue
             # even though its specialty is not theirs. Capacity, independence,
@@ -8392,9 +8396,13 @@ class AsclepiusStore:
         status: Optional[str] = None,
         specialty: Optional[str] = None,
         evaluator_id: Optional[str] = None,
+        assigned_reviewer_id: Optional[str] = None,
         limit: int = 500,
     ) -> List[Dict[str, Any]]:
         clauses, params = [], []
+        if assigned_reviewer_id is not None:
+            clauses.append(_case_access.active_assignment_sql("review"))
+            params.append(assigned_reviewer_id)
         if status:
             clauses.append("s.status = ?")
             params.append(status)
@@ -10315,8 +10323,12 @@ class AsclepiusStore:
         self, *, task_id: Optional[str] = None, specialty: Optional[str] = None,
         mode: Optional[str] = None, case_source: Optional[str] = None,
         has_annotation: Optional[bool] = None, limit: int = 1000,
+        assigned_labeler_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         clauses, params = [], []
+        if assigned_labeler_id is not None:
+            clauses.append(_case_access.active_assignment_sql("label"))
+            params.append(assigned_labeler_id)
         if task_id:
             clauses.append("task_id = ?"); params.append(task_id)
         if specialty:
@@ -10333,7 +10345,7 @@ class AsclepiusStore:
         params.append(limit)
         with self._conn() as conn:
             rows = conn.execute(
-                f"SELECT * FROM env_runs {where} ORDER BY created_at DESC LIMIT ?", tuple(params)
+                f"SELECT t.* FROM env_runs t {where} ORDER BY created_at DESC LIMIT ?", tuple(params)
             ).fetchall()
         return [self._env_run_row(r) for r in rows]
 
@@ -10917,6 +10929,28 @@ class AsclepiusStore:
             ).fetchone()
         return row is not None
 
+    def _review_access_sql(
+        self, user_id: str, *, task_alias: str = "t", claim_alias: str = "t",
+        lease_minutes: int = 45, assignment_only: Optional[bool] = None,
+    ) -> tuple[str, List[Any]]:
+        """Assigned review work, plus a live claim already held by this reviewer.
+
+        A pre-existing claim may finish across an assignment change, but an
+        expired claim cannot reopen work that is no longer assigned.
+        """
+        if assignment_only is None:
+            assignment_only = _case_access.assignment_required(self.get_user_by_id(user_id) or {})
+        if not assignment_only:
+            return "1 = 1", []
+        cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        return (
+            f"({_case_access.active_assignment_sql('review', task_alias=task_alias)} OR "
+            f"({claim_alias}.review_status = 'in_review' "
+            f"AND {claim_alias}.review_claimed_by = ? "
+            f"AND {claim_alias}.review_claimed_at >= ?))",
+            [user_id, user_id, cutoff],
+        )
+
     def next_review_for(
         self,
         user_id: str,
@@ -10926,6 +10960,7 @@ class AsclepiusStore:
         predicate: Any = None,
         scan_limit: int = 200,
         persist_routing_decision: bool = False,
+        assignment_only: Optional[bool] = None,
     ) -> Optional[Dict[str, Any]]:
         """Oldest reviewable submission for this reviewer (PRD A §1.4).
 
@@ -10939,6 +10974,8 @@ class AsclepiusStore:
         ``predicate(task, submission) -> bool`` filters candidates in Python (the
         rate-based ``needs_review`` policy lives in ``asclepius.review``, not in SQL).
         """
+        if assignment_only is None:
+            assignment_only = _case_access.assignment_required(self.get_user_by_id(user_id) or {})
         cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
         clauses = [
             "s.evaluator_id != ?",
@@ -10949,7 +10986,8 @@ class AsclepiusStore:
             # used to silently extend a reviewer's claim (FIX A A-3.7).
             # 'reviewed', 'orphaned' and 'not_routed' are all terminal here.
             "(s.review_status IS NULL OR (s.review_status = 'in_review'"
-            " AND (s.review_claimed_at IS NULL OR s.review_claimed_at < ?)))",
+            " AND (s.review_claimed_at IS NULL OR s.review_claimed_at < ?"
+            " OR s.review_claimed_by = ?)))",
             "NOT EXISTS (SELECT 1 FROM case_reviews cr WHERE cr.submission_id = s.submission_id"
             " AND cr.reviewer_user_id = ?)",
             "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = s.task_id"
@@ -10963,8 +11001,14 @@ class AsclepiusStore:
             " AND sc.verdict IS NOT NULL) = 1",
             "COALESCE(t.max_labels, 1) < 2",
         ]
-        params: List[Any] = [user_id, cutoff, user_id]
-        if specialty:
+        params: List[Any] = [user_id, cutoff, user_id, user_id]
+        access_sql, access_params = self._review_access_sql(
+            user_id, claim_alias="s", lease_minutes=lease_minutes,
+            assignment_only=assignment_only)
+        clauses.append(access_sql)
+        params.extend(access_params)
+        # Named assignments and held work take precedence over a pool preference.
+        if specialty and not assignment_only:
             clauses.append("t.specialty = ?")
             params.append(specialty)
         params.append(int(scan_limit))
@@ -11058,19 +11102,24 @@ class AsclepiusStore:
         clock rather than ``updated_at``, which any unrelated write bumps."""
         now = _utcnow_iso()
         cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        access_sql, access_params = self._review_access_sql(
+            reviewer_id, task_alias="s", claim_alias="s",
+            lease_minutes=lease_minutes)
         with self._conn() as conn:
             cur = conn.execute(
-                """
-                UPDATE submissions
+                f"""
+                UPDATE submissions AS s
                    SET review_status = 'in_review', review_claimed_by = ?,
                        review_claimed_at = ?, review_blinded = ?, updated_at = ?
                 WHERE submission_id = ?
                   AND (review_status IS NULL
                        OR (review_status = 'in_review'
-                           AND (review_claimed_at IS NULL OR review_claimed_at < ?)))
+                           AND (review_claimed_at IS NULL OR review_claimed_at < ?
+                                OR review_claimed_by = ?)))
+                  AND {access_sql}
                 """,
                 (reviewer_id, now, None if blinded is None else (1 if blinded else 0),
-                 now, submission_id, cutoff),
+                 now, submission_id, cutoff, reviewer_id, *access_params),
             )
             return cur.rowcount > 0
 
@@ -11098,7 +11147,10 @@ class AsclepiusStore:
             "status": rec.get("review_status"),
         }
 
-    def review_queue_stats(self) -> Dict[str, Any]:
+    def review_queue_stats(
+        self, *, user_id: Optional[str] = None, specialty: Optional[str] = None,
+        lease_minutes: int = 45, predicate: Any = None,
+    ) -> Dict[str, Any]:
         """Counts for the review portal header, in ONE pass over an indexed
         column (four separate COUNT(*) full scans used to fire on every draw —
         FIX A A-3.5).
@@ -11107,6 +11159,51 @@ class AsclepiusStore:
         Declined ('not_routed') and orphaned rows are reported separately rather
         than folded in: a header claiming work exists that the draw cannot serve
         is how A-3.3 stayed invisible."""
+        if user_id:
+            assignment_only = _case_access.assignment_required(self.get_user_by_id(user_id) or {})
+            access_sql, params = self._review_access_sql(
+                user_id, claim_alias="s", lease_minutes=lease_minutes,
+                assignment_only=assignment_only)
+            clauses = [
+                f"({access_sql} OR EXISTS (SELECT 1 FROM case_reviews cr "
+                "WHERE cr.submission_id = s.submission_id AND cr.reviewer_user_id = ?))",
+                "s.verdict IS NOT NULL", "s.evaluator_id != ?",
+                "COALESCE(t.max_labels, 1) < 2",
+                "(SELECT COUNT(*) FROM submissions sc WHERE sc.task_id = t.task_id "
+                "AND sc.verdict IS NOT NULL) = 1",
+                "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id "
+                "AND ic.status = 'needs_review')",
+                "(s.review_status IS NOT 'in_review' OR s.review_claimed_by = ? "
+                "OR s.review_claimed_at IS NULL OR s.review_claimed_at < ?)",
+            ]
+            params.extend([user_id, user_id, user_id,
+                           _iso_minus_seconds(max(1, int(lease_minutes)) * 60)])
+            if specialty and not assignment_only:
+                clauses.append("t.specialty = ?")
+                params.append(specialty)
+            with self._conn() as conn:
+                rows = conn.execute(
+                    f"SELECT s.* FROM submissions s JOIN tasks t ON t.task_id = s.task_id "
+                    f"WHERE {' AND '.join(clauses)}", tuple(params)).fetchall()
+                n_reviews = conn.execute(
+                    "SELECT COUNT(*) FROM case_reviews WHERE reviewer_user_id = ?",
+                    (user_id,)).fetchone()[0]
+            counts = {}
+            for row in rows:
+                sub = self._submission_row(row)
+                if (sub.get("review_status") is None and predicate is not None
+                        and not predicate(self.get_task(sub["task_id"]), sub)):
+                    continue
+                status = sub.get("review_status") or "__null__"
+                counts[status] = counts.get(status, 0) + 1
+            return {
+                "unreviewed": counts.get("__null__", 0),
+                "in_review": counts.get("in_review", 0),
+                "reviewed": counts.get("reviewed", 0),
+                "not_routed": counts.get("not_routed", 0),
+                "orphaned": counts.get("orphaned", 0),
+                "n_reviews": int(n_reviews),
+            }
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT review_status AS st, COUNT(*) AS n FROM submissions "
@@ -11257,6 +11354,7 @@ class AsclepiusStore:
         discipline: the second observation must be independent or κ is fiction.
         ``allow_real`` is the V4 wall (EHR PRD §9.5): real_deid tasks are excluded
         unless the caller verified ``real_data_approved``."""
+        assignment_only = _case_access.assignment_required(self.get_user_by_id(user_id) or {})
         clauses = [
             "t.status = 'open'",
             "t.max_labels >= 2",
@@ -11278,13 +11376,15 @@ class AsclepiusStore:
             # draw too. A second label is still a doctor being served a case, so an
             # 'assigned_only' task must not arrive here by a side door; the whole
             # point of the column is that there is exactly one way in.
-            _PRD_CB_DISTRIBUTION,
+            (_case_access.label_access_sql()
+             if assignment_only
+             else _PRD_CB_DISTRIBUTION),
         ]
         # One entry per ``?`` above, IN CLAUSE ORDER: the independence NOT EXISTS,
         # the sequence gate's TWO (solo evaluator, relay assignee), then the
         # distribution gate's assigned-to-me EXISTS.
         params: List[Any] = [user_id, user_id, user_id, user_id]
-        if specialty:
+        if specialty and not assignment_only:
             clauses.append("t.specialty = ?")
             params.append(specialty)
         if not allow_real:
@@ -11335,6 +11435,7 @@ class AsclepiusStore:
         specialty: Optional[str] = None,
         lease_minutes: int = 45,
         scan_limit: int = 200,
+        assignment_only: Optional[bool] = None,
     ) -> Optional[Dict[str, Any]]:
         """Oldest ``review_ready`` task this reviewer may adjudicate, or None.
 
@@ -11347,13 +11448,15 @@ class AsclepiusStore:
           * the reviewer has not already reviewed this task;
           * unclaimed, or holding a claim whose lease has expired, so an
             abandoned draw re-queues instead of vanishing forever;
-          * the specialty matches;
+          * the specialty matches for operator or legacy open-pool draws;
           * the task is not held for blocking ingest review (Audit §21.6) — a
             reviewer must not see a case whose image may carry burned-in PHI.
 
         Returns the task row; the caller pairs it with
         ``submissions_for_task`` and claims it with ``claim_task_for_review``.
         """
+        if assignment_only is None:
+            assignment_only = _case_access.assignment_required(self.get_user_by_id(user_id) or {})
         cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
         clauses = [
             # ``review_ready`` in the SQL exactly as ``routing.phase`` derives it:
@@ -11396,7 +11499,11 @@ class AsclepiusStore:
             " AND ic.status = 'needs_review')",
         ]
         params: List[Any] = [user_id, cutoff, user_id]
-        if specialty:
+        access_sql, access_params = self._review_access_sql(
+            user_id, lease_minutes=lease_minutes, assignment_only=assignment_only)
+        clauses.append(access_sql)
+        params.extend(access_params)
+        if specialty and not assignment_only:
             clauses.append("t.specialty = ?")
             params.append(specialty)
         params.append(int(scan_limit))
@@ -11429,10 +11536,13 @@ class AsclepiusStore:
         """
         now = _utcnow_iso()
         cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
+        access_sql, access_params = self._review_access_sql(
+            reviewer_id,
+            lease_minutes=lease_minutes)
         with self._conn() as conn:
             cur = conn.execute(
-                """
-                UPDATE tasks
+                f"""
+                UPDATE tasks AS t
                    SET review_status = 'in_review', review_claimed_by = ?,
                        review_claimed_at = ?, review_blinded = ?
                 WHERE task_id = ?
@@ -11440,9 +11550,10 @@ class AsclepiusStore:
                        OR (review_status = 'in_review'
                            AND (review_claimed_at IS NULL OR review_claimed_at < ?
                                 OR review_claimed_by = ?)))
+                  AND {access_sql}
                 """,
                 (reviewer_id, now, None if blinded is None else (1 if blinded else 0),
-                 task_id, cutoff, reviewer_id),
+                 task_id, cutoff, reviewer_id, *access_params),
             )
             return cur.rowcount > 0
 
@@ -11580,7 +11691,10 @@ class AsclepiusStore:
                         "WHERE submission_id = ?", (now, sid))
         return self.get_case_review(review_id)  # type: ignore[return-value]
 
-    def review_pair_queue_stats(self) -> Dict[str, Any]:
+    def review_pair_queue_stats(
+        self, *, user_id: Optional[str] = None, specialty: Optional[str] = None,
+        lease_minutes: int = 45,
+    ) -> Dict[str, Any]:
         """Counts for the TR page header, in one pass per phase.
 
         Reported as the lifecycle phases the reviewer actually cares about —
@@ -11597,12 +11711,36 @@ class AsclepiusStore:
         and set terminal. Two physicians' paid labels are stranded in each one,
         and until this they existed only in an ERROR log nothing reads.
         """
+        scope_sql = ""
+        params: List[Any] = []
+        ready_sql = "lc = 2 AND rc = 0"
+        if user_id:
+            assignment_only = _case_access.assignment_required(self.get_user_by_id(user_id) or {})
+            access_sql, params = self._review_access_sql(
+                user_id, lease_minutes=lease_minutes, assignment_only=assignment_only)
+            scope_sql = (
+                f" AND ({access_sql} OR EXISTS (SELECT 1 FROM case_reviews mine "
+                "WHERE mine.task_id = t.task_id AND mine.reviewer_user_id = ?))"
+                " AND NOT EXISTS (SELECT 1 FROM submissions mine "
+                "WHERE mine.task_id = t.task_id AND mine.evaluator_id = ?)"
+                " AND NOT EXISTS (SELECT 1 FROM ingest_cases ic "
+                "WHERE ic.task_id = t.task_id AND ic.status = 'needs_review')"
+                " AND (t.review_status IS NOT 'in_review' OR t.review_claimed_by = ? "
+                "OR t.review_claimed_at IS NULL OR t.review_claimed_at < ?)"
+            )
+            params.extend([user_id, user_id, user_id,
+                           _iso_minus_seconds(max(1, int(lease_minutes)) * 60)])
+            if specialty and not assignment_only:
+                scope_sql += " AND t.specialty = ?"
+                params.append(specialty)
+            ready_sql += (" AND lc >= max_labels AND (rs IS NULL OR rs = 'in_review')"
+                          " AND independent = 2")
         with self._conn() as conn:
             row = conn.execute(
                 f"""
                 SELECT
                   SUM(CASE WHEN lc = 1 THEN 1 ELSE 0 END) AS awaiting_second,
-                  SUM(CASE WHEN lc = 2 AND rc = 0 THEN 1 ELSE 0 END) AS review_ready,
+                  SUM(CASE WHEN {ready_sql} THEN 1 ELSE 0 END) AS review_ready,
                   SUM(CASE WHEN rc > 0 THEN 1 ELSE 0 END) AS adjudicated,
                   -- Audit R H3: a case carrying more than two labels cannot be
                   -- adjudicated by a PAIRED review. Counted, not dropped: the
@@ -11613,15 +11751,18 @@ class AsclepiusStore:
                 FROM (
                   SELECT COALESCE(c.n_labels, 0) AS lc,
                          COALESCE(r.n_reviews, 0) AS rc,
-                         t.review_status AS rs
+                         t.review_status AS rs,
+                         COALESCE(t.max_labels, 1) AS max_labels,
+                         (SELECT COUNT(DISTINCT si.evaluator_id) FROM submissions si
+                          WHERE si.task_id = t.task_id AND si.verdict IS NOT NULL) AS independent
                   FROM tasks t
                   {_PRD_R_COUNTS_JOIN}
                   LEFT JOIN (SELECT task_id, COUNT(*) AS n_reviews
                                FROM case_reviews GROUP BY task_id) r
                          ON r.task_id = t.task_id
-                  WHERE t.status IN ('open', 'done')
+                  WHERE t.status IN ('open', 'done') {scope_sql}
                 )
-                """
+                """, tuple(params),
             ).fetchone()
         rec = dict(row) if row else {}
         return {

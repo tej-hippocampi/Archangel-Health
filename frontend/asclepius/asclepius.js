@@ -2938,18 +2938,12 @@
   function renderEvalEmpty() {
     stopTimer();
     updateHeaderProgress(); // no open task, so the §16 bar hides here
-    const ver = getPortalVersion();
-    const isSpecScoped = ver === 'v3' || ver === 'v4';
-    const sp = getPortalSpecialty();
-    const spLabel = sp.charAt(0).toUpperCase() + sp.slice(1);
     setRoot(h('div', { class: 'asc-wrap' },
       h('div', { class: 'asc-card asc-card-pad' },
         h('div', { class: 'asc-empty' },
           h('div', { class: 'asc-empty-icon' }, '✓'),
-          h('h3', {}, isSpecScoped ? ('No ' + spLabel + ' cases available yet') : 'Your queue is clear'),
-          h('p', {}, isSpecScoped
-            ? ('No ' + spLabel + ' cases are available right now. Check back soon.')
-            : 'No evaluation tasks are waiting for you right now. Check back soon.'),
+          h('h3', {}, 'You’re all set.'),
+          h('p', {}, 'No cases to label just yet. We’ll notify you when a case is ready for you.'),
           h('div', { style: 'margin-top:16px' },
             h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', onClick: renderEvalView }, 'Refresh queue')),
         ))));
@@ -3493,6 +3487,7 @@
     let data = { tasks: [] };
     let stats = null;
     let queueError = null;
+    let reviewError = null;
     let practiceGate = null;
     let agreementGate = null;
     // No real queue and no earnings, and BOTH endpoints below are on the
@@ -3512,16 +3507,18 @@
     // try below and never blocks anything.
     // One Tasks surface for every kind of work: a reviewer's queue arrives
     // here as a distinct card instead of a separate nav tab. The card is the
-    // console's route now, so it renders for every reviewer, count or no
-    // count, and the stats fetch is best-effort.
+    // console's route now, so it renders for every reviewer. A failed stats
+    // request must not imply that the physician has no review work.
     const reviewPromise = sessionCan('review')
-      ? api('/review/stats').catch(() => null)
+      ? api('/review/stats').catch((e) => { reviewError = e; return null; })
       : Promise.resolve(null);
     try {
       if (noRealWork) throw { __provisional: true };
       const [tasksRes, statsRes] = await Promise.all([
-        api('/tasks/available?portal_version=' + encodeURIComponent(ver)
-          + '&specialty=' + encodeURIComponent(spec)),
+        sessionCan('label')
+          ? api('/tasks/available?portal_version=' + encodeURIComponent(ver)
+            + '&specialty=' + encodeURIComponent(spec))
+          : Promise.resolve({ tasks: [] }),
         api('/me/stats').catch(() => null), // widget is non-critical; never block the queue on it
       ]);
       data = tasksRes;
@@ -3566,6 +3563,9 @@
     }
     const tasks = data.tasks || [];
     const reviewStats = await reviewPromise;
+    const reviewReady = reviewStats ? Number(reviewStats.review_ready || 0) : null;
+    const reviewPending = reviewStats && (Number(reviewStats.unreviewed || 0) > 0
+      || Number(reviewStats.in_review || 0) > 0);
 
     const wrap = h('div', { class: 'asc-wrap' });
     const banner = provisionalBannerEl();
@@ -3588,7 +3588,6 @@
     const main = h('div', { class: 'asc-dash-main' });
 
     if (sessionCan('review')) {
-      const ready = reviewStats ? Number(reviewStats.review_ready || 0) : null;
       main.appendChild(h('button', {
         class: 'asc-dash-card asc-dash-card-review', type: 'button',
         onClick: () => setPanel('review'),
@@ -3597,11 +3596,14 @@
           h('span', { class: 'asc-chip asc-chip-specialty asc-chip-pink' },
             h('span', { class: 'asc-chip-dot', 'aria-hidden': 'true' }),
             h('span', {}, 'Review work')),
-          h('span', { class: 'asc-dash-card-meta' },
-            ready == null ? 'Open the review console'
-              : ready === 0 ? 'No pairs waiting right now'
-                : ready === 1 ? '1 pair waiting for your adjudication'
-                  : ready + ' pairs waiting for your adjudication')),
+          h('span', { class: 'asc-dash-card-meta' + (reviewError ? ' asc-inline-error' : '') },
+            reviewError ? 'We could not load your review queue. Open review to try again.'
+              : reviewReady == null ? 'Open the review console'
+                : reviewReady === 0 ? (reviewPending
+                  ? 'Your review assignment is being prepared'
+                  : 'No cases ready for review just yet')
+                  : reviewReady === 1 ? '1 pair waiting for your adjudication'
+                    : reviewReady + ' pairs waiting for your adjudication')),
         h('span', { class: 'asc-dash-card-go', 'aria-hidden': 'true' }, '\u2192')));
     }
 
@@ -3635,7 +3637,11 @@
             onClick: () => setPanel('community'),
           }, provisional ? 'Meet the community' : 'Read the community')))));
     } else if (!tasks.length) {
-      main.appendChild(renderDashboardEmpty(specLabel));
+      // The waiting message describes BOTH queues. A review assignment or an
+      // unknown review count must not be contradicted by an empty label queue.
+      if (!reviewError && !reviewPending && (!sessionCan('review') || reviewReady === 0)) {
+        main.appendChild(renderDashboardEmpty());
+      }
     } else {
       // Name the queue these cases came from. The count alone is ambiguous the
       // moment V4 continues onto V3: a physician cleared for real patient data
@@ -3668,8 +3674,7 @@
                 : (queueLine || 'Real de-identified cases')),
             continuedFromV4
               ? h('div', { class: 'asc-dash-hero-note' },
-                  'You have completed every real de-identified case available to you '
-                  + 'right now. New ones appear here as charts are promoted.')
+                  'Your next case is ready in the workflow shown above.')
               : null)),
         h('button', {
           class: 'asc-btn asc-btn-primary asc-btn-lg',
@@ -3885,14 +3890,15 @@
       h('div', { style: 'margin-top:16px' }, retry));
   }
 
-  function renderDashboardEmpty(specLabel) {
+  function renderDashboardEmpty() {
     return h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-empty' },
         h('div', { class: 'asc-empty-icon' }, '✓'),
-        h('h3', {}, 'You are all set. No cases to grade right now.'),
-        h('p', {}, 'You are verified and in the ' + specLabel + ' pool. New cases arrive in batches, '
-          + 'and we will email you when the next one is ready.'),
-        h('div', { style: 'margin-top:16px' },
+        h('h3', {}, 'You’re all set.'),
+        h('p', {}, 'No cases to label or review just yet. We’ll notify you when a case is ready for you.'),
+        h('div', { class: 'asc-dash-cta', style: 'justify-content:center' },
+          h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm',
+            onClick: () => startTutorial({ replay: true }) }, 'Open the practice case'),
           h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', onClick: renderDashboardView }, 'Refresh'))));
   }
 

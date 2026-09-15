@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import json
 import mimetypes
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -215,6 +216,274 @@ def screenshot(page, name):
     if output:
         Path(output).mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(Path(output) / name), full_page=True)
+
+
+@pytest.fixture()
+def accepted_portal(tmp_path, monkeypatch):
+    """Run the shipped page with real auth, queues and isolated stores.
+
+    Overrides are limited to explicit outage tests and the reviewer-only session
+    contract. No fixture changes the JavaScript or reaches into its private state.
+    """
+    from team_store import TeamStore, get_team_store, set_team_store
+    from tests._asclepius import token_for
+
+    playwright = pytest.importorskip("playwright.sync_api")
+    store = fresh_store()
+    previous_team = get_team_store()
+    set_team_store(TeamStore(str(tmp_path / "accepted-team.db")))
+    monkeypatch.delenv("ASCLEPIUS_OPEN_CASE_POOL_ENABLED", raising=False)
+    monkeypatch.setenv("ASCLEPIUS_ASSET_STORE", str(tmp_path / "assets"))
+    try:
+        with TestClient(app) as client, playwright.sync_playwright() as p:
+            browser = p.chromium.launch()
+
+            def open_portal(*, tier="labeler", width=1440, reviewer_only=False,
+                            welcome_complete=True):
+                user = make_user(store, specialty="nephrology", tier=tier)
+                store.set_verification_status(user["id"], "approved")
+                if welcome_complete:
+                    first_run = store.get_first_run(user["id"])
+                    first_run["stops"] = {stop: "done" for stop in
+                        ("welcome", "start", "practice", "community", "earnings", "manual")}
+                    store.set_first_run(user["id"], first_run)
+                user = store.get_user_by_id(user["id"])
+                context = browser.new_context(viewport={"width": width, "height": 900},
+                                              reduced_motion="reduce")
+                page = context.new_page()
+                page.set_default_timeout(10000)
+                errors, requests, overrides = [], [], {}
+                page.on("pageerror", lambda error: errors.append(str(error)))
+
+                def dispatch(route):
+                    request, url = route.request, urlsplit(route.request.url)
+                    requests.append(url.path)
+                    if url.path in overrides:
+                        status, body = overrides[url.path]
+                        route.fulfill(status=status, json=body)
+                        return
+                    response = client.request(request.method,
+                        url.path + ("?" + url.query if url.query else ""),
+                        content=request.post_data_buffer,
+                        headers={k: v for k, v in request.headers.items()
+                                 if k not in ("host", "content-length")})
+                    if reviewer_only and url.path == "/api/asclepius/auth/me":
+                        body = response.json()
+                        body["capabilities"] = ["review", "refer"]
+                        route.fulfill(status=response.status_code, json=body)
+                        return
+                    route.fulfill(status=response.status_code, body=response.content,
+                        headers={k: v for k, v in response.headers.items()
+                                 if k not in ("content-length", "content-encoding")})
+
+                context.route("**/*", dispatch)
+                page.add_init_script("localStorage.setItem('asclepius_token', "
+                                     + json.dumps(token_for(user)) + ");")
+                return SimpleNamespace(page=page, store=store, user=user, errors=errors,
+                    requests=requests, overrides=overrides, client=client)
+
+            yield open_portal
+            browser.close()
+    finally:
+        set_team_store(previous_team)
+
+
+def _dashboard_case(store, *, review_ready=False):
+    task = store.insert_task(prompt="What is the next step in this assigned kidney case?",
+        specialty="nephrology", difficulty="hard", source="synthetic",
+        max_labels=2 if review_ready else 1,
+        candidate_answers=[{"id": "A", "text": "Repeat the potassium and obtain an ECG."},
+                           {"id": "B", "text": "Discharge without follow-up."}])
+    if review_ready:
+        for _ in range(2):
+            labeler = make_user(store, specialty="nephrology")
+            store.insert_submission(submission_id="s-" + uuid.uuid4().hex,
+                task_id=task["task_id"], evaluator_id=labeler["id"],
+                verdict="A_better", chosen_id="A", rejected_id="B", confidence="high",
+                time_spent_sec=180, payload={}, annotator=store.annotator_block(labeler),
+                dedupe_hash=None, portal_version="v3")
+    return task
+
+
+_WAITING_COPY = "No cases to label or review just yet. We’ll notify you when a case is ready for you."
+
+
+@pytest.mark.parametrize("tier,reviewer_only,width", [
+    ("labeler", False, 1440), ("labeler", False, 390),
+    ("reviewer", True, 1440), ("reviewer", True, 390),
+])
+def test_accepted_unassigned_doctor_can_explore_without_starting_work(
+        accepted_portal, tier, reviewer_only, width):
+    from playwright.sync_api import expect
+
+    portal = accepted_portal(tier=tier, reviewer_only=reviewer_only, width=width)
+    # Populate the shared pool: the empty state must be personal, not a side
+    # effect of the entire installation having no cases or review pairs.
+    _dashboard_case(portal.store)
+    _dashboard_case(portal.store, review_ready=True)
+    page = portal.page
+    page.goto("http://testserver/asclepius")
+    expect(page.get_by_role("heading", name="You’re all set.", exact=True)).to_be_visible()
+    expect(page.get_by_text(_WAITING_COPY, exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="Start →", exact=True)).to_have_count(0)
+    expect(page.get_by_text("Start new case", exact=True)).to_have_count(0)
+    assert not page.locator(".asc-inline-error").count()
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    if reviewer_only:
+        assert "/api/asclepius/tasks/available" not in portal.requests
+    screenshot(page, f"assigned-waiting-{tier}-{width}.png")
+
+    page.get_by_role("button", name="Guide", exact=True).click()
+    expect(page.locator(".asc-guide-h1")).to_be_visible()
+    page.get_by_role("button", name="Tasks", exact=True).click()
+    expect(page.get_by_text(_WAITING_COPY, exact=True)).to_be_visible()
+    with page.expect_popup() as popup:
+        page.get_by_role("button", name="Community (opens in a new tab)", exact=True).click()
+    popup.value.wait_for_load_state()
+    assert urlsplit(popup.value.url).path == "/community"
+    popup.value.close()
+    page.get_by_role("button", name="Open the practice case", exact=True).click()
+    expect(page.get_by_text("One practice case. About 4 minutes.", exact=True)).to_be_visible()
+    assert not portal.errors, portal.errors
+
+
+def test_assigned_doctor_keeps_start_and_continue_flow(accepted_portal):
+    from playwright.sync_api import expect
+
+    portal = accepted_portal()
+    task = _dashboard_case(portal.store)
+    portal.store.upsert_assignment(task_id=task["task_id"], user_id=portal.user["id"],
+                                  role="label", assigned_by="test-admin")
+    page = portal.page
+    page.goto("http://testserver/asclepius")
+    expect(page.get_by_text("Start new case", exact=True)).to_be_visible()
+    expect(page.get_by_text(_WAITING_COPY, exact=True)).to_have_count(0)
+    screenshot(page, "assigned-labeler-ready.png")
+    page.get_by_role("button", name="Start →", exact=True).click()
+    expect(page.get_by_text(task["prompt"], exact=True)).to_be_visible()
+    assert "/api/asclepius/tasks/next" in portal.requests
+    page.reload()
+    expect(page.get_by_text("Continue case", exact=True)).to_be_visible()
+    page.get_by_role("button", name="Continue →", exact=True).click()
+    expect(page.get_by_text(task["prompt"], exact=True)).to_be_visible()
+    assert not portal.errors, portal.errors
+
+
+def test_accepted_doctor_sees_waiting_state_after_welcome(accepted_portal):
+    from playwright.sync_api import expect
+
+    portal = accepted_portal(welcome_complete=False)
+    _dashboard_case(portal.store)
+    page = portal.page
+    page.goto("http://testserver/asclepius")
+    expect(page.get_by_role("heading", name="Welcome to Archangel Health.", exact=True)).to_be_visible()
+    page.get_by_role("button", name="Let’s get you started →", exact=True).click()
+    page.get_by_role("button", name="Start the practice case", exact=False).click()
+    page.get_by_role("button", name="Skip practice case walkthrough", exact=True).click()
+    for heading in ("The people you’ll be working alongside.", "How you get paid.",
+                    "Everything else lives in the manual."):
+        expect(page.get_by_role("heading", name=heading, exact=True)).to_be_visible()
+        page.get_by_role("button", name="Do this later", exact=True).click()
+    expect(page.get_by_text(_WAITING_COPY, exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="Start →", exact=True)).to_have_count(0)
+    assert portal.store.get_first_run(portal.user["id"])["stops"]["welcome"] == "done"
+    assert not portal.errors, portal.errors
+
+
+def test_assigned_review_card_never_claims_there_is_no_review_work(accepted_portal):
+    from playwright.sync_api import expect
+
+    portal = accepted_portal(tier="reviewer", reviewer_only=True)
+    task = _dashboard_case(portal.store, review_ready=True)
+    portal.store.upsert_assignment(task_id=task["task_id"], user_id=portal.user["id"],
+                                  role="review", assigned_by="test-admin")
+    page = portal.page
+    page.goto("http://testserver/asclepius")
+    expect(page.get_by_text("1 pair waiting for your adjudication", exact=True)).to_be_visible()
+    expect(page.get_by_text(_WAITING_COPY, exact=True)).to_have_count(0)
+    expect(page.get_by_role("button", name="Start →", exact=True)).to_have_count(0)
+    screenshot(page, "assigned-reviewer-ready.png")
+    page.locator(".asc-dash-card-review").click()
+    expect(page.get_by_role("heading", name="Review", exact=True)).to_be_visible()
+    expect(page.locator(".asc-rv-judgment")).to_be_visible()
+    assert not portal.errors, portal.errors
+
+
+@pytest.mark.parametrize("claimed", [False, True])
+def test_assigned_review_card_waits_for_single_submission_preparation(
+        accepted_portal, monkeypatch, claimed):
+    from playwright.sync_api import expect
+    from tests._asclepius import headers_for
+
+    monkeypatch.setenv("ASCLEPIUS_DOUBLE_LABEL_HALT", "1")
+    monkeypatch.setenv("ASCLEPIUS_REVIEW_RATE", "1")
+    portal = accepted_portal(tier="reviewer", reviewer_only=True)
+    task = _dashboard_case(portal.store)
+    labeler = make_user(portal.store, specialty="nephrology")
+    submission_id = "s-" + uuid.uuid4().hex
+    portal.store.insert_submission(submission_id=submission_id, task_id=task["task_id"],
+        evaluator_id=labeler["id"], verdict="A_better", chosen_id="A", rejected_id="B",
+        confidence="high", time_spent_sec=180, payload={},
+        annotator=portal.store.annotator_block(labeler), dedupe_hash=None, portal_version="v3")
+    portal.store.upsert_assignment(task_id=task["task_id"], user_id=portal.user["id"],
+                                  role="review", assigned_by="test-admin")
+    if claimed:
+        assert portal.store.claim_submission_for_review(submission_id,
+                                                       reviewer_id=portal.user["id"])
+    counts = portal.client.get("/api/asclepius/review/stats",
+                               headers=headers_for(portal.user)).json()
+    assert counts["review_ready"] == 0
+    assert counts["in_review" if claimed else "unreviewed"] == 1
+
+    page = portal.page
+    page.goto("http://testserver/asclepius")
+    preparing = "Your review assignment is being prepared"
+    expect(page.get_by_text(preparing, exact=True)).to_be_visible()
+    expect(page.get_by_text(_WAITING_COPY, exact=True)).to_have_count(0)
+    page.locator(".asc-dash-card-review").click()
+    expect(page.get_by_role("heading", name=preparing, exact=True)).to_be_visible()
+    expect(page.get_by_text("We’ll notify you when your case is ready for review.", exact=True)).to_be_visible()
+    expect(page.get_by_text("No cases ready for review just yet.", exact=False)).to_have_count(0)
+    if not claimed:
+        screenshot(page, "assigned-single-review-preparing.png")
+    portal.overrides["/api/asclepius/review/stats"] = (503, {"detail": "Review stats unavailable"})
+    page.get_by_role("button", name="Check again", exact=True).click()
+    expect(page.get_by_text("We could not load your review queue. Please try again.", exact=True)).to_be_visible()
+    expect(page.get_by_role("heading", name="You’re all set.", exact=True)).to_have_count(0)
+    assert not portal.errors, portal.errors
+
+
+@pytest.mark.parametrize("tier,path,message", [
+    ("labeler", "/api/asclepius/tasks/available", "Your case queue could not be loaded"),
+    ("reviewer", "/api/asclepius/review/stats", "We could not load your review queue."),
+])
+def test_accepted_doctor_sees_queue_outage_instead_of_waiting_assurance(
+        accepted_portal, tier, path, message):
+    from playwright.sync_api import expect
+
+    portal = accepted_portal(tier=tier, reviewer_only=tier == "reviewer")
+    portal.overrides[path] = (503, {"detail": "Queue temporarily unavailable"})
+    page = portal.page
+    page.goto("http://testserver/asclepius")
+    expect(page.get_by_text(message, exact=False)).to_be_visible()
+    expect(page.get_by_text(_WAITING_COPY, exact=True)).to_have_count(0)
+    expect(page.get_by_role("button", name="Start →", exact=True)).to_have_count(0)
+    assert not portal.errors, portal.errors
+
+
+def test_empty_review_console_keeps_errors_distinct(accepted_portal):
+    from playwright.sync_api import expect
+
+    portal = accepted_portal(tier="reviewer")
+    page = portal.page
+    page.goto("http://testserver/asclepius#review")
+    empty = "No cases ready for review just yet. We’ll notify you when a case is ready for you."
+    expect(page.get_by_text(empty, exact=True)).to_be_visible()
+    portal.overrides["/api/asclepius/review/pair/next"] = (503, {"detail": "Review unavailable"})
+    page.get_by_role("button", name="Check again", exact=True).click()
+    expect(page.get_by_text("Review unavailable", exact=True)).to_be_visible()
+    expect(page.get_by_text(empty, exact=True)).to_have_count(0)
+    assert not portal.errors, portal.errors
 
 
 def test_applicant_can_start_and_resume_examination(portal):

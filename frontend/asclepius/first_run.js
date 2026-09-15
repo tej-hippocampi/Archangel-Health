@@ -781,8 +781,8 @@
     var body = h('div', {},
       h('h1', { class: 'asc-fr-title' }, 'You’re all set.'),
       h('p', { class: 'asc-fr-body' },
-        'Your dashboard is where the work is. We’ll email you when new cases '
-        + 'land for your specialty.'));
+        'You can explore the product from your dashboard. We’ll notify you '
+        + 'when a case is ready for you.'));
     ctx.setRoot(stopShell({
       body: body,
       primary: primaryBtn('Go to my dashboard →', function () {

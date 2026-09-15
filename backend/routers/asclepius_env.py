@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from asclepius import auth as asc_auth
+from asclepius import case_access
 from asclepius.constants import (
     ENV_EXPORT_MODES,
     ENV_PORTAL_VERSION,
@@ -37,6 +38,15 @@ router = APIRouter(prefix="/api/asclepius/environments", tags=["asclepius-env"])
 
 def _store():
     return get_store()
+
+
+def _require_annotation_assignment(store, task_id, user):
+    if not case_access.assignment_required(user):
+        return
+    from routers.asclepius import _full_task_gate
+    _full_task_gate(user)
+    if not case_access.has_assignment(store, task_id, user["id"]):
+        raise HTTPException(403, "This environment has not been assigned to you.")
 
 
 # ─── Request models (inline — isolated from the V1–V4 schemas) ────────────────
@@ -162,7 +172,12 @@ async def annotation_queue(
     if not is_env_portal_version(portal_version, allow_legacy=True):
         raise HTTPException(400, "the environment-annotation queue requires portal_version='env'")
     store = _store()
-    runs = store.list_env_runs(specialty=specialty, mode="rollout", has_annotation=False, limit=200)
+    assignment_only = case_access.assignment_required(user)
+    if assignment_only:
+        from routers.asclepius import _full_task_gate
+        _full_task_gate(user)
+    runs = store.list_env_runs(specialty=specialty, mode="rollout", has_annotation=False, limit=200,
+        assigned_labeler_id=user["id"] if assignment_only else None)
     return {"portal_version": ENV_PORTAL_VERSION,
             "queue": [_annotation_task_view(r, store) for r in runs]}
 
@@ -178,6 +193,7 @@ async def get_run_for_annotation(
     row = store.get_env_run(run_id)
     if not row or row.get("mode") != "rollout":
         raise HTTPException(404, "rollout run not found")
+    _require_annotation_assignment(store, row["task_id"], user)
     return {"task": _annotation_task_view(row, store)}
 
 
@@ -201,6 +217,7 @@ async def annotate_environment(
     row = store.get_env_run(body.run_id)
     if not row or row.get("task_id") != task_id:
         raise HTTPException(404, "run not found for this environment")
+    _require_annotation_assignment(store, task_id, user)
     try:
         result = service.save_annotation(
             store, body.run_id, body.annotation,

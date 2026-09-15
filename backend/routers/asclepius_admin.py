@@ -4180,6 +4180,12 @@ async def admin_allocate(
     MAY draw a case changes here.
     """
     from asclepius import allocation as asc_allocation
+    from asclepius.case_access import open_pool_enabled
+
+    if body.to_all and not open_pool_enabled():
+        raise HTTPException(status_code=400, detail={
+            "error": "individual_assignment_required",
+            "message": "Choose physicians or a specialty to assign these cases. The open case pool is disabled."})
 
     if not body.task_ids:
         raise HTTPException(status_code=400, detail="task_ids is required.")

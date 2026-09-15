@@ -42,6 +42,10 @@ import pytest
 
 os.environ.setdefault("RATE_LIMIT_ENABLED", "0")
 os.environ.setdefault("EMAIL_DEV_MODE", "1")
+# Existing open-queue regression scenarios explicitly retain that deployment
+# mode. Assignment-access tests clear this variable to exercise the shipped
+# default, including real HTTP flows, review billing and browser behavior.
+os.environ.setdefault("ASCLEPIUS_OPEN_CASE_POOL_ENABLED", "1")
 
 _asclepius_tmp = os.path.join(tempfile.gettempdir(), "asclepius_suite")
 os.makedirs(_asclepius_tmp, exist_ok=True)

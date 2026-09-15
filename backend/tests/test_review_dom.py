@@ -1030,7 +1030,8 @@ def test_the_page_survives_a_session_client_without_stop():
                   session_state={"continuous_seconds": 60, "min_seconds": 1200,
                                  "qualified": False},
                   session_methods=("start", "state"))
-    assert "No cases awaiting review" in out["text"]
+    assert "No cases ready for review just yet" in out["text"]
+    assert "We’ll notify you when a case is ready for you." in out["text"]
     assert out["errors"] == [] or not any(out["errors"])
 
 
@@ -1395,7 +1396,7 @@ def test_the_preview_banner_survives_an_empty_queue():
         "body": {"pair": None, "preview": True, "session": None,
                  "message": "No cases awaiting review."}}}), preview=True)
     assert out["preview"], "the preview banner vanished with the queue"
-    assert "No cases awaiting review" in out["text"]
+    assert "No cases ready for review just yet" in out["text"]
 
 
 # ═══ asynchrony: a response for a screen that no longer exists ═══════════════
