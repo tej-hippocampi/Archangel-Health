@@ -327,6 +327,8 @@ def test_accepted_unassigned_doctor_can_explore_without_starting_work(
     expect(page.get_by_text(_WAITING_COPY, exact=True)).to_be_visible()
     expect(page.get_by_role("button", name="Start →", exact=True)).to_have_count(0)
     expect(page.get_by_text("Start new case", exact=True)).to_have_count(0)
+    expect(page.locator(".asc-waiting-card button")).to_have_text(["Open the practice case"])
+    expect(page.get_by_role("button", name="Refresh", exact=True)).to_have_count(0)
     assert not page.locator(".asc-inline-error").count()
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     if reviewer_only:
@@ -366,6 +368,20 @@ def test_assigned_doctor_keeps_start_and_continue_flow(accepted_portal):
     expect(page.get_by_text("Continue case", exact=True)).to_be_visible()
     page.get_by_role("button", name="Continue →", exact=True).click()
     expect(page.get_by_text(task["prompt"], exact=True)).to_be_visible()
+    # An assignment can be withdrawn after the dashboard painted. The draw's
+    # empty state offers the same practice action, with no queue refresh loop.
+    page.get_by_role("button", name="Tasks", exact=True).click()
+    page.add_init_script("localStorage.removeItem('asclepius_draft_' + " + json.dumps(task["task_id"]) + ")")
+    page.reload()
+    expect(page.get_by_role("button", name="Start →", exact=True)).to_be_visible()
+    portal.overrides["/api/asclepius/tasks/next"] = (200, {"task": None})
+    page.get_by_role("button", name="Start →", exact=True).click()
+    expect(page.get_by_text("No cases to label just yet. We’ll notify you when a case is ready for you.", exact=True)).to_be_visible()
+    expect(page.locator(".asc-waiting-card button")).to_have_text(["Open the practice case"])
+    expect(page.get_by_role("button", name="Refresh queue", exact=True)).to_have_count(0)
+    screenshot(page, "assigned-labeling-waiting.png")
+    page.get_by_role("button", name="Open the practice case", exact=True).click()
+    expect(page.get_by_text("One practice case. About 4 minutes.", exact=True)).to_be_visible()
     assert not portal.errors, portal.errors
 
 

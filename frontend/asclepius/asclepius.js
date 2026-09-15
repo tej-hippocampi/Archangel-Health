@@ -2939,14 +2939,7 @@
     stopTimer();
     updateHeaderProgress(); // no open task, so the §16 bar hides here
     setRoot(h('div', { class: 'asc-wrap' },
-      h('div', { class: 'asc-card asc-card-pad' },
-        h('div', { class: 'asc-empty' },
-          h('div', { class: 'asc-empty-icon' }, '✓'),
-          h('h3', {}, 'You’re all set.'),
-          h('p', {}, 'No cases to label just yet. We’ll notify you when a case is ready for you.'),
-          h('div', { style: 'margin-top:16px' },
-            h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', onClick: renderEvalView }, 'Refresh queue')),
-        ))));
+      renderWaitingCard('No cases to label just yet. We’ll notify you when a case is ready for you.')));
   }
 
   // ─── Verification status, INSIDE the product ────────────────────────────────
@@ -3891,15 +3884,17 @@
   }
 
   function renderDashboardEmpty() {
-    return h('div', { class: 'asc-card asc-card-pad' },
-      h('div', { class: 'asc-empty' },
-        h('div', { class: 'asc-empty-icon' }, '✓'),
-        h('h3', {}, 'You’re all set.'),
-        h('p', {}, 'No cases to label or review just yet. We’ll notify you when a case is ready for you.'),
-        h('div', { class: 'asc-dash-cta', style: 'justify-content:center' },
-          h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm',
-            onClick: () => startTutorial({ replay: true }) }, 'Open the practice case'),
-          h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', onClick: renderDashboardView }, 'Refresh'))));
+    return renderWaitingCard('No cases to label or review just yet. We’ll notify you when a case is ready for you.');
+  }
+
+  function renderWaitingCard(copy) {
+    return h('div', { class: 'asc-card asc-waiting-card' },
+      h('div', { class: 'asc-waiting-head' },
+        h('span', { class: 'asc-waiting-icon', 'aria-hidden': 'true' }, '✓'),
+        h('h3', { class: 'asc-waiting-title' }, 'You’re all set.')),
+      h('p', { class: 'asc-waiting-copy' }, copy),
+      h('button', { class: 'asc-btn asc-btn-ghost asc-waiting-action',
+        onClick: () => startTutorial({ replay: true }) }, 'Open the practice case'));
   }
 
   // ─── Draft + timer ─────────────────────────────────────────────────────────

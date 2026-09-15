@@ -538,6 +538,25 @@
 .asc-empty-icon { font-size: 28px; margin-bottom: 10px; color: var(--green); }
 .asc-empty h3 { font-size: 16px; font-weight: 500; color: var(--asc-text); margin-bottom: 6px; }
 
+/* Assignment waiting: compact, with one useful action. Keep this separate
+   from the larger empty states used by review and the other product surfaces. */
+.asc-waiting-card { padding: 28px; }
+.asc-waiting-head { display: flex; align-items: center; gap: 10px; }
+.asc-waiting-icon {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--green-wash); color: var(--green-deep); font-size: 16px;
+}
+.asc-waiting-title { margin: 0; font-size: var(--t-h3); font-weight: 500; line-height: 1.3; }
+.asc-waiting-copy {
+  max-width: 48ch; margin: 12px 0 0; font-size: 14px;
+  color: var(--ink-soft); line-height: var(--lh-body); text-wrap: pretty;
+}
+.asc-waiting-action { margin-top: 20px; min-height: 40px; }
+@media (max-width: 700px) {
+  .asc-waiting-card { padding: 22px 20px; }
+}
+
 /* ═══════════ Dashboard (home) ═══════════ */
 .asc-dash-head {
   display: flex; align-items: flex-end; justify-content: space-between;

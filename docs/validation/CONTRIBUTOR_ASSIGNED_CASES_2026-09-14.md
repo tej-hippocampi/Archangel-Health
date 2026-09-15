@@ -18,6 +18,11 @@ take precedence over specialty and difficulty preferences. Real-data approval,
 ingest holds, case capacity, independent labeling and longitudinal sequence gates
 still apply. An API failure is shown as an error, not as an empty queue.
 
+At the owner's request, the waiting card has one **Open the practice case**
+button and no Refresh action. Its compact padding, small status icon and
+left-aligned text use scoped styles shared by home and the empty labeling view.
+Other error-retry controls retain their existing behavior.
+
 The assignment requirement covers synthetic and real cases, both labeling draws,
 direct case/reveal/answer/prelabel/submission routes, chart images, single and
 paired review, legacy tiered QA, environment annotations and new paid review
@@ -94,7 +99,10 @@ require explicit reassignment. Existing paid sessions can resume and close.
 - Browser coverage: **12 passed**, including desktop/mobile empty states,
   welcome completion, practice/guide/community access, assigned Start/Continue,
   assigned review cards, pending single review and queue failures.
-- Frontend/DOM follow-up: **161 passed**. Earlier broader frontend run: 251 passed.
+- Frontend/DOM follow-up after the waiting-card refinement: **252 passed**.
+  All **12 browser scenarios** were rerun, including both practice buttons and
+  confirmation that waiting cards contain no Refresh action. Desktop and mobile
+  screenshots were regenerated and visually inspected.
 - Review, routing and payment follow-up: **165 passed**.
 - CI discovery: **21 passed**; both new test files are auto-discovered.
 - Broader affected suite: **3,492 passed, 1 skipped**, across 161 test files
@@ -121,6 +129,9 @@ Independent audit report, after the final image correction:
 The auditor separately confirmed that the frozen backup exactly matches each
 original inventory, the baseline source is exactly `b02a818`, and candidate and
 restored-candidate startup match unchanged-main startup without a field allowance.
+The final waiting-card refinement was independently reviewed as well: no
+actionable findings; syntax and diff checks passed. Its scoped markup/styles
+preserve timer cleanup, practice replay and existing error retries.
 
 ## Release boundary
 
