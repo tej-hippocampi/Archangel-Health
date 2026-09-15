@@ -100,6 +100,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from asclepius import capabilities as _caps
+from asclepius import case_access as _case_access
 from asclepius import compensation
 from asclepius import referrals as _referrals
 
@@ -728,7 +729,7 @@ def open_session(store, *, user_id: str, kind: str) -> Dict[str, Any]:
     paid even though nobody closed it.
     """
     kind = (kind or SESSION_KIND_REVIEW).strip() or SESSION_KIND_REVIEW
-    _authorize_session(store, user_id=user_id, kind=kind)
+    user = _authorize_session(store, user_id=user_id, kind=kind)
     now = _now()
 
     fresh = []
@@ -752,6 +753,14 @@ def open_session(store, *, user_id: str, kind: str) -> Dict[str, Any]:
 
     if live is not None:
         return _session_view(store, live, existing_session=True)
+
+    # Finalize stale sessions first, then gate every NEW session. A stale row
+    # must not let an unassigned reviewer start another paid session, while a
+    # still-live session remains resumable across an assignment change.
+    if not _case_access.can_start_review_session(store, user):
+        raise PaymentsDenied(
+            "assignment_required",
+            "An administrator must assign review work before you can start a session.")
 
     session_id = _new_id("ws")
     min_seconds = tr_min_seconds()

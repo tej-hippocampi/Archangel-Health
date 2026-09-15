@@ -297,10 +297,11 @@
     if (drawing) return;
     drawing = true;
     var gen = GENERATION;
+    var statsError = null;
     renderLoading();
     Promise.all([
       api('/review/pair/next' + (PREVIEW ? '?preview=true' : '')),
-      api('/review/stats').catch(function () { return null; }),
+      api('/review/stats').catch(function (err) { statsError = err; return null; }),
     ]).then(function (results) {
       // AFTER the staleness check, not before. `drawing` belongs to whichever
       // generation is currently drawing; a stale reply clearing it would unlock
@@ -340,7 +341,12 @@
       }
       STATS = results[1];
       resetReview();
-      if (!PAIR) { stopSession('queue_empty'); renderEmpty(results[0].message); return; }
+      if (!PAIR) {
+        stopSession('queue_empty');
+        if (statsError) renderFatal('We could not load your review queue. Please try again.');
+        else renderEmpty();
+        return;
+      }
       renderReview();
       startClock();
     }).catch(function (err) {
@@ -409,11 +415,14 @@
           'Retry')))));
   }
 
-  function renderEmpty(message) {
+  function renderEmpty() {
     stopClock();
+    var pending = STATS && (Number(STATS.unreviewed || 0) > 0 || Number(STATS.in_review || 0) > 0);
     var pad = h('div', { class: 'asc-card-pad' },
       h('div', { class: 'asc-empty' },
-        h('p', {}, message || 'No cases awaiting review.'),
+        h('h3', {}, pending ? 'Your review assignment is being prepared' : 'You’re all set.'),
+        h('p', {}, pending ? 'We’ll notify you when your case is ready for review.'
+          : 'No cases ready for review just yet. We’ll notify you when a case is ready for you.'),
         h('div', { class: 'asc-rv-actions asc-rv-actions-center' },
           h('button', { class: 'asc-btn asc-btn-primary', type: 'button', onClick: loadNext },
             'Check again'))));

@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
+from asclepius import case_access as asc_case_access
 from asclepius import label_view as asc_label_view
 from asclepius import review as asc_review
 from asclepius import routing as asc_routing
@@ -114,6 +115,18 @@ def _is_preview_operator(user: Dict[str, Any]) -> bool:
 
 def _store():
     return get_store()
+
+
+def _require_assigned_review(store, task_id, reviewer, claim):
+    """A live held claim may finish even if its assignment changes meanwhile."""
+    held = (claim["status"] == "in_review" and not claim["expired"]
+            and claim["holder"] == reviewer["id"])
+    if (asc_case_access.assignment_required(reviewer) and not held
+            and not asc_case_access.has_assignment(
+                store, task_id, reviewer["id"], roles=("review",))):
+        raise HTTPException(
+            status_code=403,
+            detail="An administrator must assign this case to you for review.")
 
 
 # ─── Off-request routing sweep (FIX A A-3.4) ──────────────────────────────────
@@ -211,11 +224,15 @@ async def review_me(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
 
 @router.get("/api/asclepius/review/stats")
 async def review_stats(_reviewer: Dict[str, Any] = Depends(require_reviewer)):
-    stats = _store().review_queue_stats()
+    scope = {}
+    if asc_case_access.assignment_required(_reviewer):
+        scope = {"user_id": _reviewer["id"], "specialty": _reviewer.get("specialty"),
+                 "lease_minutes": asc_review.review_lease_minutes()}
+    stats = _store().review_queue_stats(**scope, predicate=asc_review.needs_review)
     # PRD R: the phases a TR can actually act on, alongside the submission-level
     # counts the single-submission flow still reports. Merged rather than
     # replaced — the old keys have readers.
-    stats.update(_store().review_pair_queue_stats())
+    stats.update(_store().review_pair_queue_stats(**scope))
     return stats
 
 
@@ -273,7 +290,8 @@ async def next_review_pair(
     seen: set = set()
     for _ in range(5):  # claim race: lose the CAS -> draw the next candidate
         task = store.next_review_pair_for(
-            reviewer["id"], specialty=reviewer.get("specialty"), lease_minutes=lease)
+            reviewer["id"], specialty=reviewer.get("specialty"), lease_minutes=lease,
+            assignment_only=False if preview else None)
         if task is None:
             # ``preview`` rides on every response, not only the ones carrying a
             # pair: the client keeps the banner up across an empty queue, and a
@@ -366,6 +384,7 @@ async def next_review_pair(
 @router.get("/api/asclepius/review/next")
 async def next_review(
     background: BackgroundTasks = None,
+    preview: bool = Query(False),
     reviewer: Dict[str, Any] = Depends(require_reviewer),
 ):
     """Draw + claim the oldest reviewable submission for this reviewer.
@@ -375,11 +394,15 @@ async def next_review(
     concurrently can never hold the same submission. The served payload is the
     blinded whitelist view — no labeler identity, asserted by test (PRD A §4)."""
     store = _store()
+    forced_preview = _is_preview_operator(reviewer)
+    preview = bool(preview) or forced_preview
+    if preview and not (reviewer.get("role") in _OPERATOR_ROLES or forced_preview):
+        raise HTTPException(status_code=403, detail="Preview draws are for operators.")
     # The double-label routing sweep is OFF the request's critical path
     # (FIX A A-3.4): it is throttled to at most once per interval and handed to
     # a background task, so a reviewer's draw never waits on it and it cannot
     # monopolize the single SQLite writer that labeler submissions also need.
-    if background is not None and _sweep_due():
+    if background is not None and not preview and _sweep_due():
         background.add_task(_run_sweep)
 
     lease = asc_review.review_lease_minutes()
@@ -392,7 +415,8 @@ async def next_review(
             predicate=asc_review.needs_review,
             # Declined submissions are marked so they stop re-occupying the scan
             # window on every future draw (A-3.3).
-            persist_routing_decision=True,
+            persist_routing_decision=not preview,
+            assignment_only=False if preview else None,
         )
         # Belt to A-3.2's braces: never revisit a candidate within one draw, so
         # no single row can consume all five attempts.
@@ -401,9 +425,12 @@ async def next_review(
         if sub is not None:
             seen.add(sub["submission_id"])
         if sub is None:
-            return {"submission": None, "message": "No submissions awaiting review."}
+            return {"submission": None, "preview": preview,
+                    "message": "No submissions awaiting review."}
         task = store.get_task(sub["task_id"])
         if task is None:
+            if preview:
+                continue
             # Orphaned submission (its task is gone). Releasing to NULL would
             # make it the OLDEST eligible row again and the next iteration would
             # draw the same orphan — five loops, then a permanently contended
@@ -424,6 +451,11 @@ async def next_review(
         labeler = store.get_user_by_id(sub.get("evaluator_id") or "")
         blinded = asc_review.payload_is_blinded(
             view, reviewer_role=reviewer.get("role") or "", labeler=labeler)
+
+        if preview:
+            return {"submission": {**view, "blinded": blinded, "preview": True,
+                                   "draw_token": _preview_draw_token(task["task_id"])},
+                    "preview": True, "session": None}
 
         if not store.claim_submission_for_review(
             sub["submission_id"], reviewer_id=reviewer["id"],
@@ -450,6 +482,7 @@ class ReviewSubmitBody(BaseModel):
     corrections: Optional[Dict[str, Any]] = None
     reviewer_notes: Optional[str] = None
     time_spent_sec: Optional[int] = None
+    draw_token: Optional[str] = None
 
 
 @router.post("/api/asclepius/review/{submission_id}")
@@ -459,9 +492,15 @@ async def submit_review(
     reviewer: Dict[str, Any] = Depends(require_reviewer),
 ):
     store = _store()
+    if (_is_preview_operator(reviewer)
+            or (body.draw_token or "").startswith(PREVIEW_TOKEN_PREFIX)):
+        raise HTTPException(status_code=409, detail="Preview accounts cannot submit reviews.")
     sub = store.get_submission(submission_id)
     if sub is None:
         raise HTTPException(status_code=404, detail="Submission not found")
+    claim = store.review_claim(
+        submission_id, lease_minutes=asc_review.review_lease_minutes())
+    _require_assigned_review(store, sub["task_id"], reviewer, claim)
     # Belt and braces: the queue can never serve own work (enforced in SQL), but
     # a hand-crafted POST must hit the same wall.
     if sub.get("evaluator_id") == reviewer["id"]:
@@ -624,6 +663,9 @@ async def submit_pair_review(
     task = store.get_task(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
+    claim = store.task_review_claim(
+        task_id, lease_minutes=asc_review.review_lease_minutes())
+    _require_assigned_review(store, task_id, reviewer, claim)
 
     subs = [s for s in store.submissions_for_task(task_id) if s.get("verdict")]
     if len(subs) < asc_routing.PAIR_LABELS:

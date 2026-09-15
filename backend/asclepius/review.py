@@ -31,6 +31,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from asclepius import agreement as asc_agreement
 from asclepius import capabilities as asc_caps
+from asclepius import case_access as asc_case_access
 
 # ─── Review vocabulary (PRD A Phase 2) ────────────────────────────────────────
 REVIEW_VERDICTS = ("accept", "accept_with_edits", "reject")
@@ -73,10 +74,7 @@ def double_label_rate() -> float:
 def review_lease_minutes() -> int:
     """How long an ``in_review`` claim holds before the submission re-queues.
     Prevents an abandoned draw from vanishing from the worklist forever."""
-    try:
-        return max(1, int(os.getenv("ASCLEPIUS_REVIEW_LEASE_MIN", "45")))
-    except ValueError:
-        return 45
+    return asc_case_access.review_lease_minutes()
 
 
 def can_review(user: Optional[Dict[str, Any]]) -> bool:

@@ -489,7 +489,7 @@ function getPortalSpecialty() { return 'nephrology'; }
 function setPortalSpecialty() {}
 function sessionHasSurface() { return true; }
 function sessionIsProvisional() { return false; }
-let sessionCan = () => false;
+let sessionCan = (capability) => capability === 'label';
 function provisionalBannerEl() { return null; }
 // Onboarding v2 §6 re-entry: the dashboard shows a quiet "Finish setup · 3 of 6"
 // chip while the walkthrough has open stops. Stubbed to "nothing to finish"
@@ -599,6 +599,18 @@ def test_the_title_reads_start_new_case_with_no_draft():
     out = _dash_harness("renderDashboardView().then(() => {" + _READ_HERO + "});", _ONE_TASK)
     assert out["title"] == "Start new case"
     assert out["ctaText"] == "Start →"
+
+
+def test_cross_version_assignment_does_not_claim_all_real_cases_were_completed():
+    available = {**_ONE_TASK, "served_portal_version": "v3", "continued_from": "v4"}
+    out = _dash_harness("""
+      renderDashboardView().then(() => {
+        out({subtitle: rendered.querySelector('.asc-dash-hero-sub').textContent,
+             note: rendered.querySelector('.asc-dash-hero-note').textContent});
+      });
+    """, available)
+    assert out["subtitle"] == "Synthetic multimodal cases"
+    assert out["note"] == "Your next case is ready in the workflow shown above."
 
 
 def test_the_finish_setup_chip_sits_above_the_dashboard_when_one_is_pending():

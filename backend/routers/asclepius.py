@@ -38,6 +38,7 @@ from asclepius import auth as asc_auth
 from asclepius import auto_generate as asc_auto_generate
 from asclepius import passwords as asc_passwords
 from asclepius import capabilities as asc_caps
+from asclepius import case_access as asc_case_access
 from asclepius import cases as asc_cases
 from asclepius import citations as asc_citations
 from asclepius import corpus as asc_corpus
@@ -1465,6 +1466,7 @@ async def update_my_tutorial(
     """
     store = _store()
     current = store.get_tutorial_state(user["id"])
+    exam = current.get("exam")
     status = current.get("status") or "not_started"
     now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
     action = body.action
@@ -1568,6 +1570,10 @@ async def update_my_tutorial(
         current = {"status": "not_started", "version": None,
                    "gate": current.get("gate")}
 
+    # Replaying practice changes tutorial progress, never the examination's
+    # identity or receipt. Older untagged exam commits also rely on this stamp.
+    if exam is not None:
+        current["exam"] = exam
     store.set_tutorial_state(user["id"], current)
     store.log_event(
         entity_type="user", entity_id=user["id"],
@@ -2780,6 +2786,31 @@ async def get_asset(asset_id: str, user: Dict[str, Any] = Depends(asc_auth.get_c
     # real_deid case, so a non-real-data-approved evaluator must NOT fetch it by id —
     # the wall never depends on the asset_id being unguessable.
     _require_real_data_access({"case_source": ref.get("case_source") or "real_deid"}, user)
+    if asc_case_access.assignment_required(user):
+        def can_open(task_id):
+            task = store.get_task(task_id)
+            if not task:
+                return False
+            # A review draw already authorized this chart point. Its active
+            # claim preserves image access while finishing the review, even
+            # after rerouting; reviewers need not have labeled earlier points.
+            if (asc_caps.can(user, asc_caps.REVIEW)
+                    and asc_case_access.has_live_review_claim(store, task_id, user["id"])):
+                return True
+            try:
+                _require_distribution(store, task, user, roles=_READ_ROLES)
+                _require_trajectory_sequence(store, task, user)
+            except HTTPException as denied:
+                if denied.status_code not in (403, 409):
+                    raise
+                return False
+            return True
+        permitted = can_open(ref.get("task_id") or "")
+        if not permitted:
+            permitted = any(can_open(tid) for tid in asc_case_access.accessible_asset_task_ids(
+                store, asset_id, ref["sha256"], user["id"]))
+        if not permitted:
+            raise HTTPException(status_code=403, detail="This image is not part of an assigned case you can open.")
     try:
         data, mime = asc_assets.load_asset(ref)
     except asc_assets.AssetError:
@@ -3538,6 +3569,33 @@ def require_current_agreement(
     )
 
 
+def _assigned_task_rows(store, user, portal_version, specialty, limit):
+    """Serve only routed work, without generating or seeding an empty queue.
+
+    Check other assigned case types when the selected queue is empty, so a new
+    doctor's default synthetic tab does not conceal a routed real case. All
+    ordinary quality, capacity, specialty and real-data gates still apply.
+    """
+    selected = portal_version if portal_version in SINGLE_TURN_PORTAL_VERSIONS else "v3"
+    versions = list(dict.fromkeys([selected, "v4", "v3", "v5"]))
+    for version in versions:
+        if version in ("v4", "v5") and not user.get("real_data_approved"):
+            continue
+        rows = store.eligible_tasks_for_evaluator(
+            evaluator_id=user["id"], specialty=specialty or user.get("specialty"),
+            # The V3 hard-only preference must not hide a case the admin
+            # deliberately assigned. Generation quality gates stay upstream.
+            hard_only=False,
+            real_only=version == "v4", trajectory_only=version == "v5",
+            multimodal_only=False,
+            require_measured_difficulty=require_measured_difficulty(),
+            min_empirical_difficulty=min_empirical_difficulty(), limit=limit,
+        )
+        if rows:
+            return rows, version
+    return [], None
+
+
 @router.get("/tasks/next")
 async def next_task(
     portal_version: Optional[str] = Query(
@@ -3560,6 +3618,13 @@ async def next_task(
     sel_specialty = specialty.strip().lower() if specialty else None
     if sel_specialty and not asc_specialties.is_enabled(sel_specialty):
         sel_specialty = None
+    if asc_case_access.assignment_required(user):
+        rows, served_version = _assigned_task_rows(store, user, portal_version, sel_specialty, 1)
+        task = rows[0] if rows else None
+        served = _derive_portal_version(task, served_version) if task else None
+        return {"task": _blind_task(task) if task else None,
+                "served_portal_version": served,
+                "continued_from": portal_version if served and portal_version != served else None}
     # When the V3 picker names a specialty, guarantee its authored GOLD cases are
     # present (idempotent, no LLM) so the picker always serves that specialty's real
     # cases regardless of the multimodal-preference/autofill settings (PRD §1/§7).
@@ -3666,6 +3731,21 @@ async def available_tasks(
     if sel and not asc_specialties.is_enabled(sel):
         sel = None
     serve_specialty = sel or (user.get("specialty") or None)
+    if asc_case_access.assignment_required(user):
+        rows, served_version = _assigned_task_rows(store, user, portal_version, serve_specialty, limit)
+        served = _derive_portal_version(rows[0], served_version) if rows else None
+        keys = ("task_id", "specialty", "difficulty", "modality", "case_source",
+                "created_at", "trajectory_id", "sequence_index")
+        longitudinal = 0
+        if user.get("real_data_approved"):
+            longitudinal = store.count_eligible_tasks_for_evaluator(
+                evaluator_id=user["id"], specialty=serve_specialty, trajectory_only=True,
+                require_measured_difficulty=require_measured_difficulty(),
+                min_empirical_difficulty=min_empirical_difficulty())
+        return {"tasks": [{key: t.get(key) for key in keys} for t in rows],
+                "count": len(rows), "longitudinal_available": longitudinal,
+                "served_portal_version": served,
+                "continued_from": portal_version if served and portal_version != served else None}
     hard_only = portal_version == "v3" and hard_only_generation()
     real_only = portal_version == REAL_CASE_PORTAL_VERSION
     trajectory_only = portal_version == LONGITUDINAL_PORTAL_VERSION
@@ -4028,6 +4108,17 @@ def _require_distribution(store: Any, task: Dict[str, Any], user: Dict[str, Any]
     it is for the sequence gate — an admin opening an unrouted point destroys no
     physician's prediction.
     """
+    if asc_auth.owns_this_exam_task(user, task["task_id"]):
+        return
+    if asc_case_access.assignment_required(user):
+        if asc_case_access.has_assignment(store, task["task_id"], user["id"], roles):
+            return
+        if "label" in roles and asc_case_access.has_started_label(store, task["task_id"], user["id"]):
+            return
+        raise HTTPException(status_code=403, detail={
+            "error": "not_routed_to_you",
+            "message": "This case has not been assigned to you. We’ll notify you when a case is ready.",
+            "task_id": task["task_id"]})
     if (task.get("distribution") or "open") == "open":
         return
     if user.get("role") in ("admin", "qa_reviewer"):
@@ -4232,6 +4323,7 @@ async def reveal_task_answers(
             "text": text,
             "kind": kind,
             "portal_version": pv,
+            "purpose": "credentialing_exam" if asc_auth.owns_this_exam_task(user, task_id) else "labeling",
             "evidence_anchor": body.evidence_anchor.model_dump() if body.evidence_anchor else None,
             # Multi-anchor (BUG-3b): persist the full citation list on the committed
             # answer too, else packaging (which reads the AUTHORITATIVE commit, not
@@ -4617,6 +4709,13 @@ async def get_trajectory(
         raise HTTPException(status_code=404, detail="Trajectory not found")
     # The V4 wall applies to the walk exactly as it applies to each case in it.
     _require_real_data_access(points[0], user)
+    permitted = None
+    if asc_case_access.assignment_required(user):
+        permitted = {p["task_id"] for p in points
+                     if asc_case_access.has_assignment(store, p["task_id"], user["id"], _READ_ROLES)
+                     or asc_case_access.has_started_label(store, p["task_id"], user["id"])}
+        if not permitted:
+            raise HTTPException(status_code=403, detail="This chart walk has not been assigned to you.")
     progress = store.evaluator_trajectory_progress(
         trajectory_id=trajectory_id, evaluator_id=user["id"])
     answered = set(progress.get("answered_task_ids") or ())
@@ -4633,8 +4732,9 @@ async def get_trajectory(
                 # readable, the next unanswered one is open, everything past it is
                 # sealed. Derived from the same rule the gate enforces so the UI
                 # cannot advertise a card the next click refuses.
-                "openable": (p["task_id"] in answered
-                             or p["task_id"] == progress.get("next_task_id")),
+                "openable": ((permitted is None or p["task_id"] in permitted)
+                             and (p["task_id"] in answered
+                                  or p["task_id"] == progress.get("next_task_id"))),
                 # A failed successor does not invalidate a stored outcome window.
                 "outcome_verifiable": asc_trajectory.outcome_verifiable(p,
                     has_later_point=any(q.get("sequence_index", -1) > p.get("sequence_index", -1)
@@ -5377,6 +5477,8 @@ async def rubric_suggest(
     _require_real_data_access(task, user)
     from asclepius.rubric import propose_rubric
 
+    _require_distribution(store, task, user)
+    _require_trajectory_sequence(store, task, user)
     criteria = propose_rubric(task, body.model_dump())
     return {"criteria": criteria, "axes": list(RUBRIC_AXES)}
 
@@ -5586,7 +5688,8 @@ async def list_submissions(
     limit: int = 500,
     _qa: Dict[str, Any] = Depends(asc_auth.require_qa),
 ):
-    subs = _store().list_submissions(status=status, specialty=specialty, limit=limit)
+    subs = _store().list_submissions(status=status, specialty=specialty, limit=limit,
+        assigned_reviewer_id=_qa["id"] if asc_case_access.assignment_required(_qa) else None)
     return {"submissions": subs}
 
 
@@ -5598,12 +5701,19 @@ async def get_submission(
     sub = store.get_submission(submission_id)
     if not sub:
         raise HTTPException(status_code=404, detail="Submission not found")
+    _require_qa_assignment(store, sub["task_id"], _qa)
     sub["records"] = store.records_for_submission(submission_id)
     sub["task"] = store.get_task(sub["task_id"])
     return sub
 
 
 # ─── QA ─────────────────────────────────────────────────────────────────────--
+def _require_qa_assignment(store, task_id, user):
+    if (asc_case_access.assignment_required(user)
+            and not asc_case_access.has_assignment(store, task_id, user["id"], ("review",))):
+        raise HTTPException(status_code=403, detail="This case has not been assigned to you for review.")
+
+
 def _contributor_identity(store: Any, sub: Dict[str, Any]) -> Dict[str, Any]:
     """Resolve the labelling contributor's real NAME, ORGANIZATION, and EMAIL for
     an admin/QA view. This is admin-only display data — it is NEVER copied onto a
@@ -5630,7 +5740,8 @@ def _contributor_identity(store: Any, sub: Dict[str, Any]) -> Dict[str, Any]:
 @router.get("/qa/queue")
 async def qa_queue(_qa: Dict[str, Any] = Depends(asc_auth.require_qa)):
     store = _store()
-    subs = store.list_submissions(status="needs_qa")
+    subs = store.list_submissions(status="needs_qa",
+        assigned_reviewer_id=_qa["id"] if asc_case_access.assignment_required(_qa) else None)
     for s in subs:
         # Admin/QA-only identity block (name/org/email). Not persisted, not exported.
         s["contributor"] = _contributor_identity(store, s)
@@ -5643,7 +5754,8 @@ async def qa_approve_all(reviewer: Dict[str, Any] = Depends(asc_auth.require_qa)
     to ``export_ready``. Lets a solo admin clear the QA backlog and export
     immediately. Each approval is logged with the reviewer for the audit trail."""
     store = _store()
-    pending = store.list_submissions(status="needs_qa")
+    pending = store.list_submissions(status="needs_qa",
+        assigned_reviewer_id=reviewer["id"] if asc_case_access.assignment_required(reviewer) else None)
     approved = 0
     for sub in pending:
         asc_pipeline.apply_qa_decision(
@@ -5666,6 +5778,7 @@ async def qa_decision(
         raise HTTPException(status_code=404, detail="Submission not found")
     if body.decision not in ("approve", "reject"):
         raise HTTPException(status_code=400, detail="decision must be 'approve' or 'reject'")
+    _require_qa_assignment(store, sub["task_id"], reviewer)
     new_status = asc_pipeline.apply_qa_decision(
         store, sub, decision=body.decision, reviewer_id=reviewer["id"], notes=body.notes
     )

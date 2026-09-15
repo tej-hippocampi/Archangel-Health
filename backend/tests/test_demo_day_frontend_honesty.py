@@ -58,7 +58,7 @@ def test_a_failed_queue_load_renders_an_error_not_a_reassuring_zero():
     # The error branch must be reached BEFORE the empty branch, or the empty
     # state wins whenever the queue came back undefined.
     err = code.index("if (queueError)")
-    empty = code.index("renderDashboardEmpty(specLabel)")
+    empty = code.index("renderDashboardEmpty()")
     assert err < empty, "the error state must take precedence over the empty state"
 
 
@@ -67,7 +67,7 @@ def test_the_empty_state_still_exists_for_an_actually_empty_queue():
     and they must stay distinguishable in the other direction too."""
     code = _code(_PORTAL)
     assert "function renderDashboardEmpty(" in code
-    assert "You are all set" in code
+    assert "You’re all set." in code
 
 
 def test_the_dashboard_error_shows_the_servers_own_reason():
