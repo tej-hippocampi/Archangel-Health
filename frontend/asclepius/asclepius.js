@@ -3964,6 +3964,11 @@
     };
   }
   function initDraftForTask(task) {
+    // Busy flags belong to the previous workspace, just like its requests.
+    // A paused exam may still have a reveal/split response in flight.
+    state._revealing = false;
+    state.splitting = false;
+    state.splitAttemptedFor = null;
     let draft = null;
     const storageKey = draftKey(task.task_id);
     // Exam drafts belong to this account, realm and attempt. Leave old unowned
@@ -4615,9 +4620,10 @@
     const rubric = (state.draft.rubric || []).filter((c) => (c.text || '').trim());
     if (!rubric.length) return { ok: true };
     if (hasCriticalNegative(rubric)) return { ok: true };
-    // §12: name the control the physician actually taps: "must never", set
-    // Critical.
-    return { ok: false, msg: 'mark one “must never” criterion as Critical (−8 to −10) to continue' };
+    const hasNegative = rubric.some((c) => Number(c.points) < 0);
+    return { ok: false, msg: hasNegative
+      ? 'You have a “must never” criterion. Mark one as Critical (−8 to −10) to continue.'
+      : 'Add a “must never” criterion and mark it Critical (−8 to −10) to continue.' };
   }
 
   // ─── Rubric Rigor (§C) + Model-Failure Taxonomy (§D): V3/V4 only ──────────
@@ -6287,11 +6293,18 @@
     (state.task.candidate_answers || []).forEach((c) => { if (byId[c.id] != null) c.text = byId[c.id]; });
   }
 
+  // A response belongs to the workspace that requested it. Skipping practice
+  // can open an exam while reveal, reasoning, or submission is still in flight.
+  function workspaceRequestIsCurrent(task, draft, tutorial) {
+    return state.task === task && state.draft === draft && state.tutorial === tutorial;
+  }
+
   // Commit the blind independent answer server-side and reveal the AI answers in
   // one gated step (v2 anti-peeking). This is the ONLY way to obtain the answer
   // text under withholding; the server records the independent answer as
   // pre-reveal and treats it as authoritative at packaging.
   async function revealAnswers() {
+    const task = state.task, draft = state.draft, tutorial = state.tutorial;
     const ia = state.draft.independent_answer;
     // Tutorial: same non-empty-instinct rule, but against the virtual practice
     // case (no independent_commits row is written server-side).
@@ -6299,7 +6312,7 @@
       const res = await api('/tutorial/reveal', {
         method: 'POST', body: { text: (ia.text || '').trim() },
       });
-      mergeAnswers(res.answers);
+      if (workspaceRequestIsCurrent(task, draft, tutorial)) mergeAnswers(res.answers);
       return;
     }
     const res = await api('/tasks/' + state.draft.task_id + '/reveal', {
@@ -6315,7 +6328,7 @@
         portal_version: draftVersion(),
       },
     });
-    mergeAnswers(res.answers);
+    if (workspaceRequestIsCurrent(task, draft, tutorial)) mergeAnswers(res.answers);
   }
 
   // Re-fetch the answer text when resuming into the compare stage (e.g. a refresh)
@@ -6329,6 +6342,7 @@
 
   async function commitIndependentAnswerAndReveal() {
     const d = state.draft;
+    const task = state.task, tutorial = state.tutorial;
     if (!(d.independent_answer.text || '').trim()) return;
     // Re-entrancy guard: V3's Enter-to-reveal can fire again while the reveal POST
     // is in flight (the disabled button doesn't gate the keydown path). Without
@@ -6341,11 +6355,13 @@
     try {
       await revealAnswers();
     } catch (e) {
+      if (!workspaceRequestIsCurrent(task, d, tutorial)) return;
       state._revealing = false;
       if (btn) { btn.disabled = false; btn.textContent = 'Reveal AI answers →'; }
       if (e.status !== 401) toast('Could not reveal the AI answers: ' + e.message, 'error');
       return;  // stay on Stage 2 rather than reveal blank answers
     }
+    if (!workspaceRequestIsCurrent(task, d, tutorial)) return;
     d.independent_answer.captured_at = new Date().toISOString();
     d.stage = 'compare';
     saveDraft();
@@ -7761,7 +7777,14 @@
     const stemToggle = h('button', {
       class: 'asc-rubric-stem-toggle', type: 'button',
       'aria-label': 'Switch between must and must never',
-      onClick: () => { setPoints(mag(), !neg()); ta.focus(); },
+      onClick: () => {
+        // "Must never" describes an auto-fail in the instructions. Start a
+        // newly selected one at Critical so that this action meets that rule.
+        // Existing drafts and deliberate slider/tier choices remain intact.
+        const negative = !neg();
+        setPoints(negative ? Math.max(mag(), TIER_DEFAULT_PTS.critical) : mag(), negative);
+        ta.focus();
+      },
     }, 'must');
     function paintAll() {
       slider.value = String(mag());
@@ -7870,7 +7893,9 @@
             'A “must never” marked critical is the auto-fail: the grader hard-fails on it.',
           ])),
         h('div', { class: 'asc-rubric-scale' }, slider, ptsLabel, autoFail)),
-      tierRow));
+      tierRow,
+      h('p', { class: 'asc-help' },
+        'Selecting “must never” starts at Critical. You can adjust the weight; keep at least one “must never” Critical.')));
     card.appendChild(h('div', { class: 'asc-field' },
       // §11: the label states the job and the options explain themselves, so
       // the "Axes" tooltip that used to translate the enum is gone.
@@ -7889,6 +7914,7 @@
     const d = state.draft;
     const card = h('div', { class: 'asc-rubric-focus' });
     const named = crits.filter((c) => (c.text || '').trim());
+    const gate = rubricGate();
     card.appendChild(h('div', { class: 'asc-rubric-progress' },
       named.length ? (named.length + ' criteria in the guide') : 'No criteria yet'));
     if (named.length) {
@@ -7901,7 +7927,17 @@
           h('button', {
             class: 'asc-btn-link', type: 'button',
             onClick: () => { d.rubricCursor = crits.indexOf(c); saveDraft(); renderRationale(); },
-          }, 'edit')));
+          }, 'edit'),
+          !gate.ok && !pos ? h('button', {
+            class: 'asc-btn asc-btn-ghost asc-btn-sm asc-rubric-make-critical', type: 'button',
+            'aria-label': 'Mark Critical: ' + c.text,
+            onClick: () => {
+              c.points = -TIER_DEFAULT_PTS.critical;
+              c.tier = 'critical';
+              c.critical = true;
+              saveDraft(); renderRationale(); updateSubmitState();
+            },
+          }, 'Mark Critical (−9)') : null));
       });
       card.appendChild(ul);
       const rc = rubricCompleteness(d.rubric);
@@ -7915,16 +7951,18 @@
       card.appendChild(h('p', { class: 'asc-help' },
         'Add your own criteria below, or finish without a scoring guide.'));
     }
+    const needsNegative = !gate.ok && !named.some((c) => Number(c.points) < 0);
     const addBtn = h('button', {
       class: 'asc-btn asc-btn-subtle', type: 'button',
       onClick: () => {
-        d.rubric.push({ text: '', points: 5, axes: ['accuracy'], axis: 'accuracy', source: 'manual' });
+        d.rubric.push(needsNegative
+          ? { text: '', points: -9, tier: 'critical', critical: true, axes: ['safety'], axis: 'safety', source: 'manual' }
+          : { text: '', points: 5, axes: ['accuracy'], axis: 'accuracy', source: 'manual' });
         d.rubricCursor = d.rubric.length - 1;
         saveDraft(); renderRationale();
       },
-    }, '+ Add your own (optional)');
+    }, needsNegative ? '+ Add a must never criterion' : '+ Add your own (optional)');
     const hint = h('span', { class: 'asc-submit-hint' });
-    const gate = rubricGate();
     if (!gate.ok) hint.textContent = gate.msg;
     const finish = h('button', {
       class: 'asc-btn asc-btn-primary', type: 'button', disabled: !gate.ok,
@@ -8368,6 +8406,7 @@
   // offline the steps arrive unlabeled and the doctor grades manually; on
   // failure the doctor just adds steps.
   async function autoSplitChosen(listId, force) {
+    const task = state.task, draft = state.draft, tutorial = state.tutorial;
     const text = chosenRefinedText().trim();
     const startedChosen = state.draft.chosen_id;
     if (!text || state.splitting) return;
@@ -8392,7 +8431,8 @@
       });
       // Discard if the doctor changed verdict/side while the split was in flight,
       // so results never land on a different answer. Write to the CURRENT array.
-      if (state.draft.stage === 'compare' && state.draft.chosen_id === startedChosen) {
+      if (workspaceRequestIsCurrent(task, draft, tutorial)
+          && state.draft.stage === 'compare' && state.draft.chosen_id === startedChosen) {
         const steps = activeSteps();
         steps.length = 0;
         (res.steps || []).forEach((s) => {
@@ -8404,7 +8444,11 @@
         saveDraft();
       }
     } catch (e) { /* graceful: leave steps for manual entry */ }
-    finally { state.splitting = false; repaintSteps(listId); updateSubmitState(); }
+    finally {
+      if (workspaceRequestIsCurrent(task, draft, tutorial)) {
+        state.splitting = false; repaintSteps(listId); updateSubmitState();
+      }
+    }
   }
 
   // Route step-list repaints to the version-appropriate renderer: V3/V4 use the
@@ -10567,7 +10611,7 @@
       intro: 'Your scoring guide becomes a reusable grader for future models.',
       steps: [
         { id: 'ch5-rubric', target: TOUR_TARGETS.rubric,
-          copy: 'Add scoring criteria: include at least one critical negative.',
+          copy: 'Add scoring criteria. Choose “must never” for an action that makes the answer unsafe, and keep it Critical.',
           advanceOn: { state: () => substageComplete('rubric') },
           autofill: () => {
             const d = state.draft;
@@ -10602,7 +10646,9 @@
   // ch4-reasoning's autofill needs to wait out the async auto-split (heuristic
   // or LLM-pregraded) before confirm buttons exist: retries briefly rather
   // than assuming they're already on screen.
-  function autofillReasoningSteps(triesLeft) {
+  function autofillReasoningSteps(triesLeft, tutorial) {
+    const run = tutorial || state.tutorial;
+    if (!run || state.tutorial !== run) return;
     triesLeft = triesLeft == null ? 15 : triesLeft;
     let btn;
     let guard = 0;
@@ -10611,7 +10657,7 @@
     }
     const cont = document.querySelector('#ascStepsCont');
     if (cont && !cont.disabled) { cont.click(); return; }
-    if (triesLeft > 0) setTimeout(() => autofillReasoningSteps(triesLeft - 1), 200);
+    if (triesLeft > 0) setTimeout(() => autofillReasoningSteps(triesLeft - 1, run), 200);
   }
 
   const TUTORIAL_STEPS = [];
@@ -10646,6 +10692,7 @@
 
   function tutPersistStep(stepId) {
     if (!state.tutorial || state.tutorial.replay) return;
+    const tutorial = state.tutorial;
     // resolveTourIndex walks the pointer back to the real blocker while the
     // fast-forward loop walks it on; when they disagree the pointer can settle
     // on the same step repeatedly. Only write when the position actually
@@ -10654,8 +10701,9 @@
     state.tutorial.persistedStep = stepId;
     clearTimeout(_tourPatchTimer);
     _tourPatchTimer = setTimeout(() => {
+      if (state.tutorial !== tutorial) return;
       api('/me/tutorial', { method: 'PATCH', body: { action: 'advance', step: stepId } })
-        .then((u) => { state.user = u; })
+        .then((u) => { if (state.tutorial === tutorial) state.user = u; })
         .catch(() => { /* position sync is best-effort */ });
     }, 600);
   }
@@ -10813,6 +10861,11 @@
   }
 
   function teardownTutorial() {
+    if (state.tutorial) {
+      state._revealing = false;
+      state.splitting = false;
+      state.submitting = false;
+    }
     if (_tourObserver) { _tourObserver.disconnect(); _tourObserver = null; }
     window.removeEventListener('resize', scheduleTutTick);
     window.removeEventListener('scroll', scheduleTutTick, true);
@@ -10969,8 +11022,9 @@
   function positionPop(r, pop) {
     const vw = window.innerWidth, vh = window.innerHeight;
     pop.style.transform = '';
-    const popW = Math.min(340, vw - 24);
-    pop.style.width = popW + 'px';
+    pop.style.width = Math.min(340, vw - 24) + 'px';
+    // Mobile CSS may expand the tooltip; position its actual rendered width.
+    const popW = pop.getBoundingClientRect().width;
     const below = r.bottom + TOUR_PAD + 12;
     const popH = pop.offsetHeight || 120;
     let top;
@@ -11050,7 +11104,7 @@
         } }, 'Skip this step'));
     }
     row.appendChild(h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button',
-      onClick: confirmSkipTutorial }, state.user && state.user.verification_status === 'approved' ? 'Skip practice case walkthrough' : 'Leave for now'));
+      onClick: confirmSkipTutorial }, tutorialExitLabel()));
     pop.appendChild(row);
     const frac = h('div', { class: 'asc-tour-bar' });
     frac.appendChild(h('div', { class: 'asc-tour-bar-fill',
@@ -11070,15 +11124,10 @@
         'A guided walk through labeling one case: read it, give your take, compare two AI answers, '
         + 'say what’s right and wrong, score it. Then you’ll see how your reads compare with the '
         + 'reference panel. Nothing here is recorded or sold.'),
-      h('div', { style: 'display:flex;gap:10px;align-items:center' },
+      h('div', { style: 'display:flex;flex-wrap:wrap;gap:10px;align-items:center' },
         h('button', { class: 'asc-btn asc-btn-primary', type: 'button', onClick: proceed }, 'Start the case →'),
-        h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button', onClick: () => {
-          // Keep the approved user's skip button available until the write
-          // succeeds. A failed request must be retryable on this same screen.
-          if (!state.user || state.user.verification_status !== 'approved') overlay.remove();
-          confirmSkipTutorial();
-        } },
-          state.user && state.user.verification_status === 'approved' ? 'Skip practice case walkthrough' : 'Leave for now')));
+        h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button',
+          onClick: confirmSkipTutorial }, tutorialExitLabel())));
     function proceed() {
       state.tutorial.welcomed = true;
       overlay.remove();
@@ -11109,16 +11158,18 @@
     //
     // A replay is a fresh attempt by definition, so that one still clears.
     if (opts.replay) clearDraft(TUTORIAL_TASK_ID);
-    if (!opts.replay) {
-      api('/me/tutorial', { method: 'PATCH', body: { action: 'start' } })
-        .then((u) => { state.user = u; }).catch(() => { /* best-effort */ });
-    }
     // Step objects are module-level and shared across runs: a stale wait clock
     // or scroll marker from a previous run would misfire on this one.
     TUTORIAL_STEPS.forEach((s) => { s._waitSince = null; });
     _tourScrolledFor = null;
     state.tutorial = { active: true, replay: !!opts.replay, idx: 0,
                        welcomed: false, done: {}, assisted: {} };
+    const tutorial = state.tutorial;
+    if (!opts.replay) {
+      api('/me/tutorial', { method: 'PATCH', body: { action: 'start' } })
+        .then((u) => { if (state.tutorial === tutorial) state.user = u; })
+        .catch(() => { /* best-effort */ });
+    }
     state.portalChosen = true;
     state.specialtyChosen = true;
     const wrap = h('div', { class: 'asc-wrap' },
@@ -11129,6 +11180,7 @@
     try {
       data = await api('/tutorial/task');
     } catch (e) {
+      if (state.tutorial !== tutorial) return;
       // Never trap the doctor: fall back to the dashboard if the practice
       // case cannot load. Not the experience/specialty picker: that choice is
       // ours to make, not the doctor's.
@@ -11141,6 +11193,7 @@
       }
       return;
     }
+    if (state.tutorial !== tutorial) return;
     state.task = data.task;
     initDraftForTask(state.task);
     // A STRUCTURALLY broken draft is repaired; a valid in-progress one is
@@ -11158,11 +11211,26 @@
     tutTick();
   }
 
-  // Approved physicians can leave the entire practice immediately. Applicants
-  // keep the optional exercise's existing leave confirmation and saved draft.
+  function canSkipPracticeToExam() {
+    return sessionIsProvisional() && !isAdvisor() && credentialingStage() !== 'exam_submitted';
+  }
+
+  function tutorialExitLabel() {
+    if (canSkipPracticeToExam()) return credentialingStage() === 'exam_in_progress'
+      ? 'Skip practice & continue examination →' : 'Skip practice & take examination →';
+    return state.user && state.user.verification_status === 'approved'
+      ? 'Skip practice case walkthrough' : 'Leave for now';
+  }
+
+  // Applicants can go straight to their examination. startExam saves the
+  // practice draft and tears down the tour; it also resumes an existing exam.
+  // Skipping does not submit practice or change its grade or access gate.
   function confirmSkipTutorial() {
+    if (canSkipPracticeToExam()) { startExam(); return; }
     if (state.user && state.user.verification_status === 'approved') { skipPracticeWalkthrough(); return; }
     if (document.getElementById('ascTourSkipConfirm')) return;
+    const welcome = document.getElementById('ascTourInterstitial');
+    if (welcome) welcome.remove();
     // The spotlight box + tooltip sit ABOVE this confirm dialog (z 1200 vs
     // 1000): hide them first, or the old highlight and copy stay pasted on
     // screen behind/around the dialog instead of clearing out of the way.
@@ -11242,6 +11310,7 @@
   }
 
   async function submitTutorialEvaluation() {
+    const task = state.task, draft = state.draft, tutorial = state.tutorial;
     state.submitting = true;
     const btn = document.getElementById('ascSubmit');
     if (btn) { btn.disabled = true; btn.textContent = 'Scoring…'; }
@@ -11254,11 +11323,13 @@
       const body = Object.assign(buildSubmissionPayload(), { assisted: tutAssistedList() });
       res = await api('/tutorial/submit', { method: 'POST', body: body });
     } catch (e) {
+      if (!workspaceRequestIsCurrent(task, draft, tutorial)) return;
       state.submitting = false;
       if (btn) { btn.disabled = false; btn.textContent = 'Submit evaluation'; }
       if (e.status !== 401) toast('Could not score the practice case: ' + e.message, 'error');
       return;
     }
+    if (!workspaceRequestIsCurrent(task, draft, tutorial)) return;
     state.submitting = false;
     if (res.user) state.user = res.user;
     teardownTutorial();
