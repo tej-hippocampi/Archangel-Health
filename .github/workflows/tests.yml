@@ -216,7 +216,7 @@ jobs:
         # it the launch fails and every test in the file SKIPS, which would look
         # green while checking nothing.
         run: python -m playwright install --with-deps chromium
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Build the public site for health-system onboarding checks
@@ -265,7 +265,7 @@ jobs:
         working-directory: landing
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Install the component-test dependencies
