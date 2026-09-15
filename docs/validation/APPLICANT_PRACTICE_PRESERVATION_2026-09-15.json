@@ -1,0 +1,250 @@
+[
+  {
+    "problems": [],
+    "backup_restore_matches": true,
+    "allowed_changes": [
+      "users.tutorial_json",
+      "users.first_run_json"
+    ],
+    "additional_stores_preserved": [
+      "team",
+      "community"
+    ],
+    "case": "test_applicant_can_start_and_resume_examination[1440-False]",
+    "before_sha256": "8eb33120ea1f85481eaab357284004c0ef7c05cb8dbc298ab5a68403a26526e5",
+    "before_tables": 72,
+    "before_rows": 7,
+    "after_sha256": "2f2c54e4ce1e8a491dbe89e4d8eb02b2ad6b3894effa701a6992ab6dd9219a0a",
+    "after_tables": 72,
+    "after_rows": 24,
+    "team_before_sha256": "a84b5c584aa7df9b8d9add86a19b4aafb96130c6860e14feab3854812c4484cd",
+    "team_before_tables": 45,
+    "team_before_rows": 184,
+    "team_after_sha256": "f4ef3563c951fabdba0288da974fbe1d54096598a4b0ebfe501471d1cb984282",
+    "team_after_tables": 45,
+    "team_after_rows": 186,
+    "community_before_sha256": "c0f1a38aec7c97ee6d9a5332ec3702ab08cc384f5a682fbebee590db00adf965",
+    "community_before_tables": 21,
+    "community_before_rows": 1787,
+    "community_after_sha256": "097d523f5b3e5f0882ef4fdc2dcca594a8da031ad3ea4e8f84758a079e3d6405",
+    "community_after_tables": 21,
+    "community_after_rows": 1787
+  },
+  {
+    "problems": [],
+    "backup_restore_matches": true,
+    "allowed_changes": [
+      "users.tutorial_json",
+      "users.first_run_json"
+    ],
+    "additional_stores_preserved": [
+      "team",
+      "community"
+    ],
+    "case": "test_applicant_can_start_and_resume_examination[390-True]",
+    "before_sha256": "05e53ebf7a50381449a0ca0346fcb3e6ff03b269366bda7721492eab476a262a",
+    "before_tables": 72,
+    "before_rows": 7,
+    "after_sha256": "056c8f93d356e47dbb8d1df4e729f763f6316b346e6f30977c1666ccbd1b4201",
+    "after_tables": 72,
+    "after_rows": 25,
+    "team_before_sha256": "25addd4a2cf51ea1e5f7501cec92f174354c11138d7c050b05cab83a5b2eec77",
+    "team_before_tables": 45,
+    "team_before_rows": 184,
+    "team_after_sha256": "d0b65205c0e28e4f6e7fcae20b29c22a892c7964cb1291a869c861a8d5bc5bb4",
+    "team_after_tables": 45,
+    "team_after_rows": 187,
+    "community_before_sha256": "cc11c8e35dd94aaf10ee66ca9f01cb0cbbd2520f6a60451b9a96c06fe3ea02ea",
+    "community_before_tables": 21,
+    "community_before_rows": 1787,
+    "community_after_sha256": "1c000ca82494b8c5ad61572f50231ce1a5699ad10ca9e55e10dff8f632211ce7",
+    "community_after_tables": 21,
+    "community_after_rows": 1787
+  },
+  {
+    "problems": [],
+    "backup_restore_matches": true,
+    "allowed_changes": [
+      "users.tutorial_json",
+      "users.first_run_json"
+    ],
+    "additional_stores_preserved": [
+      "team",
+      "community"
+    ],
+    "case": "test_applicant_skip_recovers_when_exam_is_temporarily_unavailable",
+    "before_sha256": "e23d0a54ce633cf59e322215d6fdd9b190c9c3874f3d14716191a63777230893",
+    "before_tables": 72,
+    "before_rows": 7,
+    "after_sha256": "ea7d0c1a24fe0364c01a79882f1e79f8664fc90d6c2875739a43026a6fea88f1",
+    "after_tables": 72,
+    "after_rows": 18,
+    "team_before_sha256": "e9fd21076515619c713a5827937c6fc069c3ab354e5c19405a6eacc8630ccbe6",
+    "team_before_tables": 45,
+    "team_before_rows": 184,
+    "team_after_sha256": "93acaeb659935363574237977be6ec4f400417e41cbc24da52a1ef952af75c24",
+    "team_after_tables": 45,
+    "team_after_rows": 184,
+    "community_before_sha256": "17a77cea87c141cc02ba94f2bd8f4c2cd52246c0fb1d2ffdfe8c15bf363416bc",
+    "community_before_tables": 21,
+    "community_before_rows": 1787,
+    "community_after_sha256": "3ceb2a80fd7228271b53eca90a42aa210953cec5c269ed14cc77c401e5883d5e",
+    "community_after_tables": 21,
+    "community_after_rows": 1787
+  },
+  {
+    "problems": [],
+    "backup_restore_matches": true,
+    "allowed_changes": [
+      "users.tutorial_json",
+      "users.first_run_json"
+    ],
+    "additional_stores_preserved": [
+      "team",
+      "community"
+    ],
+    "case": "test_applicant_skips_practice_directly_to_exam[1440-False-False]",
+    "before_sha256": "1dd0ddc68467b95695f8f81e267c61a73ed1faf7c91809a36f3ce0fdf472daa8",
+    "before_tables": 72,
+    "before_rows": 7,
+    "after_sha256": "2ec02ef76020c2a2255a77474df911c3733e6cfc94272a7a2b9c7397467cc238",
+    "after_tables": 72,
+    "after_rows": 18,
+    "team_before_sha256": "b77a5e90bf0041511c2cf6d50a772405b510d4724650f9f913d34a70a9af3c7d",
+    "team_before_tables": 45,
+    "team_before_rows": 184,
+    "team_after_sha256": "bfb3d1d7d0e587684f2873e1b5709e75dabc62c5db448175e2000a714b80087a",
+    "team_after_tables": 45,
+    "team_after_rows": 184,
+    "community_before_sha256": "01fb58973bb37e24b34a1282edd0dc24cbd2bcbb0010d6bf8136c3bfcb56dbd5",
+    "community_before_tables": 21,
+    "community_before_rows": 1787,
+    "community_after_sha256": "3d621c2fe13242f3ac563ec958fd4e99286983555503241de9448b27bb255908",
+    "community_after_tables": 21,
+    "community_after_rows": 1787
+  },
+  {
+    "problems": [],
+    "backup_restore_matches": true,
+    "allowed_changes": [
+      "users.tutorial_json",
+      "users.first_run_json"
+    ],
+    "additional_stores_preserved": [
+      "team",
+      "community"
+    ],
+    "case": "test_applicant_skips_practice_directly_to_exam[1440-True-True]",
+    "before_sha256": "f496e016456a6a1b360c9c5b588703c514591f19e6ba8a891c2598b10e236b1e",
+    "before_tables": 72,
+    "before_rows": 7,
+    "after_sha256": "591f8415d09b03b1472bae786297084917ea734ce77d67fd5a45bf661a8aa059",
+    "after_tables": 72,
+    "after_rows": 18,
+    "team_before_sha256": "b6ecec401c8fd47fffd042228d39e532530f08e7ea1d136ca63c73714a53778f",
+    "team_before_tables": 45,
+    "team_before_rows": 184,
+    "team_after_sha256": "800211e2f312bee63f14732bf6a81e03964d4421f5cd69035ba3d027e9784d00",
+    "team_after_tables": 45,
+    "team_after_rows": 184,
+    "community_before_sha256": "d54dd1fca6908ae7d03f0be740c6251d5bb6787955337733f2cebab61197d13d",
+    "community_before_tables": 21,
+    "community_before_rows": 1787,
+    "community_after_sha256": "feadc25f9bd3ce05adec5f8a0e0d5c42552a25146169f0bef476864a407cb435",
+    "community_after_tables": 21,
+    "community_after_rows": 1787
+  },
+  {
+    "problems": [],
+    "backup_restore_matches": true,
+    "allowed_changes": [
+      "users.tutorial_json",
+      "users.first_run_json"
+    ],
+    "additional_stores_preserved": [
+      "team",
+      "community"
+    ],
+    "case": "test_applicant_skips_practice_directly_to_exam[390-True-False]",
+    "before_sha256": "396f84007fdf3b885ce94b217e2d472d4828b79d4eae12bb05cac2b2899f13a5",
+    "before_tables": 72,
+    "before_rows": 7,
+    "after_sha256": "b1b1d4bd1a7938c9cf6db0eaf1f09f289c2ba22c17745e2f9a813cc6c04b2baa",
+    "after_tables": 72,
+    "after_rows": 18,
+    "team_before_sha256": "73da356fe834fa7cc442e1dd899fe07d8062f2333c9c66d4d80086c82cdecc46",
+    "team_before_tables": 45,
+    "team_before_rows": 184,
+    "team_after_sha256": "ce704448eb7dfc78a365aa887e584a3a2c7bc3ceaf2de9030d5bc120b3a418b6",
+    "team_after_tables": 45,
+    "team_after_rows": 184,
+    "community_before_sha256": "286729eb0cbd3f408a206896a5f08d9de11fb134a4b277a746d85443fab63dfc",
+    "community_before_tables": 21,
+    "community_before_rows": 1787,
+    "community_after_sha256": "fc3b05057daa2168f7a36c3242e743b1f0be91aed48d98b0c9944b251b7e8bab",
+    "community_after_tables": 21,
+    "community_after_rows": 1787
+  },
+  {
+    "problems": [],
+    "backup_restore_matches": true,
+    "allowed_changes": [
+      "users.tutorial_json",
+      "users.first_run_json"
+    ],
+    "additional_stores_preserved": [
+      "team",
+      "community"
+    ],
+    "case": "test_practice_scoring_can_finish_and_submit[1440-False]",
+    "before_sha256": "e389ef0b0f9e2b221ad7c368af132c69df3c571bf7ccc9d9846141bc35ed01e3",
+    "before_tables": 72,
+    "before_rows": 7,
+    "after_sha256": "6cb2ff4aef4b7331d5e66b62b3668e5ad392578f9cea8188e726032fc670b2b3",
+    "after_tables": 72,
+    "after_rows": 10,
+    "team_before_sha256": "d7f08b72c0b2f07ef0b622dcdec025141255fbd21e4a983881959f4cd1f0061b",
+    "team_before_tables": 45,
+    "team_before_rows": 184,
+    "team_after_sha256": "e0158f2b5ca6113be0e2421461148a69f74a7793b1e0a83abb6d375c925c45fa",
+    "team_after_tables": 45,
+    "team_after_rows": 185,
+    "community_before_sha256": "c2e97927b317f77da951657a81124d1167314dde24af6e37148a7434be553af4",
+    "community_before_tables": 21,
+    "community_before_rows": 1787,
+    "community_after_sha256": "9f937965f4b576d30c7fbc079b3ea01b95540d0b6ee51f52b6bdc63242342651",
+    "community_after_tables": 21,
+    "community_after_rows": 1787
+  },
+  {
+    "problems": [],
+    "backup_restore_matches": true,
+    "allowed_changes": [
+      "users.tutorial_json",
+      "users.first_run_json"
+    ],
+    "additional_stores_preserved": [
+      "team",
+      "community"
+    ],
+    "case": "test_practice_scoring_can_finish_and_submit[390-True]",
+    "before_sha256": "bddfed346373daa78872d5faa395148bb1b0dfca9a93f21060c31a6d2b20c7f2",
+    "before_tables": 72,
+    "before_rows": 7,
+    "after_sha256": "4ef85c7d1609220244d557e972b0e9714a2496a7e4216144ded4e7a65af6c66f",
+    "after_tables": 72,
+    "after_rows": 10,
+    "team_before_sha256": "5e17a85a63de7906065babbaa06a09bd9c77729c93dfb340a13f8cd1b2f20144",
+    "team_before_tables": 45,
+    "team_before_rows": 184,
+    "team_after_sha256": "ade9bd732ac59d2b4ed7bfa241ca3b624cf3a385842247a4751abb22063b07af",
+    "team_after_tables": 45,
+    "team_after_rows": 185,
+    "community_before_sha256": "797ab96966a82a149565b8968fd51b0df64f75e516eb79bb0c812aed91a41384",
+    "community_before_tables": 21,
+    "community_before_rows": 1787,
+    "community_after_sha256": "631f40ce4b4c70483712049fe1b26b36cb9ca298cb900f762f3e07c9f27544a1",
+    "community_after_tables": 21,
+    "community_after_rows": 1787
+  }
+]

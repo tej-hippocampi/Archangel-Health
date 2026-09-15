@@ -2230,11 +2230,13 @@ body.asc-sheet-open { overflow: hidden; }
 .asc-rubric-tier-expl { font-size: 12px; color: var(--ink-faint); }
 .asc-rubric-recap { list-style: none; margin: 0 0 12px; padding: 0; }
 .asc-rubric-recap li {
-  display: flex; align-items: baseline; gap: 10px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline; gap: 10px;
   padding: 7px 0; border-bottom: 1px dashed var(--asc-line);
   font-size: 13.5px;
 }
 .asc-rubric-recap-text { flex: 1 1 auto; min-width: 0; color: var(--asc-text); }
+.asc-rubric-make-critical { grid-column: 2 / -1; justify-self: start; }
 .asc-axis-row { flex-wrap: wrap; }
 /* §11: `.asc-sev-pill` capitalizes, which was right when these pills rendered
    raw enum values (`accuracy` -> `Accuracy`). The options are sentences now, and
@@ -2284,8 +2286,8 @@ body.asc-sheet-open { overflow: hidden; }
 }
 .asc-tour-copy { font-size: 15px; color: var(--ink); line-height: 1.45; }
 .asc-tour-sub { font-size: 12.5px; color: var(--ink-soft); margin-top: 6px; line-height: 1.4; }
-.asc-tour-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
-.asc-tour-skip { color: var(--ink-faint); font-size: 12.5px; }
+.asc-tour-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
+.asc-tour-skip { color: var(--ink-faint); font-size: 12.5px; white-space: normal; text-align: left; }
 .asc-tour-skip:hover { color: var(--ink-soft); }
 .asc-tour-bar {
   margin-top: 12px; height: 3px; border-radius: 2px; background: var(--card-in);

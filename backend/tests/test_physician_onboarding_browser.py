@@ -218,6 +218,52 @@ def screenshot(page, name):
         page.screenshot(path=str(Path(output) / name), full_page=True)
 
 
+@pytest.fixture
+def practice_preservation(portal, tmp_path, request):
+    """Compare all existing IDs/fields across the flow and restore its backup."""
+    import sqlite3
+    from scripts.data_inventory import snapshot, compare
+    from team_store import get_team_store
+    from community.store import get_community_store
+    page, store, user, errors = portal
+    before = snapshot(store.db_path)
+    backup = tmp_path / "practice-before.db"
+    with sqlite3.connect(store.db_path) as source, sqlite3.connect(backup) as dest:
+        source.backup(dest)
+    assert compare(before, snapshot(backup)) == []
+    other_stores = {}
+    for name, path in (("team", get_team_store().db_path), ("community", get_community_store().db_path)):
+        original = snapshot(path)
+        backup_path = tmp_path / f"{name}-before.db"
+        with sqlite3.connect(path) as source, sqlite3.connect(backup_path) as dest:
+            source.backup(dest)
+        assert compare(original, snapshot(backup_path)) == []
+        other_stores[name] = {"path": path, "before": original}
+    yield
+    after = snapshot(store.db_path)
+    # Refresh records a session in first_run_json; exam/practice progression
+    # changes tutorial_json. Every other existing field and ID must survive.
+    allowed = ["users.tutorial_json", "users.first_run_json"]
+    problems = compare(before, after, allowed=allowed)
+    for name, data in other_stores.items():
+        data["after"] = snapshot(data["path"])
+        problems.extend(f"{name}: {problem}" for problem in compare(data["before"], data["after"]))
+    output = os.getenv("ONBOARDING_SCREENSHOT_DIR")
+    if output:
+        directory = Path(output) / request.node.name
+        directory.mkdir(parents=True, exist_ok=True)
+        for name, data in (("before", before), ("after", after), ("preservation", {
+            "problems": problems, "backup_restore_matches": True,
+            "allowed_changes": allowed,
+            "additional_stores_preserved": list(other_stores),
+        })):
+            (directory / f"{name}.json").write_text(json.dumps(data, indent=2))
+        for name, data in other_stores.items():
+            for phase in ("before", "after"):
+                (directory / f"{name}-{phase}.json").write_text(json.dumps(data[phase], indent=2))
+    assert not problems, problems
+
+
 @pytest.fixture()
 def accepted_portal(tmp_path, monkeypatch):
     """Run the shipped page with real auth, queues and isolated stores.
@@ -502,8 +548,11 @@ def test_empty_review_console_keeps_errors_distinct(accepted_portal):
     assert not portal.errors, portal.errors
 
 
-def test_applicant_can_start_and_resume_examination(portal):
+@pytest.mark.parametrize("width,legacy_negative", [(1440, False), (390, True)])
+@pytest.mark.usefixtures("practice_preservation")
+def test_applicant_can_start_and_resume_examination(portal, width, legacy_negative):
     page, store, user, errors = portal
+    page.set_viewport_size({"width": width, "height": 900})
     screenshot(page, "applicant-desktop.png")
     page.locator("#ascExamStart").click()
     page.locator(".asc-exam-banner").wait_for()
@@ -539,7 +588,19 @@ def test_applicant_can_start_and_resume_examination(portal):
     section.get_by_placeholder("One line on the key problem…").fill("Rapid normalization ignores the high risk of overcorrection in low-solute hyponatremia.")
     if section.locator("#ascFailureModes .asc-chip").count():
         section.locator("#ascFailureModes .asc-chip").first.click()
-    section.get_by_role("button", name="Continue").click()
+    if legacy_negative:
+        pending_split = []
+        page.route("**/reasoning/pregrade", lambda route: pending_split.append(route))
+        with page.expect_request("**/reasoning/pregrade"):
+            section.get_by_role("button", name="Continue").click()
+        page.get_by_role("button", name="Pause and review").click()
+        with page.expect_response("**/reasoning/pregrade"):
+            pending_split[0].fallback()
+        page.unroute("**/reasoning/pregrade")
+        with page.expect_request("**/reasoning/pregrade"):
+            page.get_by_role("button", name="Resume the examination").click()
+    else:
+        section.get_by_role("button", name="Continue").click()
     page.locator("[data-step-idx]").first.wait_for()
     for button in page.locator(".asc-step-confirm").all():
         button.click()
@@ -549,7 +610,21 @@ def test_applicant_can_start_and_resume_examination(portal):
         next_button = page.locator("#ascRubricWizard").get_by_role("button", name="Next", exact=False)
         if not next_button.count():
             break
+        if legacy_negative:
+            page.locator('#ascRubricWizard [data-tier="important"]').click()
         next_button.click()
+    if legacy_negative:
+        from playwright.sync_api import expect
+        expect(page.get_by_role("button", name="Save & finish")).to_be_disabled()
+        repair = page.locator(".asc-rubric-make-critical").first
+        if not repair.count():
+            page.get_by_role("button", name="Add a must never criterion", exact=False).click()
+            page.locator("#ascRubricWizard textarea").fill("Overcorrect sodium by more than 8 mmol/L per day")
+            page.get_by_role("button", name="Next →", exact=True).click()
+        else:
+            screenshot(page, "exam-scoring-recovery-mobile.png")
+            repair.click()
+        expect(page.get_by_role("button", name="Save & finish")).to_be_enabled()
     page.get_by_role("button", name="Save & finish").click()
     page.locator('#ascConf [data-conf="high"]').click()
     attempts = []
@@ -778,4 +853,151 @@ def test_approved_practice_skip_continues_onboarding_and_survives_reload(portal,
     page.get_by_role("button", name="Sign in", exact=True).click()
     page.get_by_role("button", name="Finish these now", exact=False).wait_for()
     assert page.locator("#ascTourInterstitial").count() == 0
+    assert not errors
+
+
+@pytest.mark.parametrize("width,mid_case,resume", [(1440, False, False), (390, True, False), (1440, True, True)])
+@pytest.mark.usefixtures("practice_preservation")
+def test_applicant_skips_practice_directly_to_exam(portal, width, mid_case, resume):
+    from playwright.sync_api import expect
+    page, store, user, errors = portal
+    page.set_viewport_size({"width": width, "height": 900})
+    if resume:
+        page.locator("#ascExamStart").click()
+        page.get_by_role("button", name="Looks clinically valid, continue").click()
+        page.locator(".asc-instinct-input").fill("My existing examination answer.")
+        page.get_by_role("button", name="Pause and review").click()
+    before_exam = store.get_tutorial_state(user["id"]).get("exam")
+    before_first_run = store.get_first_run(user["id"])
+    page.get_by_role("button", name="Optional: try a practice case first", exact=False).click()
+    page.get_by_role("button", name="Start the case →", exact=True).wait_for()
+    if mid_case:
+        page.get_by_role("button", name="Start the case →", exact=True).click()
+        page.get_by_role("button", name="Looks clinically valid, continue").click()
+        page.locator(".asc-instinct-input").fill("My saved practice answer.")
+    practice_before_skip = store.get_tutorial_state(user["id"])
+    screenshot(page, f"applicant-practice-skip-{width}-{resume}.png")
+    label = "Skip practice & continue examination →" if resume else "Skip practice & take examination →"
+    page.get_by_role("button", name=label, exact=True).click()
+    page.locator(".asc-exam-banner").wait_for()
+    assert page.locator("#ascTourLayer, #ascTourInterstitial, #ascTourSkipConfirm").count() == 0
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    after = store.get_tutorial_state(user["id"])
+    assert {k: v for k, v in after.items() if k != "exam"} == {
+        k: v for k, v in practice_before_skip.items() if k != "exam"}
+    assert store.get_first_run(user["id"]) == before_first_run
+    assert after["exam"]["state"] == "in_progress"
+    if resume:
+        assert after["exam"] == before_exam
+        expect(page.locator(".asc-instinct-input")).to_have_value("My existing examination answer.")
+    if mid_case:
+        assert page.evaluate("Object.values(localStorage).some(v => v.includes('My saved practice answer.'))")
+    page.reload()
+    page.get_by_role("button", name="Resume the examination").wait_for()
+    assert page.locator("#ascTourInterstitial").count() == 0
+    assert not errors
+
+
+@pytest.mark.usefixtures("practice_preservation")
+def test_applicant_skip_recovers_when_exam_is_temporarily_unavailable(portal):
+    page, store, user, errors = portal
+    page.get_by_role("button", name="Optional: try a practice case first", exact=False).click()
+    page.get_by_role("button", name="Start the case →", exact=True).click()
+    page.get_by_role("button", name="Looks clinically valid, continue").click()
+    page.locator(".asc-instinct-input").fill("Keep this practice work after an outage.")
+    page.route("**/exam/task", lambda route: route.fulfill(status=503, content_type="application/json",
+        body='{"detail":"Temporary test outage"}'))
+    page.get_by_role("button", name="Skip practice & take examination →", exact=True).click()
+    page.get_by_text("Could not open your examination:", exact=False).wait_for()
+    page.locator("#ascExamStart").wait_for()
+    assert page.locator("#ascTourLayer, #ascTourInterstitial, #ascTourSkipConfirm").count() == 0
+    assert page.evaluate("Object.values(localStorage).some(v => v.includes('Keep this practice work after an outage.'))")
+    page.unroute("**/exam/task")
+    page.locator("#ascExamStart").click()
+    page.locator(".asc-exam-banner").wait_for()
+    assert store.get_tutorial_state(user["id"])["exam"]["state"] == "in_progress"
+    assert not errors
+
+
+@pytest.mark.parametrize("practice", [True, False])
+def test_applicant_skips_or_pauses_while_reveal_is_pending(portal, practice):
+    from playwright.sync_api import expect
+    page, store, user, errors = portal
+    if practice:
+        page.get_by_role("button", name="Optional: try a practice case first", exact=False).click()
+        page.get_by_role("button", name="Start the case →", exact=True).click()
+    else:
+        page.locator("#ascExamStart").click()
+    page.get_by_role("button", name="Looks clinically valid, continue").click()
+    page.locator(".asc-instinct-input").fill("My independent clinical judgment.")
+    held = []
+    pattern = "**/tutorial/reveal" if practice else "**/tasks/*/reveal"
+    page.route(pattern, lambda route: held.append(route))
+    page.locator("#ascRevealBtn").click()
+    expect(page.locator("#ascRevealBtn")).to_have_text("Revealing…")
+    assert len(held) == 1
+    if practice:
+        page.get_by_role("button", name="Skip practice & take examination →", exact=True).click()
+        page.locator(".asc-exam-banner").wait_for()
+    else:
+        page.get_by_role("button", name="Pause and review").click()
+        page.locator("#ascExamStart").wait_for()
+    with page.expect_response(lambda response: response.url.endswith("/reveal")):
+        held[0].fallback()
+    page.unroute(pattern)
+    if practice:
+        page.get_by_role("button", name="Looks clinically valid, continue").click()
+        page.locator(".asc-instinct-input").fill("Low-solute hyponatremia; monitor correction closely.")
+    else:
+        page.get_by_role("button", name="Resume the examination").click()
+        expect(page.locator(".asc-instinct-input")).to_have_value("My independent clinical judgment.")
+    page.locator("#ascRevealBtn").click()
+    page.locator(".asc-answer-body").first.wait_for()
+    assert len(page.locator(".asc-answer-body").all_text_contents()) == 2
+    assert page.locator(".asc-exam-banner").is_visible()
+    assert not errors
+
+
+@pytest.mark.parametrize("width,legacy_negative", [(1440, False), (390, True)])
+@pytest.mark.usefixtures("practice_preservation")
+def test_practice_scoring_can_finish_and_submit(portal, width, legacy_negative):
+    from playwright.sync_api import expect
+    page, store, user, errors = portal
+    page.set_viewport_size({"width": width, "height": 900})
+    page.get_by_role("button", name="Optional: try a practice case first", exact=False).click()
+    page.get_by_role("button", name="Start the case →", exact=True).click()
+    # Use the shipped tutorial's helpers to reach scoring. The rubric itself
+    # is authored through its real controls, then submitted to the real API.
+    for _ in range(20):
+        copy = page.locator(".asc-tour-copy")
+        text = copy.inner_text()
+        if text.startswith("Add scoring criteria."):
+            break
+        page.locator(".asc-tour-actions .asc-btn").first.click()
+        expect(copy).not_to_have_text(text)
+    else:
+        pytest.fail("The tutorial did not reach its scoring step")
+    page.get_by_role("button", name="+ Add your own (optional)", exact=True).click()
+    page.locator("#ascRubricWizard textarea").fill("Give IV fluids despite persistent congestion")
+    page.get_by_role("button", name="Switch between must and must never", exact=True).click()
+    expect(page.locator('#ascRubricWizard [data-tier="critical"]')).to_have_class("asc-rubric-tier-btn active")
+    if legacy_negative:
+        page.locator('#ascRubricWizard [data-tier="important"]').click()
+    page.get_by_role("button", name="Next →", exact=True).click()
+    if legacy_negative:
+        expect(page.get_by_role("button", name="Save & finish")).to_be_disabled()
+        expect(page.get_by_text("You have a “must never” criterion.", exact=False)).to_be_visible()
+        screenshot(page, "practice-scoring-recovery-mobile.png")
+        page.get_by_role("button", name="Mark Critical: Give IV fluids despite persistent congestion", exact=True).click()
+    expect(page.get_by_role("button", name="Save & finish")).to_be_enabled()
+    screenshot(page, f"practice-scoring-ready-{width}.png")
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    assert page.locator(".asc-tour-pop").evaluate("el => { const r = el.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; }")
+    assert page.locator(".asc-tour-skip").evaluate("el => { const r = el.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; }")
+    page.get_by_role("button", name="Save & finish").click()
+    page.locator('#ascConf [data-conf="high"]').click()
+    page.locator("#ascSubmit").click()
+    page.get_by_role("button", name="Take my examination →", exact=True).wait_for()
+    assert store.get_tutorial_state(user["id"])["status"] == "completed"
+    assert not store.get_tutorial_state(user["id"]).get("exam")
     assert not errors

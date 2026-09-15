@@ -620,7 +620,7 @@ def test_no_type_field():
     assert "'Type'" not in card
     # The stem carries it instead.
     assert "asc-rubric-stem-toggle" in card
-    assert "setPoints(mag(), !neg())" in card, "the stem toggle must flip the sign"
+    assert "const negative = !neg()" in card, "the stem toggle must flip the sign"
     assert "'A correct answer'" in card
     assert "stemToggle.textContent = neg() ? 'must never' : 'must';" in card
     # paintAll drives the toggle, not a pill row.
@@ -673,7 +673,7 @@ def test_scale_inline_with_question():
     readout belongs beside the question, not stranded below the choices."""
     card = _body_of("renderRubricCriterionCard")
     head = re.search(
-        r"h\('div', \{ class: 'asc-rubric-matter-head' \},(.*?)\n      tierRow\)\);",
+        r"h\('div', \{ class: 'asc-rubric-matter-head' \},(.*?)\n      tierRow[,)]",
         card, re.S,
     )
     assert head, "the matter-head block is missing or tierRow is no longer its sibling"
@@ -1240,6 +1240,7 @@ require({dom!r});
 
 const state = {{ draft: {{ rubric: [], rubricCursor: 0 }}, taxonomy: {{}}, specialties: null }};
 const saveDraft = () => {{}}, updateSubmitState = () => {{}}, renderRationale = () => {{}};
+const isV3 = () => true, refreshStagedFlow = () => {{}};
 const emptyAnchor = () => ({{}}), renderAnchorBlock = () => document.createElement('div');
 const infoDot = () => document.createElement('span');
 const specialtyDot = (sp) => ({{ nephrology: 'asc-dot-green', cardiology: 'asc-dot-orange',
@@ -1254,6 +1255,8 @@ const api = async () => ({{ specialties: [
 // One eval so the consts and the functions share a scope, then hand the two
 // entry points out through globalThis.
 eval({payload!r} + '\\nglobalThis._card = renderRubricCriterionCard;'
+              + '\\nglobalThis._finish = renderRubricFinishCard;'
+              + '\\nglobalThis._gate = rubricGate;'
               + '\\nglobalThis._picker = renderSpecialtyPicker;');
 const mkCard = globalThis._card, mkPicker = globalThis._picker;
 """
@@ -1262,10 +1265,12 @@ const mkCard = globalThis._card, mkPicker = globalThis._picker;
 def _rubric_harness(body: str) -> dict:
     payload = "\n".join(
         [_const(n) for n in ("_VAGUE_MARKERS", "_UNIT_RE", "_CLINICAL_RE",
+                             "_PREMIUM_MIN_CRITERIA", "_PREMIUM_MIN_AXES", "_RUBRIC_CORE_AXES",
                              "TIER_DEFAULT_PTS", "TIER_CHOICES", "AXIS_LABELS")]
         + [_extract_function(JS, n) for n in (
             "h", "appendChildren", "isSpecificText", "tierForPoints", "autoGrow",
             "criterionAxes", "renderRubricCriterionCard", "chooseSpecialty",
+            "hasCriticalNegative", "rubricGate", "rubricCompleteness", "renderRubricFinishCard",
             "renderSpecialtyPicker")]
     )
     return _run_node(_RUBRIC_PRELUDE.format(dom=str(DOM_SHIM), payload=payload) + "\n" + body)
@@ -1298,13 +1303,60 @@ def test_stem_toggle_sets_the_points_sign_executed():
     assert out["lead"] == "A correct answer"
     assert out["before"] == {"text": "must", "cls": "asc-rubric-stem-toggle pos", "points": 5}
     assert out["afterNeg"]["text"] == "must never"
-    assert out["afterNeg"]["points"] == -5, "the toggle did not flip the sign of c.points"
+    assert out["afterNeg"]["points"] == -9, "a new must never must satisfy the Critical requirement"
+    assert out["afterNeg"]["tier"] == "critical"
     assert out["afterNeg"]["cls"] == "asc-rubric-stem-toggle neg"
-    assert out["backToPos"] == {"text": "must", "points": 5}, "the toggle must be reversible"
-    # The magnitude survives the flip (5 → -5 → 5), so switching polarity never
-    # silently re-weights the criterion.
+    assert out["backToPos"] == {"text": "must", "points": 9}, "switching to must retains the selected weight"
     assert not any("Type" in lbl for lbl in out["typeLabels"]), "a 'Type' label survives"
     assert out["sevPillsOutsideAxisRow"] == 0, "the sign pill row is still rendered"
+
+
+@pytest.mark.parametrize("points", [-1, -5, -7, "-5"])
+def test_existing_must_never_can_be_fixed_at_finish_without_retyping(points):
+    out = _rubric_harness("""
+    const original = {text: 'Give IV fluids despite persistent congestion', points: POINTS,
+      axes: ['safety', 'reasoning'], axis: 'safety', source: 'manual',
+      evidence_anchor: {citation_text: 'Physician citation'}};
+    state.draft.rubric = [{text: 'Monitor sodium every 4 hours', points: 5}, original];
+    const before = JSON.parse(JSON.stringify(state.draft.rubric));
+    const card = globalThis._finish(state.draft.rubric);
+    const blocked = card.querySelector('.asc-btn-primary').hasAttribute('disabled');
+    const untouchedOnRender = JSON.stringify(before) === JSON.stringify(state.draft.rubric);
+    card.querySelector('.asc-rubric-make-critical').dispatch('click');
+    const after = globalThis._finish(state.draft.rubric);
+    const enabled = !after.querySelector('.asc-btn-primary').hasAttribute('disabled');
+    after.querySelector('.asc-btn-primary').dispatch('click');
+    console.log(JSON.stringify({blocked, untouchedOnRender, enabled, before,
+      rubric: state.draft.rubric, done: state.draft.rubric_done,
+      gate: globalThis._gate(), repairs: after.querySelectorAll('.asc-rubric-make-critical').length}));
+    """.replace("POINTS", json.dumps(points)))
+    assert out["blocked"] and out["untouchedOnRender"]
+    assert out["enabled"] and out["done"] and out["gate"]["ok"]
+    assert out["rubric"][0] == out["before"][0]
+    expected = {**out["before"][1], "points": -9, "tier": "critical", "critical": True}
+    assert out["rubric"][1] == expected
+    assert out["repairs"] == 0
+
+
+def test_positive_only_guide_offers_a_named_critical_negative():
+    out = _rubric_harness("""
+    state.draft.rubric = [{text: 'Monitor sodium every 4 hours', points: 5}];
+    const finish = globalThis._finish(state.draft.rubric);
+    const add = finish.querySelector('.asc-btn-subtle');
+    const label = add.textContent;
+    add.dispatch('click');
+    const unnamedGate = globalThis._gate();
+    const criterion = state.draft.rubric[1];
+    const card = mkCard(state.draft.rubric, 1);
+    const ta = card.querySelector('.asc-rubric-ta');
+    ta.value = 'Overcorrect sodium by more than 8 mmol/L per day';
+    ta.dispatch('input');
+    console.log(JSON.stringify({label, unnamedGate, criterion, gate: globalThis._gate()}));
+    """)
+    assert out["label"] == "+ Add a must never criterion"
+    assert not out["unnamedGate"]["ok"], "a blank negative cannot bypass the requirement"
+    assert out["criterion"]["points"] == -9
+    assert out["gate"]["ok"]
 
 
 def test_tier_buttons_and_autofail_executed():

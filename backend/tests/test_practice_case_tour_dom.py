@@ -526,11 +526,13 @@ def test_approved_practice_completion_keeps_remaining_onboarding(replay):
 def test_failed_practice_skip_keeps_the_welcome_button_for_retry():
     from tests.test_first_run_dom import _ctx
     functions = "\n".join(_extract_function(JS, name) for name in
-        ("renderTourWelcome", "confirmSkipTutorial", "skipPracticeWalkthrough"))
+        ("renderTourWelcome", "confirmSkipTutorial", "skipPracticeWalkthrough",
+         "canSkipPracticeToExam", "tutorialExitLabel"))
     out = _run_node(_ctx() + functions + """
       var state = {user: {verification_status: 'approved'}, submitting: false};
       var tries = 0, writes = [], notices = [];
       function hideTourLayer() {}
+      function sessionIsProvisional() { return false; }
       function tutTick() {}
       function leaveTutorial(options) { handoffs.push(options); }
       function toast(message) { notices.push(message); }
@@ -555,3 +557,54 @@ def test_failed_practice_skip_keeps_the_welcome_button_for_retry():
     assert len(out["notices"]) == 1
     assert out["writes"] == [{"action": "skip_practice"}] * 2
     assert out["handoffs"] == [{"continueOnboarding": True}]
+
+
+@pytest.mark.parametrize("operation", ["reveal", "reasoning", "submit"])
+@pytest.mark.parametrize("reject", [False, True])
+@pytest.mark.parametrize("exam_loading", [False, True])
+def test_late_practice_response_cannot_change_examination(operation, reject, exam_loading):
+    functions = "\n".join(_fn(name) for name in (
+        "workspaceRequestIsCurrent", "mergeAnswers", "revealAnswers",
+        "commitIndependentAnswerAndReveal", "autoSplitChosen", "submitTutorialEvaluation"))
+    out = _run_node("""
+      const document = {getElementById: () => null};
+      let resolveRequest, rejectRequest;
+      const response = new Promise((resolve, reject) => {resolveRequest = resolve; rejectRequest = reject;});
+      const effects = [];
+      const api = () => response;
+      const state = {task: {task_id: 'practice', candidate_answers: [{id: 'A', text: null}]},
+        draft: {task_id: 'practice', stage: 'compare', chosen_id: 'A', independent_answer: {text: 'Practice'}, steps: []},
+        tutorial: {active: true}, user: {id: 'doctor'}};
+      const tutorialActive = () => !!state.tutorial;
+      const chosenRefinedText = () => 'Practice answer';
+      const activeSteps = () => state.draft.steps;
+      const isAssisted = () => true, isV3 = () => true, syncStepsCont = () => {};
+      const saveDraft = () => effects.push('save'), renderTaskWorkspace = () => effects.push('render');
+      const repaintSteps = () => effects.push('steps'), updateSubmitState = () => effects.push('submitState');
+      const toast = () => effects.push('toast'), teardownTutorial = () => effects.push('teardown');
+      const clearDraft = () => effects.push('clear'), stopTimer = () => effects.push('timer');
+      const updateHeaderProgress = () => effects.push('header'), renderTutorialReveal = () => effects.push('result');
+      const buildSubmissionPayload = () => ({}), tutAssistedList = () => [], TUTORIAL_TASK_ID = 'practice';
+      const newStep = (text) => ({text});
+    """ + functions + """
+      (async () => {
+        const pending = OPERATION === 'reveal' ? commitIndependentAnswerAndReveal()
+          : OPERATION === 'reasoning' ? autoSplitChosen('steps') : submitTutorialEvaluation();
+        state.tutorial = null;
+        if (!EXAM_LOADING) {
+          state.task = {task_id: 'exam', candidate_answers: [{id: 'A', text: 'Actual exam answer'}]};
+          state.draft = {task_id: 'exam', stage: 'compare', chosen_id: 'A', steps: [{text: 'Exam reasoning'}]};
+          state.user = {id: 'doctor', tutorial: {exam: {state: 'in_progress'}}};
+        }
+        // New workspace requests own these flags; old responses cannot clear them.
+        state._revealing = state.splitting = state.submitting = true;
+        const before = JSON.stringify(state);
+        if (REJECT) rejectRequest({status: 503, message: 'late failure'});
+        else resolveRequest({answers: [{id: 'A', text: 'Unrelated practice answer'}],
+          steps: [{text: 'Unrelated practice reasoning'}], user: {id: 'stale'}, result: {}});
+        await pending;
+        console.log(JSON.stringify({unchanged: JSON.stringify(state) === before, effects}));
+      })().catch(e => {console.error(e); process.exit(1);});
+    """.replace("OPERATION", json.dumps(operation)).replace("REJECT", json.dumps(reject))
+        .replace("EXAM_LOADING", json.dumps(exam_loading)))
+    assert out == {"unchanged": True, "effects": []}
