@@ -110,6 +110,10 @@ require explicit reassignment. Existing paid sessions can resume and close.
 - Dangling-import scan: **716 files, clear**. Data-change guard: clear.
 - Route table unchanged: **675 routes**. Merge-readiness: clear, zero commits
   behind freshly fetched main. `git diff --check`: clear.
+- CI identified seven shifted source-line references in two existing PRDs.
+  Those references were corrected without changing product code or the checker.
+  All **100 citations across seven PRDs** now resolve, and all **48 harness
+  tests passed**, including the failed CI check.
 
 The historical open-pool tests explicitly retain that deployment mode through
 `tests/conftest.py`. The two new access modules clear the opt-in, and the new
