@@ -14,6 +14,105 @@ from tests._asclepius import app, fresh_store, make_user
 from tests._physician_application import PASSWORD, submit_physician_application
 
 
+@pytest.mark.parametrize("kind,width", [("examination", 1200), ("wizard", 1200), ("examination", 390), ("wizard", 390)])
+def test_admin_reminder_preview_and_selected_send(tmp_path, monkeypatch, kind, width):
+    """Shipped admin UI + real reminder routes; provider capture never delivers mail."""
+    from playwright.sync_api import sync_playwright, expect
+    from tests._asclepius import headers_for
+    from tests.test_manual_reminders import applicant, signup
+    from team_store import TeamStore
+    import email_utils
+
+    store = fresh_store()
+    team = TeamStore(str(tmp_path / "reminders.db"))
+    monkeypatch.setattr(app.state, "team_store", team)
+    monkeypatch.setenv("ASCLEPIUS_MANUAL_REMINDERS_ENABLED", "1")
+    monkeypatch.setenv("ASCLEPIUS_PORTAL_URL", "https://app.archangelhealth.ai")
+    monkeypatch.setenv("LANDING_URL", "https://www.archangelhealth.ai")
+    monkeypatch.setattr(email_utils, "is_email_transport_configured", lambda: True)
+    monkeypatch.setattr(email_utils, "is_email_dev_mode", lambda: False)
+    messages = []
+
+    async def capture(to, subject, html, **kwargs):
+        messages.append({"to": to, "html": html, **kwargs})
+        kwargs["delivery_info"].update(outcome="accepted", provider_id="test-only")
+        return True, "accepted"
+
+    monkeypatch.setattr(email_utils, "send_html_email_with_reason", capture)
+    admin = make_user(store, role="admin")
+    for email, name in (("asha@example.com", "Asha Sharma"), ("liam@example.com", "Liam James")):
+        if kind == "examination":
+            applicant(store, email=email, full_name=name)
+        else:
+            hs, _ = signup(team, email=email)
+            team.upsert_asclepius_person(hs["id"], email=email, full_name=name,
+                clinical_role="director", is_director=True)
+    front = Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
+    shell = (front / "admin_shell.js").read_text()
+    helper = shell[shell.index("  function h(tag"):shell.index("  const $ =")]
+    css = "\n".join((front / name).read_text() for name in ("_tokens.css", "_base.css", "asclepius.css", "admin.css"))
+    errors = []
+    client = TestClient(app)  # Keep unrelated background schedulers out of this isolated check.
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport={"width": width, "height": 900})
+        page.on("pageerror", lambda error: errors.append(str(error)))
+
+        def dispatch(route):
+            req, url = route.request, urlsplit(route.request.url)
+            if url.path.startswith("/api/asclepius/"):
+                response = client.request(req.method, url.path + ("?" + url.query if url.query else ""),
+                    content=req.post_data_buffer,
+                    headers={**headers_for(admin), "Content-Type": "application/json"})
+                route.fulfill(status=response.status_code, body=response.content, content_type="application/json")
+            else:
+                route.fulfill(body='<style>' + css + '</style><body class="asc-body asc-admin-body"><main id="root"></main></body>',
+                    content_type="text/html")
+
+        page.route("**/*", dispatch)
+        page.goto("https://admin.archangelhealth.ai/fixture")
+        page.add_script_tag(content=helper + "\n" + (front / "admin_physicians.js").read_text())
+        page.evaluate("""() => {
+          const api = async (path, opts={}) => {
+            const response = await fetch('/api/asclepius' + path, {
+              method: opts.method || 'GET', headers: {'Content-Type':'application/json'},
+              body: opts.body ? JSON.stringify(opts.body) : undefined});
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || 'Request failed');
+            return data;
+          };
+          AdminPhysiciansSection.render(document.getElementById('root'), {
+            h, api, clear:n=>n.replaceChildren(), loadingCard:t=>h('p',{},t), fmtDate:t=>t||'', toast:()=>{}});
+        }""")
+        # This fixture has one eligible cohort; empty cohort sections are hidden.
+        page.get_by_role("button", name="Preview reminders", exact=True).click()
+        dialog = page.get_by_role("dialog", name="Examination reminder" if kind == "examination" else "Onboarding reminder", exact=True)
+        expect(dialog.get_by_role("button", name="Send 2 reminders", exact=True)).to_be_enabled()
+        expect(dialog.locator(".asc-reminder-recipient.is-selected")).to_have_count(2)
+        picker = dialog.get_by_label("Preview recipient", exact=True)
+        picker.select_option(label="Liam James · liam@example.com")
+        email_body = dialog.frame_locator("iframe").locator("body")
+        expect(email_body).to_contain_text("Hi Liam James,")
+        expect(email_body).not_to_contain_text("Asha Sharma")
+        picker.select_option(label="Asha Sharma · asha@example.com")
+        expect(email_body).to_contain_text("Hi Asha Sharma,")
+        expect(email_body).not_to_contain_text("Liam James")
+        assert not messages
+        dialog.get_by_label("Send reminder to Liam James · liam@example.com", exact=True).uncheck()
+        expect(dialog.locator(".asc-reminder-recipient.is-selected")).to_have_count(1)
+        screenshot(page, f"admin-reminder-{kind}-{width}.png")
+        page.screenshot(path=str(tmp_path / f"admin-reminder-{kind}-{width}.png"), full_page=True)
+        assert dialog.evaluate("el => el.scrollWidth <= el.clientWidth")
+        dialog.get_by_role("button", name="Send 1 reminder", exact=True).click()
+        expect(dialog.get_by_text("Accepted by email service", exact=True)).to_be_visible()
+        expect(dialog.get_by_role("button", name="Send 0 reminders", exact=True)).to_be_disabled()
+        assert len(messages) == 1 and messages[0]["to"] == "asha@example.com"
+        assert "Hi Asha Sharma," in messages[0]["html"]
+        assert "Liam James" not in messages[0]["html"]
+        assert not errors, errors
+        browser.close()
+
+
 @pytest.mark.parametrize("width,legacy_autofill", [(1440, False), (390, True)])
 def test_public_join_opens_real_international_onboarding(tmp_path, monkeypatch, width, legacy_autofill):
     """Serve the built /join page with real APIs; no request leaves this test."""

@@ -82,6 +82,7 @@ def preview(store, ts, kind, actor, *, target=None, email=None):
     example_url = "https://example.invalid/personal-onboarding-link" if kind == "wizard" else "https://example.invalid/asclepius#examination"
     return {"batch_id": batch, "recipients": rows,
             "template": templates.render(kind, rows[0]["name"] if rows else "", example_url),
+            "recipient_templates": {r["id"]: templates.render(kind, r["name"], example_url) for r in rows},
             "preview_recipient": rows[0]["email"] if rows else None,
             "can_send": enabled() and email_utils.is_email_transport_configured()
             and (realm.is_sandbox() or not email_utils.is_email_dev_mode()),
