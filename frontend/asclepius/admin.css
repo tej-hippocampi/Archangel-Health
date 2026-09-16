@@ -743,6 +743,28 @@
    empty and there is nothing to do about it. */
 .asc-empty-line { color: var(--ink-soft); font-size: var(--t-sm); }
 
+.asc-reminder-preview-picker { display: grid; gap: 8px; margin: 16px 0; }
+.asc-reminder-preview-picker select { width: 100%; min-width: 0; }
+.asc-reminder-recipient {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 10px;
+  align-items: start;
+  margin: 8px 0;
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.asc-reminder-recipient.is-selected {
+  background: var(--lime-wash);
+  border-color: var(--lime-line);
+}
+.asc-reminder-recipient input { margin-top: 4px; }
+.asc-reminder-recipient [role="status"] { grid-column: 2; }
+.asc-reminder-recipient [role="status"]:empty { display: none; }
+
 /* ─── Classes the console emitted with no rule behind them ───────────────────
    Found by the class-coverage guard when it widened to the whole console
    bundle. Each of these was rendering as an unstyled element on a live screen:

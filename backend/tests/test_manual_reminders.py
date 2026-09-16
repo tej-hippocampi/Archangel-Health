@@ -96,7 +96,13 @@ def test_each_email_uses_its_recipients_actual_signup_name(env, kind):
     p = preview(env, kind)
     assert "[Name]" not in p["template"]["html"]
     assert "Hi " + p["recipients"][0]["name"] + "," in p["template"]["text"]
+    assert not env[3], "Inspecting personalized previews must never send email"
     for recipient in p["recipients"]:
+        mail = p["recipient_templates"][recipient["id"]]
+        assert "Hi " + dict(people)[recipient["email"]] + "," in mail["text"]
+        for other_email, other_name in people:
+            if other_email != recipient["email"]:
+                assert other_name not in mail["html"] and other_name not in mail["text"]
         assert send(env, recipient["id"])["status"] == "accepted"
     assert len(env[3]) == 2
     expected = dict(people)
@@ -151,14 +157,41 @@ def test_in_progress_eligible_and_completion_after_preview_skips(env):
 def test_wizard_duplicates_choose_most_progress_and_preserve_live_link(env):
     hs1, token1 = signup(env[1], step=1)
     hs2, token2 = signup(env[1], step=3)
+    with env[1]._conn() as conn:
+        for hs, name in ((hs1, "Older Name"), (hs2, "Current Name")):
+            first, last = name.split()
+            conn.execute("UPDATE health_systems SET director_first_name=?,director_last_name=? WHERE id=?",
+                         (first, last, hs["id"]))
     p = preview(env, "wizard", email="wizard@example.com")
     assert len(p["recipients"]) == 1 and p["recipients"][0]["target"] == hs2["id"]
+    assert "Hi Current Name," in p["recipient_templates"][p["recipients"][0]["id"]]["text"]
     assert token1 not in json.dumps(p) and token2 not in json.dumps(p)
     assert not env[3]
     assert send(env, p["recipients"][0]["id"])["status"] == "accepted"
     assert "/onboard/" + token2 in env[3][0]["html"]
+    assert "Hi Current Name," in env[3][0]["text_body"]
+    assert "Older Name" not in env[3][0]["html"]
     assert env[1].get_health_system_by_onboarding_token(token2)["onboarding_step"] == 3
     assert env[1].get_health_system_by_onboarding_token(token1)
+
+
+def test_invited_member_never_receives_directors_name(env):
+    team = env[1]
+    hs, _ = signup(team, email="director@example.com")
+    team.upsert_asclepius_person(hs["id"], email="director@example.com",
+        full_name="Director Smith", clinical_role="director", is_director=True)
+    team.upsert_asclepius_person(hs["id"], email="member@example.com",
+        full_name="Member James", clinical_role="attending", is_director=False)
+    team.issue_asclepius_member_token(hs["id"], "member@example.com")
+    p = preview(env, "wizard", email="member@example.com")
+    assert len(p["recipients"]) == 1
+    member = p["recipients"][0]
+    assert member["member"] and member["name"] == "Member James"
+    assert "Hi Member James," in p["recipient_templates"][member["id"]]["text"]
+    assert send(env, member["id"])["status"] == "accepted"
+    assert env[3][0]["to"] == "member@example.com"
+    assert "Hi Member James," in env[3][0]["text_body"]
+    assert "Director Smith" not in env[3][0]["html"]
 
 
 def test_expired_wizard_link_rotates_only_on_send(env):

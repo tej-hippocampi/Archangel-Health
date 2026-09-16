@@ -1294,10 +1294,33 @@
     if (modal.isClosed()) return;
     status.textContent = 'Review the email and recipients below. This is an extra manual reminder; automated reminders continue as usual.';
     modal.body.appendChild(h('p', {}, h('strong', {}, 'Subject: '), preview.template.subject));
-    if (preview.preview_recipient) modal.body.appendChild(h('p', { class: 'asc-dim asc-small' },
-      'Preview for ' + preview.preview_recipient + '. Each email uses that recipient’s saved signup name.'));
-    modal.body.appendChild(h('iframe', { title: 'Reminder email preview', sandbox: '',
-      srcdoc: preview.template.html, style: 'width:100%;height:610px;border:1px solid #e5e6e2;border-radius:12px;background:#fbfcfa' }));
+    const previewFor = h('p', { class: 'asc-dim asc-small', role: 'status' });
+    const emailFrame = h('iframe', { title: 'Reminder email preview', sandbox: '',
+      srcdoc: preview.template.html, style: 'width:100%;height:610px;border:1px solid #e5e6e2;border-radius:12px;background:#fbfcfa' });
+    const showRecipient = (recipient) => {
+      const mail = (preview.recipient_templates || {})[recipient.id];
+      // A stale API can supply only its first-recipient sample. Never label
+      // that sample with another person's name or email.
+      if (!mail && recipient.email !== preview.preview_recipient) return;
+      emailFrame.srcdoc = (mail || preview.template).html;
+      previewFor.textContent = 'Preview for ' + (recipient.name ? recipient.name + ' · ' : '')
+        + recipient.email + '. Each email uses that recipient’s own saved name.';
+    };
+    if (preview.recipients.length) {
+      if (preview.recipient_templates) {
+        const picker = h('select', { class: 'asc-input', 'aria-label': 'Preview recipient' });
+        preview.recipients.forEach((r) => picker.appendChild(h('option', { value: r.id },
+          (r.name ? r.name + ' · ' : '') + r.email)));
+        picker.addEventListener('change', () => {
+          const recipient = preview.recipients.find((r) => r.id === picker.value);
+          if (recipient) showRecipient(recipient);
+        });
+        modal.body.appendChild(h('label', { class: 'asc-reminder-preview-picker' }, 'Preview recipient', picker));
+      }
+      showRecipient(preview.recipients[0]);
+      modal.body.appendChild(previewFor);
+    }
+    modal.body.appendChild(emailFrame);
     modal.body.appendChild(h('p', { class: 'asc-dim' }, kind === 'wizard'
       ? 'The button will use each recipient’s personal resume link. Repeated email addresses appear once, using the signup with the most progress.'
       : 'The button opens sign-in and the examination. Filed examinations and completed decisions are excluded.'));
@@ -1305,17 +1328,21 @@
       'Invited team members will receive a fresh link that replaces their previous link.'));
     modal.body.appendChild(h('h3', {}, 'Recipients (' + preview.recipients.length + ')'));
     const controls = preview.recipients.map((r) => {
-      const check = h('input', { type: 'checkbox', checked: true });
+      const check = h('input', { type: 'checkbox', checked: true,
+        'aria-label': 'Send reminder to ' + (r.name ? r.name + ' · ' : '') + r.email });
       const outcome = h('span', { class: 'asc-dim', role: 'status', style: 'margin-left:8px' });
-      modal.body.appendChild(h('label', { style: 'display:block;padding:8px 0;overflow-wrap:anywhere' },
-        check, ' ' + (r.name || r.email) + (r.name ? ' · ' + r.email : ''), outcome));
-      return { r, check, outcome };
+      const row = h('label', { class: 'asc-reminder-recipient is-selected' },
+        check, h('span', {}, (r.name || r.email) + (r.name ? ' · ' + r.email : '')), outcome);
+      modal.body.appendChild(row);
+      return { r, check, outcome, row };
     });
     const send = h('button', { type: 'button', class: 'asc-btn asc-btn-primary', style: 'margin-top:16px' });
+    let sending = false;
     const update = () => {
+      controls.forEach((c) => c.row.classList.toggle('is-selected', c.check.checked && !c.done));
       const count = controls.filter((c) => c.check.checked && !c.done).length;
       send.textContent = 'Send ' + count + ' reminder' + (count === 1 ? '' : 's');
-      send.disabled = !count || !preview.can_send;
+      send.disabled = sending || !count || !preview.can_send;
     };
     controls.forEach((c) => c.check.addEventListener('change', update));
     update();
@@ -1340,6 +1367,8 @@
     let stopped = false;
     modal.onClose(() => { stopped = true; });
     send.addEventListener('click', async () => {
+      if (sending || !preview.can_send) return;
+      sending = true;
       const selected = controls.filter((c) => c.check.checked && !c.done);
       send.disabled = true;
       controls.forEach((c) => { c.check.disabled = true; });
@@ -1359,6 +1388,7 @@
         }
       }
       controls.forEach((c) => { c.check.disabled = !!c.done; });
+      sending = false;
       update();
     });
   }
