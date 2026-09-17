@@ -198,6 +198,32 @@ def test_real_or_incomplete_charts_cannot_publish():
         with pytest.raises(ValueError): bank.validate_entry(entry, 'dermatology', SOURCES)
 
 
+def test_case_may_not_carry_assets_or_source_refs():
+    """Real models populate source_refs because the supplied schema advertises it.
+    Both causes are rejected, and each reports its own code so a failed CI smoke
+    names the offending field instead of a shared one."""
+    asset_study = {'modality': 'pathology', 'label': 'Skin biopsy',
+                   'findings': 'Fictional structured report text for this software fixture.',
+                   'asset': {'asset_id': 'fixture-asset', 'mime': 'image/png', 'sha256': 'a' * 64}}
+    for field, value, code in [
+            ('studies', [asset_study], 'external_case_asset'),
+            ('source_refs', [{'title': 'Fictional reference', 'identifier': 'PMID:12345678'}],
+             'case_carries_source_refs')]:
+        entry = fixture_entry()
+        entry['case'][field] = value
+        with pytest.raises(ValueError) as excinfo:
+            bank.validate_entry(entry, 'dermatology', SOURCES)
+        assert str(excinfo.value) == code
+    # The intended citation channel still validates unchanged.
+    assert bank.validate_entry(fixture_entry(), 'dermatology', SOURCES)['claims']
+
+
+def test_author_prompt_directs_citations_away_from_source_refs():
+    """The prompt must name the constraint; the schema alone invites the opposite."""
+    assert 'source_refs' in bank.AUTHOR_SYSTEM
+    assert 'claims[].source_ids' in bank.AUTHOR_SYSTEM
+
+
 def test_author_key_is_withheld_from_both_independent_solvers(monkeypatch):
     from ai import llm_client
     store = fresh_store()

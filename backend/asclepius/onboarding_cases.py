@@ -52,7 +52,10 @@ and >=3 key_data items. One candidate must be sound and the other plausibly
 wrong in a clinically consequential way. Explain that error in the held-out key.
 The sound candidate, answer key and EVERY decisive recommendation must be
 supported by the retrieved sources; cite their exact IDs in claims. Use at least
-two sources. If the source abstracts do not support a defensible case, return
+two sources. Cite ONLY in claims[].source_ids: the case's own source_refs must
+stay empty and no study may carry an asset, even though the supplied schema
+permits both. A case that populates either is rejected, not corrected.
+If the source abstracts do not support a defensible case, return
 {"insufficient_evidence":true}; never fill the gap with invented certainty."""
 
 REVIEW_SYSTEM = """Independently audit a synthetic physician assessment case.
@@ -136,8 +139,13 @@ def validate_entry(entry: dict, specialty: str, sources: list[dict]) -> dict:
     case = ClinicalCase.model_validate(entry.get("case")).model_dump()
     if case["case_source"] != "synthetic" or canonical(case["specialty"]) != specialty:
         raise ValueError("wrong_specialty_or_provenance")
-    if any(s.get("asset") for s in case.get("studies", [])) or case.get("source_refs"):
+    # Split causes: the author prompt forbids both, but a real model will reach for
+    # source_refs because the supplied ClinicalCase schema advertises it. One shared
+    # code made a rejected run unattributable from the log alone.
+    if any(s.get("asset") for s in case.get("studies", [])):
         raise ValueError("external_case_asset")
+    if case.get("source_refs"):
+        raise ValueError("case_carries_source_refs")
     if (not case["problem_list"] or not case["demographics"].get("age_band")
             or sum(len(n.get("text") or "") for n in case["notes"]) < 200):
         raise ValueError("incomplete_clinical_case")
