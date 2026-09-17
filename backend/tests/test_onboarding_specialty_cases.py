@@ -218,10 +218,48 @@ def test_case_may_not_carry_assets_or_source_refs():
     assert bank.validate_entry(fixture_entry(), 'dermatology', SOURCES)['claims']
 
 
-def test_author_prompt_directs_citations_away_from_source_refs():
-    """The prompt must name the constraint; the schema alone invites the opposite."""
-    assert 'source_refs' in bank.AUTHOR_SYSTEM
-    assert 'claims[].source_ids' in bank.AUTHOR_SYSTEM
+def test_author_prompt_states_every_machine_checked_requirement():
+    """Real runs failed on requirements the validator enforces and the prompt never
+    named (study_findings_policy, where the answer key lives, candidate length).
+    An unstated gate is one the model can only satisfy by luck."""
+    for needle in ('source_refs', 'claims[].source_ids', 'study_findings_policy',
+                   'case.ground_truth', '80 characters', '20 characters',
+                   'case.demographics.age_band', '"synthetic"'):
+        assert needle in bank.AUTHOR_SYSTEM, needle
+
+
+def test_smoke_retries_a_rejected_case_and_counts_attempts(monkeypatch):
+    """Production re-leases a retry_wait row, so the smoke must too — and must
+    report the attempts rather than hiding a poor first-pass yield behind them."""
+    from scripts import smoke_onboarding_cases as smoke
+
+    async def no_sleep(_): return None
+    monkeypatch.setattr(smoke.asyncio, 'sleep', no_sleep)
+
+    class FakeBank:
+        _RUNNING: set = set()
+        def __init__(self, statuses): self.statuses, self.calls = list(statuses), 0
+        def task_id(self, specialty, kind): return f'onboarding-{kind}'
+        def request_case(self, store, specialty, kind): self.calls += 1
+        def row_for(self, store, ident):
+            code = self.statuses[self.calls - 1]
+            return ({'status': 'ready'} if code is None
+                    else {'status': 'retry_wait', 'error_code': code, 'lease_until': 0})
+
+    fake = FakeBank([None])
+    ident, row, attempts, failures = asyncio.run(smoke.prepare(None, fake, 'dermatology', 'practice'))
+    assert (attempts, failures, row['status']) == (1, [], 'ready')
+
+    fake = FakeBank(['answer_key_missing', 'case_carries_source_refs', None])
+    _, _, attempts, failures = asyncio.run(smoke.prepare(None, fake, 'dermatology', 'practice'))
+    assert attempts == 3
+    assert failures == ['answer_key_missing', 'case_carries_source_refs']
+
+    monkeypatch.setattr(smoke, 'ATTEMPTS', 2)
+    fake = FakeBank(['answer_key_missing', 'answer_key_missing'])
+    with pytest.raises(RuntimeError) as excinfo:
+        asyncio.run(smoke.prepare(None, fake, 'dermatology', 'practice'))
+    assert 'no case after 2 attempts' in str(excinfo.value)
 
 
 def test_author_key_is_withheld_from_both_independent_solvers(monkeypatch):
