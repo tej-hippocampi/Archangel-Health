@@ -315,7 +315,7 @@ def test_the_cta_deep_links_to_the_examination():
 def test_the_examination_endpoints_are_not_touched_by_this(client):
     """PRD A §1.6. The screen changed; the exam did not."""
     store = fresh_store()
-    user = _applicant(store)
+    user = _applicant(store, specialty="nephrology")
     res = client.get("/api/asclepius/exam/task", headers=headers_for(user))
     assert res.status_code == 200, res.text
     assert res.json()["task"]["task_id"].startswith("gold-")
