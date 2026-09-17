@@ -1,5 +1,16 @@
 # PRD: Payments rail, Stripe Connect Express behind a flag (group G)
 
+## September 17, 2026 safety amendment
+
+The retry and webhook persistence guarantees below are superseded by the
+[Stripe payout safety change record](../data-safety/2026-09-17-stripe-payout-safety.md).
+Stripe idempotency keys are not permanent. New payments commit immutable transfer
+intents with the ledger decision, persist first dispatch time, and refuse
+unresolved retries after 23 hours or without an intent. Matching webhooks recover
+lost responses. Reversed transfers cannot regress or be retried. New webhook
+storage is allowlisted and excludes identity details; historical records are
+preserved pending any separately authorized disposition.
+
 Ships in PR-3 alongside the task-pipeline work (group D, its own PRD).
 
 ## Problem (from the meeting)

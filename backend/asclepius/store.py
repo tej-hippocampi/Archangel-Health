@@ -46,6 +46,10 @@ def _utcnow_iso() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
+def _stripe_now() -> float:
+    return datetime.now(timezone.utc).timestamp()
+
+
 def _iso_minus_seconds(seconds: int) -> str:
     """ISO timestamp ``seconds`` in the past — the cutoff for age-based sweeps
     (e.g. reconciling sealed keys unbound longer than an hour)."""
@@ -3782,6 +3786,21 @@ class AsclepiusStore:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_stripe_transfers_batch "
                 "ON stripe_transfers(payout_batch_id)")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS stripe_transfer_intents (
+                    earning_id TEXT PRIMARY KEY,
+                    intent_id TEXT NOT NULL UNIQUE,
+                    user_id TEXT NOT NULL,
+                    amount_cents INTEGER NOT NULL,
+                    currency TEXT NOT NULL,
+                    destination TEXT NOT NULL,
+                    payout_batch_id TEXT NOT NULL,
+                    stripe_mode TEXT NOT NULL,
+                    first_attempt_at REAL,
+                    lease_until REAL NOT NULL DEFAULT 0,
+                    lease_token TEXT
+                )
+            """)
             # ═══ END PAYMENTS RAIL §E ═══════════════════════════════════════
 
             # ═══ Export licensing + exclusivity (audit U5) ═══════════════════
@@ -6641,11 +6660,9 @@ class AsclepiusStore:
     ) -> Dict[str, Any]:
         """Upsert the transfer attempt for one ledger row.
 
-        Upsert rather than insert because a retried transfer is the SAME attempt
-        reaching a new outcome, not a second payment: the unique index on
-        ``earning_id`` and Stripe's ``earning:{id}`` idempotency key are the two
-        halves of the same guarantee, and a row per attempt would let a console
-        show two transfers where one dollar moved.
+        Keep the first known transfer ID. Concurrent failure/response writes
+        cannot erase confirmed transfers or reversals. A same-ID reversal can
+        advance a transferred row. Durable intents separately bound retries.
         """
         now = _utcnow_iso()
         with self._conn() as conn:
@@ -6656,12 +6673,16 @@ class AsclepiusStore:
                      payout_batch_id, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(earning_id) DO UPDATE SET
-                    transfer_id     = COALESCE(excluded.transfer_id, stripe_transfers.transfer_id),
+                    transfer_id     = COALESCE(stripe_transfers.transfer_id, excluded.transfer_id),
                     status          = excluded.status,
                     failure_reason  = excluded.failure_reason,
                     payout_batch_id = COALESCE(excluded.payout_batch_id,
                                                stripe_transfers.payout_batch_id),
                     updated_at      = excluded.updated_at
+                WHERE (stripe_transfers.status NOT IN ('transferred', 'reversed')
+                       AND stripe_transfers.transfer_id IS NULL)
+                   OR (stripe_transfers.status = 'transferred' AND excluded.status = 'reversed'
+                       AND stripe_transfers.transfer_id = excluded.transfer_id)
                 """,
                 (earning_id, transfer_id, status, failure_reason,
                  payout_batch_id, now, now))
@@ -6669,6 +6690,88 @@ class AsclepiusStore:
                 "SELECT * FROM stripe_transfers WHERE earning_id = ?",
                 (earning_id,)).fetchone()
         return dict(row)
+
+    def get_stripe_transfer_intent(self, earning_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM stripe_transfer_intents WHERE earning_id = ?",
+                               (earning_id,)).fetchone()
+        return dict(row) if row else None
+
+    def claim_stripe_transfer(self, earning_id: str, *, stripe_mode: str) -> Dict[str, Any]:
+        """Claim a committed intent; never guess whether an old payout was sent.
+
+        The original request and first dispatch time survive failures/restarts.
+        Stripe may prune an idempotency key after 24 hours. Stop at 23 hours,
+        leaving a margin for network retries, rather than risk a second payment.
+        A short lease prevents concurrent requests from dispatching the intent.
+        """
+        with self._conn() as conn:
+            self._immediate(conn)
+            intent = conn.execute("SELECT * FROM stripe_transfer_intents WHERE earning_id = ?",
+                                  (earning_id,)).fetchone()
+            existing = conn.execute("SELECT * FROM stripe_transfers WHERE earning_id = ?",
+                                    (earning_id,)).fetchone()
+            if existing and (existing['transfer_id'] or existing['status'] in ('transferred', 'reversed')):
+                return {'error': 'This earning already has a transfer. Reconcile it in Stripe; do not resend.'}
+            if not intent:
+                return {'error': 'Legacy payment has no durable transfer intent. Reconcile it in Stripe before any further payment.'}
+            intent = dict(intent)
+            if intent['stripe_mode'] != stripe_mode:
+                return {'error': 'Stripe environment differs from the original transfer. Reconciliation required.'}
+            if not intent['destination'] or intent['amount_cents'] <= 0:
+                return {'error': 'The original transfer has an invalid destination or amount. Reconciliation required.'}
+            now = _stripe_now()
+            first = intent['first_attempt_at']
+            if first is not None and not 0 <= now - first < 23 * 3600:
+                return {'error': 'Transfer retry window has closed. Reconcile the original payment in Stripe; resending could pay twice.'}
+            if intent['lease_until'] > now:
+                return {'error': 'Transfer is already processing. Check its status before retrying.', 'in_progress': True}
+            token = uuid.uuid4().hex
+            conn.execute("UPDATE stripe_transfer_intents SET first_attempt_at = COALESCE(first_attempt_at, ?), "
+                         "lease_until = ?, lease_token = ? WHERE earning_id = ?",
+                         (now, now + 300, token, earning_id))
+            intent.update(first_attempt_at=first if first is not None else now, lease_token=token)
+            return intent
+
+    def release_stripe_transfer(self, earning_id: str, token: str) -> None:
+        with self._conn() as conn:
+            conn.execute("UPDATE stripe_transfer_intents SET lease_until = 0, lease_token = NULL "
+                         "WHERE earning_id = ? AND lease_token = ?", (earning_id, token))
+
+    def recover_stripe_transfer(self, obj: Dict[str, Any], *, status: str,
+                                stripe_mode: str) -> Optional[Dict[str, Any]]:
+        """Recover a lost API response only against the complete committed intent."""
+        metadata = obj.get('metadata') or {}
+        if not isinstance(metadata, dict):
+            return None
+        earning_id = metadata.get('earning_id')
+        if not isinstance(earning_id, str) or not earning_id:
+            return None
+        if not isinstance(obj.get('id'), str) or not obj['id']:
+            return None
+        with self._conn() as conn:
+            self._immediate(conn)
+            intent = conn.execute("SELECT * FROM stripe_transfer_intents WHERE earning_id = ?",
+                                  (earning_id,)).fetchone()
+            if not intent or intent['first_attempt_at'] is None:
+                return None
+            expected = (intent['intent_id'], intent['user_id'], intent['amount_cents'],
+                        intent['currency'], intent['destination'], intent['payout_batch_id'], intent['stripe_mode'])
+            actual = (metadata.get('transfer_intent_id'), metadata.get('asclepius_user_id'), obj.get('amount'),
+                      obj.get('currency'), obj.get('destination'), obj.get('transfer_group'), stripe_mode)
+            if actual != expected or not obj.get('id'):
+                return None
+            conn.execute("""
+                INSERT INTO stripe_transfers (earning_id, transfer_id, status, payout_batch_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(earning_id) DO UPDATE SET transfer_id = excluded.transfer_id,
+                    status = CASE WHEN stripe_transfers.status = 'reversed' THEN 'reversed' ELSE excluded.status END,
+                    failure_reason = NULL, updated_at = excluded.updated_at
+                WHERE stripe_transfers.transfer_id IS NULL OR stripe_transfers.transfer_id = excluded.transfer_id
+            """, (earning_id, obj['id'], status, intent['payout_batch_id'], _utcnow_iso(), _utcnow_iso()))
+            row = conn.execute("SELECT * FROM stripe_transfers WHERE earning_id = ? AND transfer_id = ?",
+                               (earning_id, obj['id'])).fetchone()
+        return dict(row) if row else None
 
     def get_stripe_transfer(self, earning_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
@@ -6689,14 +6792,13 @@ class AsclepiusStore:
     ) -> Optional[Dict[str, Any]]:
         """Move an existing attempt to a status Stripe reported by webhook.
 
-        Keyed on ``transfer_id`` because that is all a transfer event carries
-        that we can trust; an event for a transfer this database never created
-        updates nothing and returns None rather than inventing a row.
+        Reversal is an absorbing state: a stale creation/update cannot undo it.
+        Unknown IDs return None; recovery separately verifies the entire intent.
         """
         with self._conn() as conn:
             conn.execute(
                 "UPDATE stripe_transfers SET status = ?, failure_reason = ?, "
-                "updated_at = ? WHERE transfer_id = ?",
+                "updated_at = ? WHERE transfer_id = ? AND status != 'reversed'",
                 (status, failure_reason, _utcnow_iso(), transfer_id))
             row = conn.execute(
                 "SELECT * FROM stripe_transfers WHERE transfer_id = ?",
@@ -15659,6 +15761,7 @@ class AsclepiusStore:
     def mark_earnings_paid(
         self, *, payout_batch_id: str, paid_at: str,
         earning_ids: Optional[List[str]] = None, user_id: Optional[str] = None,
+        stripe_mode: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Move ``approved`` rows to ``paid`` under one batch id, atomically.
 
@@ -15704,6 +15807,17 @@ class AsclepiusStore:
                     "  AND payout_batch_id IS NULL",
                     (payout_batch_id, paid_at, row["earning_id"]))
                 if cur.rowcount:
+                    if stripe_mode is not None:
+                        physician = conn.execute("SELECT stripe_account_id FROM users WHERE id = ?",
+                                                 (row['user_id'],)).fetchone()
+                        # Commit intent in the SAME transaction as the payment
+                        # decision. A crash between this commit and dispatch is
+                        # recoverable; historical paid rows get no guessed intent.
+                        conn.execute("""INSERT INTO stripe_transfer_intents
+                            (earning_id, intent_id, user_id, amount_cents, currency, destination,
+                             payout_batch_id, stripe_mode) VALUES (?, ?, ?, ?, 'usd', ?, ?, ?)""",
+                            (row['earning_id'], uuid.uuid4().hex, row['user_id'], row['amount_cents'],
+                             (physician['stripe_account_id'] or '') if physician else '', payout_batch_id, stripe_mode))
                     marked.append(row)
             conn.execute("COMMIT")
         except Exception:
