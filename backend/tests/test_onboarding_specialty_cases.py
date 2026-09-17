@@ -228,6 +228,46 @@ def test_author_prompt_states_every_machine_checked_requirement():
         assert needle in bank.AUTHOR_SYSTEM, needle
 
 
+def test_review_rejection_names_the_signal_that_declined():
+    """A real run rejected three cases and reported 'clinical_review_failed: []' —
+    refused, with no ground given. The message must name the failing signal."""
+    entry = fixture_entry()
+    review = approved_review(entry)
+    review['key_correct'] = False
+    review['sound_answer_safe'] = False
+    review['issues'] = []
+    with pytest.raises(ValueError) as excinfo:
+        bank.validate_review(review, entry)
+    message = str(excinfo.value)
+    assert 'key_correct' in message and 'sound_answer_safe' in message
+    assert 'on_specialty' not in message  # only the declined signals, not all seven
+
+
+@pytest.mark.parametrize('field,value,expected', [
+    ('best_answer_id', 'B', 'best_answer_id'),
+    ('confidence', .5, 'confidence'),
+    ('confidence', True, 'confidence'),
+    ('rationale', '', 'rationale'),
+    ('issues', [{'problem': 'late objection'}], 'issues'),
+])
+def test_review_disagreement_names_its_cause(field, value, expected):
+    """Four independent conditions shared one code, so a rejected run could not say
+    which one tripped. Thresholds are unchanged; only the message is specific."""
+    entry = fixture_entry()
+    review = approved_review(entry)
+    review[field] = value
+    with pytest.raises(ValueError) as excinfo:
+        bank.validate_review(review, entry)
+    assert expected in str(excinfo.value)
+    assert str(excinfo.value).startswith('clinical_review_disagreement')
+
+
+def test_approved_review_still_passes_unchanged():
+    """The split must not move any threshold — a good review still ratifies."""
+    entry = bank.validate_entry(fixture_entry(), 'dermatology', SOURCES)
+    assert bank.validate_review(approved_review(entry), entry) is None
+
+
 def test_smoke_retries_a_rejected_case_and_counts_attempts(monkeypatch):
     """Production re-leases a retry_wait row, so the smoke must too — and must
     report the attempts rather than hiding a poor first-pass yield behind them."""

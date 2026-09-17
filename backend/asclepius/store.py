@@ -742,6 +742,7 @@ class AsclepiusStore:
                     entry_json TEXT,
                     validation_json TEXT,
                     error_code TEXT,
+                    error_detail TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     UNIQUE(specialty, kind, slot, version)
@@ -1203,6 +1204,12 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE credentialing_exams ADD COLUMN is_own_specialty INTEGER")
             if "applied_specialty" not in exam_cols:
                 conn.execute("ALTER TABLE credentialing_exams ADD COLUMN applied_specialty TEXT")
+
+            # error_code stays the coarse, physician-facing retry reason. The
+            # specific validator cause goes here so a failed real-model run names
+            # the gate it tripped instead of the generic code three times over.
+            if "error_detail" not in cols("onboarding_case_bank"):
+                conn.execute("ALTER TABLE onboarding_case_bank ADD COLUMN error_detail TEXT")
 
             task_cols = cols("tasks")
             if "grounding_mode" not in task_cols:

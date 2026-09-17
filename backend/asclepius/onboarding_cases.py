@@ -203,14 +203,33 @@ def validate_entry(entry: dict, specialty: str, sources: list[dict]) -> dict:
 def validate_review(review: dict, entry: dict) -> None:
     required = ("on_specialty", "coherent", "key_correct", "sound_answer_safe",
                 "evidence_supported", "distinct_decision", "no_missing_information")
-    if not isinstance(review, dict) or any(review.get(k) is not True for k in required):
-        raise ValueError("clinical_review_failed: " + json.dumps(review.get("issues", []) if isinstance(review, dict) else [])[:1500])
+    if not isinstance(review, dict):
+        raise ValueError("clinical_review_failed: not an object")
+    # Name the failing signal. A reviewer that answers false without populating
+    # issues used to surface as "clinical_review_failed: []", which says a case
+    # was refused but not on what ground — unactionable in a real-model run.
+    declined = [k for k in required if review.get(k) is not True]
+    if declined:
+        issues = json.dumps(review.get("issues") or [])[:1200]
+        raise ValueError(f"clinical_review_failed: declined={declined} issues={issues} "
+                         f"rationale={str(review.get('rationale') or '')[:400]!r}")
     correct = "B" if entry["intended_flawed_id"] == "A" else "A"
     confidence = review.get("confidence")
-    if (review.get("best_answer_id") != correct or isinstance(confidence, bool)
-            or not isinstance(confidence, (int, float)) or not 0.9 <= confidence <= 1
-            or review.get("issues") != [] or not review.get("rationale")):
-        raise ValueError("clinical_review_disagreement")
+    # Same split: four independent conditions shared one code, so a rejected run
+    # could not say whether the reviewer picked the flawed answer, hedged on
+    # confidence, raised late issues, or simply omitted its rationale.
+    disagreement = []
+    if review.get("best_answer_id") != correct:
+        disagreement.append(f"best_answer_id={review.get('best_answer_id')!r} expected={correct!r}")
+    if (isinstance(confidence, bool) or not isinstance(confidence, (int, float))
+            or not 0.9 <= confidence <= 1):
+        disagreement.append(f"confidence={confidence!r}")
+    if review.get("issues") != []:
+        disagreement.append(f"issues={json.dumps(review.get('issues') or [])[:800]}")
+    if not review.get("rationale"):
+        disagreement.append("rationale=missing")
+    if disagreement:
+        raise ValueError("clinical_review_disagreement: " + "; ".join(disagreement))
     checks = review.get("claim_checks") or []
     claims = entry["claims"]
     if len(checks) != len(claims) or {c.get("index") for c in checks} != set(range(len(claims))):
@@ -284,18 +303,22 @@ async def _run(store, ident: str, specialty: str, kind: str, lease: str) -> None
     try:
         entry, validation = await asyncio.wait_for(build_case(store, specialty, kind, ident), LEASE_SECONDS - 30)
         with store._conn() as conn:
-            conn.execute("UPDATE onboarding_case_bank SET status='ready',entry_json=?,validation_json=?,error_code=NULL,updated_at=? "
+            conn.execute("UPDATE onboarding_case_bank SET status='ready',entry_json=?,validation_json=?,error_code=NULL,error_detail=NULL,updated_at=? "
                          "WHERE task_id=? AND status='generating' AND lease_token=?",
                          (json.dumps(entry), json.dumps(validation), _now(), ident, lease))
     except asyncio.CancelledError:
         # A restart can reclaim the expired lease. Never publish partial work.
         raise
-    except Exception:
+    except Exception as exc:
         log.exception("[onboarding-case] generation/validation failed for %s %s", specialty, kind)
+        # error_code stays coarse because it is the physician-facing retry reason.
+        # error_detail carries the gate that actually tripped, for CI and support.
+        detail = f"{type(exc).__name__}: {exc}"[:500]
         with store._conn() as conn:
-            conn.execute("UPDATE onboarding_case_bank SET status='retry_wait',error_code='case_validation_unavailable',lease_until=?,updated_at=? "
+            conn.execute("UPDATE onboarding_case_bank SET status='retry_wait',error_code='case_validation_unavailable',"
+                         "error_detail=?,lease_until=?,updated_at=? "
                          "WHERE task_id=? AND status='generating' AND lease_token=?",
-                         (time.time() + RETRY_SECONDS, _now(), ident, lease))
+                         (detail, time.time() + RETRY_SECONDS, _now(), ident, lease))
 
 
 def request_case(store, specialty: str, kind: str, slot: int = 1) -> dict:

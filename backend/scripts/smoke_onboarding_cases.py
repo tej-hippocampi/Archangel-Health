@@ -31,9 +31,12 @@ async def prepare(store, bank, specialty, kind):
         row = bank.row_for(store, ident)
         if row['status'] == 'ready':
             return ident, row, n, failures
-        failures.append(row['error_code'])
+        # error_code is the coarse physician-facing reason and is identical for
+        # every failure; error_detail names the gate that actually tripped.
+        detail = row.get('error_detail') or row['error_code']
+        failures.append(detail)
         print(f'[smoke] {specialty} {kind}: attempt {n}/{ATTEMPTS} -> '
-              f'{row["status"]} / {row["error_code"]}', flush=True)
+              f'{row["status"]} / {detail}', flush=True)
         if n < ATTEMPTS:
             # Wait the retry lease out rather than clearing it, so the path under
             # test is the one a physician's polling UI actually takes.
