@@ -70,6 +70,19 @@ calling the release verified.
 Railway inspection on 2026-09-17 confirmed the service volume mounted at `/data`,
 5 GB provisioned and approximately 0.263 GB used. The current deployment was
 healthy. The connector could not expose backup schedules, completed snapshot
-metadata or a restore drill record, so those checks remain unverified.
+metadata or a restore drill record.
+
+The existing local aggregate records at
+`output/production-recovery/RECOVERY_RESULT.md` and `VERIFIED_RECORDS.json` in
+the parent project document an earlier successful recovery drill on 2026-09-14
+for `archangel-production-20260914-recovery-01`. An encrypted off-Railway capture
+of all six live/sandbox stores and 1,943 files was restored in isolation; key
+recovery and both realms' application workflows passed with zero missing or
+changed originals. The independent reviewer cleared the backup-specific hold
+for that captured scope. This is prior production recovery evidence, not a
+restore of this change or of records created after that capture. The record
+explicitly leaves ongoing backup/alert coverage unverified; the current
+connector inspection does not resolve that limitation.
+
 GitHub repository-secret metadata showed neither required provider key configured;
 real-model validation is blocked until the Actions secrets are supplied.
