@@ -121,7 +121,7 @@ def _no_answer_key(obj) -> bool:
 
 def test_tutorial_task_blinded_like_real_task():
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     r = client.get("/api/asclepius/tutorial/task", headers=A.headers_for(user))
     assert r.status_code == 200
     task = r.json()["task"]
@@ -137,7 +137,7 @@ def test_tutorial_task_blinded_like_real_task():
 # ─── 3. Reveal ───────────────────────────────────────────────────────────────
 def test_tutorial_reveal_requires_instinct_text():
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     r = client.post("/api/asclepius/tutorial/reveal", json={"text": "  "},
                     headers=A.headers_for(user))
     assert r.status_code == 400
@@ -146,7 +146,7 @@ def test_tutorial_reveal_requires_instinct_text():
 
 def test_tutorial_reveal_returns_texts_writes_no_commit():
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     r = client.post("/api/asclepius/tutorial/reveal",
                     json={"text": "still congested; permissive rise"},
                     headers=A.headers_for(user))
@@ -209,7 +209,7 @@ def test_grading_each_single_miss():
 
 def test_submit_rejects_non_tutorial_task_id():
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     payload = _full_good_payload()
     payload["task_id"] = "some-real-task"
     r = client.post("/api/asclepius/tutorial/submit", json=payload,
@@ -225,7 +225,7 @@ def _patch(user, action, **kw):
 
 def test_state_machine_lifecycle():
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
 
     me = client.get("/api/asclepius/auth/me", headers=A.headers_for(user)).json()
     assert me["tutorial"]["status"] == "not_started"
@@ -265,7 +265,7 @@ def test_skip_grants_nothing_and_does_not_strand_the_physician():
     route back to the one thing that unlocks them.
     """
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     r = _patch(user, "skip")
     assert r.status_code == 200                      # a cached client gets a no-op, not a 422
     assert r.json()["tutorial"]["status"] == "not_started"
@@ -279,7 +279,7 @@ def test_skip_grants_nothing_and_does_not_strand_the_physician():
 
 def test_submit_stamps_completed_and_keeps_the_score_off_the_wire():
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     r = client.post("/api/asclepius/tutorial/submit", json=_full_good_payload(),
                     headers=A.headers_for(user))
     assert r.status_code == 200
@@ -306,7 +306,7 @@ def test_full_tutorial_run_leaves_no_data_and_queue_unchanged():
     store = A.fresh_store()
     # Gate open, because this test reads the REAL queue either side of a
     # practice run. Then wound back to not_started so the run is a real one.
-    user = A.make_user(store)
+    user = A.make_user(store, specialty="nephrology")
     store.set_tutorial_state(user["id"], {
         "status": "not_started", "version": None,
         "gate": store.get_tutorial_state(user["id"]).get("gate")})
@@ -341,8 +341,8 @@ def test_full_tutorial_run_leaves_no_data_and_queue_unchanged():
 
 def test_stats_unchanged_by_tutorial_run():
     store = A.fresh_store()
-    admin = A.make_user(store, role="admin")
-    user = A.make_user(store, practice_case=False)
+    admin = A.make_user(store, specialty="nephrology", role="admin")
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     hdrs = A.headers_for(user)
 
     before = client.get("/api/asclepius/stats", headers=A.headers_for(admin)).json()
@@ -361,7 +361,7 @@ def test_public_user_diff_is_exactly_the_tutorial_key():
     # later addition (Advisor PRD) merged in from main — asserted present but
     # not exhaustively, so this test stays about the tutorial key, not theirs.
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     pub = asc_auth.public_user(store.get_user_by_id(user["id"]))
     baseline = {
         "id", "email", "role", "specialty", "board_cert", "years_experience",
@@ -422,7 +422,7 @@ def test_the_session_can_never_carry_an_examination_outcome():
 # for somebody we have not decided about, and proves the gate object it writes
 # is the one the admin queue reads.
 def _pending_applicant(store):
-    user = A.make_user(store, tier=None, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", tier=None, practice_case=False)
     with store._conn() as conn:
         conn.execute("UPDATE users SET verification_status = 'pending' WHERE id = ?",
                      (user["id"],))

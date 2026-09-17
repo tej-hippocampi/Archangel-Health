@@ -96,7 +96,7 @@ def _passwordless_applicant(store, exam_state=None):
     applicant = store.provision_user(
         email=f"dr_{uuid.uuid4().hex[:8]}@hospital.example.org",
         password_hash=asc_store_mod.NO_PASSWORD_HASH,
-        role="evaluator", full_name="Rosalind Achebe", credentials={}, attestations={},
+        role="evaluator", specialty="nephrology", full_name="Rosalind Achebe", credentials={}, attestations={},
     )
     store.set_verification_status(applicant["id"], "pending")
     if exam_state:

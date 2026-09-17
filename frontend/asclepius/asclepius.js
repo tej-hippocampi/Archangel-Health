@@ -3037,19 +3037,35 @@
     return 'exam_not_started';
   }
 
+  async function waitForSpecialtyCase(path, current, message) {
+    for (let poll = 0; poll < 180 && current(); poll++) {
+      const data = await api(path);
+      if (!current()) return null;
+      if (!data.preparing) return data;
+      message.textContent = data.message || 'Preparing and checking your specialty case…';
+      await new Promise(resolve => setTimeout(resolve, Math.max(1, Math.min(10, data.retry_after || 4)) * 1000));
+    }
+    if (current()) throw new Error('Your specialty case is still being checked. Please return shortly and try again.');
+    return null;
+  }
+
   /** The examination: the real workspace, one case, in their own specialty. */
   async function startExam() {
     if (state._examOpening) return;
-    state._examOpening = true;
+    const opening = {};
+    state._examOpening = opening;
     saveDraft();
     stopTimer();
     teardownTutorial();
+    const message = h('p', { role: 'status' }, 'Opening your examination…');
     setRoot(h('div', { class: 'asc-wrap' },
-      h('div', { class: 'asc-card asc-card-pad' },
-        h('div', { class: 'loading-state' },
-          h('div', { class: 'loading-spinner' }), 'Opening your examination…'))));
+      h('div', { class: 'asc-card asc-card-pad' }, message,
+        h('button', { class: 'asc-btn asc-btn-ghost', type: 'button', onClick: () => {
+          if (state._examOpening === opening) { state._examOpening = false; pauseExam(); }
+        } }, 'Back to application'))));
     try {
-      const data = await api('/exam/task');
+      const data = await waitForSpecialtyCase('/exam/task', () => state._examOpening === opening, message);
+      if (!data) return;
       if (data.user) state.user = data.user;
       if (data.state === 'submitted') { renderExamSubmitted(); return; }
       if (!data.task || !data.task.task_id) throw new Error('The case could not be loaded. Please try again.');
@@ -3074,6 +3090,7 @@
       }
       renderTaskWorkspace();
     } catch (e) {
+      if (state._examOpening !== opening) return;
       stopTimer();
       state.exam = null;
       state.task = null;
@@ -3082,7 +3099,7 @@
         renderDashboardView();
       }
     } finally {
-      state._examOpening = false;
+      if (state._examOpening === opening) state._examOpening = false;
     }
   }
 
@@ -4104,7 +4121,7 @@
         const k = localStorage.key(i);
         if (!k || k.indexOf(DRAFT_PREFIX) !== 0) continue;
         const id = k.slice(DRAFT_PREFIX.length);
-        if (id === TUTORIAL_TASK_ID || !ids.has(id)) continue;
+        if (isPracticeTaskId(id) || !ids.has(id)) continue;
         let d = null;
         try { d = JSON.parse(localStorage.getItem(k) || 'null'); } catch (_) { d = null; }
         // A corrupt or foreign entry under our prefix is skipped, not fatal:
@@ -6077,11 +6094,29 @@
     renderTaskWorkspace();
   }
 
+  async function reportPracticeConcern() {
+    if (state.submitting) return;
+    const task = state.task, draft = state.draft, tutorial = state.tutorial;
+    state.submitting = true;
+    try {
+      await api('/tutorial/report', { method: 'POST', body: {
+        task_id: task.task_id, note: (draft.prompt_review.note || '').trim() } });
+      if (!workspaceRequestIsCurrent(task, draft, tutorial)) return;
+      toast('Your concern was saved with your application.', 'success');
+      state.submitting = false;
+      confirmSkipTutorial();
+    } catch (e) {
+      if (workspaceRequestIsCurrent(task, draft, tutorial)) toast('Could not save your concern: ' + e.message, 'error');
+    } finally {
+      if (workspaceRequestIsCurrent(task, draft, tutorial)) state.submitting = false;
+    }
+  }
+
   async function flagPrompt() {
-    // The practice case is deliberately valid; flagging it would otherwise POST
+    // Practice concerns stay in onboarding; they must never POST
     // a REAL submission (this path bypasses the tutorial submit branch).
     if (tutorialActive()) {
-      toast('This is the practice case: it’s deliberately valid. Continue instead.', 'info');
+      await reportPracticeConcern();
       return;
     }
     const d = state.draft;
@@ -6110,7 +6145,7 @@
   // out (0 records) and feeds the signal back to case-generation recalibration.
   async function flagCaseIncoherent() {
     if (tutorialActive()) {
-      toast('This is the practice case: it’s deliberately valid. Continue instead.', 'info');
+      await reportPracticeConcern();
       return;
     }
     const d = state.draft;
@@ -6310,7 +6345,7 @@
     // case (no independent_commits row is written server-side).
     if (tutorialActive()) {
       const res = await api('/tutorial/reveal', {
-        method: 'POST', body: { text: (ia.text || '').trim() },
+        method: 'POST', body: { task_id: task.task_id, text: (ia.text || '').trim() },
       });
       if (workspaceRequestIsCurrent(task, draft, tutorial)) mergeAnswers(res.answers);
       return;
@@ -6643,7 +6678,7 @@
     const rev = d.chosen_revision;
     const notes = h('textarea', {
       class: 'asc-textarea', style: 'min-height:64px',
-      placeholder: 'e.g. correctly continues decongestion despite the creatinine rise',
+      placeholder: 'Explain which clinical findings support the chosen answer',
     }, rev.why_better_notes || '');
     const hint = h('span', { class: 'asc-submit-hint' });
     const contBtn = h('button', {
@@ -7314,7 +7349,7 @@
     const noteWrap = h('div', { class: 'asc-field', style: 'margin-top:8px' });
     const note = h('input', {
       class: 'asc-input',
-      placeholder: 'e.g. treats the creatinine bump as intrinsic AKI: it’s decongestion-related hemoconcentration',
+      placeholder: 'Identify the key clinical mistake and why it matters',
       value: s.step_note || '',
     });
     note.addEventListener('input', () => {
@@ -10417,6 +10452,7 @@
   //  SAME step content so tour and manual can never drift.
   // ═══════════════════════════════════════════════════════════════════════════
   const TUTORIAL_TASK_ID = 'tutorial-calibration-1';
+  function isPracticeTaskId(id) { return id === TUTORIAL_TASK_ID || String(id || '').startsWith('onboarding-practice-'); }
   const INSTR_SEEN_KEY = 'asc_instr_seen';
 
   // ─── Tour targets: THE contract with the labeling UI ───────────────────────
@@ -10463,7 +10499,7 @@
       intro: 'The tabs hold the chart: labs, notes, meds, vitals.',
       steps: [
         { id: 'ch1-tabs', target: TOUR_TARGETS.caseTabs,
-          copy: 'Read the case: open each tab, starting with Labs.',
+          copy: 'Read the case using its tabs. Labs contains any available results.',
           advanceOn: { click: TOUR_TARGETS.labsTab },
           // Its own completion, and nothing else's. This used to read
           // `d.stage !== 'prompt_review'`, which is ALSO ch1-valid's advance
@@ -10528,7 +10564,7 @@
             const d = state.draft;
             if (d.verdict === 'both_inadequate') {
               if (!(d.from_scratch.ideal_answer || '').trim()) {
-                d.from_scratch.ideal_answer = 'Intensify decongestion given persistent volume overload (practice run).';
+                d.from_scratch.ideal_answer = 'Practice placeholder: describe the safest next step supported by this case.';
               }
               d.from_scratch_saved = true;
             } else {
@@ -10552,7 +10588,7 @@
             const d = state.draft;
             const rev = d.chosen_revision;
             if (!(rev.why_better_notes || '').trim()) {
-              rev.why_better_notes = 'Reads the persistent-congestion evidence rather than the creatinine trend alone (practice run).';
+              rev.why_better_notes = 'Practice placeholder: explain how the chosen answer uses the clinical findings.';
             }
             if (!(rev.why_better_tags || []).length) {
               rev.why_better_tags = [(state.taxonomy.why_better_tags || ['safer'])[0]];
@@ -10569,7 +10605,7 @@
             const d = state.draft;
             const rev = d.chosen_revision;
             if ((state.task.grounding_mode === 'required') && !isValidAnchor(rev.evidence_anchor)) {
-              rev.evidence_anchor = { citation_text: 'KDIGO 2024 (practice placeholder)', source_type: 'guideline', identifier: '' };
+              rev.evidence_anchor = { citation_text: 'Practice citation placeholder; add a verified specialty guideline.', source_type: 'guideline', identifier: '' };
             }
             d.citations_reviewed = true;
             state._reopenedSubstage = null;
@@ -10591,7 +10627,7 @@
               crit.error_tags.forEach((t) => { crit.severities[t] = crit.severities[t] || 'high'; });
             }
             if (!(crit.why_worse || '').trim()) {
-              crit.why_worse = 'A fluid bolus in a still-congested patient re-congests them (practice run).';
+              crit.why_worse = 'Practice placeholder: identify the clinical error in the rejected answer.';
             }
             closeTagPopover();
             d.critique_done = true;
@@ -10617,7 +10653,7 @@
             const d = state.draft;
             if (!hasCriticalNegative(d.rubric)) {
               d.rubric.push({
-                text: 'Recommends holding diuresis or giving IV fluids despite persistent congestion (practice run)',
+                text: 'Practice placeholder: recommends an unsafe action despite a documented contraindication',
                 points: -9, axis: 'safety', source: 'manual',
               });
             }
@@ -10635,10 +10671,10 @@
             renderTaskWorkspace();
           } },
         { id: 'ch5-submit', target: TOUR_TARGETS.submit,
-          copy: 'Submit: and see how you compare with the reference panel.',
+          copy: 'Submit to review the case answer key.',
           advanceOn: { state: () => false },  // the submit path ends the tour
           autofill: () => submitEvaluation(),
-          note: 'Submit packages your work into training records. On the practice case it scores you against the reference panel instead.' },
+          note: 'Practice responses are used only for onboarding. Submit to review the explanation and answer key.' },
       ],
     },
   ];
@@ -11123,7 +11159,7 @@
       h('p', { class: 'asc-help', style: 'margin:6px 0 16px' },
         'A guided walk through labeling one case: read it, give your take, compare two AI answers, '
         + 'say what’s right and wrong, score it. Then you’ll see how your reads compare with the '
-        + 'reference panel. Nothing here is recorded or sold.'),
+        + 'case answer key. Your practice is saved for onboarding and is never sold.'),
       h('div', { style: 'display:flex;flex-wrap:wrap;gap:10px;align-items:center' },
         h('button', { class: 'asc-btn asc-btn-primary', type: 'button', onClick: proceed }, 'Start the case →'),
         h('button', { class: 'asc-btn-link asc-tour-skip', type: 'button',
@@ -11157,7 +11193,7 @@
     // welcome screen ahead of it.
     //
     // A replay is a fresh attempt by definition, so that one still clears.
-    if (opts.replay) clearDraft(TUTORIAL_TASK_ID);
+
     // Step objects are module-level and shared across runs: a stale wait clock
     // or scroll marker from a previous run would misfire on this one.
     TUTORIAL_STEPS.forEach((s) => { s._waitSince = null; });
@@ -11172,20 +11208,21 @@
     }
     state.portalChosen = true;
     state.specialtyChosen = true;
+    const message = h('p', { role: 'status' }, 'Preparing your practice case…');
     const wrap = h('div', { class: 'asc-wrap' },
-      h('div', { class: 'asc-card asc-card-pad' },
-        h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Preparing your practice case…')));
+      h('div', { class: 'asc-card asc-card-pad' }, message,
+        h('button', { class: 'asc-btn asc-btn-ghost', type: 'button', onClick: confirmSkipTutorial }, tutorialExitLabel())));
     setRoot(wrap);
     let data;
     try {
-      data = await api('/tutorial/task');
+      data = await waitForSpecialtyCase('/tutorial/task', () => state.tutorial === tutorial, message);
+      if (!data) return;
     } catch (e) {
       if (state.tutorial !== tutorial) return;
       // Never trap the doctor: fall back to the dashboard if the practice
       // case cannot load. Not the experience/specialty picker: that choice is
       // ours to make, not the doctor's.
       teardownTutorial();
-      clearDraft(TUTORIAL_TASK_ID);  // don't leave a half-built draft to resume onto
       state.portalChosen = false; state.specialtyChosen = false;
       if (e.status !== 401) {
         toast('Could not load the practice case: ' + e.message, 'error');
@@ -11195,6 +11232,7 @@
     }
     if (state.tutorial !== tutorial) return;
     state.task = data.task;
+    if (opts.replay) clearDraft(state.task.task_id);
     initDraftForTask(state.task);
     // A STRUCTURALLY broken draft is repaired; a valid in-progress one is
     // resumed onto. This used to reset any draft that was not at the first
@@ -11279,7 +11317,7 @@
     // The draft SURVIVES on a real run, so the work they did is still there
     // when they come back. Only a replay clears, because a replay is a fresh
     // attempt by definition.
-    if (wasReplay) clearDraft(TUTORIAL_TASK_ID);
+    if (wasReplay && state.task && isPracticeTaskId(state.task.task_id)) clearDraft(state.task.task_id);
     stopTimer();
     state.task = null;
     state.portalChosen = false;
@@ -11333,7 +11371,7 @@
     state.submitting = false;
     if (res.user) state.user = res.user;
     teardownTutorial();
-    clearDraft(TUTORIAL_TASK_ID);
+    clearDraft(task.task_id);
     stopTimer();
     state.task = null;
     state.draft = null;
@@ -11401,7 +11439,7 @@
     // answer is committed and they can no longer be anchored by it.
     const teachingCard = (teach.reference_answer || keyData.length)
       ? h('details', { class: 'asc-tour-teaching' },
-          h('summary', {}, 'What the reference panel read'),
+          h('summary', {}, 'Case answer key'),
           keyData.length
             ? h('ul', { class: 'asc-tour-keydata' },
                 keyData.map((k) => h('li', {}, k)))

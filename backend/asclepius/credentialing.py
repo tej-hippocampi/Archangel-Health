@@ -1093,24 +1093,33 @@ def _extract_linkedin(text: str) -> Optional[str]:
 
 
 def _extract_specialty(text: str, certs: List[str]) -> Optional[str]:
-    """A registry specialty, or None.
+    """Read the declared clinical field without confusing its board issuer."""
+    from asclepius.onboarding_specialties import match
 
-    Reads the board certifications FIRST and the free text second: a board name
-    ("American Board of Internal Medicine — Nephrology") is a claim the physician
-    made deliberately, while the body of a CV mentions half a dozen specialties
-    in passing. ``match_specialty`` returns None rather than guessing, and that
-    is preserved end-to-end here.
-    """
-    from asclepius import specialties as _specialties  # noqa: PLC0415
-
+    for line in text[:2000].splitlines():
+        declared = re.match(r"(?:primary\s+)?specialt(?:y|ies)\s*:\s*(.+)$", line, re.I)
+        if declared:
+            return match(declared.group(1))
+    fields = set()
     for cert in certs:
-        hit = _specialties.match_specialty(cert)
+        field = cert
+        for board in sorted(_BOARDS.values(), key=len, reverse=True):
+            field = re.sub(re.escape(board), "", field, flags=re.I)
+        hit = match(field) or (match(cert) if not field.strip(" —–-(),") else None)
         if hit:
-            return hit
-    # Only the head of the document: a "Publications" section naming twelve
-    # specialties must not decide what this physician practises.
-    for chunk in (text[:2000]).splitlines():
-        hit = _specialties.match_specialty(chunk)
+            fields.add(hit)
+    specific = fields - {"internal medicine", "pediatrics", "general surgery"}
+    if len(specific) == 1:
+        return next(iter(specific))
+    if len(fields) == 1:
+        return next(iter(fields))
+    if fields:
+        return None
+    # Only the head: publications do not establish a physician's specialty.
+    for chunk in text[:2000].splitlines():
+        if "board of" in chunk.casefold():
+            continue
+        hit = match(chunk)
         if hit:
             return hit
     return None

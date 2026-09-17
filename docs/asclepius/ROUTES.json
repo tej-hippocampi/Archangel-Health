@@ -1,5 +1,5 @@
 {
-  "count": 675,
+  "count": 676,
   "routes": [
     "DELETE /api/asclepius/hs/media/files/{fid}",
     "DELETE /api/asclepius/hs/uploads/sessions/{session_id}",
@@ -497,6 +497,7 @@
     "POST /api/asclepius/tasks/{task_id}/reveal",
     "POST /api/asclepius/tasks/{task_id}/trajectory-self-score",
     "POST /api/asclepius/transcribe",
+    "POST /api/asclepius/tutorial/report",
     "POST /api/asclepius/tutorial/reveal",
     "POST /api/asclepius/tutorial/submit",
     "POST /api/asclepius/users",
