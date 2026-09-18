@@ -311,7 +311,8 @@ def _exam_task(store: Any, task_id: Optional[str]) -> Dict[str, Any]:
     if not task_id:
         return {}
     try:
-        return store.get_task(task_id) or {}
+        from asclepius.exam_case import task_for_id
+        return task_for_id(store, task_id) or {}
     except Exception:
         log.exception("[verify] could not load the examination case %s", task_id)
         return {}

@@ -21,14 +21,14 @@ client = TestClient(app)
 _DEFAULT = object()
 
 
-def _account(store, *, kind=None, status=_DEFAULT, tier=_DEFAULT, name="Sam Okafor"):
+def _account(store, *, kind=None, status=_DEFAULT, tier=_DEFAULT, name="Sam Okafor", specialty=None):
     if status is _DEFAULT:
         status = "pending" if kind == caps.ADVISOR else "approved"
     if tier is _DEFAULT:
         tier = None if kind == caps.ADVISOR else "labeler"
     user = store.provision_user(
         email=f"v_{uuid.uuid4().hex[:8]}@example.com", password="pw-12345678",
-        role="evaluator", full_name=name, account_kind=kind,
+        role="evaluator", full_name=name, account_kind=kind, specialty=specialty,
     )
     if status is not None:
         store.set_verification_status(user["id"], status)
@@ -214,7 +214,8 @@ def test_an_approved_reviewer_advisor_can_open_optional_practice():
     """Practice is available after approval, and is never an admission gate."""
     store = fresh_store()
     r = client.get("/api/asclepius/tutorial/task",
-                   headers=headers_for(_account(store, kind=caps.ADVISOR, status="approved", tier="reviewer")))
+                   headers=headers_for(_account(store, kind=caps.ADVISOR, status="approved",
+                                                tier="reviewer", specialty="nephrology")))
     assert r.status_code == 200
 
 

@@ -538,7 +538,7 @@ def _dash_harness(body: str, available: dict) -> dict:
     payload = "\n".join([
         _const("DRAFT_PREFIX"), _const("TUTORIAL_TASK_ID"),
         _fn("h"), _fn("appendChildren"), _fn("examActive"), _fn("draftKey"), _fn("formatTime"),
-        _fn("findResumableDraft"), _fn("renderDashboardView"),
+        _fn("isPracticeTaskId"), _fn("findResumableDraft"), _fn("renderDashboardView"),
     ])
     script = _DASH_PRELUDE % {"payload": payload, "api": json.dumps(available)}
     return _run_node(script + "\n" + body)
@@ -720,13 +720,14 @@ def test_a_corrupt_draft_entry_never_costs_a_resumable_case():
     assert out["sub"] == "Picks up where you left off · 1:01 so far"
 
 
-def test_the_practice_case_is_never_offered_as_a_resumable_case():
+@pytest.mark.parametrize("practice_id", ["tutorial-calibration-1", "onboarding-practice-v1-specialty-1"])
+def test_the_practice_case_is_never_offered_as_a_resumable_case(practice_id):
     """The tutorial is replayed from the help menu, never resumed as if it were
     paid work — and its draft key sits under the same prefix."""
-    out = _dash_harness("""
-    seedDraft('tutorial-calibration-1', { savedAt: 999, elapsedSec: 900 });
+    out = _dash_harness("const practiceId = " + json.dumps(practice_id) + ";" + """
+    seedDraft(practiceId, { savedAt: 999, elapsedSec: 900 });
     renderDashboardView().then(() => {""" + _READ_HERO + "});",
-                        {"tasks": [{"task_id": "tutorial-calibration-1"}, {"task_id": "t-1"}],
+                        {"tasks": [{"task_id": practice_id}, {"task_id": "t-1"}],
                          "served_portal_version": "v4"})
     assert out["title"] == "Start new case"
 

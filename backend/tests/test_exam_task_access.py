@@ -225,16 +225,17 @@ def test_simultaneous_exam_submissions_file_one_attempt(client, monkeypatch):
     assert all(r.json()["user"]["tutorial"]["exam"]["state"] == "submitted" for r in responses)
 
 
-def test_exam_resume_keeps_original_case_after_specialty_edit(client):
+def test_unfinished_exam_moves_to_correct_specialty_and_preserves_old_draw(client):
     store = fresh_store()
     user = _applicant(store)
     task_id = _draw_exam(client, user)
     with store._conn() as conn:
         conn.execute("UPDATE users SET specialty = 'cardiology' WHERE id = ?", (user["id"],))
     response = client.get("/api/asclepius/exam/task", headers=headers_for(user)).json()
-    assert response["task"]["task_id"] == task_id
-    assert response["specialty"] == "nephrology"
-    assert response["is_own_specialty"] is False
+    assert response["task"]["task_id"] != task_id
+    assert store.get_tutorial_state(user["id"])["previous_exam_draws"][0]["task_id"] == task_id
+    assert response["specialty"] == "cardiology"
+    assert response["is_own_specialty"] is True
 
 
 def test_the_examination_persists_unlike_the_practice_case(client):

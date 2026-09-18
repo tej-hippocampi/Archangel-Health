@@ -457,7 +457,7 @@ def _headline(*, passed: bool, matched: int, sound: bool, planted_hit: bool,
             "buyer. Here is what the panel put in writing.")
 
 
-def teaching_block(case_key: Optional[str] = None) -> Dict[str, Any]:
+def teaching_block(case_key: Optional[str] = None, *, entry_override=None) -> Dict[str, Any]:
     """Why the trap works, released only AFTER a submission.
 
     Every field here is stripped from the task by ``_blind_task`` and has never
@@ -466,7 +466,7 @@ def teaching_block(case_key: Optional[str] = None) -> Dict[str, Any]:
     test asserts the split stays deliberate. This is a separate door that opens
     once the physician has committed an answer and can no longer be anchored.
     """
-    entry = _validated_entry(case_key)
+    entry = entry_override if entry_override is not None else _validated_entry(case_key)
     case = entry.get("case") or {}
     gt = case.get("ground_truth") or {}
     return {
@@ -480,7 +480,8 @@ def teaching_block(case_key: Optional[str] = None) -> Dict[str, Any]:
 
 
 def grade_tutorial_submission(payload: Dict[str, Any],
-                              case_key: Optional[str] = None) -> Dict[str, Any]:
+                              case_key: Optional[str] = None, *,
+                              entry_override=None, findings_override=None) -> Dict[str, Any]:
     """Deterministically score a tutorial submission against the answer key.
 
     Returns a PASS DECISION now, not just feedback. The practice case gates all
@@ -493,8 +494,9 @@ def grade_tutorial_submission(payload: Dict[str, Any],
     """
     payload = payload or {}
     row = _case(case_key)
-    _validated_entry(row["case_key"])
-    reference = row["reference_findings"]
+    if entry_override is None:
+        _validated_entry(row["case_key"])
+    reference = findings_override if findings_override is not None else row["reference_findings"]
 
     # Which graded steps the client says it filled in on the physician's behalf.
     assisted_steps = sorted(
@@ -537,7 +539,7 @@ def grade_tutorial_submission(payload: Dict[str, Any],
         # physician has to read before they leave. The client keeps "Start real
         # cases" disabled until they open it: one click, not a quiz.
         "must_acknowledge": [f["id"] for f in findings if not f["matched"]],
-        "teaching": teaching_block(row["case_key"]),
+        "teaching": teaching_block(row["case_key"], entry_override=entry_override),
         "headline": _headline(passed=passed, matched=matched, sound=sound,
                               planted_hit=planted_hit, assisted=bool(assisted_steps)),
     }

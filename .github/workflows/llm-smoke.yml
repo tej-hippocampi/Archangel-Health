@@ -12,6 +12,11 @@ name: LLM smoke (real models)
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: Clinical generation path to verify
+        default: multimodal
+        type: choice
+        options: [multimodal, onboarding]
       specialty:
         description: Specialty to generate against
         default: nephrology
@@ -35,7 +40,7 @@ permissions:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,15 +77,20 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ASCLEPIUS_DB_PATH: ${{ runner.temp }}/smoke.db
           ASCLEPIUS_EXPORT_DIR: ${{ runner.temp }}/smoke-exports
+          SMOKE_MODE: ${{ inputs.mode || 'multimodal' }}
+          SMOKE_SPECIALTY: ${{ inputs.specialty }}
+          SMOKE_COUNT: ${{ inputs.n }}
         run: |
           set -euo pipefail
           if [ -z "${ANTHROPIC_API_KEY}" ]; then
             echo "::error::ANTHROPIC_API_KEY secret is not set on this repository"
             exit 1
           fi
-          python3 scripts/smoke_multimodal.py \
-            --specialty "${{ inputs.specialty }}" \
-            --n "${{ inputs.n }}" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
+          if [ "$SMOKE_MODE" = "onboarding" ]; then
+            python3 scripts/smoke_onboarding_cases.py --specialty "$SMOKE_SPECIALTY" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
+          else
+            python3 scripts/smoke_multimodal.py --specialty "$SMOKE_SPECIALTY" --n "$SMOKE_COUNT" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
+          fi
 
       - name: Upload the report
         if: always()

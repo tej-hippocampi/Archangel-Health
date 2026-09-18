@@ -276,7 +276,7 @@ def test_the_counter_does_not_promise_steps_this_physician_will_never_see():
 
 
 # ─── Source guarantees ───────────────────────────────────────────────────────
-def test_mid_tour_resume_is_gone():
+def test_tour_pointer_restarts_without_discarding_the_case_draft():
     """Resume read a saved server position and suppressed the welcome screen
     whenever it fired, onto a draft that abandonment never cleared."""
     body = _extract_function(JS, "startTutorial")
@@ -284,7 +284,9 @@ def test_mid_tour_resume_is_gone():
     assert "opts.resume" not in body
     assert "resumeStep" not in body
     assert "welcomed: false" in body, "a run must always start un-welcomed"
-    assert "clearDraft(TUTORIAL_TASK_ID);" in body, "the draft must be cleared unconditionally"
+    # Draft preservation/replay is exercised by the real browser tests. A
+    # specialty practice case no longer has one hard-coded task ID.
+    assert "clearDraft(TUTORIAL_TASK_ID)" not in body
 
 
 def test_skipping_the_practice_case_is_not_offered_any_more():
