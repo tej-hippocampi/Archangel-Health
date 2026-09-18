@@ -21,7 +21,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 ATTEMPTS = max(1, int(os.getenv('SMOKE_ATTEMPTS', '3')))
 
 
-async def prepare(store, bank, specialty, kind):
+async def prepare(store, bank, specialty, kind, *, use_library=False):
+    # A real-model smoke must make real calls even after a release bank exists.
+    # The batch builder opts into reuse explicitly and reports it as reuse.
+    from asclepius.onboarding_library import USE_BUNDLED
+    token = USE_BUNDLED.set(use_library)
+    try:
+        return await _prepare(store, bank, specialty, kind)
+    finally:
+        USE_BUNDLED.reset(token)
+
+
+async def _prepare(store, bank, specialty, kind):
     """Drive one case to 'ready', returning its row and the attempts it took."""
     ident = bank.task_id(specialty, kind)
     failures = []

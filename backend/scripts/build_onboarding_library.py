@@ -1,0 +1,83 @@
+"""Prepare immutable onboarding pairs in isolated CI; never connects to live data.
+
+Download the resulting artifacts, validate them with --check, and commit the
+approved files into backend/asclepius/onboarding_material/cases before release.
+"""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import os
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+
+async def build(specialty: str, output: Path):
+    from asclepius import onboarding_cases as bank, onboarding_library as library
+    from asclepius.store import get_store
+    from scripts.smoke_onboarding_cases import prepare
+    store = get_store()
+    output.mkdir(parents=True, exist_ok=True)
+    failures = []
+    for kind in ("practice", "examination"):
+        try:
+            ident = bank.task_id(specialty, kind)
+            row = library.row_for(ident)
+            reused = row is not None
+            if reused:
+                attempts, rejected = 0, []
+            else:
+                ident, row, attempts, rejected = await prepare(store, bank, specialty, kind, use_library=True)
+            document = {"task_id": ident, "specialty": specialty, "kind": kind, "slot": 1,
+                        "entry": json.loads(row["entry_json"]), "validation": json.loads(row["validation_json"])}
+            library.validate(document)
+            path = output / (ident + ".json")
+            content = json.dumps(document, ensure_ascii=False, indent=2) + "\n"
+            if path.exists() and path.read_text() != content:
+                raise ValueError("Never overwrite a published case identity")
+            path.write_text(content)
+            print(json.dumps({"specialty": specialty, "kind": kind, "ready": True,
+                              "attempts": attempts, "reused_release_case": reused, "rejections": rejected}), flush=True)
+        except Exception as exc:
+            failures.append({"specialty": specialty, "kind": kind, "error": str(exc)})
+            print(json.dumps(failures[-1]), flush=True)
+    with store._conn() as conn:
+        for table in ("tasks", "submissions", "records"):
+            if conn.execute("SELECT count(*) FROM " + table).fetchone()[0]:
+                raise RuntimeError("Library build touched paid inventory")
+    if failures:
+        raise RuntimeError(f"{len(failures)} cases failed review; no unreviewed material was published")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--specialty")
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--matrix", action="store_true")
+    parser.add_argument("--check", action="store_true")
+    args = parser.parse_args()
+    from asclepius.onboarding_catalog import SPECIALTIES
+    from asclepius.onboarding_specialties import canonical
+    if args.matrix:
+        value = args.specialty or os.getenv("SMOKE_SPECIALTY", "all")
+        choices = list(SPECIALTIES) if value == "all" else [canonical(value)]
+        if any(s not in SPECIALTIES for s in choices):
+            raise SystemExit("Choose a supported launch specialty or all")
+        print(json.dumps(choices))
+    elif args.check:
+        from asclepius import onboarding_library
+        report = onboarding_library.coverage()
+        print(json.dumps(report, indent=2))
+        if len(report) != 86 or not all(r["ready"] for r in report):
+            raise SystemExit("The 43-specialty release library is incomplete")
+    else:
+        if os.getenv("GITHUB_ACTIONS") != "true" or os.getenv("ASCLEPIUS_LLM_PROVIDER") == "fake":
+            raise SystemExit("Real generation runs only in GitHub Actions")
+        if not all(os.getenv(k) for k in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "ASCLEPIUS_DB_PATH")):
+            raise SystemExit("Both provider keys and isolated storage are required")
+        if canonical(args.specialty) not in SPECIALTIES or not args.output:
+            raise SystemExit("A launch specialty and output directory are required")
+        asyncio.run(build(canonical(args.specialty), args.output))

@@ -341,7 +341,13 @@ def public_case(case: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     to call on an already-public case (idempotent)."""
     if not case or not isinstance(case, dict):
         return None
-    return {k: v for k, v in case.items() if k not in _INTERNAL_CASE_KEYS}
+    result = {k: v for k, v in case.items() if k not in _INTERNAL_CASE_KEYS}
+    if case.get("study_findings_policy") in ("hidden", "post_hoc"):
+        # Withhold interpretations in the API too, not only in rendered prompts.
+        # Preserve the internal chart and image references for review/annotation.
+        result["studies"] = [{**s, "findings": "", "impression": None}
+                             for s in case.get("studies", [])]
+    return result
 
 
 # Analytes that are dimensionless by definition; "INR 0.99 (0.9-1.5)" is a

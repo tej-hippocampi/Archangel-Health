@@ -1,0 +1,42 @@
+{
+  "practice": {
+    "asset": {
+      "asset_id": "onboarding-image-680ca4d6cd4426b3b327374f",
+      "sha256": "680ca4d6cd4426b3b327374fe9afab73b9df5a0674c2aa046839b46c8fbc4441",
+      "mime": "image/png",
+      "width": 1170,
+      "height": 1145,
+      "byte_size": 3298929,
+      "source": "public_domain_reference"
+    },
+    "source_page": "https://commons.wikimedia.org/wiki/File:High-magnification_micrograph_of_basal-cell_carcinoma.jpg",
+    "author": "Mikael Häggström, M.D.",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source_sha256": "5c87aae5e522397839ced4a30c8df3da1ad01d40bd4e9eb04c2c5cd7a660b5e5",
+    "retrieved_on": "2026-09-18",
+    "privacy_review": "Source explicitly states no identifiable features. Local visual inspection found only tissue, with no labels, names or identifiers. Metadata discarded on PNG encoding. No partner data.",
+    "changes": "Decoded to RGB PNG with metadata removed; no cropping or added annotations.",
+    "caption": "H&E reference micrograph of basal-cell carcinoma: dark basaloid epithelial tumor islands contrasted with pink stromal tissue."
+  },
+  "examination": {
+    "asset": {
+      "asset_id": "onboarding-image-ff98b0cdf80bc6c075b8a266",
+      "sha256": "ff98b0cdf80bc6c075b8a2668c8f2ca468d30a08d652c6fb3182654ae530a758",
+      "mime": "image/png",
+      "width": 1359,
+      "height": 1624,
+      "byte_size": 4691252,
+      "source": "public_domain_reference"
+    },
+    "source_page": "https://commons.wikimedia.org/wiki/File:Ulcer_border_of_a_squamous_cell_skin_cancer.jpg",
+    "author": "Mikael Häggström, M.D.",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source_sha256": "51d836f090d50155d730b8b64d654e0034684d7a5be390077113705d00fa8e95",
+    "retrieved_on": "2026-09-18",
+    "privacy_review": "Source explicitly states no identifiable features. Local visual inspection found only tissue, with no labels, names or identifiers. Metadata discarded on PNG encoding. No partner data.",
+    "changes": "Decoded to RGB PNG with metadata removed; no cropping or added annotations.",
+    "caption": "H&E reference micrograph of cutaneous squamous cell carcinoma showing ulceration, hyperkeratosis and dermal invasion by nests of eosinophilic squamous cells with central keratinization."
+  }
+}

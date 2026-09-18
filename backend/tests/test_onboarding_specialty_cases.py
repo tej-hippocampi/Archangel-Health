@@ -335,7 +335,7 @@ def test_author_key_is_withheld_from_both_independent_solvers(monkeypatch):
     from ai import llm_client
     store = fresh_store()
     calls = []
-    async def retrieve(_): return SOURCES
+    async def retrieve(_, **kwargs): return list(SOURCES)
     async def llm(**kwargs):
         calls.append(kwargs)
         purpose = kwargs['purpose']
@@ -452,7 +452,7 @@ def test_paid_queue_excludes_exam_answers_before_counting_or_offering(assigned, 
 
 @pytest.mark.parametrize('reject', [False, True])
 def test_full_generation_uses_registered_fake_transport_and_fail_switch(monkeypatch, reject):
-    async def retrieve(_): return SOURCES
+    async def retrieve(_, **kwargs): return list(SOURCES)
     monkeypatch.setattr(evidence, 'retrieve', retrieve)
     monkeypatch.setenv('FAKE_LLM_VERDICT', 'fail' if reject else 'pass')
     store = fresh_store()

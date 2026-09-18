@@ -1954,6 +1954,10 @@ def _practice_task(store, user):
     ident = current.get("practice_task_id")
     if ident and ident != TUTORIAL_TASK_ID:
         return onboarding_cases.get_task(store, ident)
+    if not ident and resolve(user)["specialty"]:
+        prepared = onboarding_cases.get_task(store, onboarding_cases.task_id(resolve(user)["specialty"], "practice"))
+        if prepared:
+            return prepared
     # Legacy nephrology clients could reveal/submit without a draw. That
     # compatibility must never make a missing dermatology case a renal case.
     return tutorial_raw_task() if resolve(user)["specialty"] == "nephrology" else None
@@ -2874,12 +2878,25 @@ async def ingest_image_asset(
 
 
 @router.get("/assets/{asset_id}")
-async def get_asset(asset_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+async def get_asset(asset_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_account)):
     """Stream a cleaned image asset by id (PRD §4). Authenticated (evaluator/admin);
     the served bytes carry no provider/model, no partner identity, and no residual
     metadata (stripped at ingest). The store path is never exposed."""
     from asclepius import assets as asc_assets
     store = _store()
+    if asset_id.startswith("onboarding-image-"):
+        asc_auth.require_surface(asc_caps.TUTORIAL)(user)
+        from asclepius import onboarding_media
+        ref = onboarding_media.authorized_asset(store, user, asset_id)
+        if not ref:
+            raise HTTPException(status_code=403, detail="This image is not part of your onboarding case.")
+        try:
+            data = onboarding_media.load(ref)
+        except (OSError, ValueError):
+            raise HTTPException(status_code=503, detail="The case image is unavailable. Please try again shortly.")
+        return Response(content=data, media_type=ref["mime"], headers={
+            "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
+    asc_auth.require_full_access(user)
     ref = asc_assets.find_asset_by_id(store, asset_id)
     if not ref:
         raise HTTPException(status_code=404, detail="asset_not_found")

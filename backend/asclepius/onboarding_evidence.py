@@ -69,14 +69,17 @@ def parse_articles(raw: bytes, *, now: datetime | None = None) -> list[dict]:
     return rows
 
 
-async def retrieve(specialty: str) -> list[dict]:
+async def retrieve(specialty: str, *, topic: str | None = None) -> list[dict]:
     import json
 
     # Quote a cleaned clinical term. It cannot introduce an Entrez operator or
     # control a URL. A free-text specialty remains untrusted input to the LLM.
     term = re.sub(r"[^\w\s]", " ", specialty)[:100]
     year = datetime.now(timezone.utc).year
-    query = (f'("{term}"[MeSH Terms] OR "{term}"[Title/Abstract]) AND '
+    # Curriculum topics are maintained in code; never supplied by a physician.
+    from asclepius.onboarding_catalog import SEARCH_TERMS
+    clinical_term = re.sub(r"[^\w\s]", " ", SEARCH_TERMS.get(topic, term))[:240]
+    query = (f'({clinical_term}) AND '
              '(guideline[Publication Type] OR practice guideline[Publication Type] '
              'OR systematic review[Publication Type] OR consensus development conference[Publication Type]) '
              f'AND ("{year - 7}"[Date - Publication] : "{year}"[Date - Publication]) '

@@ -16,7 +16,7 @@ on:
         description: Clinical generation path to verify
         default: multimodal
         type: choice
-        options: [multimodal, onboarding]
+        options: [multimodal, onboarding, onboarding-library]
       specialty:
         description: Specialty to generate against
         default: nephrology
@@ -38,7 +38,35 @@ permissions:
   contents: read
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      specialties: ${{ steps.matrix.outputs.specialties }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - id: matrix
+        env:
+          SMOKE_SPECIALTY: ${{ inputs.specialty }}
+          SMOKE_MODE: ${{ inputs.mode }}
+        run: |
+          python3 - <<'PYCODE'
+          import json, os, subprocess
+          if os.environ['SMOKE_MODE'] == 'onboarding-library':
+              values = json.loads(subprocess.check_output(['python3', 'backend/scripts/build_onboarding_library.py', '--matrix']))
+          else:
+              values = [os.environ['SMOKE_SPECIALTY']]
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write('specialties=' + json.dumps(values) + '\n')
+          PYCODE
   smoke:
+    needs: plan
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        specialty: ${{ fromJson(needs.plan.outputs.specialties) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -78,7 +106,7 @@ jobs:
           ASCLEPIUS_DB_PATH: ${{ runner.temp }}/smoke.db
           ASCLEPIUS_EXPORT_DIR: ${{ runner.temp }}/smoke-exports
           SMOKE_MODE: ${{ inputs.mode || 'multimodal' }}
-          SMOKE_SPECIALTY: ${{ inputs.specialty }}
+          SMOKE_SPECIALTY: ${{ matrix.specialty }}
           SMOKE_COUNT: ${{ inputs.n }}
         run: |
           set -euo pipefail
@@ -86,7 +114,9 @@ jobs:
             echo "::error::ANTHROPIC_API_KEY secret is not set on this repository"
             exit 1
           fi
-          if [ "$SMOKE_MODE" = "onboarding" ]; then
+          if [ "$SMOKE_MODE" = "onboarding-library" ]; then
+            python3 scripts/build_onboarding_library.py --specialty "$SMOKE_SPECIALTY" --output "${RUNNER_TEMP}/onboarding-cases" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
+          elif [ "$SMOKE_MODE" = "onboarding" ]; then
             python3 scripts/smoke_onboarding_cases.py --specialty "$SMOKE_SPECIALTY" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
           else
             python3 scripts/smoke_multimodal.py --specialty "$SMOKE_SPECIALTY" --n "$SMOKE_COUNT" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
@@ -96,6 +126,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: llm-smoke-report
-          path: ${{ runner.temp }}/smoke-report.txt
+          name: llm-smoke-${{ matrix.specialty }}
+          path: |
+            ${{ runner.temp }}/smoke-report.txt
+            ${{ runner.temp }}/onboarding-cases/*.json
           if-no-files-found: warn

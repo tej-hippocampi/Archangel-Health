@@ -45,6 +45,11 @@ def exam_task_for(store: Any, user: Dict[str, Any], attempt: int,
 
     picked = exam_specialty(user)
     specialty = picked["specialty"]
+    from asclepius import onboarding_cases
+    prepared = (onboarding_cases.get_task(store, onboarding_cases.task_id(specialty, "examination", attempt))
+                if specialty else None)
+    if prepared:
+        return prepared
     entries = GOLD_CASE_SETS.get(specialty) or []
     if not entries:
         from asclepius import onboarding_cases
