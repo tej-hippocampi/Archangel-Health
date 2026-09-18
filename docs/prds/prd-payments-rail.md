@@ -1,26 +1,40 @@
 # PRD: Payments rail, Stripe Connect Express behind a flag (group G)
 
-Ships in PR-3 alongside the task-pipeline work (group D, its own PRD).
+## September 17, 2026 safety amendment
 
-## Problem (from the meeting)
+The retry and webhook persistence guarantees below are superseded by the
+[Stripe payout safety change record](../data-safety/2026-09-17-stripe-payout-safety.md).
+Stripe idempotency keys are not permanent. New payments commit immutable transfer
+intents with the ledger decision, persist first dispatch time, and refuse
+unresolved retries after 23 hours or without an intent. Matching webhooks recover
+lost responses. Reversed transfers cannot regress or be retried. New webhook
+storage is allowlisted and excludes identity details; historical records are
+preserved pending any separately authorized disposition.
+
+The original plan below describes the flag-gated Connect rail. The September
+17 amendment and updated retry/webhook requirements describe the current safety
+contract; notification touchpoints remain product requirements, not evidence of
+deployment or provider acceptance.
+
+## Original problem (from the meeting)
 
 Physicians are paid for labeled cases and the meeting treats payouts plus 1099
-generation as table stakes ("claimed partially working"). What actually exists
-is the ledger half: accrual, quality holds, an admin mark-paid that "records
+generation as table stakes ("claimed partially working"). At that point only
+the ledger half existed: accrual, quality holds, an admin mark-paid that "records
 settled; does not move money" (`backend/routers/asclepius_payments.py:18`).
-There is no rail. No money moves, no bank details exist anywhere, and the
-physician-facing surface is a disabled "Link your bank account / coming soon"
-card (`frontend/asclepius/first_run.js:436-443`) backed by a
+With the rail disabled, no money moves and the physician-facing surface is a
+disabled "Link your bank account / coming soon"
+card (`frontend/asclepius/first_run.js:646-655`) backed by a
 `bank_link_status='coming_soon'` interest register
-(`backend/routers/asclepius.py:1047-1063`).
+(`backend/routers/asclepius.py:1740-1756`).
 
 The codebase has already committed to the shape of the fix, in the payments
-router's header (`asclepius_payments.py:18-22`): the rail will be Stripe
+router's header (`backend/routers/asclepius_payments.py:18-22`): the rail uses Stripe
 Connect Express, physicians onboard themselves, Stripe holds bank details and
 tax ids and files the 1099-NECs, and nothing in this codebase may ever store a
 bank account number or a tax id. This PRD builds exactly that commitment.
 
-## Decisions
+## Design and invariants
 
 **Locked (founder meeting + planning session):**
 
@@ -43,7 +57,7 @@ bank account number or a tax id. This PRD builds exactly that commitment.
   The header rule is the test: if a change wants to store more, it belongs
   behind Connect instead.
 - **G2. Ledger first, transfer follows.** `mark_paid`
-  (`backend/asclepius/payments.py:1658`) stays the source of truth: its
+  (`backend/asclepius/payments.py:2003`) stays the source of truth: its
   batch-id idempotency and guarded compare-and-set already make a retried
   disbursement safe, and a second write path would be a second chance to pay
   twice. The Stripe transfer is created AFTER the compare-and-set succeeds,
@@ -55,8 +69,11 @@ bank account number or a tax id. This PRD builds exactly that commitment.
   Key `earning:{earning_id}`, `transfer_group` set to the `payout_batch_id`.
   Per-row transfers make Stripe's ledger reconcile 1:1 against ours (the
   existing `GET /admin/earnings?payout_batch_id=` view maps to a transfer
-  group), and Stripe's idempotency keys make every retry of a partially failed
-  batch safe: rows that transferred are no-ops, rows that failed are retried.
+  group), and retries use the same frozen intent and key. Known transfers
+  are no-ops;
+  unresolved retries require an intent, an exclusive dispatch lease and a
+  first-attempt age below 23 hours. Expired or legacy attempts require
+  reconciliation because Stripe may prune keys after 24 hours.
   A single batch-sum transfer would be cheaper to create but turns partial
   failure into manual arithmetic.
 - **G4. Failed transfers are a queue, not an exception.** A new
@@ -67,10 +84,11 @@ bank account number or a tax id. This PRD builds exactly that commitment.
   decision with extra steps.
 - **G5. Webhooks are durable rows processed idempotently.** Signature-verified
   events land in a `stripe_webhook_events` table (event id is the primary key)
-  before any processing, then are processed and stamped. Replay, out-of-order
-  delivery, and crash-mid-handler all resolve to "process each event id at
-  most once, from the stored payload". Same reasoning as the notify outboxes:
-  durable rows beat in-memory state.
+  before any processing, then are processed and stamped. Only allowlisted
+  operational fields are stored. Handlers read the verified event in memory;
+  an interrupted handler is retried using Stripe's signed redelivery. A
+  processed event is deduplicated, and transfer reversal is an absorbing state.
+  Concurrent delivery must be safe to apply more than once.
 - **G6. The stripe SDK is imported lazily, inside the flag.** With
   `ASCLEPIUS_STRIPE_ENABLED=0` the module must import and every endpoint must
   behave exactly as today even if the `stripe` package were absent or broken.
@@ -92,9 +110,8 @@ bank account number or a tax id. This PRD builds exactly that commitment.
   `docs/DEPLOY_BACKEND_RAILWAY.md`: `ASCLEPIUS_STRIPE_ENABLED`,
   `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`. Flag on with either key
   missing fails loudly at the first Stripe call, never silently.
-- **A3.** `backend/requirements.txt` gains an exact pin in repo style
-  (`stripe==<latest 12.x at implementation time>`; this repo pins with `==`,
-  and the exact number is chosen when the line is added, not guessed in a PRD).
+- **A3.** `backend/requirements.txt` pins `stripe==15.6.1`. The signed-webhook
+  regression uses the installed SDK to verify its event conversion behavior.
 
 ### B. Physician onboarding (Connect Express account links)
 
@@ -110,10 +127,10 @@ bank account number or a tax id. This PRD builds exactly that commitment.
 - **B3.** `bank_link_status` becomes a real state machine:
   `coming_soon -> onboarding -> active | restricted`. `coming_soon` rows are
   the waiting list the placeholder endpoint has been collecting
-  (`routers/asclepius.py:1055`, "reads this column to find who has been
+  (`backend/routers/asclepius.py:1748`, "reads this column to find who has been
   waiting"); when the flag flips live, those users get the go-live nudge (see
   email touchpoints).
-- **B4.** `frontend/asclepius/first_run.js:436-463`: flag on (surfaced via the
+- **B4.** `frontend/asclepius/first_run.js:646-715`: flag on (surfaced via the
   bootstrap payload) replaces the disabled card with a live "Link your bank
   account" button opening the account-link URL; flag off renders the card
   exactly as today, including the interest POST.
@@ -136,8 +153,9 @@ bank account number or a tax id. This PRD builds exactly that commitment.
   response reports per-row transfer outcomes so the console shows what
   actually happened rather than what was intended.
 - **C4.** Retry endpoint: `POST /admin/earnings/{earning_id}/retry-transfer`,
-  admin-gated, idempotent via the same key, 409 unless the row is settled with
-  a failed or missing transfer.
+  admin-gated, 409 unless the row is settled with a failed or missing transfer.
+  Dispatch requires a durable intent, matching environment and an unexpired
+  retry window. Blocked attempts report the reconciliation reason.
 
 ### D. Webhooks
 
@@ -151,9 +169,11 @@ bank account number or a tax id. This PRD builds exactly that commitment.
   `restricted`); log an event on every status change.
 - **D3.** `transfer.created` / `transfer.updated` / `transfer.reversed`:
   stamp the matching `stripe_transfers` row; reversal writes visibility only
-  (G7).
+  (G7) and cannot be overwritten by a stale event or API response. A missing
+  response is recovered only when the complete immutable intent matches.
 - **D4.** Unknown event types are stored and stamped processed with no action:
-  a webhook that 500s on novelty gets disabled by Stripe's retry policy.
+  their stored object is empty, so unfamiliar payloads cannot retain identity
+  details. Known types also exclude metadata and free-form fields.
 
 ### E. Schema (additive only, no migration framework exists)
 
@@ -164,26 +184,29 @@ bank account number or a tax id. This PRD builds exactly that commitment.
 - **E3.** `stripe_transfers(earning_id TEXT, transfer_id TEXT, status TEXT,
   failure_reason TEXT, payout_batch_id TEXT, created_at TEXT, updated_at
   TEXT)` with a unique index on `earning_id`.
-- **E4.** Grep-enforced invariant, tested: no column, code path, or log line
-  ever carries a bank account number, routing number, SSN, EIN, or TIN. The
-  header comment becomes an assertion.
+- **E4.** Store account IDs and operational status only. Newly persisted
+  webhook objects exclude bank/tax details, identity fields and metadata. Tests
+  use identity sentinels for known and unknown event types. Historical raw
+  payloads need separately authorized cleanup; this migration preserves them.
+- **E5.** `stripe_transfer_intents` holds immutable request parameters, a random
+  intent ID, first-attempt time and lease ownership. Intent and payment decision
+  commit atomically. No historical attempt times are inferred or backfilled.
 
-## What exists today (verified in the working tree)
+## Current code map
 
-- `backend/asclepius/payments.py:1-70` module owns money; `:1658` `mark_paid`
-  with batch-id idempotency and guarded compare-and-set.
-- `backend/routers/asclepius_payments.py:18-22` the DISBURSEMENT SEAM header:
-  Stripe Connect Express intent, never store bank details or tax ids; `:579`
-  mark-paid; `:908-953` `POST /admin/earnings/pay` (records settled, does not
-  move money, equity-only guard via `compensation.accrues_payment`); `:756`
-  held-earnings queue pattern; `:830` void 409s on paid.
-- `backend/routers/asclepius.py:1047-1063` `POST /me/bank-link/interest`
-  writes `bank_link_status='coming_soon'` and notes "The Stripe work lands on
-  the payments track and reads this column to find who has been waiting."
-- `frontend/asclepius/first_run.js:436-463` the disabled bank card, "coming
-  soon" chip, best-effort interest POST.
-- `backend/requirements.txt` has no stripe line; `grep -rn ASCLEPIUS_STRIPE
-  backend/` returns nothing. This is a green field behind the flag.
+- `mark_paid` in `backend/asclepius/payments.py:2003` owns the ledger decision.
+- `mark_paid` in `backend/routers/asclepius_payments.py:975` and
+  `admin_pay_earnings` in `backend/routers/asclepius_payments.py:1758` dispatch
+  transfers only after the ledger commit, with the rail enabled.
+- `register_bank_link_interest` in `backend/routers/asclepius.py:1741` records
+  the waiting list while the rail is disabled.
+- `comingSoonBankCard` in `frontend/asclepius/first_run.js:646` and `liveBankCard`
+  in `frontend/asclepius/first_run.js:667` render the flag-dependent bank card.
+- `claim_stripe_transfer` in `backend/asclepius/store.py:6700` enforces the
+  durable retry window; `recover_stripe_transfer` in
+  `backend/asclepius/store.py:6741` reconciles matching signed webhooks.
+- `webhook_storage_object` in `backend/asclepius/stripe_rail.py:328` defines
+  the persisted allowlist. The SDK is pinned in `backend/requirements.txt`.
 
 ## Gaps / changes per file
 
@@ -192,7 +215,7 @@ bank account number or a tax id. This PRD builds exactly that commitment.
 | `backend/requirements.txt` | A3 exact `stripe==` pin |
 | `backend/asclepius/constants.py` | A1 `stripe_enabled()` |
 | `backend/asclepius/stripe_rail.py` (new) | account create + account links, transfer creation, webhook processing, status mapping; the ONLY module that imports stripe (G6) |
-| `backend/asclepius/store.py` | E1-E3 additive schema + accessors |
+| `backend/asclepius/store.py` | E1-E5 additive schema + accessors |
 | `backend/routers/asclepius_payments.py` | C1-C4 transfer-after-mark-paid, retry endpoint, pay-time bank-link check |
 | `backend/routers/asclepius.py` | B1-B3 bank-link endpoints beside the existing interest route |
 | `backend/main.py` | D1 webhook route registration |
@@ -206,7 +229,7 @@ bank account number or a tax id. This PRD builds exactly that commitment.
   `bank_link_status='coming_soon'` gets the promised "banking is live" DM from
   the Archangel bot plus an email via the existing outbox pattern; the
   first-run card literally promised "we'll DM you the moment it does"
-  (`first_run.js:443`), so this is honoring recorded copy, not new marketing.
+  (`frontend/asclepius/first_run.js:654`), matching recorded copy.
   Idempotent via a stamp, same claim pattern as `onboarding_nudge.py`.
 - **Restricted account**: on `account.updated` moving a physician to
   `restricted`, one email telling them Stripe needs more information, linking
@@ -215,7 +238,7 @@ bank account number or a tax id. This PRD builds exactly that commitment.
   emailed about our infrastructure problem.
 - 1099 delivery is Stripe's: no email of ours touches tax forms, ever.
 
-## Test plan (plain pytest, WHY docstrings, stripe fully mocked, no network)
+## Test plan (plain pytest, WHY docstrings, no network)
 
 - `test_stripe_rail_dark.py`
   - `test_flag_off_is_byte_identical_current_behavior`: WHY: the lock is
@@ -238,16 +261,22 @@ bank account number or a tax id. This PRD builds exactly that commitment.
     ledger is the decision record, the failure is a visible reconciliation
     item, not a rollback.
   - `test_retry_is_idempotent_and_gated`: WHY: C4; a double-clicked retry must
-    not double-pay, which the idempotency key guarantees and the test proves.
+    not double-pay within the durable retry window; delayed retries must stop.
   - `test_pay_refused_without_active_bank_link`: WHY: C2; settled-but-unpayable
     must be impossible to create, not merely detectable.
 - `test_stripe_webhooks.py`
   - `test_bad_signature_rejected`: WHY: an unsigned webhook is an unauthorized
     ledger-adjacent write path.
   - `test_duplicate_event_id_processed_once`: WHY: G5; Stripe redelivers, and
-    at-most-once processing must come from the table, not from hope.
+    processed events are deduplicated and interrupted handlers remain retryable.
   - `test_no_bank_or_tax_data_ever_stored`: WHY: E4; the invariant that
-    justifies delegating 1099s is that we hold nothing worth breaching.
+    new webhook records exclude bank/tax identity details.
+
+- `test_stripe_transfer_safety.py`
+  - Delayed retries after key pruning, concurrent dispatch, immutable request
+    parameters, failure at commit boundaries, exact-intent webhook recovery,
+    unknown-event privacy, irreversible reversal status, and real SDK signature
+    verification. These are network-free regression tests.
 
 ## Out of scope
 

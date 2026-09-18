@@ -2033,9 +2033,11 @@ def mark_paid(
             "Name the earnings to pay, or the physician to pay them to.")
 
     now = _now()
+    from asclepius import stripe_rail
     result = store.mark_earnings_paid(
         payout_batch_id=batch, paid_at=_ledger_ts(now),
-        earning_ids=earning_ids, user_id=user_id)
+        earning_ids=earning_ids, user_id=user_id,
+        stripe_mode=stripe_rail.mode() if stripe_rail.enabled() else None)
 
     for row in result["marked"]:
         store.log_event(

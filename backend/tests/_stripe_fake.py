@@ -180,4 +180,5 @@ def install(monkeypatch, *, secret_key: str = "sk_test_rail",
 def event_body(event_id: str, event_type: str, obj: Dict[str, Any]) -> bytes:
     """A webhook body in the shape Stripe posts."""
     return json.dumps({"id": event_id, "type": event_type,
+                       "livemode": False,
                        "data": {"object": obj}}).encode("utf-8")

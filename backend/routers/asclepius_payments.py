@@ -1080,6 +1080,7 @@ def _rail_preflight(
         return
     try:
         rail.sdk()
+        rail.mode()
     except rail.RailUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     for uid in _target_user_ids(store, user_id=user_id, earning_ids=earning_ids):
@@ -1099,34 +1100,37 @@ def _transfer_one(
 ) -> Dict[str, Any]:
     """One ledger row, one transfer, one ``stripe_transfers`` row (G3, G4).
 
-    Never raises. A failure here is a queue item, not an exception that
-    unwinds a ledger write that has already committed.
+    Remote failures become queue items. Storage failures propagate rather than
+    acknowledging a result we did not durably record; the intent survives.
     """
     rail = _rail()
     earning_id = earning["earning_id"]
-    batch = earning.get("payout_batch_id")
-    user = store.get_user_by_id(earning.get("user_id")) or {}
-    destination = (user.get("stripe_account_id") or "").strip()
-    if not destination:
+    intent = store.claim_stripe_transfer(earning_id, stripe_mode=rail.mode())
+    if intent.get('error'):
+        existing = store.get_stripe_transfer(earning_id)
+        if existing and (existing.get('transfer_id') or existing['status'] in (TRANSFER_OK, 'reversed')):
+            return _transfer_outcome(existing)
+        if intent.get('in_progress'):
+            return {'earning_id': earning_id, 'status': 'pending', 'transfer_id': None,
+                    'failure_reason': intent['error']}
         row = store.record_stripe_transfer(
-            earning_id=earning_id, status=TRANSFER_BLOCKED, payout_batch_id=batch,
-            failure_reason="This physician has no connected Stripe account.")
-        log.error("asclepius.payments: earning %s settled with no transfer "
-                  "destination", earning_id)
+            earning_id=earning_id, status=TRANSFER_BLOCKED,
+            payout_batch_id=earning.get('payout_batch_id'), failure_reason=intent['error'])
         return _transfer_outcome(row)
-
+    batch = intent['payout_batch_id']
     try:
         created = rail.create_transfer(
             earning_id=earning_id,
-            amount_cents=int(earning.get("amount_cents") or 0),
-            destination=destination,
+            amount_cents=int(intent['amount_cents']),
+            destination=intent['destination'],
             payout_batch_id=batch,
-            user_id=user.get("id"))
+            user_id=intent['user_id'], intent_id=intent['intent_id'])
     except Exception as exc:
         reason = getattr(exc, "reason", None) or str(exc) or exc.__class__.__name__
         row = store.record_stripe_transfer(
             earning_id=earning_id, status=TRANSFER_FAILED, payout_batch_id=batch,
             failure_reason=reason)
+        store.release_stripe_transfer(earning_id, intent['lease_token'])
         store.log_event(
             entity_type="earning", entity_id=earning_id,
             event_type="earning_transfer_failed",
@@ -1138,8 +1142,9 @@ def _transfer_one(
         return _transfer_outcome(row)
 
     row = store.record_stripe_transfer(
-        earning_id=earning_id, status=TRANSFER_OK, payout_batch_id=batch,
+        earning_id=earning_id, status='reversed' if created.get('reversed') else TRANSFER_OK, payout_batch_id=batch,
         transfer_id=created["transfer_id"], failure_reason=None)
+    store.release_stripe_transfer(earning_id, intent['lease_token'])
     store.log_event(
         entity_type="earning", entity_id=earning_id,
         event_type="earning_transfer_created", actor=(actor or {}).get("id"),
@@ -1162,9 +1167,8 @@ def _with_transfers(
 
     Scoped to the BATCH rather than to the rows this particular call changed,
     which makes a replayed batch retry its failures instead of reporting a bare
-    ``marked: 0``. That is safe precisely because the idempotency key is
-    ``earning:{id}``: a row that already transferred is skipped here and would
-    be a no-op at Stripe even if it were not.
+    ``marked: 0``. Durable intents bound the retry window and retain the exact
+    original request; completed or reversed transfers are never resent.
 
     Flag off: returns ``result`` unchanged, same object, same keys.
     """
@@ -1175,7 +1179,7 @@ def _with_transfers(
     outcomes: List[Dict[str, Any]] = []
     for earning in store.list_earnings(payout_batch_id=batch, status="paid", limit=2000):
         existing = store.get_stripe_transfer(earning["earning_id"])
-        if existing and existing.get("status") == TRANSFER_OK:
+        if existing and (existing.get('transfer_id') or existing.get("status") in (TRANSFER_OK, 'reversed')):
             continue
         outcomes.append(_transfer_one(store, earning, actor=actor))
     return {**result, "transfers": outcomes}
@@ -1192,12 +1196,9 @@ async def admin_retry_transfer(
     """Retry the Stripe transfer for one settled row (C4).
 
     The gate is deliberately narrow: settled, and not already transferred. A
-    row still in review has no decision to execute, and a row that transferred
-    is done. Note what the gate is NOT protecting against: a double-clicked
-    retry cannot double-pay whatever the gate says, because the idempotency key
-    is derived from the ledger row and Stripe returns the first transfer for the
-    second call. The gate exists so the console can say what it refused and why,
-    not because correctness rests on it.
+    row still in review has no decision to execute, and a row with a known
+    transfer (including a reversal) is done. The durable intent retains the
+    original request, serializes dispatch, and refuses expired retries.
     """
     rail = _rail()
     if not rail.enabled():
@@ -1218,7 +1219,7 @@ async def admin_retry_transfer(
             detail="That row is not settled, so nothing was ever meant to transfer "
                    "for it. Mark it paid first.")
     existing = store.get_stripe_transfer(earning_id)
-    if existing and existing.get("status") == TRANSFER_OK:
+    if existing and (existing.get('transfer_id') or existing.get("status") in (TRANSFER_OK, 'reversed')):
         raise HTTPException(
             status_code=409,
             detail="That row has already transferred. Reversals are a Stripe "
@@ -1273,12 +1274,13 @@ def _handle_transfer_event(store: Any, event_type: str, obj: Dict[str, Any]) -> 
     if not transfer_id:
         return "ignored: no transfer id"
     status = rail.transfer_status_from_event(event_type, obj)
-    failure = obj.get("failure_message") or None
     row = store.stamp_stripe_transfer_status(
-        str(transfer_id), status=status, failure_reason=failure)
+        str(transfer_id), status=status, failure_reason=None)
+    if row is None:
+        row = store.recover_stripe_transfer(obj, status=status, stripe_mode=rail.mode())
     if row is None:
         return "ignored: unknown transfer"
-    return f"transfer {transfer_id}: {status}"
+    return f"transfer {transfer_id}: {row['status']}"
 
 
 @router.post("/api/asclepius/stripe/webhook")
@@ -1314,12 +1316,14 @@ async def stripe_webhook(request: Request):
     event_id = event.get("id")
     if not event_id:
         raise HTTPException(status_code=400, detail="Event has no id.")
+    if event.get('livemode') is not (rail.mode() == 'live'):
+        raise HTTPException(status_code=400, detail='Stripe event environment does not match this endpoint.')
 
     import json as _json                                   # noqa: PLC0415
     store = _store()
     store.record_stripe_webhook_event(
         event_id=str(event_id), event_type=event.get("type"),
-        payload_json=_json.dumps(event.get("object") or {}, default=str))
+        payload_json=_json.dumps(rail.webhook_storage_object(event)))
     stored = store.get_stripe_webhook_event(str(event_id)) or {}
     if stored.get("processed_at"):
         return {"ok": True, "duplicate": True}

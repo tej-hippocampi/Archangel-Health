@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import Any, Dict, Optional
 
 from asclepius import constants
@@ -78,6 +79,14 @@ def secret_key() -> str:
 
 def webhook_secret() -> str:
     return (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
+
+
+def mode() -> str:
+    key = secret_key()
+    for value in ('test', 'live'):
+        if key.startswith((f'sk_{value}_', f'rk_{value}_')):
+            return value
+    raise RailUnavailable('Stripe key must identify a test or live environment.')
 
 
 def sdk(*, need_webhook_secret: bool = False):
@@ -221,19 +230,14 @@ def account_public_state(account: Any) -> Dict[str, Any]:
 
 # ─── Transfers (PRD §C, G3) ───────────────────────────────────────────────────
 def idempotency_key(earning_id: str) -> str:
-    """``earning:{id}``. One ledger row, one transfer, forever.
-
-    Derived from the row rather than generated per attempt, which is what makes
-    a retried batch safe: rows that already transferred are no-ops at Stripe,
-    rows that failed are genuinely retried, and a double-clicked retry button
-    cannot pay twice.
-    """
+    """Stable key within Stripe's retention window; durable intent bounds retries."""
     return f"earning:{earning_id}"
 
 
 def create_transfer(
     *, earning_id: str, amount_cents: int, destination: str,
     payout_batch_id: Optional[str] = None, user_id: Optional[str] = None,
+    intent_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Move money for ONE ledger row. Raises TransferFailed on a refusal.
 
@@ -243,13 +247,16 @@ def create_transfer(
     partial failure into manual arithmetic.
     """
     stripe = sdk()
+    metadata = {"earning_id": earning_id, "asclepius_user_id": user_id or ""}
+    if intent_id:
+        metadata['transfer_intent_id'] = intent_id
     try:
         transfer = stripe.Transfer.create(
             amount=int(amount_cents),
             currency="usd",
             destination=destination,
             transfer_group=payout_batch_id or None,
-            metadata={"earning_id": earning_id, "asclepius_user_id": user_id or ""},
+            metadata=metadata,
             idempotency_key=idempotency_key(earning_id),
         )
     except Exception as exc:
@@ -305,11 +312,38 @@ def construct_event(payload: bytes, signature: Optional[str]) -> Dict[str, Any]:
 def _as_event_dict(event: Any) -> Dict[str, Any]:
     """Normalize a verified event into the plain shape the handlers read."""
     data = _field(event, "data") or {}
+    obj = _field(data, 'object')
+    # stripe-python 15 objects are no longer dictionaries (including metadata).
+    # Convert recursively before handlers use dict.get, without persisting it.
+    if callable(getattr(obj, 'to_dict', None)):
+        obj = obj.to_dict()
     return {
         "id": _field(event, "id"),
         "type": _field(event, "type"),
-        "object": _field(data, "object") or {},
+        "livemode": _field(event, "livemode"),
+        "object": obj if isinstance(obj, dict) else {},
     }
+
+
+def webhook_storage_object(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Allowlist persisted fields, including for unfamiliar event types.
+
+    Do not persist metadata, requirements, personal details, descriptions or
+    free-form failure messages. Handlers use the verified object in memory.
+    """
+    obj = event.get('object') or {}
+    event_type = event.get('type')
+    prefix = 'acct' if event_type == 'account.updated' else 'tr' if event_type in TRANSFER_EVENTS else None
+    out: Dict[str, Any] = {}
+    identifier = _field(obj, 'id')
+    if prefix and isinstance(identifier, str) and re.fullmatch(rf'{prefix}_[A-Za-z0-9_]+', identifier):
+        out['id'] = identifier
+    if event_type == 'account.updated':
+        out['payouts_enabled'] = bool(_field(obj, 'payouts_enabled'))
+        out['restricted'] = bool(_field(_field(obj, 'requirements'), 'disabled_reason'))
+    elif event_type in TRANSFER_EVENTS:
+        out['reversed'] = transfer_status_from_event(event_type, obj) == 'reversed'
+    return out
 
 
 #: Transfer event types the rail acts on. ``transfer.reversed`` is here for
