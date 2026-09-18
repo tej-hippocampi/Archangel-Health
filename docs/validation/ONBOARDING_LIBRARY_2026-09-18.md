@@ -111,6 +111,17 @@ that intermittent CI failure still needs resolution before merge. Public evidenc
 preflight retrieved at least two eligible references for all 75 missing topics;
 retrieval availability does not establish clinical support for an authored claim.
 
+The sandbox-copy failure was subsequently reproduced with forced garbage
+collection during the request: closing the final fixture writer checkpoints the
+WAL and changes bytes without changing records. The test now pins a connection
+across both snapshots and still hashes the database plus WAL. **7 tests passed**
+with forced collection; the independent auditor injected a committed live-fixture
+write and confirmed the byte assertion still fails. Production code is unchanged.
+The auditor cleared this test-only fix for push; fresh CI remains required.
+
+[Corrected OpenAI build 35400997410](https://github.com/tej-hippocampi/Archangel-Health/actions/runs/35400997410)
+runs all 43 specialties from `ac289a0`, reusing the eight audited cases.
+
 This PR remains a draft. Neither pathology case is clinically released yet,
 despite the image viewer and provenance paths passing software tests. Do not
 merge until all 86 artifacts pass review and CI, and production preservation
