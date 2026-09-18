@@ -115,6 +115,9 @@ jobs:
             exit 1
           fi
           if [ "$SMOKE_MODE" = "onboarding-library" ]; then
+            # Use the existing OpenAI transport for batch authorship. Reviewers
+            # remain independent Anthropic + OpenAI; paid generation is unchanged.
+            export MODEL_ASCLEPIUS_CASE_GEN="${OPENAI_MODEL:-gpt-5}"
             python3 scripts/build_onboarding_library.py --specialty "$SMOKE_SPECIALTY" --output "${RUNNER_TEMP}/onboarding-cases" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
           elif [ "$SMOKE_MODE" = "onboarding" ]; then
             python3 scripts/smoke_onboarding_cases.py --specialty "$SMOKE_SPECIALTY" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
