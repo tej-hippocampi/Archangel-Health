@@ -52,6 +52,7 @@ def approved_review(entry):
         'evidence_supported', 'distinct_decision', 'no_missing_information')},
         'best_answer_id': 'A', 'confidence': .96, 'issues': [], 'rationale': 'Test reviewer rationale',
         'claim_checks': [{'index': i, 'supported': True, 'source_ids': c['source_ids'], 'reason': 'Test evidence check',
+                          'source_passage_ids': [s['id'] + ':p0' for s in SOURCES if s['id'] in c['source_ids']],
                           'source_quotes': [{'source_id': s['id'], 'quote': s['abstract']}
                                             for s in SOURCES if s['id'] in c['source_ids']]}
                          for i, c in enumerate(entry['claims'])]}
@@ -435,6 +436,7 @@ def test_reference_retrieval_pages_large_results_and_keeps_eight_eligible_abstra
 
     monkeypatch.setattr(evidence, '_request', request)
     rows = asyncio.run(evidence.retrieve('cardiology'))
+    assert 'cardiology[Title]' in calls[0][1]['term']
     assert [row['id'] for row in rows] == [str(i) for i in range(1, 9)]
     assert [params['id'] for endpoint, params in calls if endpoint == 'efetch.fcgi'] == ['1,2,3', '4,5,6', '7,8,9']
 

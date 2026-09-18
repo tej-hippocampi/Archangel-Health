@@ -84,6 +84,10 @@ if __name__ == "__main__":
     if args.matrix:
         value = args.specialty or os.getenv("SMOKE_SPECIALTY", "all")
         choices = list(SPECIALTIES) if value == "all" else [canonical(value)]
+        # Surface the specialties applicants reported first, while still
+        # preparing every curriculum entry in the same bounded matrix.
+        priority = ('pathology', 'dermatology', 'neurology')
+        choices.sort(key=lambda s: priority.index(s) if s in priority else len(priority))
         if any(s not in SPECIALTIES for s in choices):
             raise SystemExit("Choose a supported launch specialty or all")
         print(json.dumps(choices))

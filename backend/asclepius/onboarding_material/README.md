@@ -35,8 +35,8 @@ committed cases are reused; building never overwrites their identities. A failed
 case remains unavailable, and a successful companion is retained as an artifact.
 Real model keys remain in GitHub Secrets. No physician/CV/partner data is used.
 
-The library workflow uses the existing OpenAI model (`OPENAI_MODEL`, default
-`gpt-5`) for authorship through `MODEL_ASCLEPIUS_CASE_GEN`. Anthropic and OpenAI
+The library workflow uses OpenAI (`OPENAI_MODEL`, CI default
+`gpt-5.6-sol`) for authorship through `MODEL_ASCLEPIUS_CASE_GEN`. Anthropic and OpenAI
 still independently solve and review each new case. This override is confined to
 the batch build; it does not change production or paid-case generation defaults.
 Both provider keys are still required, and provider failures never bypass review.
@@ -54,11 +54,19 @@ plan invalidates the assessment even when both model reviews approve it. Keep
 rejected material outside `cases/`; never manually edit a reviewed entry to fix
 it, since that would invalidate its content hash and clinical review.
 
-New clinical reviews must quote each cited source. The server verifies that each
+New clinical reviews select supplied literal passage handles for each cited
+source. The server expands these handles into quotations without changing any
+clinical judgment, avoiding ellipses or retyping errors. It verifies that each
 excerpt occurs in the retrieved text; reviewers separately judge whether it
 establishes the recommendation for the actual population. Scope summaries,
 remembered guideline details and absence of contradictory evidence do not count.
 Reviewers also check decisive advice omitted from the author's claim list.
+
+Retrieval prioritizes disease-title matches, with title/abstract fallback.
+Alongside PubMed abstracts, it can retain bounded CC BY/CC0 Europe PMC body
+excerpts with matching publication IDs, license metadata and hashes. Excerpts
+are selected paragraphs, not a claim to include the complete guideline. No
+model-provided URL or redirect target is fetched.
 
 Seven pre-protocol artifacts received an independent audit against their actual
 source text. `legacy_evidence_audits.json` pins each entire original document,

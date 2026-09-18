@@ -74,3 +74,9 @@ requires exact source excerpts, checked against retrieved text, plus the existin
 two-provider clinical review. No production records or submitted cases were
 rewritten. Source-protocol validation: 154 builder tests and 126 independent tests
 passed (the unfinished 86-case release gate remains separately failing).
+
+Follow-up:9/86 independently audited artifacts retained. Added reference retrieval
+and passage-provenance checks only; no migration or mutation of production data.
+Existing batches, submitted exams and reviewed documents are preserved. New
+rejected draft artifacts are retained outside the release bank. Full clinical
+coverage and production backup/alert verification still block release.

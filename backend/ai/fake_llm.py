@@ -516,6 +516,8 @@ def _f_onboarding_review(ctx: _Ctx) -> str:
         "issues": ["Fake reviewer rejection"] if _failing() else [],
         "rationale": "Fake evidence review for software tests only.",
         "claim_checks": [{"index": i, "supported": not _failing(), "source_ids": claim["source_ids"],
+                          "source_passage_ids": [handle for handle, passage in payload.get("evidence_passages", {}).items()
+                                                 if passage["source_id"] in claim["source_ids"]],
                           "source_quotes": [{"source_id": sid, "quote": sources.get(sid, "")[:200]}
                                             for sid in claim["source_ids"]],
                           "reason": "Fake evidence check"} for i, claim in enumerate(entry.get("claims") or [])]})

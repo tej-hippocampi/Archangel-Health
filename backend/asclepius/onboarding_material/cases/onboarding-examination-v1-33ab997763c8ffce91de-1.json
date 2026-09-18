@@ -1,0 +1,450 @@
+{
+  "task_id": "onboarding-examination-v1-33ab997763c8ffce91de-1",
+  "specialty": "endocrinology",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Adult patient with persistent hypercalcemia and elevated PTH on routine testing",
+    "question": "Given this adult with persistent hypercalcemia and an inappropriately elevated PTH, what is the most appropriate next step in the diagnostic evaluation at this stage?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "endocrinology",
+      "demographics": {
+        "age_band": "50-59",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Persistent hypercalcemia on routine labs",
+          "since": "several weeks",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Mild fatigue",
+          "since": "several months",
+          "collected_offset_days": null
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "bp": "128/76",
+        "hr": 72,
+        "rr": 14,
+        "temp_c": 36.8,
+        "bmi": 26.1
+      },
+      "lab_panels": [
+        {
+          "panel": "Basic metabolic panel",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Calcium",
+              "loinc": null,
+              "value": 11.2,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Albumin",
+              "loinc": null,
+              "value": 4.3,
+              "unit": "g/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Creatinine",
+              "loinc": null,
+              "value": 0.9,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "eGFR",
+              "loinc": null,
+              "value": 90,
+              "unit": "mL/min/1.73m2",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Parathyroid hormone",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Intact PTH",
+              "loinc": null,
+              "value": 85,
+              "unit": "pg/mL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Consultation",
+          "author_role": "endocrinology",
+          "text": "A 55-year-old woman was referred to endocrinology for evaluation of persistent hypercalcemia detected on two separate routine chemistry panels obtained by her primary clinician. She reports several months of mild fatigue and intermittent constipation. No history of nephrolithiasis, bone pain, fragility fractures, peptic symptoms, or neurocognitive changes. She denies use of lithium, thiazide diuretics, or high-dose calcium supplements. Dietary intake is average; no over-the-counter vitamin D megadoses reported. Family history is negative for calcium disorders or endocrine neoplasia. Physical exam is unremarkable without focal bone tenderness or muscle weakness. Repeat labs show total calcium 11.2 mg/dL with normal albumin, creatinine 0.9 mg/dL with preserved eGFR, and an inappropriately elevated intact PTH at 85 pg/mL. No 24-hour urine calcium or bone density studies have been performed yet. No prior parathyroid imaging has been obtained.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": null
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": null,
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "Diagnosis of hyperparathyroidism is made biochemically; parathyroid imaging is not used to establish the diagnosis and is reserved for preoperative localization when surgery is planned. This patient is in the initial diagnostic phase with elevated calcium and PTH and no operative plan; therefore, the next step is to complete/confirm biochemical evaluation and defer localization imaging at this stage.",
+        "evidence": null,
+        "key_data": [
+          "Serum calcium is elevated with inappropriately elevated intact PTH, consistent with suspected PHPT.",
+          "No decision has been made to proceed to surgery; this is initial diagnostic evaluation.",
+          "ACR Appropriateness Criteria state imaging has no role in the diagnosis and is for preoperative localization in PHPT."
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Order a technetium-99m sestamibi parathyroid scan and contrast-enhanced 4D-CT now to confirm primary hyperparathyroidism and identify the culprit gland; imaging at this point will establish the diagnosis and direct subsequent management."
+      },
+      {
+        "id": "B",
+        "text": "Proceed with biochemical confirmation of hyperparathyroidism (repeat serum calcium and PTH as needed) and defer parathyroid imaging until surgical planning; diagnosis is biochemical, and localization imaging is not used to make the diagnosis."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "hypercalcemia",
+      "parathyroid hormone",
+      "primary hyperparathyroidism",
+      "sestamibi scan",
+      "4D-CT",
+      "biochemical testing"
+    ],
+    "evidence_keywords": [
+      "biochemical diagnosis",
+      "localization imaging",
+      "preoperative planning",
+      "ACR Appropriateness Criteria",
+      "parathyroid carcinoma"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "In hyperparathyroidism, the diagnosis is made through biochemical testing; imaging has no role in establishing the diagnosis.",
+        "source_ids": [
+          "34794597"
+        ]
+      },
+      {
+        "statement": "For primary hyperparathyroidism, imaging is appropriate to localize parathyroid tissue preoperatively with intent of surgical cure.",
+        "source_ids": [
+          "34794597"
+        ]
+      },
+      {
+        "statement": "Parathyroid carcinoma accounts for about 1% of primary hyperparathyroidism and usually presents with markedly elevated calcium and PTH.",
+        "source_ids": [
+          "36621911"
+        ]
+      },
+      {
+        "statement": "The 2022 international workshop provides evidence-based recommendations and updated guidance on the evaluation and management of PHPT.",
+        "source_ids": [
+          "36245251"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:07:34.073772+00:00",
+    "author_model": "gpt-5",
+    "sources": [
+      {
+        "id": "36245251",
+        "title": "Evaluation and Management of Primary Hyperparathyroidism: Summary Statement and Guidelines from the Fifth International Workshop.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36245251/",
+        "abstract": "The last international guidelines on the evaluation and management of primary hyperparathyroidism (PHPT) were published in 2014. Research since that time has led to new insights into epidemiology, pathophysiology, diagnosis, measurements, genetics, outcomes, presentations, new imaging modalities, target and other organ systems, pregnancy, evaluation, and management. Advances in all these areas are demonstrated by the reference list in which the majority of listings were published after the last set of guidelines. It was thus, timely to convene an international group of over 50 experts to review these advances in our knowledge. Four Task Forces considered: 1. Epidemiology, Pathophysiology, and Genetics; 2. Classical and Nonclassical Features; 3. Surgical Aspects; and 4. Management. For Task Force 4 on the Management of PHPT, Grading of Recommendations, Assessment, Development, and Evaluations (GRADE) methodology addressed surgical management of asymptomatic PHPT and non-surgical medical management of PHPT. The findings of this systematic review that applied GRADE methods to randomized trials are published as part of this series. Task Force 4 also reviewed a much larger body of new knowledge from observations studies that did not specifically fit the criteria of GRADE methodology. The full reports of these 4 Task Forces immediately follow this summary statement. Distilling the essence of all deliberations of all Task Force reports and Methodological reviews, we offer, in this summary statement, evidence-based recommendations and guidelines for the evaluation and management of PHPT. Different from the conclusions of the last workshop, these deliberations have led to revisions of renal guidelines and more evidence for the other recommendations. The accompanying papers present an in-depth discussion of topics summarized in this report. © 2022 The Authors. Journal of Bone and Mineral Research published by Wiley Periodicals LLC on behalf of American Society for Bone and Mineral Research (ASBMR).",
+        "sha256": "3189bb5e40fcb257efc777c21d02b834c66a2998a9f342e1f5a9db5adc77cd6f",
+        "retrieved_at": "2026-09-18T23:05:26.903609+00:00"
+      },
+      {
+        "id": "36621911",
+        "title": "Diagnosis and management of parathyroid carcinoma: a state-of-the-art review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36621911/",
+        "abstract": "Parathyroid carcinoma is one of the least common endocrine malignancies and accounts for approximately 1% of all patients with primary hyperparathyroidism. A systematic review of peer-reviewed literature published between January 2000 and March 2022 via Medline, Embase, Cochrane Central Register of Controlled Trials, EudraCT, ClinicalTrials.gov, CINAHL and SCOPUS was conducted. Manuscripts were eligible if they included data on adult non-pregnant populations with parathyroid carcinoma. No restrictions regarding interventions, comparators or duration of follow-up were imposed. Single case reports, reviews or meta-analyses were excluded. Outcomes of interest were molecular pathogenesis, clinical presentation, differential diagnosis, treatment, follow-up and overall survival. Study quality was evaluated using the Newcastle-Ottawa Scale for observational studies. This review included 75 studies from 17 countries, reporting on more than 3000 patients with parathyroid carcinoma. CDC73 mutation has been recognised as playing a pivotal role in molecular pathogenesis. Parathyroid carcinoma typically presents with markedly increased calcium and parathyroid hormone levels. The most frequently described symptoms were bone and muscle pain or weakness. En bloc resection remains the gold standard for the surgical approach. The 5-year overall survival ranged from 60 to 93%, with resistant hypercalcaemia a significant cause of mortality. Emerging evidence indicating that targeted therapy, based on molecular biomarkers, presents a novel treatment option. The rarity of PC and need for personalised treatment warrant multidisciplinary management in a 'centre of excellence' with a track record in PC management.",
+        "sha256": "c1094cc2a8c5d158b498c4b01396fa7c09cc6eac0f8bc06678dc5b7a41c17f08",
+        "retrieved_at": "2026-09-18T23:05:26.903609+00:00"
+      },
+      {
+        "id": "37356648",
+        "title": "Vitamin D Therapy in Adults With CKD: A Systematic Review and Meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37356648/",
+        "abstract": "Vitamin D is widely used to manage chronic kidney disease-mineral and bone disorder (CKD-MBD). We evaluated the effects of vitamin D therapy on mortality, cardiovascular, bone, and kidney outcomes in adults with CKD.\nSystematic review of randomized controlled trials (RCT) with highly sensitive searching of MEDLINE, Embase, and CENTRAL, through February 25, 2023.\nAdults with stage 3, 4, or 5 CKD, including kidney failure treated with dialysis. Recipients of a kidney transplant were excluded.\nRCTs with≥3 months of follow-up evaluating a vitamin D compound.\nData were extracted independently by three investigators.\nTreatment estimates were summarized using random effects meta-analysis. Primary review endpoints were all-cause death, cardiovascular death, and fracture. Secondary outcomes were major adverse cardiovascular events, hospitalization, bone mineral density, parathyroidectomy, progression to kidney failure, proteinuria, estimated glomerular filtration rate, hypercalcemia, hyperphosphatemia, biochemical markers of CKD-MBD, and various intermediate outcome measures of cardiovascular disease. Risk of bias was assessed using the Cochrane Risk of Bias (RoB) 2 tool. Evidence certainty was adjudicated using GRADE.\nOverall, 128 studies involving 11,270 participants were included. Compared with placebo, vitamin D therapy probably had no effect on all-cause death (relative risk [RR], 1.04; 95% CI, 0.84-1.24); and uncertain effects on fracture (RR, 0.68; 95% CI, 0.37-1.23) and cardiovascular death (RR, 0.73; 95% CI, 0.31-1.71). Compared with placebo, vitamin D therapy lowered serum parathyroid hormone and alkaline phosphatase, but increased serum calcium.\nData were limited by trials with short-term follow-up periods, small sample size, and the suboptimal quality.\nVitamin D therapy did not reduce the risk of all-cause death in people with CKD. Effects on fracture and cardiovascular and kidney outcomes were uncertain.\nRegistered at PROSPERO with study number CRD42017057691.\nChronic kidney disease (CKD) is associated with increased risk of death, cardiovascular disease, and fractures. This excess risk is thought to be related to changes in bone and mineral metabolism, leading to the development of CKD-mineral and bone disorder (CKD-MBD) which is characterized by vascular calcification and reduced bone quality. Vitamin D is commonly used in the treatment of this condition. We reviewed randomized controlled trials examining the effect of vitamin D therapy in CKD. We found that vitamin D therapy affects serum biomarkers, including an increase in serum calcium. However, it probably has no effect on risk of all-cause death in CKD, and the effects on other clinical bone, cardiovascular, and kidney outcomes are uncertain.",
+        "sha256": "5b9a0be898997f6e28e0bc093e07f08a43bd0db196c7f164f7abb375ceb385a8",
+        "retrieved_at": "2026-09-18T23:05:26.903609+00:00"
+      },
+      {
+        "id": "40889554",
+        "title": "French expert consensus statement on diagnosis and management of primary hyperparathyroidism.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40889554/",
+        "abstract": "In 2024, the French Society of Endocrinology, the French-speaking Association of Endocrine Surgery, and the French Society of Nuclear Medicine have elaborated a joint consensus statement on primary hyperparathyroidism, which was presented at the last congress of the French Society of Endocrinology, in October 2024, and subsequently published as 15 individual chapters in the Annals of Endocrinology. This consensus statement is a fruit of a joint effort by over 80 French-speaking experts in the field, including adult and pediatric endocrinologists, endocrine and pediatric surgeons, radiologists, nuclear medicine specialists, biologists and geneticists, and has been endorsed by the Belgian and Swiss endocrine societies. This document summarizes the recommendations, subdivided into 15 sections each preceded by a brief introduction. It aimed at covering systematically all areas of diagnosis and management of primary hyperparathyroidism throughout life in a comprehensive way, that we hope could be useful in particular to our younger colleagues in training.",
+        "sha256": "56987032f5f3fe190b59ec1d64b9be3ea44c8802fb3aa36d778ad39ef82376f6",
+        "retrieved_at": "2026-09-18T23:05:27.667169+00:00"
+      },
+      {
+        "id": "38644730",
+        "title": "Italian Guidelines for the Management of Sporadic Primary Hyperparathyroidism.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38644730/",
+        "abstract": "This guideline (GL) is aimed at providing a clinical practice reference for the management of sporadic primary hyperparathyroidism (PHPT) in adults. PHPT management in pregnancy was not considered.\nThis GL has been developed following the methods described in the Manual of the Italian National Guideline System. For each question, the panel appointed by Associazione Medici Endocrinology (AME) and Società Italiana dell'Osteoporosi, del Metabolismo Minerale e delle Malattie dello Scheletro (SIOMMMS) identified potentially relevant outcomes, which were then rated for their impact on therapeutic choices. Only outcomes classified as \"critical\" and \"important\" were considered in the systematic review of evidence. Those classified as \"critical\" were considered for the clinical practice recommendations.\nThe present GL provides recommendations about the roles of pharmacological and surgical treatment for the clinical management of sporadic PHPT. Parathyroidectomy is recommended in comparison to surveillance or pharmacologic treatment in any adult (outside of pregnancy) or elderly subject diagnosed with sporadic PHPT who is symptomatic or meets any of the following criteria: • Serum calcium levels >1 mg/dL above the upper limit of normal range. • Urinary calcium levels >4 mg/kg/day. • Osteoporosis disclosed by DXA examination and/or any fragility fracture. • Renal function impairment (eGFR <60 mL/min). • Clinic or silent nephrolithiasis. • Age ≤50 years. Monitoring and treatment of any comorbidity or complication of PHPT at bone, kidney, or cardiovascular level are suggested for patients who do not meet the criteria for surgery or are not operated on for any reason. Sixteen indications for good clinical practice are provided in addition to the recommendations.\nThe present GL is directed to endocrinologists and surgeons - working in hospitals, territorial services or private practice - and to general practitioners and patients. The recommendations should also consider the patient's preferences and the available resources and expertise.",
+        "sha256": "6c7c6c94f5e6c1a2bb6e3ddebf7d66d8110b87e7f3b5bf83d0f4e0973fd57c45",
+        "retrieved_at": "2026-09-18T23:05:27.667169+00:00"
+      },
+      {
+        "id": "33642204",
+        "title": "Parathyroid cancer: A systematic review of diagnostic biomarkers.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33642204/",
+        "abstract": "Parathyroid cancers are rare and difficult to distinguish from benign parathyroid tumours. Prediction of malignancy often relies on intraoperative assessment of invasion. Standard histology is also inadequate; especially in the absence of local invasion, lymph nodal disease and metastasis. The aim of this project was to systematically review published literature on potential bio-markers used for the diagnosis of parathyroid cancer.\nPubmed, Web of Science and Medline databases were searched. Inclusion criteria included English language papers published after 1985 and reporting on biomarkers in human studies of parathyroid cancer and benign disease.\n118 relevant papers were appraised; all were observational studies. At least 2 papers studied 8 serum, 4 urine and 27 tissue biomarkers on the diagnosis of parathyroid cancer. Of these, 5 serum and 13 tissue markers have been demonstrated in at least one study to be statistically different in benign and malignant disease. We present a synthesis of data for each biomarker and measures of diagnostic accuracy where possible.\nConsideration should be given to the use of a panel of biomarkers to review patients with suspected parathyroid cancer. A profile including serum calcium and PTH levels and tissue expression of APC, Parafibromin, PGP9.5, Galectin 3 and Ki67 is proposed. Systematic Review Registration Number - CRD42019127833.",
+        "sha256": "738dd2d0ae46db3b9db3d4ff5a59b15ee718c9c2948aba5f72b2d8a299a53b69",
+        "retrieved_at": "2026-09-18T23:05:27.667169+00:00"
+      },
+      {
+        "id": "39351881",
+        "title": "Oral vitamin D supplementation for adults with obesity undergoing bariatric surgery.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39351881/",
+        "abstract": "Vitamin D deficiency following bariatric surgery is common and is expected to be associated with a deleterious impact on the skeleton. However, the benefits of vitamin D supplementation and the optimal dose in this population is currently unknown. The available guidelines on the topic are derived from experts' opinions, and are not evidence based.\nTo compare the effects of different doses of vitamin D supplementation (low dose (less than 600 international units (IU)/day), moderate dose (600 IU/day to 3500 IU/day), high dose (greater than 3500 IU/day)) to each other or to placebo in adults living with obesity undergoing bariatric surgery.\nWe searched CENTRAL, MEDLINE, Embase, LILACS, two trial registries, and the reference lists of systematic reviews, articles, and health technology assessment reports without language restrictions. The last search of all databases was 27 June 2023, except Embase, which we searched on 14 August 2015.\nWe included randomised controlled trials or controlled clinical trials on vitamin D supplementation comparing different doses or comparing vitamin D to placebo in people undergoing bariatric surgery.\nWe used standard Cochrane methods. Primary outcomes were fractures and adverse events. Secondary outcomes were vitamin D status, all-cause mortality, bone mineral change, secondary hyperparathyroidism, health-related quality of life, and muscle strength. We used GRADE to assess the certainty of the evidence for each outcome in each comparison.\nWe identified five trials with 314 participants. We included three trials in the quantitative analysis. Moderate-dose vitamin D compared to placebo One trial compared moderate-dose vitamin D (3200 IU/day) to placebo. Moderate-dose vitamin D, compared to placebo, may improve vitamin D status and may result in little to no difference in the achieved parathyroid hormone level (achieved 25-hydroxyvitamin D level: mean difference (MD) 13.60 ng/mL, 95% confidence interval (CI) 7.94 to 19.26; achieved parathyroid hormone level: -6.60 pg/mL, 95% CI -17.12 to 3.92; 1 study, 79 participants; low-certainty evidence). The trial reported no adverse events in the moderate-dose vitamin D arm, but did not provide any information on adverse events in the placebo arm. There were no data on fractures, all-cause mortality, bone density change, health-related quality of life, and muscle strength. High-dose vitamin D compared to moderate-dose vitamin D Two trials in Roux-en-Y gastric bypass compared moderate-dose (equivalent dose 800 IU/day to 2000 IU/day) to high-dose (equivalent dose 5000 IU/day to 7943 IU/day) vitamin D. The evidence of high-dose vitamin D on adverse events is very uncertain (risk ratio (RR) 5.18, 95% CI 0.23 to 116.56; 2 studies, 81 participants; very low-certainty evidence). High-dose vitamin D may increase 25-hydroxyvitamin D levels compared to a moderate dose at 12 months, but the evidence is very uncertain (MD 15.55 ng/mL, 95% CI 3.50 to 27.61; I2 = 62%; 2 studies, 73 participants; very low-certainty evidence). High-dose vitamin D may have little to no effect on parathyroid hormone levels compared to a moderate dose at 12 months, but the evidence is very uncertain (MD 2.15 pg/mL, 95% CI -21.31 to 17.01; I2 = 0%; 2 studies, 72 participants; very low-certainty evidence). High-dose vitamin D may have little to no effect on mortality and bone mineral density at the lumbar spine, hip, and forearm, but the evidence is very uncertain. There were no data on fractures, health-related quality of life, or muscle strength.\nNo trials reported on fractures and the evidence available on adverse events is scarce. Moderate-dose vitamin D may improve vitamin D status and may result in little to no improvement in parathyroid hormone levels compared with placebo. High-dose vitamin D supplementation (greater than 3500 IU/day) may increase 25-hydroxyvitamin D levels, and may have little to no effect on parathyroid hormone levels, compared to a moderate dose, but the evidence for both is very uncertain. The currently available limited evidence may not have a significant impact on practice. Further studies are needed to explore the impact of vitamin D supplementation on fractures, adverse events, and musculoskeletal parameters in people undergoing bariatric surgery.",
+        "sha256": "9b686961381a5f93c24887b9b0cfa5ba3259ded7a737dfe47be6c3f198770e7d",
+        "retrieved_at": "2026-09-18T23:05:28.379288+00:00"
+      },
+      {
+        "id": "34794597",
+        "title": "ACR Appropriateness Criteria® Parathyroid Adenoma.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34794597/",
+        "abstract": "Hyperparathyroidism is defined as excessive parathyroid hormone production. The diagnosis is made through biochemical testing, in which imaging has no role. However, imaging is appropriate for preoperative parathyroid gland localization with the intent of surgical cure. Imaging is particularly useful in the setting of primary hyperparathyroidism whereby accurate localization of a single parathyroid adenoma can facilitate minimally invasive parathyroidectomy. Imaging can also be useful to localize ectopic or supernumerary parathyroid glands and detail anatomy, which may impact surgery. This document summarizes the literature and provides imaging recommendations for hyperparathyroidism including primary hyperparathyroidism, recurrent or persistent primary hyperparathyroidism after parathyroid surgery, secondary hyperparathyroidism, and tertiary hyperparathyroidism. Recommendations include ultrasound, CT neck without and with contrast, and nuclear medicine parathyroid scans. The American College of Radiology Appropriateness Criteria are evidence-based guidelines for specific clinical conditions that are reviewed annually by a multidisciplinary expert panel. The guideline development and revision include an extensive analysis of current medical literature from peer reviewed journals and the application of well-established methodologies (RAND/UCLA Appropriateness Method and Grading of Recommendations Assessment, Development, and Evaluation or GRADE) to rate the appropriateness of imaging and treatment procedures for specific clinical scenarios. In those instances where evidence is lacking or equivocal, expert opinion may supplement the available evidence to recommend imaging or treatment.",
+        "sha256": "82ed79908f14660952b46be88595ede9a6ef08393b1b1972a221606055f2a1d5",
+        "retrieved_at": "2026-09-18T23:05:28.379288+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The diagnosis of primary hyperparathyroidism is biochemical, established by demonstrating persistent hypercalcemia with an inappropriately non-suppressed/elevated PTH—exactly this patient's picture (Ca 11.2 mg/dL, normal albumin, intact PTH 85 pg/mL). The ACR Appropriateness Criteria explicitly state that 'the diagnosis is made through biochemical testing, in which imaging has no role,' and that parathyroid imaging (sestamibi, 4D-CT, ultrasound) is for preoperative localization once surgery is planned (source 34794597). International and national guidelines (36245251, 40889554, 38644730) frame localization imaging as a step in surgical planning, not diagnosis. Appropriate next steps in evaluation are completing the biochemical/complication workup—confirming values, checking 25-OH vitamin D, and obtaining a 24-hour urine calcium (to exclude familial hypocalciuric hypercalcemia and to help meet surgical criteria), plus DXA and renal assessment. Answer A errs by using imaging to 'establish the diagnosis' and by ordering contrast-enhanced 4D-CT prematurely, before a surgical decision. Therefore B is correct.",
+          "confidence": 0.9
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34794597"
+              ],
+              "reason": "The ACR abstract directly states diagnosis is biochemical and imaging has no role in diagnosis.",
+              "source_quotes": [
+                {
+                  "source_id": "34794597",
+                  "quote": "The diagnosis is made through biochemical testing, in which imaging has no role."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34794597"
+              ],
+              "reason": "The ACR abstract states imaging is appropriate for preoperative localization with intent of surgical cure.",
+              "source_quotes": [
+                {
+                  "source_id": "34794597",
+                  "quote": "However, imaging is appropriate for preoperative parathyroid gland localization with the intent of surgical cure."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "36621911"
+              ],
+              "reason": "The parathyroid carcinoma review states ~1% of PHPT and markedly increased calcium and PTH.",
+              "source_quotes": [
+                {
+                  "source_id": "36621911",
+                  "quote": "accounts for approximately 1% of all patients with primary hyperparathyroidism"
+                },
+                {
+                  "source_id": "36621911",
+                  "quote": "Parathyroid carcinoma typically presents with markedly increased calcium and parathyroid hormone levels."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "36245251"
+              ],
+              "reason": "The Fifth International Workshop summary provides evidence-based recommendations for evaluation/management of PHPT.",
+              "source_quotes": [
+                {
+                  "source_id": "36245251",
+                  "quote": "we offer, in this summary statement, evidence-based recommendations and guidelines for the evaluation and management of PHPT"
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is properly within endocrinology, addressing the diagnostic workup of suspected primary hyperparathyroidism. The patient has persistent hypercalcemia (Ca 11.2 with normal albumin) and an inappropriately elevated intact PTH (85), consistent with suspected PHPT, in the initial diagnostic phase with no surgical plan yet. The correct next step is biochemical confirmation and deferral of localization imaging, because diagnosis is biochemical and imaging serves only preoperative localization once surgery is intended. This is directly supported by the ACR Appropriateness Criteria (34794597). Candidate A recommends sestamibi and 4D-CT 'to confirm the diagnosis and direct management,' which is explicitly contradicted by the source ('imaging has no role' in diagnosis); it is the intended flawed answer (working as designed), representing an unnecessary/premature imaging cascade and misuse of localization studies. Candidate B (the designated sound answer) is safe and complete for this stage: repeat/confirm Ca and PTH and defer imaging. Note: a fully rigorous workup would also include 25-OH vitamin D, 24-hour urine calcium (to exclude FHH), and possibly DXA/renal imaging for surgical criteria assessment; however, B's language ('biochemical confirmation... repeat serum calcium and PTH as needed') captures the essential immediate next step and does not omit essential safety care, and correctly frames imaging as deferred to surgical planning. The question does not disclose the intended answer in the visible note. The two candidates present distinct clinical decisions (image now vs. confirm biochemically and defer imaging). Claims are each supported by exact source text. Confidence is high but not maximal because B could have been more explicit about vitamin D and 24-hour urine testing, though this is a minor caveat rather than a blocking omission for the specific question of 'imaging now vs. biochemical/defer.'"
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Diagnosis of primary hyperparathyroidism is biochemical—elevated or inappropriately normal PTH with hypercalcemia—and imaging is not used to establish the diagnosis. Guidelines recommend confirming biochemistry (repeat calcium—preferably ionized or albumin-corrected—and PTH as needed), assessing 25‑OH vitamin D, and obtaining a 24‑hour urine calcium to help exclude FHH, with localization imaging deferred until surgical planning (Fifth International Workshop 2022; ACR Appropriateness Criteria 2021).",
+          "confidence": 0.92
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34794597"
+              ],
+              "reason": "ACR states explicitly that diagnosis of hyperparathyroidism is biochemical and imaging has no role in establishing the diagnosis.",
+              "source_quotes": [
+                {
+                  "source_id": "34794597",
+                  "quote": "The diagnosis is made through biochemical testing, in which imaging has no role."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34794597"
+              ],
+              "reason": "ACR clarifies the role of imaging as preoperative localization aimed at surgical cure in PHPT.",
+              "source_quotes": [
+                {
+                  "source_id": "34794597",
+                  "quote": "imaging is appropriate for preoperative parathyroid gland localization with the intent of surgical cure."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "36621911"
+              ],
+              "reason": "Review article quantifies rarity (~1%) and typical presentation with markedly elevated calcium and PTH for parathyroid carcinoma.",
+              "source_quotes": [
+                {
+                  "source_id": "36621911",
+                  "quote": "Parathyroid carcinoma is one of the least common endocrine malignancies and accounts for approximately 1% of all patients with primary hyperparathyroidism."
+                },
+                {
+                  "source_id": "36621911",
+                  "quote": "Parathyroid carcinoma typically presents with markedly increased calcium and parathyroid hormone levels."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "36245251"
+              ],
+              "reason": "The Fifth International Workshop paper states it offers evidence-based recommendations and updated guidance on PHPT evaluation and management.",
+              "source_quotes": [
+                {
+                  "source_id": "36245251",
+                  "quote": "we offer, in this summary statement, evidence-based recommendations and guidelines for the evaluation and management of PHPT."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Clinical resolution: The patient has persistent hypercalcemia (11.2 mg/dL) with an inappropriately elevated intact PTH (85 pg/mL), compatible with suspected primary hyperparathyroidism (PHPT). At this stage, the key decision is whether to obtain localization imaging now or continue biochemical evaluation. According to the ACR Appropriateness Criteria, the diagnosis of hyperparathyroidism is biochemical and imaging has no role in establishing the diagnosis; imaging is reserved for preoperative localization when surgery is planned. Therefore, the appropriate next step is to continue/confirm biochemical workup and defer parathyroid imaging until there is an operative plan. Candidate B aligns with this approach; Candidate A is unsafe/incorrect because it asserts that imaging will confirm diagnosis and recommends immediate sestamibi and 4D-CT, which contradicts ACR guidance. Additional reasonable biochemical steps (not required to choose between the provided options) include checking 25-hydroxyvitamin D, assessing 24-hour urine calcium or calcium/creatinine clearance ratio to exclude FHH, and evaluating skeletal/renal complications (e.g., DXA, renal imaging) during the broader workup. The key and the designated sound answer are consistent with the supplied evidence and the patient’s stage of evaluation.",
+          "references_considered": [
+            "34794597",
+            "36621911",
+            "36245251"
+          ]
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "4fac1d8502a1a2edc71a0615348d05aa4b2e8c9e35e4ecd5dba240b844a1ced6"
+  }
+}

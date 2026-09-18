@@ -161,3 +161,44 @@ This PR remains a draft. Neither pathology case is clinically released yet,
 despite the image viewer and provenance paths passing software tests. Do not
 merge until all 86 artifacts pass review and CI, and production preservation
 requirements are verified.
+
+## September 18 follow-up: the two red checks
+
+On head `121dee4`, both backend/keyless shard 3 failed **only**
+`test_release_library_contains_all_86_reviewed_cases`: **2071 passed, 1 skipped,
+1 failed per shard**. Every other job in that Tests workflow passed. The blocker
+is missing reviewed material, not an unrelated software failure.
+
+Build `35402702466` was stopped after diagnostics showed repeated source gaps and
+quotation elisions. Independent audit accepted endocrinology examination and
+allergy/immunology practice. Cardiology examination and hematology examination
+were quarantined: conflicting treatment-ranking claims/answer leakage, and an
+empiric-treatment recommendation not established by retained sources,
+respectively. **9/86 cases are now retained; 77 remain missing.** Exact quotations
+alone do not establish clinical support, and rejected artifacts remain outside
+the release library with their original reports preserved.
+
+The retrieval update prefers clinical-topic title matches, then title/abstract
+matches; unscoped searches were retrieving unrelated society guidelines. It can
+also retrieve up to three bounded CC BY/CC0 Europe PMC body-excerpt sets, requiring
+matching PMID/PMCID, fixed-host requests without redirects, retained license
+metadata and text hashes. Reviewers select stable literal passage handles;
+server expansion prevents ellipsis/transcription failures without modifying the
+reviewers' clinical judgments. Clinical confidence, independent-provider,
+source-entailment, privacy and 86-case completeness requirements remain intact.
+
+Builder verification: **169 targeted tests passed**, with the separately tracked
+86-case coverage assertion excluded from this diagnostic run. Independent code
+audit: **145 targeted tests passed**, no substantive code findings. Independent
+artifact audit approved the two retained new cases and rejected the two named
+above. Merge readiness: 0 commits behind main, no conflicts.
+
+The CI-only builder uses `gpt-5.6-sol` for OpenAI authorship/review, with Anthropic
+remaining the independent second reviewer. Production model defaults are
+unchanged. Eight bounded matrix jobs can run concurrently; pathology,
+dermatology and neurology run first to surface the reported specialties early.
+Current OpenAI model documentation: https://developers.openai.com/api/docs/models/gpt-5.6-sol
+Full-text retrieval API: https://europepmc.org/RestfulWebService
+
+This is still a draft, pending the remaining 77 cases, fresh real-model runs,
+complete CI and the previously documented production preservation requirements.
