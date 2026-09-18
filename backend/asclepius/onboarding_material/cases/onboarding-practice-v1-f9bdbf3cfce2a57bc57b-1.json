@@ -1,0 +1,379 @@
+{
+  "task_id": "onboarding-practice-v1-f9bdbf3cfce2a57bc57b-1",
+  "specialty": "rheumatology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Early rheumatoid arthritis: selecting initial disease-modifying therapy and adjuncts",
+    "question": "A 44-year-old DMARD-naive adult with new seropositive rheumatoid arthritis and high disease activity asks whether to try supplements and diet first or begin a DMARD now. What is the most appropriate initial management decision?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "rheumatology",
+      "demographics": {
+        "age_band": "40-49",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "New-onset rheumatoid arthritis with high disease activity",
+          "since": "approximately 3 months",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Naproxen",
+          "dose": "as needed per patient report",
+          "route": "oral",
+          "freq": "prn",
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "BP": "118/72",
+        "HR": 78,
+        "TempC": 36.7
+      },
+      "lab_panels": [
+        {
+          "panel": "Inflammatory markers",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "ESR",
+              "loinc": null,
+              "value": 58,
+              "unit": "mm/h",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "CRP",
+              "loinc": null,
+              "value": 18.2,
+              "unit": "mg/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Autoantibodies",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Rheumatoid factor",
+              "loinc": null,
+              "value": 120,
+              "unit": "IU/mL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "positive",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Anti-CCP antibody",
+              "loinc": null,
+              "value": 240,
+              "unit": "U/mL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "positive",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Consult",
+          "author_role": "rheumatology",
+          "text": "Rheumatology consult for a 44-year-old woman with 3 months of symmetric small-joint pain and swelling. Morning stiffness ~90 minutes. Exam shows tenderness and swelling of MCPs 2–5 and PIPs bilaterally, wrists bilaterally, and MTPs 2–5 bilaterally. Tender joint count 12, swollen joint count 10. She reports fatigue and difficulty opening jars and typing. No extra-articular features reported. Laboratory data notable for elevated ESR/CRP, positive RF and anti-CCP. She has been taking over-the-counter naproxen intermittently with partial relief. No prior DMARDs or glucocorticoids. She asks about trying curcumin and an anti-inflammatory diet before starting prescription therapy. Assessment: seropositive RA with high disease activity. Decision point: initial disease-modifying strategy in a DMARD-naive adult with active disease.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": null,
+      "ground_truth": {
+        "answer": "Initiate methotrexate-based csDMARD therapy now (with consideration of short-term glucocorticoids for symptom control) using a treat-to-target approach, rather than delaying DMARDs in favor of supplements or diet alone.",
+        "rationale": "In DMARD-naive adults with active RA, guideline-based initial therapy is methotrexate, typically with short-term glucocorticoids, followed by treat-to-target reassessment within 3–6 months. Deferring DMARDs to try nutraceuticals or diet alone risks ongoing inflammation and joint damage. Exercise and integrative measures may be used only in conjunction with DMARDs, not as substitutes.",
+        "evidence": null,
+        "key_data": [
+          "High disease activity: TJC 12, SJC 10, morning stiffness 90 minutes, elevated ESR/CRP.",
+          "Seropositive RA: RF and anti-CCP both positive, supporting more aggressive disease biology.",
+          "Patient is DMARD-naive and symptomatic despite NSAIDs; timely initiation of a csDMARD is indicated."
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Defer disease-modifying therapy for now and attempt a trial of curcumin supplementation, an anti-inflammatory diet, and exercise for 3 months, using NSAIDs as needed, then reconsider DMARDs based on symptom response."
+      },
+      {
+        "id": "B",
+        "text": "Start a conventional synthetic DMARD now with methotrexate as the anchor, and consider a short-term course of glucocorticoids for symptom relief, following a treat-to-target strategy with reassessment within 3–6 months."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "methotrexate",
+      "glucocorticoids",
+      "DMARD",
+      "treat-to-target",
+      "disease activity",
+      "curcumin"
+    ],
+    "evidence_keywords": [
+      "EULAR 2019 RA recommendations",
+      "ACR 2021 RA guideline",
+      "integrative interventions",
+      "exercise recommendation",
+      "csDMARD initiation"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "EULAR 2019 recommends initiating methotrexate with short-term glucocorticoids in active RA, then reassessing within 3–6 months to escalate if needed.",
+        "source_ids": [
+          "31969328"
+        ]
+      },
+      {
+        "statement": "The 2021 ACR RA guideline addresses use of csDMARDs, biologics, targeted synthetic DMARDs, and glucocorticoids with shared decision-making.",
+        "source_ids": [
+          "34101387"
+        ]
+      },
+      {
+        "statement": "ACR 2023 integrative guidance recommends exercise and other interventions only in conjunction with DMARD therapy for RA management.",
+        "source_ids": [
+          "37227116"
+        ]
+      },
+      {
+        "statement": "Consistent engagement in exercise receives a strong recommendation as an adjunct to DMARDs for people with rheumatoid arthritis.",
+        "source_ids": [
+          "37227116"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T22:11:56.552572+00:00",
+    "author_model": "gpt-5",
+    "sources": [
+      {
+        "id": "34101387",
+        "title": "2021 American College of Rheumatology Guideline for the Treatment of Rheumatoid Arthritis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34101387/",
+        "abstract": "To develop updated guidelines for the pharmacologic management of rheumatoid arthritis.\nWe developed clinically relevant population, intervention, comparator, and outcomes (PICO) questions. After conducting a systematic literature review, the Grading of Recommendations Assessment, Development and Evaluation (GRADE) approach was used to rate the certainty of evidence. A voting panel comprising clinicians and patients achieved consensus on the direction (for or against) and strength (strong or conditional) of recommendations.\nThe guideline addresses treatment with disease-modifying antirheumatic drugs (DMARDs), including conventional synthetic DMARDs, biologic DMARDs, and targeted synthetic DMARDs, use of glucocorticoids, and use of DMARDs in certain high-risk populations (i.e., those with liver disease, heart failure, lymphoproliferative disorders, previous serious infections, and nontuberculous mycobacterial lung disease). The guideline includes 44 recommendations (7 strong and 37 conditional).\nThis clinical practice guideline is intended to serve as a tool to support clinician and patient decision-making. Recommendations are not prescriptive, and individual treatment decisions should be made through a shared decision-making process based on patients' values, goals, preferences, and comorbidities.",
+        "sha256": "2685fc63892edfe6fccf3d6274c46809ff7bafdd25e79219f083e1220794169c",
+        "retrieved_at": "2026-09-18T22:09:42.100585+00:00"
+      },
+      {
+        "id": "34101376",
+        "title": "2021 American College of Rheumatology Guideline for the Treatment of Rheumatoid Arthritis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34101376/",
+        "abstract": "To develop updated guidelines for the pharmacologic management of rheumatoid arthritis.\nWe developed clinically relevant population, intervention, comparator, and outcomes (PICO) questions. After conducting a systematic literature review, the Grading of Recommendations Assessment, Development and Evaluation (GRADE) approach was used to rate the certainty of evidence. A voting panel comprising clinicians and patients achieved consensus on the direction (for or against) and strength (strong or conditional) of recommendations.\nThe guideline addresses treatment with disease-modifying antirheumatic drugs (DMARDs), including conventional synthetic DMARDs, biologic DMARDs, and targeted synthetic DMARDs, use of glucocorticoids, and use of DMARDs in certain high-risk populations (i.e., those with liver disease, heart failure, lymphoproliferative disorders, previous serious infections, and nontuberculous mycobacterial lung disease). The guideline includes 44 recommendations (7 strong and 37 conditional).\nThis clinical practice guideline is intended to serve as a tool to support clinician and patient decision-making. Recommendations are not prescriptive, and individual treatment decisions should be made through a shared decision-making process based on patients' values, goals, preferences, and comorbidities.",
+        "sha256": "2685fc63892edfe6fccf3d6274c46809ff7bafdd25e79219f083e1220794169c",
+        "retrieved_at": "2026-09-18T22:09:42.100585+00:00"
+      },
+      {
+        "id": "35718887",
+        "title": "2022 American College of Rheumatology/American Association of Hip and Knee Surgeons Guideline for the Perioperative Management of Antirheumatic Medication in Patients With Rheumatic Diseases Undergoing Elective Total Hip or Total Knee Arthroplasty.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35718887/",
+        "abstract": "To develop updated guidelines for the perioperative management of disease-modifying medications for patients with rheumatic diseases, specifically those with inflammatory arthritis (IA) and those with systemic lupus erythematosus (SLE), undergoing elective total hip arthroplasty (THA) or elective total knee arthroplasty (TKA).\nWe convened a panel of rheumatologists, orthopedic surgeons, and infectious disease specialists, updated the systematic literature review, and included currently available medications for the clinically relevant population, intervention, comparator, and outcomes (PICO) questions. We used the Grading of Recommendations Assessment, Development and Evaluation (GRADE) methodology to rate the quality of evidence and the strength of recommendations using a group consensus process.\nThis guideline updates the 2017 recommendations for perioperative use of disease-modifying antirheumatic therapy, including traditional disease-modifying antirheumatic drugs, biologic agents, targeted synthetic small-molecule drugs, and glucocorticoids used for adults with rheumatic diseases, specifically for the treatment of patients with IA, including rheumatoid arthritis and spondyloarthritis, those with juvenile idiopathic arthritis, or those with SLE who are undergoing elective THA or TKA. It updates recommendations regarding when to continue, when to withhold, and when to restart these medications and the optimal perioperative dosing of glucocorticoids.\nThis updated guideline includes recently introduced immunosuppressive medications to help decision-making by clinicians and patients regarding perioperative disease-modifying medication management for patients with IA and SLE at the time of elective THA or TKA.",
+        "sha256": "46e011ab00681c60f454d7882de44bdc35e63fe84df7037e98417e0b0eedf802",
+        "retrieved_at": "2026-09-18T22:09:42.100585+00:00"
+      },
+      {
+        "id": "34003240",
+        "title": "Clinical Practice Guideline for Physical Therapist Management of People With Rheumatoid Arthritis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34003240/",
+        "abstract": "This guideline revises the 2008 Royal Dutch Society for Physical Therapy guideline for physical therapy for patients with rheumatoid arthritis (RA).\nThis revised guideline was developed according to the Appraisal of Guidelines for Research and Evaluation tool and the Guidelines International Network standards. A multidisciplinary guideline panel formulated clinical questions based on perceived barriers in current care. For every clinical question, a narrative or systematic literature review was undertaken, where appropriate. The guideline panel formulated recommendations based on the results of the literature reviews, the values and preferences of patients and clinicians, and the acceptability, feasibility, and costs, as described in the Grading of Recommendations Assessment, Development and Evaluation evidence-to-decision framework.\nThe eventual guideline describes a comprehensive assessment based on the International Classification of Functioning, Disability and Health Core Set for RA. It also includes a description of yellow and red flags to support direct access. Based on the assessment, 3 treatment profiles are distinguished: (1) education and exercise instructions with limited supervision, (2) education and short-term supervised exercise therapy, and (3) education and intensified supervised exercise therapy. Education includes RA-related information, advice, and self-management support. Exercises are based on recommendations concerning the desired frequency, intensity, type, and time-related characteristics of the exercises (FITT factors). Their interpretation is compliant with the individual patient's situation and with public health recommendations for health-enhancing physical activity. Recommended measurement instruments for monitoring and evaluation include the Patient-Specific Complaint instrument, Numeric Rating Scales for pain and fatigue, the Health Assessment Questionnaire Disability Index, and the 6-minute walk test.\nAn evidence-based physical therapy guideline was delivered, providing ready-to-use recommendations on the assessment and treatment of patients with RA. An active implementation strategy to enhance its use in daily practice is advised.\nThis evidence-based practice guideline guides the physical therapist in the treatment of patients with RA. The cornerstones of physical therapist treatment for patients with RA are active exercise therapy in combination with education. Passive interventions such as massage, electrotherapy, thermotherapy, low-level laser therapy, ultrasound, and medical taping play a subordinate role.",
+        "sha256": "3b64764300cc26ac17f17980411256696f5a69c3337a0c94f19c556cfa04dcc9",
+        "retrieved_at": "2026-09-18T22:09:42.659783+00:00"
+      },
+      {
+        "id": "37325651",
+        "title": "Effect of curcumin on rheumatoid arthritis: a systematic review and meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37325651/",
+        "abstract": "The aim of this study is to evaluate the effectiveness and safety of curcumin in rheumatoid arthritis patients.\nA computerized search from PubMed, Embase, Cochrane Library, and Web of Science databases was performed until 3 March 2023. Literature screening, basic data extraction and risk of bias evaluation were independently performed by two researchers each. The quality evaluation of the literature was performed according to the Cochrane Handbook for Risk of Bias Assessment tool for treatment evaluation.\nThe current study includes six publications covering 539 rheumatoid arthritis patients. The activity of rheumatoid arthritis was assessed using erythrocyte sedimentation rate (ESR), C-reactive protein (CRP), protein, disease activity score (DAS), rheumatoid factor (RF), Visual Analogue Scale (VAS) pain, tender joint count (TJC) and swollen joint count (SJC). ESR (MD = -29.47, 95% CI [-54.05, -4.88], Z=2.35, P = 0.02), DAS28 (MD = -1.20, 95% CI [-1.85, -0.55], Z=3.62, P = 0.0003), SJC (MD = -5.33, 95% CI [-9.90, -0.76], Z = 2.29, P = 0.02) and TJC (MD = -6.33, 95% CI [-10.86, -1.81], Z = 2.74, P = 0.006) showed significantly change in experimental patients compared with controls.\nCurcumin is beneficial for rheumatoid arthritis treatment. Inflammation levels and clinical symptoms in patients with rheumatoid arthritis can be improved by curcumin supplementation. Large sample randomized controlled trials on the effects of curcumin on patients with rheumatoid arthritis are needed in the future.\nhttps://www.crd.york.ac.uk/PROSPERO/, identifier (CRD42022361992).",
+        "sha256": "affeac1fa779a74015397b907e98541ed99afc438eabecf89abf1f77a3527934",
+        "retrieved_at": "2026-09-18T22:09:42.659783+00:00"
+      },
+      {
+        "id": "34959772",
+        "title": "Effect of Anti-Inflammatory Diets on Pain in Rheumatoid Arthritis: A Systematic Review and Meta-Analysis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34959772/",
+        "abstract": "Various nutritional therapies have been proposed in rheumatoid arthritis, particularly diets rich in ω-3 fatty acids, which may lead to eicosanoid reduction. Our aim was to investigate the effect of potentially anti-inflammatory diets (Mediterranean, vegetarian, vegan, ketogenic) on pain. The primary outcome was pain on a 10 cm visual analogue scale. Secondary outcomes were C-reactive protein levels, erythrocyte sedimentation rate, health assessment questionnaire, disease activity score 28, tender/swollen joint counts, weight, and body mass index. We searched MEDLINE (OVID), Embase (Elsevier), and CINAHL for studies published from database inception to 12 November 2021. Two authors independently assessed studies for inclusion, extracted study data, and assessed the risk of bias. We performed a meta-analysis with all eligible randomized controlled trials using RevMan 5. We used mean differences or standardized mean differences and the inverse variance method of pooling using a random-effects model. The search retrieved 564 unique publications, of which we included 12 in the systematic review and 7 in the meta-analysis. All studies had a high risk of bias and the evidence was very low. The main conclusion is that anti-inflammatory diets resulted in significantly lower pain than ordinary diets (-9.22 mm; 95% CI -14.15 to -4.29; p = 0.0002; 7 RCTs, 326 participants).",
+        "sha256": "bd05df460ca132da25ba84772090d9e9879097c663eb9e1d08a2a7c25a9ff6e0",
+        "retrieved_at": "2026-09-18T22:09:42.659783+00:00"
+      },
+      {
+        "id": "37227116",
+        "title": "2022 American College of Rheumatology Guideline for Exercise, Rehabilitation, Diet, and Additional Integrative Interventions for Rheumatoid Arthritis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37227116/",
+        "abstract": "To develop initial American College of Rheumatology (ACR) guidelines on the use of exercise, rehabilitation, diet, and additional interventions in conjunction with disease-modifying antirheumatic drugs (DMARDs) as part of an integrative management approach for people with rheumatoid arthritis (RA).\nAn interprofessional guideline development group constructed clinically relevant Population, Intervention, Comparator, and Outcome (PICO) questions. A literature review team then completed a systematic literature review and applied the Grading of Recommendations Assessment, Development and Evaluation (GRADE) approach to rate the certainty of evidence. An interprofessional Voting Panel (n = 20 participants) that included 3 individuals with RA achieved consensus on the direction (for or against) and strength (strong or conditional) of recommendations.\nThe Voting Panel achieved consensus on 28 recommendations for the use of integrative interventions in conjunction with DMARDs for the management of RA. Consistent engagement in exercise received a strong recommendation. Of 27 conditional recommendations, 4 pertained to exercise, 13 to rehabilitation, 3 to diet, and 7 to additional integrative interventions. These recommendations are specific to RA management, recognizing that other medical indications and general health benefits may exist for many of these interventions.\nThis guideline provides initial ACR recommendations on integrative interventions for the management of RA to accompany DMARD treatments. The broad range of interventions included in these recommendations illustrates the importance of an interprofessional, team-based approach to RA management. The conditional nature of most recommendations requires clinicians to engage persons with RA in shared decision-making when applying these recommendations.",
+        "sha256": "0f7057cc3ab4135f184896edc0c000128b1c4e4cca1c89dce12b058a7b6ccec5",
+        "retrieved_at": "2026-09-18T22:09:43.237650+00:00"
+      },
+      {
+        "id": "31969328",
+        "title": "EULAR recommendations for the management of rheumatoid arthritis with synthetic and biological disease-modifying antirheumatic drugs: 2019 update.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31969328/",
+        "abstract": "To provide an update of the European League Against Rheumatism (EULAR) rheumatoid arthritis (RA) management recommendations to account for the most recent developments in the field.\nAn international task force considered new evidence supporting or contradicting previous recommendations and novel therapies and strategic insights based on two systematic literature searches on efficacy and safety of disease-modifying antirheumatic drugs (DMARDs) since the last update (2016) until 2019. A predefined voting process was applied, current levels of evidence and strengths of recommendation were assigned and participants ultimately voted independently on their level of agreement with each of the items.\nThe task force agreed on 5 overarching principles and 12 recommendations concerning use of conventional synthetic (cs) DMARDs (methotrexate (MTX), leflunomide, sulfasalazine); glucocorticoids (GCs); biological (b) DMARDs (tumour necrosis factor inhibitors (adalimumab, certolizumab pegol, etanercept, golimumab, infliximab), abatacept, rituximab, tocilizumab, sarilumab and biosimilar (bs) DMARDs) and targeted synthetic (ts) DMARDs (the Janus kinase (JAK) inhibitors tofacitinib, baricitinib, filgotinib, upadacitinib). Guidance on monotherapy, combination therapy, treatment strategies (treat-to-target) and tapering on sustained clinical remission is provided. Cost and sequencing of b/tsDMARDs are addressed. Initially, MTX plus GCs and upon insufficient response to this therapy within 3 to 6 months, stratification according to risk factors is recommended. With poor prognostic factors (presence of autoantibodies, high disease activity, early erosions or failure of two csDMARDs), any bDMARD or JAK inhibitor should be added to the csDMARD. If this fails, any other bDMARD (from another or the same class) or tsDMARD is recommended. On sustained remission, DMARDs may be tapered, but not be stopped. Levels of evidence and levels of agreement were mostly high.\nThese updated EULAR recommendations provide consensus on the management of RA with respect to benefit, safety, preferences and cost.",
+        "sha256": "77e7e5dc55e9709e983078c0f835337c9e801f5a6d3345f73914c32eb737f206",
+        "retrieved_at": "2026-09-18T22:09:43.237650+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This is a DMARD-naive adult with new seropositive (RF and anti-CCP positive) RA and high disease activity (TJC 12, SJC 10, elevated ESR/CRP, 90 min morning stiffness). The 2021 ACR guideline (34101387/34101376) and 2019 EULAR update (31969328) both strongly recommend initiating a conventional synthetic DMARD, with methotrexate as the anchor drug, as soon as the diagnosis is made—EULAR explicitly recommends MTX plus a short course of glucocorticoids as bridging therapy, with reassessment and treat-to-target within 3-6 months. Poor prognostic features here (autoantibody positivity, high disease activity) reinforce prompt effective therapy to prevent irreversible joint erosion. The 2022 ACR integrative guideline (37227116) positions exercise, diet, and other integrative measures as adjuncts 'in conjunction with DMARDs,' not as substitutes; consistent exercise is strongly recommended but diet and supplements are only conditional adjuncts. The curcumin and diet evidence (37325651, 34959772) is low-quality/high-risk-of-bias and does not justify deferring disease-modifying therapy. Therefore Option A (deferring DMARDs for a supplement/diet trial with NSAIDs) risks disease progression and contradicts guideline-directed care, while Option B aligns directly with the strongest evidence. Answer B does not preclude adding exercise/diet as adjuncts.",
+          "confidence": 0.96
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31969328"
+              ],
+              "reason": "EULAR 2019 abstract explicitly states 'Initially, MTX plus GCs and upon insufficient response to this therapy within 3 to 6 months, stratification according to risk factors is recommended.' Matches the claim of MTX + short-term GC with 3-6 month reassessment."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34101387"
+              ],
+              "reason": "ACR 2021 abstract confirms the guideline addresses csDMARDs, biologics, targeted synthetic DMARDs, glucocorticoids, and shared decision-making."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37227116"
+              ],
+              "reason": "The 2022 ACR integrative guideline (published 2023) explicitly frames integrative interventions 'in conjunction with disease-modifying antirheumatic drugs (DMARDs).' Minor naming caveat (case says 'ACR 2023'; source is titled 2022 guideline, published 2023) but substance is accurate."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37227116"
+              ],
+              "reason": "Abstract states 'Consistent engagement in exercise received a strong recommendation' as an integrative intervention accompanying DMARD treatment."
+            }
+          ],
+          "issues": [],
+          "rationale": "Solving independently: a 44-year-old DMARD-naive woman with 3 months of symmetric polyarthritis (MCP/PIP/wrist/MTP), TJC 12, SJC 10, 90-min morning stiffness, elevated ESR/CRP, and double seropositivity (RF+, anti-CCP+) meets criteria for high-activity, poor-prognosis seropositive RA. Standard of care (EULAR 2019, ACR 2021) is prompt initiation of methotrexate as anchor csDMARD with short-term glucocorticoid bridging under a treat-to-target strategy, reassessing in 3-6 months. Answer B matches this exactly and is safe. Answer A (deferring DMARDs for curcumin/diet/exercise x3 months with NSAIDs) is the intended flaw: it delays disease-modifying therapy in high-activity seropositive disease, risking irreversible joint damage; the integrative and curcumin/diet sources (37227116, 37325651, 34959772) support these only as adjuncts, not substitutes, and the diet meta-analysis explicitly notes very-low-quality evidence with high risk of bias. So A is unsafe by design and belongs in rationale, not issues. Key is correct and well aligned with cited guidelines. Specialty is rheumatology throughout. Chart data is internally consistent and supports the key (seropositivity, high activity, DMARD-naive). No decisive missing data: no imaging is strictly required to decide initial pharmacotherapy in clinically active seropositive RA. All four claims verify against the actual source abstracts; the only minor caveat is the '2023' label for the ACR integrative guideline, whose formal title is the 2022 guideline (published 2023) — substance unchanged, not a blocking defect. Practice/exam independence vs the prior GCA case is satisfied: different disease (RA vs giant cell arteritis) and a fundamentally different clinical decision (initiate csDMARD/treat-to-target vs emergent high-dose steroids to prevent blindness). Evidence, coherence, safety, and distinctness all hold."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Initiate a conventional synthetic DMARD now, with methotrexate as the preferred anchor, and follow a treat-to-target approach with early reassessment. In DMARD-naive adults with moderate-to-high disease activity, the ACR 2021 RA pharmacologic guideline recommends starting csDMARD therapy—preferably methotrexate—and using glucocorticoids only as short-term adjuncts if needed, with regular monitoring and timely escalation per treat-to-target principles (PubMed 34101387/34101376). EULAR 2019 likewise advises early MTX initiation (often with short-term glucocorticoids) and reassessment at 3–6 months, especially in patients with poor prognostic factors such as seropositivity and high disease activity (PubMed 31969328). The ACR 2023 integrative guideline supports exercise (strong) and certain dietary interventions (conditional) only as adjuncts alongside DMARDs, not as substitutes (PubMed 37227116). Evidence for curcumin and anti-inflammatory diets shows modest symptomatic benefits with low to very low certainty and no evidence they prevent structural progression; thus deferring DMARDs for a 3-month trial of supplements/diet risks ongoing joint damage (PubMed 37325651; 34959772). Therefore, option B is the most appropriate initial management.",
+          "confidence": 0.93
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31969328"
+              ],
+              "reason": "The EULAR 2019 update explicitly states: 'Initially, MTX plus GCs and upon insufficient response to this therapy within 3 to 6 months, stratification according to risk factors is recommended,' which supports initiating methotrexate with short-term glucocorticoids in active RA and reassessing/escalating within 3–6 months."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34101387"
+              ],
+              "reason": "The 2021 ACR RA guideline abstract states it addresses treatment with DMARDs including conventional synthetic, biologic, and targeted synthetic agents, and the use of glucocorticoids; it is intended to support shared decision-making, directly supporting the claim."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37227116"
+              ],
+              "reason": "The 2022 ACR integrative guideline (published 2023) states recommendations are for use 'in conjunction with DMARDs' for RA management, confirming that integrative interventions are adjuncts, not substitutes."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37227116"
+              ],
+              "reason": "The abstract notes 'Consistent engagement in exercise received a strong recommendation' as part of integrative management accompanying DMARD therapy, supporting the claim."
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent solution: This 44-year-old woman has new-onset, seropositive RA with high disease activity (TJC 12, SJC 10, morning stiffness ~90 min, elevated ESR/CRP, positive RF and anti-CCP) despite intermittent NSAIDs. Current guidelines recommend initiating a csDMARD promptly—methotrexate is first-line—and using a treat-to-target strategy with reassessment in 3–6 months. EULAR 2019 specifically recommends initial MTX plus short-term glucocorticoids and escalation if inadequate response at 3–6 months. The 2021 ACR guideline addresses csDMARDs, bDMARDs, tsDMARDs, and glucocorticoids under shared decision-making. Integrative ACR guidance (2023) endorses exercise strongly and other interventions conditionally, but only in conjunction with DMARDs, not as monotherapy. Evidence for curcumin and anti-inflammatory diets suggests modest symptom benefits with low/very low certainty and does not justify delaying DMARDs; ongoing inflammation risks irreversible joint damage. Therefore, the appropriate decision is to start methotrexate-based csDMARD therapy now, consider a short course of glucocorticoids for symptom control, and follow a treat-to-target plan with reassessment at 3–6 months. Audit of candidates and key: Candidate A recommends deferring DMARDs for a 3-month trial of supplements/diet, which contradicts EULAR/ACR guidance and is unsafe due to risk of progression and joint damage. Candidate B aligns with guidelines and is safe at the decision level. The provided key matches contemporary recommendations and is correct. Specialty alignment and coherence: The case is squarely rheumatology; data are internally consistent. No decisive missing data: Baseline imaging is not required to initiate MTX. Implementation details (e.g., folic acid, baseline labs, infection screening, vaccination, pregnancy counseling/contraception, and MTX contraindication checks) would be addressed in practice but do not alter the initial management decision and do not constitute blocking omissions here. Supporting evidence: EULAR 2019 endorses MTX±short-term glucocorticoids with 3–6 month reassessment; ACR 2021 frames DMARD and glucocorticoid use; ACR 2023 integrative guideline limits adjuncts to use with DMARDs and strongly recommends exercise. Additional literature shows curcumin and diet may improve symptoms but with low-quality evidence and are not substitutes for DMARDs (systematic reviews 2021, 2023). Distinctness from prior case: Management and condition differ entirely (RA DMARD initiation vs GCA emergency steroids)."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "611c07a3ac8c19c235f3e0c4ded2fac27908d40856831f30f50d4a8ffac0e8e9"
+  }
+}

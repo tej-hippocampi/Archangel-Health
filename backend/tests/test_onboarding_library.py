@@ -243,3 +243,97 @@ def test_both_pathology_reviewers_see_same_pixels_without_caption_or_key(monkeyp
     assert calls.count('onboarding_case_solve') == calls.count('onboarding_case_review') == 2
     assert entry['case']['case_provenance']['disclaimers']
     assert report['method'] == 'fake_fixture_only'
+
+
+def test_rejected_review_retains_both_outcomes_without_publishing_or_orphaning(monkeypatch):
+    from ai import llm_client
+    from asclepius import onboarding_evidence
+    reports, completed = [], []
+
+    async def retrieve(*args, **kwargs): return list(SOURCES)
+
+    async def llm(**kw):
+        model = kw.get('model', 'fixture-author')
+        if kw['purpose'] == 'onboarding_case_author':
+            result = fixture_entry()
+        else:
+            assert kw['purpose'] == 'onboarding_case_solve'
+            if model.startswith('gpt'):
+                await asyncio.sleep(.02)  # Must still finish after the other rejects.
+            result = {'best_answer_id': 'A', 'confidence': .8, 'rationale': 'Uncertain evidence'}
+            completed.append(model)
+        return SimpleNamespace(content=[SimpleNamespace(type='text', text=json.dumps(result))]), {
+            'model': model, 'request_id': 'request-' + model}
+
+    monkeypatch.setattr(onboarding_evidence, 'retrieve', retrieve)
+    monkeypatch.setattr(llm_client, 'call_llm', llm)
+    token = bank.REVIEW_DIAGNOSTICS.set(reports.append)
+    store = fresh_store()
+    ident = bank.task_id('dermatology', 'practice')
+    try:
+        with pytest.raises(ValueError, match='clinical_review_rejected'):
+            asyncio.run(bank.build_case(store, 'dermatology', 'practice', ident))
+    finally:
+        bank.REVIEW_DIAGNOSTICS.reset(token)
+    assert len(completed) == 2
+    assert bank.get_task(store, ident) is None
+    assert len(reports) == 1 and reports[0]['status'] == 'rejected'
+    assert {r['provider'] for r in reports[0]['reviews']} == {'openai', 'anthropic'}
+    assert all(r['status'] == 'rejected' and r['solve_request_id'] for r in reports[0]['reviews'])
+    assert 'ground_truth' not in json.dumps(reports[0]['blinded_input'])
+
+
+@pytest.mark.parametrize('field', ['question', 'title', 'claim', 'safety_keywords', 'evidence_keywords'])
+def test_identifier_rejection_reports_categories_without_retaining_unsafe_entry(monkeypatch, field):
+    from ai import llm_client
+    from asclepius import onboarding_evidence
+    reports = []
+    entry = fixture_entry()
+    if field == 'claim':
+        entry['claims'][0]['statement'] += ' Contact test-person@example.org.'
+    elif field.endswith('_keywords'):
+        entry[field][0] = 'test-person@example.org'
+    else:
+        entry[field] += ' Contact test-person@example.org.'
+
+    async def retrieve(*args, **kwargs): return list(SOURCES)
+    async def llm(**kw):
+        assert kw['purpose'] == 'onboarding_case_author'
+        return SimpleNamespace(content=[SimpleNamespace(type='text', text=json.dumps(entry))]), {'model': 'fixture'}
+
+    monkeypatch.setattr(onboarding_evidence, 'retrieve', retrieve)
+    monkeypatch.setattr(llm_client, 'call_llm', llm)
+    token = bank.REVIEW_DIAGNOSTICS.set(reports.append)
+    try:
+        with pytest.raises(ValueError, match='possible_identifier: email') as error:
+            asyncio.run(bank.build_case(fresh_store(), 'dermatology', 'practice', bank.task_id('dermatology', 'practice')))
+    finally:
+        bank.REVIEW_DIAGNOSTICS.reset(token)
+    assert 'test-person@example.org' not in str(error.value)
+    assert reports == []
+
+
+def test_diagnostic_artifacts_are_separate_and_observer_is_reset_on_failure(monkeypatch, tmp_path):
+    from scripts import build_onboarding_library as builder
+    diagnostic = {'status': 'rejected', 'task_id': bank.task_id('dermatology', 'practice')}
+
+    async def fail(*args):
+        bank.REVIEW_DIAGNOSTICS.get()(diagnostic)
+        raise ValueError('Rejected fixture')
+
+    monkeypatch.setattr(builder, '_build', fail)
+    original = bank.REVIEW_DIAGNOSTICS.get()
+    with pytest.raises(ValueError, match='Rejected fixture'):
+        asyncio.run(builder.build('dermatology', tmp_path / 'cases', tmp_path / 'diagnostics'))
+    assert bank.REVIEW_DIAGNOSTICS.get() is original
+    assert not list((tmp_path / 'cases').glob('*.json'))
+    files = list((tmp_path / 'diagnostics').glob('rejected-*.json'))
+    assert len(files) == 1 and json.loads(files[0].read_text()) == diagnostic
+    assert library.row_for(files[0].stem) is None
+
+
+def test_claims_reject_unknown_fields_that_could_escape_identifier_screening():
+    entry = fixture_entry()
+    entry['claims'][0]['comment'] = 'test-person@example.org'
+    with pytest.raises(ValueError, match='unexpected_claim_fields'):
+        bank.validate_entry(entry, 'dermatology', SOURCES)

@@ -29,7 +29,8 @@ image bytes, agree with the answer, and confirm no identifiers are visible.
 
 The manual **LLM smoke (real models)** workflow's `onboarding-library` mode accepts
 one launch specialty or `all` (43). Each isolated job prepares practice before
-examination, checks independence, and uploads only passing cases. Existing
+examination, checks independence, and uploads passing cases separately from
+rejected-attempt diagnostics. Existing
 committed cases are reused; building never overwrites their identities. A failed
 case remains unavailable, and a successful companion is retained as an artifact.
 Real model keys remain in GitHub Secrets. No physician/CV/partner data is used.
@@ -39,6 +40,19 @@ The library workflow uses the existing OpenAI model (`OPENAI_MODEL`, default
 still independently solve and review each new case. This override is confined to
 the batch build; it does not change production or paid-case generation defaults.
 Both provider keys are still required, and provider failures never bypass review.
+
+The CI-only diagnostic directory retains structurally valid, identifier-screened
+rejected attempts with both providers' outcomes, request IDs, exact blinded input,
+source hashes and any pinned image hash. Files begin with `rejected-`; they cannot
+be loaded as released cases. Both reviews finish even when one rejects. Production
+has no diagnostic file writer. Invalid authored entries are not retained; an
+identifier rejection logs only its category, never the matched text.
+
+Before importing passing artifacts, also inspect the applicant-visible case for
+answer leakage and incomplete recommended care. A note that states the intended
+plan invalidates the assessment even when both model reviews approve it. Keep
+rejected material outside `cases/`; never manually edit a reviewed entry to fix
+it, since that would invalidate its content hash and clinical review.
 
 Review/download successful artifacts into `cases/`, then run:
 

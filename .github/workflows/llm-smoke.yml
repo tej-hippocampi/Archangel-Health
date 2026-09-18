@@ -118,7 +118,7 @@ jobs:
             # Use the existing OpenAI transport for batch authorship. Reviewers
             # remain independent Anthropic + OpenAI; paid generation is unchanged.
             export MODEL_ASCLEPIUS_CASE_GEN="${OPENAI_MODEL:-gpt-5}"
-            python3 scripts/build_onboarding_library.py --specialty "$SMOKE_SPECIALTY" --output "${RUNNER_TEMP}/onboarding-cases" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
+            python3 scripts/build_onboarding_library.py --specialty "$SMOKE_SPECIALTY" --output "${RUNNER_TEMP}/onboarding-cases" --diagnostics "${RUNNER_TEMP}/onboarding-review-diagnostics" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
           elif [ "$SMOKE_MODE" = "onboarding" ]; then
             python3 scripts/smoke_onboarding_cases.py --specialty "$SMOKE_SPECIALTY" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
           else
@@ -133,4 +133,5 @@ jobs:
           path: |
             ${{ runner.temp }}/smoke-report.txt
             ${{ runner.temp }}/onboarding-cases/*.json
+            ${{ runner.temp }}/onboarding-review-diagnostics/*.json
           if-no-files-found: warn

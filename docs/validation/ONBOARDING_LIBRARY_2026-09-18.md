@@ -65,14 +65,51 @@ dermatology/neurology examination submission, optional practice and preparation
 recovery. Desktop/mobile screenshots were visually inspected. These UI tests use
 synthetic fixtures and do not count as clinical artifact validation.
 
-## Current generation blocker
+## OpenAI generation and remaining release blockers
 
 [Real-model build 35389308065](https://github.com/tej-hippocampi/Archangel-Health/actions/runs/35389308065)
 was stopped after Anthropic returned HTTP 400: the account credit balance was too
-low to access the API. Completed passing material was retained. Restoring credits
-for the account behind GitHub's `ANTHROPIC_API_KEY` is necessary before resuming.
-The build reuses unchanged, validated release files and generates only missing
-entries; clinical acceptance thresholds remain unchanged.
+low to access the API. Completed passing material was retained. The user restored
+credits. The workflow now uses OpenAI (`gpt-5`) for authorship and retains both
+Anthropic and OpenAI independent blinded solves and clinical reviews. This is a
+CI library-build override; production and paid-generation model defaults are
+unchanged. The switch passed 134 targeted tests and independent review.
+
+[Pathology probe 35398241075](https://github.com/tej-hippocampi/Archangel-Health/actions/runs/35398241075)
+made real model calls without billing errors, but neither case passed all clinical
+gates. Blind-review confidence was below the unchanged 0.90 threshold. No pathology
+artifact was accepted. The subsequent
+[43-specialty OpenAI build](https://github.com/tej-hippocampi/Archangel-Health/actions/runs/35399238129)
+was stopped after the content audit found repeated answer leaks; rerun missing
+pairs using the corrected prompts and full diagnostics. Completed outputs were
+retained, and their originals remain available for investigation.
+
+The independent audit rejected a newly generated family medicine examination
+because its visible note disclosed the intended management plan. The artifact
+was quarantined outside the release bank, despite both automated approvals. Author
+and reviewer prompts now explicitly reject answer leaks and incomplete "less bad"
+care. CI diagnostics capture both reviewers' results and the exact screened input;
+rejected artifacts cannot load through the release-file namespace. Whole authored
+prose, including titles and claim statements, is scanned before retention.
+
+The expanded content audit excluded nine artifacts across the first and OpenAI
+builds: internal medicine practice, family medicine practice/examination,
+endocrinology practice/examination, cardiology examination, nephrology practice,
+rheumatology examination and infectious diseases practice. This leaves **8/86**
+release candidates. These are new, undeployed PR artifacts; existing production
+batches and submitted assessments have not been changed. Originals are retained
+in CI and outside the release directory. Unknown claim fields now fail validation
+rather than escaping the identifier scan. Independent code re-audit: **8 focused
+tests passed**, both reviewers still required, and acceptance thresholds unchanged.
+
+Latest local diagnostic/privacy regression: **120 passed, 1 deselected**; the separately
+reported 86-case completeness failure remains a release blocker. Standard CI on
+`297346e` passed all checks except the incomplete-library gate in both backend
+and keyless shard 3, plus a sandbox-copy live-file hash assertion in backend
+shard 3. All seven sandbox-copy tests passed in an isolated local reproduction;
+that intermittent CI failure still needs resolution before merge. Public evidence
+preflight retrieved at least two eligible references for all 75 missing topics;
+retrieval availability does not establish clinical support for an authored claim.
 
 This PR remains a draft. Neither pathology case is clinically released yet,
 despite the image viewer and provenance paths passing software tests. Do not

@@ -46,8 +46,21 @@ instead. Do not restore over a live database or modify submitted assessments.
 
 Fresh-context re-audit confirmed strict solver blinding, age scope, pinned image
 assistance and bounded retrieval: 20 targeted tests passed. Eleven real-reviewed
-case artifacts were retained; five rejected artifacts remain outside the release
-bank and available in the original CI build. The full coverage gate remains
-failing (75 missing cases), and generation is blocked by insufficient Anthropic
-API credits. Latest software checks: 491 regressions passed, 2 skipped, plus
+case artifacts initially passed structural validation; five rejected artifacts
+remain outside the release bank and available in the original CI build. Credits
+were restored and the CI builder switched to OpenAI authorship with both-provider
+review unchanged. The subsequent content audit found nine answer-leaking or
+leading artifacts across the two builds; they are quarantined outside the bank,
+with originals preserved. Eight new, undeployed release candidates remain after
+collecting and auditing passing companions. No production batch was changed.
+The full 86-case coverage gate remains failing. Latest software checks: 491
+regressions passed, 2 skipped, plus
 7 browser journeys passed. See `docs/validation/ONBOARDING_LIBRARY_2026-09-18.md`.
+
+The CI-only rejected-review diagnostic writer runs after whole-entry identifier
+screening, uses a separate filename namespace, and cannot publish a case. It
+awaits both provider outcomes and retains input/source/image hashes for failure
+investigation. Production does not write these files. Additional regression:
+120 passed, 1 release-completeness test deselected; independent code re-audit:
+8 passed. Release thresholds, immutable published IDs and paid-inventory
+isolation are unchanged.

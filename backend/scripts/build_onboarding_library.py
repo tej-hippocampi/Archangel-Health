@@ -11,11 +11,30 @@ import json
 import os
 from pathlib import Path
 import sys
+import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-async def build(specialty: str, output: Path):
+async def build(specialty: str, output: Path, diagnostics: Path | None = None):
+    from asclepius import onboarding_cases as bank
+
+    def retain_rejection(document):
+        diagnostics.mkdir(parents=True, exist_ok=True)
+        # Separate namespace/directory; this can never masquerade as a ready
+        # library file or overwrite an earlier rejected attempt.
+        path = diagnostics / ("rejected-" + document["task_id"] + "-" + uuid.uuid4().hex + ".json")
+        with path.open("x") as stream:
+            stream.write(json.dumps(document, ensure_ascii=False, indent=2) + "\n")
+
+    token = bank.REVIEW_DIAGNOSTICS.set(retain_rejection if diagnostics else None)
+    try:
+        await _build(specialty, output)
+    finally:
+        bank.REVIEW_DIAGNOSTICS.reset(token)
+
+
+async def _build(specialty: str, output: Path):
     from asclepius import onboarding_cases as bank, onboarding_library as library
     from asclepius.store import get_store
     from scripts.smoke_onboarding_cases import prepare
@@ -56,6 +75,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--specialty")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--diagnostics", type=Path)
     parser.add_argument("--matrix", action="store_true")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
@@ -80,4 +100,4 @@ if __name__ == "__main__":
             raise SystemExit("Both provider keys and isolated storage are required")
         if canonical(args.specialty) not in SPECIALTIES or not args.output:
             raise SystemExit("A launch specialty and output directory are required")
-        asyncio.run(build(canonical(args.specialty), args.output))
+        asyncio.run(build(canonical(args.specialty), args.output, args.diagnostics))
