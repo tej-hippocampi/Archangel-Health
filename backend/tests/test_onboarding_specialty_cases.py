@@ -228,6 +228,35 @@ def test_author_prompt_states_every_machine_checked_requirement():
         assert needle in bank.AUTHOR_SYSTEM, needle
 
 
+def test_review_prompt_scopes_issues_to_blocking_defects():
+    """Real reviewers approved sound neurology cases while writing observations
+    into issues ('Minor:', 'does not affect the recommended answer', 'Correctly
+    flagged as the intended flawed answer'). validate_review treats any entry as
+    fatal, so the prompt must say issues is blocking and notes go in rationale."""
+    assert 'BLOCKING' in bank.REVIEW_SYSTEM
+    assert 'empty array' in bank.REVIEW_SYSTEM
+    assert 'rationale' in bank.REVIEW_SYSTEM
+    # The threshold itself is untouched: any issue still rejects.
+    entry = fixture_entry()
+    review = approved_review(entry)
+    review['issues'] = [{'note': 'a minor observation'}]
+    with pytest.raises(ValueError):
+        bank.validate_review(review, entry)
+
+
+def test_author_prompt_scopes_study_findings_policy_to_the_case():
+    """A real run put study_findings_policy inside studies[0]; Study forbids extra
+    keys, so the case died in schema validation before any gate could see it."""
+    assert 'NOT of any entry in case.studies' in bank.AUTHOR_SYSTEM
+    study = {'modality': 'ct', 'label': 'CT', 'findings': 'Fictional report text.',
+             'study_findings_policy': 'visible'}
+    entry = fixture_entry()
+    entry['case']['studies'] = [study]
+    with pytest.raises(Exception) as excinfo:
+        bank.validate_entry(entry, 'dermatology', SOURCES)
+    assert 'study_findings_policy' in str(excinfo.value)
+
+
 def test_review_rejection_names_the_signal_that_declined():
     """A real run rejected three cases and reported 'clinical_review_failed: []' —
     refused, with no ground given. The message must name the failing signal."""

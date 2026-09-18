@@ -61,7 +61,9 @@ is REJECTED, not corrected, so satisfy all of them in the first response:
 - case.demographics.age_band: required, an age band and never a birth date.
 - case.problem_list: at least one entry.
 - case.notes: at least 200 characters of clinical note text across all notes.
-- case.study_findings_policy: exactly "visible".
+- case.study_findings_policy: exactly "visible". It is a field of the case
+  itself, NOT of any entry in case.studies — a study that carries it is rejected
+  because Study forbids unknown keys.
 - case.ground_truth: the answer key lives HERE, and needs answer, rationale and
   at least 3 key_data items.
 - candidate_answers: exactly two, ids "A" and "B", each at least 80 characters.
@@ -89,7 +91,15 @@ key_correct (boolean), sound_answer_safe (boolean), evidence_supported (boolean)
 distinct_decision (boolean), no_missing_information (boolean), confidence (0..1),
 claim_checks (one {index,supported,source_ids,reason} for each zero-based claim),
 issues (array of concrete problems), rationale (string). Use false and explain
-uncertainty when any clinical or evidence conclusion cannot be established."""
+uncertainty when any clinical or evidence conclusion cannot be established.
+issues is a BLOCKING list, not a notebook: it is machine-checked and any entry
+rejects the case outright. Put an entry there only for a defect that must stop
+publication — an unsafe or unsupported recommendation, a key that contradicts
+the chart, a wrong specialty, missing decisive data. If the case is acceptable,
+return issues as an empty array even when you have observations, and put those
+observations, minor caveats, and anything you checked and cleared in rationale
+instead. Describing the intentionally flawed candidate is not an issue: it is
+the case working as designed, and belongs in rationale."""
 
 
 def task_id(specialty: str, kind: str, slot: int = 1) -> str:
