@@ -1,0 +1,458 @@
+{
+  "task_id": "onboarding-practice-v1-d6cc8a50a7bd4ff6e9f8-1",
+  "specialty": "gastroenterology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Adult with chronic diarrhea and iron deficiency after positive celiac serology",
+    "question": "In this adult with chronic diarrhea, iron deficiency, and a moderately elevated tTG-IgA while eating gluten, which next diagnostic step is most appropriate to establish or exclude celiac disease?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "gastroenterology",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Chronic non-bloody diarrhea",
+          "since": "about 6 months",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Unintentional weight loss",
+          "since": "about 4 months",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Iron-deficiency anemia",
+          "since": "noted on recent labs",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Bloating and fatigue",
+          "since": "about 6 months",
+          "collected_offset_days": null
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "BP": "112/70",
+        "HR": 82,
+        "Temp": "36.8 C",
+        "BMI": "21.0 kg/m2"
+      },
+      "lab_panels": [
+        {
+          "panel": "CBC and iron studies",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Hemoglobin",
+              "loinc": null,
+              "value": "10.8",
+              "unit": "g/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "MCV",
+              "loinc": null,
+              "value": "76",
+              "unit": "fL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Ferritin",
+              "loinc": null,
+              "value": "8",
+              "unit": "ng/mL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Transferrin saturation",
+              "loinc": null,
+              "value": "10",
+              "unit": "%",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Celiac serology",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Total IgA",
+              "loinc": null,
+              "value": "normal",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "tTG-IgA (validated ELISA)",
+              "loinc": null,
+              "value": "approximately 4× ULN",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "GI clinic intake",
+          "author_role": "clinician",
+          "text": "A 34-year-old woman presents for evaluation of 6 months of loose, non-bloody stools (3–5/day), postprandial bloating, and fatigue. She reports 4 kg of unintentional weight loss over the last several months. No fever, nocturnal sweats, or overt GI bleeding. She denies recent travel, antibiotic use, or sick contacts. Diet includes daily gluten-containing foods (bread/pasta). No prior endoscopy. Family history notable for autoimmune thyroid disease in a sister; no known celiac disease in relatives. Exam: mildly pale conjunctivae; abdomen soft, non-tender, without mass or organomegaly. Recent labs from primary care show microcytic anemia with low ferritin consistent with iron deficiency. Celiac screening performed while on a gluten-containing diet demonstrates normal total IgA and a tissue transglutaminase IgA titer reported by the laboratory as moderately elevated at less than 10 times the assay’s upper limit of normal using a validated ELISA. No endomysial antibody or HLA typing has been performed. She has not attempted a gluten-free diet.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "With a positive tTG-IgA below the ≥10× ULN threshold and normal total IgA, the 2025 ESsCD adult guideline supports proceeding to confirmatory duodenal biopsy rather than using a no-biopsy pathway. Routine EMA confirmation is no longer recommended, and HLA typing is reserved for select ambiguous cases. Biopsy should include at least four samples from the second part of the duodenum, with bulb biopsies conditionally included. This aligns with ESsCD 2025 and is consistent with broader guidance that positive serology should be confirmed histologically when high-titer no-biopsy criteria are not met.",
+        "evidence": null,
+        "key_data": [
+          "Patient is eating a gluten-containing diet at time of testing (meets prerequisite for valid serology/biopsy).",
+          "tTG-IgA is moderately elevated but below 10× ULN, so adult no-biopsy criteria are not met.",
+          "Total IgA level is normal, supporting validity of IgA-based serology.",
+          "ESsCD 2025 advises against routine EMA confirmation and recommends biopsy sampling standards.",
+          "AGA advice supports small bowel biopsy to confirm diagnosis when serology is positive but no-biopsy criteria are unmet."
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Diagnose celiac disease now using a no-biopsy pathway based on the positive tTG-IgA despite the titer being below 10× ULN, and order EMA and HLA-DQ2/DQ8 to support the diagnosis instead of proceeding to endoscopic duodenal biopsies."
+      },
+      {
+        "id": "B",
+        "text": "Perform upper endoscopy with duodenal biopsies to confirm or exclude celiac disease, obtaining at least four samples from the second portion of the duodenum (and bulb samples conditionally) given positive serology that is below the ≥10× ULN no-biopsy threshold."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "celiac disease",
+      "tTG-IgA",
+      "duodenal biopsy",
+      "iron-deficiency anemia",
+      "gluten-containing diet"
+    ],
+    "evidence_keywords": [
+      "ESsCD 2025 adult celiac guideline",
+      "no-biopsy pathway",
+      "anti-TG2 IgA ≥10× ULN",
+      "duodenal sampling protocol",
+      "serology performed on gluten"
+    ],
+    "error_tags": [
+      "outdated_guideline",
+      "wrong_diagnosis"
+    ],
+    "claims": [
+      {
+        "statement": "In adults with IBS-like diarrhea symptoms, serologic testing to rule out celiac disease is suggested.",
+        "source_ids": [
+          "33315591"
+        ]
+      },
+      {
+        "statement": "ESsCD 2025 introduces a conditional no-biopsy approach for selected adults with high-titre IgA anti-TG2 at or above 10× the assay ULN using validated ELISAs.",
+        "source_ids": [
+          "40999951"
+        ]
+      },
+      {
+        "statement": "Routine use of IgA endomysial antibody for confirmation in adults is no longer recommended by ESsCD 2025.",
+        "source_ids": [
+          "40999951"
+        ]
+      },
+      {
+        "statement": "When duodenal biopsy is pursued for celiac diagnosis, at least four samples from the second part of the duodenum are mandated, with bulb biopsies conditionally included.",
+        "source_ids": [
+          "40999951"
+        ]
+      },
+      {
+        "statement": "Diagnostic testing for celiac disease, including serology and biopsy, should be performed while the patient consumes gluten.",
+        "source_ids": [
+          "31210940"
+        ]
+      },
+      {
+        "statement": "If celiac serologies are positive, a small bowel biopsy should be performed to confirm the diagnosis in appropriate patients.",
+        "source_ids": [
+          "37452811"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T22:31:11.041965+00:00",
+    "author_model": "gpt-5",
+    "sources": [
+      {
+        "id": "33315591",
+        "title": "ACG Clinical Guideline: Management of Irritable Bowel Syndrome.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33315591/",
+        "abstract": "Irritable bowel syndrome (IBS) is a highly prevalent, chronic disorder that significantly reduces patients' quality of life. Advances in diagnostic testing and in therapeutic options for patients with IBS led to the development of this first-ever American College of Gastroenterology clinical guideline for the management of IBS using Grading of Recommendations, Assessment, Development, and Evaluation (GRADE) methodology. Twenty-five clinically important questions were assessed after a comprehensive literature search; 9 questions focused on diagnostic testing; 16 questions focused on therapeutic options. Consensus was obtained using a modified Delphi approach, and based on GRADE methodology, we endorse the following: We suggest that a positive diagnostic strategy as compared to a diagnostic strategy of exclusion be used to improve time to initiating appropriate therapy. We suggest that serologic testing be performed to rule out celiac disease in patients with IBS and diarrhea symptoms. We suggest that fecal calprotectin be checked in patients with suspected IBS and diarrhea symptoms to rule out inflammatory bowel disease. We recommend a limited trial of a low fermentable oligosaccharides, disacchardies, monosaccharides, polyols (FODMAP) diet in patients with IBS to improve global symptoms. We recommend the use of chloride channel activators and guanylate cyclase activators to treat global IBS with constipation symptoms. We recommend the use of rifaximin to treat global IBS with diarrhea symptoms. We suggest that gut-directed psychotherapy be used to treat global IBS symptoms. Additional statements and information regarding diagnostic strategies, specific drugs, doses, and duration of therapy can be found in the guideline.",
+        "sha256": "9d3341cade3afcb4fa99f2bf6083a771997e8c0a04545fca155995efc05ae8a6",
+        "retrieved_at": "2026-09-18T22:29:20.924730+00:00"
+      },
+      {
+        "id": "40999951",
+        "title": "European Society for the Study of Coeliac Disease 2025 Updated Guidelines on the Diagnosis and Management of Coeliac Disease in Adults. Part 1: Diagnostic Approach.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40999951/",
+        "abstract": "Since the publication of the first European Society for the Study of Coeliac Disease (ESsCD) guidelines in 2019, significant advancements have emerged in the diagnosis of coeliac disease (CeD) in adults. These 2025 guidelines incorporate new evidence to refine diagnostic strategies, aiming for improved accuracy of testing, and enhance overall quality of clinical care.\nA multidisciplinary panel of experts revised the ESsCD guidelines using the AGREE II instrument (Appraisal of Guidelines for Research and Evaluation II) and the GRADE methodology (The Grading of Recommendations Assessment, Development, and Evaluation). Clinical questions were structured using the PICO format, and statements and recommendations were finalised through a Delphi consensus process. Literature quality was assessed using AMSTAR-2 and QUADAS-2 tools.\nThe updated guidelines are presented in two parts. Part 1 focuses on adult CeD diagnosis, introducing major changes such as a conditional no-biopsy approach for selected adults with high-titre IgA anti-TG2 serology (≥ 10 × ULN). Regarding serology, the use of validated high-performance ELISAs displaying a high diagnostic accuracy is emphasised, while routine use of IgA anti-Endomysium serology is no longer recommended for confirmation. Revised duodenal biopsy protocols now mandate at least four samples from the second part of the duodenum, with bulb biopsies conditionally included. The guidelines provide structured approaches for diagnosing potential CeD, seronegative villous atrophy, and CeD in individuals already on a gluten-free diet. HLA-DQ2/DQ8 typing is recommended for diagnostic clarification in select cases.\nThe updated 2025 ESsCD guidelines provide a comprehensive framework for the diagnosis of CeD in adults. By integrating evolving diagnostic strategies, minimising over-testing, and patient-centred care approaches, they aim to optimise patient outcomes, quality of life and use of diagnostic resources at the same time.",
+        "sha256": "b6743db7680c114981a69bdc19bc017fd1f546f5c4bc3e7702ba6d2ff2ed69af",
+        "retrieved_at": "2026-09-18T22:29:20.924730+00:00"
+      },
+      {
+        "id": "36517261",
+        "title": "Italian guidelines for the management of irritable bowel syndrome: Joint Consensus from the Italian Societies of: Gastroenterology and Endoscopy (SIGE), Neurogastroenterology and Motility (SINGEM), Hospital Gastroenterologists and Endoscopists (AIGO), Digestive Endoscopy (SIED), General Medicine (SIMG), Gastroenterology, Hepatology and Pediatric Nutrition (SIGENP) and Pediatrics (SIP).",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36517261/",
+        "abstract": "The irritable bowel syndrome (IBS) is a chronic disorder of gut-brain interaction. IBS is still associated with areas of uncertainties, especially regarding the optimal diagnostic work-up and the more appropriate management. Experts from 7 Italian Societies conducted a Delphi consensus with literature summary and voting process on 27 statements. Recommendations and quality of evidence were evaluated using the grading of recommendations, assessment, development, and evaluation (GRADE) criteria. Consensus was defined as >80% agreement and reached for all statements. In terms of diagnosis, the consensus supports a positive diagnostic strategy with a symptom-based approach, including the psychological comorbidities assessment and the exclusion of alarm symptoms, together with the digital rectal examination, full blood count, C-reactive protein, serology for coeliac disease, and fecal calprotectin assessment. Colonoscopy should be recommended in patients with alarm features. Regarding treatment, the consensus strongly supports a dietary approach for patients with IBS, the use of soluble fiber, secretagogues, tricyclic antidepressants, psychologically directed therapies and, only in specific IBS subtypes, rifaximin. A conditional recommendation was achieved for probiotics, polyethylene glycol, antispasmodics, selective serotonin reuptake inhibitors and, only in specific IBS subtypes, 5-HT3 antagonists, 5-HT4 agonists, bile acid sequestrants.",
+        "sha256": "e5e9ad2d73e73870525c33f2aee2360af4d7bc7d931fb2db455e69898e635d84",
+        "retrieved_at": "2026-09-18T22:29:20.924730+00:00"
+      },
+      {
+        "id": "39148213",
+        "title": "Updated joint ESPGHAN/NASPGHAN guidelines for management of Helicobacter pylori infection in children and adolescents (2023).",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39148213/",
+        "abstract": "Evolving epidemiological data and increasing antibiotic resistance mandate an update of the European and North American Societies of Pediatric Gastroenterology, Hepatology and Nutrition guidelines.\nCertainty of evidence and strength of recommendations were rated by experts according to the Grading of Recommendation Assessment, Development, and Evaluation approach. PICO (patient population, intervention, comparator, and outcome) questions were developed and voted on by the group. Recommendations were formulated using the Evidence to Decision framework.\nThe current literature supports many of the previous recommendations and several new recommendations. Invasive testing with strain antimicrobial susceptibility analysis is recommended for the diagnosis and selection of eradication therapy for H. pylori infection. Molecular methods are acceptable for detection of infection and of antibiotic resistance in gastric biopsy specimens. Reliable, noninvasive tests can be used as a screening method for children with history of gastric cancer in a first-degree relative. When investigating causes of chronic immune thrombocytopenic purpura, testing for H. pylori is no longer recommended. When investigating other diseases such as inflammatory bowel disease, celiac disease, or eosinophilic esophagitis, specific diagnostic biopsies for H. pylori infection are not indicated. However, if H. pylori is an incidental finding, treatment may be considered after discussing the risks and benefits. Treatment should be based on antibiotic antimicrobial susceptibility testing and, if unavailable, regimens containing clarithromycin should be avoided.\nDue to decreasing prevalence of infection, increasing challenges with antibiotic resistance, and emerging evidence regarding complications of infection, clinicians must be aware of these recommended changes to appropriately manage H. pylori infection and its clinical sequelae in children.",
+        "sha256": "a1fa44707f7a3638e2da99be004db6faa1fee94a60f1016a922ff344058e55ad",
+        "retrieved_at": "2026-09-18T22:29:21.535518+00:00"
+      },
+      {
+        "id": "38864796",
+        "title": "AGA Clinical Practice Update on Management of Iron Deficiency Anemia: Expert Review.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38864796/",
+        "abstract": "In this Clinical Practice Update (CPU), we will Best Practice Advice (BPA) guidance on the appropriate management of iron deficiency anemia.\nThis expert review was commissioned and approved by the AGA Institute Clinical Practice Updates Committee (CPUC) and the AGA Governing Board to provide timely guidance on a topic of high clinical importance to the AGA membership, and underwent internal peer review by the CPUC and external peer review through standard procedures of Clinical Gastroenterology and Hepatology. These Best Practice Advice (BPA) statements were drawn from a review of the published literature and from expert opinion. Since systematic reviews were not performed, these BPA statements do not carry formal ratings regarding the quality of evidence or strength of the presented considerations. BEST PRACTICE ADVICE 1: No single formulation of oral iron has any advantages over any other. Ferrous sulfate is preferred as the least expensive iron formulation. BEST PRACTICE ADVICE 2: Give oral iron once a day at most. Every-other-day iron dosing may be better tolerated for some patients with similar or equal rates of iron absorption as daily dosing. BEST PRACTICE ADVICE 3: Add vitamin C to oral iron supplementation to improve absorption. BEST PRACTICE ADVICE 4: Intravenous iron should be used if the patient does not tolerate oral iron, ferritin levels do not improve with a trial of oral iron, or the patient has a condition in which oral iron is not likely to be absorbed. BEST PRACTICE ADVICE 5: Intravenous iron formulations that can replace iron deficits with 1 or 2 infusions are preferred over those that require more than 2 infusions. BEST PRACTICE ADVICE 6: All intravenous iron formulations have similar risks; true anaphylaxis is very rare. The vast majority of reactions to intravenous iron are complement activation-related pseudo-allergy (infusion reactions) and should be treated as such. BEST PRACTICE ADVICE 7: Intravenous iron therapy should be used in individuals who have undergone bariatric procedures, particularly those that are likely to disrupt normal duodenal iron absorption, and have iron-deficiency anemia with no identifiable source of chronic gastrointestinal blood loss. BEST PRACTICE ADVICE 8: In individuals with inflammatory bowel disease and iron-deficiency anemia, clinicians first should determine whether iron-deficiency anemia is owing to inadequate intake or absorption, or loss of iron, typically from gastrointestinal bleeding. Active inflammation should be treated effectively to enhance iron absorption or reduce iron depletion. BEST PRACTICE ADVICE 9: Intravenous iron therapy should be given in individuals with inflammatory bowel disease, iron-deficiency anemia, and active inflammation with compromised absorption. BEST PRACTICE ADVICE 10: In individuals with portal hypertensive gastropathy and iron-deficiency anemia, oral iron supplements initially should be used to replenish iron stores. Intravenous iron therapy should be used in patients with ongoing bleeding who do not respond to oral iron therapy. BEST PRACTICE ADVICE 11: In individuals with portal hypertensive gastropathy and iron-deficiency anemia without another identified source of chronic blood loss, treatment of portal hypertension with nonselective β-blockers can be considered. BEST PRACTICE ADVICE 12: In individuals with iron-deficiency anemia secondary to gastric antral vascular ectasia who have an inadequate response to iron replacement, consider endoscopic therapy with endoscopic band ligation or thermal methods such as argon plasma coagulation. BEST PRACTICE ADVICE 13: In patients with iron-deficiency anemia and celiac disease, ensure adherence to a gluten-free diet to improve iron absorption. Consider oral iron supplementation based on the severity of iron deficiency and patient tolerance, followed by intravenous iron therapy if iron stores do not improve. BEST PRACTICE ADVICE 14: Deep enteroscopy performed in patients with iron-deficiency anemia suspected to have small-bowel bleeding angioectasias should be performed with a distal attachment to improve detection and facilitate treatment. Small-bowel angioectasias may be treated with ablative thermal therapies such as argon plasma coagulation or with mechanical methods such as hemostatic clips. BEST PRACTICE ADVICE 15: Endoscopic treatment of angioectasias should be accompanied with iron replacement. Medical therapy for small-bowel angioectasias should be reserved for compassionate treatment in refractory cases when iron replacement and endoscopic therapy are ineffective.",
+        "sha256": "7f2871c20899afc94de4a911c510506566d18a1553ea289a80252937b7c6eb6d",
+        "retrieved_at": "2026-09-18T22:29:21.535518+00:00"
+      },
+      {
+        "id": "31210940",
+        "title": "European Society for the Study of Coeliac Disease (ESsCD) guideline for coeliac disease and other gluten-related disorders.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31210940/",
+        "abstract": "This guideline presents recommendations for the management of coeliac disease (CD) and other gluten-related disorders both in adults and children. There has been a substantial increase in the prevalence of CD over the last 50 years and many patients remain undiagnosed. Diagnostic testing, including serology and biopsy, should be performed on a gluten-containing diet. The diagnosis of CD is based on a combination of clinical, serological and histopathological data. In a group of children the diagnosis may be made without biopsy if strict criteria are available. The treatment for CD is primarily a gluten-free diet (GFD), which requires significant patient education, motivation and follow-up. Slow-responsiveness occurs frequently, particularly in those diagnosed in adulthood. Persistent or recurring symptoms necessitate a review of the original diagnosis, exclude alternative diagnoses, confirm dietary adherence (dietary review and serology) and follow-up biopsy. In addition, evaluation to exclude complications of CD, such as refractory CD or lymphoma, should be performed. The guideline also deals with other gluten-related disorders, such as dermatitis herpetiformis, which is a cutaneous manifestation of CD characterized by granular IgA deposits in the dermal papillae. The skin lesions clear with gluten withdrawal. Also, less well-defined conditions such as non-coeliac gluten sensitivity (NCGS) and gluten-sensitive neurological manifestations, such as ataxia, have been addressed. Newer therapeutic modalities for CD are being studied in clinical trials but are not yet approved for use in practice.",
+        "sha256": "b2b7457a7e1f3dffa2e862f749fbb7e9834a388e0fc82478deb33a34341d9f1d",
+        "retrieved_at": "2026-09-18T22:29:21.535518+00:00"
+      },
+      {
+        "id": "37737818",
+        "title": "AGA Clinical Practice Update on the Epidemiology, Evaluation, and Management of Exocrine Pancreatic Insufficiency: Expert Review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37737818/",
+        "abstract": "Exocrine pancreatic insufficiency (EPI) is a disorder caused by the failure of the pancreas to deliver a minimum/threshold level of specific pancreatic digestive enzymes to the intestine, leading to the maldigestion of nutrients and macronutrients, resulting in their variable deficiencies. EPI is frequently underdiagnosed and, as a result, patients are often not treated appropriately. There is an urgent need to increase awareness of and treatment for this condition. The aim of this American Gastroenterological Association (AGA) Clinical Practice Update Expert Review was to provide Best Practice Advice on the epidemiology, evaluation, and management of EPI.\nThis Expert Review was commissioned and approved by the American Gastroenterological Association (AGA) Institute Clinical Practice Updates Committee (CPUC) and the AGA Governing Board to provide timely guidance on a topic of high clinical importance to the AGA membership, and underwent internal peer review by the CPUC and external peer review through standard procedures of Gastroenterology. These Best Practice Advice statements were drawn from a review of the published literature and from expert opinion. Because systematic reviews were not performed, these Best Practice Advice statements do not carry formal ratings regarding the quality of evidence or strength of the presented considerations. Best Practice Advice Statements BEST PRACTICE ADVICE 1: EPI should be suspected in patients with high-risk clinical conditions, such as chronic pancreatitis, relapsing acute pancreatitis, pancreatic ductal adenocarcinoma, cystic fibrosis, and previous pancreatic surgery. BEST PRACTICE ADVICE 2: EPI should be considered in patients with moderate-risk clinical conditions, such as duodenal diseases, including celiac and Crohn's disease; previous intestinal surgery; longstanding diabetes mellitus; and hypersecretory states (eg, Zollinger-Ellison syndrome). BEST PRACTICE ADVICE 3: Clinical features of EPI include steatorrhea with or without diarrhea, weight loss, bloating, excessive flatulence, fat-soluble vitamin deficiencies, and protein-calorie malnutrition. BEST PRACTICE ADVICE 4: Fecal elastase test is the most appropriate initial test and must be performed on a semi-solid or solid stool specimen. A fecal elastase level <100 μg/g of stool provides good evidence of EPI, and levels of 100-200 μg/g are indeterminate for EPI. BEST PRACTICE ADVICE 5: Fecal elastase testing can be performed while on pancreatic enzyme replacement therapy. BEST PRACTICE ADVICE 6: Fecal fat testing is rarely needed and must be performed when on a high-fat diet. Quantitative testing is generally not practical for routine clinical use. BEST PRACTICE ADVICE 7: Response to a therapeutic trial of pancreatic enzymes is unreliable for EPI diagnosis. BEST PRACTICE ADVICE 8: Cross-sectional imaging methods (computed tomography scan, magnetic resonance imaging, and endoscopic ultrasound) cannot identify EPI, although they play an important role in the diagnosis of benign and malignant pancreatic disease. BEST PRACTICE ADVICE 9: Breath tests and direct pancreatic function tests hold promise, but are not widely available in the United States. BEST PRACTICE ADVICE 10: Once EPI is diagnosed, treatment with pancreatic enzyme replacement therapy (PERT) is required. If EPI is left untreated, it will result in complications related to fat malabsorption and malnutrition, having a negative impact on quality of life. BEST PRACTICE ADVICE 11: PERT formulations are all derived from porcine sources and are equally effective at equivalent doses. There is a need for H2 or proton pump inhibitor therapy with non-enteric-coated preparations. BEST PRACTICE ADVICE 12: PERT should be taken during the meal, with the initial treatment of at least 40,000 USP units of lipase during each meal in adults and one-half of that with snacks. The subsequent dosage can be adjusted based on the meal size and fat content. BEST PRACTICE ADVICE 13: Routine supplementation and monitoring of fat-soluble vitamin levels are appropriate. Dietary modifications include a low-moderate fat diet with frequent smaller meals and avoiding very-low-fat diets. BEST PRACTICE ADVICE 14: Measures of successful treatment with PERT include reduction in steatorrhea and associated gastrointestinal symptoms; a gain of weight, muscle mass, and muscle function; and improvement in fat-soluble vitamin levels. BEST PRACTICE ADVICE 15: EPI should be monitored and baseline measurements of nutritional status should be obtained (body mass index, quality-of-life measure, and fat-soluble vitamin levels). A baseline dual-energy x-ray absorptiometry scan should be obtained and repeated every 1-2 years.",
+        "sha256": "6aa4a4fdf3aeca81a3a52524bb6436aef9972c419539260ff7d807f2c3550f37",
+        "retrieved_at": "2026-09-18T22:29:22.454027+00:00"
+      },
+      {
+        "id": "37452811",
+        "title": "AGA Clinical Practice Update on Evaluation and Management of Belching, Abdominal Bloating, and Distention: Expert Review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37452811/",
+        "abstract": "Belching, bloating, and abdominal distention are all highly prevalent gastrointestinal symptoms and account for some of the most common reasons for patient visits to outpatient gastroenterology practices. These symptoms are often debilitating, affecting patients' quality of life, and contributing to work absenteeism. Belching and bloating differ in their pathophysiology, diagnosis, and management, and there is limited evidence available for their various treatments. Therefore, the purpose of this American Gastroenterological Association (AGA) Clinical Practice Update is to provide best practice advice based on both controlled trials and observational data for clinicians covering clinical features, diagnostics, and management considerations that include dietary, gut-directed behavioral, and drug therapies.\nThis Expert Review was commissioned and approved by the AGA Institute Clinical Practice Updates Committee and the AGA Governing Board to provide timely guidance on a topic of high clinical importance to the AGA membership, and underwent internal peer review by the Clinical Practice Updates Committee and external peer review through standard procedures of Gastroenterology. These best practice advice statements were drawn from a review of the published literature based on clinical trials, the more robust observational studies, and from expert opinion. Because systematic reviews were not performed, these best practice advice statements do not carry formal ratings regarding the quality of evidence or strength of the presented considerations. Best Practice Advice Statements BEST PRACTICE ADVICE 1: Clinical history and physical examination findings and impedance pH monitoring can help to differentiate between gastric and supragastric belching. BEST PRACTICE ADVICE 2: Treatment options for supragastric belching may include brain-gut behavioral therapies, either separately or in combination, such as cognitive behavioral therapy, diaphragmatic breathing, speech therapy, and central neuromodulators. BEST PRACTICE ADVICE 3: Rome IV criteria should be used to diagnose primary abdominal bloating and distention. BEST PRACTICE ADVICE 4: Carbohydrate enzyme deficiencies may be ruled out with dietary restriction and/or breath testing. In a small subset of at-risk patients, small bowel aspiration and glucose- or lactulose-based hydrogen breath testing may be used to evaluate for small intestinal bacterial overgrowth. BEST PRACTICE ADVICE 5: Serologic testing may rule out celiac disease in patients with bloating and, if serologies are positive, a small bowel biopsy should be done to confirm the diagnosis. A gastroenterology dietitian should be part of the multidisciplinary approach to care for patients with celiac disease and nonceliac gluten sensitivity. BEST PRACTICE ADVICE 6: Abdominal imaging and upper endoscopy should be ordered in patients with alarm features, recent worsening symptoms, or an abnormal physical examination only. BEST PRACTICE ADVICE 7: Gastric emptying studies should not be ordered routinely for bloating and distention, but may be considered if nausea and vomiting are present. Whole gut motility and radiopaque transit studies should not be ordered unless other additional and treatment-refractory lower gastrointestinal symptoms exist to warrant testing for neuromyopathic disorders. BEST PRACTICE ADVICE 8: In patients with abdominal bloating and distention thought to be related to constipation or difficult evacuation, anorectal physiology testing is suggested to rule out a pelvic floor disorder. BEST PRACTICE ADVICE 9: When dietary modifications are needed (eg, low-fermentable oligosaccharides, disaccharides, monosaccharides and polyols diet), a gastroenterology dietitian should preferably monitor treatment. BEST PRACTICE ADVICE 10: Probiotics should not be used to treat abdominal bloating and distention. BEST PRACTICE ADVICE 11: Biofeedback therapy may be effective for bloating and distention when a pelvic floor disorder is identified. BEST PRACTICE ADVICE 12: Central neuromodulators (eg, antidepressants) are used to treat bloating and abdominal distention by reducing visceral hypersensitivity, raising sensation threshold, and improving psychological comorbidities. BEST PRACTICE ADVICE 13: Medications used to treat constipation should be considered for treating bloating if constipation symptoms are present. BEST PRACTICE ADVICE 14: Psychological therapies, such as hypnotherapy, cognitive behavioral therapy, and other brain-gut behavior therapies may be used to treat patients with bloating and distention. BEST PRACTICE 15: Diaphragmatic breathing and central neuromodulators are used to treat abdominophrenic dyssynergia.",
+        "sha256": "0a33647ceb09bc0842434b6809bafba7d88742a7f88c9e28dfcf04739d3f6e0e",
+        "retrieved_at": "2026-09-18T22:29:22.454027+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The 2025 ESsCD guidelines (source 40999951) restrict the no-biopsy pathway to selected adults with high-titre IgA anti-TG2 serology at ≥10× ULN. This patient's tTG-IgA is approximately 4× ULN (moderately elevated, <10× ULN), which is below the no-biopsy threshold, so a serologic-only diagnosis is not appropriate. The same guideline mandates duodenal biopsy protocols with at least four samples from the second part of the duodenum, with bulb biopsies conditionally included, exactly matching option B. Additionally, routine use of EMA for confirmation is no longer recommended, and HLA typing is reserved for select diagnostic clarification, undermining option A. Since she remains on a gluten-containing diet, biopsy conditions are valid.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.94,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33315591"
+              ],
+              "reason": "ACG IBS guideline abstract states serologic testing be performed to rule out celiac disease in patients with IBS and diarrhea symptoms."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "40999951"
+              ],
+              "reason": "ESsCD 2025 abstract explicitly introduces a conditional no-biopsy approach for selected adults with high-titre IgA anti-TG2 (≥10× ULN) using validated high-performance ELISAs."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "40999951"
+              ],
+              "reason": "Abstract states routine use of IgA anti-Endomysium serology is no longer recommended for confirmation."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "40999951"
+              ],
+              "reason": "Abstract states revised duodenal biopsy protocols mandate at least four samples from the second part of the duodenum, with bulb biopsies conditionally included."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "31210940"
+              ],
+              "reason": "ESsCD 2019 abstract states diagnostic testing, including serology and biopsy, should be performed on a gluten-containing diet."
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "37452811"
+              ],
+              "reason": "AGA bloating update abstract states if serologies are positive, a small bowel biopsy should be done to confirm the diagnosis."
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent clinical reasoning: A 34-year-old woman on a gluten-containing diet with chronic diarrhea, weight loss, iron-deficiency anemia (ferritin 8, TSat 10%, MCV 76), normal total IgA, and tTG-IgA ~4× ULN. The tTG-IgA is positive but below the ≥10× ULN threshold required for the ESsCD 2025 adult no-biopsy pathway. Therefore confirmatory upper endoscopy with duodenal biopsy (≥4 samples from D2, bulb conditionally) is the correct next step. This matches candidate B and the key.\n\nCandidate A (intended flawed) misapplies the no-biopsy pathway to a titer that does not meet the ≥10× criterion and adds routine EMA/HLA testing, which ESsCD 2025 no longer recommends for routine confirmation (HLA reserved for select ambiguous cases). Diagnosing celiac without meeting no-biopsy criteria risks committing the patient to a lifelong gluten-free diet without histologic confirmation and missing alternative causes of villous atrophy — an unsafe/outdated approach. This is the case functioning as designed.\n\nEvidence check: All six claims verified against actual source abstract text; the pivotal ESsCD 2025 no-biopsy threshold (≥10× ULN), the discontinuation of routine EMA, the biopsy sampling protocol, and the gluten-on-board prerequisite are all directly supported. Sources are on-specialty and current.\n\nSpecialty: gastroenterology — correct. Data completeness: gluten intake confirmed, total IgA normal (validating IgA serology), titer characterized relative to threshold; no missing decisive data. Note the titer is given descriptively (~4× ULN / <10× ULN) rather than as a precise number, but this is sufficient to determine that no-biopsy criteria are unmet, which is the only decision-relevant fact.\n\nDistinctness: The prior case addressed acute UGIB risk stratification (Glasgow-Blatchford, endoscopy timing) — an entirely different clinical decision from celiac diagnostic pathway selection. Independent.\n\nDisclosure check: The title mentions positive celiac serology but does not disclose the biopsy-vs-no-biopsy management answer; notes do not reveal the intended step. No leakage.\n\nThe sound answer B provides complete essential care (histologic confirmation) and is not merely less bad than A. Case is acceptable."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Adult no-biopsy diagnosis is conditionally acceptable only with high-titer IgA anti-TG2 ≥10× ULN using validated assays. This patient’s tTG-IgA is ~4× ULN, so histologic confirmation is indicated. Current adult guidelines mandate duodenal biopsies—at least four from the second part of the duodenum, with bulb biopsies conditionally included. Routine EMA confirmation is no longer recommended, and HLA typing is reserved for select clarification, not as a substitute for biopsy when titers are below the no-biopsy threshold.",
+          "confidence": 0.9,
+          "sources": [
+            "40999951",
+            "31210940",
+            "37452811"
+          ]
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33315591"
+              ],
+              "reason": "The ACG IBS guideline explicitly states: \"We suggest that serologic testing be performed to rule out celiac disease in patients with IBS and diarrhea symptoms.\""
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "40999951"
+              ],
+              "reason": "The ESsCD 2025 abstract states a \"conditional no-biopsy approach for selected adults with high-titre IgA anti-TG2 serology (≥ 10 × ULN)\" using validated ELISAs."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "40999951"
+              ],
+              "reason": "The ESsCD 2025 abstract notes: \"routine use of IgA anti-Endomysium serology is no longer recommended for confirmation.\""
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "40999951"
+              ],
+              "reason": "The ESsCD 2025 abstract specifies: \"Revised duodenal biopsy protocols now mandate at least four samples from the second part of the duodenum, with bulb biopsies conditionally included.\""
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "31210940"
+              ],
+              "reason": "The ESsCD 2019 guideline states: \"Diagnostic testing, including serology and biopsy, should be performed on a gluten-containing diet.\""
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "37452811"
+              ],
+              "reason": "AGA CPU on bloating states: \"Serologic testing may rule out celiac disease in patients with bloating and, if serologies are positive, a small bowel biopsy should be done to confirm the diagnosis.\""
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent assessment: A 34-year-old woman on a gluten-containing diet has chronic non-bloody diarrhea, weight loss, and iron-deficiency anemia. Celiac serology shows normal total IgA and tTG-IgA approximately 4× ULN using a validated ELISA. In adults, a no-biopsy diagnosis is conditionally allowed only when anti-TG2 IgA titers are very high (≥10× ULN) and other criteria are met. With titers below this threshold, current ESsCD 2025 guidance supports proceeding to confirmatory duodenal histology. ESsCD 2025 also removes routine EMA confirmation and reserves HLA-DQ2/DQ8 typing for select ambiguous cases. When biopsying, at least four samples from the second part of the duodenum are mandated, with bulb biopsies conditionally included. AGA best practice advice similarly recommends small bowel biopsy to confirm celiac disease when serologies are positive but no-biopsy criteria are not met. The patient is actively consuming gluten, satisfying the prerequisite for valid serology and biopsy.\nAppraisal of candidates: Option B aligns with ESsCD 2025 and AGA guidance—upper endoscopy with appropriately sampled duodenal biopsies to confirm or exclude celiac disease. Option A is flawed and potentially unsafe: it recommends a no-biopsy diagnosis despite a tTG-IgA <10× ULN and substitutes EMA and HLA for histologic confirmation, contrary to ESsCD 2025 (routine EMA confirmation not recommended; HLA reserved for select cases). The key’s rationale and designated correct answer (B) are consistent with the patient data and supported by the supplied sources. Prior case topic (UGIB risk stratification) is clinically distinct from this decision.",
+          "best_answer_explanation": "Proceed with upper endoscopy and duodenal biopsies (≥4 from D2, consider bulb) to confirm or exclude celiac disease because the positive tTG-IgA is below the ≥10× ULN threshold required for a no-biopsy diagnosis in adults. Routine EMA confirmation is not recommended; HLA typing is reserved for select ambiguous cases."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "e3e2e643da7d38870f7575eccc54a53f03a1b61a13d1e851cf6d02a7a583f89d"
+  }
+}

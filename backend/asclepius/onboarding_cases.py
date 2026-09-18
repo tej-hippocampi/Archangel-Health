@@ -61,6 +61,12 @@ The sound candidate, answer key and EVERY decisive recommendation must be
 supported by the retrieved sources; cite their exact IDs in claims. Use at least
 two sources. If the source abstracts do not support a defensible case, return
 {"insufficient_evidence":true}; never fill the gap with invented certainty.
+Choose the decision only after locating explicit support in the supplied text.
+A guideline's scope summary or mention of an algorithm is not its recommendations.
+Do not fill omitted recommendations from memory or extrapolate between hospital
+and community populations, pregnancy and nonpregnancy, or adult and pediatric care.
+Every decisive action in the sound answer and key needs supplied-text support,
+not just the narrower statements listed in claims.
 Visible notes must stop at the decision point. Do not disclose the intended
 next-step plan, favored answer or conclusion in the title, question, problem
 list or notes. Keep that information only in the held-out ground truth and the
@@ -108,10 +114,20 @@ Reject under coherent/key_correct if visible notes, title or question already
 disclose the intended answer or management plan. Reject under sound_answer_safe
 if the designated sound candidate omits essential care and is merely less bad
 than the other option. A high-confidence choice alone cannot clear these defects.
+Do not substitute remembered guideline content for the supplied text. A guideline
+abstract describing scope or announcing an algorithm does not establish that
+algorithm's actions. Absence of contradiction is not evidence. Population,
+comparator, outcome and treatment ranking must match the claimed recommendation.
+Check EVERY decisive recommendation in the sound candidate and key, including
+discharge criteria and medication advice, even when the author omitted it from
+claims. Mark evidence_supported false for any gap. For each claim provide short
+exact source_quotes from the supplied abstracts that establish it; a quote about
+scope, a title, or evidence from a different population cannot establish a claim.
 Return JSON: best_answer_id (A or B), on_specialty (boolean), coherent (boolean),
 key_correct (boolean), sound_answer_safe (boolean), evidence_supported (boolean),
 distinct_decision (boolean), no_missing_information (boolean), confidence (0..1),
-claim_checks (one {index,supported,source_ids,reason} for each zero-based claim),
+claim_checks (one {index,supported,source_ids,reason,source_quotes} for each
+zero-based claim; source_quotes is [{source_id,quote}] covering all its source_ids),
 issues (array of concrete problems), rationale (string). Use false and explain
 uncertainty when any clinical or evidence conclusion cannot be established.
 issues is a BLOCKING list, not a notebook: it is machine-checked and any entry
@@ -278,7 +294,7 @@ def blind_entry(entry: dict) -> dict:
             "candidate_answers": [{"id": c["id"], "text": c["text"]} for c in entry["candidate_answers"]]}
 
 
-def validate_review(review: dict, entry: dict) -> None:
+def validate_review(review: dict, entry: dict, sources: list[dict] | None = None) -> None:
     required = ("on_specialty", "coherent", "key_correct", "sound_answer_safe",
                 "evidence_supported", "distinct_decision", "no_missing_information")
     if not isinstance(review, dict):
@@ -317,6 +333,19 @@ def validate_review(review: dict, entry: dict) -> None:
         if (check.get("supported") is not True or not check.get("reason")
                 or set(check.get("source_ids") or []) != set(claim["source_ids"])):
             raise ValueError("unsupported_clinical_claim: " + json.dumps(check)[:1800])
+        if sources is not None:
+            by_id = {s["id"]: s["abstract"] for s in sources}
+            quotes = check.get("source_quotes")
+            if (not isinstance(quotes, list) or not quotes
+                    or any(not isinstance(q, dict) for q in quotes)
+                    or {q.get("source_id") for q in quotes} != set(claim["source_ids"])):
+                raise ValueError("missing_source_quotes")
+            for quote in quotes:
+                text = quote.get("quote")
+                source = by_id.get(quote.get("source_id"), "")
+                if (not isinstance(text, str) or not 16 <= len(text.strip()) <= 1000
+                        or " ".join(text.split()) not in " ".join(source.split())):
+                    raise ValueError("source_quote_not_in_retrieved_text")
 
 
 async def build_case(store, specialty: str, kind: str, ident: str) -> tuple[dict, dict]:
@@ -389,7 +418,7 @@ async def build_case(store, specialty: str, kind: str, ident: str) -> tuple[dict
         result = _extract_json(first_text(response))
         trace.update(review=result, review_request_id=record.get("request_id"),
                      returned_review_model=record.get("model"))
-        validate_review(result, entry)
+        validate_review(result, entry, sources)
         if asset and (result.get("image_supports_key") is not True or result.get("image_has_no_identifiers") is not True
                       or not result.get("image_observations")):
             raise ValueError("image_review_failed")
@@ -424,6 +453,7 @@ async def build_case(store, specialty: str, kind: str, ident: str) -> tuple[dict
                       "reviews": traces})
         raise ValueError("clinical_review_rejected: " + " | ".join(failures))
     return entry, {"version": VERSION, "method": "fake_fixture_only" if fake_llm_enabled() else "two_provider_evidence_review",
+                   "source_quote_review": True,
                    "physician_ratified": False, "reviewed_at": _now(),
                    "author_model": author.get("model"), "sources": sources, "reviews": reviews,
                    "entry_sha256": hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest()}

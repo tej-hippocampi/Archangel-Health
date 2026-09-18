@@ -54,6 +54,18 @@ plan invalidates the assessment even when both model reviews approve it. Keep
 rejected material outside `cases/`; never manually edit a reviewed entry to fix
 it, since that would invalidate its content hash and clinical review.
 
+New clinical reviews must quote each cited source. The server verifies that each
+excerpt occurs in the retrieved text; reviewers separately judge whether it
+establishes the recommendation for the actual population. Scope summaries,
+remembered guideline details and absence of contradictory evidence do not count.
+Reviewers also check decisive advice omitted from the author's claim list.
+
+Seven pre-protocol artifacts received an independent audit against their actual
+source text. `legacy_evidence_audits.json` pins each entire original document,
+including its sources and provider reports, by SHA-256. It does not add invented
+quotes to old provider responses. Every other artifact requires the new protocol;
+removing its marker or changing any legacy document rejects it.
+
 Review/download successful artifacts into `cases/`, then run:
 
 ```sh

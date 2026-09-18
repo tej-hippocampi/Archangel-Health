@@ -507,13 +507,17 @@ def _f_onboarding_solve(ctx: _Ctx) -> str:
 
 
 def _f_onboarding_review(ctx: _Ctx) -> str:
-    entry = _onboarding_input(ctx).get("case_to_review") or {}
+    payload = _onboarding_input(ctx)
+    entry = payload.get("case_to_review") or {}
+    sources = {r["id"]: r.get("abstract", "") for r in payload.get("sources", [])}
     return _j({**{key: not _failing() for key in ("on_specialty", "coherent", "key_correct",
         "sound_answer_safe", "evidence_supported", "distinct_decision", "no_missing_information")},
         "best_answer_id": "A", "confidence": .98,
         "issues": ["Fake reviewer rejection"] if _failing() else [],
         "rationale": "Fake evidence review for software tests only.",
         "claim_checks": [{"index": i, "supported": not _failing(), "source_ids": claim["source_ids"],
+                          "source_quotes": [{"source_id": sid, "quote": sources.get(sid, "")[:200]}
+                                            for sid in claim["source_ids"]],
                           "reason": "Fake evidence check"} for i, claim in enumerate(entry.get("claims") or [])]})
 
 

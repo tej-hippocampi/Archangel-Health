@@ -59,6 +59,7 @@ def publication(specialty='dermatology', kind='practice'):
                        'image_has_no_identifiers': True, 'image_observations': 'Fixture pixel review'}})
     return {'specialty': specialty, 'kind': kind, 'slot': 1, 'task_id': bank.task_id(specialty, kind),
             'entry': entry, 'validation': {'version': bank.VERSION, 'method': 'two_provider_evidence_review',
+            'source_quote_review': True,
             'sources': SOURCES, 'reviews': reviews,
             'entry_sha256': hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest()}}
 
@@ -337,3 +338,55 @@ def test_claims_reject_unknown_fields_that_could_escape_identifier_screening():
     entry['claims'][0]['comment'] = 'test-person@example.org'
     with pytest.raises(ValueError, match='unexpected_claim_fields'):
         bank.validate_entry(entry, 'dermatology', SOURCES)
+
+
+@pytest.mark.parametrize('damage', ['missing', 'invented', 'wrong_source', 'unquoted_source'])
+def test_clinical_review_requires_quotes_from_each_actual_retrieved_source(damage):
+    entry = fixture_entry()
+    review = approved_review(entry)
+    assert bank.validate_review(review, entry, SOURCES) is None
+    if damage == 'missing':
+        review['claim_checks'][0].pop('source_quotes')
+    elif damage == 'invented':
+        review['claim_checks'][0]['source_quotes'][0]['quote'] = 'An invented guideline recommendation not in the source'
+    elif damage == 'wrong_source':
+        review['claim_checks'][0]['source_quotes'][0]['source_id'] = '2'
+    else:
+        review['claim_checks'][2]['source_quotes'].pop()
+    with pytest.raises(ValueError, match='source_quote'):
+        bank.validate_review(review, entry, SOURCES)
+
+
+def test_release_revalidates_recorded_source_quotes():
+    doc = publication()
+    doc['validation']['source_quote_review'] = True
+    library.validate(doc)
+    doc['validation']['reviews'][0]['review']['claim_checks'][0]['source_quotes'][0]['quote'] = 'An invented recommendation from model memory'
+    with pytest.raises(ValueError, match='source_quote_not_in_retrieved_text'):
+        library.validate(doc)
+
+
+@pytest.mark.parametrize('marker', [None, False, 'true', 1])
+def test_new_release_cannot_downgrade_source_review_protocol(marker):
+    doc = publication()
+    if marker is None:
+        doc['validation'].pop('source_quote_review')
+    else:
+        doc['validation']['source_quote_review'] = marker
+    with pytest.raises(ValueError, match='Source-quote review required'):
+        library.validate(doc)
+
+
+def test_legacy_evidence_audit_binds_the_entire_document(monkeypatch, tmp_path):
+    doc = publication()
+    doc['validation'].pop('source_quote_review')
+    manifest = tmp_path / 'legacy.json'
+    manifest.write_text(json.dumps({'artifacts': [{
+        'task_id': doc['task_id'],
+        'document_sha256': hashlib.sha256(json.dumps(doc, sort_keys=True).encode()).hexdigest()}]}))
+    monkeypatch.setattr(library, 'LEGACY_AUDITS', manifest)
+    library.validate(doc)
+    # Even a change outside the entry checksum invalidates the legacy exception.
+    doc['validation']['sources'][0] = {**SOURCES[0], 'abstract': 'Changed after independent source audit'}
+    with pytest.raises(ValueError, match='Source-quote review required'):
+        library.validate(doc)

@@ -64,3 +64,13 @@ investigation. Production does not write these files. Additional regression:
 120 passed, 1 release-completeness test deselected; independent code re-audit:
 8 passed. Release thresholds, immutable published IDs and paid-inventory
 isolation are unchanged.
+
+The subsequent source audit found unsupported recommendations despite provider
+approval. Eight additional artifacts were quarantined; seven independently
+source-audited documents remain. Their complete original bytes are represented
+by canonical document hashes in `legacy_evidence_audits.json`. Any change to a
+legacy case, source or review invalidates that exception. All new generation
+requires exact source excerpts, checked against retrieved text, plus the existing
+two-provider clinical review. No production records or submitted cases were
+rewritten. Source-protocol validation: 154 builder tests and 126 independent tests
+passed (the unfinished 86-case release gate remains separately failing).

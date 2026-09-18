@@ -51,7 +51,9 @@ def approved_review(entry):
     return {**{k: True for k in ('on_specialty', 'coherent', 'key_correct', 'sound_answer_safe',
         'evidence_supported', 'distinct_decision', 'no_missing_information')},
         'best_answer_id': 'A', 'confidence': .96, 'issues': [], 'rationale': 'Test reviewer rationale',
-        'claim_checks': [{'index': i, 'supported': True, 'source_ids': c['source_ids'], 'reason': 'Test evidence check'}
+        'claim_checks': [{'index': i, 'supported': True, 'source_ids': c['source_ids'], 'reason': 'Test evidence check',
+                          'source_quotes': [{'source_id': s['id'], 'quote': s['abstract']}
+                                            for s in SOURCES if s['id'] in c['source_ids']]}
                          for i, c in enumerate(entry['claims'])]}
 
 

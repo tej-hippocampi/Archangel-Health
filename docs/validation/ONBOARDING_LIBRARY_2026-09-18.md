@@ -120,7 +120,42 @@ write and confirmed the byte assertion still fails. Production code is unchanged
 The auditor cleared this test-only fix for push; fresh CI remains required.
 
 [Corrected OpenAI build 35400997410](https://github.com/tej-hippocampi/Archangel-Health/actions/runs/35400997410)
-runs all 43 specialties from `ac289a0`, reusing the eight audited cases.
+ran from `ac289a0` and was stopped when deeper source review found model approvals
+based on guideline scope summaries, remembered recommendations and population
+extrapolation. These defects are independent of provider billing or transport.
+
+## Latest source audit and protocol
+
+**7/86 artifacts are retained; 79 are missing.** Eight source-unsupported artifacts
+were quarantined across old and regenerated versions: pediatrics practice/exam,
+cardiology practice/exam, geriatrics practice/exam, nephrology practice and
+endocrinology practice. Their originals remain in CI and outside the release bank.
+
+Independent source audit cleared these seven exact documents:
+
+- Internal medicine practice/examination.
+- Gastroenterology practice/examination.
+- Pulmonology examination.
+- Nephrology examination.
+- Rheumatology practice.
+
+New generation requires both providers to supply exact source excerpts for every
+cited source; the server checks quotation provenance, and review instructions
+explicitly reject source-scope inference, unsupported decisive advice and wrong
+populations/comparators. Exact text matching is not itself a clinical entailment
+check. The seven older, independently audited documents preserve their original
+provider reports, bound by task ID and full-document hash in the legacy audit
+manifest. Unlisted reports cannot opt out by removing the protocol marker.
+
+Independent confirmation: **126 targeted tests passed**, only release completeness
+deselected; changing any legacy case, source, reviewer report or protocol marker
+rejects it. Builder regression including the fake transport: **154 passed,
+1 deselected**. No remaining code blocker for a draft PR update; all 86 cases are
+still required before clinical release.
+
+Full CI on `f419cfe` confirmed the SQLite test fix: both shard-3 jobs had **2061
+passed, 1 skipped**, and only the incomplete-library assertion failed. Every other
+CI check passed. The source-protocol update requires its own fresh CI run.
 
 This PR remains a draft. Neither pathology case is clinically released yet,
 despite the image viewer and provenance paths passing software tests. Do not

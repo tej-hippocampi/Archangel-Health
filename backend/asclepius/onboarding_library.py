@@ -15,6 +15,7 @@ import re
 USE_BUNDLED = ContextVar("onboarding_use_bundled", default=True)
 
 ROOT = Path(__file__).with_name("onboarding_material") / "cases"
+LEGACY_AUDITS = Path(__file__).with_name("onboarding_material") / "legacy_evidence_audits.json"
 
 
 def validate(document: dict) -> dict:
@@ -28,6 +29,15 @@ def validate(document: dict) -> dict:
     report = document["validation"]
     if report.get("method") != "two_provider_evidence_review" or report.get("version") != bank.VERSION:
         raise ValueError("Real clinical review required for release material")
+    quoted = report.get("source_quote_review") is True
+    if not quoted:
+        # Preserve only the exact pre-protocol documents independently audited
+        # against retained source text. A new report cannot opt out by deleting
+        # its protocol marker, or by reusing a legacy identity with changed text.
+        digest = hashlib.sha256(json.dumps(document, sort_keys=True).encode()).hexdigest()
+        audited = json.loads(LEGACY_AUDITS.read_text())["artifacts"]
+        if not any(r["task_id"] == ident and r["document_sha256"] == digest for r in audited):
+            raise ValueError("Source-quote review required for new release material")
     asset = onboarding_media.reference(kind)["asset"] if specialty == "pathology" else None
     entry = bank.validate_entry(document["entry"], specialty, report["sources"], approved_asset=asset,
                                 age_scope=age_scope_for(specialty))
@@ -39,7 +49,8 @@ def validate(document: dict) -> dict:
         raise ValueError("Two independent clinical providers required")
     correct = "B" if entry["intended_flawed_id"] == "A" else "A"
     for review in reviews:
-        bank.validate_review(review["review"], entry)
+        bank.validate_review(review["review"], entry,
+                             report["sources"] if quoted else None)
         solved = review["blind_solution"]
         confidence = solved.get("confidence")
         if (solved.get("best_answer_id") != correct or not solved.get("rationale")

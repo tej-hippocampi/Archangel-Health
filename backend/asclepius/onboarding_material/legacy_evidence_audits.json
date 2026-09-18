@@ -1,0 +1,49 @@
+{
+  "reviewed_at": "2026-09-18",
+  "method": "independent_artifact_source_audit",
+  "review_record": "docs/validation/ONBOARDING_LIBRARY_2026-09-18.md",
+  "artifacts": [
+    {
+      "task_id": "onboarding-examination-v1-0e709f79e5406de4e058-1",
+      "document_sha256": "496e89b05eda30e40ee97240013ca28d1b0aefc557e9c5566b1bdcb06ade16e8",
+      "specialty": "internal medicine",
+      "kind": "examination"
+    },
+    {
+      "task_id": "onboarding-examination-v1-33aa98a024c410e5e9b7-1",
+      "document_sha256": "1e21474d7242d618a56bb944fa04a6ffc32e6f8e6a6cff0d726e1b1b9613225f",
+      "specialty": "pulmonology",
+      "kind": "examination"
+    },
+    {
+      "task_id": "onboarding-examination-v1-7e10bcdcaa72d9b4a621-1",
+      "document_sha256": "6134b22634bdd0c90181ca95600a8084ba617317c08be983fa67151f86ec77fc",
+      "specialty": "nephrology",
+      "kind": "examination"
+    },
+    {
+      "task_id": "onboarding-examination-v1-d6cc8a50a7bd4ff6e9f8-1",
+      "document_sha256": "a9c60d470cc865cbeb4db124529dfa85ba7579bb196e78a372e58fc3d461ff74",
+      "specialty": "gastroenterology",
+      "kind": "examination"
+    },
+    {
+      "task_id": "onboarding-practice-v1-0e709f79e5406de4e058-1",
+      "document_sha256": "5c7589ba2109c10e89d4ef599a106d05ef34139e1980bff6c8f15bc683a72ce7",
+      "specialty": "internal medicine",
+      "kind": "practice"
+    },
+    {
+      "task_id": "onboarding-practice-v1-f9bdbf3cfce2a57bc57b-1",
+      "document_sha256": "5ad121746fe0966265117c38b5032b2b2e9583286c7550d35509f2a1910ad986",
+      "specialty": "rheumatology",
+      "kind": "practice"
+    },
+    {
+      "task_id": "onboarding-practice-v1-d6cc8a50a7bd4ff6e9f8-1",
+      "document_sha256": "23387b87fbce6eafab75a2d26ad8e23d42f945c589f425ac897be1a4a2015282",
+      "specialty": "gastroenterology",
+      "kind": "practice"
+    }
+  ]
+}
