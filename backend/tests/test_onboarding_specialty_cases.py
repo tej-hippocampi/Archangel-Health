@@ -415,6 +415,28 @@ def test_reference_parser_excludes_old_retracted_or_unusable_material():
     with pytest.raises(ValueError): evidence.parse_articles(b'<!ENTITY malicious>')
 
 
+def test_reference_retrieval_pages_large_results_and_keeps_eight_eligible_abstracts(monkeypatch):
+    calls = []
+
+    async def request(client, endpoint, params):
+        calls.append((endpoint, params))
+        if endpoint == 'esearch.fcgi':
+            return json.dumps({'esearchresult': {'idlist': [str(i) for i in range(1, 16)]}}).encode()
+        articles = ''.join(
+            f'<PubmedArticle><MedlineCitation><PMID>{ident}</PMID><Article>'
+            '<ArticleTitle>Clinical guidance</ArticleTitle><Journal><JournalIssue><PubDate>'
+            f'<Year>{datetime.now(timezone.utc).year}</Year></PubDate></JournalIssue></Journal>'
+            f'<Abstract><AbstractText>{"Clinical recommendation. " * 30}</AbstractText></Abstract>'
+            '<PublicationTypeList><PublicationType>Practice Guideline</PublicationType></PublicationTypeList>'
+            '</Article></MedlineCitation></PubmedArticle>' for ident in params['id'].split(','))
+        return ('<PubmedArticleSet>' + articles + '</PubmedArticleSet>').encode()
+
+    monkeypatch.setattr(evidence, '_request', request)
+    rows = asyncio.run(evidence.retrieve('cardiology'))
+    assert [row['id'] for row in rows] == [str(i) for i in range(1, 9)]
+    assert [params['id'] for endpoint, params in calls if endpoint == 'efetch.fcgi'] == ['1,2,3', '4,5,6', '7,8,9']
+
+
 def test_legacy_exam_commit_stays_excluded_after_approval_and_stamp_change():
     store = fresh_store()
     user = make_user(store, specialty='nephrology')

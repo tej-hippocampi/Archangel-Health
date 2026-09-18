@@ -194,7 +194,9 @@ def test_contributor_export_is_tier_a_only():
     out_dir = Path(manifest["dir_path"])
     jsonl = (out_dir / "records.jsonl").read_text()
     # No Tier B field name or value ever appears in the shipped batch.
-    for forbidden in ("full_legal_name", "npi", "medical_license_number", "Jane A. Doe", "1234567893", "UCSF"):
+    # Match field names as JSON keys, not random substrings in synthetic prompts
+    # (e.g. the alpha-only fixture nonce "npiklgbn"). Still check actual values.
+    for forbidden in ('"full_legal_name":', '"npi":', '"medical_license_number":', "Jane A. Doe", "1234567893", "UCSF"):
         assert forbidden not in jsonl, forbidden
     # The datasheet carries the auto-generated aggregate credential line (Tier A).
     datasheet = (out_dir / "datasheet.md").read_text()

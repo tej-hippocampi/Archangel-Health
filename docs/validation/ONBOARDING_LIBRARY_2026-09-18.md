@@ -40,3 +40,41 @@ Actual case artifacts and their real-model review reports, full 86-case coverage
 CI/browser results and current production preservation checks must be recorded
 before release. This report does not claim generated clinical content is ready
 or that production backups and alerting are verified.
+
+## Artifact audit and hardening
+
+The first real build exposed two defects missed by automated review: author-added
+answer-key fields survived selective blinding, and neonatal/pediatric cases were
+accepted for adult nephrology/oncology. Five artifacts were excluded and retained
+in the original CI build for investigation. They are not in the release bank.
+
+The solver now receives an explicit field allowlist; entry and candidate objects
+reject unexpected fields. Curriculum patient-age scopes are enforced. PubMed
+retrieval uses bounded pages to avoid oversized guideline responses. Pathology
+assistance sees the same pinned pixels as the applicant without held-out fields.
+
+Independent re-audit confirmed these fixes: **20 targeted tests passed**. All
+**11 retained artifacts** passed strict validation, filename identity and source
+hash checks. No new blockers were found for updating the draft PR. This is not
+approval for clinical release.
+
+Latest builder regression run: **491 passed, 2 skipped, 1 deselected**. The
+separately executed completeness test failed as expected: **11/86 ready, 75
+missing**. Seven browser journeys passed, including both pathology image viewers,
+dermatology/neurology examination submission, optional practice and preparation
+recovery. Desktop/mobile screenshots were visually inspected. These UI tests use
+synthetic fixtures and do not count as clinical artifact validation.
+
+## Current generation blocker
+
+[Real-model build 35389308065](https://github.com/tej-hippocampi/Archangel-Health/actions/runs/35389308065)
+was stopped after Anthropic returned HTTP 400: the account credit balance was too
+low to access the API. Completed passing material was retained. Restoring credits
+for the account behind GitHub's `ANTHROPIC_API_KEY` is necessary before resuming.
+The build reuses unchanged, validated release files and generates only missing
+entries; clinical acceptance thresholds remain unchanged.
+
+This PR remains a draft. Neither pathology case is clinically released yet,
+despite the image viewer and provenance paths passing software tests. Do not
+merge until all 86 artifacts pass review and CI, and production preservation
+requirements are verified.

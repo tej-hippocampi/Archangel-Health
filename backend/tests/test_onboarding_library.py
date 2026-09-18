@@ -104,6 +104,60 @@ def test_misnamed_release_case_cannot_claim_another_specialty_or_kind(monkeypatc
         library.row_for(wrong)
 
 
+@pytest.mark.parametrize('field', ['key', 'key_data', 'answer', 'rationale'])
+def test_author_cannot_smuggle_extra_answer_fields_into_blind_review(field):
+    entry = fixture_entry()
+    entry[field] = 'LEAKED ANSWER KEY'
+    entry['candidate_answers'][0]['private_key'] = 'LEAKED ANSWER KEY'
+    assert 'LEAKED ANSWER KEY' not in json.dumps(bank.blind_entry(entry))
+    with pytest.raises(ValueError, match='unexpected_entry_fields'):
+        bank.validate_entry(entry, 'dermatology', SOURCES)
+    entry.pop(field)
+    with pytest.raises(ValueError, match='invalid_candidates'):
+        bank.validate_entry(entry, 'dermatology', SOURCES)
+
+
+@pytest.mark.parametrize('specialty,band,scope', [
+    ('nephrology', 'neonate 0-28 days', 'adult'),
+    ('cardiology', '2-5', 'adult'), ('geriatrics', '40-49', 'older_adult'),
+    ('pediatrics', '60-69', 'pediatric'), ('nephrology', '18-24 months', 'adult')])
+def test_patient_age_must_match_the_specialty_curriculum(specialty, band, scope):
+    entry = fixture_entry(specialty)
+    entry['case']['demographics']['age_band'] = band
+    with pytest.raises(ValueError, match='age_outside_curriculum_scope'):
+        bank.validate_entry(entry, specialty, SOURCES, age_scope=scope)
+
+
+@pytest.mark.parametrize('band', ['0-28 days', '2-5 weeks', '18-24 months', '10-14 years'])
+def test_pediatric_age_units_are_accepted(band):
+    entry = fixture_entry('pediatrics')
+    entry['case']['demographics']['age_band'] = band
+    assert bank.validate_entry(entry, 'pediatrics', SOURCES, age_scope='pediatric')
+
+
+def test_pathology_prelabel_receives_visible_pixels_without_held_out_key(monkeypatch, tmp_path):
+    import base64
+    from ai import llm_client
+    from asclepius.critic import run_prelabel
+    doc = publication('pathology')
+    install_fixture(monkeypatch, tmp_path, doc)
+    task = bank.get_task(fresh_store(), doc['task_id'])
+    calls = []
+
+    async def call(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(content=[SimpleNamespace(type='text', text=json.dumps({
+            'suggested_weaker': 'B', 'confidence': .95, 'suggested_error_tags': [],
+            'suggested_rationale': 'Fixture only', 'error_spans': []}))]), {'model': 'fixture'}
+
+    monkeypatch.setattr(llm_client, 'call_llm', call)
+    assert asyncio.run(run_prelabel(task))['skipped'] is False
+    blocks = calls[0]['messages'][0]['content']
+    assert base64.b64decode(blocks[1]['source']['data']) == media.load(media.reference('practice')['asset'])
+    assert 'HELD OUT INTERPRETATION' not in blocks[0]['text']
+    assert 'ground_truth' not in blocks[0]['text']
+
+
 def test_real_smoke_bypasses_release_cache(monkeypatch, tmp_path):
     from scripts.smoke_onboarding_cases import prepare
     doc = publication()
@@ -148,9 +202,11 @@ def test_pathology_image_is_authorized_blinded_and_metadata_free(monkeypatch, tm
     assert bank.entry_for(store, doc['task_id'])['case']['studies'][0]['findings'] == 'HELD OUT INTERPRETATION'
 
 
-def test_release_library_contains_all_86_reviewed_cases():
+def test_release_library_contains_all_86_reviewed_cases(monkeypatch):
     # Deliberately fails until real CI artifacts have been reviewed and committed.
     # Passing fixtures never substitutes for completed clinical generation.
+    from pathlib import Path
+    monkeypatch.setattr(library, 'ROOT', Path(library.__file__).with_name('onboarding_material') / 'cases')
     coverage = library.coverage()
     missing = [(row['specialty'], row['kind']) for row in coverage if not row['ready']]
     assert len(coverage) == 86 and not missing, missing

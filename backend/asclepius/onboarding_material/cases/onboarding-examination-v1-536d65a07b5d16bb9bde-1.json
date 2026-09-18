@@ -1,0 +1,480 @@
+{
+  "task_id": "onboarding-examination-v1-536d65a07b5d16bb9bde-1",
+  "specialty": "geriatrics",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Community-Dwelling Older Adult With Recurrent Falls: Core Prevention Strategy",
+    "question": "For this community-dwelling 78-year-old woman with two falls in the past year and impaired balance, which single ongoing intervention has the strongest evidence to reduce her rate of future falls?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "geriatrics",
+      "demographics": {
+        "age_band": "75-84",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Recurrent falls (two in the past 12 months)",
+          "since": "past year",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Impaired balance and gait slowing",
+          "since": "past year",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Hypertension",
+          "since": null,
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Osteoarthritis of the knees",
+          "since": null,
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Mild polypharmacy (5 daily medications)",
+          "since": null,
+          "collected_offset_days": null
+        }
+      ],
+      "medications": [
+        {
+          "drug": "amlodipine",
+          "dose": "5 mg",
+          "route": "oral",
+          "freq": "daily",
+          "collected_offset_days": null
+        },
+        {
+          "drug": "acetaminophen",
+          "dose": "650 mg",
+          "route": "oral",
+          "freq": "three times daily",
+          "collected_offset_days": null
+        },
+        {
+          "drug": "atorvastatin",
+          "dose": "20 mg",
+          "route": "oral",
+          "freq": "at night",
+          "collected_offset_days": null
+        },
+        {
+          "drug": "calcium/vitamin D",
+          "dose": null,
+          "route": "oral",
+          "freq": "daily",
+          "collected_offset_days": null
+        },
+        {
+          "drug": "omeprazole",
+          "dose": "20 mg",
+          "route": "oral",
+          "freq": "daily",
+          "collected_offset_days": null
+        }
+      ],
+      "vitals": {
+        "bp_sitting": "138/78",
+        "bp_standing_3min": "132/76",
+        "heart_rate": "72",
+        "no_orthostatic_drop": true
+      },
+      "lab_panels": [
+        {
+          "panel": "Basic metabolic panel",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Sodium",
+              "loinc": null,
+              "value": 139,
+              "unit": "mmol/L",
+              "ref_low": 135,
+              "ref_high": 145,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Creatinine",
+              "loinc": null,
+              "value": 0.9,
+              "unit": "mg/dL",
+              "ref_low": 0.6,
+              "ref_high": 1.1,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Glucose",
+              "loinc": null,
+              "value": 96,
+              "unit": "mg/dL",
+              "ref_low": 70,
+              "ref_high": 99,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Progress",
+          "author_role": "geriatrics",
+          "text": "78-year-old community-dwelling woman presents for falls assessment after two non-syncopal falls in the past year, most recent while turning in her kitchen, without loss of consciousness. She lives alone in a single-level home and remains independent for basic activities of daily living. Multifactorial evaluation completed: no orthostatic hypotension on standing measurements, medication review shows five daily agents without high-risk psychoactive drugs, vision was checked recently with updated glasses, and footwear is appropriate. Gait assessment shows mild slowing with a widened base and difficulty with tandem stance; Timed Up and Go is prolonged. Cognition is grossly intact and she is not depressed. Cardiac exam unremarkable, no murmurs, regular rhythm. Feet without significant deformity. She is motivated to remain independent and asks what she can do to keep from falling again. The question at hand is which ongoing intervention should anchor her fall-prevention plan given her balance and gait impairment.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Functional mobility assessment",
+          "label": "Gait and balance testing",
+          "findings": "Timed Up and Go prolonged; impaired tandem stance and reduced single-leg stance time; gait speed at lower end of normal. No focal neurologic deficit.",
+          "measurements": [
+            {
+              "analyte": "Gait speed",
+              "loinc": null,
+              "value": 0.8,
+              "unit": "m/s",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ],
+          "impression": "Balance and functional mobility impairment consistent with elevated fall risk.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": null
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": null,
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": null,
+      "ground_truth": {
+        "answer": "Enroll her in a structured, progressive exercise program centered on balance and functional exercises (with resistance components), delivered as part of a multifactorial fall-prevention plan.",
+        "rationale": "High-certainty Cochrane evidence shows that exercise programs reduce the rate of falls in community-dwelling older adults, with balance and functional exercises (alone or combined with resistance training) being the exercise types with demonstrated efficacy. Clinical practice guidelines strongly and consistently recommend exercise promotion, gait/balance assessment, and multifactorial interventions. In contrast, scored fall-risk assessment tools and alarm/sensor devices were NOT associated with significant fall reductions in the hospital meta-analysis, and no single mobility instrument reliably predicts falls; assessment tools identify risk but are not themselves an intervention that lowers her fall rate.",
+        "evidence": null,
+        "key_data": [
+          "Cochrane high-certainty evidence: exercise reduces rate of falls by 23% (RaR 0.77, 95% CI 0.71-0.83) in community-dwelling older adults",
+          "Balance and functional exercises reduce falls (RaR 0.76) and multiple exercise types including resistance probably reduce falls (RaR 0.66); this patient has documented balance/gait impairment",
+          "Clinical practice guidelines strongly recommend exercise promotion, gait/balance assessment, and multifactorial interventions across settings",
+          "Chair/bed alarms, wearable sensors, and scored fall-risk assessment tools were NOT associated with significant fall reductions; no single mobility test predicts falls with high certainty"
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Rely on repeated scored fall-risk assessment tools and provide a wearable movement-alarm sensor to detect and prevent her future falls, without prioritizing a structured exercise program."
+      },
+      {
+        "id": "B",
+        "text": "Enroll her in a structured, progressive balance and functional exercise program (with resistance components) as the core ongoing intervention within a multifactorial fall-prevention plan."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "recurrent falls",
+      "balance training",
+      "gait impairment",
+      "multifactorial intervention",
+      "medication review",
+      "community-dwelling older adult"
+    ],
+    "evidence_keywords": [
+      "balance and functional exercise",
+      "rate of falls",
+      "resistance exercise",
+      "fall-risk assessment tools",
+      "wearable sensors",
+      "gait speed"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Exercise reduces the rate of falls by about 23% in community-dwelling older adults with high-certainty evidence.",
+        "source_ids": [
+          "30703272"
+        ]
+      },
+      {
+        "statement": "Balance and functional exercises, and multiple exercise types adding resistance training, are the exercise categories that reduce falls.",
+        "source_ids": [
+          "30703272"
+        ]
+      },
+      {
+        "statement": "Clinical practice guidelines strongly recommend gait/balance assessment, multifactorial interventions, medication review, and exercise promotion.",
+        "source_ids": [
+          "34910151"
+        ]
+      },
+      {
+        "statement": "Chair alarms, bed alarms, wearable sensors, and scored fall-risk assessment tools were not associated with significant fall reductions.",
+        "source_ids": [
+          "35524748"
+        ]
+      },
+      {
+        "statement": "No single gait, balance, or functional mobility instrument predicts fall risk with high certainty in older adults.",
+        "source_ids": [
+          "35879666"
+        ]
+      },
+      {
+        "statement": "Polypharmacy and prior falls are recognized risk factors that support multifactorial assessment in older adults.",
+        "source_ids": [
+          "36324472"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T20:10:55.559499+00:00",
+    "author_model": "claude-opus-4-8",
+    "sources": [
+      {
+        "id": "35524748",
+        "title": "Interventions to reduce falls in hospitals: a systematic review and meta-analysis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35524748/",
+        "abstract": "Falls remain a common and debilitating problem in hospitals worldwide. The aim of this study was to investigate the effects of falls prevention interventions on falls rates and the risk of falling in hospital.\nSystematic review and meta-analysis.\nHospitalised adults.\nPrevention methods included staff and patient education, environmental modifications, assistive devices, policies and systems, rehabilitation, medication management and management of cognitive impairment. We evaluated single and multi-factorial approaches.\nFalls rate ratios (rate ratio: RaR) and falls risk, as defined by the odds of being a faller in the intervention compared to control group (odds ratio: OR).\nThere were 43 studies that satisfied the systematic review criteria and 23 were included in meta-analyses. There was marked heterogeneity in intervention methods and study designs. The only intervention that yielded a significant result in the meta-analysis was education, with a reduction in falls rates (RaR = 0.70 [0.51-0.96], P = 0.03) and the odds of falling (OR = 0.62 [0.47-0.83], P = 0.001). The patient and staff education studies in the meta-analysis were of high quality on the GRADE tool. Individual trials in the systematic review showed evidence for clinician education, some multi-factorial interventions, select rehabilitation therapies, and systems, with low to moderate risk of bias.\nPatient and staff education can reduce hospital falls. Multi-factorial interventions had a tendency towards producing a positive impact. Chair alarms, bed alarms, wearable sensors and use of scored risk assessment tools were not associated with significant fall reductions.",
+        "sha256": "5f184df91c021167475294b6b08ffdf208a105cf92b1a5dfe4693e0281b328a5",
+        "retrieved_at": "2026-09-18T20:09:06.656377+00:00"
+      },
+      {
+        "id": "34910151",
+        "title": "Evaluation of Clinical Practice Guidelines on Fall Prevention and Management for Older Adults: A Systematic Review.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34910151/",
+        "abstract": "With the global population aging, falls and fall-related injuries are ubiquitous, and several clinical practice guidelines for falls prevention and management for individuals 60 years or older have been developed. A systematic evaluation of the recommendations and agreement level is lacking.\nTo perform a systematic review of clinical practice guidelines for falls prevention and management for adults 60 years or older in all settings (eg, community, acute care, and nursing homes), evaluate agreement in recommendations, and identify potential gaps.\nA systematic review following Preferred Reporting Items for Systematic Reviews and Meta-analyses statement methods for clinical practice guidelines on fall prevention and management for older adults was conducted (updated July 1, 2021) using MEDLINE, PubMed, PsycINFO, Embase, CINAHL, the Cochrane Library, PEDro, and Epistemonikos databases. Medical Subject Headings search terms were related to falls, clinical practice guidelines, management and prevention, and older adults, with no restrictions on date, language, or setting for inclusion. Three independent reviewers selected records for full-text examination if they followed evidence- and consensus-based processes and assessed the quality of the guidelines using Appraisal of Guidelines for Research & Evaluation II (AGREE-II) criteria. The strength of the recommendations was evaluated using Grades of Recommendation, Assessment, Development, and Evaluation scores, and agreement across topic areas was assessed using the Fleiss κ statistic.\nOf 11 414 records identified, 159 were fully reviewed and assessed for eligibility, and 15 were included. All 15 selected guidelines had high-quality AGREE-II total scores (mean [SD], 80.1% [5.6%]), although individual quality domain scores for clinical applicability (mean [SD], 63.4% [11.4%]) and stakeholder (clinicians, patients, or caregivers) involvement (mean [SD], 76.3% [9.0%]) were lower. A total of 198 recommendations covering 16 topic areas in 15 guidelines were identified after screening 4767 abstracts that proceeded to 159 full texts. Most (≥11) guidelines strongly recommended performing risk stratification, assessment tests for gait and balance, fracture and osteoporosis management, multifactorial interventions, medication review, exercise promotion, environment modification, vision and footwear correction, referral to physiotherapy, and cardiovascular interventions. The strengths of the recommendations were inconsistent for vitamin D supplementation, addressing cognitive factors, and falls prevention education. Recommendations on use of hip protectors and digital technology or wearables were often missing. None of the examined guidelines included a patient or caregiver panel in their deliberations.\nThis systematic review found that current clinical practice guidelines on fall prevention and management for older adults showed a high degree of agreement in several areas in which strong recommendations were made, whereas other topic areas did not achieve this level of consensus or coverage. Future guidelines should address clinical applicability of their recommendations and include perspectives of patients and other stakeholders.",
+        "sha256": "9e15cc7f2f05945b1235c8ffd1f872f915cb7298de3dfe0173609ba3fd451101",
+        "retrieved_at": "2026-09-18T20:09:06.656377+00:00"
+      },
+      {
+        "id": "30703272",
+        "title": "Exercise for preventing falls in older people living in the community.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30703272/",
+        "abstract": "At least one-third of community-dwelling people over 65 years of age fall each year. Exercises that target balance, gait and muscle strength have been found to prevent falls in these people. An up-to-date synthesis of the evidence is important given the major long-term consequences associated with falls and fall-related injuries OBJECTIVES: To assess the effects (benefits and harms) of exercise interventions for preventing falls in older people living in the community.\nWe searched CENTRAL, MEDLINE, Embase, three other databases and two trial registers up to 2 May 2018, together with reference checking and contact with study authors to identify additional studies.\nWe included randomised controlled trials (RCTs) evaluating the effects of any form of exercise as a single intervention on falls in people aged 60+ years living in the community. We excluded trials focused on particular conditions, such as stroke.\nWe used standard methodological procedures expected by Cochrane. Our primary outcome was rate of falls.\nWe included 108 RCTs with 23,407 participants living in the community in 25 countries. There were nine cluster-RCTs. On average, participants were 76 years old and 77% were women. Most trials had unclear or high risk of bias for one or more items. Results from four trials focusing on people who had been recently discharged from hospital and from comparisons of different exercises are not described here.Exercise (all types) versus control Eighty-one trials (19,684 participants) compared exercise (all types) with control intervention (one not thought to reduce falls). Exercise reduces the rate of falls by 23% (rate ratio (RaR) 0.77, 95% confidence interval (CI) 0.71 to 0.83; 12,981 participants, 59 studies; high-certainty evidence). Based on an illustrative risk of 850 falls in 1000 people followed over one year (data based on control group risk data from the 59 studies), this equates to 195 (95% CI 144 to 246) fewer falls in the exercise group. Exercise also reduces the number of people experiencing one or more falls by 15% (risk ratio (RR) 0.85, 95% CI 0.81 to 0.89; 13,518 participants, 63 studies; high-certainty evidence). Based on an illustrative risk of 480 fallers in 1000 people followed over one year (data based on control group risk data from the 63 studies), this equates to 72 (95% CI 52 to 91) fewer fallers in the exercise group. Subgroup analyses showed no evidence of a difference in effect on both falls outcomes according to whether trials selected participants at increased risk of falling or not.The findings for other outcomes are less certain, reflecting in part the relatively low number of studies and participants. Exercise may reduce the number of people experiencing one or more fall-related fractures (RR 0.73, 95% CI 0.56 to 0.95; 4047 participants, 10 studies; low-certainty evidence) and the number of people experiencing one or more falls requiring medical attention (RR 0.61, 95% CI 0.47 to 0.79; 1019 participants, 5 studies; low-certainty evidence). The effect of exercise on the number of people who experience one or more falls requiring hospital admission is unclear (RR 0.78, 95% CI 0.51 to 1.18; 1705 participants, 2 studies, very low-certainty evidence). Exercise may make little important difference to health-related quality of life: conversion of the pooled result (standardised mean difference (SMD) -0.03, 95% CI -0.10 to 0.04; 3172 participants, 15 studies; low-certainty evidence) to the EQ-5D and SF-36 scores showed the respective 95% CIs were much smaller than minimally important differences for both scales.Adverse events were reported to some degree in 27 trials (6019 participants) but were monitored closely in both exercise and control groups in only one trial. Fourteen trials reported no adverse events. Aside from two serious adverse events (one pelvic stress fracture and one inguinal hernia surgery) reported in one trial, the remainder were non-serious adverse events, primarily of a musculoskeletal nature. There was a median of three events (range 1 to 26) in the exercise groups.Different exercise types versus controlDifferent forms of exercise had different impacts on falls (test for subgroup differences, rate of falls: P = 0.004, I² = 71%). Compared with control, balance and functional exercises reduce the rate of falls by 24% (RaR 0.76, 95% CI 0.70 to 0.81; 7920 participants, 39 studies; high-certainty evidence) and the number of people experiencing one or more falls by 13% (RR 0.87, 95% CI 0.82 to 0.91; 8288 participants, 37 studies; high-certainty evidence). Multiple types of exercise (most commonly balance and functional exercises plus resistance exercises) probably reduce the rate of falls by 34% (RaR 0.66, 95% CI 0.50 to 0.88; 1374 participants, 11 studies; moderate-certainty evidence) and the number of people experiencing one or more falls by 22% (RR 0.78, 95% CI 0.64 to 0.96; 1623 participants, 17 studies; moderate-certainty evidence). Tai Chi may reduce the rate of falls by 19% (RaR 0.81, 95% CI 0.67 to 0.99; 2655 participants, 7 studies; low-certainty evidence) as well as reducing the number of people who experience falls by 20% (RR 0.80, 95% CI 0.70 to 0.91; 2677 participants, 8 studies; high-certainty evidence). We are uncertain of the effects of programmes that are primarily resistance training, or dance or walking programmes on the rate of falls and the number of people who experience falls. No trials compared flexibility or endurance exercise versus control.\nExercise programmes reduce the rate of falls and the number of people experiencing falls in older people living in the community (high-certainty evidence). The effects of such exercise programmes are uncertain for other non-falls outcomes. Where reported, adverse events were predominantly non-serious.Exercise programmes that reduce falls primarily involve balance and functional exercises, while programmes that probably reduce falls include multiple exercise categories (typically balance and functional exercises plus resistance exercises). Tai Chi may also prevent falls but we are uncertain of the effect of resistance exercise (without balance and functional exercises), dance, or walking on the rate of falls.",
+        "sha256": "6e764f1ed24abeaa3a0bc9aae9daee6851114fc2776697e22ed73bfa8027ab0c",
+        "retrieved_at": "2026-09-18T20:09:06.656377+00:00"
+      },
+      {
+        "id": "36324472",
+        "title": "The risk of falls among the aging population: A systematic review and meta-analysis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36324472/",
+        "abstract": "This study aims to clarify the risk factors for falls to prevent severe consequences in older adults.\nWe searched the PubMed, Web of Science, Embase, and Google Scholar databases using the terms \"risk factors\" OR \"predicting factors\" OR \"predictor\" AND \"fall\" OR \"drop\" to identify all relevant studies and compare their results. The study participants were divided into two groups, the \"fall group\" and the \"control group\", and differences in demographic characteristics, lifestyles, and comorbidities were compared.\nWe included 34 articles in the analysis and analyzed 22 factors. Older age, lower education level, polypharmacy, malnutrition, living alone, living in an urban area, smoking, and alcohol consumption increased the risk of falls in the aging population. Additionally, comorbidities such as cardiac disease, hypertension, diabetes, stroke, frailty, previous history of falls, depression, Parkinson's disease, and pain increased the risk of falls.\nDemographic characteristics, comorbidities, and lifestyle factors can influence the risk of falls and should be taken into consideration.",
+        "sha256": "8aa7041411d6e835853f217150c5b2aeaf567d806a97a249be1c5fcf3220f5e8",
+        "retrieved_at": "2026-09-18T20:09:06.656377+00:00"
+      },
+      {
+        "id": "33522384",
+        "title": "Physical Therapy Management of Older Adults With Hip Fracture.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33522384/",
+        "abstract": "Hip fracture is a leading cause of profound morbidity in individuals aged 65 years and older, ranking in the top 10 causes of loss of disability-adjusted life-years for older adults. Worldwide, the number of people with hip fracture is expected to rise significantly due to the aging population and other factors. Physical therapist management is recommended within medical, surgical, and multidisciplinary clinical practice guideline (CPGs) and is considered to be the standard of care in rehabilitation for people with hip fracture. The goal of this CPG was to review the evidence relevant to physical therapist management and to provide evidence-based recommendations for physical therapy diagnosis, prognosis, intervention, and assessment of outcome in adults with hip fracture. J Orthop Sports Phys Ther 2021;51(2):CPG1-CPG81. doi:10.2519/jospt.2021.0301.",
+        "sha256": "35d6e9a9b012ab7cb5a4a481cec16fa6b4ac856101591195ab331b58059a6bed",
+        "retrieved_at": "2026-09-18T20:09:06.656377+00:00"
+      },
+      {
+        "id": "34409961",
+        "title": "International Exercise Recommendations in Older Adults (ICFSR): Expert Consensus Guidelines.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34409961/",
+        "abstract": "The human ageing process is universal, ubiquitous and inevitable. Every physiological function is being continuously diminished. There is a range between two distinct phenotypes of ageing, shaped by patterns of living - experiences and behaviours, and in particular by the presence or absence of physical activity (PA) and structured exercise (i.e., a sedentary lifestyle). Ageing and a sedentary lifestyle are associated with declines in muscle function and cardiorespiratory fitness, resulting in an impaired capacity to perform daily activities and maintain independent functioning. However, in the presence of adequate exercise/PA these changes in muscular and aerobic capacity with age are substantially attenuated. Additionally, both structured exercise and overall PA play important roles as preventive strategies for many chronic diseases, including cardiovascular disease, stroke, diabetes, osteoporosis, and obesity; improvement of mobility, mental health, and quality of life; and reduction in mortality, among other benefits. Notably, exercise intervention programmes improve the hallmarks of frailty (low body mass, strength, mobility, PA level, energy) and cognition, thus optimising functional capacity during ageing. In these pathological conditions exercise is used as a therapeutic agent and follows the precepts of identifying the cause of a disease and then using an agent in an evidence-based dose to eliminate or moderate the disease. Prescription of PA/structured exercise should therefore be based on the intended outcome (e.g., primary prevention, improvement in fitness or functional status or disease treatment), and individualised, adjusted and controlled like any other medical treatment. In addition, in line with other therapeutic agents, exercise shows a dose-response effect and can be individualised using different modalities, volumes and/or intensities as appropriate to the health state or medical condition. Importantly, exercise therapy is often directed at several physiological systems simultaneously, rather than targeted to a single outcome as is generally the case with pharmacological approaches to disease management. There are diseases for which exercise is an alternative to pharmacological treatment (such as depression), thus contributing to the goal of deprescribing of potentially inappropriate medications (PIMS). There are other conditions where no effective drug therapy is currently available (such as sarcopenia or dementia), where it may serve a primary role in prevention and treatment. Therefore, this consensus statement provides an evidence-based rationale for using exercise and PA for health promotion and disease prevention and treatment in older adults. Exercise prescription is discussed in terms of the specific modalities and doses that have been studied in randomised controlled trials for their effectiveness in attenuating physiological changes of ageing, disease prevention, and/or improvement of older adults with chronic disease and disability. Recommendations are proposed to bridge gaps in the current literature and to optimise the use of exercise/PA both as a preventative medicine and as a therapeutic agent.",
+        "sha256": "7735d29ddb65438005c5b175b077f39823dfffa594815365894b5261fe24e618",
+        "retrieved_at": "2026-09-18T20:09:06.656377+00:00"
+      },
+      {
+        "id": "35262271",
+        "title": "Fall prevention in hospitals and nursing homes: Clinical practice guideline.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35262271/",
+        "abstract": "Falls and their consequences are particularly common in older adults in hospitals and long-term care (LTC) facilities.\nTo avoid falls and their consequences, and provide nurses with an overview of all relevant research literature on fall prevention, and a practice guideline on fall prevention in older adults was developed.\nThe development process included a systematic literature review to identify systematic reviews and primary studies on the topic of fall prevention, an assessment of the study quality, the preparation of meta-analyses to summarize the results, and the application of the GRADE (Grading of Recommendations Assessment, Development and Evaluation) approach to grade the scientific literature. The guideline panel and an external multidisciplinary team graded the recommendations using the Delphi method. In addition, the panel and team formulated expert opinions.\nA total of 79 randomized controlled trials on fall prevention were identified, which formed the basis of the recommendations. Strongly recommended measures for both settings included multifactorial interventions, professionally supported body exercise interventions, and education and counselling interventions. The panel and team did not recommend the use of a specific assessment tool for fall risk assessment, low-floor beds in hospitals, or body exercise interventions in frail residents.\nDuring the development of this guideline, particular attention was paid to collecting evidence-based knowledge relevant to practice. By applying the recommendations, the outlined nursing care is justified, enabling healthcare personnel to achieve the overriding goal of providing optimal care to persons at risk of falling. Evidence for several fall prevention interventions was graded as very low. Sound intervention studies are necessary to strengthen the confidence in the evidence for low-floor beds, alarm sensor systems, medication review, and staff education in hospitals.",
+        "sha256": "65670621082779ab6aac78b846d39912b2db5472b404cb8f45142b376e490797",
+        "retrieved_at": "2026-09-18T20:09:06.656377+00:00"
+      },
+      {
+        "id": "35879666",
+        "title": "Predicting falls in older adults: an umbrella review of instruments assessing gait, balance, and functional mobility.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35879666/",
+        "abstract": "To review the validated instruments that assess gait, balance, and functional mobility to predict falls in older adults across different settings.\nUmbrella review of narrative- and systematic reviews with or without meta-analyses of all study types. Reviews that focused on older adults in any settings and included validated instruments assessing gait, balance, and functional mobility were included. Medical and allied health professional databases (MEDLINE, PsychINFO, Embase, and Cochrane) were searched from inception to April 2022. Two reviewers undertook title, abstract, and full text screening independently. Review quality was assessed through the Risk of Bias Assessment Tool for Systematic Reviews (ROBIS). Data extraction was completed in duplicate using a standardised spreadsheet and a narrative synthesis presented for each assessment tool.\nAmong 2736 articles initially identified, 31 reviews were included; 11 were meta-analyses. Reviews were primarily of low quality, thus at high risk of potential bias. The most frequently reported assessments were: Timed Up and Go, Berg Balance Scale, gait speed, dual task assessments, single leg stance, functional Reach Test, tandem gait and stance and the chair stand test. Findings on the predictive ability of these tests were inconsistent across the reviews.\nIn conclusion, we found that no single gait, balance or functional mobility assessment in isolation can be used to predict fall risk in older adults with high certainty. Moderate evidence suggests gait speed can be useful in predicting falls and might be included as part of a comprehensive evaluation for older adults.",
+        "sha256": "ccec53e3fd678e836fc070863d3675ae1da89dd9b0dd4a9b5037de23902f76cc",
+        "retrieved_at": "2026-09-18T20:09:06.656377+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The Cochrane review (30703272) provides high-certainty evidence that exercise programs targeting balance and functional tasks reduce the rate of falls in community-dwelling older adults by ~23-24%, with multiple-type programs adding resistance components probably reducing falls by ~34%. This directly matches the patient's profile: community-dwelling, balance/gait impairment, prolonged Timed Up and Go. Clinical practice guidelines (34910151, 35262271) strongly recommend structured/professionally supported exercise within a multifactorial plan. In contrast, Answer A relies on scored risk-assessment tools and wearable movement-alarm sensors, which are explicitly not associated with significant fall reductions (35524748), and umbrella review 35879666 shows no single assessment tool reliably predicts or prevents falls. Thus Answer B is the intervention with the strongest evidence to reduce her rate of future falls.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.92,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "30703272"
+              ],
+              "reason": "Cochrane review states exercise reduces rate of falls by 23% (RaR 0.77, 95% CI 0.71-0.83), high-certainty evidence, in community-dwelling older people."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "30703272"
+              ],
+              "reason": "Review shows balance/functional exercises reduce rate of falls (RaR 0.76, high-certainty) and multiple types including resistance probably reduce falls (RaR 0.66)."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34910151"
+              ],
+              "reason": "Guideline review reports ≥11 guidelines strongly recommend gait/balance assessment, multifactorial interventions, medication review, and exercise promotion."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "35524748"
+              ],
+              "reason": "Hospital meta-analysis explicitly states chair alarms, bed alarms, wearable sensors and scored risk assessment tools were not associated with significant fall reductions."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "35879666"
+              ],
+              "reason": "Umbrella review concludes no single gait/balance/functional mobility instrument in isolation predicts fall risk with high certainty."
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "36324472"
+              ],
+              "reason": "Meta-analysis lists polypharmacy and previous history of falls among risk factors for falls in older adults."
+            }
+          ],
+          "issues": [],
+          "rationale": "Solving from the clinical data first: a 78-year-old community-dwelling woman with two non-syncopal falls, documented balance/gait impairment (prolonged TUG, impaired tandem/single-leg stance, gait speed 0.8 m/s), no orthostatic hypotension, no high-risk psychoactive drugs, corrected vision and appropriate footwear. The single ongoing intervention with strongest evidence to reduce her rate of falls is a structured progressive balance/functional exercise program (with resistance) within a multifactorial plan. This matches candidate B and the key. Candidate A (repeated scored risk-assessment tools plus a wearable movement-alarm sensor, without prioritizing exercise) is the intended flawed answer: source 35524748 shows those very modalities were NOT associated with significant fall reductions, and 35879666 shows no single instrument reliably predicts falls; assessment is not itself an intervention. So A is unsafe/ineffective as a core prevention strategy, working as designed.\n\nEvidence verification: I checked each cited source against its abstract text. The Cochrane 2019 review (30703272) supports claims 0 and 1 verbatim (23% rate reduction, balance/functional RaR 0.76, multiple/resistance RaR 0.66). Guideline systematic review (34910151) supports claim 2. Hospital meta-analysis (35524748) supports claim 3. Note a minor caveat: 35524748 is a hospital-setting study while the patient is community-dwelling; however the negative finding on alarms/sensors/risk tools is the relevant point and is not contradicted by community data, and the umbrella review (35879666) independently supports the tool limitation across settings. This does not rise to a blocking issue. Risk-factor claim (36324472) is supported (polypharmacy, prior falls). \n\nCoherence/completeness: vitals, labs, gait testing, medication list, and orthostatic measurements are all present; no decisive imaging is needed for this functional-mobility question. The chart data (documented balance/gait impairment) directly support choosing exercise, and no patient data contradict the key. On-specialty (geriatrics falls assessment). \n\nExam independence: previous case concerned initial management of postoperative delirium (deprescribing/nonpharmacologic precipitant correction) — a distinct clinical decision from falls-prevention intervention selection. Distinct decision confirmed. The sound answer is safe and evidence-supported; recommend publication with B as best answer."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "High-certainty evidence in community-dwelling older adults shows that structured exercise—especially balance and functional training, often with added resistance—reduces fall rates. A Cochrane review (108 RCTs) found exercise lowers fall rate by ~23% overall; balance/functional exercise by ~24% (RaR 0.76), and multicomponent programs including resistance by ~34% (RaR 0.66) (PMID: 30703272). Guideline syntheses strongly recommend exercise and multifactorial approaches, with frequent endorsement of physiotherapy, while recommendations for digital wearables are often absent (PMID: 34910151). Conversely, relying on scored risk tools and wearable alarms does not reduce falls: hospital meta-analysis found chair/bed alarms, wearable sensors, and scored risk tools were not associated with fall reduction (PMID: 35524748), and institutional guidelines do not recommend specific risk tools while supporting professionally supervised exercise (PMID: 35262271). Moreover, no single gait/balance test reliably predicts falls (PMID: 35879666), underscoring that repeated risk scoring alone is not an effective prevention strategy. Therefore, a structured, progressive balance and functional exercise program with resistance as the core ongoing intervention best fits the evidence.",
+          "confidence": 0.93
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "30703272"
+              ],
+              "reason": "Cochrane review of 81 trials (n≈19,684) found exercise reduces rate of falls by 23% (RaR 0.77, 95% CI 0.71–0.83) in community-dwelling older adults with high-certainty evidence."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "30703272"
+              ],
+              "reason": "The review reports balance and functional exercises reduce fall rate by 24% (RaR 0.76; high-certainty) and multiple exercise types typically combining balance/functional with resistance probably reduce falls by 34% (RaR 0.66; moderate-certainty)."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34910151"
+              ],
+              "reason": "Systematic review of fall CPGs shows strong agreement across ≥11 guidelines recommending gait/balance assessment, multifactorial interventions, medication review, and exercise promotion."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "35524748"
+              ],
+              "reason": "Hospital-based systematic review/meta-analysis found chair/bed alarms, wearable sensors, and use of scored risk assessment tools were not associated with significant fall reductions."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "35879666"
+              ],
+              "reason": "Umbrella review concludes no single gait, balance, or functional mobility test alone predicts fall risk in older adults with high certainty."
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "36324472"
+              ],
+              "reason": "Systematic review/meta-analysis identifies polypharmacy and previous history of falls as risk factors for falls in older adults, supporting multifactorial assessment."
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent assessment: A 78-year-old community-dwelling woman with two non-syncopal falls and documented balance/gait impairment has no orthostatic hypotension, no high-risk psychoactive medications, and appropriate vision/footwear. The single ongoing intervention with the strongest evidence to reduce her future fall rate is a structured, progressive exercise program centered on balance and functional exercises, ideally with resistance components, delivered within a multifactorial plan. High-certainty Cochrane data show exercise reduces fall rate by ~23%, with balance/functional exercises effective and multi-component programs including resistance probably even more effective. Current fall-prevention guidelines strongly recommend exercise promotion, gait/balance assessment, medication review, and multifactorial approaches. In contrast, relying on repeated scored fall-risk tools and wearable movement alarms does not reduce fall rates: hospital meta-analysis shows chair/bed alarms, wearable sensors, and scored risk tools were not associated with significant fall reductions, and an umbrella review shows no single mobility instrument reliably predicts falls. Thus, Candidate B aligns with high-certainty evidence and guideline consensus and is safe/appropriate; Candidate A omits the proven intervention and leans on measures without demonstrated benefit in reducing falls. The case is on specialty, coherent, and provides sufficient information to select the anchor intervention. Previous case topic (delirium management) is distinct, ensuring independence of clinical decision-making."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "550cb67533f68f47a1c9a2ad7593592034b77d9944bab60d96c80929f3d68012"
+  }
+}

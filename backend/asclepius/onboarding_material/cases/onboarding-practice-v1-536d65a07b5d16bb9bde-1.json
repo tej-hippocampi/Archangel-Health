@@ -1,0 +1,473 @@
+{
+  "task_id": "onboarding-practice-v1-536d65a07b5d16bb9bde-1",
+  "specialty": "geriatrics",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Delirium Workup in an Elderly Postoperative Woman",
+    "question": "In this delirious older adult after hip surgery, what is the most appropriate initial management step?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "geriatrics",
+      "demographics": {
+        "age_band": "80-89",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Acute delirium (hyperactive), postoperative day 2",
+          "since": null,
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Status post surgical repair of hip fracture",
+          "since": "2 days ago",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Urinary retention with indwelling catheter",
+          "since": null,
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Constipation, no bowel movement x3 days",
+          "since": null,
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Hypertension",
+          "since": null,
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Mild cognitive impairment at baseline",
+          "since": null,
+          "collected_offset_days": null
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Oxycodone",
+          "dose": "5 mg",
+          "route": "PO",
+          "freq": "q4h PRN",
+          "collected_offset_days": 0
+        },
+        {
+          "drug": "Diphenhydramine",
+          "dose": "25 mg",
+          "route": "PO",
+          "freq": "at bedtime for sleep",
+          "collected_offset_days": -1
+        },
+        {
+          "drug": "Amlodipine",
+          "dose": "5 mg",
+          "route": "PO",
+          "freq": "daily",
+          "collected_offset_days": null
+        },
+        {
+          "drug": "Acetaminophen",
+          "dose": "650 mg",
+          "route": "PO",
+          "freq": "q6h scheduled",
+          "collected_offset_days": null
+        }
+      ],
+      "vitals": {
+        "temp_c": 37.9,
+        "hr": 96,
+        "bp": "138/82",
+        "rr": 18,
+        "spo2": "94% on room air"
+      },
+      "lab_panels": [
+        {
+          "panel": "Basic metabolic panel",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Sodium",
+              "loinc": null,
+              "value": 132,
+              "unit": "mmol/L",
+              "ref_low": 135,
+              "ref_high": 145,
+              "flag": "L",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Creatinine",
+              "loinc": null,
+              "value": 1.1,
+              "unit": "mg/dL",
+              "ref_low": 0.6,
+              "ref_high": 1.2,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Glucose",
+              "loinc": null,
+              "value": 118,
+              "unit": "mg/dL",
+              "ref_low": 70,
+              "ref_high": 140,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Urinalysis",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Leukocyte esterase",
+              "loinc": null,
+              "value": "trace",
+              "unit": "",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Nitrites",
+              "loinc": null,
+              "value": "negative",
+              "unit": "",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "WBC",
+              "loinc": null,
+              "value": 3,
+              "unit": "/hpf",
+              "ref_low": 0,
+              "ref_high": 5,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Progress",
+          "author_role": "geriatrics",
+          "text": "80s-year-old woman, postoperative day 2 after hip fracture repair, developed acute fluctuating inattention, disorganized thinking, and agitation overnight. Baseline mild cognitive impairment per family; she was oriented and conversant on admission. Nursing reports she is pulling at lines and intermittently drowsy then agitated. Review reveals she received scheduled oxycodone plus diphenhydramine for sleep, has had no bowel movement for 3 days, and has an indwelling urinary catheter. Exam: mildly febrile 37.9C, non-focal neuro exam, distended lower abdomen, palpable stool. CAM positive (acute onset, inattention, disorganized thinking, altered consciousness). No focal deficits to suggest stroke. Sodium mildly low at 132. Urinalysis without convincing infection. Assessment: multifactorial hyperactive delirium with several reversible precipitants including anticholinergic medication (diphenhydramine), opioid load, constipation, urinary catheter, and mild hyponatremia.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": null,
+      "ground_truth": {
+        "answer": "Identify and correct the reversible precipitants: stop diphenhydramine, minimize/rotate opioids, treat constipation, remove the unnecessary urinary catheter, and apply nonpharmacologic delirium measures (reorientation, sleep hygiene, mobilization) before considering any antipsychotic.",
+        "rationale": "Delirium in older adults is typically multifactorial with modifiable precipitants. Systematic review evidence documents a broad set of predisposing and precipitating factors and supports individualized correction of these causes. Guidelines emphasize multicomponent nonpharmacologic prevention/management as first line, and current guidance does not endorse routine antipsychotics for delirium (SCCM 2025 was unable to recommend antipsychotics; nonpharmacologic bundles reduce delirium incidence/duration). Deprescribing the anticholinergic diphenhydramine, reducing opioid burden, relieving constipation and urinary retention, and correcting mild hyponatremia directly address the precipitants in this patient.",
+        "evidence": null,
+        "key_data": [
+          "Multiple concurrent reversible precipitants present: anticholinergic (diphenhydramine), opioids, constipation x3 days, indwelling catheter, mild hyponatremia (Na 132)",
+          "CAM-positive hyperactive delirium with non-focal neuro exam and no evidence of stroke or convincing UTI",
+          "Guidelines/evidence favor multicomponent nonpharmacologic management first and do not recommend routine antipsychotics for delirium"
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Start scheduled haloperidol to control the agitation and treat the delirium pharmacologically, continuing the current sedative and opioid regimen while the antipsychotic takes effect."
+      },
+      {
+        "id": "B",
+        "text": "Systematically identify and correct reversible precipitants: discontinue diphenhydramine, reduce opioids, treat constipation, remove the urinary catheter, correct mild hyponatremia, and institute nonpharmacologic delirium measures."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "anticholinergic deprescribing",
+      "opioid minimization",
+      "constipation",
+      "urinary catheter removal",
+      "reorientation",
+      "hyponatremia",
+      "CAM"
+    ],
+    "evidence_keywords": [
+      "delirium precipitating factors",
+      "reversible causes",
+      "nonpharmacologic interventions",
+      "antipsychotics not recommended",
+      "multicomponent bundle"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "outdated_guideline"
+    ],
+    "claims": [
+      {
+        "statement": "Delirium arises from multiple predisposing and precipitating factors, supporting an individualized approach targeting reversible causes.",
+        "source_ids": [
+          "36607634"
+        ]
+      },
+      {
+        "statement": "Multicomponent nonpharmacologic interventions and bundles reduce delirium incidence and duration in vulnerable patients.",
+        "source_ids": [
+          "35718628",
+          "36577261"
+        ]
+      },
+      {
+        "statement": "Current critical care guidelines were unable to recommend routine use of antipsychotics to treat delirium.",
+        "source_ids": [
+          "39982143"
+        ]
+      },
+      {
+        "statement": "Evidence for pharmacologic agents in delirium remains mixed and of limited quality, so drugs are not a substitute for addressing causes.",
+        "source_ids": [
+          "36375344"
+        ]
+      },
+      {
+        "statement": "Delirium is independently associated with long-term cognitive decline, underscoring the importance of prompt correction of precipitants.",
+        "source_ids": [
+          "32658246"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T20:09:04.465779+00:00",
+    "author_model": "claude-opus-4-8",
+    "sources": [
+      {
+        "id": "39982143",
+        "title": "A Focused Update to the Clinical Practice Guidelines for the Prevention and Management of Pain, Anxiety, Agitation/Sedation, Delirium, Immobility, and Sleep Disruption in Adult Patients in the ICU.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39982143/",
+        "abstract": "Critically ill adults are at risk for a variety of distressing and consequential symptoms both during and after an ICU stay. Management of these symptoms can directly influence outcomes.\nThe objective was to update and expand the Society of Critical Care Medicine's 2018 Clinical Practice Guidelines for the Prevention and Management of Pain, Agitation/Sedation, Delirium, Immobility, and Sleep Disruption in Adult Patients in the ICU.\nThe interprofessional inclusive guidelines task force was composed of 24 individuals including nurses, physicians, pharmacists, physiotherapists, psychologists, and ICU survivors. The task force developed evidence-based recommendations using the Grading of Recommendations, Assessment, Development, and Evaluation (GRADE) approach. Conflict-of-interest policies were strictly followed in all phases of the guidelines, including task force selection and voting.\nThe task force focused on five main content areas as they pertain to adult ICU patients: anxiety (new topic), agitation/sedation, delirium, immobility, and sleep disruption. Using the GRADE approach, we conducted a rigorous systematic review for each population, intervention, control, and outcome question to identify the best available evidence, statistically summarized the evidence, assessed the quality of evidence, and then performed the evidence-to-decision framework to formulate recommendations.\nThe task force issued five statements related to the management of anxiety, agitation/sedation, delirium, immobility, and sleep disruption in adults admitted to the ICU. In adult patients admitted to the ICU, the task force issued conditional recommendations to use dexmedetomidine over propofol for sedation, provide enhanced mobilization/rehabilitation over usual mobilization/rehabilitation, and administer melatonin. The task force was unable to issue recommendations on the administration of benzodiazepines to treat anxiety, and the use of antipsychotics to treat delirium.\nThe guidelines task force provided recommendations for pharmacologic management of agitation/sedation and sleep, and nonpharmacologic management of immobility in critically ill adults. These recommendations are intended for consideration along with the patient's clinical status.",
+        "sha256": "ca84e41b1429a9b2e172228686fc09a7d70cb9575bb61d87139873959121f47a",
+        "retrieved_at": "2026-09-18T20:06:54.682601+00:00"
+      },
+      {
+        "id": "35119438",
+        "title": "2022 Society of Critical Care Medicine Clinical Practice Guidelines on Prevention and Management of Pain, Agitation, Neuromuscular Blockade, and Delirium in Critically Ill Pediatric Patients With Consideration of the ICU Environment and Early Mobility.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35119438/",
+        "abstract": "A guideline that both evaluates current practice and provides recommendations to address sedation, pain, and delirium management with regard for neuromuscular blockade and withdrawal is not currently available.\nTo develop comprehensive clinical practice guidelines for critically ill infants and children, with specific attention to seven domains of care including pain, sedation/agitation, iatrogenic withdrawal, neuromuscular blockade, delirium, PICU environment, and early mobility.\nThe Society of Critical Care Medicine Pediatric Pain, Agitation, Neuromuscular Blockade, and Delirium in critically ill pediatric patients with consideration of the PICU Environment and Early Mobility Guideline Taskforce was comprised of 29 national experts who collaborated from 2009 to 2021 via teleconference and/or e-mail at least monthly for planning, literature review, and guideline development, revision, and approval. The full taskforce gathered annually in-person during the Society of Critical Care Medicine Congress for progress reports and further strategizing with the final face-to-face meeting occurring in February 2020. Throughout this process, the Society of Critical Care Medicine standard operating procedures Manual for Guidelines development was adhered to.\nTaskforce content experts separated into subgroups addressing pain/analgesia, sedation, tolerance/iatrogenic withdrawal, neuromuscular blockade, delirium, PICU environment (family presence and sleep hygiene), and early mobility. Subgroups created descriptive and actionable Population, Intervention, Comparison, and Outcome questions. An experienced medical information specialist developed search strategies to identify relevant literature between January 1990 and January 2020. Subgroups reviewed literature, determined quality of evidence, and formulated recommendations classified as \"strong\" with \"we recommend\" or \"conditional\" with \"we suggest.\" Good practice statements were used when indirect evidence supported benefit with no or minimal risk. Evidence gaps were noted. Initial recommendations were reviewed by each subgroup and revised as deemed necessary prior to being disseminated for voting by the full taskforce. Individuals who had an overt or potential conflict of interest abstained from relevant votes. Expert opinion alone was not used in substitution for a lack of evidence.\nThe Pediatric Pain, Agitation, Neuromuscular Blockade, and Delirium in critically ill pediatric patients with consideration of the PICU Environment and Early Mobility taskforce issued 44 recommendations (14 strong and 30 conditional) and five good practice statements.\nThe current guidelines represent a comprehensive list of practical clinical recommendations for the assessment, prevention, and management of key aspects for the comprehensive critical care of infants and children. Main areas of focus included 1) need for the routine monitoring of pain, agitation, withdrawal, and delirium using validated tools, 2) enhanced use of protocolized sedation and analgesia, and 3) recognition of the importance of nonpharmacologic interventions for enhancing patient comfort and comprehensive care provision.",
+        "sha256": "5964c552cfc5bbdcb0b64042cc75a948829692449488bbd2b91c12605185a655",
+        "retrieved_at": "2026-09-18T20:06:54.682601+00:00"
+      },
+      {
+        "id": "36607634",
+        "title": "Predisposing and Precipitating Factors Associated With Delirium: A Systematic Review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36607634/",
+        "abstract": "Despite discrete etiologies leading to delirium, it is treated as a common end point in hospital and in clinical trials, and delirium research may be hampered by the attempt to treat all instances of delirium similarly, leaving delirium management as an unmet need. An individualized approach based on unique patterns of delirium pathophysiology, as reflected in predisposing factors and precipitants, may be necessary, but there exists no accepted method of grouping delirium into distinct etiologic subgroups.\nTo conduct a systematic review to identify potential predisposing and precipitating factors associated with delirium in adult patients agnostic to setting.\nA literature search was performed of PubMed, Embase, Web of Science, and PsycINFO from database inception to December 2021 using search Medical Subject Headings (MeSH) terms consciousness disorders, confusion, causality, and disease susceptibility, with constraints of cohort or case-control studies. Two reviewers selected studies that met the following criteria for inclusion: published in English, prospective cohort or case-control study, at least 50 participants, delirium assessment in person by a physician or trained research personnel using a reference standard, and results including a multivariable model to identify independent factors associated with delirium.\nA total of 315 studies were included with a mean (SD) Newcastle-Ottawa Scale score of 8.3 (0.8) out of 9. Across 101 144 patients (50 006 [50.0%] male and 49 766 [49.1%] female patients) represented (24 015 with delirium), studies reported 33 predisposing and 112 precipitating factors associated with delirium. There was a diversity of factors associated with delirium, with substantial physiological heterogeneity.\nIn this systematic review, a comprehensive list of potential predisposing and precipitating factors associated with delirium was found across all clinical settings. These findings may be used to inform more precise study of delirium's heterogeneous pathophysiology and treatment.",
+        "sha256": "ce700fd3c2be8449bfb0fab5d3cc7fe6992ba40a632136941606decb092c21df",
+        "retrieved_at": "2026-09-18T20:06:54.682601+00:00"
+      },
+      {
+        "id": "37599617",
+        "title": "Update of the European Society of Anaesthesiology and Intensive Care Medicine evidence-based and consensus-based guideline on postoperative delirium in adult patients.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37599617/",
+        "abstract": "Postoperative delirium (POD) remains a common, dangerous and resource-consuming adverse event but is often preventable. The whole peri-operative team can play a key role in its management. This update to the 2017 ESAIC Guideline on the prevention of POD is evidence-based and consensus-based and considers the literature between 01 April 2015, and 28 February 2022. The search terms of the broad literature search were identical to those used in the first version of the guideline published in 2017. POD was defined in accordance with the DSM-5 criteria. POD had to be measured with a validated POD screening tool, at least once per day for at least 3 days starting in the recovery room or postanaesthesia care unit on the day of surgery or, at latest, on postoperative day 1. Recent literature confirmed the pathogenic role of surgery-induced inflammation, and this concept reinforces the positive role of multicomponent strategies aimed to reduce the surgical stress response. Although some putative precipitating risk factors are not modifiable (length of surgery, surgical site), others (such as depth of anaesthesia, appropriate analgesia and haemodynamic stability) are under the control of the anaesthesiologists. Multicomponent preoperative, intra-operative and postoperative preventive measures showed potential to reduce the incidence and duration of POD, confirming the pivotal role of a comprehensive and team-based approach to improve patients' clinical and functional status.",
+        "sha256": "88dc5782a883d34989704262045bb4605430c9c3f0779854caf3124cc9353abf",
+        "retrieved_at": "2026-09-18T20:06:54.682601+00:00"
+      },
+      {
+        "id": "36375344",
+        "title": "Pharmacologic treatment of delirium symptoms: A systematic review.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36375344/",
+        "abstract": "We conducted an updated, comprehensive, and contemporary systematic review to examine the efficacy of existing pharmacologic agents employed for management of delirium symptoms among hospitalized adults.\nSearches of PubMed, Scopus, Embase, and Cochrane Library databases from inception to May 2021 were performed to identify studies investigating efficacy of pharmacologic agents for management of delirium.\nOf 11,424 articles obtained from searches, a total of 33 articles (N = 3030 participants) of randomized or non-randomized trials, in which pharmacologic treatment was compared to active comparator, placebo, or no treatment, met all criteria and were included in this review. Medications used for management of delirium symptoms included antipsychotic medications (N = 27), alpha-2 agonists (N = 5), benzodiazepines (N = 2), antidepressants (n = 1), acetylcholinesterase inhibitors (N = 2), melatonin (N = 2), opioids (N = 1), and antiemetics (N = 2). Despite somewhat mixed findings and a relative lack of high-quality trials, it appears that antipsychotic medications (e.g., haloperidol, olanzapine, risperidone, or quetiapine) and dexmedetomidine have the potential to improve delirium outcomes.\nPharmacologic agents can reduce delirium symptoms (e.g., agitation) in some hospitalized patients. Additional double-blinded, randomized, placebo-controlled clinical trials are critically needed to investigate the efficacy of pharmacologic agents for diverse hospitalized populations (e.g., post-surgical patients, patients at the end-of-life, or in intensive care units).",
+        "sha256": "3c8fa45cef54762660614c580e14f2414148814bb877a25e5f19486a56e95e4a",
+        "retrieved_at": "2026-09-18T20:06:54.682601+00:00"
+      },
+      {
+        "id": "36577261",
+        "title": "The effect of the ABCDE/ABCDEF bundle on delirium, functional outcomes, and quality of life in critically ill patients: A systematic review and meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36577261/",
+        "abstract": "The effect of the ABCDEF bundle (Assess, prevent, and manage pain; Both spontaneous awakening and spontaneous breathing trials; Choice of analgesia and sedation; Delirium: assess, prevent, and manage; Early mobility and exercise; and Family engagement and empowerment) on patient outcomes such as delirium is potentially optimised when the bundle is implemented in its entirety.\nTo systematically synthesise the evidence on the effectiveness of the ABCDEF bundle delivered in its entirety on delirium, function, and quality of life in adult intensive care unit patients.\nSystematic review and meta-analysis.\nElectronic databases including MEDLINE, CINAHL, PsycINFO, Web of Science, Cochrane Library, Joanna Briggs Institute's Evidence Based Practice, Australian New Zealand Clinical Trials Registry, and Embase were searched from 2000 until December 2021.\nInclusion criteria included (1) adult intensive care unit patients (2) studies that described the ABCDE or ABCDEF bundle in its entirety (3) studies that evaluated delirium, functional outcomes, or quality of life. Studies were excluded if they investigated long-term intensive care unit rehabilitation patients. Two reviewers independently screened records and full text, extracted data, and undertook quality appraisals with discrepancies discussed until consensus was reached. Random effects meta-analyses were conducted for delirium but was not possible for other outcomes. The Grading of Recommendations, Assessment, Development and Evaluation approach was used to assess the certainty of the synthesised findings of the body of evidence. The study protocol was registered on PROSPERO (CRD 42019126407).\nA total of 18 studies (29,576 patients) were included in the descriptive synthesis. Meta-analysis of six studies (2000 patients) identified decreased delirium incidence following implementation of the ABCDEF bundle when compared with standard practice, (risk ratio = 0.57; CI, 0.36-0.90 p = 0.02) although heterogeneity was high (I2 = 92%). When compared with standard practice, a meta-analysis of five studies (3418 patients) showed the ABCDEF bundle statistically significantly reduced the duration of intensive care unit delirium (mean difference (days) - 1.37, 95% CI -2.61 to -0.13 p = 0.03; I2 96%). Valid functional assessments were included in two studies, and quality of life assessment in one.\nAlthough the evidence on the effect of the ABCDEF bundle delivered in its entirety is limited, positive patient delirium outcomes have been shown in this meta-analysis. As this meta-analysis was based on only 4736 patients in eight studies, further evidence is required to support its use in the adult intensive care unit.\nPROSPERO (CRD 42019126407).",
+        "sha256": "84ddcbf8c32d448bf0f82e778d5f1fea3a99b398991f529669db05247c047a25",
+        "retrieved_at": "2026-09-18T20:06:54.682601+00:00"
+      },
+      {
+        "id": "32658246",
+        "title": "Association of Delirium With Long-term Cognitive Decline: A Meta-analysis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32658246/",
+        "abstract": "Delirium is associated with increased hospital costs, health care complications, and increased mortality. Long-term consequences of delirium on cognition have not been synthesized and quantified via meta-analysis.\nTo determine if an episode of delirium was an independent risk factor for long-term cognitive decline, and if it was, whether it was causative or an epiphenomenon in already compromised individuals.\nA systematic search in PubMed, Cochrane, and Embase was conducted from January 1, 1965, to December 31, 2018. A systematic review guided by Preferred Reporting Items for Systematic Reviews and Meta-analyses was conducted. Search terms included delirium AND postoperative cognitive dysfunction; delirium and cognitive decline; delirium AND dementia; and delirium AND memory.\nInclusion criteria for studies included contrast between groups with delirium and without delirium; an objective continuous or binary measure of cognitive outcome; a final time point of 3 or more months after the delirium episode. The electronic search was conducted according to established methodologies and was executed on October 17, 2018.\nThree authors extracted data on individual characteristics, study design, and outcome, followed by a second independent check on outcome measures. Effect sizes were calculated as Hedges g. If necessary, binary outcomes were also converted to g. Only a single effect size was calculated for each study.\nThe planned main outcome was magnitude of cognitive decline in Hedges g effect size in delirium groups when contrasted with groups that did not experience delirium.\nOf 1583 articles, data subjected from the 24 studies (including 3562 patients who experienced delirium and 6987 controls who did not) were included in a random-effects meta-analysis for pooled effect estimates and random-effects meta-regressions to identify sources of study variance. One study was excluded as an outlier. There was a significant association between delirium and long-term cognitive decline, as the estimated effect size (Hedges g) for 23 studies was 0.45 (95% CI, 0.34-0.57; P < .001). In all studies, the group that experienced delirium had worse cognition at the final time point. The I2 measure of between-study variability in g was 0.81. A multivariable meta-regression suggested that duration of follow-up (longer with larger gs), number of covariates controlled (greater numbers were associated with smaller gs), and baseline cognitive matching (matching was associated with larger gs) were significant sources of variance. More specialized subgroup and meta-regressions were consistent with predictions that suggested that delirium may be a causative factor in cognitive decline.\nIn this meta-analysis, delirium was significantly associated with long-term cognitive decline in both surgical and nonsurgical patients.",
+        "sha256": "3c8dc2f064603c2c5d0f9a9dba177661e2c307a2c3585eec10dc54769ab75662",
+        "retrieved_at": "2026-09-18T20:06:54.682601+00:00"
+      },
+      {
+        "id": "35718628",
+        "title": "Effects of nonpharmacological interventions on sleep improvement and delirium prevention in critically ill patients: A systematic review and meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35718628/",
+        "abstract": "Sleep disturbance and delirium are common problems experienced by critically ill patients in the intensive care unit (ICU). These interrelated issues increase the length of stay in the ICU but might also negatively affect long-term health outcomes. The objective of this study was to identify the nonpharmacological interventions provided to improve sleep or prevent delirium in ICU patients or both and integrate their effect sizes.\nThis study was a registered systematic review and meta-analysis. We searched MEDLINE, CINAHL, EMBASE, Web of Science, and Cochrane Library from their inception until December 2021. We included randomised controlled trials and nonrandomised controlled trials-(RCT) that provided nonpharmacological interventions and reported sleep or delirium as outcome variables. Studies not published in English or whose full text was not available were excluded. The quality of the evidence was assessed with version 2 of the Cochrane risk-of-bias tool for RCTs and the Risk Of Bias In Non-randomised Studies of Interventions (ROBINS-I).\nThe systematic review included 118 studies, and the meta-analysis included 100 studies. Overall nonpharmacological interventions had significant effects on subjective sleep quality (standardised mean difference = 0.30, 95% confidence interval [CI] = 0.05 to 0.56), delirium incidence (odds ratio = 0.62, 95% CI = 0.53 to 0.73), and delirium duration (standardised mean difference = -0.68, 95% CI = -0.93 to -0.43). In individual interventions, aromatherapy, music, and massage effectively improved sleep. Exercise, family participation, information giving, cognitive stimulation, bright light therapy, architectural intervention, and bundles/protocols effectively reduced delirium. Light/noise blocking was the only intervention that ensured both sleep improvement and delirium prevention.\nOur results suggest nonpharmacological interventions improve sleep and prevent delirium in ICU patients. We recommend that ICU nurses use nonpharmacological interventions that promote person-environment compatibility in their clinical practice. The results of our review can guide nurses in adopting interventions related to sleep and delirium.\nCRD42021230815.",
+        "sha256": "90c6da247eb8d38b48361e28a4e0f91ab055c38837ab4565cfcb731f020bcb5b",
+        "retrieved_at": "2026-09-18T20:06:54.682601+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Guidelines for postoperative delirium (ESAIC update, PMID 37599617) and the delirium precipitants literature (PMID 36607634) emphasize identifying and correcting modifiable precipitating factors and using multicomponent nonpharmacologic strategies as first-line management. This patient has multiple classic reversible precipitants explicitly documented: anticholinergic medication (diphenhydramine), opioid burden, constipation with palpable stool, an indwelling urinary catheter, and mild hyponatremia. Answer B addresses each and adds nonpharmacologic delirium measures, which are supported as effective for delirium prevention/duration (PMID 35718628, 36577261). Answer A is inappropriate: it continues the offending sedatives/opioids and starts scheduled antipsychotics, whereas evidence for antipsychotics in delirium is weak/mixed and guidelines could not recommend them for delirium treatment (PMID 39982143, 36375344); antipsychotics are at most reserved for severe agitation/safety threats, not first-line, and never as a substitute for removing precipitants. Diphenhydramine's anticholinergic effect would also worsen delirium.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "36607634"
+              ],
+              "reason": "Systematic review of 315 studies documents 33 predisposing and 112 precipitating factors and explicitly argues for an individualized approach based on unique patterns of delirium pathophysiology. Directly supports the claim."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "35718628",
+                "36577261"
+              ],
+              "reason": "35718628 reports nonpharmacologic interventions reduce delirium incidence (OR 0.62) and duration; 36577261 reports ABCDEF bundle reduces delirium incidence (RR 0.57) and duration. Both support reduction of incidence/duration, though evidence base is in ICU populations."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "39982143"
+              ],
+              "reason": "SCCM 2025 focused update abstract explicitly states the task force was unable to issue a recommendation on the use of antipsychotics to treat delirium. Supports claim."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "36375344"
+              ],
+              "reason": "Systematic review notes 'somewhat mixed findings and a relative lack of high-quality trials' and calls for additional RCTs, supporting the mixed/limited-quality characterization. Note the abstract does say antipsychotics/dexmedetomidine 'have the potential to improve' symptoms, but that is qualified and does not contradict the deprescribing-first framing."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "32658246"
+              ],
+              "reason": "Meta-analysis of 24 studies found significant association between delirium and long-term cognitive decline (Hedges g 0.45) with suggestion of causation. Supports claim."
+            }
+          ],
+          "issues": [],
+          "rationale": "This is a geriatrics case of multifactorial postoperative hyperactive delirium (CAM-positive) in an 80s woman on POD2 after hip fracture repair. The chart lays out multiple concurrent, textbook-reversible precipitants: anticholinergic diphenhydramine, opioid load (oxycodone), constipation x3 days, indwelling urinary catheter, and mild hyponatremia (Na 132). Neuro exam is non-focal (no stroke workup gap), UA is not convincing for UTI, and there is a palpable distended bladder/stool. Solving independently, the correct initial step is to identify and correct these reversible precipitants plus institute nonpharmacologic delirium measures before any antipsychotic. Candidate B matches this. Candidate A (start scheduled haloperidol while continuing the sedating anticholinergic and opioid regimen) is unsafe and outdated: it ignores modifiable causes, continues the very drugs that precipitated delirium, and endorses routine antipsychotics that current guidance does not support (SCCM 2025 unable to recommend). The intended_flawed_id=A is consistent with this. Key is correct and the sound answer (B) is safe. Decisions are clearly distinct (deprescribe/correct causes vs pharmacologic sedation). All five claims verified against actual abstract text and supported; the only minor caveat is that the strongest nonpharmacologic/bundle evidence (35718628, 36577261, 39982143) derives from ICU/critical-care populations rather than a general geriatric postoperative ward, but the underlying principle (multicomponent nonpharmacologic first, no routine antipsychotics, correct precipitants) is standard geriatric practice and 36607634 is setting-agnostic. Claim 3's source also mentions antipsychotics 'have potential to improve' symptoms, but this is appropriately qualified and does not undermine the deprescribing-first recommendation. No missing decisive imaging (non-focal exam, no stroke suspicion). No previous cases to check independence against. Case is acceptable."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Initial management of postoperative delirium in older adults should focus on identifying and correcting reversible precipitants and implementing multicomponent, nonpharmacologic strategies. Guidelines and meta-analyses emphasize bundles and nonpharmacologic measures (reorientation, sleep hygiene, early mobility, family engagement) and minimizing deliriogenic factors; they do not support routine antipsychotic use to treat delirium itself. The SCCM 2025 guideline could not recommend antipsychotics for delirium treatment, while multicomponent bundles (ABCDEF) and other nonpharmacologic interventions reduce delirium incidence and duration. European postoperative delirium guidance likewise prioritizes comprehensive, team-based, multicomponent prevention/management. This patient has clear modifiable precipitants (anticholinergic diphenhydramine, opioid load, constipation, urinary catheter, mild hyponatremia) that should be addressed first. Antipsychotics may be considered short term for dangerous agitation only after addressing causes, not while continuing deliriogenic medications. Sources: SCCM 2025 focused update (39982143); ABCDEF bundle meta-analysis (36577261); nonpharmacologic interventions meta-analysis (35718628); ESAIC postoperative delirium guideline update 2024 (37599617); systematic review of predisposing/precipitating factors (36607634); pharmacologic treatment review showing mixed evidence for antipsychotics (36375344).",
+          "confidence": 0.9
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "36607634"
+              ],
+              "reason": "The 2023 systematic review across 315 studies identified numerous predisposing (33) and precipitating (112) factors for delirium with substantial heterogeneity, supporting individualized management targeting reversible causes."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "35718628",
+                "36577261"
+              ],
+              "reason": "Nonpharmacologic interventions reduced delirium incidence (OR ~0.62) and duration (SMD ~ -0.68) in ICU patients, and implementation of the ABCDEF bundle reduced delirium incidence (RR 0.57) and duration by ~1.37 days, showing benefit of multicomponent bundles."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "39982143"
+              ],
+              "reason": "The 2025 SCCM focused update explicitly stated it was unable to issue a recommendation on the use of antipsychotics to treat delirium in adult ICU patients."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "36375344"
+              ],
+              "reason": "The systematic review found mixed findings with a relative lack of high-quality trials for pharmacologic agents for delirium; while some agents may help symptoms, evidence quality is limited and does not replace addressing underlying causes."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "32658246"
+              ],
+              "reason": "Meta-analysis showed a significant association between delirium and long-term cognitive decline (Hedges g 0.45), underscoring the need for prompt management."
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent assessment: An 80s woman POD2 after hip fracture repair has CAM-positive hyperactive delirium with multiple clear, reversible precipitants: recent diphenhydramine (strong anticholinergic), postoperative opioid exposure, constipation x3 days, an indwelling urinary catheter with abdominal distension/retention, and mild hyponatremia (Na 132). Vitals show only low-grade fever; neuro exam is nonfocal; UA lacks convincing infection. The most appropriate initial step in geriatrics is to identify and correct reversible causes and implement a multicomponent nonpharmacologic delirium bundle (reorientation, sleep hygiene, mobility, sensory aids), while minimizing deliriogenic medications. Evidence supports delirium’s multifactorial precipitating factors and individualized correction (systematic review), and multicomponent nonpharmacologic bundles reducing delirium incidence and duration (ICU bundles and nonpharm meta-analyses). The 2025 SCCM guideline could not recommend routine antipsychotics to treat delirium, reflecting mixed and limited-quality pharmacologic evidence. Therefore, Candidate B is correct and safe: stop diphenhydramine, minimize/rotate opioids with multimodal analgesia, treat constipation, address urinary catheter use (prefer removal if not required; if retention persists, use bladder scanning and intermittent catheterization), gently correct mild hyponatremia, and apply nonpharmacologic measures. Candidate A is unsafe/outdated: it proposes scheduled haloperidol and continuation of sedative/opioid regimen without addressing causes; this conflicts with current guidance and risks adverse effects (e.g., QT prolongation, EPS) without treating precipitants. The key matches current best practice and is supported by cited evidence; the case has sufficient information to make the initial management decision. Minor caveats checked and acceptable: hyponatremia correction should be cautious; catheter management should be guided by bladder scan and clinical need. No blocking defects found."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "886228f84ec7db3e99d449edacb42d2f06aeb712dcba14ecd688ba2a16daf285"
+  }
+}

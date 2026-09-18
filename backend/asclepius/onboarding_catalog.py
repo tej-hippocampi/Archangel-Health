@@ -112,3 +112,10 @@ SEARCH_TERMS = {topic: query for row, pair in zip(CURRICULUM, _SEARCH_PAIRS)
 def topic_for(specialty: str, kind: str) -> str | None:
     return next((row[1 if kind == "practice" else 2] for row in CURRICULUM
                  if canonical(row[0]) == canonical(specialty)), None)
+
+
+def age_scope_for(specialty: str) -> str | None:
+    specialty = canonical(specialty)
+    if specialty not in SPECIALTIES:
+        return None
+    return "pediatric" if specialty == "pediatrics" else "older_adult" if specialty == "geriatrics" else "adult"

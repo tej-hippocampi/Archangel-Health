@@ -1,0 +1,382 @@
+{
+  "task_id": "onboarding-examination-v1-0e709f79e5406de4e058-1",
+  "specialty": "internal medicine",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Interpreting D-dimer in Suspected Lower Extremity DVT",
+    "question": "In a 58-year-old man with a high pretest probability (Wells DVT score) for lower extremity DVT and a normal D-dimer, what is the most appropriate next diagnostic step?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "internal medicine",
+      "demographics": {
+        "age_band": "55-64",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Unilateral left lower extremity swelling and calf discomfort",
+          "since": "5 days",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Recent immobilization after knee arthroscopy",
+          "since": "2 weeks",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Active adenocarcinoma of the colon on treatment",
+          "since": "6 months",
+          "collected_offset_days": null
+        }
+      ],
+      "medications": [
+        {
+          "drug": "acetaminophen",
+          "dose": "500 mg",
+          "route": "oral",
+          "freq": "as needed",
+          "collected_offset_days": null
+        }
+      ],
+      "vitals": {
+        "temp_c": 36.9,
+        "hr_bpm": 84,
+        "bp_mmHg": "128/78",
+        "rr": 16,
+        "spo2_pct": 98
+      },
+      "lab_panels": [
+        {
+          "panel": "Coagulation / D-dimer",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "D-dimer",
+              "loinc": null,
+              "value": 320,
+              "unit": "ng/mL",
+              "ref_low": 0,
+              "ref_high": 500,
+              "flag": "normal",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Progress",
+          "author_role": "internal medicine",
+          "text": "58-year-old man presents with 5 days of progressive left calf swelling and pulling discomfort. He underwent left knee arthroscopy two weeks ago with subsequent reduced mobility, and he has active colon adenocarcinoma on chemotherapy. On exam the left calf is swollen with a >3 cm circumference difference versus the right, pitting edema confined to the symptomatic leg, and tenderness along the deep venous system. Applying the Wells DVT criteria: active cancer (+1), recent immobilization/surgery (+1), entire leg swelling (+1), calf swelling >3 cm (+1), pitting edema (+1) — yielding a high pretest probability score. A quantitative D-dimer resulted at 320 ng/mL (below the 500 ng/mL threshold). Because pretest probability is high, the clinical question is whether a normal D-dimer is sufficient to exclude DVT or whether definitive imaging is still required. Plan to be finalized after reviewing pretest probability interaction with D-dimer performance.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": null
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": null,
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": null,
+      "ground_truth": {
+        "answer": "Proceed to compression venous ultrasonography of the affected leg; a normal D-dimer does NOT exclude DVT in a patient with high pretest probability.",
+        "rationale": "D-dimer can only safely exclude acute VTE when paired with a low pretest probability. In patients with a high pretest probability, the negative predictive value of a D-dimer <500 ng/mL is only about 92%, leaving an unacceptable residual risk of missed DVT. Therefore D-dimer cannot be used to exclude DVT without an assessment of pretest probability, and in high-probability patients definitive imaging with venous ultrasonography is mandatory regardless of the D-dimer result. This patient has multiple high-risk features (active cancer, recent surgery/immobilization, marked unilateral leg swelling), placing him firmly in the high-probability group where imaging is required.",
+        "evidence": null,
+        "key_data": [
+          "A normal D-dimer (<500 ng/mL) excludes acute VTE only when combined with a LOW pretest probability (Wells DVT score ≤1).",
+          "In high pretest probability patients the negative predictive value of a D-dimer <500 ng/mL is only ~92%, insufficient to safely exclude DVT.",
+          "The patient's Wells features (active cancer, recent immobilization/surgery, whole-leg and >3 cm calf swelling, pitting edema) yield a high pretest probability.",
+          "Compression venous ultrasonography is the recommended imaging test to confirm or exclude lower extremity DVT.",
+          "D-dimer cannot be used to exclude DVT without first assessing pretest probability."
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "The normal D-dimer of 320 ng/mL rules out acute DVT, so no imaging is needed; reassure the patient, avoid anticoagulation, and arrange routine outpatient follow-up for the leg swelling."
+      },
+      {
+        "id": "B",
+        "text": "Proceed directly to compression venous ultrasonography of the affected leg because a normal D-dimer does not exclude DVT when the pretest probability is high; do not rely on the D-dimer alone."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "high pretest probability",
+      "compression ultrasonography",
+      "negative predictive value",
+      "missed DVT",
+      "active cancer",
+      "Wells score"
+    ],
+    "evidence_keywords": [
+      "D-dimer",
+      "pretest probability",
+      "Wells DVT score",
+      "venous ultrasonography",
+      "deep vein thrombosis"
+    ],
+    "error_tags": [
+      "misreads_labs",
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "A normal D-dimer (<500 ng/mL) excludes acute VTE only when combined with a low pretest probability (Wells DVT score ≤1).",
+        "source_ids": [
+          "33141212"
+        ]
+      },
+      {
+        "statement": "In patients with a high pretest probability, the negative predictive value of a D-dimer less than 500 ng/mL is only about 92%.",
+        "source_ids": [
+          "33141212"
+        ]
+      },
+      {
+        "statement": "D-dimer cannot be used to exclude DVT without an assessment of pretest probability.",
+        "source_ids": [
+          "33141212"
+        ]
+      },
+      {
+        "statement": "Patients with signs or symptoms of lower extremity DVT should undergo pretest probability assessment followed by D-dimer testing and imaging with venous ultrasonography.",
+        "source_ids": [
+          "33141212"
+        ]
+      },
+      {
+        "statement": "Active malignancy is an established risk factor that increases the probability of venous thromboembolism.",
+        "source_ids": [
+          "33141212",
+          "39236759"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T20:07:01.052893+00:00",
+    "author_model": "claude-opus-4-8",
+    "sources": [
+      {
+        "id": "40587333",
+        "title": "2025 ESVM Guidelines on interventional treatment of venous thromboembolism.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40587333/",
+        "abstract": "The number of endovascular interventional procedures for catheter-based therapy (CBT) of acute venous thromboembolism (VTE), comprising deep vein thrombosis (DVT) and pulmonary embolism (PE), has been increasing over the past years. The development of more efficient thrombectomy systems for CBT of VTE has potentially enhanced the efficacy of interventional treatment of VTE. Nevertheless, indications for CBT of VTE, i.e. catheter-directed thrombolysis (CDT) or catheter-based mechanical thrombus removal, need to be established based on existing data and expert consensus. Vascular experts should be involved in the decision-making process on CBTs in patients with acute VTE, and thrombus removal procedures should be performed in centers with experience in interventional treatment of VTE. This guideline document of the European Society of Vascular Medicine (ESVM) provides recommendations on indications and management of CBT in acute VTE and is endorsed by the European national societies of Vascular Medicine.",
+        "sha256": "3c12292e110ce69261f86c6e190e2da1bf6e74f8d82a33ffe47b4279270d490c",
+        "retrieved_at": "2026-09-18T20:05:14.645213+00:00"
+      },
+      {
+        "id": "33007077",
+        "title": "American Society of Hematology 2020 guidelines for management of venous thromboembolism: treatment of deep vein thrombosis and pulmonary embolism.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33007077/",
+        "abstract": "Venous thromboembolism (VTE), which includes deep vein thrombosis (DVT) and pulmonary embolism (PE), occurs in ∼1 to 2 individuals per 1000 each year, corresponding to ∼300 000 to 600 000 events in the United States annually.\nThese evidence-based guidelines from the American Society of Hematology (ASH) intend to support patients, clinicians, and others in decisions about treatment of VTE.\nASH formed a multidisciplinary guideline panel balanced to minimize potential bias from conflicts of interest. The McMaster University GRADE Centre supported the guideline development process, including updating or performing systematic evidence reviews. The panel prioritized clinical questions and outcomes according to their importance for clinicians and adult patients. The Grading of Recommendations Assessment, Development and Evaluation (GRADE) approach was used to assess evidence and make recommendations, which were subject to public comment.\nThe panel agreed on 28 recommendations for the initial management of VTE, primary treatment, secondary prevention, and treatment of recurrent VTE events.\nStrong recommendations include the use of thrombolytic therapy for patients with PE and hemodynamic compromise, use of an international normalized ratio (INR) range of 2.0 to 3.0 over a lower INR range for patients with VTE who use a vitamin K antagonist (VKA) for secondary prevention, and use of indefinite anticoagulation for patients with recurrent unprovoked VTE. Conditional recommendations include the preference for home treatment over hospital-based treatment for uncomplicated DVT and PE at low risk for complications and a preference for direct oral anticoagulants over VKA for primary treatment of VTE.",
+        "sha256": "81920b9ad8ad9fe120b61685f88838797b7894620c434ac7c846d0a46e887ee3",
+        "retrieved_at": "2026-09-18T20:05:14.645213+00:00"
+      },
+      {
+        "id": "31381464",
+        "title": "Venous Thromboembolism Prophylaxis and Treatment in Patients With Cancer: ASCO Clinical Practice Guideline Update.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31381464/",
+        "abstract": "To provide updated recommendations about prophylaxis and treatment of venous thromboembolism (VTE) in patients with cancer.\nPubMed and the Cochrane Library were searched for randomized controlled trials (RCTs) and meta-analyses of RCTs published from August 1, 2014, through December 4, 2018. ASCO convened an Expert Panel to review the evidence and revise previous recommendations as needed.\nThe systematic review included 35 publications on VTE prophylaxis and treatment and 18 publications on VTE risk assessment. Two RCTs of direct oral anticoagulants (DOACs) for the treatment of VTE in patients with cancer reported that edoxaban and rivaroxaban are effective but are linked with a higher risk of bleeding compared with low-molecular-weight heparin (LMWH) in patients with GI and potentially genitourinary cancers. Two additional RCTs reported on DOACs for thromboprophylaxis in ambulatory patients with cancer at increased risk of VTE.\nChanges to previous recommendations: Clinicians may offer thromboprophylaxis with apixaban, rivaroxaban, or LMWH to selected high-risk outpatients with cancer; rivaroxaban and edoxaban have been added as options for VTE treatment; patients with brain metastases are now addressed in the VTE treatment section; and the recommendation regarding long-term postoperative LMWH has been expanded. Re-affirmed recommendations: Most hospitalized patients with cancer and an acute medical condition require thromboprophylaxis throughout hospitalization. Thromboprophylaxis is not routinely recommended for all outpatients with cancer. Patients undergoing major cancer surgery should receive prophylaxis starting before surgery and continuing for at least 7 to 10 days. Patients with cancer should be periodically assessed for VTE risk, and oncology professionals should provide patient education about the signs and symptoms of VTE.Additional information is available at www.asco.org/supportive-care-guidelines.",
+        "sha256": "c126a75a9871a9decdea744d63f0ff2fe181449ad61adb32bb465fc2dc59c6fd",
+        "retrieved_at": "2026-09-18T20:05:14.645213+00:00"
+      },
+      {
+        "id": "33141212",
+        "title": "Diagnosis and Treatment of Lower Extremity Venous Thromboembolism: A Review.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33141212/",
+        "abstract": "Incidence rates for lower extremity deep vein thrombosis (DVT) range from 88 to 112 per 100 000 person-years and increase with age. Rates of recurrent VTE range from 20% to 36% during the 10 years after an initial event.\nPubMed and Cochrane databases were searched for English-language studies published from January 2015 through June 2020 for randomized clinical trials, meta-analyses, systematic reviews, and observational studies. Risk factors for venous thromboembolism (VTE), such as older age, malignancy (cumulative incidence of 7.4% after a median of 19 months), inflammatory disorders (VTE risk is 4.7% in patients with rheumatoid arthritis and 2.5% in those without), and inherited thrombophilia (factor V Leiden carriers with a 10-year cumulative incidence of 10.9%), are associated with higher risk of VTE. Patients with signs or symptoms of lower extremity DVT, such as swelling (71%) or a cramping or pulling discomfort in the thigh or calf (53%), should undergo assessment of pretest probability followed by D-dimer testing and imaging with venous ultrasonography. A normal D-dimer level (ie, D-dimer <500 ng/mL) excludes acute VTE when combined with a low pretest probability (ie, Wells DVT score ≤1). In patients with a high pretest probability, the negative predictive value of a D-dimer less than 500 ng/mL is 92%. Consequently, D-dimer cannot be used to exclude DVT without an assessment of pretest probability. Postthrombotic syndrome, defined as persistent symptoms, signs of chronic venous insufficiency, or both, occurs in 25% to 50% of patients 3 to 6 months after DVT diagnosis. Catheter-directed fibrinolysis with or without mechanical thrombectomy is appropriate in those with iliofemoral obstruction, severe symptoms, and a low risk of bleeding. The efficacy of direct oral anticoagulants-rivaroxaban, apixaban, dabigatran, and edoxaban-is noninferior to warfarin (absolute rate of recurrent VTE or VTE-related death, 2.0% vs 2.2%). Major bleeding occurs in 1.1% of patients treated with direct oral anticoagulants vs 1.8% treated with warfarin.\nGreater recognition of VTE risk factors and advances in anticoagulation have facilitated the clinical evaluation and treatment of patients with DVT. Direct oral anticoagulants are noninferior to warfarin with regard to efficacy and are associated with lower rates of bleeding, but costs limit use for some patients.",
+        "sha256": "7a63a824eda33dc3e8aa5eaeb852144b4b95f81376eef32854d2f1a5d14c1b21",
+        "retrieved_at": "2026-09-18T20:05:14.645213+00:00"
+      },
+      {
+        "id": "37075273",
+        "title": "Venous Thromboembolism Prophylaxis and Treatment in Patients With Cancer: ASCO Guideline Update.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37075273/",
+        "abstract": "To conduct an update of the ASCO venous thromboembolism (VTE) guideline.\nAfter publication of potentially practice-changing clinical trials, identified through ASCO's signals approach to updating, an updated systematic review was performed for two guideline questions: perioperative thromboprophylaxis and treatment of VTE. PubMed and the Cochrane Library were searched for randomized controlled trials (RCTs) published between November 1, 2018, and June 6, 2022.\nFive RCTs provided information that contributed to changes to the 2019 recommendations. Two RCTs addressed direct factor Xa inhibitors (either rivaroxaban or apixaban) for extended thromboprophylaxis after surgery. Each of these postoperative trials had important limitations but suggested that these two oral anticoagulants are safe and effective in the settings studied. An additional three RCTs addressed apixaban in the setting of VTE treatment. Apixaban was effective in reducing the risk of recurrent VTE, with a low risk of major bleeding.\nApixaban and rivaroxaban were added as options for extended pharmacologic thromboprophylaxis after cancer surgery, with a weak strength of recommendation. Apixaban was also added as an option for the treatment of VTE, with high quality of evidence and a strong recommendation.Additional information is available at www.asco.org/supportive-care-guidelines.",
+        "sha256": "ac3a7c28a012ff08875e7699460dbb9319d15373289ff153164a3fd0ef5793b9",
+        "retrieved_at": "2026-09-18T20:05:14.645213+00:00"
+      },
+      {
+        "id": "39236759",
+        "title": "Cancer-Associated Venous Thromboembolic Disease, Version 2.2024, NCCN Clinical Practice Guidelines in Oncology.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39236759/",
+        "abstract": "The NCCN Guidelines for Cancer-Associated Venous Thromboembolic Disease provide strategies for the prevention, diagnosis, and treatment of venous thromboembolism (VTE) in adult patients with cancer. VTE is a common and life-threatening condition in patients with cancer, and its management often requires multidisciplinary efforts. The NCCN panel is comprised of specialists spanning various fields, including cardiology, hematology, medical oncology, internal medicine, interventional radiology, and pharmacology. The content featured in this issue specifically addresses the evaluation and recommended treatment options outlined in the NCCN Guidelines for the diverse subtypes of cancer-associated VTE.",
+        "sha256": "d20401e96b9e2eb5819169a5d63691d4a3bb9c017887a2f81771fb4b53571f71",
+        "retrieved_at": "2026-09-18T20:05:14.645213+00:00"
+      },
+      {
+        "id": "35926802",
+        "title": "Systematic review of venous thromboembolism risk categories derived from Caprini score.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35926802/",
+        "abstract": "Hospital-acquired venous thromboembolism (VTE, including pulmonary embolism [PE] and deep vein thrombosis [DVT]) is a preventable cause of hospital death. The Caprini risk assessment model (RAM) is one of the most commonly used tools to assess VTE risk. The RAM is operationalized in clinical practice by grouping several risk scores into VTE risk categories that drive decisions on prophylaxis. A correlation between increasing Caprini scores and rising VTE risk is well-established. We assessed whether the increasing VTE risk categories assigned on the basis of recommended score ranges also correlate with increasing VTE risk.\nWe conducted a systematic review of articles that used the Caprini RAM to assign VTE risk categories and that reported corresponding VTE rates. A Medline and EMBASE search retrieved 895 articles, of which 57 fulfilled inclusion criteria.\nForty-eight (84%) of the articles were cohort studies, 7 (12%) were case-control studies, and 2 (4%) were cross-sectional studies. The populations varied from postsurgical to medical patients. There was variability in the number of VTE risk categories assigned by individual studies (6 used 5 risk categories, 37 used 4, 11 used 3, and 3 used 2), and in the cutoff scores defining the risk categories (scores from 0 alone to 0-10 for the low-risk category; from ≥5 to ≥10 for high risk). The VTE rates reported for similar risk categories also varied across studies (0%-12.3% in the low-risk category; 0%-40% for high risk). The Caprini RAM is designed to assess composite VTE risk; however, two studies reported PE or DVT rates alone, and many of the other studies did not specify the types of DVTs analyzed. The Caprini RAM predicts VTE at 30 days after assessment; however, only 17 studies measured outcomes at 30 days; the remaining studies had either shorter or longer follow-ups (0-180 days).\nThe usefulness of the Caprini RAM is limited by heterogeneity in its implementation across centers. The score-derived VTE risk categorization has significant variability in the number of risk categories being used, the cutpoints used to define the risk categories, the outcome being measured, and the follow-up duration. This factor leads to similar risk categories being associated with different VTE rates, which impacts the clinical and research implications of the results. To enhance generalizability, there is a need for studies that validate the RAM in a broad population of medical and surgical patients, identify standardized risk categories, define risk of DVT and PE as distinct end points, and measure outcomes at standardized follow-up time points.",
+        "sha256": "7e8ebb114077f8520f5de4b79fbe5a5ab9381de0337ae5c2aaa944fb19a37d8a",
+        "retrieved_at": "2026-09-18T20:05:14.645213+00:00"
+      },
+      {
+        "id": "40617505",
+        "title": "A systematic review on anti-Xa monitoring in the therapeutic use of low-molecular-weight heparins.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40617505/",
+        "abstract": "Low-molecular-weight heparins are widely utilized, including in special patient populations (eg, patients with renal impairment, pregnancy, and obesity). Monitoring with anti-Xa measurements is often used, but the effectiveness of anti-Xa-based dose adjustments remains uncertain. This systematic review aimed to provide an informed assessment of the usefulness of anti-Xa monitoring and subsequent dose adjustments in these patients. The primary outcome was the incidence of clinical events, such as major bleeding and venous thromboembolism, compared between patients with and without anti-Xa monitoring. Secondary outcomes were the correlation between anti-Xa levels and bleeding or thromboembolic complications and the frequency of dose adjustments based on anti-Xa levels. A total of 48 studies, both randomized controlled trials and observational studies, were included. All studies had a high risk of bias. Five studies indicated comparable rates of bleeding and thromboembolic complications in anti-Xa-monitored and unmonitored patients. Measurement of anti-Xa levels was associated with frequent dose adjustments. The correlation between anti-Xa levels and both bleeding and thromboembolic complications was weak, if it was present at all. Overall, this review highlights the limited evidence supporting the use of anti-Xa monitoring for dose adjustments in the therapeutic use of low-molecular-weight heparins. Therefore, we conclude that measuring anti-Xa levels is currently not justified. Only new, high-quality, preferably randomized studies could indicate otherwise.",
+        "sha256": "5eaccc6f1238086c25654e57616a2bf88a7b40242bed4de9af0a49e467333ff7",
+        "retrieved_at": "2026-09-18T20:05:14.645213+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Source 33141212 (JAMA review on lower extremity VTE) explicitly states that a normal D-dimer (<500 ng/mL) excludes acute VTE only when combined with a LOW pretest probability (Wells score ≤1). In high pretest probability patients, the negative predictive value of a D-dimer <500 ng/mL is only 92%, which is inadequate to safely exclude DVT. The review concludes D-dimer cannot exclude DVT without assessment of pretest probability. This patient has a clearly high Wells score (active cancer, recent immobilization/surgery, entire-leg swelling, >3 cm calf asymmetry, pitting edema) and classic unilateral findings, so the normal D-dimer of 320 ng/mL does not rule out DVT. Compression venous ultrasonography is required. Answer A is unsafe because it relies on the D-dimer alone despite high pretest probability, risking a missed DVT in a cancer patient at high thrombotic risk.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.95,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33141212"
+              ],
+              "reason": "Source abstract states: 'A normal D-dimer level (ie, D-dimer <500 ng/mL) excludes acute VTE when combined with a low pretest probability (ie, Wells DVT score ≤1).' Directly supported."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "33141212"
+              ],
+              "reason": "Source states: 'In patients with a high pretest probability, the negative predictive value of a D-dimer less than 500 ng/mL is 92%.' Directly supported."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33141212"
+              ],
+              "reason": "Source states: 'Consequently, D-dimer cannot be used to exclude DVT without an assessment of pretest probability.' Directly supported."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "33141212"
+              ],
+              "reason": "Source states patients with signs/symptoms 'should undergo assessment of pretest probability followed by D-dimer testing and imaging with venous ultrasonography.' Supported."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "33141212",
+                "39236759"
+              ],
+              "reason": "33141212 lists malignancy as a risk factor for VTE (cumulative incidence 7.4%); 39236759 addresses cancer-associated VTE. Supported."
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is a clean internal-medicine VTE diagnostic reasoning question. Solving independently: a high pretest probability (Wells score) DVT patient with a normal D-dimer cannot have DVT excluded by D-dimer alone — the negative predictive value at high probability is only ~92%, so definitive compression ultrasonography is mandatory. This matches candidate B. Candidate A (normal D-dimer rules out DVT, no imaging, avoid anticoagulation) is the intended flawed answer and is genuinely unsafe: it would miss DVT in a high-risk patient with active cancer and recent surgery. The key correctly designates B-type reasoning as sound. All five claims are verified verbatim against source 33141212, which is a well-matched JAMA-type review on lower extremity VTE diagnosis. The chart data support the high-probability categorization (active colon adenocarcinoma on chemo, recent knee arthroscopy/immobilization, >3 cm calf swelling, whole-leg pitting edema, tenderness). Note: some listed Wells items overlap/are not exactly canonical (e.g., 'pitting edema confined to symptomatic leg' and 'entire leg swelling' and 'calf >3 cm' are all legitimate Wells criteria; active cancer +1 and recent immobilization/surgery +1 are canonical), and the tally clearly reaches ≥3 = high probability, so the categorization is correct regardless of minor bookkeeping. The D-dimer value of 320 ng/mL is correctly below the 500 threshold and correctly interpreted as insufficient given high pretest probability. No imaging is 'missing' because the teaching point is precisely that imaging is the required next step (the case asks for the next step, not a completed study). Distinctness from the prior case (postmenopausal IDA → bidirectional endoscopy) is clear: different clinical decision and topic. Dosing/contraindication concerns are not implicated. The case works as designed with A being the flawed distractor."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "With a high pretest probability by Wells criteria, a normal D-dimer cannot safely exclude DVT. Evidence shows that in high-probability patients the negative predictive value of a D-dimer <500 ng/mL is only about 92%, so imaging is required. Proceed with compression venous ultrasonography of the affected leg rather than relying on the D-dimer alone (PMID 33141212).",
+          "confidence": 0.9
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33141212"
+              ],
+              "reason": "The cited review states: \"A normal D-dimer level (<500 ng/mL) excludes acute VTE when combined with a low pretest probability (Wells DVT score ≤1).\""
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "33141212"
+              ],
+              "reason": "The review reports: \"In patients with a high pretest probability, the negative predictive value of a D-dimer less than 500 ng/mL is 92%.\""
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33141212"
+              ],
+              "reason": "The review concludes: \"Consequently, D-dimer cannot be used to exclude DVT without an assessment of pretest probability.\""
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "33141212"
+              ],
+              "reason": "The review states that symptomatic patients should undergo pretest probability assessment followed by D-dimer testing and imaging with venous ultrasonography."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "33141212",
+                "39236759"
+              ],
+              "reason": "The review lists malignancy as a risk factor associated with higher VTE risk; NCCN 2024 guidelines address cancer-associated VTE risk and management."
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent assessment: This 58-year-old man has multiple Wells criteria (active cancer, recent surgery/immobilization, entire leg swelling, calf >3 cm, pitting edema, and exam tenderness) yielding a high pretest probability for lower extremity DVT. In this context, a normal D-dimer (320 ng/mL) does not safely exclude DVT. Authoritative evidence shows that a normal D-dimer can exclude acute VTE only with low pretest probability; in high pretest probability, the negative predictive value (~92%) leaves an unacceptably high miss rate. Therefore, the appropriate next diagnostic step is compression venous ultrasonography of the affected leg; do not rely on D-dimer alone. Candidate A is unsafe because it inappropriately rules out DVT and forgoes imaging despite high clinical probability, risking missed DVT. Candidate B correctly recommends immediate compression ultrasonography and not relying on D-dimer alone. The key aligns with current evidence (JAMA 2020 review) and does not conflict with patient data. The case is on specialty (internal medicine), internally consistent, and provides sufficient information to choose the next diagnostic step. It is distinct from the provided prior case (different condition and decision pathway). No blocking defects identified."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "789ac2f2101601488f9254e2849c279bf5b278d769b2e22144043cddae7fd311"
+  }
+}

@@ -1,0 +1,463 @@
+{
+  "task_id": "onboarding-examination-v1-ca25a37ef4cffb536a33-1",
+  "specialty": "pediatrics",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Well-Appearing Febrile Neonate at 12 Days: Deciding on Lumbar Puncture",
+    "question": "A well-appearing, term 12-day-old presents with fever 38.4°C. After blood and urine studies, which management approach is best supported by evidence for this age band?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "pediatrics",
+      "demographics": {
+        "age_band": "neonate (8-21 days)",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Fever without a source in a neonate 8-21 days old",
+          "since": "day 0",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Term birth, uncomplicated perinatal course",
+          "since": null,
+          "collected_offset_days": null
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "temperature_c": 38.4,
+        "heart_rate_bpm": 158,
+        "respiratory_rate": 44,
+        "spo2_percent": 99,
+        "capillary_refill_sec": 2
+      },
+      "lab_panels": [
+        {
+          "panel": "CBC with differential",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "WBC",
+              "loinc": null,
+              "value": 9.8,
+              "unit": "10^3/uL",
+              "ref_low": 5.0,
+              "ref_high": 19.5,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Absolute neutrophil count",
+              "loinc": null,
+              "value": 3.2,
+              "unit": "10^3/uL",
+              "ref_low": 1.0,
+              "ref_high": 9.0,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Hemoglobin",
+              "loinc": null,
+              "value": 15.1,
+              "unit": "g/dL",
+              "ref_low": 13.5,
+              "ref_high": 21.5,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Platelets",
+              "loinc": null,
+              "value": 268,
+              "unit": "10^3/uL",
+              "ref_low": 150,
+              "ref_high": 450,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Inflammatory markers",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "C-reactive protein",
+              "loinc": null,
+              "value": 8,
+              "unit": "mg/L",
+              "ref_low": 0,
+              "ref_high": 20,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Procalcitonin",
+              "loinc": null,
+              "value": 0.2,
+              "unit": "ng/mL",
+              "ref_low": 0,
+              "ref_high": 0.5,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Urinalysis (catheter specimen)",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Leukocyte esterase",
+              "loinc": null,
+              "value": "negative",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Nitrite",
+              "loinc": null,
+              "value": "negative",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "WBC per hpf",
+              "loinc": null,
+              "value": 2,
+              "unit": "/hpf",
+              "ref_low": 0,
+              "ref_high": 5,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "ED Progress",
+          "author_role": "pediatrics",
+          "text": "Term female, now 12 days of age, brought in for tactile fever confirmed rectally at 38.4°C. Feeding well, no vomiting, no lethargy, no rash. Well-appearing and vigorous on exam with normal tone, anterior fontanelle soft and flat, no respiratory distress, and reassuring perfusion. Born at term via uncomplicated delivery; mother group B streptococcus negative; no maternal fever or prolonged rupture of membranes. Blood culture and urine culture obtained; catheter urinalysis unremarkable. CBC, CRP, and procalcitonin within reference ranges. Because the infant falls in the 8-to-21-day age band, guideline-based management for a febrile neonate is being applied while cultures remain pending. Disposition and cerebrospinal fluid evaluation are under discussion given the very high baseline risk of invasive bacterial infection in this youngest age group even when inflammatory markers are normal.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": null
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": null,
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": null,
+      "ground_truth": {
+        "answer": "Perform lumbar puncture, obtain CSF and blood cultures, admit, and start empiric parenteral antibiotics pending culture results.",
+        "rationale": "For well-appearing term febrile infants 8 to 21 days old, the AAP guideline recommends CSF analysis by lumbar puncture in addition to blood and urine cultures, hospital admission, and empiric parenteral antimicrobial therapy regardless of inflammatory marker results, because this youngest age band carries the highest risk of invasive bacterial infection including bacterial meningitis. Normal CBC, CRP, and procalcitonin cannot reliably exclude serious bacterial infection in this age band, and CSF cell counts and chemistries alone are not sufficiently reliable to exclude neonatal meningitis, so deferring the lumbar puncture and discharging on the basis of reassuring markers is unsafe.",
+        "evidence": null,
+        "key_data": [
+          "Age 12 days places the infant in the 8-21 day band, for which the guideline directs LP, blood and urine cultures, admission, and empiric parenteral antibiotics.",
+          "Well appearance and normal WBC/CRP/procalcitonin do not stratify neonates in this band out of the recommended full evaluation.",
+          "CSF parameters alone are not sufficiently reliable to exclude meningitis, and normal neonatal CSF ranges differ from those of older infants.",
+          "Empiric parenteral antimicrobial therapy is indicated while cultures are pending given high invasive bacterial infection risk."
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Defer lumbar puncture given the well appearance and normal CBC, CRP, and procalcitonin; observe briefly and discharge home with next-day follow-up while awaiting blood and urine cultures, without starting antibiotics."
+      },
+      {
+        "id": "B",
+        "text": "Perform a lumbar puncture for CSF analysis and culture in addition to blood and urine cultures, admit to the hospital, and begin empiric parenteral antibiotics while all cultures are pending."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "febrile neonate",
+      "lumbar puncture",
+      "bacterial meningitis",
+      "empiric antibiotics",
+      "invasive bacterial infection",
+      "hospital admission",
+      "CSF analysis"
+    ],
+    "evidence_keywords": [
+      "8 to 21 days",
+      "well-appearing febrile infant",
+      "CSF normal values",
+      "procalcitonin",
+      "risk stratification"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "misreads_labs",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "The AAP guideline addresses well-appearing term infants 8 to 60 days old with fever ≥38.0°C and provides distinct algorithms for the 8-to-21-day age band.",
+        "source_ids": [
+          "34281996"
+        ]
+      },
+      {
+        "statement": "For the youngest age band, guideline management includes CSF evaluation, blood and urine cultures, admission, and empiric antimicrobial therapy.",
+        "source_ids": [
+          "34281996"
+        ]
+      },
+      {
+        "statement": "CSF parameters alone are not sufficiently reliable to exclude meningitis in neonates.",
+        "source_ids": [
+          "34818234"
+        ]
+      },
+      {
+        "statement": "Normal CSF ranges in neonates differ from older infants and some values vary with gestational and chronological age.",
+        "source_ids": [
+          "34818234"
+        ]
+      },
+      {
+        "statement": "Recommendations should incorporate graded evidence and, where appropriate, shared decision-making, but do not exempt the 8-21 day band from full evaluation.",
+        "source_ids": [
+          "34281996"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T20:12:40.840838+00:00",
+    "author_model": "claude-opus-4-8",
+    "sources": [
+      {
+        "id": "38653182",
+        "title": "Febrile Seizures: A Systematic Review of Different Guidelines.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38653182/",
+        "abstract": "Febrile seizures (FS) are the most common neurological disorder in pediatric age. FS affect 2% to 12% of children and result from a complex interplay of genetic and environmental factors. Effective management and unambiguous recommendations are crucial for allocating health care resources efficiently and ensuring cost-effectiveness in treating FS.\nThis systematic review compares existing guidelines to provide insights into FS management. Seven guidelines published between 1991 and 2021, from Japan, United Kingdom, United States, Mexico, India, and Italy, were included. Data extraction covered definitions, diagnostic criteria, hospital admission criteria, diagnostic tests, management, and prophylaxis recommendations.\nHospital admission criteria varied but typically included age <18 months and complex FS. Neuroimaging and lumbar puncture recommendations varied, with most guidelines suggesting limited use. Pharmacologic prophylaxis was generally discouraged for simple FS but considered only for high-risk cases, due to the benign nature of FS and the potential side effects of antiseizure medications.\nGuidelines on FS exhibit similarities and differences, highlighting the need for standardized management and improved parental education to enhance clinical outcomes and reduce economic and social costs associated with FS. Future research should focus on creating updated international guidelines and ensuring their practical implementation.",
+        "sha256": "d91fb5442e24742c16a730508b7f2bc79fe6ceef01e0237fc0b7101fa9fc8651",
+        "retrieved_at": "2026-09-18T20:11:02.679331+00:00"
+      },
+      {
+        "id": "34281996",
+        "title": "Evaluation and Management of Well-Appearing Febrile Infants 8 to 60 Days Old.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34281996/",
+        "abstract": "This guideline addresses the evaluation and management of well-appearing, term infants, 8 to 60 days of age, with fever ≥38.0°C. Exclusions are noted. After a commissioned evidence-based review by the Agency for Healthcare Research and Quality, an additional extensive and ongoing review of the literature, and supplemental data from published, peer-reviewed studies provided by active investigators, 21 key action statements were derived. For each key action statement, the quality of evidence and benefit-harm relationship were assessed and graded to determine the strength of recommendations. When appropriate, parents' values and preferences should be incorporated as part of shared decision-making. For diagnostic testing, the committee has attempted to develop numbers needed to test, and for antimicrobial administration, the committee provided numbers needed to treat. Three algorithms summarize the recommendations for infants 8 to 21 days of age, 22 to 28 days of age, and 29 to 60 days of age. The recommendations in this guideline do not indicate an exclusive course of treatment or serve as a standard of medical care. Variations, taking into account individual circumstances, may be appropriate.",
+        "sha256": "1e64673b407c72a39641bd6cb8f8996af0d786cdae356b0e6c86d588d15b229e",
+        "retrieved_at": "2026-09-18T20:11:02.679331+00:00"
+      },
+      {
+        "id": "34049735",
+        "title": "Safety of vaccines used for routine immunization in the United States: An updated systematic review and meta-analysis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34049735/",
+        "abstract": "Understanding the safety of vaccines is critical to inform decisions about vaccination. Our objective was to conduct a systematic review of the safety of vaccines recommended for children, adults, and pregnant women in the United States.\nWe searched the literature in November 2020 to update a 2014 Agency for Healthcare Research and Quality review by integrating newly available data. Studies of vaccines that used a comparator and reported the presence or absence of key adverse events were eligible. Adhering to Evidence-based Practice Center methodology, we assessed the strength of evidence (SoE) for all evidence statements. The systematic review is registered in PROSPERO (CRD42020180089).\nOf 56,603 reviewed citations, 338 studies reported in 518 publications met inclusion criteria. For children, SoE was high for no increased risk of autism following measles, mumps, and rubella (MMR) vaccine. SoE was high for increased risk of febrile seizures with MMR. There was no evidence of increased risk of  intussusception with rotavirus vaccine at the latest follow-up (moderate SoE), nor of diabetes (high SoE). There was no evidence of increased risk or insufficient evidence for key adverse events for newer vaccines such as 9-valent human papillomavirus and meningococcal B vaccines. For adults, there was no evidence of increased risk (varied SoE) or insufficient evidence for key adverse events for the new adjuvanted inactivated influenza vaccine and recombinant adjuvanted zoster vaccine. We found no evidence of increased risk (varied SoE) for key adverse events among pregnant women following tetanus, diphtheria, and acellular pertussis vaccine, including stillbirth (moderate SoE).\nAcross a large body of research we found few associations of vaccines and serious key adverse events; however, rare events are challenging to study. Any adverse events should be weighed against the protective benefits that vaccines provide.",
+        "sha256": "e67691709d521448c9e42515809e25c35ceab31d6404b879c6b3db4bce6431ff",
+        "retrieved_at": "2026-09-18T20:11:02.679331+00:00"
+      },
+      {
+        "id": "37897526",
+        "title": "Evidence-based clinical practice guideline for management of urinary tract infection and primary vesicoureteric reflux.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37897526/",
+        "abstract": "We present updated, evidence-based clinical practice guidelines from the Indian Society of Pediatric Nephrology (ISPN) for the management of urinary tract infection (UTI) and primary vesicoureteric reflux (VUR) in children. These guidelines conform to international standards; Institute of Medicine and AGREE checklists were used to ensure transparency, rigor, and thoroughness in the guideline development. In view of the robust methodology, these guidelines are applicable globally for the management of UTI and VUR. Seventeen recommendations and 18 clinical practice points have been formulated. Some of the key recommendations and practice points are as follows. Urine culture with > 104 colony forming units/mL is considered significant for the diagnosis of UTI in an infant if the clinical suspicion is strong. Urine leukocyte esterase and nitrite can be used as an alternative screening test to urine microscopy in a child with suspected UTI. Acute pyelonephritis can be treated with oral antibiotics in a non-toxic infant for 7-10 days. An acute-phase DMSA scan is not recommended in the evaluation of UTI. Micturating cystourethrography (MCU) is indicated in children with recurrent UTI, abnormal kidney ultrasound, and in patients below 2 years of age with non-E. coli UTI. Dimercaptosuccinic acid scan (DMSA scan) is indicated only in children with recurrent UTI and high-grade (3-5) VUR. Antibiotic prophylaxis is not indicated in children with a normal urinary tract after UTI. Prophylaxis is recommended to prevent UTI in children with bladder bowel dysfunction (BBD) and those with high-grade VUR. In children with VUR, prophylaxis should be stopped if the child is toilet trained, free of BBD, and has not had a UTI in the last 1 year. Surgical intervention in high-grade VUR can be considered for parental preference over antibiotic prophylaxis or in children developing recurrent breakthrough febrile UTIs on antibiotic prophylaxis.",
+        "sha256": "b577e77e7486fe6c10c6bfcb23819cf998813363e3fb8b677d755ff3ce0ca064",
+        "retrieved_at": "2026-09-18T20:11:02.679331+00:00"
+      },
+      {
+        "id": "33125495",
+        "title": "Comparison of Acetaminophen (Paracetamol) With Ibuprofen for Treatment of Fever or Pain in Children Younger Than 2 Years: A Systematic Review and Meta-analysis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33125495/",
+        "abstract": "Acetaminophen (paracetamol) and ibuprofen are the most widely prescribed and available over-the-counter medications for management of fever and pain in children. Despite the common use of these medications, treatment recommendations for young children remain divergent.\nTo compare acetaminophen with ibuprofen for the short-term treatment of fever or pain in children younger than 2 years.\nSystematic search of the databases MEDLINE, Embase, CINAHL, and the Cochrane Central Register of Controlled Trials and the trial registers ClinicalTrials.gov and the Australian New Zealand Clinical Trials Registry from inception to March 2019, with no language limits.\nStudies of any design that included children younger than 2 years and directly compared acetaminophen with ibuprofen, reporting antipyretic, analgesic, and/or safety outcomes were considered. There were no limits on length of follow-up.\nFollowing the Preferred Reporting Items for Systematic Reviews and Meta-analyses (PRISMA) guideline, 2 authors independently extracted data and assessed quality. Data were pooled using a fixed-effects method if I2 was less than 50% and using a random-effects method if I2 was 50% or greater.\nThe primary outcomes were fever or pain within 4 hours of treatment onset. Safety outcomes included serious adverse events, kidney impairment, gastrointestinal bleeding, hepatotoxicity, severe soft tissue infection, empyema, and asthma and/or wheeze.\nOverall, 19 studies (11 randomized; 8 nonrandomized) of 241 138 participants from 7 countries and various health care settings (hospital-based and community-based) were included. Compared with acetaminophen, ibuprofen resulted in reduced temperature at less than 4 hours (4 studies with 435 participants; standardized mean difference [SMD], 0.38; 95% CI, 0.08-0.67; P = .01; I2 = 49%; moderate quality evidence) and at 4 to 24 hours (5 studies with 879 participants; SMD, 0.24; 95% CI, 0.03-0.45; P = .03; I2 = 57%; moderate-quality evidence) and less pain at 4 to 24 hours (2 studies with 535 participants; SMD, 0.20; 95% CI, 0.03-0.37; P = .02; I2 = 25%; moderate-quality evidence). Adverse events were uncommon. Acetaminophen and ibuprofen appeared to have similar serious adverse event profiles (7 studies with 27 932 participants; ibuprofen vs aceteminophen: odds ratio, 1.08; 95% CI, 0.87-1.33; P = .50, I2 = 0%; moderate-quality evidence).\nIn this study, use of ibuprofen vs acetaminophen for the treatment of fever or pain in children younger than 2 years was associated with reduced temperature and less pain within the first 24 hours of treatment, with equivalent safety.",
+        "sha256": "766f1129b8871666a4de0340c12f9eab8ab68cf183fe79188b5e87b0d70b45a5",
+        "retrieved_at": "2026-09-18T20:11:02.679331+00:00"
+      },
+      {
+        "id": "34818234",
+        "title": "Normal Values for Cerebrospinal Fluid in Neonates: A Systematic Review.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34818234/",
+        "abstract": "The diagnosis of neonatal meningitis often rests on microscopic and biochemical findings in the cerebrospinal fluid (CSF). There is ongoing uncertainty about age-related normal values for CSF findings in neonates, and many previous studies have included infants in whom antibiotics were administered before lumbar puncture or in whom viral meningitis was not excluded.\nA systematic search was done using MEDLINE and EMBASE to identify original studies which investigated CSF normal values in either healthy neonates or febrile neonates in whom bacterial and viral meningitis were reliably excluded.\nWe identified seven studies investigating 270 term and 96 preterm neonates. There were minimal differences between preterm and term neonates in the CSF white blood cell (WBC) count and glucose concentration. In contrast, the CSF neutrophil count and protein concentration were influenced by gestational and chronological age. In the four studies that reported individual patient data, in 95% of cases the CSF WBC count was <12 cells/μL in preterm and <10 cells/μL in term neonates, the neutrophil count was <16 and 8 cells/μL, and the protein concentration was <210 and 110 mg/dL, respectively.\nThe normal range for CSF parameters in neonates is different to that in older infants, and some parameters are influenced by gestational and chronological age. CSF parameters alone are not sufficiently reliable to exclude meningitis.",
+        "sha256": "059b3d8793a6ed9535b9590337b25e81d20cc50a9e01ebe3f9e434859cd743f1",
+        "retrieved_at": "2026-09-18T20:11:02.679331+00:00"
+      },
+      {
+        "id": "36318760",
+        "title": "Thyroid storm in pediatrics: a systematic review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36318760/",
+        "abstract": "Thyroid storm (TS) is an uncommon but severe manifestation of hyperthyroidism and an endocrine emergency, as it is fatal if it goes unrecognized. In pediatrics, the current literature is limited to case reports and case series. Current knowledge is extrapolated from adult data. This systematic review aims to present the epidemiology, most common etiologies, clinical presentation, and most accepted standard of care of TS in children. We aim to raise awareness of hyperthyroidism in the pediatric community.\nThe databases used were PubMed, google scholar, and LILACS, with the search terms \"thyroid storm\" AND \"pediatrics\". Studies included case reports and case series in English and Spanish from patients between the ages of 0-21 years with clinical features consistent with a diagnosis of TS based on ATA 2016, with or without reported scale scores, published between 2000 and 2022. Variables such as ethnicity, etiology, possible triggers, clinical features, and management components were analyzed and presented.\nWe analyzed data from 45 patients. Their mean age was 11.25 years. The majority of them were from Asia (26%). The most common clinical features were sinus tachycardia (86.7%) and fever (64%), followed by altered mental status (46%) and diarrhea (31%). Graves' disease was the most common underlying condition, and infection the most common precipitant. Thirty one percent of patients received treatment with four components; however morbidity and mortality were not clinically significant with those who did not. TS has a heterogeneous presentation with multisystemic involvement. The most common symptoms in this review were fever, tachycardia, diarrhea, and altered mental status.\nFurther studies may be needed to best standardize the diagnosis and management of TS in children. Qualitative studies are needed to best assess the delay in diagnosis of hyperthyroidism and how this may impact prognosis in case patients were to develop TS.",
+        "sha256": "2b5d6efb33712a1db1a526dbe0901eaa4e0d8d9994a8977a09494d74d13176ef",
+        "retrieved_at": "2026-09-18T20:11:02.679331+00:00"
+      },
+      {
+        "id": "36824394",
+        "title": "Systematic literature review of the signs and symptoms of respiratory syncytial virus.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36824394/",
+        "abstract": "Respiratory syncytial virus (RSV) is responsible for over 30 million lower respiratory tract infections (LRTIs) and 3 million hospitalizations worldwide each year. Despite the risk RSV poses to young children, older adults, and individuals with comorbidities or suppressed immunity, there is limited understanding of RSV symptom presentation across these at-risk groups, and there is no vaccine for RSV. We conducted two systematic literature reviews (SLRs) of studies that document signs and symptoms (S&S) of RSV in (1) children aged ≤5 years and (2) immunocompromised adolescents and adults, and adults at high risk for severe RSV due to age or comorbidities. Symptom duration and hospital length of stay (LOS) were explored. Electronic database searches were performed following PRISMA guidelines. Studies captured RSV S&S across community and hospital settings. Clinicians and caregivers reported (n = 25 studies) nasal discharge/congestion, cough, shortness of breath, feeding abnormalities, and fever in ≥40% of children across studies and settings. Median hospital stays for children ranged from 2 days in the United States to 7.5 days in China. High-risk adults with RSV (n = 6 studies) commonly (≥40% of adults) reported cough, sputum, dyspnea, and fever/feverishness. Median length of hospital stay in adults ranged from 6 to 15 days across studies. Caregivers and clinicians reported similar RSV S&S in young children, including upper and lower respiratory and systemic symptoms. In high-risk and immunocompromised adults, the most frequent (in multiple publications) and commonly reported RSV S&S were primarily LRTI symptoms. RSV symptoms could last for weeks and are variable based on geography.",
+        "sha256": "e611ae87a65f1a0e3983294857bed9fd89b8e4e4feecee48665337c73d4d18ba",
+        "retrieved_at": "2026-09-18T20:11:02.679331+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The AAP 2021 clinical practice guideline for well-appearing febrile infants 8-60 days (source 34281996) specifies distinct algorithms by age band. For the 8-21 day age group, the recommendation is a full evaluation including blood culture, urine culture, AND cerebrospinal fluid analysis via lumbar puncture, with admission and empiric parenteral antibiotics while cultures are pending. This is true even when the infant is well-appearing and inflammatory markers (CRP, procalcitonin, ANC) are normal, because the youngest age band carries a high baseline risk of invasive bacterial infection and the guideline does not permit deferral based on reassuring markers in this band. Furthermore, source 34818234 confirms that CSF parameters alone are insufficient to exclude meningitis, reinforcing the need for CSF culture rather than relying on other studies. Answer A (deferring LP and discharging without antibiotics) applies criteria more appropriate to older age bands (e.g., 22-28 or 29-60 days with shared decision-making) and is not supported for a 12-day-old.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.95,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34281996"
+              ],
+              "reason": "Source 34281996 explicitly addresses well-appearing term infants 8 to 60 days old with fever >=38.0C and provides three algorithms including one for 8-21 days of age."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34281996"
+              ],
+              "reason": "The AAP guideline directs full evaluation for the youngest band; while the abstract does not spell out each action statement, the well-established KAS for 8-21 days is LP, blood/urine cultures, admission, and empiric parenteral antibiotics, consistent with the guideline scope described."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34818234"
+              ],
+              "reason": "Source 34818234 concludes verbatim that 'CSF parameters alone are not sufficiently reliable to exclude meningitis.'"
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34818234"
+              ],
+              "reason": "Source 34818234 states the normal range for CSF parameters in neonates differs from older infants and some parameters are influenced by gestational and chronological age."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "34281996"
+              ],
+              "reason": "The guideline abstract notes 21 graded key action statements and shared decision-making where appropriate; it does not carve out the 8-21 day band from evaluation, consistent with the claim."
+            }
+          ],
+          "issues": [],
+          "rationale": "This is an on-specialty pediatrics case about febrile neonate risk stratification. Independent analysis: a 12-day-old is in the AAP 8-21 day band. For this youngest band, the standard of care is the full sepsis evaluation including LP, blood and urine cultures, hospital admission, and empiric parenteral antibiotics regardless of reassuring inflammatory markers, because normal WBC/CRP/procalcitonin and well appearance do not adequately exclude invasive bacterial infection or meningitis in neonates. Candidate B matches this and is safe. Candidate A (deferring LP, discharging home without antibiotics based on reassuring markers) is unsafe and is the intended flaw — it misapplies risk stratification appropriate to older bands (22-28 or 29-60 days) to a neonate. Key ground truth is correct and matches the chart (GBS-negative mother, well-appearing, normal labs — none of which change the neonatal recommendation). Chart data are internally consistent (rectal 38.4C, soft flat fontanelle, catheter UA negative). Sources 34281996 (AAP 8-60 day guideline) and 34818234 (neonatal CSF normal values) directly support the claims; I verified the CSF unreliability statement against the actual abstract text. Other sources in the bundle (febrile seizures, vaccine safety, UTI/VUR, antipyretics, thyroid storm, RSV) are distractors and not relied upon. Decision is distinct from the previous bronchiolitis case (different clinical decision: neonatal sepsis workup vs respiratory support escalation). One minor caveat: claim 1 depends on the well-known specific KAS content that is not fully quoted in the abstract, but the recommendation is uncontroversial and correct, so it does not block publication. No missing decisive data — the case provides all vitals, labs, and history needed; imaging is not required for this decision."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "At 12 days old, the infant falls within the 8–21 day group in which the 2021 AAP Clinical Practice Guideline recommends mandatory CSF evaluation (lumbar puncture) in addition to blood and urine cultures, with hospital admission and empiric parenteral antibiotics while cultures are pending, regardless of well appearance or normal inflammatory markers. This age band carries the highest baseline risk of invasive bacterial infection and meningitis, and normal CBC/CRP/procalcitonin or a negative urinalysis do not reduce risk sufficiently to safely omit LP or outpatient management. Obtaining CSF before antibiotics is preferred because CSF indices alone cannot reliably exclude meningitis and culture is essential. These recommendations are summarized in the AAP algorithms for 8–21 days and supported by evidence on CSF interpretation in neonates.",
+          "confidence": 0.92,
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/34281996/",
+            "https://pubmed.ncbi.nlm.nih.gov/34818234/"
+          ]
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34281996"
+              ],
+              "reason": "The AAP 2021 CPG explicitly addresses well-appearing, term infants 8–60 days with fever ≥38.0°C and provides three age-specific algorithms, including 8–21 days (stated in abstract)."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34281996"
+              ],
+              "reason": "In the 8–21 day algorithm, the AAP CPG recommends CSF evaluation by LP, blood and urine cultures, hospital admission, and empiric parenteral antibiotics for well-appearing febrile infants in this age band (algorithm content of the guideline)."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34818234"
+              ],
+              "reason": "The systematic review concludes that CSF parameters alone are not sufficiently reliable to exclude meningitis in neonates (explicit in abstract)."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34818234"
+              ],
+              "reason": "Normal neonatal CSF values differ from older infants; some (e.g., protein, neutrophils) vary by gestational and chronological age (explicit in abstract)."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "34281996"
+              ],
+              "reason": "The AAP CPG describes graded evidence and the role of shared decision-making in general; its age-stratified algorithms do not provide an exception for omitting full evaluation in 8–21 day infants."
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent solution: A 12-day-old (8–21 day band) well-appearing, term infant with fever 38.4°C has negative UA and reassuring CBC/CRP/procalcitonin. In this youngest group, the 2021 AAP febrile infant guideline recommends full sepsis evaluation including CSF via lumbar puncture, blood and urine cultures, hospital admission, and empiric parenteral antibiotics while cultures are pending, regardless of normal inflammatory markers, due to higher baseline risk of invasive bacterial infection and meningitis. Neonatal CSF normal ranges differ from older infants, and CSF parameters alone cannot reliably exclude meningitis, reinforcing the need to obtain CSF before antibiotics whenever feasible. Therefore, candidate B is correct; candidate A is unsafe (defers LP/antibiotics and discharges despite high-risk age band and pending cultures). The key aligns with current evidence and the case data. Specialty fit is pediatrics; data are coherent; required information for decision-making is present. This decision is distinct from prior bronchiolitis management content."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "49d26a05ddfe2b37eff224417e9c0cdfeb3005abf50ddc9204160e142c8a9b06"
+  }
+}

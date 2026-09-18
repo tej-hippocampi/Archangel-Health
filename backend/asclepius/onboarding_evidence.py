@@ -33,7 +33,7 @@ async def _request(client: httpx.AsyncClient, endpoint: str, params: dict) -> by
             chunks, size = [], 0
             async for chunk in response.aiter_bytes():
                 size += len(chunk)
-                if size > 1_000_000:
+                if size > 2_000_000:
                     raise ValueError("Clinical reference response too large")
                 chunks.append(chunk)
             return b"".join(chunks)
@@ -91,8 +91,15 @@ async def retrieve(specialty: str, *, topic: str | None = None) -> list[dict]:
         ids = [str(i) for i in ids if str(i).isdigit()][:12]
         if not ids:
             raise ValueError("No clinical references available")
-        rows = parse_articles(await _request(client, "efetch.fcgi",
-            {"id": ",".join(ids), "retmode": "xml"}))
+        rows = []
+        # Guidelines can carry very large reference lists. Fetch small bounded
+        # pages, retaining only vetted abstracts rather than raising the limit
+        # for a single unbounded response containing the whole search result.
+        for start in range(0, len(ids), 3):
+            rows.extend(parse_articles(await _request(client, "efetch.fcgi",
+                {"id": ",".join(ids[start:start + 3]), "retmode": "xml"})))
+            if len(rows) >= 8:
+                break
     if len(rows) < 2:
         raise ValueError("Insufficient clinical reference material")
     return rows[:8]

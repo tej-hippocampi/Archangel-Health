@@ -1,0 +1,487 @@
+{
+  "task_id": "onboarding-practice-v1-7e10bcdcaa72d9b4a621-1",
+  "specialty": "nephrology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Renoprotection in Type 2 Diabetes with Albuminuric CKD",
+    "question": "A 60s adult with type 2 diabetes and established albuminuric CKD (eGFR ~40, UACR ~600 mg/g) on a maximally tolerated ACE inhibitor still has persistent albuminuria. What is the most appropriate next step to reduce cardiovascular and kidney complications?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "nephrology",
+      "demographics": {
+        "age_band": "60-69",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Type 2 diabetes mellitus",
+          "since": "12 years",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Chronic kidney disease, stage G3b/A3 (albuminuric)",
+          "since": "3 years",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Hypertension",
+          "since": "10 years",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Established atherosclerotic cardiovascular disease (prior MI)",
+          "since": "2 years",
+          "collected_offset_days": null
+        }
+      ],
+      "medications": [
+        {
+          "drug": "lisinopril",
+          "dose": "40 mg",
+          "route": "oral",
+          "freq": "daily",
+          "collected_offset_days": null
+        },
+        {
+          "drug": "metformin",
+          "dose": "500 mg",
+          "route": "oral",
+          "freq": "twice daily",
+          "collected_offset_days": null
+        },
+        {
+          "drug": "atorvastatin",
+          "dose": "40 mg",
+          "route": "oral",
+          "freq": "daily",
+          "collected_offset_days": null
+        },
+        {
+          "drug": "aspirin",
+          "dose": "81 mg",
+          "route": "oral",
+          "freq": "daily",
+          "collected_offset_days": null
+        },
+        {
+          "drug": "amlodipine",
+          "dose": "5 mg",
+          "route": "oral",
+          "freq": "daily",
+          "collected_offset_days": null
+        }
+      ],
+      "vitals": {
+        "blood_pressure": "132/78",
+        "heart_rate": 72,
+        "weight_kg": 92,
+        "bmi": 31
+      },
+      "lab_panels": [
+        {
+          "panel": "Basic metabolic panel",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Creatinine",
+              "loinc": null,
+              "value": 1.8,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "H",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "eGFR",
+              "loinc": null,
+              "value": 40,
+              "unit": "mL/min/1.73m2",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "L",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Potassium",
+              "loinc": null,
+              "value": 4.6,
+              "unit": "mmol/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Bicarbonate",
+              "loinc": null,
+              "value": 24,
+              "unit": "mmol/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Sodium",
+              "loinc": null,
+              "value": 139,
+              "unit": "mmol/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Urine studies",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Urine albumin-to-creatinine ratio",
+              "loinc": null,
+              "value": 600,
+              "unit": "mg/g",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "H",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Glycemic",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Hemoglobin A1c",
+              "loinc": null,
+              "value": 7.8,
+              "unit": "%",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "H",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Progress",
+          "author_role": "nephrology",
+          "text": "60s man with long-standing type 2 diabetes and albuminuric CKD (eGFR ~40, UACR ~600 mg/g) with established ASCVD (prior MI). Blood pressure is controlled at 132/78 on a maximally tolerated ACE inhibitor plus amlodipine. Despite renin-angiotensin system blockade, albuminuria remains high, placing him at higher risk of both cardiovascular and kidney progression. Potassium is normal at 4.6 mmol/L and bicarbonate is 24 mmol/L. Metformin is dose-adjusted for eGFR. He asks about additional therapy to protect his kidneys and heart. We reviewed the balance of benefits and harms of adding an SGLT-2 inhibitor versus intensifying antiplatelet therapy, and discussed monitoring for an expected initial eGFR dip and genital mycotic infection risk with SGLT-2 inhibition.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": null
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": null,
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": null,
+      "ground_truth": {
+        "answer": "Add an SGLT-2 inhibitor. He has type 2 diabetes with established CKD and ASCVD (higher-risk stratum), so an SGLT-2 inhibitor carries a strong recommendation to reduce cardiovascular and kidney outcomes, layered onto his existing maximally tolerated ACE inhibitor. This is the guideline-supported renoprotective step for persistent albuminuria.",
+        "rationale": "For adults with type 2 diabetes and established CKD and/or CVD at higher risk of complications, guidelines make a strong recommendation in favour of SGLT-2 inhibitors (or GLP-1 receptor agonists). The KDIGO CKD framework centers RAS blockade plus SGLT-2 inhibition to slow progression in albuminuric CKD. Escalating aspirin would not reduce cardiovascular events in CKD and increases minor bleeding and renal events without net benefit.",
+        "evidence": null,
+        "key_data": [
+          "eGFR 40 with UACR 600 mg/g (albuminuric CKD)",
+          "Type 2 diabetes with established ASCVD = higher-risk stratum",
+          "Already on maximally tolerated ACE inhibitor with controlled BP",
+          "Potassium 4.6 and bicarbonate 24 (no immediate contraindication to added therapy)",
+          "A1c 7.8% with metformin dose-adjusted for eGFR"
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Increase antiplatelet therapy by adding a second agent to the aspirin to lower his cardiovascular risk, rather than adding a glucose-lowering renoprotective drug, since his kidney function is already reduced."
+      },
+      {
+        "id": "B",
+        "text": "Add an SGLT-2 inhibitor to his maximally tolerated ACE inhibitor, counseling him on the expected initial eGFR dip and genital mycotic infection risk, to reduce both cardiovascular and kidney complications."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "initial eGFR dip",
+      "genital mycotic infection",
+      "hyperkalemia monitoring",
+      "volume status",
+      "bleeding risk"
+    ],
+    "evidence_keywords": [
+      "SGLT-2 inhibitor",
+      "albuminuric CKD",
+      "RAS blockade",
+      "type 2 diabetes",
+      "cardiovascular protection",
+      "renoprotection"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "outdated_guideline"
+    ],
+    "claims": [
+      {
+        "statement": "For adults with type 2 diabetes and established CVD and/or CKD at higher risk of complications, there is a strong recommendation in favour of SGLT-2 inhibitors or GLP-1 receptor agonists.",
+        "source_ids": [
+          "40813129"
+        ]
+      },
+      {
+        "statement": "The KDIGO 2024 CKD guideline focuses management on delaying CKD progression and its complications, including risk assessment in albuminuric CKD.",
+        "source_ids": [
+          "38519239"
+        ]
+      },
+      {
+        "statement": "Aspirin did not prevent cardiovascular events in CKD patients and significantly increased minor bleeding and renal events.",
+        "source_ids": [
+          "37259222"
+        ]
+      },
+      {
+        "statement": "This patient's established ASCVD plus albuminuric CKD places him in the higher-risk stratum where added renoprotective therapy is favoured.",
+        "source_ids": [
+          "40813129",
+          "38519239"
+        ]
+      },
+      {
+        "statement": "Escalating antiplatelet therapy would add bleeding risk without a demonstrated reduction in overall cardiovascular events in CKD.",
+        "source_ids": [
+          "37259222"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T20:15:08.121986+00:00",
+    "author_model": "claude-opus-4-8",
+    "sources": [
+      {
+        "id": "32829751",
+        "title": "KDOQI Clinical Practice Guideline for Nutrition in CKD: 2020 Update.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32829751/",
+        "abstract": "The National Kidney Foundation's Kidney Disease Outcomes Quality Initiative (KDOQI) has provided evidence-based guidelines for nutrition in kidney diseases since 1999. Since the publication of the first KDOQI nutrition guideline, there has been a great accumulation of new evidence regarding the management of nutritional aspects of kidney disease and sophistication in the guidelines process. The 2020 update to the KDOQI Clinical Practice Guideline for Nutrition in CKD was developed as a joint effort with the Academy of Nutrition and Dietetics (Academy). It provides comprehensive up-to-date information on the understanding and care of patients with chronic kidney disease (CKD), especially in terms of their metabolic and nutritional milieu for the practicing clinician and allied health care workers. The guideline was expanded to include not only patients with end-stage kidney disease or advanced CKD, but also patients with stages 1-5 CKD who are not receiving dialysis and patients with a functional kidney transplant. The updated guideline statements focus on 6 primary areas: nutritional assessment, medical nutrition therapy (MNT), dietary protein and energy intake, nutritional supplementation, micronutrients, and electrolytes. The guidelines primarily cover dietary management rather than all possible nutritional interventions. The evidence data and guideline statements were evaluated using Grading of Recommendations, Assessment, Development and Evaluation (GRADE) criteria. As applicable, each guideline statement is accompanied by rationale/background information, a detailed justification, monitoring and evaluation guidance, implementation considerations, special discussions, and recommendations for future research.",
+        "sha256": "5f71261a89b1721b00fca550faa4f0623533ed0ae5ff648bcd06776b1cac7bf3",
+        "retrieved_at": "2026-09-18T20:13:17.064407+00:00"
+      },
+      {
+        "id": "33640205",
+        "title": "ESPEN guideline on clinical nutrition in hospitalized patients with acute or chronic kidney disease.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33640205/",
+        "abstract": "Acute kidney disease (AKD) - which includes acute kidney injury (AKI) - and chronic kidney disease (CKD) are highly prevalent among hospitalized patients, including those in nephrology and medicine wards, surgical wards, and intensive care units (ICU), and they have important metabolic and nutritional consequences. Moreover, in case kidney replacement therapy (KRT) is started, whatever is the modality used, the possible impact on nutritional profiles, substrate balance, and nutritional treatment processes cannot be neglected. The present guideline is aimed at providing evidence-based recommendations for clinical nutrition in hospitalized patients with AKD and CKD. Due to the significant heterogeneity of this patient population as well as the paucity of high-quality evidence data, the present guideline is to be intended as a basic framework of both evidence and - in most cases - expert opinions, aggregated in a structured consensus process, in order to update the two previous ESPEN Guidelines on Enteral (2006) and Parenteral (2009) Nutrition in Adult Renal Failure. Nutritional care for patients with stable CKD (i.e., controlled protein content diets/low protein diets with or without amino acid/ketoanalogue integration in outpatients up to CKD stages four and five), nutrition in kidney transplantation, and pediatric kidney disease will not be addressed in the present guideline.",
+        "sha256": "6a918b66c6231a46324ea424a510496400ecfc26b02afb6de742f1aea8b90863",
+        "retrieved_at": "2026-09-18T20:13:17.064407+00:00"
+      },
+      {
+        "id": "39848746",
+        "title": "KDIGO 2025 clinical practice guideline for the evaluation, management, and treatment of autosomal dominant polycystic kidney disease (ADPKD): executive summary.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39848746/",
+        "abstract": "The Kidney Disease: Improving Global Outcomes (KDIGO) 2025 Clinical Practice Guideline for the Evaluation, Management, and Treatment of Autosomal Dominant Polycystic Kidney Disease (ADPKD) represents the first KDIGO guideline on this subject. Its scope includes nomenclature, diagnosis, prognosis, and prevalence; kidney manifestations; chronic kidney disease (CKD) management and progression, kidney failure, and kidney replacement therapy; therapies to delay progression of kidney disease; polycystic liver disease; intracranial aneurysms and other extrarenal manifestations; lifestyle and psychosocial aspects; pregnancy and reproductive issues; pediatric issues; and approaches to the management of people with ADPKD. The guideline has been developed with patient partners, clinicians, and researchers around the world, with the goal to generate a useful resource for healthcare providers and patients by providing actionable recommendations. The development of this guideline followed an explicit process of evidence review and appraisal, based on a rigorous, formal systematic literature review. The strength of recommendations follows the Grading of Recommendations Assessment, Development, and Evaluation (GRADE) approach. The guideline also provides practice points serving to direct clinical care or activities relating to areas for which a systematic review was not conducted. Limitations of the evidence are discussed. Research recommendations to address gaps in knowledge, and implications for policy and payment, are provided. The guideline targets a broad audience of healthcare providers, people living with ADPKD, and stakeholders involved in the various aspects of ADPKD care.",
+        "sha256": "f4f43f938fc11d0d3d9618684b156407b7b0c417fe03615b948bfb55736e7f14",
+        "retrieved_at": "2026-09-18T20:13:17.064407+00:00"
+      },
+      {
+        "id": "39178492",
+        "title": "ESPEN practical guideline on clinical nutrition in hospitalized patients with acute or chronic kidney disease.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39178492/",
+        "abstract": "Hospitalized patients often have acute kidney disease (AKD) or chronic kidney disease (CKD), with important metabolic and nutritional consequences. Moreover, in case kidney replacement therapy (KRT) is started, the possible impact on nutritional requirements cannot be neglected. On this regard, the present guideline aims to provide evidence-based recommendations for clinical nutrition in hospitalized patients with KD.\nThe standard operating procedure for ESPEN guidelines was used. Clinical questions were defined in both the PICO format, and organized in subtopics when needed, and in non-PICO questions for the more general topics. The literature search was from January 1st, 1999 until January 1st, 2020. Each question led to one or more recommendation/statement and related commentaries. Existing evidence was graded, as well as recommendations and statements were developed and agreed upon in a multistage consensus process.\nThe present guideline provides 32 evidence-based recommendations and 8 statements, defining how to assess nutritional status, how to define patients at risk, how to choose the route of feeding, and how to integrate nutrition with KRT. In the final online voting, a strong consensus was reached in 84% at least of recommendations and 100% of statements.\nThe presence of KD in hospitalized patients identifies a highly heterogeneous group of subjects with widely varying nutrient needs and intakes. Considering the high nutritional risk related with this clinical condition, an individualized approach consisting of nutritional status evaluation and monitoring, frequent evaluation of nutritional requirements, and careful integration with KRT should be planned to avoid both underfeeding and overfeeding. Practical recommendations and statements were developed, aiming at defining suggestions for everyday clinical practice in the individualization of nutritional support in this patient setting. Literature areas with scarce or without evidence were also identified, thus requiring further basic or clinical research.",
+        "sha256": "d428577dd02a67febfef11b34f84186c2e7a7c69ead649db5c84142cc2e35d2b",
+        "retrieved_at": "2026-09-18T20:13:17.064407+00:00"
+      },
+      {
+        "id": "37259222",
+        "title": "Cardiovascular Protection of Aspirin in Chronic Kidney Disease Patients: An Updated Systematic Review and Meta-Analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37259222/",
+        "abstract": "To evaluate aspirin's cardiovascular (CV) protective effect in chronic kidney disease (CKD) patients.\nWe searched PubMed, Embase, Cochrane Library, and Web of Science (up to December 2022) for randomized controlled trials (RCTs) and observational studies comparing aspirin with placebo in CKD patients for the prevention of CV disease (CVD). Efficacy outcomes included CVD, heart failure, myocardial infarction, stroke, CV and all-cause mortality; safety outcomes included major bleeding, minor bleeding, and renal events.\nSix RCTs and 6 observational studies, including 35,640 participants, met the inclusion criteria and reported relevant CV outcomes, with a mean follow-up of 46.83 months. The pooled data showed aspirin had no significant preventive effect on CVD events (RR=1.03; 95% CI, 0.84-1.27). However, CV mortality was significantly reduced in the aspirin group (RR=0.74; 95% CI, 0.58-0.95). Furthermore, aspirin use did not increase the risk of major bleeding and renal events but significantly increased minor bleeding events (RR=2.11; 95% CI, 1.30-3.44). Renal events were significantly increased after sensitivity analysis (RR=1.10; 95% CI, 1.04-1.16).\nAspirin did not prevent CV events, with a significantly increased risk of minor bleeding and renal events. Besides, aspirin use had no statistically significant reduction in the risk of all-cause mortality but had a statistically significant reduction in the risk of CV mortality.",
+        "sha256": "537ab887aebf9128888c7b4e4ee0c749626429ea40f2b21cd673f2a45d5f1bdc",
+        "retrieved_at": "2026-09-18T20:13:17.064407+00:00"
+      },
+      {
+        "id": "40813129",
+        "title": "Cardiovascular, kidney related, and weight loss effects of therapeutics for type 2 diabetes: a living clinical practice guideline.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40813129/",
+        "abstract": "What are the benefits and harms of medications for adults with type 2 diabetes at varied risks of cardiovascular and kidney related complications?\nEmerging clinical trials of novel medications have demonstrated benefits on cardiovascular, kidney, and weight related outcomes in people with type 2 diabetes. Dynamically updated practice guidelines adhering to standards of trustworthiness are necessary in response to a rapidly evolving evidence base and the availability of multiple medication alternatives. This living practice guideline incorporates the latest available medications and evidence and provides recommendations stratified by risks of cardiovascular and kidney complications to inform diabetes management.\nThe panel issued risk-stratified recommendations regarding four prioritised medications for adults with type 2 diabetes (SGLT-2 inhibitors, GLP-1 receptor agonists, finerenone and tirzepatide):• Lower risk (three or fewer cardiovascular risk factors without established cardiovascular disease (CVD) or chronic kidney disease (CKD)): weak recommendation against SGLT-2 inhibitors or GLP-1 receptor agonists.• Moderate risk (more than three cardiovascular risk factors without established CVD or CKD; or established CVD and/or CKD at lower risk of complications): weak recommendation in favour of SGLT-2 inhibitors or GLP-1 receptor agonists; and a weak recommendation against finerenone in adults with CKD.• Higher risk (established CVD and/or CKD at higher risk of complications, or established heart failure): strong recommendation in favour of SGLT-2 inhibitors or GLP-1 receptor agonists; and a weak recommendation in favour of finerenone in adults with CKD.• Across risk strata: weak recommendation in favour of tirzepatide in adults with obesity.\nAn international panel including two patient partners, clinicians, and methodologists produced these recommendations. The panel followed standards for trustworthy guidelines and used the GRADE approach, explicitly considering the balance of benefits, harms and burdens of treatment from an individual patient perspective. Recommendations were informed by a linked living systematic review and network meta-analysis evaluating relative benefits and harms updated to 31 July 2024; and by linked systematic reviews addressing risk prediction models and values and preferences of adults with type 2 diabetes. Candidate therapeutics are prioritised based on availability of sufficient randomised trial data, relevance to a global audience and likelihood of changing practice.This is the first version of the living guideline. The guideline is part of the BMJ Rapid Recommendations series. MAGICapp displays the most recent version of the guideline and full content including evidence summaries and decision aids; major updates will be published in The BMJ. We encourage re-use, adaptation and translation of these living guidelines, and recognise that the lack of availability or high costs of some medications may be prohibitive and will impact on how these recommendations are implemented across different health care systems.",
+        "sha256": "3c8d802c9bfbcd339d0d075bf4507e7b5e6ac2f7d902aff6f961c77749f942ad",
+        "retrieved_at": "2026-09-18T20:13:17.064407+00:00"
+      },
+      {
+        "id": "38519239",
+        "title": "Executive summary of the KDIGO 2024 Clinical Practice Guideline for the Evaluation and Management of Chronic Kidney Disease: known knowns and known unknowns.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38519239/",
+        "abstract": "The Kidney Disease: Improving Global Outcomes (KDIGO) Clinical Practice Guideline for the Evaluation and Management of Chronic Kidney Disease (CKD) updates the KDIGO 2012 guideline and has been developed with patient partners, clinicians, and researchers around the world, using robust methodology. This update, based on a substantially broader base of evidence than has previously been available, reflects an exciting time in nephrology. New therapies and strategies have been tested in large and diverse populations that help to inform care; however, this guideline is not intended for people receiving dialysis nor those who have a kidney transplant. The document is sensitive to international considerations, CKD across the lifespan, and discusses special considerations in implementation. The scope includes chapters dedicated to the evaluation and risk assessment of people with CKD, management to delay CKD progression and its complications, medication management and drug stewardship in CKD, and optimal models of CKD care. Treatment approaches and actionable guideline recommendations are based on systematic reviews of relevant studies and appraisal of the quality of the evidence and the strength of recommendations which followed the \"Grading of Recommendations Assessment, Development, and Evaluation\" (GRADE) approach. The limitations of the evidence are discussed. The guideline also provides practice points, which serve to direct clinical care or activities for which a systematic review was not conducted, and it includes useful infographics and describes an important research agenda for the future. It targets a broad audience of people with CKD and their healthcare, while being mindful of implications for policy and payment.",
+        "sha256": "96747bf49720e14443bc14a88d950ca3e6798befd67fa66d7dc38a5a3913d28a",
+        "retrieved_at": "2026-09-18T20:13:17.064407+00:00"
+      },
+      {
+        "id": "32305232",
+        "title": "Impact of physical exercise in patients with chronic kidney disease: Sistematic review and meta-analysis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32305232/",
+        "abstract": "Physical exercise may offer multiple benefits to patients with chronic kidney disease (CKD). However, it was not traditionally recommended because of the possibility of impairing renal function and increasing proteinuria. The objective of this study is to review the clinical trials on physical exercise in patients with CKD and describe its effect on the progression of kidney disease and other factors associated. Randomized clinical trials (RCT) comparing an intervention that included an exercise component with a control group without physical exercise in non-dialysis patients with CKD from 2007 to 2018 in English and Spanish were included. PubMed, Scopus, Embase, Ovid (Medline) and PEDro databases were used for the search. Effects of physical exercise were summarized by the standardized mean difference (SMD). No differences were found in glomerular filtration rate or proteinuria between the intervention group and the control group: SMD -0.3 (P=.81); SMD 26.6 (P=.82). Positive effects were obtained on peak oxygen consumption: SMD 2.5 (P<.001), functional capacity: SMD 56.6 (P<.001), upper limb strength: SMD 6.8 (P<.001) and hemoglobin: SMD 0.3 (P=.003). An improvement on the quality of life was also evident using the KDQOL-36 survey: SMD 3.56 (P=.02) and the SF-36 survey: SMD 6.66 (P=.02). In conclusion, the practice of low-intensity physical exercise routinely has no negative impact on renal function. On the contrary, it improves aerobic and functional capacity, impacting positively on the quality of life.",
+        "sha256": "5edc7d5f01c237e6f8a7220410c7ae23eca571f437a3a845d81e58c287794c56",
+        "retrieved_at": "2026-09-18T20:13:17.064407+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This patient has type 2 diabetes with established albuminuric CKD (eGFR ~40, UACR ~600 mg/g) plus established ASCVD (prior MI) on a maximally tolerated ACE inhibitor with persistent albuminuria—placing him in the highest-risk category for both cardiovascular and kidney complications. The living clinical practice guideline (PMID 40813129) gives a STRONG recommendation in favor of SGLT-2 inhibitors for adults with type 2 diabetes and established CVD and/or CKD at higher risk of complications, precisely to reduce cardiovascular and kidney complications. His labs support safe initiation: potassium 4.6 mmol/L, bicarbonate 24, eGFR 40 (above typical initiation thresholds), and the note appropriately flags counseling on the expected initial eGFR dip and genital mycotic infection risk—consistent with answer B. In contrast, answer A (adding a second antiplatelet agent) is not supported: the meta-analysis of aspirin in CKD (PMID 37259222) found no significant reduction in CVD events and increased minor bleeding and renal events, and there is no evidence base for dual antiplatelet therapy purely for primary risk reduction here; it also ignores the renoprotective imperative addressed by SGLT-2 inhibition. Note that answer A's premise—that reduced kidney function precludes a renoprotective agent—is factually wrong, as SGLT-2 inhibitor benefit is well established at this eGFR.",
+          "confidence": 0.96
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.92,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "40813129"
+              ],
+              "reason": "The living guideline abstract explicitly states: for higher risk (established CVD and/or CKD at higher risk of complications, or heart failure), strong recommendation in favour of SGLT-2 inhibitors or GLP-1 receptor agonists."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38519239"
+              ],
+              "reason": "KDIGO 2024 CKD guideline executive summary covers evaluation/risk assessment and management to delay CKD progression and its complications in CKD (non-dialysis, non-transplant)."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37259222"
+              ],
+              "reason": "The meta-analysis concludes aspirin did not prevent CV events (RR 1.03) and significantly increased minor bleeding (RR 2.11) and renal events (RR 1.10 on sensitivity analysis)."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "40813129",
+                "38519239"
+              ],
+              "reason": "Patient has established ASCVD (prior MI) plus albuminuric CKD (eGFR 40, UACR 600), consistent with the higher-risk stratum where SGLT-2i is strongly favoured; KDIGO supports risk-based renoprotection."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37259222"
+              ],
+              "reason": "Consistent with the meta-analysis: no reduction in overall CV events with aspirin plus increased minor bleeding; escalating antiplatelet therapy adds bleeding without net CV event benefit."
+            }
+          ],
+          "issues": [],
+          "rationale": "Solving the case independently: a 60s man with T2DM, albuminuric CKD (eGFR ~40, UACR ~600 A3), prior MI (established ASCVD), on maximally tolerated ACEi with controlled BP, normal K+ (4.6) and bicarbonate (24), A1c 7.8%, metformin dose-adjusted. This is the paradigm case for adding an SGLT-2 inhibitor: current KDIGO 2024 and the 2025 living BMJ Rapid Recommendation both support layering an SGLT-2 inhibitor onto RAS blockade for renoprotection and CV protection, with a strong recommendation in the higher-risk stratum (established CVD and/or higher-risk CKD). Candidate B matches this and appropriately counsels on the initial eGFR dip and genital mycotic infection risk. Candidate A (dual antiplatelet therapy) is the intended flaw: adding a second antiplatelet agent for chronic secondary prevention lacks demonstrated net CV benefit in CKD and increases bleeding (source 37259222), and it neglects the guideline-endorsed renoprotective step — working as designed as the unsafe/outdated distractor. \n\nSafety checks cleared: eGFR 40 is above the initiation threshold for SGLT-2 inhibitors; no volume depletion, hyperkalemia, or acidosis contraindications; UACR ~600 with eGFR 40 gives strong renal benefit expectation. Every claim was verified against the actual abstract text and each is supported. Sources cited are appropriate and current (2024–2025); the nutrition/ADPKD/exercise sources are not relied upon for the decisive claims. \n\nExam independence: previous cases cover hyponatremia classification, potassium/pseudohyperkalemia, AIN vs pre-renal AKI, cardiorenal diuresis, HRS, BK nephropathy, CKD-MBD, acid-base, and Gitelman workup — none address SGLT-2i renoprotection in albuminuric diabetic CKD, so this is a genuinely distinct clinical decision. \n\nMinor observations (non-blocking): the case does not mention finerenone, which is also guideline-favoured (weak) in this higher-risk stratum with K+ 4.6 — but SGLT-2i is the stronger, first-line addition, so the key remains correct. No missing decisive data; imaging not required for this decision."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Add an SGLT-2 inhibitor for cardiorenal protection. In adults with type 2 diabetes and albuminuric CKD at higher risk (eGFR ~40, UACR ~600, established ASCVD) already on ACE inhibitor therapy, guidelines strongly recommend SGLT-2 inhibitors to reduce CKD progression and cardiovascular events; an initial eGFR dip and genital mycotic infections should be anticipated and counseled (KDIGO 2024 executive summary, PMID 38519239; BMJ living guideline 2025, PMID 40813129). By contrast, intensifying antiplatelet therapy does not address kidney disease progression and has uncertain net benefit in CKD, with meta-analysis showing no prevention of cardiovascular events and increased bleeding/renal events with aspirin in CKD (PMID 37259222). Thus, adding an SGLT-2 inhibitor is the most appropriate next step.",
+          "confidence": 0.94
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "40813129"
+              ],
+              "reason": "The BMJ living guideline explicitly gives a strong recommendation in favour of SGLT-2 inhibitors or GLP-1 receptor agonists for adults with type 2 diabetes at higher risk (established CVD and/or CKD)."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38519239"
+              ],
+              "reason": "KDIGO 2024 CKD executive summary states the guideline covers evaluation and risk assessment and management to delay CKD progression and its complications, which includes albuminuric CKD."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37259222"
+              ],
+              "reason": "Meta-analysis in CKD shows aspirin did not reduce overall CVD events and significantly increased minor bleeding; renal events increased in sensitivity analysis."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "40813129",
+                "38519239"
+              ],
+              "reason": "Patient has established ASCVD and albuminuric CKD, meeting the higher-risk stratum per the BMJ guideline, where adding renoprotective therapy (SGLT-2 inhibitor or GLP-1 RA) is recommended."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37259222"
+              ],
+              "reason": "In CKD, aspirin did not reduce overall CVD events and increased minor bleeding, supporting that intensifying antiplatelet therapy risks bleeding without proven net CVD event reduction."
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent clinical solution: A man in his 60s with type 2 diabetes, albuminuric CKD (eGFR ~40, UACR ~600 mg/g), and ASCVD is already on maximally tolerated ACE inhibition with controlled BP and normal potassium. Current guidelines prioritize adding an SGLT-2 inhibitor on top of RAS blockade to reduce both kidney disease progression and cardiovascular events in this higher-risk population. At eGFR 40, SGLT-2 inhibitors are indicated; counsel regarding an initial eGFR dip, genital mycotic infections, and volume status. GLP-1 receptor agonists provide additional cardiovascular benefit and weight loss, but SGLT-2 inhibitors are prioritized for kidney protection. Finerenone is also guideline-supported in persistent albuminuric CKD on RAS blockade with normal potassium; it would be a reasonable subsequent add-on but is not among the candidates here.\nAssessment of candidates and key: Candidate B correctly recommends adding an SGLT-2 inhibitor and includes appropriate counseling on the expected initial eGFR dip and genital infection risk. Candidate A proposes escalating antiplatelet therapy by adding a second agent, which is not guideline-supported for this purpose in CKD and increases bleeding risk; it also incorrectly dismisses SGLT-2 inhibitors due to reduced kidney function, despite strong evidence of benefit at this eGFR. The answer key aligns with up-to-date guidance: strong recommendation for SGLT-2 inhibitors (or GLP-1 RAs) in higher-risk T2D with CKD/CVD and notes that increasing aspirin therapy does not reduce overall CVD events in CKD and increases minor bleeding and may worsen renal events per sensitivity analyses.\nEvidence verification: The BMJ living guideline (2025) explicitly provides a strong recommendation for SGLT-2 inhibitors or GLP-1 RAs in higher-risk T2D (established CVD and/or CKD). KDIGO 2024 emphasizes risk assessment and management to delay CKD progression. The 2024 aspirin meta-analysis in CKD shows no reduction in overall CVD events and increased minor bleeding, with renal events increased on sensitivity analysis. These support the key claims. The case is within nephrology, clinically coherent, provides sufficient data to act, and makes a decision distinct from prior cases.",
+          "best_answer_id_reasoning": "B offers the guideline-supported, renoprotective next step (SGLT-2 inhibitor) with appropriate safety counseling; A is outdated/unsafe for CKD patients."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "0143a3b2259d50988c61a9aefdaaec482bc80fc3817bbcc0344d11e836e63042"
+  }
+}

@@ -44,4 +44,10 @@ instead. Do not restore over a live database or modify submitted assessments.
 
 ## Independent review and results
 
-Fresh-context review and CI results will be recorded in PR #164 before release.
+Fresh-context re-audit confirmed strict solver blinding, age scope, pinned image
+assistance and bounded retrieval: 20 targeted tests passed. Eleven real-reviewed
+case artifacts were retained; five rejected artifacts remain outside the release
+bank and available in the original CI build. The full coverage gate remains
+failing (75 missing cases), and generation is blocked by insufficient Anthropic
+API credits. Latest software checks: 491 regressions passed, 2 skipped, plus
+7 browser journeys passed. See `docs/validation/ONBOARDING_LIBRARY_2026-09-18.md`.

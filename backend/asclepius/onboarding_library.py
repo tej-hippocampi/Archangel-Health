@@ -20,6 +20,7 @@ ROOT = Path(__file__).with_name("onboarding_material") / "cases"
 def validate(document: dict) -> dict:
     from asclepius import onboarding_cases as bank, onboarding_media
     from asclepius.onboarding_specialties import canonical
+    from asclepius.onboarding_catalog import age_scope_for
     specialty, kind = document["specialty"], document["kind"]
     ident = bank.task_id(specialty, kind, document.get("slot", 1))
     if specialty != canonical(specialty) or document["task_id"] != ident:
@@ -28,7 +29,8 @@ def validate(document: dict) -> dict:
     if report.get("method") != "two_provider_evidence_review" or report.get("version") != bank.VERSION:
         raise ValueError("Real clinical review required for release material")
     asset = onboarding_media.reference(kind)["asset"] if specialty == "pathology" else None
-    entry = bank.validate_entry(document["entry"], specialty, report["sources"], approved_asset=asset)
+    entry = bank.validate_entry(document["entry"], specialty, report["sources"], approved_asset=asset,
+                                age_scope=age_scope_for(specialty))
     digest = hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest()
     if report.get("entry_sha256") != digest:
         raise ValueError("Reviewed entry checksum mismatch")

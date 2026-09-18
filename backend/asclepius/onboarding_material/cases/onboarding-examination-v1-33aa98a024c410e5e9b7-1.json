@@ -1,0 +1,428 @@
+{
+  "task_id": "onboarding-examination-v1-33aa98a024c410e5e9b7-1",
+  "specialty": "pulmonology",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "COPD Exacerbation: Post-Discharge Management Decision",
+    "question": "A patient hospitalized for an acute exacerbation of COPD is now clinically improved and ready for discharge. Which intervention is most strongly supported by evidence to reduce hospital readmission after discharge?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "pulmonology",
+      "demographics": {
+        "age_band": "65-74",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Acute exacerbation of COPD (AECOPD), current admission",
+          "since": "day -4",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "COPD GOLD group E, prior 2 exacerbations in past year",
+          "since": "several years",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Former smoker, 40 pack-year history",
+          "since": "remote",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Reduced exercise capacity / deconditioning",
+          "since": "months",
+          "collected_offset_days": null
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Prednisone",
+          "dose": "40 mg",
+          "route": "oral",
+          "freq": "daily x5 days",
+          "collected_offset_days": -4
+        },
+        {
+          "drug": "Amoxicillin-clavulanate",
+          "dose": "as prescribed",
+          "route": "oral",
+          "freq": "5-day course",
+          "collected_offset_days": -4
+        },
+        {
+          "drug": "Tiotropium",
+          "dose": "18 mcg",
+          "route": "inhaled",
+          "freq": "daily",
+          "collected_offset_days": 0
+        },
+        {
+          "drug": "Formoterol-budesonide",
+          "dose": "as prescribed",
+          "route": "inhaled",
+          "freq": "twice daily",
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "temp_C": 37.0,
+        "hr_bpm": 82,
+        "rr_bpm": 18,
+        "spo2_percent_room_air": 93,
+        "bp_mmHg": "128/76"
+      },
+      "lab_panels": [
+        {
+          "panel": "CBC",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "WBC",
+              "loinc": null,
+              "value": 8.1,
+              "unit": "10^9/L",
+              "ref_low": 4.0,
+              "ref_high": 11.0,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Eosinophils (blood)",
+              "loinc": null,
+              "value": 120,
+              "unit": "cells/mcL",
+              "ref_low": 0,
+              "ref_high": 500,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Discharge Planning",
+          "author_role": "pulmonology",
+          "text": "65-74yo male admitted 4 days ago with AECOPD (increased dyspnea, sputum volume and purulence). Treated with systemic corticosteroids and a 5-day antibiotic course, nebulized bronchodilators, and controlled oxygen. He has clinically improved: afebrile, SpO2 93% on room air, ambulating with minimal desaturation, sputum back to baseline. This is his second exacerbation this year and he reports significant deconditioning limiting daily activities (mMRC 3). Blood eosinophils 120 cells/mcL. Inhaler technique reviewed and maintenance LAMA/LABA/ICS optimized. Team discussing which post-discharge intervention best reduces the risk of readmission before he leaves the hospital.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Chest X-ray",
+          "label": "PA and lateral chest radiograph",
+          "findings": "Hyperinflated lungs with flattened diaphragms consistent with emphysema. No focal consolidation, effusion, or pneumothorax.",
+          "measurements": [],
+          "impression": "No acute infiltrate; findings consistent with underlying COPD.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -4
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": null,
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": null,
+      "ground_truth": {
+        "answer": "Refer the patient to a pulmonary rehabilitation programme initiated within 3 weeks of hospital discharge.",
+        "rationale": "Meta-analytic evidence shows that pulmonary rehabilitation initiated within 3 weeks of hospital discharge after a COPD exacerbation reduces hospital readmissions (OR 0.48) and improves exercise capacity, health-related quality of life, and dyspnea, with no intervention-related adverse events. ATS guidelines issue a strong recommendation for pulmonary rehabilitation after hospitalization for COPD exacerbation. This patient is a strong candidate given deconditioning, reduced exercise capacity, and recurrent exacerbations.",
+        "evidence": null,
+        "key_data": [
+          "Post-discharge pulmonary rehabilitation reduced hospital re-admissions (OR 0.48, 95% CI 0.30-0.77).",
+          "ATS strongly recommends pulmonary rehabilitation after hospitalization for COPD exacerbation (moderate-quality evidence).",
+          "Patient has mMRC 3 dyspnea, deconditioning, and reduced exercise capacity making him a good rehab candidate.",
+          "No intervention-related adverse events were reported with early post-discharge pulmonary rehabilitation.",
+          "Blood eosinophils 120 cells/mcL do not support add-on biologic therapy, which benefits eosinophilic phenotype (>=300/mcL)."
+        ]
+      },
+      "hard_hook": "The distractor is superficially attractive because biologics are a hot topic in COPD, but this patient's low eosinophils and the guideline-strong rehab evidence make the choice clear.",
+      "reasoning_divergence": "Distinguishing a broadly effective, guideline-strong discharge intervention (pulmonary rehab) from a phenotype-restricted therapy (dupilumab) that this patient does not qualify for."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Start add-on dupilumab biologic therapy at discharge to reduce the risk of future COPD exacerbations, given his history of recurrent exacerbations this past year."
+      },
+      {
+        "id": "B",
+        "text": "Refer the patient to a pulmonary rehabilitation programme initiated within 3 weeks of hospital discharge to reduce readmissions and improve exercise capacity and quality of life."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "hospital readmission",
+      "AECOPD",
+      "exercise capacity",
+      "blood eosinophils",
+      "discharge planning",
+      "dyspnea",
+      "quality of life"
+    ],
+    "evidence_keywords": [
+      "pulmonary rehabilitation",
+      "post-discharge",
+      "COPD exacerbation",
+      "dupilumab",
+      "eosinophils",
+      "network meta-analysis"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "wrong_diagnosis"
+    ],
+    "claims": [
+      {
+        "statement": "Pulmonary rehabilitation started within 3 weeks of hospital discharge after a COPD exacerbation reduces hospital re-admissions (OR 0.48, 95% CI 0.30-0.77).",
+        "source_ids": [
+          "38350731"
+        ]
+      },
+      {
+        "statement": "ATS issues a strong recommendation for pulmonary rehabilitation after hospitalization for a COPD exacerbation based on moderate-quality evidence.",
+        "source_ids": [
+          "37581410"
+        ]
+      },
+      {
+        "statement": "Post-discharge pulmonary rehabilitation improves exercise capacity, health-related quality of life, and dyspnea without intervention-related adverse events.",
+        "source_ids": [
+          "38350731"
+        ]
+      },
+      {
+        "statement": "Dupilumab reduces COPD exacerbations and improves outcomes mainly in patients with higher blood eosinophil levels, with FEV1 benefit above MCID seen in the subgroup with eosinophils >=300/mcL.",
+        "source_ids": [
+          "39877958"
+        ]
+      },
+      {
+        "statement": "Center-based pulmonary rehabilitation or telerehabilitation may be offered as equivalent delivery options for patients with chronic respiratory disease.",
+        "source_ids": [
+          "37581410"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T20:18:25.302419+00:00",
+    "author_model": "claude-opus-4-8",
+    "sources": [
+      {
+        "id": "41016738",
+        "title": "European Respiratory Society clinical practice guideline for the management of adult bronchiectasis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41016738/",
+        "abstract": "Bronchiectasis is a common lung condition associated with wide range of infectious, immunological, autoimmune, allergic and genetic conditions. Exacerbations and daily symptoms have the largest impact on patients and healthcare systems, and they are the key focus of treatments. Current practice is heterogeneous globally, and bronchiectasis has historically been a neglected disease. Here, we present evidence-based international guidelines for the management of adults with bronchiectasis.\nA European Respiratory Society (ERS) Task Force, comprising global experts, a methodologist and patient representatives, developed clinical practice guidelines in accordance with ERS methodology and the GRADE (Grading of Recommendations, Assessment, Development and Evaluations) approach. Systematic literature searches, data extraction and meta-analysis were performed to generate evidence tables, and recommendations were formulated using the evidence-to-decision framework. A total of eight PICO (Patients, Intervention, Comparator, Outcomes) questions and three narrative questions were developed.\nThe Task Force recommendations include strong recommendations in favour of airway clearance techniques for most patients with bronchiectasis, and pulmonary rehabilitation for those with impaired exercise capacity. We issue a strong recommendation for the use of long-term macrolide treatment for patients at high risk of exacerbations and a strong recommendation in favour of long-term inhaled antibiotics in patients with chronic Pseudomonas aeruginosa infection at high risk of exacerbation. Conditional recommendations support the use of eradication treatment or mucoactive drugs in specific circumstances. We suggest not to routinely use long-term oral, non-macrolide antibiotic treatment or inhaled corticosteroids. Additional guidance is also provided on testing for underlying causes, managing exacerbations and managing the deteriorating patient.\nThe ERS bronchiectasis guidelines provide an evidence-based framework for optimal management of adults with bronchiectasis and serve as a benchmark for evaluating the quality of care.",
+        "sha256": "1bb705d318cf00b259470be9e7acc2422504791a48f5a4f4c70ede2d3419a667",
+        "retrieved_at": "2026-09-18T20:16:43.170180+00:00"
+      },
+      {
+        "id": "37581410",
+        "title": "Pulmonary Rehabilitation for Adults with Chronic Respiratory Disease: An Official American Thoracic Society Clinical Practice Guideline.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37581410/",
+        "abstract": "Background: Despite the known benefits of pulmonary rehabilitation (PR) for patients with chronic respiratory disease, this treatment is underused. Evidence-based guidelines should lead to greater knowledge of the proven benefits of PR, highlight the role of PR in evidence-based health care, and in turn foster referrals to and more effective delivery of PR for people with chronic respiratory disease. Methods: The multidisciplinary panel formulated six research questions addressing PR for specific patient groups (chronic obstructive pulmonary disease [COPD], interstitial lung disease, and pulmonary hypertension) and models for PR delivery (telerehabilitation, maintenance PR). Treatment effects were quantified using systematic reviews. The Grading of Recommendations, Assessment, Development and Evaluation approach was used to formulate clinical recommendations. Recommendations: The panel made the following judgments: strong recommendations for PR for adults with stable COPD (moderate-quality evidence) and after hospitalization for COPD exacerbation (moderate-quality evidence), strong recommendation for PR for adults with interstitial lung disease (moderate-quality evidence), conditional recommendation for PR for adults with pulmonary hypertension (low-quality evidence), strong recommendation for offering the choice of center-based PR or telerehabilitation for patients with chronic respiratory disease (moderate-quality evidence), and conditional recommendation for offering either supervised maintenance PR or usual care after initial PR for adults with COPD (low-quality evidence). Conclusions: These guidelines provide the basis for evidence-based delivery of PR for people with chronic respiratory disease.",
+        "sha256": "625ec5b430805fdc74fd5bd108e867e536c99a17315bfb8b39699f607fac3f27",
+        "retrieved_at": "2026-09-18T20:16:43.170180+00:00"
+      },
+      {
+        "id": "33253970",
+        "title": "Managing malnutrition in COPD: A review.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33253970/",
+        "abstract": "In the UK approximately 1.2 million people have COPD with around 25-40% being underweight and 35% have a severely low fat-free mass index. Measuring their body mass index is recommended and Health care professionals should endeavour to ensure that COPD patients are achieving their nutritional requirements. A narrative review summarizes evidence from 28 original articles identified through a systematic searches of databases, grey literature and hand searches covering 15 years, focusing on two themes, on the impact of malnutrition on COPD, and the management of malnutrition in COPD. Malnutrition causes negative effects on exercise and muscle function and lung function as well as increasing exacerbations, mortality and cost. Management options include nutritional supplementation which may increase weight and muscle function. Nutritional education has short-term improvements. Malnutrition affects multiple aspects of COPD, but treatment is of benefit. Clinical practice should include nutrition management.",
+        "sha256": "e7c52c30416778c96bfc317bb5e8de2f777a9ae0c9d18ba172965afd6178c4ca",
+        "retrieved_at": "2026-09-18T20:16:43.170180+00:00"
+      },
+      {
+        "id": "40418567",
+        "title": "Effectiveness of Digital Health Interventions for Chronic Obstructive Pulmonary Disease: Systematic Review and Meta-Analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40418567/",
+        "abstract": "Chronic obstructive pulmonary disease (COPD), marked by dyspnea, cough, and sputum production, significantly impairs patients' quality of life and functionality. Effective management strategies, particularly those empowering patients to manage their condition, are essential to reduce this burden and health care use. Digital health interventions-such as mobile apps for symptom tracking, wearable sensors for vital sign monitoring, and web-based pulmonary rehabilitation programs-can enhance self-efficacy and promote greater patient engagement. By improving self-management skills, these interventions also help alleviate pressure on health care systems.\nThis systematic review and meta-analysis assesses the clinical effectiveness of smartphone apps, wearable monitors, and web-delivered platforms in four COPD management areas: (1) quality of life (measured by the COPD Assessment Test [CAT] and St George's Respiratory Questionnaire), (2) self-efficacy (assessed by the General Self-Efficacy Scale), (3) functional capacity (evaluated via the 6-minute walk test and Modified Medical Research Council Dyspnea Scale), and (4) health care use (indicated by hospital and emergency department visits).\nA systematic review was conducted using predefined search terms in PubMed, Embase, Cochrane, and Web of Science up to January 26, 2025, to identify randomized trials on digital health interventions for COPD. Two reviewers independently screened studies and extracted data. Outcomes included quality of life, self-efficacy, functional status, and health care use.\nThis review included 17 studies with 2027 participants from 11 countries. Eleven trials involved health care professionals in digital platform use, and 12 reported adherence strategies. Digital tools for COPD primarily focused on telerehabilitation (eg, video-guided exercises) and self-management systems (eg, artificial intelligence-driven exacerbation alerts). The study participants were predominantly older adults. Meta-analysis results indicated that digital health interventions significantly improved quality of life at 3 months on the CAT (mean difference [MD] -1.65, 95% CI -3.17 to -0.14; P=.03); at 6 months on the CAT (MD -2.43, 95% CI -3.93 to -0.94; P=.001) and St George's Respiratory Questionnaire (MD 3.25, 95% CI 0.69-5.81; P=.01); at 12 months on the CAT (MD -2.53, 95% CI -3.91 to -1.16; P<.001), EQ-5D (MD 0.04, 95% CI 0.01-0.07; P=.02), and EQ-5D visual analogue scale (MD 5.88, 95% CI 0.38-11.37; P=.04); the General Self-Efficacy Scale at 3 months (MD 1.65, 95% CI 0.62-2.69; P=.002) and 6 months (MD 1.94, 95% CI 0.83-3.05; P<.001); and the Modified Medical Research Council Dyspnea Scale at more than 3 months (MD -0.23, 95% CI -0.36 to -0.11; P=.003). However, no significant differences were observed in the 6-minute walk test, emergency department admissions, hospital admissions, emergency department admissions for COPD, or hospital admissions for COPD.\nOur findings suggest that digital health interventions may benefit COPD patients, but their clinical effectiveness remains uncertain. Further robust studies are needed, particularly those involving larger numbers of older adults with COPD.\nPROSPERO CRD420251032053; https://www.crd.york.ac.uk/PROSPERO/view/CRD420251032053.",
+        "sha256": "df78547bc24ee5ac89967f9c7dc18d2cdcba223895138068e2af7b0a549ded90",
+        "retrieved_at": "2026-09-18T20:16:43.170180+00:00"
+      },
+      {
+        "id": "39493366",
+        "title": "Impact of N-Acetylcysteine on Mucus Hypersecretion in the Airways: A Systematic Review.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39493366/",
+        "abstract": "Mucus clearance is crucial for airway protection, and its dysfunction leads to chronic obstructive pulmonary disease (COPD) characterized by mucus hypersecretion (MHS) and impaired clearance. MUC5AC and MUC5B mucin proteins are key components of airway mucus, with MUC5AC being particularly responsive to environmental stimuli, making it a potential COPD biomarker. N-acetylcysteine (NAC) is a mucolytic agent with known effects on mucus viscosity and clearance, but its precise mechanisms in COPD remain unclear. This systematic review evaluated the impact of NAC on MHS in the airways, reporting significant inhibitory effects on MUC5AC and MUC5B gene and protein expression, as well as a reduction in the number of goblet cells. NAC has demonstrated efficacy in vitro and in animal models of MHS, including COPD models, but data on human bronchial tissue are lacking. This systematic review suggests that NAC acts as a mucolytic and a mucoregulator, directly inhibiting mucus secretion and goblet cell hyperplasia. Given the critical role of MHS in COPD progression, exacerbations, and mortality, these findings highlight the potential of NAC as a targeted therapy for hypersecretion COPD phenotypes. However, further studies are needed to confirm the results of this systematic review, even in human bronchial tissue, to provide translatable evidence in clinical settings. Understanding the intimate mechanism of NAC versus MHS regulation may pave the way for more effective treatments targeting airway mucus dysfunction in COPD, ultimately improving patient outcomes and reducing morbidity and mortality associated with chronic mucus hypersecretion.",
+        "sha256": "152eb5fe6060072eac94182b4f15ab1c83d24948472bffc6cd7ceeb4f0f19793",
+        "retrieved_at": "2026-09-18T20:16:43.170180+00:00"
+      },
+      {
+        "id": "38350731",
+        "title": "Do pulmonary rehabilitation programmes improve outcomes in patients with COPD posthospital discharge for exacerbation: a systematic review and meta-analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38350731/",
+        "abstract": "Previous systematic reviews have provided heterogeneous and differing estimates for the efficacy of pulmonary rehabilitation following exacerbations of chronic obstructive pulmonary disease (COPD). The aim of this review was to examine the efficacy of pulmonary rehabilitation programmes initiated within 3 weeks of hospital discharge following an exacerbation of COPD.\nAn update of a previous Cochrane review was undertaken using the Cochrane Airways Review Group Specialised Register. Searches were conducted from October 2015 to August 2023 for studies that initiated pulmonary rehabilitation within 3 weeks of hospital discharge. Studies assessing the impact of solely inpatient pulmonary rehabilitation were excluded. Forest plots were generated using a generic inverse variance random effects method.\nSeventeen studies were included. Posthospital discharge pulmonary rehabilitation reduced hospital re-admissions (OR 0.48, 95% CI 0.30 to 0.77, I2=67%), improved exercise capacity (6 min walk test, mean difference (MD) 57 m, 95% CI 29 to 86, I2=89%; incremental shuttle walk test, MD 43 m, 95% CI 6 to 79, I2=81%), health-related quality of life (St. George's Respiratory Questionnaire, MD -8.7 points, 95% CI -12.5 to -4.9, I2=59%; Chronic Respiratory Disease Questionnaire (CRQ)-emotion, MD 1.0 points, 95% CI 0.4 to 1.6, I2=74%; CRQ-fatigue, MD 0.9 points, 95% CI 0.1 to 1.6, I2=91%), and dyspnoea (CRQ-dyspnoea, MD 1.0 points, 95% CI 0.3 to 1.7, I2=87%; modified Medical Research Council Dyspnoea Scale, MD -0.3 points, 95% CI -0.5 to -0.1, I2=60%). Significant effects were not observed for CRQ-mastery, COPD assessment test, EuroQol-5 Dimension-5 Level and mortality. No intervention-related adverse events were reported.\nPulmonary rehabilitation delivered posthospital discharge for exacerbation of COPD results in a reduction in hospital re-admissions and improvements in exercise capacity, health-related quality of life and dyspnoea in the absence of any intervention-related adverse events.\nCRD42023406397.",
+        "sha256": "09c53aae184c05ac96fef363ff5e424afb2157f23e718ce2d9eba6c6c1f7cf43",
+        "retrieved_at": "2026-09-18T20:16:43.170180+00:00"
+      },
+      {
+        "id": "39877958",
+        "title": "Biologic Therapies for Chronic Obstructive Pulmonary Disease: A Systematic Review and Network Meta-Analysis of Randomized Controlled Trials.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39877958/",
+        "abstract": "Despite limited breakthroughs in COPD pharmacotherapy, recent trials have shown promising results for biologics in COPD patients. However, robust evidence synthesis in this area is currently lacking.\nWe conducted a systematic review of MEDLINE, EMBASE, and Cochrane CENTRAL from inception to July 17, 2024, to identify randomized trials of biologic medications in patients with COPD. We performed a random effects frequentist network meta-analysis and present the results using relative risk (RR) and 95% confidence intervals (CI). We used the GRADE framework to rate the certainty of the evidence. Outcomes of interest included exacerbations, change in FEV1, change in quality of life, and serious adverse events.\nDupilumab reduced exacerbations as compared to placebo (RR 0.68 [95% CI 0.59 to 0.79]) (high certainty). Benralizumab (RR 0.89 [95% CI 0.78 to 1]), itepekimab (RR 0.81 [95% CI 0.61 to 1.07]) and tezepelumab (RR 0.83 [95% CI 0.61 to 1.12]) may reduce exacerbations as compared to placebo (all low certainty). Dupilumab probably reduced exacerbations more than mepolizumab (RR 0.74 [95% CI 0.62 to 0.89]) (moderate certainty). Dupilumab may reduce exacerbations more than tezepelumab (RR 0.82 [95% CI 1.14]) (low certainty). For all patients, no treatment improved FEV1 above the pre-specified minimal clinically important difference (MCID) of 0.1 L. Dupilumab probably has no meaningful effect on FEV1 compared to placebo (MD 0.07 [95% CI 0.02 to 0.13]) (moderate certainty). However, in the subgroup of patients with blood eosinophils ≥300/mcL, both tezepelumab (MD 0.15 [95% CI 0.05 to 0.26]) and dupilumab (MD 0.13 [95% CI 0.06 to 0.19]) probably improved FEV1 above the MCID.\nDupilumab is effective at improving patient-relevant outcomes in COPD with higher eosinophil levels. Other biological therapies, including tezepelumab, have no important effect on patient-relevant outcomes.",
+        "sha256": "6e46246ac8c215d650e2cf9b9710b9145114cdba36cad544bef67290675bd522",
+        "retrieved_at": "2026-09-18T20:16:43.170180+00:00"
+      },
+      {
+        "id": "39243792",
+        "title": "The evidence base for the optimal antibiotic treatment duration of upper and lower respiratory tract infections: an umbrella review.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39243792/",
+        "abstract": "Many trials, reviews, and meta-analyses have been performed on the comparison of short versus long antibiotic treatment in respiratory tract infections, generally supporting shorter treatment. The aim of this umbrella review is to assess the soundness of the current evidence base for optimal antibiotic treatment duration.\nA search in Ovid MEDLINE, Embase, and Clarivate Analytics Web of Science Core Collection was performed on May 1, 2024, without date and language restrictions. Systematic reviews addressing treatment durations in community-acquired pneumonia (CAP), acute exacerbation of chronic obstructive pulmonary disease (AECOPD), hospital-acquired pneumonia (HAP), acute sinusitis, and streptococcal pharyngitis, tonsillitis, or pharyngotonsillitis were included. Studies from inpatient and outpatient settings were included; reviews in paediatric populations were excluded. Outcomes of interest were clinical and bacteriological cure, microbiological eradication, mortality, relapse rate, and adverse events. The quality of the reviews was assessed using the AMSTAR 2 tool, risk of bias of all included randomised controlled trials (RCTs) using the Cochrane risk-of-bias tool (version 1), and overall quality of evidence according to GRADE.\nWe identified 30 systematic reviews meeting the criteria; they were generally of a low to critically low quality. 21 reviews conducted a meta-analysis. For CAP outside the intensive care unit (ICU; 14 reviews, of which eight did a meta-analysis) and AECOPD (eight reviews, of which five did a meta-analysis), there was sufficient evidence supporting a treatment duration of 5 days; evidence for shorter durations is scarce. Evidence on non-ventilator-associated HAP is absent, despite identifying three reviews (of which one did a meta-analysis), since no trials were conducted exclusively in this population. For sinusitis the evidence appears to support a shorter regimen, but more evidence is needed in the population who actually require antibiotic treatment. For pharyngotonsillitis (eight reviews, of which six did a meta-analysis), sufficient evidence exists to support short-course cephalosporin but not short-course penicillin when dosed three times a day.\nThe available evidence for non-ICU CAP and AECOPD supports a short-course treatment duration of 5 days in patients who have clinically improved. Efforts of the scientific community should be directed at implementing this evidence in daily practice. High-quality RCTs are needed to underpin even shorter treatment durations for CAP and AECOPD, to establish the optimal treatment duration of HAP and acute sinusitis, and to evaluate shorter duration using an optimal penicillin dosing schedule in patients with pharyngotonsillitis.\nNone.",
+        "sha256": "ef8073baaff0fd456d744b6dacf42879f74cd88039004fc7735cba3321c55dc0",
+        "retrieved_at": "2026-09-18T20:16:43.170180+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Source 38350731 (systematic review/meta-analysis) directly addresses this exact clinical question: pulmonary rehabilitation initiated within 3 weeks of hospital discharge after AECOPD reduced hospital readmissions (OR 0.48, 95% CI 0.30-0.77) and improved exercise capacity, quality of life, and dyspnea, with no intervention-related adverse events. Source 37581410 (ATS guideline) provides a strong recommendation for PR after hospitalization for COPD exacerbation (moderate-quality evidence). The patient's profile fits perfectly: post-exacerbation, significant deconditioning, mMRC 3, reduced exercise capacity. In contrast, option A (dupilumab) is not supported: source 39877958 shows dupilumab benefits patients with higher blood eosinophils (≥3 subgroup analysis; efficacy driven by eosinophilic phenotype), but this patient has blood eosinophils of only 120 cells/mcL, well below the threshold where biologics demonstrate clear benefit. Dupilumab is also not a validated discharge intervention specifically to reduce readmission and would not be initiated at hospital discharge for a low-eosinophil patient. Thus B is most strongly and directly evidence-supported for the outcome asked (readmission reduction).",
+          "confidence": 0.94
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "38350731"
+              ],
+              "reason": "The 2024 meta-analysis (PMID 38350731) explicitly reports pulmonary rehabilitation initiated within 3 weeks of discharge reduced hospital re-admissions (OR 0.48, 95% CI 0.30-0.77)."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37581410"
+              ],
+              "reason": "The 2023 ATS guideline (PMID 37581410) states a strong recommendation for PR after hospitalization for COPD exacerbation based on moderate-quality evidence."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "38350731"
+              ],
+              "reason": "Same meta-analysis documents improvements in exercise capacity (6MWT +57 m), HRQoL (SGRQ -8.7), and dyspnea, with no intervention-related adverse events."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "39877958"
+              ],
+              "reason": "The network meta-analysis (PMID 39877958) shows dupilumab reduces exacerbations and, notably, FEV1 benefit above MCID only in the eosinophils >=300/mcL subgroup."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37581410"
+              ],
+              "reason": "ATS guideline gives a strong recommendation for offering the choice of center-based PR or telerehabilitation (moderate-quality evidence)."
+            }
+          ],
+          "issues": [],
+          "rationale": "Solving independently: this is a post-discharge AECOPD management case squarely within pulmonology. The patient has recurrent exacerbations, mMRC 3 dyspnea, and deconditioning—an ideal pulmonary rehabilitation candidate. The strongest evidence-based intervention to reduce readmission after a COPD exacerbation is early post-discharge pulmonary rehabilitation (OR 0.48 for re-admission per PMID 38350731; ATS strong recommendation per PMID 37581410). Answer B matches this. Answer A (dupilumab) is inappropriate because the patient's blood eosinophils are 120 cells/mcL, and per PMID 39877958 dupilumab's meaningful benefit (FEV1 above MCID) is confined to the eosinophils >=300/mcL phenotype; starting a biologic at discharge to reduce readmission is neither guideline-supported nor phenotype-appropriate here. So the key (B) is correct and the flawed candidate (A) is correctly identified as intended. Claim verification: I checked each cited claim against the actual abstract text rather than titles; all five are directly supported by the quoted sources. The bronchiectasis guideline (41016738), malnutrition review (33253970), digital health meta-analysis (40418567), NAC review (39493366), and antibiotic-duration umbrella review (39243792) are extra context and not relied upon for the answer. Note the antibiotic-duration source actually corroborates the 5-day amoxicillin-clavulanate course used in the chart. Chart coherence: vitals (SpO2 93% RA, afebrile), CXR (emphysema, no consolidation), 5-day steroid/antibiotic course, and optimized LAMA/LABA/ICS are all internally consistent and support a clinically improved, discharge-ready patient. No decisive data is missing; the decision does not require additional imaging. The two candidates represent genuinely distinct clinical decisions (rehab referral vs. initiating a biologic), not just reworded numbers. previous_cases is empty so no independence conflict. Sound answer B is safe and unambiguously supported; no blocking defects found."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Early post-discharge pulmonary rehabilitation (initiated within 3 weeks) has direct, high-quality evidence for reducing hospital readmissions after COPD exacerbation: a 2024 meta-analysis of 17 studies showed lower readmissions (OR 0.48, 95% CI 0.30–0.77) along with improved exercise capacity and quality of life (PMID: 38350731). The 2023 ATS guideline issues a strong recommendation for PR after hospitalization for COPD exacerbation (moderate-quality evidence) (PMID: 37581410). In contrast, while dupilumab reduces exacerbations in COPD—particularly with higher blood eosinophils—its trials did not specifically address post-discharge readmission reduction or initiation at discharge, and benefits are strongest at eosinophils ≥300/µL; this patient’s eosinophils are 120/µL (PMID: 39877958). Therefore, PR is the intervention most strongly supported to reduce readmissions.",
+          "confidence": 0.92
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.92,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "38350731"
+              ],
+              "reason": "The 2024 systematic review/meta-analysis of PR initiated within 3 weeks post-discharge reports reduced readmissions (OR 0.48, 95% CI 0.30–0.77) along with other benefits."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37581410"
+              ],
+              "reason": "ATS guideline makes a strong recommendation for PR after hospitalization for COPD exacerbation based on moderate-quality evidence."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "38350731"
+              ],
+              "reason": "The meta-analysis shows improvements in exercise capacity, HRQoL, and dyspnea; it explicitly notes no intervention-related adverse events."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "39877958"
+              ],
+              "reason": "Network meta-analysis shows dupilumab reduces exacerbations overall, with FEV1 gains not exceeding MCID except in subgroup with eosinophils ≥300/µL; authors conclude benefits in higher eosinophil COPD."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37581410"
+              ],
+              "reason": "ATS issues a strong recommendation to offer a choice of center-based PR or telerehabilitation for chronic respiratory disease, implying comparable delivery options."
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent assessment: The patient has COPD with recent AECOPD, improved and ready for discharge, mMRC 3, deconditioning, and two exacerbations in the last year. The intervention most strongly supported to reduce readmissions is early post-discharge pulmonary rehabilitation. A 2024 meta-analysis of PR started within 3 weeks of discharge shows reduced hospital readmissions (OR 0.48) and improvements in exercise capacity, quality of life, and dyspnea without intervention-related adverse events. The 2023 ATS guideline gives a strong recommendation for PR after hospitalization for COPD exacerbation.\nScrutiny of candidates: Candidate B (PR within 3 weeks) aligns with high-quality evidence and guidelines and is safe. Candidate A (start dupilumab at discharge) is not appropriate here: biologic benefits are primarily demonstrated in eosinophilic COPD (eosinophils ≥300/µL); this patient’s eosinophils are 120/µL. Moreover, evidence addresses exacerbation reduction rather than post-discharge readmission reduction, and immediate initiation at discharge is not guideline-directed for this phenotype. The case data and key are internally consistent; no critical information is missing for this decision. Ancillary evidence (antibiotic 5-day course support) is consistent with current standards but not central to the question. Therefore, the key is correct and the designated sound answer is safe and evidence-based."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "b2522d0a2daf31fad2c0dd7b4c2de84691c0d06c3883c84f07aee4e8ba111216"
+  }
+}

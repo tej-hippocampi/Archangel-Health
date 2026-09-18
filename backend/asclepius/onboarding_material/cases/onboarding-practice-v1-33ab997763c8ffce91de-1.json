@@ -1,0 +1,405 @@
+{
+  "task_id": "onboarding-practice-v1-33ab997763c8ffce91de-1",
+  "specialty": "endocrinology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Diagnosing Primary Hypothyroidism in Early Pregnancy",
+    "question": "In a woman with a positive first-trimester pregnancy test and elevated TSH, what is the most appropriate diagnostic interpretation and next step for suspected primary hypothyroidism?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "endocrinology",
+      "demographics": {
+        "age_band": "30-34",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Newly confirmed intrauterine pregnancy, first trimester",
+          "since": null,
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Elevated serum TSH on screening labs",
+          "since": null,
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Fatigue and cold intolerance",
+          "since": null,
+          "collected_offset_days": null
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Prenatal multivitamin with iodine",
+          "dose": null,
+          "route": "oral",
+          "freq": "daily",
+          "collected_offset_days": null
+        }
+      ],
+      "vitals": {
+        "heart_rate": 68,
+        "blood_pressure": "112/70",
+        "temperature_c": 36.6,
+        "weight_kg": 66
+      },
+      "lab_panels": [
+        {
+          "panel": "Thyroid function tests",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "TSH",
+              "loinc": null,
+              "value": 6.8,
+              "unit": "mIU/L",
+              "ref_low": 0.4,
+              "ref_high": 4.0,
+              "flag": "H",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Free T4",
+              "loinc": null,
+              "value": 0.9,
+              "unit": "ng/dL",
+              "ref_low": 0.8,
+              "ref_high": 1.8,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "TPO antibody",
+              "loinc": null,
+              "value": 320,
+              "unit": "IU/mL",
+              "ref_low": 0,
+              "ref_high": 35,
+              "flag": "H",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Progress",
+          "author_role": "endocrinology",
+          "text": "Woman in early third decade of life presents at approximately 8 weeks' gestation by dating. She reports several weeks of fatigue, mild cold intolerance, and constipation predating conception. Screening thyroid labs show TSH 6.8 mIU/L with a low-normal free T4 and markedly elevated TPO antibodies, consistent with autoimmune thyroiditis (Hashimoto). She has no prior history of thyroid disease and takes only a prenatal vitamin. Blood pressure and heart rate are normal, no goiter or tenderness on neck exam, no proptosis. The clinical question is how to interpret an elevated TSH in the first trimester where pregnancy-specific physiology alters reference ranges, and whether treatment should be initiated given TPO positivity and the risks of maternal thyroid dysfunction to pregnancy outcomes. Given adverse outcomes associated with overt and subclinical maternal hypothyroidism, prompt, appropriately targeted management is warranted rather than waiting for symptom escalation.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": null
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": null,
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": null,
+      "ground_truth": {
+        "answer": "This represents subclinical/early primary hypothyroidism in pregnancy on a background of TPO-antibody-positive autoimmune thyroiditis; TSH should be interpreted against pregnancy/trimester-specific reference ranges (not the standard nonpregnant upper limit), and levothyroxine treatment should be initiated with subsequent monitoring per current ATA pregnancy guidance.",
+        "rationale": "In pregnancy the TSH upper reference limit is lower than in nonpregnant adults, so a TSH of 6.8 mIU/L is clearly elevated by any pregnancy-adjusted range. Combined with TPO positivity and gestational risk, this warrants levothyroxine and follow-up rather than reassurance. Both overt and subclinical maternal thyroid disease are associated with adverse maternal and fetal outcomes, supporting a proactive approach. Selenium and exercise do not correct hypothyroidism and are not a substitute for levothyroxine.",
+        "evidence": null,
+        "key_data": [
+          "TSH 6.8 mIU/L exceeds the pregnancy-adjusted upper reference limit, indicating primary hypothyroidism.",
+          "TPO antibody 320 IU/mL confirms underlying autoimmune (Hashimoto) thyroiditis as the etiology.",
+          "Overt and subclinical maternal thyroid disease are associated with adverse pregnancy and fetal outcomes, supporting treatment.",
+          "Interpretation must use trimester/pregnancy-specific reference ranges, not the nonpregnant upper limit of 4.0 mIU/L."
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Interpret the TSH of 6.8 mIU/L as within normal limits for pregnancy since it is only mildly above the nonpregnant range, defer levothyroxine, and instead start selenium supplementation and an exercise program to normalize thyroid function before rechecking labs after delivery."
+      },
+      {
+        "id": "B",
+        "text": "Recognize elevated TSH against pregnancy/trimester-specific reference ranges as primary hypothyroidism with TPO-positive autoimmune thyroiditis, initiate levothyroxine, and arrange follow-up thyroid function monitoring during pregnancy per current ATA guidance."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "pregnancy",
+      "levothyroxine",
+      "subclinical hypothyroidism",
+      "TPO antibody",
+      "trimester-specific reference range",
+      "adverse pregnancy outcome"
+    ],
+    "evidence_keywords": [
+      "primary hypothyroidism",
+      "Hashimoto thyroiditis",
+      "TSH",
+      "thyroid autoimmunity",
+      "selenium",
+      "pregnancy thyroid disease"
+    ],
+    "error_tags": [
+      "misreads_labs",
+      "unsafe_recommendation",
+      "wrong_diagnosis"
+    ],
+    "claims": [
+      {
+        "statement": "Both overt and subclinical maternal thyroid disease are associated with adverse maternal and fetal pregnancy outcomes, supporting active management.",
+        "source_ids": [
+          "32443080",
+          "42219800"
+        ]
+      },
+      {
+        "statement": "Thyroid function testing in pregnancy should be interpreted with pregnancy/trimester-specific approaches, and hypothyroidism management is addressed by current pregnancy guidelines.",
+        "source_ids": [
+          "42219800",
+          "32443080"
+        ]
+      },
+      {
+        "statement": "Hashimoto thyroiditis is the most common cause of hypothyroidism in iodine-sufficient areas and is characterized by TPO antibody elevation.",
+        "source_ids": [
+          "38243784"
+        ]
+      },
+      {
+        "statement": "Selenium supplementation lowers TSH and TPO antibodies modestly but does not restore euthyroidism or replace thyroid hormone therapy in hypothyroid patients.",
+        "source_ids": [
+          "38243784"
+        ]
+      },
+      {
+        "statement": "Physical exercise does not have a significant impact on thyroid function and is not a treatment for hypothyroidism.",
+        "source_ids": [
+          "37999992"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T20:25:39.775004+00:00",
+    "author_model": "claude-opus-4-8",
+    "sources": [
+      {
+        "id": "42219800",
+        "title": "American Thyroid Association 2026 Guidelines for Thyroid Disease in Preconception, Pregnancy, and Postpartum.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/42219800/",
+        "abstract": "Thyroid disease in pregnancy, preconception, and postpartum is a common and clinically relevant problem. Since the publication of the American Thyroid Association (ATA) guidelines in 2017, substantial new clinical and scientific evidence has become available. The aim of these guidelines is to provide clinicians, patients, researchers, and policymakers with evidence-based recommendations on the care of women with thyroid disease before, during, and after pregnancy.\nThe clinical questions addressed were informed by prior ATA guidelines, stakeholder feedback, a global needs assessment, and input from the multidisciplinary task force. Systematic literature searches were conducted with the support from a medical librarian and evaluated using the Grading of Recommendations, Assessment, Development, and Evaluation framework. Recommendations were formulated based on the quality of evidence, balance of benefits and harms, patient values, feasibility, and equity. Where data were limited, Good Practice Statements were formulated. The task force included representatives from 10 international societies as well as patient advocacy groups and a methodologist.\nThe updated guidelines include recommendations on thyroid function testing, iodine supplementation, thyroid autoimmunity, hypothyroidism, hypothyroxinemia, hyperthyroidism and Graves' disease, thyroid nodules and cancer, and postpartum thyroid dysfunction for women with infertility, pregnant women, and women during postpartum and/or lactation. Recommendations are presented using recommendation tables, additional practical considerations are highlighted in boxes, and background information is provided in the text, tables, and figures per disease entity and chronological subset.\nThese 2026 ATA guidelines provide updated, evidence-based recommendations for the diagnosis and management of thyroid disease in women during preconception, pregnancy, and postpartum. While acknowledging that much of the evidence remains of low-to-moderate quality, these guidelines represent current best practices and consensus among international experts from different fields, offering an optimized framework for individualized patient care.",
+        "sha256": "1b4fc237a8afefff937402a015c14568637d1a209c27698bc50dacdbbb6093f5",
+        "retrieved_at": "2026-09-18T20:23:49.033275+00:00"
+      },
+      {
+        "id": "32443080",
+        "title": "Thyroid Disease in Pregnancy: ACOG Practice Bulletin, Number 223.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32443080/",
+        "abstract": "Both thyrotoxicosis and hypothyroidism are associated with adverse pregnancy outcomes. There also is concern about the effect of overt maternal thyroid disease on fetal development. In addition, medications that affect the maternal thyroid gland can cross the placenta and affect the fetal thyroid gland. This document reviews the thyroid-related pathophysiologic changes that occur during pregnancy and the effects of overt and subclinical maternal thyroid disease on maternal and fetal outcomes. This Practice Bulletin has been updated with information on the diagnosis and the management of thyroid disease in pregnant women and includes a new clinical algorithm on management of thyroid disease in pregnancy.",
+        "sha256": "c7d01246d0939ce786623170ad23d0e91ae4ef3b30164dfef74e22452f02bc3e",
+        "retrieved_at": "2026-09-18T20:23:49.033275+00:00"
+      },
+      {
+        "id": "33272083",
+        "title": "Congenital Hypothyroidism: A 2020-2021 Consensus Guidelines Update-An ENDO-European Reference Network Initiative Endorsed by the European Society for Pediatric Endocrinology and the European Society for Endocrinology.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33272083/",
+        "abstract": "Background: An ENDO-European Reference Network (ERN) initiative was launched that was endorsed by the European Society for Pediatric Endocrinology and the European Society for Endocrinology with 22 participants from the ENDO-ERN and the two societies. The aim was to update the practice guidelines for the diagnosis and management of congenital hypothyroidism (CH). A systematic literature search was conducted to identify key articles on neonatal screening, diagnosis, and management of primary and central CH. The evidence-based guidelines were graded with the Grading of Recommendations, Assessment, Development and Evaluation system, describing both the strength of recommendations and the quality of evidence. In the absence of sufficient evidence, conclusions were based on expert opinion. Summary: The recommendations include the various neonatal screening approaches for CH as well as the etiology (also genetics), diagnostics, treatment, and prognosis of both primary and central CH. When CH is diagnosed, the expert panel recommends the immediate start of correctly dosed levothyroxine treatment and frequent follow-up including laboratory testing to keep thyroid hormone levels in their target ranges, timely assessment of the need to continue treatment, attention for neurodevelopment and neurosensory functions, and, if necessary, consulting other health professionals, and education of the child and family about CH. Harmonization of diagnostics, treatment, and follow-up will optimize patient outcomes. Lastly, all individuals with CH are entitled to a well-planned transition of care from pediatrics to adult medicine. Conclusions: This consensus guidelines update should be used to further optimize detection, diagnosis, treatment, and follow-up of children with all forms of CH in the light of the most recent evidence. It should be helpful in convincing health authorities of the benefits of neonatal screening for CH. Further epidemiological and experimental studies are needed to understand the increased incidence of this condition.",
+        "sha256": "a10e61255c8555a2cd65f2f19c0a64ce85b252d52ad7d37c50283e93f94d2bc5",
+        "retrieved_at": "2026-09-18T20:23:49.033275+00:00"
+      },
+      {
+        "id": "34524390",
+        "title": "Association of Hypothyroidism and Clinical Depression: A Systematic Review and Meta-analysis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34524390/",
+        "abstract": "Hypothyroidism is considered a cause of or a strong risk factor for depression, but recent studies provide conflicting evidence regarding the existence and the extent of the association. It is also unclear whether the link is largely due to subsyndromal depression or holds true for clinical depression.\nTo estimate the association of hypothyroidism and clinical depression in the general population.\nPubMed, PsycINFO, and Embase databases were searched from inception until May 2020 for studies on the association of hypothyroidism and clinical depression.\nTwo reviewers independently selected epidemiologic and population-based studies that provided laboratory or International Statistical Classification of Diseases and Related Health Problems diagnoses of hypothyroidism and diagnoses of depression according to operationalized criteria (eg, Diagnostic and Statistical Manual of Mental Disorders or International Statistical Classification of Diseases and Related Health Problems) or cutoffs in established rating scales.\nTwo reviewers independently extracted data and evaluated studies based on the Newcastle-Ottawa Scale. Summary odds ratios (OR) were calculated in random-effects meta-analyses.\nPrespecified coprimary outcomes were the association of clinical depression with either hypothyroidism or autoimmunity.\nOf 4350 articles screened, 25 studies were selected for meta-analysis, including 348 014 participants. Hypothyroidism and clinical depression were associated (OR, 1.30 [95% CI, 1.08-1.57]), while the OR for autoimmunity was inconclusive (1.24 [95% CI, 0.89-1.74]). Subgroup analyses revealed a stronger association with overt than with subclinical hypothyroidism, with ORs of 1.77 (95% CI, 1.13-2.77) and 1.13 (95% CI, 1.01-1.28), respectively. Sensitivity analyses resulted in more conservative estimates. In a post hoc analysis, the association was confirmed in female individuals (OR, 1.48 [95% CI, 1.18-1.85]) but not in male individuals (OR, 0.71 [95% CI, 0.40-1.25]).\nIn this systematic review and meta-analysis, the effect size for the association between hypothyroidism and clinical depression was considerably lower than previously assumed, and the modest association was possibly restricted to overt hypothyroidism and female individuals. Autoimmunity alone may not be the driving factor in this comorbidity.",
+        "sha256": "45f4d5ce3800d0e27fde5c13574fa8fdda265e9a4ef200d58e5ba9e37afdb44c",
+        "retrieved_at": "2026-09-18T20:23:49.033275+00:00"
+      },
+      {
+        "id": "31641726",
+        "title": "Physical Frailty: ICFSR International Clinical Practice Guidelines for Identification and Management.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31641726/",
+        "abstract": "The task force of the International Conference of Frailty and Sarcopenia Research (ICFSR) developed these clinical practice guidelines to overview the current evidence-base and to provide recommendations for the identification and management of frailty in older adults.\nThese recommendations were formed using the GRADE approach, which ranked the strength and certainty (quality) of the supporting evidence behind each recommendation. Where the evidence-base was limited or of low quality, Consensus Based Recommendations (CBRs) were formulated. The recommendations focus on the clinical and practical aspects of care for older people with frailty, and promote person-centred care. Recommendations for Screening and Assessment: The task force recommends that health practitioners case identify/screen all older adults for frailty using a validated instrument suitable for the specific setting or context (strong recommendation). Ideally, the screening instrument should exclude disability as part of the screening process. For individuals screened as positive for frailty, a more comprehensive clinical assessment should be performed to identify signs and underlying mechanisms of frailty (strong recommendation). Recommendations for Management: A comprehensive care plan for frailty should address polypharmacy (whether rational or nonrational), the management of sarcopenia, the treatable causes of weight loss, and the causes of exhaustion (depression, anaemia, hypotension, hypothyroidism, and B12 deficiency) (strong recommendation). All persons with frailty should receive social support as needed to address unmet needs and encourage adherence to a comprehensive care plan (strong recommendation). First-line therapy for the management of frailty should include a multi-component physical activity programme with a resistance-based training component (strong recommendation). Protein/caloric supplementation is recommended when weight loss or undernutrition are present (conditional recommendation). No recommendation was given for systematic additional therapies such as cognitive therapy, problem-solving therapy, vitamin D supplementation, and hormone-based treatment. Pharmacological treatment as presently available is not recommended therapy for the treatment of frailty.",
+        "sha256": "daab60dcc2cf9f39010ac3751576f10a85b7c6445496be7ad7df2cc546a43386",
+        "retrieved_at": "2026-09-18T20:23:49.033275+00:00"
+      },
+      {
+        "id": "38243784",
+        "title": "Selenium Supplementation in Patients with Hashimoto Thyroiditis: A Systematic Review and Meta-Analysis of Randomized Clinical Trials.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38243784/",
+        "abstract": "Background: Hashimoto thyroiditis (HT) is the most common cause of hypothyroidism in iodine-sufficient areas. Selenium is an essential trace element required for thyroid hormone synthesis and exerts antioxidant effects. Therefore, it may be of relevance in the management of HT. Methods: We conducted a systematic review and meta-analysis of randomized controlled trials (RCTs) to evaluate the effect of selenium supplementation on thyroid function (thyrotropin [TSH], free and total thyroxine [fT4, T4], free and total triiodothyronine [fT3, T3]), thyroid antibodies (thyroid peroxidase antibodies [TPOAb], thyroglobulin antibodies [TGAb], thyrotropin receptor antibody [TRAb]), ultrasound findings (echogenicity, thyroid volume), immune markers, patient-reported outcomes, and adverse events in HT. The study protocol was registered on PROSPERO (CRD42022308377). We systematically searched MEDLINE, Embase, CINHAL, Web of Science, Google Scholar, and the Cochrane CENTRAL Register of Trials from inception to January 2023 and searched citations of eligible studies. Two independent authors reviewed and coded the identified literature. The primary outcome was TSH in patients without thyroid hormone replacement therapy (THRT); the others were considered secondary outcomes. We synthesized the results as standardized mean differences (SMD) or odds ratio (OR), assessed risk of bias using the Cochrane RoB 2 tool, and rated the evidence using the Grading of Recommendations Assessment, Development, and Evaluation (GRADE) approach. Results: We screened 687 records and included 35 unique studies. Our meta-analysis found that selenium supplementation decreased TSH in patients without THRT (SMD -0.21 [confidence interval, CI -0.43 to -0.02]; 7 cohorts, 869 participants; I2 = 0%). In addition, TPOAb (SMD -0.96 [CI -1.36 to -0.56]; 29 cohorts; 2358 participants; I2 = 90%) and malondialdehyde (MDA; SMD -1.16 [CI -2.29 to -0.02]; 3 cohorts; 248 participants; I2 = 85%) decreased in patients with and without THRT. Adverse effects were comparable between the intervention and control groups (OR 0.89 [CI 0.46 to 1.75]; 16 cohorts; 1339 participants; I2 = 0%). No significant changes were observed in fT4, T4, fT3, T3, TGAb, thyroid volume, interleukin (IL)-2, and IL-10. Overall, certainty of evidence was moderate. Conclusions: In people with HT without THRT, selenium was effective and safe in lowering TSH, TPOAb, and MDA levels. Indications for lowering TPOAb were found independent of THRT.",
+        "sha256": "7765af95a184e6a86c81d7c60769571e9976b617377a2dcdc824073c2b5ed214",
+        "retrieved_at": "2026-09-18T20:23:49.033275+00:00"
+      },
+      {
+        "id": "37999992",
+        "title": "Effect of physical exercise in people with hypothyroidism: systematic review and meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37999992/",
+        "abstract": "This study aimed to systematically revise the available evidence on the effects of physical exercise training programmes on people with hypothyroidism. Comparative studies were searched in six electronic databases until April 2023. The Physiotherapy Evidence Database and the Methodological Index for Non-Randomized Studies were used to determine the methodological quality of the randomized controlled trials and comparative studies respectively. A total of 10 studies were found showing a low to moderate methodological quality. Most of them were performed in women with subclinical hypothyroidism. Exercise seemed to be safe, with aerobic and resistance training leading to improvements in outcomes related to physical and mental health. The performed meta-analysis with data from 120 participants indicated that exercise showed a non-significant trend towards reducing thyroid-stimulating hormone levels (Hedges'g -0.96; 95% CI -2.71; 0.79, p = 0.160; I2 = 92%). When the analysis was performed by comparing the experimental, and control groups with data from 180 participants the results remained non-significant (SMD -1.09; CI 95% -2.88; 0.70, p = 0.23; I2 = 95%). Similar findings were obtained when pooling data for FT3 and FT4 levels. Exercise does not have a significant impact on thyroid function, although its practice can lead to secondary outcomes related to physical and mental health.",
+        "sha256": "1edff1895b6d9ad90d84f140d64ffb877d4df0025e60ad465ba86df52c4366ba",
+        "retrieved_at": "2026-09-18T20:23:49.033275+00:00"
+      },
+      {
+        "id": "36743914",
+        "title": "Local symptoms of Hashimoto's thyroiditis: A systematic review.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36743914/",
+        "abstract": "Hashimoto's thyroiditis (HT) is the most common type of thyroid disease and can cause many different manifestations. The local symptoms of HT are an under-studied area of research. Therefore, the purpose of this study was to investigate the local symptoms of HT and their prevalence.\nA systematic review was performed to find articles in PubMed that discuss the local symptoms of HT. Relevant vocabulary terms and key terms included: autoimmune thyroid disease (AITD), hyperthyroidism, hypothyroidism, neck, throat, pharynx, airway, esophagus, breathe, swallow, globus, sleep apnea, symptoms, and quality of life. Two investigators independently screened the eligible studies.\nA total of 54 articles fulfilled the inclusion criteria. Of these, 25 were clinical studies, 24 were case reports, and five were reviews. These clinical studies and case reports included a total of 2660 HT patients. There were eight local symptoms related to HT: neck pain (0.02%~16%), voice changes (7%~30%), throat discomfort (20%~43.7%), shortness of breath (28%~50%), dysphagia (29%), goiter-related symptoms (69.44%), sleep apnea, and generally defined compressive symptoms. Due to the use of different outcome measures among all the studies, a meta-analysis of the data could not be performed.\nGoiter symptoms, which are an item on the ThyPRO scales, are the most frequent local symptoms in HT patients, and include neck pain, voice changes, throat discomfort, and dysphagia. These local symptoms should be identified in the clinic and included in the early diagnosis and management of HT, as well as evaluated further to understand their relevance in the pathogenesis of HT.",
+        "sha256": "85451d90223178ef6e7c94c5696d9df5c8c76f1c7630d49700bae9892f42f2d5",
+        "retrieved_at": "2026-09-18T20:23:49.033275+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient is at ~8 weeks' gestation with TSH 6.8 mIU/L, low-normal free T4, and markedly elevated TPO antibodies. During pregnancy, TSH should be interpreted against trimester/pregnancy-specific reference ranges, which are lower than nonpregnant ranges (upper limits often near 4.0 mIU/L or lower in the first trimester). A TSH of 6.8 clearly exceeds these thresholds, establishing at minimum subclinical hypothyroidism from autoimmune (Hashimoto) thyroiditis given TPO positivity. Per ATA guidance (source 42219800) and ACOG (32443080), levothyroxine is indicated for TPO-positive women with TSH above the pregnancy-specific upper limit because untreated maternal hypothyroidism is associated with adverse obstetric and neurodevelopmental outcomes; follow-up thyroid monitoring throughout pregnancy is recommended. Answer A is incorrect and unsafe: it misinterprets TSH as normal (ignoring pregnancy-specific ranges), defers needed levothyroxine, and substitutes selenium and exercise. The cited evidence (38243784, 37999992) shows only modest/non-significant TSH effects for these interventions and none support them as replacements for levothyroxine in pregnancy, and deferring treatment until after delivery would leave the fetus and mother exposed during the critical first trimester. Answer B aligns with current guideline-based best practice.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "32443080",
+                "42219800"
+              ],
+              "reason": "ACOG Practice Bulletin 223 explicitly states both thyrotoxicosis and hypothyroidism are associated with adverse pregnancy outcomes and reviews effects of overt and subclinical maternal thyroid disease on maternal/fetal outcomes. ATA 2026 guidelines address hypothyroidism and thyroid autoimmunity management supporting active care."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "42219800",
+                "32443080"
+              ],
+              "reason": "ACOG bulletin reviews pregnancy-related thyroid pathophysiologic changes and provides a management algorithm; ATA 2026 provides recommendations on thyroid function testing and hypothyroidism in pregnancy, supporting pregnancy-specific interpretation."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "38243784"
+              ],
+              "reason": "The selenium meta-analysis abstract directly states 'Hashimoto thyroiditis (HT) is the most common cause of hypothyroidism in iodine-sufficient areas' and evaluates TPOAb as a marker."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "38243784"
+              ],
+              "reason": "The meta-analysis found selenium decreased TSH and TPOAb modestly (small SMDs) but no significant changes in fT4/T4/fT3/T3, supporting that it does not restore euthyroidism or replace hormone therapy."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37999992"
+              ],
+              "reason": "The exercise meta-analysis concluded 'Exercise does not have a significant impact on thyroid function,' with non-significant trends in TSH and FT3/FT4."
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is on-specialty (endocrinology, primary hypothyroidism in pregnancy) and internally coherent. Chart data support the key: TSH 6.8 mIU/L exceeds any pregnancy-adjusted upper limit (and even the nonpregnant 4.0), free T4 low-normal (0.9), and TPO 320 IU/mL confirms autoimmune thyroiditis. Candidate B correctly interprets TSH against trimester-specific ranges, identifies TPO-positive autoimmune hypothyroidism, initiates levothyroxine, and arranges monitoring per ATA guidance — consistent with the key and with ACOG/ATA sources. Candidate A is the intended flawed answer: it falsely reassures, deferring levothyroxine and substituting selenium and exercise, which the cited sources show do not restore euthyroidism — an unsafe recommendation in a pregnant patient with elevated TSH and TPO positivity. This is the case working as designed, not a defect. All five claims verify against the actual source abstracts (ACOG 223, ATA 2026, selenium HT meta-analysis, exercise-hypothyroidism meta-analysis). Minor observation: the ATA '2026' guideline citation is a plausible synthetic future-dated reference but its abstract content is consistent and non-contradictory; the substantive support also rests on ACOG 223 and the specific meta-analyses. Decision is clinically distinct (treat vs. reassure/alternative therapy). No decisive data missing — no imaging is required for this diagnostic/management question. The two candidates present genuinely different clinical decisions."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "TSH 6.8 mIU/L in the first trimester exceeds pregnancy-specific upper limits (commonly ~4.0 mIU/L when local ranges are unavailable) and, with positive TPO antibodies and normal free T4, is consistent with TPO-positive subclinical primary hypothyroidism due to autoimmune thyroiditis. Current guidelines recommend initiating levothyroxine in pregnant patients with TPO-positive subclinical hypothyroidism when TSH is above the trimester-specific range, particularly when >4.0, and monitoring thyroid function every ~4 weeks to maintain TSH in trimester targets (ATA 2026; ACOG 2020). Selenium and exercise are not appropriate substitutes for levothyroxine in pregnancy; while selenium may modestly lower TSH/TPOAb in Hashimoto’s outside of pregnancy, and exercise benefits general health, neither is guideline-endorsed to treat maternal hypothyroidism during pregnancy (ATA 2026; ACOG 2020; selenium and exercise meta-analyses). Therefore, initiate levothyroxine now and arrange trimester-appropriate monitoring.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "32443080",
+                "42219800"
+              ],
+              "reason": "ACOG Practice Bulletin states both thyrotoxicosis and hypothyroidism (including subclinical) are associated with adverse pregnancy outcomes. ATA pregnancy guidelines address management of thyroid disease in pregnancy based on these risks."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "42219800",
+                "32443080"
+              ],
+              "reason": "ATA pregnancy guidelines explicitly cover thyroid function testing and hypothyroidism in pregnancy; interpretation is pregnancy-specific. ACOG bulletin reviews physiologic changes in pregnancy and provides a management algorithm, implying use of pregnancy-appropriate interpretation."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "38243784"
+              ],
+              "reason": "The meta-analysis background states Hashimoto thyroiditis is the most common cause of hypothyroidism in iodine-sufficient areas; HT is characterized by thyroid autoimmunity with elevated TPO antibodies, which are a primary outcome in HT trials."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "38243784"
+              ],
+              "reason": "Selenium supplementation lowered TSH modestly and reduced TPOAb, but did not significantly change fT4 or fT3. This indicates it does not restore euthyroidism and therefore cannot replace levothyroxine in hypothyroid patients."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37999992"
+              ],
+              "reason": "Systematic review/meta-analysis found no significant impact of exercise on TSH, FT3, or FT4; while beneficial for general health, exercise is not a treatment that normalizes thyroid function."
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent assessment: An 8-week pregnant woman has TSH 6.8 mIU/L with low-normal free T4 and markedly elevated TPO antibodies. In pregnancy, TSH should be interpreted using pregnancy/trimester-specific ranges; regardless of which pregnancy-adjusted cutoffs are used, a TSH of 6.8 mIU/L is elevated, indicating primary hypothyroidism due to autoimmune (Hashimoto) thyroiditis. In pregnancy, both overt and subclinical hypothyroidism are linked to adverse maternal and fetal outcomes, so levothyroxine should be initiated and thyroid function monitored during pregnancy per pregnancy guidelines. Selenium can modestly lower TSH/TPOAb but does not restore euthyroidism or substitute for thyroid hormone; exercise has no meaningful effect on thyroid function. Audit of candidates: A is unsafe and incorrect—misinterprets TSH as normal in pregnancy, recommends delaying therapy until postpartum, and substitutes selenium/exercise for levothyroxine. B correctly recognizes primary hypothyroidism on a TPO-positive background, recommends starting levothyroxine, and arranging follow-up per ATA guidance. The key aligns with current guidance and case data. No critical data are missing for diagnosis or initial management, dosing details are not required for the question, and the scenario fits endocrinology. Therefore, select B."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "6927c7d5fff6bac38d8a8a8edf4701fcc2d8cfba870ae81a7e385e12bb7e6839"
+  }
+}
