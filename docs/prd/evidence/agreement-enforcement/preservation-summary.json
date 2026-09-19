@@ -1,7 +1,7 @@
 {
   "asclepius": {
     "scope": "local synthetic fixture only",
-    "tables": 73,
+    "tables": 74,
     "before_rows": 1,
     "after_rows": 1,
     "problems": [],

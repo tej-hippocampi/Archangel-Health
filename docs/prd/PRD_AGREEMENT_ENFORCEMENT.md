@@ -1,7 +1,7 @@
 # Agreement enforcement and attestation evidence
 
 Status: implementation and verification; production activation is a separate rollout.
-Date: 2026-09-18. Baseline: origin/main 321994b.
+Date: 2026-09-18. Initial audit: origin/main 321994b; implementation rebased onto d964fdb.
 Source: “PRD - Agreement Enforcement and Attestation Evidence.md”, supplied by Tej.
 
 ## Design and invariant
@@ -49,7 +49,7 @@ false; a string, integer, or non-empty initials field is not consent.
 
 | Symbol | Verified current location |
 |---|---|
-| require_current_agreement | `require_current_agreement` at backend/routers/asclepius.py:3518 |
+| require_current_agreement | `require_current_agreement` at backend/routers/asclepius.py:3636 |
 | next_double_label | `next_double_label` at backend/routers/asclepius_review.py:800 |
 | next_review | `next_review` at backend/routers/asclepius_review.py:386 |
 | next_review_pair | `next_review_pair` at backend/routers/asclepius_review.py:242 |
@@ -58,14 +58,14 @@ false; a string, integer, or non-empty initials field is not consent.
 | annotation_queue | `annotation_queue` at backend/routers/asclepius_env.py:161 |
 | get_run_for_annotation | `get_run_for_annotation` at backend/routers/asclepius_env.py:187 |
 | annotate_environment | `annotate_environment` at backend/routers/asclepius_env.py:202 |
-| trajectory_self_score | `trajectory_self_score` at backend/routers/asclepius.py:4632 |
-| qa_queue | `qa_queue` at backend/routers/asclepius.py:5737 |
-| qa_decision | `qa_decision` at backend/routers/asclepius.py:5766 |
-| qa_approve_all | `qa_approve_all` at backend/routers/asclepius.py:5748 |
-| list_submissions | `list_submissions` at backend/routers/asclepius.py:5681 |
-| get_submission | `get_submission` at backend/routers/asclepius.py:5693 |
+| trajectory_self_score | `trajectory_self_score` at backend/routers/asclepius.py:4761 |
+| qa_queue | `qa_queue` at backend/routers/asclepius.py:5868 |
+| qa_decision | `qa_decision` at backend/routers/asclepius.py:5897 |
+| qa_approve_all | `qa_approve_all` at backend/routers/asclepius.py:5879 |
+| list_submissions | `list_submissions` at backend/routers/asclepius.py:5812 |
+| get_submission | `get_submission` at backend/routers/asclepius.py:5824 |
 | save_asclepius_attestations | `save_asclepius_attestations` at backend/team_store.py:2177 |
-| provision_user | `provision_user` at backend/asclepius/store.py:3999 |
+| provision_user | `provision_user` at backend/asclepius/store.py:4028 |
 | _attestations_complete | `_attestations_complete` at backend/routers/onboarding.py:70 |
 | isRequired | `isRequired` at frontend/asclepius/agreement_gate.js:5 |
 | `async renderAgreementView` | frontend/asclepius/asclepius.js:2709 |

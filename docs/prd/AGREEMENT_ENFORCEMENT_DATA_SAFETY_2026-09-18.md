@@ -1,6 +1,6 @@
 # Agreement enforcement — data-safety change record
 
-Date: 2026-09-18. Baseline: origin/main 321994b. Branch: fix/agreement-enforcement.
+Date: 2026-09-18. Initial audit: origin/main 321994b; final comparison base: d964fdb. Branch: fix/agreement-enforcement.
 Related specification: [Agreement enforcement](PRD_AGREEMENT_ENFORCEMENT.md).
 
 ## Scope and preserved data
@@ -31,7 +31,7 @@ The full before/after inventories, SQLite backups and restored copies remain in
 the task's local output/agreement-enforcement directory; they contain synthetic
 fixture data only. No live database or account was used.
 
-- Asclepius: 73 application tables, 1 fixture row before/after, zero field/ID loss.
+- Asclepius: 74 application tables, 1 fixture row before/after, zero field/ID loss.
 - Team: 44 application tables, 3 fixture rows before/after, zero field/ID loss.
 - SQLite backup API copies were restored to separate files and compared with the
   same frozen inventories. Both restore comparisons had zero differences.
