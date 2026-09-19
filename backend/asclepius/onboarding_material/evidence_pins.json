@@ -38,7 +38,7 @@
     ]
   },
   "acute limb ischemia initial management": {
-    "excerpt_terms": "acute limb ischemia prompt urgent revascularization vascular multidisciplinary",
+    "excerpt_terms": "acute limb ischemia initial management urgent anticoagulation unfractionated heparin vascular emergency revascularization strategy Rutherford duration comorbidities",
     "sources": [
       {
         "id": "40428785",
@@ -60,6 +60,158 @@
         "title": "Comparative Safety and Effectiveness of Endovascular Versus Surgical Treatment for Acute Limb Ischemia: A Systematic Review and Meta-Analysis.",
         "source_type": "systematic_review_meta_analysis",
         "require_licensed_fulltext": false
+      },
+      {
+        "id": "31416204",
+        "pmcid": "PMC6723825",
+        "title": "Acute Limb Ischemia: An Update on Diagnosis and Management.",
+        "source_type": "secondary_clinical_review",
+        "require_licensed_fulltext": true
+      }
+    ]
+  },
+  "immune thrombocytopenia evaluation": {
+    "excerpt_terms": "immune thrombocytopenia diagnosis evaluation exclusion peripheral smear secondary HIV HCV HBV bone marrow abnormalities pseudothrombocytopenia",
+    "sources": [
+      {
+        "id": "37957517",
+        "pmcid": "PMC10770234",
+        "title": "Reference guide for the diagnosis of adult primary immune thrombocytopenia, 2023 edition.",
+        "source_type": "primary_expert_diagnostic_guidance",
+        "require_licensed_fulltext": true
+      },
+      {
+        "id": "37892566",
+        "pmcid": "PMC10607106",
+        "title": "Recommendations for the Clinical Approach to Immune Thrombocytopenia: Spanish ITP Working Group (GEPTI).",
+        "source_type": "primary_society_consensus",
+        "require_licensed_fulltext": true
+      }
+    ]
+  },
+  "febrile neutropenia immediate management": {
+    "excerpt_terms": "febrile neutropenia outpatient ambulatory low risk eligibility oral antibiotics observation follow up risk stratification MASCC CISNE",
+    "sources": [
+      {
+        "id": "37921996",
+        "pmcid": "PMC10624743",
+        "title": "Ambulatory management of low-risk febrile neutropenia in adult oncological patients. Systematic review.",
+        "source_type": "systematic_review",
+        "require_licensed_fulltext": true
+      },
+      {
+        "id": "41521418",
+        "pmcid": "",
+        "title": "Consensus guidelines for ambulatory care for neutropenic fever.",
+        "source_type": "primary_society_consensus",
+        "require_licensed_fulltext": false
+      }
+    ]
+  },
+  "adult neck mass diagnostic evaluation": {
+    "excerpt_terms": "thyroid nodule cervical lymph node suspicious ultrasound fine needle aspiration FNA EU TIRADS",
+    "sources": [
+      {
+        "id": "37358008",
+        "pmcid": "PMC10448590",
+        "title": "2023 European Thyroid Association Clinical Practice Guidelines for thyroid nodule management.",
+        "source_type": "primary_society_guideline",
+        "require_licensed_fulltext": true
+      },
+      {
+        "id": "41258456",
+        "pmcid": "PMC13086679",
+        "title": "ESR Essentials: thyroid imaging-practice recommendations by the European Society of Head and Neck Radiology.",
+        "source_type": "primary_society_guideline",
+        "require_licensed_fulltext": true
+      }
+    ]
+  },
+  "Staphylococcus aureus bacteremia diagnostic evaluation": {
+    "excerpt_terms": "bacteremia Staphylococcus aureus persistent positive blood cultures metastatic infection septic emboli PET CT",
+    "sources": [
+      {
+        "id": "39387894",
+        "pmcid": "PMC11732780",
+        "title": "EANM/SNMMI guideline/procedure standard for [18F]FDG hybrid PET use in infection and inflammation in adults v2.0.",
+        "source_type": "primary_society_guideline",
+        "require_licensed_fulltext": true
+      },
+      {
+        "id": "35331165",
+        "pmcid": "PMC8943998",
+        "title": "[18F]FDG-PET/CT in Staphylococcus aureus bacteremia: a systematic review.",
+        "source_type": "systematic_review",
+        "require_licensed_fulltext": true
+      }
+    ]
+  },
+  "FDG PET CT preparation hyperglycemia and uptake interpretation using a structured report": {
+    "excerpt_terms": "brain FDG PET preparation glucose hyperglycemia preinjection hypometabolism Alzheimer posterior parieto occipital interpretation postpone euglycemic",
+    "sources": [
+      {
+        "id": "34882261",
+        "pmcid": "PMC8803744",
+        "title": "EANM procedure guidelines for brain PET imaging using [18F]FDG, version 3.",
+        "source_type": "primary_society_guideline",
+        "require_licensed_fulltext": true
+      }
+    ]
+  },
+  "refractory breathlessness symptom management": {
+    "excerpt_terms": "cancer dyspnea breathlessness systemic opioids morphine pharmacological efficacy safety palliative",
+    "sources": [
+      {
+        "id": "33617290",
+        "pmcid": "",
+        "title": "Management of Dyspnea in Advanced Cancer: ASCO Guideline.",
+        "source_type": "primary_society_guideline",
+        "require_licensed_fulltext": false
+      },
+      {
+        "id": "37338727",
+        "pmcid": "PMC10390357",
+        "title": "Opioids for the management of dyspnea in cancer patients: a systematic review and meta-analysis.",
+        "source_type": "systematic_review",
+        "require_licensed_fulltext": true
+      }
+    ]
+  },
+  "goals of care shared decision making in serious illness": {
+    "excerpt_terms": "neuroprognostication cardiac arrest multimodal hypoxic ischemic HIE prognostic extended observation confounding concordant rewarming",
+    "sources": [
+      {
+        "id": "36949360",
+        "pmcid": "PMC10241762",
+        "title": "Guidelines for Neuroprognostication in Comatose Adult Survivors of Cardiac Arrest.",
+        "source_type": "primary_society_guideline",
+        "require_licensed_fulltext": true
+      },
+      {
+        "id": "38182945",
+        "pmcid": "PMC10770006",
+        "title": "Mastering the brain in critical conditions: an update.",
+        "source_type": "secondary_clinical_review",
+        "require_licensed_fulltext": true
+      }
+    ]
+  },
+  "spinal cord injury autonomic dysreflexia management": {
+    "excerpt_terms": "neurogenic detrusor overactivity autonomic dysreflexia spinal cord antimuscarinic anticholinergics refractory oral bladder botulinum retention",
+    "sources": [
+      {
+        "id": "42430939",
+        "pmcid": "",
+        "title": "Treating neurogenic detrusor overactivity in order to manage autonomic dysreflexia - A systematic review.",
+        "source_type": "systematic_review",
+        "require_licensed_fulltext": false
+      },
+      {
+        "id": "38393175",
+        "pmcid": "PMC10892370",
+        "title": "From Toxin to Treatment: A Narrative Review on the Use of Botulinum Toxin for Autonomic Dysfunction.",
+        "source_type": "secondary_clinical_review",
+        "require_licensed_fulltext": true
       }
     ]
   }

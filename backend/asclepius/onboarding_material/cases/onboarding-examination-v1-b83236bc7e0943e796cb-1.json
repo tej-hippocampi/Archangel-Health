@@ -1,0 +1,521 @@
+{
+  "task_id": "onboarding-examination-v1-b83236bc7e0943e796cb-1",
+  "specialty": "occupational medicine",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Healthcare worker evaluated after a procedural sharps injury",
+    "question": "Which occupational health response is most appropriate at this decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "occupational medicine",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Deep puncture wound of the left index finger",
+          "since": "Index occupational incident",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Occupational contact with patient blood",
+          "since": "Index occupational incident",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Occupational exposure evaluation",
+          "author_role": "occupational medicine",
+          "text": "A healthcare worker presented 90 minutes after sustaining a deep puncture of the left index finger with a hollow-bore phlebotomy needle. The needle had just been removed from a source patient's vein, was visibly contaminated with blood, and penetrated the worker's glove. The worker immediately washed the wound with soap and water. The source chart documents established HIV infection with a detectable viral load measured two weeks before the incident. The worker reports no prior HIV infection, no use of HIV pre-exposure prophylaxis, no regular medications, and no known renal or hepatic disease.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional onboarding assessment case; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for decision",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "This is a recent percutaneous exposure to blood from a source with established HIV and detectable viremia. The deep injury, visibly blood-contaminated hollow-bore needle, and prior placement of the needle in a vein indicate a larger inoculum and increased transmission risk. A guideline-listed three-drug HIV post-exposure prophylaxis regimen should be initiated immediately and continued for 28 days. The worker should receive adherence counseling and be re-evaluated within 72 hours for counseling needs and regimen tolerability. Candidate B is unsafe because waiting for additional testing would delay time-sensitive prophylaxis despite a clearly qualifying occupational exposure.",
+        "evidence": null,
+        "key_data": [
+          "The worker presented only 90 minutes after the occupational exposure.",
+          "The injury was a deep puncture from a hollow-bore needle that had just been in a vein.",
+          "The needle was visibly contaminated with the source patient's blood.",
+          "The source has established HIV infection with a recently detectable viral load.",
+          "The worker is not taking HIV pre-exposure prophylaxis."
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Begin a guideline-listed three-drug HIV post-exposure prophylaxis regimen immediately and continue it for 28 days. Provide adherence counseling and arrange re-evaluation within 72 hours to assess counseling needs and regimen tolerability; do not postpone initiation for additional test results."
+      },
+      {
+        "id": "B",
+        "text": "Defer HIV post-exposure prophylaxis until a repeat source viral load and the worker's baseline HIV result are available. If those results continue to indicate transmission risk, begin prophylaxis at that later time and arrange routine occupational-health follow-up."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "occupational needlestick",
+      "HIV post-exposure prophylaxis",
+      "hollow-bore needle",
+      "percutaneous blood exposure",
+      "detectable viral load",
+      "72-hour window"
+    ],
+    "evidence_keywords": [
+      "three-drug PEP",
+      "28-day course",
+      "prompt initiation",
+      "deep injury",
+      "visible blood",
+      "follow-up within 72 hours"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Indicated HIV post-exposure prophylaxis should be initiated as soon as possible and no later than 72 hours after exposure.",
+        "source_ids": [
+          "41569270",
+          "38285211"
+        ]
+      },
+      {
+        "statement": "Occupational HIV post-exposure prophylaxis should be prescribed for a duration of 28 days.",
+        "source_ids": [
+          "41569270"
+        ]
+      },
+      {
+        "statement": "HIV post-exposure prophylaxis uses a three-drug antiretroviral treatment approach.",
+        "source_ids": [
+          "41569270",
+          "38285211"
+        ]
+      },
+      {
+        "statement": "A deep injury involving a visibly bloody hollow-bore needle previously placed in a vein indicates a larger inoculum and increased transmission risk.",
+        "source_ids": [
+          "41569270"
+        ]
+      },
+      {
+        "statement": "Exposed healthcare personnel receiving prophylaxis should be counseled about the importance of adherence.",
+        "source_ids": [
+          "41569270"
+        ]
+      },
+      {
+        "statement": "Exposed healthcare personnel should be re-evaluated within 72 hours for counseling needs and prophylaxis tolerability.",
+        "source_ids": [
+          "41569270"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T02:26:51.425333+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "38285211",
+        "title": "[Presentations for HIV post-exposure prophylaxis in emergency departments: guideline and recommendations].",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38285211/",
+        "abstract": "Patients often present to emergency departments after potential or confirmed exposure to human immunodeficiency virus (HIV) asking for recommendations concerning the initiation of post-exposure prophylaxis (PEP). These presentations may occur after occupational as well as non-occupational exposure. PEP entails taking a\u00a0triple antiretroviral therapy for 28-30\u00a0days. If taken early (ideally within 2\u202fh, but no later than 72\u202fh) and as indicated, HIV infection can be prevented with a\u00a0high level of probability. Since these presentations occur around the clock, they require basic expertise on the part of the emergency department staff regarding its indication and its side effects as well as standardized procedures in the emergency department to not delay initiation. Patients should present to an infectious disease outpatient clinic or practice specialized in HIV in order to have the indication reviewed by a\u00a0specialist and, if necessary, adapted to complex cases with the aim of making individual case decisions. This review article aims to summarize core statements of the 2022 German-Austrian guideline on HIV post-exposure prophylaxis and to give emergency department staff necessary knowledge to safely and correctly begin PEP.",
+        "sha256": "c5e4ff828fc9336db503f5a3e28cbb3a631445a7851e9d21ca13dfe380137b10",
+        "retrieved_at": "2026-09-19T02:25:52.661633+00:00"
+      },
+      {
+        "id": "41569270",
+        "title": "2025 US Public Health Service Guidelines for the Management of Occupational Exposures to Human Immunodeficiency Virus and Recommendations for Post-exposure Prophylaxis in Healthcare Settings.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41569270/",
+        "abstract": "These guidelines update the 2013 \"Updated US Public Health Service (PHS) Guidelines for the Management of Occupational Exposures to Human Immunodeficiency Virus and Recommendations for Postexposure Prophylaxis,\" hereafter referred to as the 2013 PHS Guidelines., The availability of new medication options, new information on the window of detection for different human immunodeficiency virus (HIV) tests, and the risk of transmission from people with undetectable viral loads prompted this update. The primary intended audience for these recommendations remains anyone involved in the provision of HIV post-exposure management to healthcare personnel (HCP).The U.S. Centers for Disease Control and Prevention assembled a working group of representatives from federal agencies in the U.S. Department of Health and Human Services (HHS) who identified the priority topics for update and conducted systematic literature reviews to formulate recommendations (see Appendix). All recommendations were reviewed by the Healthcare Infection Control Practices Advisory Committee (HICPAC) at public meetings, and by a non-consensus forming panel of external experts. New evidence-based recommendations are developed using the Grading of Recommendations Assessment, Development, and Evaluation (GRADE) framework and classified according to the HICPAC recommendation scheme when evidence supported recommendation development., Other recommendations in this document are classified as good practice statements according to the criteria set forth by GRADE. The working group solicited additional feedback on recommendations from relevant agencies, subject-matter experts, and the public.Recommendations that have changed since the 2013 PHS guidelines include: \u2022 new antiretroviral drug regimens for post-exposure prophylaxis (PEP); \u2022 a shortened duration of post-exposure follow-up HIV testing; \u2022 elimination of routine laboratory tests for antiretroviral drug toxicity; and \u2022 considerations for PEP for HCP with exposures to source patients with undetectable viral loads. Important strategies in the principles of exposure management remain: primary prevention strategies; the prompt reporting and management of occupational exposures; adherence to recommended HIV PEP regimens when indicated; the role of expert consultation in management of exposures; and follow-up of exposed HCP.",
+        "sha256": "c0d6509d964fd84d27abaa74b1ffa2bdedf18cd7a9ee72cbf26bebccb88c4431",
+        "retrieved_at": "2026-09-19T02:25:52.661633+00:00",
+        "pmcid": "PMC12616222",
+        "body_excerpts": "Introduction\nPreventing exposures to blood and body fluids (i.e., primary prevention) is the most important strategy for preventing occupationally acquired human immunodeficiency virus (HIV) infection in healthcare settings and is grounded in adherence to the principles of Standard Precautions 6 by healthcare personnel (HCP) and their institutions. For instances in which an occupational HIV exposure may have occurred, appropriate management with post-exposure prophylaxis (PEP) is an additional element of workplace safety, and its provision is required by the U.S. Occupational Safety and Health Administration (OSHA). 7 These guidelines provide updated recommendations on the management of occupational exposures to source patients with known or suspected HIV infection in healthcare settings. These recommendations are aimed at any persons involved in the provision of HIV post-exposure management to HCP, including but not limited to the leaders and staff of occupational health services (i.e., employee health services), emergency and urgent care providers, and primary care providers. HCP, infection prevention, and control staff, and individuals in human resources departments will also benefit from these recommendations.\n\nIntroduction\nKey updates in these guidelines include: (1) preferred and alternative antiretroviral therapy (ART) for use as PEP regimens, (2) recommendations for HCP exposures to patients with undetectable viral loads, (3) recommendations for HCP who are on pre-exposure prophylaxis (PrEP) at the time of exposure, and (4) timing for conclusion of HIV follow-up testing after exposure and other laboratory diagnostic test considerations. Since the 2013 Public Health Service (PHS) Guidelines 1 , the U.S. Food and Drug Administration (FDA) approved several new antiretroviral agents for the treatment of HIV, including second-generation integrase inhibitors with higher barriers to resistance, comparatively fewer side effects, and more convenient dosing schedules than older agents. In addition, new data were published on the effectiveness of HIV tests in detecting early infection and on the risk of transmission from source patients with undetectable viral loads. In light of these new developments, a U.S. PHS working group was convened by CDC to review new data on HCP with occupational exposures to HIV and update recommendations where the evidence has changed since 2013.\n\nIntroduction\nAs in the 2013 PHS Guidelines, this update continues to emphasize: (1) primary prevention of occupational exposures; (2) prompt reporting and management of occupational exposures and, if indicated, initiation of PEP as soon as possible after exposure; (3) selection of PEP regimens that have the fewest side effects and that are best tolerated by recipients; (4) attention to potential interactions involving both drugs included in PEP regimens and other medications that PEP recipients might be taking; (5) consultation with experts on PEP management strategies for complex cases such as assistance with determining whether an exposure has actually occurred, or selecting PEP regimens for cases where the source patient is known or suspected to have extensive HIV mutations associated with antiretroviral resistance; (6) HIV testing of source patients (without delaying PEP initiation in the exposed provider) using methods that produce rapid results; and (7) counseling and follow-up of exposed HCP.\n\nIntroduction\nRecommendations on the management of occupational exposures to hepatitis B virus and/or hepatitis C virus (HCV) have been published previously 8 , 9 and are not included in these guidelines. Recommendations for nonoccupational (e.g., sexual, pediatric, and perinatal) HIV exposure also have been published previously and are updated separately. 10 \u2013 12\n\nMethods\nWhat is the balance of benefits and risks of prescribing dolutegravir and/or bictegravir-containing regimens compared to raltegravir plus emtricitabine/tenofovir for use as first-line PEP among HCP with an occupational exposure to HIV?\n\nMethods\nWhat is the balance of benefits and risks of prescribing intramuscular (IM)-administered cabotegravir-based ART compared to the standard of care of use as an alternative PEP regimen among HCP with an occupational exposure to HIV?\n\nMethods\nWhat is the interval following an occupational HIV exposure after which no benefit is gained by administering PEP to HCP?\n\nMethods\nWhat is the risk of a patient with an undetectable HIV viral load transmitting to HCP following an occupational percutaneous and/or mucous membrane exposure?\n\nMethods\nWhat is the window of time until HIV antibodies can be detected using a fourth-generation HIV antigen/antibody (Ag/Ab) test, among HCP with an occupational exposure?\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nEducate HCP to report occupational exposures to blood and body fluids as soon as possible to their occupational health service. Good Practice Statement , Existing Recommendation\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nInitiate PEP as soon as possible, up to 72 hours following the occupational exposure to HIV. Good Practice Statement , Existing Recommendation\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nWhen considering initiation of PEP after 72 hours following occupational exposures thought to represent a high risk of transmission, consult a provider with expertise in HIV treatment * (see Box 1 ). Good Practice Statement , Existing Recommendation\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nPrescribe PEP regimens for a duration of 28 days. Good Practice Statement , Existing Recommendation\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nDetermine the HIV status of the source patient whenever possible to guide appropriate use of PEP. Good Practice Statement , Existing Recommendation\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nDo not delay administration of PEP while waiting for information regarding the source patient\u2019s HIV status. Good Practice Statement , Existing Recommendation\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nDiscontinue PEP and HIV follow-up testing if the source patient is determined to be HIV negative. Good Practice Statement , Existing Recommendation\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nProvide counseling to exposed HCP in accordance with CDC recommendations for HCP with occupational exposures 15 , and including the: Importance of adherence to PEP; Use of precautions (i.e., use of barrier contraception, avoidance of blood or tissue donations) to prevent secondary transmission until the final HIV test post-exposure (see Laboratory Testing of Exposed HCP ); Drugs 16 that should not be taken with PEP or require dose or administration adjustments, side effects of prescribed PEP, and measures (including pharmacologic interventions) that may assist in minimizing side effects; and Importance of clinical evaluation if any acute symptoms (i.e., side effects of prescribed PEP, symptoms of acute HIV) develop prior to the final HIV test post-exposure (see Laboratory Testing of Exposed HCP ). Good Practice Statement, Existing Recommendation\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nRe-evaluate exposed HCP within 72 hours after occupational exposure to assess for further counseling needs and PEP tolerability. Good Practice Statement , Existing Recommendation\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nConsult a provider with expertise in HIV treatment * for HCP unable to take the initial PEP regimen due to intolerance or toxicity (see Box 1 ). Good Practice Statement , Existing Recommendation\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nRefer HCP determined to have HIV infection to a provider with expertise in HIV treatment * . Good Practice Statement , Existing Recommendation\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nExpert consultation can be made with local experts or through the following resources:\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nAntiretroviral Pregnancy Registry at http://www.apregistry.com ; telephone: 800-258-4263; fax: 800-800-1052; email: sm_apr@apregistry.com\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nNational Clinician Consultation Center (UCSF) Post-Exposure Prophylaxis Hotline at 888-448-4911.\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nFDA (for reporting unusual or severe toxicity to antiretroviral agents): http://www.fda.gov/medwatch ; telephone: 800-332-1088\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nThe CDC\u2019s Cases of Public Health Importance (COPHI) coordinator (for reporting HIV infections in HCP and failures of PEP) at telephone number 404-639-2050.\n\nSummary of recommendations > Management of HCP with an occupational exposure to HIV\nHIV/AIDS Treatment Information Service at http://aidsinfo.nih.gov/ .\n\nSummary of recommendations > Management of pregnant or breastfeeding HCP with an occupational exposure to HIV\nProvide post-exposure management to pregnant or breastfeeding HCP following occupational exposure based on the same considerations that apply to any HCP following occupational exposure to HIV (see HCP with an Occupational Exposure to HIV) . Good Practice Statement, Existing Recommendation\n\nSummary of recommendations > Management of pregnant or breastfeeding HCP with an occupational exposure to HIV\nConsult a provider with expertise in the treatment of HIV in pregnant or breastfeeding women * (see Box 1 ). Good Practice Statement, Existing Recommendation\n\nSummary of recommendations > Management of pregnant or breastfeeding HCP with an occupational exposure to HIV\nCounsel pregnant HCP regarding potential risks and benefits of selected PEP agents for the fetus. Good Practice Statement, Existing Recommendation\n\nSummary of recommendations > Management of pregnant or breastfeeding HCP with an occupational exposure to HIV\nCounsel breastfeeding HCP regarding: The high risk of HIV transmission through breast milk should acute HIV infection occur; and The risks and benefits of continuing breastfeeding while taking PEP and being monitored for HIV seroconversion; or interrupting breastfeeding and discarding breast milk until the final HIV test post-exposure (see Laboratory Testing of Exposed HCP ) to eliminate risk of HIV transmission to the infant.\n\nSummary of recommendations > Management of pregnant or breastfeeding HCP with an occupational exposure to HIV\nGood Practice Statement, Existing Recommendation\n\nSummary of recommendations > Selection of agents for HIV PEP\nConsult Table 2 for initial preferred and alternative PEP regimens for HCP following occupational exposure to HIV.\n\nSummary of recommendations > Selection of agents for HIV PEP\nTable 2. Initial Preferred and Alternative Human Immunodeficiency Virus (HIV) Post-exposure Prophylaxis (PEP) Regimens for Healthcare Personnel \u00a7 , \u00b6 , ** , \u2020\u2020 Group Preferred \u00a7 / Alternative \u00b6 Regimen Healthcare personnel without conditions specified below Preferred Integrase Strand Transfer Inhibitors PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Bictegravir/emtricitabine/tenofovir alafenamide \u2022 Dolutegravir PLUS (tenofovir alafenamide OR tenofovir disoproxil fumarate) PLUS (emtricitabine OR lamivudine) Alternative Boosted Protease Inhibitor PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Darunavir and cobicistat OR darunavir and ritonavir PLUS (tenofovir alafenamide OR tenofovir disoproxil fumarate) PLUS (emtricitabine OR lamivudine) Pregnancy; expert consultation recommended \u00b6 Preferred Integrase Strand Transfer Inhibitors PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Bictegravir/emtricitabine/tenofovir alafenamide \u2022 Dolutegravir PLUS (tenofovir alafenamide OR tenofovir disoproxil fumarate) PLUS (emtricitabine OR lamivudine) Alternative Boosted Protease Inhibitor PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Darunavir and ritonavir (twice daily) PLUS (tenofovir alafenamide OR tenofovir disoproxil fumarate) PLUS (emtricitabine OR lamivudine) Moderate renal dysfunction (creatinine clearance 30\u201349 mL/min); expert consultation recommended \u00b6 Preferred Integrase Strand Transfer Inhibitors PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Bictegravir/emtricitabine/tenofovir alafenamide \u2022 Dolutegravir PLUS tenofovir alafenamide PLUS (emtricitabine OR lamivudine \u00a7\u00a7 ) Alternative Integrase Strand Transfer Inhibitors PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Dolutegravir PLUS dose-reduced tenofovir disoproxil fumarate *** PLUS (emtricitabine OR lamivudine \u00a7\u00a7 ) Boosted Protease Inhibitor PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Darunavir/cobicistat/tenofovir alafenamide/emtricitabine \u2022 Darunavir and ritonavir PLUS (tenofovir alafenamide OR dose-reduced tenofovir disoproxil fumarate *** ) PLUS (emtricitabine OR lamivudine \u00a7\u00a7 ) Severe renal dysfunction (creatinine clearance <30 mL/min) and on hemodialysis; expert consultation recommended \u00b6 Preferred Integrase Strand Transfer Inhibitors PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Bictegravir/emtricitabine/tenofovir alafenamide \u2022 Dolutegravir PLUS tenofovir alafenamide PLUS (emtricitabine OR dose-reduced \u2020\u2020\u2020 lamivudine) Alternative Integrase Strand Transfer Inhibitors PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Dolutegravir PLUS dose-reduced tenofovir disoproxil fumarate PLUS (emtricitabine OR dose-reduced \u2020\u2020\u2020 lamivudine) Boosted Protease Inhibitor PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Darunavir/cobicistat/tenofovir alafenamide/emtricitabine \u2022 Darunavir and ritonavir PLUS (tenofovir alafenamide OR dose-reduced \u2020\u2020\u2020 tenofovir disoproxil fumarate) PLUS (emtricitabine OR dose-reduced \u2020\u2020\u2020 lamivudine) Severe renal dysfunction (creatinine clearance <30 mL/min; not on hemodialysis) ; expert consultation recommended \u00b6 Consult HIV specialist Hepatic impairment (Child-Pugh A or B); expert consultation recommended \u00b6 Preferred Integrase Strand Transfer Inhibitors PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Bictegravir/emtricitabine/tenofovir alafenamide \u2022 Dolutegravir PLUS (tenofovir alafenamide OR tenofovir disoproxil fumarate) PLUS (emtricitabine OR lamivudine) Alternative Boosted Protease Inhibitor PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Darunavir and cobicistat OR darunavir and ritonavir PLUS (tenofovir alafenamide OR tenofovir disoproxil fumarate) PLUS (emtricitabine OR lamivudine) Hepatic impairment (Child-Pugh C); expert consultation recommended \u00b6 Consult HIV specialist The regimens below are recommended for initial use as PEP in HCP exposed to HIV. When the recommended preferred regimens are not available, alternative regimens are suitable for use. Although a raltegravir-based regimen is not included in the table due to having a higher pill burden and potential for decreased adherence, it remains an efficacious option for occupational post-exposure prophylaxis if neither preferred nor alternative regimen(s) can be prescribed. \u00a7 Preferred PEP Regimens are categorized as Recommendations supported by Moderate Confidence in the evidence. \u00b6 Alternative PEP Regimens and consultation recommendations are categorized as Good Practice Statements based on Existing Recommendations. ** The following are available as single tablet complete PEP regimens: bictegravir/tenofovir alafenamide /emtricitabine (BIC/TAF/FTC; a preferred regimen) and darunavir/cobicistat/tenofovir alafenamide /emtricitabine (DRV/c/TAF/FTC; an alternative regimen). Generic drug forms are available for darunavir (DRV), ritonavir (RTV), tenofovir disoproxil fumarate (TDF)/emtricitabine (FTC), TDF/lamivudine (3TC), and 3TC. Additional prescribing information including other combination products is available in Table 7. Antiviral potency, tolerability, client preferences, cost, and access are all considerations when selecting an nPEP regimen. Some single tablet regimens may be inappropriate for people with organ dysfunction. Healthcare professionals unfamiliar with these medications should use local infectious diseases or other expert consultation resources, or call the National Clinician Consultation Center PEPline [888-448-4911 or https://nccc.ucsf.edu/clinician-consultation/pep-post-exposure-prophylaxis/ ] or the Perinatal HIV Line [888-448-8765 or https://nccc.ucsf.edu/clinician-consultation/perinatal-hiv-aids/ ]. \u2020\u2020 Regimens within categories are listed in alphabetical order and not according to preference. \u00a7\u00a7 The prescribing information for lamivudine recommends dosage adjustment from 300 mg once daily to 150 mg once daily for patients with CrCl 30\u201349 mL/min. However, the prescribing information for several fixed-dose combination (FDC) products that contain lamivudine recommends no dose adjustment for CrCl 30\u201349 mL/min. Therefore, no dose adjustment is needed for lamivudine when administered as a standalone tablet or part of a FDC tablet. *** Tenofovir DF (TDF) 300 mg every 48 hours. \u2020\u2020\u2020 Please see manufacturer\u2019s package insert for dosing instructions for individual agents or consult the Guidelines for the Use of Antiretroviral Agents.\n\nSummary of recommendations > Management of occupational exposures to source patients with HIV and undetectable serum viral loads\nConsult a provider with expertise in HIV treatment * (see Box 1 ). Good Practice Statement, Existing Recommendation\n\nSummary of recommendations > Management of occupational exposures to source patients with HIV and undetectable serum viral loads\nUse shared clinical decision-making \u2020 involving the exposed HCP following occupational exposure to a patient with an undetectable serum viral load when deciding whether to forego initiation of PEP or discontinue PEP early (see Exposure to a Source Patient with HIV Infection and an Undetectable Plasma Viral Load ). Recommendation, Moderate Confidence\n\nSummary of recommendations > Management of occupational exposures in HCP on pre-exposure prophylaxis for HIV\nConsult a provider with expertise in HIV treatment * (see Box 1 ). Good Practice Statement, Existing Recommendation\n\nSummary of recommendations > Management of occupational exposures in HCP on pre-exposure prophylaxis for HIV\nUse shared clinical decision-making \u2020 involving the exposed HCP taking pre-exposure prophylaxis (PrEP) when deciding whether to forego initiation of PEP or discontinue PEP early (see HIV PEP Regimens for HCP taking Pre-Exposure Prophylaxis for HIV) . Good Practice Statement, Indirect Evidence\n\nSummary of recommendations > Management of occupational exposures to an unknown source (e.g., needle in sharps disposal container)\nConsult a provider with expertise in HIV treatment * (see Box 1 ). Good Practice Statement, Existing Recommendation\n\nSummary of recommendations > Management of occupational exposures to an unknown source (e.g., needle in sharps disposal container)\nUse shared clinical decision-making \u2020 involving the exposed HCP when deciding whether to forego initiation of PEP or discontinue PEP early (see Exposure to an Unknown Source) . Good Practice Statement, Existing Recommendation\n\nSummary of recommendations > Management of occupational exposures to an unknown source (e.g., needle in sharps disposal container)\nDo not test needles or other sharp instruments for HIV. Good Practice Statement, Existing Recommendation\n\nBackground > Definition of HCP and occupational exposure to HIV\nThe term HCP refers to all paid and unpaid persons serving in healthcare settings who have the potential for direct or indirect exposure to patients or infectious materials, including body substances (e.g., blood, tissue, and specific or blood-contaminated body fluids), contaminated medical supplies, devices, equipment, environmental surfaces, or air. 17 These HCP may include but are not limited to, emergency medical service personnel, nurses, nursing assistants, physicians, technicians, therapists, phlebotomists, pharmacists, students and trainees, contractual staff not employed by the healthcare facility, and persons (e.g., clerical, dietary, environmental services, laundry, security, maintenance, engineering and facilities management, administrative, billing, and volunteer personnel) not directly involved in patient care but potentially exposed to infectious agents that can be transmitted from HCP and patients.\n\nBackground > Definition of HCP and occupational exposure to HIV\nAn exposure that might place HCP at risk for HIV infection is defined as a percutaneous injury (e.g., a needlestick or cut with a sharp object) or contact of mucous membranes or nonintact skin (e.g., exposed skin that is chapped, abraded, or afflicted with dermatitis) with blood, tissue, or other body fluids that are potentially infectious. In addition to blood and visibly bloody body fluids, semen, pre-seminal fluid, vaginal fluids, rectal fluids, and breast milk are also considered potentially infectious. 18 Although HIV may be transmitted sexually via semen and vaginal secretions, there are no known reports of occupational transmission with these fluids from patients to HCP. The following fluids are also considered potentially infectious: cerebrospinal fluid, synovial fluid, pleural fluid, peritoneal fluid, pericardial fluid, and amniotic fluid. The risk for transmission of HIV infection from these fluids is unknown; the potential risk to HCP from occupational exposures to these fluids has not been assessed by epidemiologic studies in healthcare settings. Feces, nasal secretions, saliva, sputum, sweat, tears, urine, and vomitus are not considered potentially infectious unless they are visibly bloody. 18 , 19\n\nBackground > Definition of HCP and occupational exposure to HIV\nAny direct contact (i.e., contact in the absence of personal protective equipment) with concentrated virus in a research laboratory or production facility requires clinical evaluation. 20 For human bites, clinical evaluation must include the possibility that both the person bitten and the person who inflicted the bite were exposed to blood-borne pathogens. Transmission of HIV infection by this route has been reported rarely, but not after an occupational exposure in healthcare. 21 \u2013 27\n\nBackground > Risk for occupational transmission of HIV\nFactors associated with risk for occupational transmission of HIV have been described; risks vary with the type and severity of exposure. 19 , 28 , 29 In prospective studies of HCP, the average risk for HIV transmission after a percutaneous exposure to HIV-infected blood has been estimated to be 0.23% (95 % confidence interval [CI], 0.00%\u20130.46%) 30 and that after a mucous membrane exposure to be approximately 0.09% (95% CI, 0.006%\u20130.5%). 31 Although episodes of HIV transmission after nonintact skin exposure have been documented, the average risk for transmission by this route has not been precisely quantified but is estimated to be less than the risk for mucous membrane exposures. The risk for transmission after occupational exposure to fluids or tissues other than HIVinfected blood also has not been quantified but may be considerably lower than that for blood exposures. 19\n\nBackground > Risk for occupational transmission of HIV\nEpidemiologic and laboratory studies suggest that multiple factors might affect the risk of HIV transmission after an occupational exposure. 32 In a retrospective case-control study of HCP who had percutaneous exposure to HIV, increased risk for HIV infection was associated with exposure to a larger quantity of blood from the source person as indicated by (1) a device (e.g., a needle) visibly contaminated with the patient\u2019s blood, (2) a procedure that involved a needle being placed directly in a vein or artery, or (3) a deep injury. The risk also was increased for exposure to blood from source persons with terminal illness, likely reflecting the higher viral inoculum of HIV in blood late in the clinical course of acquired immunodeficiency syndrome (AIDS). Taken together, these factors suggest a direct inoculum effect (i.e., the larger the viral inoculum, the higher the risk for infection). One laboratory study that demonstrated that more blood is transferred by deeper injuries and hollow-bore needles lends further credence to the observed variation in risk related to inoculum size. 33\n\nBackground > Timing and duration of PEP\nAnimal studies have suggested that PEP is most efficacious when begun as soon as possible after the exposure and becomes less effective when started 48 to 72 hours after exposure, supporting that the initiation of PEP after exposure is an urgent matter. 34 \u2013 38 Hence, for example, a surgeon who sustains an occupational exposure to HIV while performing a surgical procedure has an urgent reason to, after assuring the safety of the patient, promptly scrub out of the surgical case and seek immediate medical evaluation.\n\nBackground > Antiretroviral agents for PEP: selection, duration, toxicity, and drug interactions\nA three-drug treatment paradigm has been applied successfully for PEP, with modern ART regimens being better tolerated than agents previously used for PEP in the pre-INSTI era. 16 The recommended initial regimens (Table 2 ) have been associated with minimal or tolerable side effects and limited drug-drug interactions. Additionally, the results of the systematic literature review (see Appendix) suggested no difference in effectiveness between dolutegravir- or bictegravir-based ART regimens and raltegravir-based as PEP in nonoccupational populations. Notably, one of the regimens (bictegravir + tenofovir alafenamide + emtricitabine) is available as a single tablet, once-daily option as Biktarvy. While two-drug regimens are used for some patients as HIV treatment, there are no data on their effectiveness as PEP, and their effectiveness for high-risk percutaneous exposures such as may occur in occupational settings is also unknown. The finite four-week duration of PEP also means that the risk for cumulative toxicity of three-drug regimens compared to two-drug regimens is minimal. Additionally, in the theoretical event of an infection occurring despite taking PEP for an occupational exposure, there would presumably be less risk for the development of drug resistance on a three-drug compared to a two-drug regimen.\n\nBackground > Resistance to antiretroviral agents\nInformation on whether a source patient harbors drug-resistant HIV may be unclear or unavailable at the time of an occupational exposure and when PEP is prescribed. ART resistance is typically suspected in a source patient who experiences clinical progression of disease, a persistently increasing viral load, or a decline in CD4+ T cell count despite therapy and in instances in which a virologic response to therapy fails to occur. However, resistance testing of the source patient\u2019s virus at the time of an exposure to aid in the selection of the initial PEP regimen is impractical, because the results will not be available in time to influence the choice of the initial PEP regimen.\n\nBackground > Antiretroviral drugs during pregnancy or breastfeeding\nThe risk of HIV transmission poses a threat to both the pregnant HCP as well as their fetus, as the risk of perinatal HIV transmission is markedly increased during acute HIV infection during pregnancy. 50 Including obstetric providers (e.g., obstetrician, family medicine provider, midwife) of pregnant HCP in post-exposure medical care is also critical for their safety and health. Although the initiation of PEP is not delayed, when pregnant HCP or HCP intending to become pregnant have an occupational exposure or occupational acquisition of an infectious disease, OHS will typically refer exposed HCP to their obstetric provider so that ongoing recommended post-exposure management and counseling can be collaboratively managed. 51\n\nBackground > HIV post-exposure prophylaxis regimens for HCP taking pre-exposure prophylaxis (PrEP) for HIV\nAlthough pre-exposure prophylaxis (PrEP) is highly effective at preventing HIV transmission through sexual exposures, its effectiveness for prevention of occupationally acquired HIV transmission is unknown. 54 If occupational health providers are using shared decision-making to determine whether or not occupationally-exposed HCP who are already taking PrEP can forego initiation of PEP or discontinue PEP early, considerations include: (1) recency of initiation of PrEP; (2) adherence to PrEP regimens and any missed PrEP doses; (3) use of intermittent PrEP regimens outside of current CDC PrEP guideline recommendations; (4) exposure to source patients without sustained viral suppression and resistance to PrEP components; and (5) the potential risks and benefits of a 3-drug PEP regimen compared to a 1\u20132 drug PrEP regimen.\n\nBackground > Management of occupational exposure by emergency providers\nMany HCP exposures to HIV occur outside of occupational health clinic hours of operation and at sites at which occupational health services are unavailable, with initial exposure management often overseen by emergency physicians or other providers who are not experts in the treatment of HIV infection or the use of ART agents. These providers may not be familiar with either the PHS guidelines for the management of occupational exposures to HIV or the available ART agents and their relative risks and benefits. Previous focus groups conducted among emergency department physicians who had managed occupational exposures to blood and body fluids 56 identified three challenges in occupational exposure management: evaluation of an unknown source patient or a source patient who refused testing, inexperience in managing occupational HIV exposures, and counseling of exposed HCP in busy emergency departments. Readily-available protocols for the management of occupational exposures to HIV (e.g., disseminated to staff on pocket-sized cards, smartphone app) which provide information on a formal expert consultation mechanism (e.g., the in-house infectious diseases consultant or PEPline), appropriate initial source patient and exposed provider laboratory testing, procedures for counseling of the exposed provider, identifying and having an initial PEP regimen available, and the mechanism for outpatient follow-up, can all facilitate high quality post-exposure management for HCP. The development and use of such protocols is recommended by CDC. 15\n\nFollow-up of exposed HCP > Importance of follow-up appointments\nFollow-up counseling, post-exposure testing, and medical evaluation are important post-exposure interventions for HCP with occupational exposures to HIV, regardless of whether they take PEP. Careful attention to follow-up evaluation within 72 hours of exposure can (1) provide another (and perhaps less anxiety ridden) opportunity to allow the exposed HCP to ask questions and for the counselor to make certain that the exposed HCP has a clear understanding of the risks for infection and the risks and benefits of PEP, (2) ensure that continued treatment with PEP is indicated, (3) increase adherence to PEP regimens, (4) detect and manage associated symptoms and side effects more effectively, (5) provide an early opportunity for ancillary medications or regimen changes, (6) improve detection of serious adverse effects, and (7) improve the likelihood of follow-up serologic testing for a larger proportion of exposed personnel to detect infection. Closer follow-up may in turn reassure HCP who become anxious after these events. 62 , 63 The psychological impact of needlesticks or exposure to blood or body fluid should not be underestimated for HCP.",
+        "body_excerpts_sha256": "cb41666a4d2250e715d5242129ccea5730b68d9bb8e7224b4f735a3e312eb7fc",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12616222/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "35166004",
+        "title": "UK guideline for the use of HIV post-exposure prophylaxis\u00a02021.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35166004/",
+        "abstract": "We present the updated British Association for Sexual Health and HIV (BASHH) guidelines for post-exposure prophylaxis (PEP) to HIV following sexual exposures, occupational exposures and other nonoccupational exposures in the community. This serves as an update to the 2015 BASHH guideline on PEP following sexual exposures and the 2008 Expert Advisory Group on AIDS guidelines on HIV PEP. We aim to provide evidence-based guidance on best clinical practice in the provision, monitoring and support of PEP for the prevention of HIV acquisition following sexual, occupational and other nonoccupational exposures in the community. The guideline covers when to prescribe PEP, what antiretroviral agents to use and how to manage PEP. This includes (i) evidence of PEP efficacy; (ii) evidence relating to individual-level efficacy of antiretroviral therapy to prevent the sexual transmission of HIV; (iii) data on the detectable (transmissible) prevalence of HIV in specific populations; (iv) risk of HIV transmission following different types of sexual and occupational exposure; (v) baseline risk assessment; (vi) drug regimens and dosing schedules; (vii) monitoring PEP; (viii) baseline and follow-up blood-borne virus testing; (ix) the role of PEP within broader HIV prevention strategies, for example, HIV pre-exposure prophylaxis (PrEP). The guideline also covers special scenarios such as PEP in pregnancy, breastfeeding and chronic hepatitis B virus infection, and when PEP should be considered in people using HIV PrEP. The guidelines are aimed at clinical professionals directly involved in PEP provision and other stakeholders in the field. A proforma to assist PEP consultations is included. A public consultation process was undertaken prior to finalizing the recommendations.",
+        "sha256": "9e546f1f9ab50666674d7b15d2c77a42f6070b4530daaa496ea5dd00526ab125",
+        "retrieved_at": "2026-09-19T02:25:52.661633+00:00"
+      },
+      {
+        "id": "39323355",
+        "title": "[Guidance for the occupational medicine service regarding the prevention of hepatitis C and HIV infection in Poland].",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39323355/",
+        "abstract": "The set up of new healthcare models by taking into account diagnosis and health education of the viral infection, aims to achieve the goals of the World Health Organization Global Health Sector Strategy on viral diseases for 2022-2030. In comparison to Europe, Poland is ranked among countries with an moderate prevalence of hepatitis B and C virus (HBV and HCV), also human immunodeficiency virus (HIV). An additional challenge is the changing epidemiological situation due to the impact of immigrants, resulting mainly from the war in Ukraine. The article presents current guidance for HCV and HIV diagnosis and presents the role of occupational health service (OHS) for primary and secondary prevention of the infectious diseases. It was considered to expand the scope of periodic examinations to include diagnosis of HBV, HCV and HIV infections among health care workers, who have not had it performed so far. In the case of abnormal level of alanine aminotransferase (ALT), aspartate aminotransferase (AST) or \u03b3-glutamyl transpeptidase (GGT) found during routine pre-employment or periodic examinations for specific occupational exposures and it is considered crucial to implement further measures to exclude or confirm HBV or HCV infection, with indications for further management in primary care, and followed by subsequent periodic examinations. The need to pay attention to any symptoms that may indicate HBV, HCV and/or HIV infection, to perform additional diagnostic tests (e.g., point of care), and to determine the next steps in case of positive result was indicated. It emphasized the need to tailor the delivery of information to the patient, including taking care to ensure that immigrants' workers understand the next steps. It was recommended that the OHS conduct educational activities to raise health awareness of HIV, HCV, HBV infections, both through health policy programs as well as through broader activities in cooperation with the employer. Med Pr Work Health Saf. 2024;75(5):485-494.",
+        "sha256": "71e8cff08211356d4e66bdc16ca0d026e09398619d4bd7ef8c4cab65c1e309a6",
+        "retrieved_at": "2026-09-19T02:25:53.138662+00:00"
+      },
+      {
+        "id": "42310740",
+        "title": "Incidence of occupational HIV seroconversion among healthcare workers: a systematic review and meta-analysis.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/42310740/",
+        "abstract": "Healthcare workers (HCWs) may be at elevated risk of HIV infection due to the global HIV burden and frequent occupational exposure to blood and body fluids (BBF). This systematic review aimed to estimate the global incidence of occupational HIV seroconversion among HCWs by synthesizing evidence from observational studies.\nThis review followed PRISMAguidelines and was registered in PROSPERO. Systematic searches were conductedin six major databases and gray literature to identify observational studies reporting HIV seroconversion following occupational exposure. Studies were included regardless of whether the source patient's HIV serostatus was confirmed, in line with real-world reporting practices. Data were extracted onseroconversion, PEP adherence, exposure type, and follow-up. Meta-analyses of proportions were performed using fixed-effect models with arcsine and Freeman-Tukey double arcsine transformations to account for the rarity of events. Heterogeneity was assessed using I\u00b2 and tau\u00b2 statistics.\nA total of 132 studies were included. The pooled probability of occupational HIV seroconversion across all reported exposures was 0.0125 per 1000 exposure incidents (95% CI:0.0003-0.0425). Among individuals who completed follow-up, the incidence was 0.1215 per 1000 exposure incidents (95% CI: 0.0284-0.2795). For percutaneous exposures, the pooled incidence was 0.5512 per 1000 exposure incidents (95% CI:0.1620-1.1714), and for mucocutaneous exposures, 1.7840 per 1000 exposure incidents (95% CI: 0.7584-3.2409). Among PEP users, the pooled incidence was 0.0098 per 1000 exposure incidents (95% CI: 0.0000-0.3597), compared to 1.7448per 1000 exposure incidents (95% CI: 0.2768-4.4726) among non-adherent individuals.\nOccupational HIV seroconversion among HCWs is rare. Adherence to PEP is associated with reduced transmission risk, reinforcing the importance of timely follow-up and strategies in occupational settings.\nPROSPERO CRD42023406192.",
+        "sha256": "500b07e7f414c72bfb2c275807fa77460ba5e9c7ce97392f58035abc2c3f4408",
+        "retrieved_at": "2026-09-19T02:25:55.007577+00:00",
+        "pmcid": "PMC13332612"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "This is a high-risk occupational HIV exposure: a deep percutaneous injury from a visibly blood-contaminated hollow-bore needle that had been in the vein of a source patient with HIV and a detectable viral load. The 2025 U.S. Public Health Service guideline recommends initiating a guideline-listed three-drug PEP regimen as soon as possible and no later than 72 hours, without waiting for source or exposed-worker test results, and continuing it for 28 days. It also recommends adherence counseling and reassessment within 72 hours for tolerability and counseling needs. Presentation at 90 minutes is within the ideal window for immediate initiation. Deferral as proposed in B could reduce efficacy and conflicts with the guidance not to delay PEP.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "41569270",
+                "38285211"
+              ],
+              "reason": "Both sources recommend prompt initiation of indicated PEP and identify 72 hours as the latest routine initiation threshold.",
+              "source_passage_ids": [
+                "41569270:p9",
+                "38285211:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41569270",
+                  "quote": "antigen/antibody (Ag/Ab) test, among HCP with an occupational exposure? Summary of recommendations > Management of HCP with an occupational exposure to HIV Educate HCP to report occupational exposures to blood and body fluids as soon as possible to their occupational health service. Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Initiate PEP as soon as possible, up to 72 hours following the occupational exposure to HIV. Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV When considering initiation of PEP after 72 hours following occupational exposures thought to represent a high risk of transmission, consult a provider with expertise in HIV treatment * (see Box 1 )."
+                },
+                {
+                  "source_id": "38285211",
+                  "quote": "Patients often present to emergency departments after potential or confirmed exposure to human immunodeficiency virus (HIV) asking for recommendations concerning the initiation of post-exposure prophylaxis (PEP). These presentations may occur after occupational as well as non-occupational exposure. PEP entails taking a triple antiretroviral therapy for 28-30 days. If taken early (ideally within 2 h, but no later than 72 h) and as indicated, HIV infection can be prevented with a high level of probability. Since these presentations occur around the clock, they require basic expertise on the part of the emergency department staff regarding its indication and its side effects as well as standardized procedures in the emergency department to not delay initiation."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "41569270"
+              ],
+              "reason": "The occupational-exposure guideline explicitly recommends prescribing PEP for 28 days.",
+              "source_passage_ids": [
+                "41569270:p10"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41569270",
+                  "quote": "Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Prescribe PEP regimens for a duration of 28 days. Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Determine the HIV status of the source patient whenever possible to guide appropriate use of PEP. Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Do not delay administration of PEP while waiting for information regarding the source patient\u2019s HIV status. Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Discontinue PEP and HIV follow-up testing if the source patient is determined to be HIV negative."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "41569270",
+                "38285211"
+              ],
+              "reason": "The sources describe a three-drug or triple-antiretroviral PEP approach, and the occupational guideline lists an integrase inhibitor plus two nucleoside reverse-transcriptase inhibitors as preferred therapy.",
+              "source_passage_ids": [
+                "41569270:p18",
+                "41569270:p37",
+                "38285211:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41569270",
+                  "quote": "Initial Preferred and Alternative Human Immunodeficiency Virus (HIV) Post-exposure Prophylaxis (PEP) Regimens for Healthcare Personnel \u00a7 , \u00b6 , ** , \u2020\u2020 Group Preferred \u00a7 / Alternative \u00b6 Regimen Healthcare personnel without conditions specified below Preferred Integrase Strand Transfer Inhibitors PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Bictegravir/emtricitabine/tenofovir alafenamide \u2022 Dolutegravir PLUS (tenofovir alafenamide OR tenofovir disoproxil fumarate) PLUS (emtricitabine OR lamivudine) Alternative Boosted Protease Inhibitor PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Darunavir and cobicistat OR darunavir and ritonavir PLUS (tenofovir alafenamide OR tenofovir disoproxil fumarate) PLUS (emtricitabine OR lamivudine) Pregnancy; expert consultation recommended \u00b6 Preferred Integrase Strand Transfer Inhibitors PLUS Two Nucleoside Reverse Transcriptase Inhibitors"
+                },
+                {
+                  "source_id": "41569270",
+                  "quote": "Background > Antiretroviral agents for PEP: selection, duration, toxicity, and drug interactions A three-drug treatment paradigm has been applied successfully for PEP, with modern ART regimens being better tolerated than agents previously used for PEP in the pre-INSTI era. 16 The recommended initial regimens (Table 2 ) have been associated with minimal or tolerable side effects and limited drug-drug interactions. Additionally, the results of the systematic literature review (see Appendix) suggested no difference in effectiveness between dolutegravir- or bictegravir-based ART regimens and raltegravir-based as PEP in nonoccupational populations. Notably, one of the regimens (bictegravir + tenofovir alafenamide + emtricitabine) is available as a single tablet, once-daily option as Biktarvy."
+                },
+                {
+                  "source_id": "38285211",
+                  "quote": "Patients often present to emergency departments after potential or confirmed exposure to human immunodeficiency virus (HIV) asking for recommendations concerning the initiation of post-exposure prophylaxis (PEP). These presentations may occur after occupational as well as non-occupational exposure. PEP entails taking a triple antiretroviral therapy for 28-30 days. If taken early (ideally within 2 h, but no later than 72 h) and as indicated, HIV infection can be prevented with a high level of probability. Since these presentations occur around the clock, they require basic expertise on the part of the emergency department staff regarding its indication and its side effects as well as standardized procedures in the emergency department to not delay initiation."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "41569270"
+              ],
+              "reason": "The guideline associates visible blood, prior placement in a vein or artery, and deep injury with greater blood inoculum and increased transmission risk; it also states that hollow-bore needles transfer more blood.",
+              "source_passage_ids": [
+                "41569270:p35",
+                "41569270:p36"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41569270",
+                  "quote": "32 In a retrospective case-control study of HCP who had percutaneous exposure to HIV, increased risk for HIV infection was associated with exposure to a larger quantity of blood from the source person as indicated by (1) a device (e.g., a needle) visibly contaminated with the patient\u2019s blood, (2) a procedure that involved a needle being placed directly in a vein or artery, or (3) a deep injury. The risk also was increased for exposure to blood from source persons with terminal illness, likely reflecting the higher viral inoculum of HIV in blood late in the clinical course of acquired immunodeficiency syndrome (AIDS). Taken together, these factors suggest a direct inoculum effect (i.e., the larger the viral inoculum, the higher the risk for infection)."
+                },
+                {
+                  "source_id": "41569270",
+                  "quote": "One laboratory study that demonstrated that more blood is transferred by deeper injuries and hollow-bore needles lends further credence to the observed variation in risk related to inoculum size. 33 Background > Timing and duration of PEP Animal studies have suggested that PEP is most efficacious when begun as soon as possible after the exposure and becomes less effective when started 48 to 72 hours after exposure, supporting that the initiation of PEP after exposure is an urgent matter. 34 \u2013 38 Hence, for example, a surgeon who sustains an occupational exposure to HIV while performing a surgical procedure has an urgent reason to, after assuring the safety of the patient, promptly scrub out of the surgical case and seek immediate medical evaluation."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "41569270"
+              ],
+              "reason": "The occupational guideline explicitly includes the importance of adherence to PEP in counseling.",
+              "source_passage_ids": [
+                "41569270:p11"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41569270",
+                  "quote": "Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Provide counseling to exposed HCP in accordance with CDC recommendations for HCP with occupational exposures 15 , and including the: Importance of adherence to PEP; Use of precautions (i.e., use of barrier contraception, avoidance of blood or tissue donations) to prevent secondary transmission until the final HIV test post-exposure (see Laboratory Testing of Exposed HCP ); Drugs 16 that should not be taken with PEP or require dose or administration adjustments, side effects of prescribed PEP, and measures (including pharmacologic interventions) that may assist in minimizing side effects; and Importance of clinical evaluation if any acute symptoms (i.e., side effects of prescribed PEP, symptoms of acute HIV) develop prior to the final HIV test"
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "41569270"
+              ],
+              "reason": "The guideline explicitly recommends reassessment within 72 hours for further counseling needs and PEP tolerability.",
+              "source_passage_ids": [
+                "41569270:p12"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41569270",
+                  "quote": "post-exposure (see Laboratory Testing of Exposed HCP ). Good Practice Statement, Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Re-evaluate exposed HCP within 72 hours after occupational exposure to assess for further counseling needs and PEP tolerability. Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Consult a provider with expertise in HIV treatment * for HCP unable to take the initial PEP regimen due to intolerance or toxicity (see Box 1 ). Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Refer HCP determined to have HIV infection to a provider with expertise in HIV treatment * ."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is a high-risk occupational percutaneous exposure: a deep injury from a visibly blood-contaminated hollow-bore needle that had just been in the vein of a source patient with established HIV and detectable viremia. Presentation occurred only 90 minutes later. Current occupational guidance supports immediate three-drug PEP, without waiting for additional source or exposed-worker test results, for 28 days, with adherence counseling and reassessment within 72 hours. Baseline testing and other blood-borne-pathogen evaluation can be performed concurrently and need not delay PEP; candidate A does not preclude that care. Candidate B is unsafe because it expressly delays time-sensitive prophylaxis despite an already documented qualifying exposure. The visible title and question do not disclose the answer, and the prior case concerns removal from isocyanate exposure rather than HIV PEP initiation."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "This is a high-risk occupational HIV exposure: a deep percutaneous injury from a hollow-bore phlebotomy needle visibly contaminated with blood, just removed from the vein of a source patient with known HIV and a detectable viral load. The worker presents within 90 minutes, which is well within the recommended window for HIV PEP. The 2025 US Public Health Service occupational exposure guidelines recommend initiating PEP as soon as possible, up to 72 hours after exposure, prescribing a 28-day regimen, using recommended three-drug regimens, counseling on adherence and side effects, and re-evaluating the exposed healthcare worker within 72 hours. They also explicitly state not to delay PEP while awaiting additional information or test results. Therefore, immediate initiation of a guideline-listed three-drug HIV PEP regimen with counseling and early follow-up is the most appropriate response. Deferring PEP until repeat source viral load or baseline worker HIV results are available would be inappropriate because delay reduces potential efficacy and the source is already known to have detectable HIV viremia.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.95,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "41569270",
+                "38285211"
+              ],
+              "reason": "The occupational PHS guideline states to initiate PEP as soon as possible up to 72 hours after occupational HIV exposure, and the second source also states PEP should be taken early and no later than 72 hours, with procedures to avoid delay.",
+              "source_passage_ids": [
+                "41569270:p9",
+                "38285211:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41569270",
+                  "quote": "antigen/antibody (Ag/Ab) test, among HCP with an occupational exposure? Summary of recommendations > Management of HCP with an occupational exposure to HIV Educate HCP to report occupational exposures to blood and body fluids as soon as possible to their occupational health service. Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Initiate PEP as soon as possible, up to 72 hours following the occupational exposure to HIV. Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV When considering initiation of PEP after 72 hours following occupational exposures thought to represent a high risk of transmission, consult a provider with expertise in HIV treatment * (see Box 1 )."
+                },
+                {
+                  "source_id": "38285211",
+                  "quote": "Patients often present to emergency departments after potential or confirmed exposure to human immunodeficiency virus (HIV) asking for recommendations concerning the initiation of post-exposure prophylaxis (PEP). These presentations may occur after occupational as well as non-occupational exposure. PEP entails taking a triple antiretroviral therapy for 28-30 days. If taken early (ideally within 2 h, but no later than 72 h) and as indicated, HIV infection can be prevented with a high level of probability. Since these presentations occur around the clock, they require basic expertise on the part of the emergency department staff regarding its indication and its side effects as well as standardized procedures in the emergency department to not delay initiation."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "41569270"
+              ],
+              "reason": "The PHS guideline explicitly recommends prescribing PEP regimens for 28 days.",
+              "source_passage_ids": [
+                "41569270:p10"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41569270",
+                  "quote": "Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Prescribe PEP regimens for a duration of 28 days. Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Determine the HIV status of the source patient whenever possible to guide appropriate use of PEP. Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Do not delay administration of PEP while waiting for information regarding the source patient\u2019s HIV status. Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Discontinue PEP and HIV follow-up testing if the source patient is determined to be HIV negative."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "41569270",
+                "38285211"
+              ],
+              "reason": "The PHS guideline lists initial regimens composed of an integrase inhibitor or boosted protease inhibitor plus two nucleoside reverse transcriptase inhibitors and explains the three-drug paradigm; the second source describes PEP as triple antiretroviral therapy.",
+              "source_passage_ids": [
+                "41569270:p18",
+                "41569270:p37",
+                "41569270:p38",
+                "38285211:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41569270",
+                  "quote": "Initial Preferred and Alternative Human Immunodeficiency Virus (HIV) Post-exposure Prophylaxis (PEP) Regimens for Healthcare Personnel \u00a7 , \u00b6 , ** , \u2020\u2020 Group Preferred \u00a7 / Alternative \u00b6 Regimen Healthcare personnel without conditions specified below Preferred Integrase Strand Transfer Inhibitors PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Bictegravir/emtricitabine/tenofovir alafenamide \u2022 Dolutegravir PLUS (tenofovir alafenamide OR tenofovir disoproxil fumarate) PLUS (emtricitabine OR lamivudine) Alternative Boosted Protease Inhibitor PLUS Two Nucleoside Reverse Transcriptase Inhibitors \u2022 Darunavir and cobicistat OR darunavir and ritonavir PLUS (tenofovir alafenamide OR tenofovir disoproxil fumarate) PLUS (emtricitabine OR lamivudine) Pregnancy; expert consultation recommended \u00b6 Preferred Integrase Strand Transfer Inhibitors PLUS Two Nucleoside Reverse Transcriptase Inhibitors"
+                },
+                {
+                  "source_id": "41569270",
+                  "quote": "Background > Antiretroviral agents for PEP: selection, duration, toxicity, and drug interactions A three-drug treatment paradigm has been applied successfully for PEP, with modern ART regimens being better tolerated than agents previously used for PEP in the pre-INSTI era. 16 The recommended initial regimens (Table 2 ) have been associated with minimal or tolerable side effects and limited drug-drug interactions. Additionally, the results of the systematic literature review (see Appendix) suggested no difference in effectiveness between dolutegravir- or bictegravir-based ART regimens and raltegravir-based as PEP in nonoccupational populations. Notably, one of the regimens (bictegravir + tenofovir alafenamide + emtricitabine) is available as a single tablet, once-daily option as Biktarvy."
+                },
+                {
+                  "source_id": "41569270",
+                  "quote": "While two-drug regimens are used for some patients as HIV treatment, there are no data on their effectiveness as PEP, and their effectiveness for high-risk percutaneous exposures such as may occur in occupational settings is also unknown. The finite four-week duration of PEP also means that the risk for cumulative toxicity of three-drug regimens compared to two-drug regimens is minimal. Additionally, in the theoretical event of an infection occurring despite taking PEP for an occupational exposure, there would presumably be less risk for the development of drug resistance on a three-drug compared to a two-drug regimen. Background > Resistance to antiretroviral agents Information on whether a source patient harbors drug-resistant HIV may be unclear or unavailable at the time of an occupational exposure and when PEP is prescribed."
+                },
+                {
+                  "source_id": "38285211",
+                  "quote": "Patients often present to emergency departments after potential or confirmed exposure to human immunodeficiency virus (HIV) asking for recommendations concerning the initiation of post-exposure prophylaxis (PEP). These presentations may occur after occupational as well as non-occupational exposure. PEP entails taking a triple antiretroviral therapy for 28-30 days. If taken early (ideally within 2 h, but no later than 72 h) and as indicated, HIV infection can be prevented with a high level of probability. Since these presentations occur around the clock, they require basic expertise on the part of the emergency department staff regarding its indication and its side effects as well as standardized procedures in the emergency department to not delay initiation."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "41569270"
+              ],
+              "reason": "The PHS guideline identifies visibly blood-contaminated devices, needles placed directly in a vein or artery, and deep injury as markers of larger blood exposure and increased HIV transmission risk, and separately notes deeper injuries and hollow-bore needles transfer more blood.",
+              "source_passage_ids": [
+                "41569270:p35",
+                "41569270:p36"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41569270",
+                  "quote": "32 In a retrospective case-control study of HCP who had percutaneous exposure to HIV, increased risk for HIV infection was associated with exposure to a larger quantity of blood from the source person as indicated by (1) a device (e.g., a needle) visibly contaminated with the patient\u2019s blood, (2) a procedure that involved a needle being placed directly in a vein or artery, or (3) a deep injury. The risk also was increased for exposure to blood from source persons with terminal illness, likely reflecting the higher viral inoculum of HIV in blood late in the clinical course of acquired immunodeficiency syndrome (AIDS). Taken together, these factors suggest a direct inoculum effect (i.e., the larger the viral inoculum, the higher the risk for infection)."
+                },
+                {
+                  "source_id": "41569270",
+                  "quote": "One laboratory study that demonstrated that more blood is transferred by deeper injuries and hollow-bore needles lends further credence to the observed variation in risk related to inoculum size. 33 Background > Timing and duration of PEP Animal studies have suggested that PEP is most efficacious when begun as soon as possible after the exposure and becomes less effective when started 48 to 72 hours after exposure, supporting that the initiation of PEP after exposure is an urgent matter. 34 \u2013 38 Hence, for example, a surgeon who sustains an occupational exposure to HIV while performing a surgical procedure has an urgent reason to, after assuring the safety of the patient, promptly scrub out of the surgical case and seek immediate medical evaluation."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "41569270"
+              ],
+              "reason": "The PHS guideline recommends counseling exposed healthcare personnel and explicitly includes the importance of adherence to PEP.",
+              "source_passage_ids": [
+                "41569270:p11"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41569270",
+                  "quote": "Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Provide counseling to exposed HCP in accordance with CDC recommendations for HCP with occupational exposures 15 , and including the: Importance of adherence to PEP; Use of precautions (i.e., use of barrier contraception, avoidance of blood or tissue donations) to prevent secondary transmission until the final HIV test post-exposure (see Laboratory Testing of Exposed HCP ); Drugs 16 that should not be taken with PEP or require dose or administration adjustments, side effects of prescribed PEP, and measures (including pharmacologic interventions) that may assist in minimizing side effects; and Importance of clinical evaluation if any acute symptoms (i.e., side effects of prescribed PEP, symptoms of acute HIV) develop prior to the final HIV test"
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "41569270"
+              ],
+              "reason": "The PHS guideline explicitly recommends re-evaluation within 72 hours after occupational exposure to assess counseling needs and PEP tolerability, and the follow-up section explains the clinical reasons for such follow-up.",
+              "source_passage_ids": [
+                "41569270:p12",
+                "41569270:p45"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41569270",
+                  "quote": "post-exposure (see Laboratory Testing of Exposed HCP ). Good Practice Statement, Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Re-evaluate exposed HCP within 72 hours after occupational exposure to assess for further counseling needs and PEP tolerability. Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Consult a provider with expertise in HIV treatment * for HCP unable to take the initial PEP regimen due to intolerance or toxicity (see Box 1 ). Good Practice Statement , Existing Recommendation Summary of recommendations > Management of HCP with an occupational exposure to HIV Refer HCP determined to have HIV infection to a provider with expertise in HIV treatment * ."
+                },
+                {
+                  "source_id": "41569270",
+                  "quote": "Careful attention to follow-up evaluation within 72 hours of exposure can (1) provide another (and perhaps less anxiety ridden) opportunity to allow the exposed HCP to ask questions and for the counselor to make certain that the exposed HCP has a clear understanding of the risks for infection and the risks and benefits of PEP, (2) ensure that continued treatment with PEP is indicated, (3) increase adherence to PEP regimens, (4) detect and manage associated symptoms and side effects more effectively, (5) provide an early opportunity for ancillary medications or regimen changes, (6) improve detection of serious adverse effects, and (7) improve the likelihood of follow-up serologic testing for a larger proportion of exposed personnel to detect infection. Closer follow-up may in turn reassure HCP who become anxious after these events."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The visible case describes a high-risk occupational percutaneous exposure: a deep puncture from a visibly bloody hollow-bore phlebotomy needle just removed from a source patient\u2019s vein, with the source known to have HIV and a recent detectable viral load. The worker presents 90 minutes after exposure, is not on PrEP, and has no stated renal/hepatic disease or interacting medications. Candidate A matches the supplied occupational HIV PEP guideline excerpts: immediate PEP, not delayed for additional testing, a three-drug guideline-listed regimen, 28-day duration, adherence counseling, and re-evaluation within 72 hours. Candidate B is unsafe because it delays time-sensitive prophylaxis despite a clearly qualifying occupational HIV exposure. The applicant-visible title and question do not disclose the intended answer or management plan; the case is within occupational medicine; and the decision is distinct from the prior isocyanate occupational asthma removal-from-exposure case."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "64e2558e7fe18796b444e6b27981869bb26d287ecfe821e7b3d0169a66f2931c"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

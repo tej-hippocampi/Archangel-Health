@@ -1,0 +1,765 @@
+{
+  "protocol": "independent_revision_input_audit_v1",
+  "audited_at": "2026-09-19T02:55:00.801039+00:00",
+  "disposition": "ready_for_authoring_ci",
+  "scope": "Preparation integrity and source/scope coherence for the 13 second-round authoring inputs. These are rejected drafts with repair instructions, not clinically cleared artifacts.",
+  "clinical_clearance": false,
+  "physician_ratified": false,
+  "real_model_calls_performed": false,
+  "files_modified_by_auditor": [
+    "output/specialty-onboarding/revision2-input-audit.json"
+  ],
+  "snapshots": {
+    "specialty-case-library/backend/scripts/onboarding_revision_inputs.json": "16960c783cd6c5b8ba742a2bba67a826bad2e56151e2005d519b41a9b1d4e9ad",
+    "specialty-case-library/backend/asclepius/onboarding_material/evidence_pins.json": "09cfd60edbd9b93340070c002c1f6ef706bf5d63cf2f8d6f57c8157fe53a8485",
+    "specialty-case-library/backend/asclepius/onboarding_catalog.py": "85d8b7b8e53d2eccb82d3985778d7aca98d05f93e77718a9972329bfb63e1657",
+    "specialty-case-library/backend/asclepius/onboarding_cases.py": "cf2657f0dcc34ad8833ad03a2acb2a5271aeaf2f2bef6b09d738999e6de7a0ff",
+    "specialty-case-library/backend/asclepius/onboarding_evidence.py": "193f3bfb277d8a83a1fe5f097551ffaf316056d4f5050971904b0b227b040df4",
+    "specialty-case-library/backend/scripts/trial_onboarding_openai.py": "7342a40894c08f5df26284865572fba1de1905bf4de7c08fc17a4147f18210b8",
+    "output/specialty-onboarding/reference-preflight.json": "2b493fb3879046a5b5c0bd2722bfe2cdff8f04155fbef727551996bcc96cf37c",
+    "output/specialty-onboarding/imported-initial16-audit.json": "f9c46cb6d0a5b88169ef6f9604f21f5412c06848eaa5ff97de1de020f24d9c79"
+  },
+  "summary": {
+    "revision_input_rows": 45,
+    "changed_round2_rows": 13,
+    "matching_entry_checksums": 13,
+    "all_round2_resume_false": true,
+    "resumed_rows_unchanged": 16,
+    "prior_rejected_artifact_and_reviews_exact_matches": 12,
+    "prior_draft_fallbacks": 1,
+    "retained_prior_sources_checked": 24,
+    "retained_prior_body_hashes_checked": 7,
+    "fresh_source_abstract_checks": 97,
+    "fresh_source_body_checks": 22,
+    "exact_pin_id_title_pmcid_type_matches": 19,
+    "references_available": 13,
+    "existing_cases_skipped": 73,
+    "original_cases_unchanged": 41,
+    "blocking_findings": 0
+  },
+  "findings_and_resolutions": [
+    {
+      "finding": "ENT fallback still supplemented fresh references with six unrelated old sources.",
+      "resolution": "Builder removed all old ENT fallback sources; verified sources=[] while the retained draft hash stays unchanged. The pivot now relies on the two newly retrieved thyroid-associated sources.",
+      "status": "resolved"
+    },
+    {
+      "finding": "Radiology feedback requested initial CT characterization while the binding catalog topic still specified follow-up using a structured CT report.",
+      "resolution": "Builder aligned the catalog topic to incidental pulmonary nodule initial CT characterization using a supplied structured chest imaging report. Confirmed the current catalog text; no task identities changed.",
+      "status": "resolved"
+    }
+  ],
+  "workflow_checks": [
+    "Called revision_inputs() locally: all45 entries validated without model or network calls. Confirmed13 target IDs equal task_id(specialty,kind).",
+    "Compared round2 inputs against HEAD: exactly13 rows changed; the16 resume rows are unchanged. All targeted entry hashes match and resume is false.",
+    "Verified12 retained rejected drafts and all embedded reviewer diagnostics exactly match their recorded source artifact. ENT retains the earlier draft after the latest insufficient-evidence author decline; no new reviewer result is invented.",
+    "Read build_case: feedback enters only the author payload, is explicitly not evidence, and revision context is rejected outside openai_trial. Freshly retrieved evidence takes precedence by PMID; retained supplemental abstracts/body hashes are checked.",
+    "Read trial run: revision targets continue through authoring and validation, produce method=openai_only_trial and release_eligible=false, and do not gain publication authority from this input report.",
+    "Matched19 focused pins to actual preflight PMID, PMCID, title and source_type; required licensed bodies exist. Checked97 abstract hashes and22 retained-body hashes with compatible declared licenses.",
+    "Independently inspected the six late palliative/PMR records against local EFetch XML and four corresponding full-text XML identity/license blocks. Article and abstract identities match.",
+    "Read actual retained decision passages for all13 revision directions, including the longer EANM bacteremia indication, thyroid-node FNA, ITP exclusion, ambulatory FN safety criteria, UFH, cancer dyspnea, oral-anticholinergic-refractory NDO, and calibrated imaging limitations.",
+    "Verified the nuclear erratum against local PMC9016017 XML: mmol/L replaces nmol/L. Feedback confines units to mg/dL and does not alter source quotations.",
+    "Compared the ENT proposed FNA decision with the actual accepted practice case: sudden sensorineural hearing-loss MRI/ABR assessment is distinct. Final generated cases still require pair review."
+  ],
+  "cases": [
+    {
+      "task_id": "onboarding-practice-v1-76e4644baee47eeda234-1",
+      "specialty": "hematology",
+      "kind": "practice",
+      "disposition": "ready_for_authoring_ci",
+      "entry_sha256": "e6ebfb7ccd9c74fe53a64b47d0a62029936e34e4faed2a51819557242c2c09b2",
+      "entry_checksum_valid": true,
+      "resume": false,
+      "source_artifact": "output/specialty-onboarding/openai-trial-35415041635/10575916601/trial-rejected-8bfbdff36fd74b44aefb935e49af4ce9.json",
+      "source_artifact_sha256": "6cfb846370e7cf587d8971455895ff25eb259fe6ba19f51d5fbc6a137fbc18a3",
+      "review_diagnostics_count": 2,
+      "reference_file": "output/specialty-onboarding/reference-preflight-sources/hematology-practice.json",
+      "reference_file_sha256": "d14f52771945afe75b081d049c4383121a81bfa40952fa2c3e2f16a1284fae8a",
+      "substantive_source_candidates": [
+        {
+          "id": "37957517",
+          "pmcid": "PMC10770234",
+          "title": "Reference guide for the diagnosis of adult primary immune thrombocytopenia, 2023 edition.",
+          "source_type": "primary_expert_diagnostic_guidance",
+          "sha256": "8aa0ba92801643d0afe4f24d351ac5e3fa0967f5536ce1089a0ba3266e34eae7",
+          "body_excerpts_sha256": "1f5ffb1010e79fc4a02f1cf1f3a7d05fe36caa75e9809f00621adfc4fcd450c2",
+          "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+        },
+        {
+          "id": "37892566",
+          "pmcid": "PMC10607106",
+          "title": "Recommendations for the Clinical Approach to Immune Thrombocytopenia: Spanish ITP Working Group (GEPTI).",
+          "source_type": "primary_society_consensus",
+          "sha256": "837a5722a41069007bfac94517dbfd286b23d260ce246845d7ffea17698cf04e",
+          "body_excerpts_sha256": "7eaebb753053c9532daa60c06c6cbbbfbd823459b0600979c1317014e3993071",
+          "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+        }
+      ],
+      "finding": "New adult ITP diagnostic guidance supports exclusion of alternative causes; feedback avoids universally requiring Japan-specific TPO/IPF assays or marrow biopsy. Keep the stable diagnostic decision separate from urgent treatment, which may precede a definitive diagnosis.",
+      "clinical_clearance": false
+    },
+    {
+      "task_id": "onboarding-examination-v1-8e91610afd9fe9c9d129-1",
+      "specialty": "infectious diseases",
+      "kind": "examination",
+      "disposition": "ready_for_authoring_ci",
+      "entry_sha256": "f36c78a3f756d473baaa4c1410ad0510c1fe9520de6056e6b0cf37a06901fe6c",
+      "entry_checksum_valid": true,
+      "resume": false,
+      "source_artifact": "output/specialty-onboarding/openai-trial-35415041635/10575448736/trial-rejected-6ffdd886afb44725936043ba0f4533b4.json",
+      "source_artifact_sha256": "397e39a24b87e27bff4109be9bade609eafa7c0911a3c071125a3a79cda0d3cb",
+      "review_diagnostics_count": 2,
+      "reference_file": "output/specialty-onboarding/reference-preflight-sources/infectious-diseases-examination.json",
+      "reference_file_sha256": "87ca6b2cdb26b7579c7295918b7ffe6d2de8335c1d1fc25d5cae1e9f7f3949ae",
+      "substantive_source_candidates": [
+        {
+          "id": "39387894",
+          "pmcid": "PMC11732780",
+          "title": "EANM/SNMMI guideline/procedure standard for [18F]FDG hybrid PET use in infection and inflammation in adults v2.0.",
+          "source_type": "primary_society_guideline",
+          "sha256": "5b5d4f9bc248bd5dba5ce88c643ce3502dce50ca3d6cb145ba419c56b39cda0b",
+          "body_excerpts_sha256": "bc5c16f0662d7f81302d546f8135efb5aca1c26a4ded339ff7a20580a9c55346",
+          "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+        },
+        {
+          "id": "35331165",
+          "pmcid": "PMC8943998",
+          "title": "[18F]FDG-PET/CT in Staphylococcus aureus bacteremia: a systematic review.",
+          "source_type": "systematic_review",
+          "sha256": "faa2628f0e4335fde0b786f57e163cdc2c8cffe1dc572966228be5e04e3a4b8d",
+          "body_excerpts_sha256": "e47d18517661541999a48f17ffeb028ae9b0900ed91c774ae8d2b0513b898dd6",
+          "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+        }
+      ],
+      "finding": "The actual EANM retained body includes the metastatic-infection/septic-emboli indication; the SAB review supports occult foci and uncertainty. Feedback correctly frames PET/CT as an appropriate additional option, with initial evaluation and source-control facts, without mandating it for every SAB or claiming causal survival benefit.",
+      "clinical_clearance": false
+    },
+    {
+      "task_id": "onboarding-examination-v1-50bdde6ac891da15cea7-1",
+      "specialty": "nuclear medicine",
+      "kind": "examination",
+      "disposition": "ready_for_authoring_ci",
+      "entry_sha256": "f4ec77827929b8a29628d258214577791fa360580b50077f783c256884ca8bbf",
+      "entry_checksum_valid": true,
+      "resume": false,
+      "source_artifact": "output/specialty-onboarding/openai-trial-35415041635/10575463694/trial-rejected-5aefecb616c349dbac6a493db09f6b43.json",
+      "source_artifact_sha256": "398e44801acb1ba3de1c42f1d093425a5a81e439c15ad23711a1de0217b40427",
+      "review_diagnostics_count": 2,
+      "reference_file": "output/specialty-onboarding/reference-preflight-sources/nuclear-medicine-examination.json",
+      "reference_file_sha256": "67c1011e2c5f65a623377a5f58770df5c48a99ac7af79c1f34e8efc930cfa03c",
+      "substantive_source_candidates": [
+        {
+          "id": "34882261",
+          "pmcid": "PMC8803744",
+          "title": "EANM procedure guidelines for brain PET imaging using [18F]FDG, version 3.",
+          "source_type": "primary_society_guideline",
+          "sha256": "4ba77cacb6ebf55e5054379cb848cd69ca3dacde367ea0e1e848392e2f8a4ef1",
+          "body_excerpts_sha256": "7a4908a9958d6d338506f97bc2c763e9bf423cf9c0c28014fa59fae833f37eff",
+          "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+        },
+        {
+          "id": "30350009",
+          "pmcid": null,
+          "title": "Effect of blood glucose level on standardized uptake value (SUV) in 18F- FDG PET-scan: a systematic review and meta-analysis of 20,807 individual SUV measurements.",
+          "source_type": null,
+          "sha256": "877415afbc0cb111f4232616e3fad3dc309b31cada9002f641cb4df3f8b63154",
+          "body_excerpts_sha256": null,
+          "body_license_url": null
+        },
+        {
+          "id": "40033766",
+          "pmcid": "PMC11876560",
+          "title": "Relationships Between Brain Glucose Metabolism Patterns and Impaired Glycemic Status: A Systematic Review of FDG-PET Studies With a Focus on Alzheimer's Disease.",
+          "source_type": null,
+          "sha256": "a0ffb0618f30b122fb8030523111e9521887bedef9f481a5b8d9a0039389ac19",
+          "body_excerpts_sha256": "e8c0dd93250218332c9310d7d2754e2cf85e29ce30e6fe25cbdb86cb7fb8d3bd",
+          "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+        }
+      ],
+      "finding": "Preserve a calibrated interpretation of a completed FDG brain scan. The new EANM body contains the original nmol/L typo; the separately inspected erratum PMID35254483/PMC9016017 corrects this to mmol/L. Author feedback uses mg/dL only and excludes an unsupported repeat-scan or glycemic treatment algorithm. New interpretations still need actual claim review.",
+      "clinical_clearance": false
+    },
+    {
+      "task_id": "onboarding-practice-v1-a5ec2abe485f271a3e3d-1",
+      "specialty": "oncology",
+      "kind": "practice",
+      "disposition": "ready_for_authoring_ci",
+      "entry_sha256": "9a0fc659016c106639baf33e1f8686d6cbd25a7a1a62b6889f2fa2e7555c9f5d",
+      "entry_checksum_valid": true,
+      "resume": false,
+      "source_artifact": "output/specialty-onboarding/openai-trial-35415041635/10575068970/trial-rejected-e0523407d03240ef8ec6dcc682915abb.json",
+      "source_artifact_sha256": "8f4d4aeec2da74429c179ba1b7453272da3cf55064f7cf7dadd40b78e64ed870",
+      "review_diagnostics_count": 2,
+      "reference_file": "output/specialty-onboarding/reference-preflight-sources/oncology-practice.json",
+      "reference_file_sha256": "2ec6f12e5789276c179abd178217346d78d93f54478e6ff61602fa24029b8be3",
+      "substantive_source_candidates": [
+        {
+          "id": "37921996",
+          "pmcid": "PMC10624743",
+          "title": "Ambulatory management of low-risk febrile neutropenia in adult oncological patients. Systematic review.",
+          "source_type": "systematic_review",
+          "sha256": "cec3de1bc3cbd3981b78c76728b2cbc4de19ff14f1802e9b1eefd11b67dec1fe",
+          "body_excerpts_sha256": "869443b672a8e81d03f285f9f6c0fda096dee1aebec24c33f923e3df9516740a",
+          "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+        },
+        {
+          "id": "41521418",
+          "pmcid": null,
+          "title": "Consensus guidelines for ambulatory care for neutropenic fever.",
+          "source_type": "primary_society_consensus",
+          "sha256": "58cb36d94c9e2c1714ad9988c344720c3472e0af596ba934c94955c9206bd6fd",
+          "body_excerpts_sha256": null,
+          "body_license_url": null
+        }
+      ],
+      "finding": "The supplied systematic review and substantive consensus abstract support adult risk-stratified ambulatory FN care with additional patient and service safety criteria. Feedback removes the answer-revealing missing-risk-assessment sentence, avoids score-only discharge, and preserves the already-completed initial treatment context.",
+      "clinical_clearance": false
+    },
+    {
+      "task_id": "onboarding-examination-v1-a2344499dcd2cac5f8d6-1",
+      "specialty": "otolaryngology",
+      "kind": "examination",
+      "disposition": "ready_for_authoring_ci",
+      "entry_sha256": "a826ffa2816536dddb44ef44672d7a4520a39e34d0f40da7468e83b5ffe545bf",
+      "entry_checksum_valid": true,
+      "resume": false,
+      "source_artifact": "previous retained draft; latest author declined insufficient evidence",
+      "source_artifact_sha256": null,
+      "review_diagnostics_count": 0,
+      "reference_file": "output/specialty-onboarding/reference-preflight-sources/otolaryngology-examination.json",
+      "reference_file_sha256": "ada3e2832fa71111671af5ed862a042237617b138a9766c8af6b8e214e493d23",
+      "substantive_source_candidates": [
+        {
+          "id": "37358008",
+          "pmcid": "PMC10448590",
+          "title": "2023 European Thyroid Association Clinical Practice Guidelines for thyroid nodule management.",
+          "source_type": "primary_society_guideline",
+          "sha256": "2dbe012e14c4ab95bb356c573915333b8c003a80beeafd292e951c046805e82d",
+          "body_excerpts_sha256": "e53067c055b8db2bf323461359cb68028d1c11c370e4c2424256f60dd53db0ac",
+          "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+        },
+        {
+          "id": "41258456",
+          "pmcid": "PMC13086679",
+          "title": "ESR Essentials: thyroid imaging-practice recommendations by the European Society of Head and Neck Radiology.",
+          "source_type": "primary_society_guideline",
+          "sha256": "a2212837ccd608d062f8adc22b0f1744bb5c07f5dfec11798174a97c013ac95e",
+          "body_excerpts_sha256": "b979b0bcced9cb2401471679ff6603a79b873916c481496a7d6bf30a38e4f7b9",
+          "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+        }
+      ],
+      "finding": "The thyroid-associated pre-sampling FNA pivot fits adult neck-mass assessment. Both actual retained bodies support ultrasound assessment and FNA of suspicious disease, with phenotype-specific washout and lymphoma/ATC caveats. The existing practice case concerns MRI/ABR assessment of sudden sensorineural hearing loss, so the proposed examination decision is distinct. Final generated pair remains subject to review.",
+      "clinical_clearance": false
+    },
+    {
+      "task_id": "onboarding-practice-v1-3e19e5ff97ee3c9c1348-1",
+      "specialty": "pain medicine",
+      "kind": "practice",
+      "disposition": "ready_for_authoring_ci",
+      "entry_sha256": "2f85d37ca551a68d2fcb94f70f6506098934841629dd6562ab1a5d37dba2845e",
+      "entry_checksum_valid": true,
+      "resume": false,
+      "source_artifact": "output/specialty-onboarding/openai-trial-35415041635/10574939814/trial-rejected-0beb3ec8786540a9944beee467897f7e.json",
+      "source_artifact_sha256": "c4c489b9258f971a12dd1ffdf7b8707bcc1a4e045ec0f5d2ed8a9af2f44c7375",
+      "review_diagnostics_count": 2,
+      "reference_file": "output/specialty-onboarding/reference-preflight-sources/pain-medicine-practice.json",
+      "reference_file_sha256": "0d2ea066df68bac06a66903d754fcca1dda5caf4f4bc9fd19b0aa9a61df280df",
+      "substantive_source_candidates": [
+        {
+          "id": "41481869",
+          "pmcid": null,
+          "title": "Comprehensive Evidence-Based Guidelines for Regenerative Therapies in the Management of Chronic Low Back Pain: 2025 Update from the American Society Of Interventional Pain Physicians (ASIPP).",
+          "source_type": null,
+          "sha256": "4f988fe4e824bac79b4b8ffe7a186275c76ad1a48a28d63b609ac9cdb20bd152",
+          "body_excerpts_sha256": null,
+          "body_license_url": null
+        },
+        {
+          "id": "34051387",
+          "pmcid": null,
+          "title": "Clinical guidelines and care pathway for management of low back pain with or without radicular pain.",
+          "source_type": null,
+          "sha256": "25b0b8ef9953748bad0bbe839dd4a64167beee137fb6d8bddd56444dd21c938b",
+          "body_excerpts_sha256": null,
+          "body_license_url": null
+        }
+      ],
+      "finding": "The regenerative-therapy abstract explicitly allows use alone or with other modalities, while requiring diagnostic confirmation of clinical necessity. Feedback removes the unsupported absolute multimodal-treatment prerequisite and uses the second guideline for chronicity risk and multidisciplinary care, without establishing universal biologic inferiority.",
+      "clinical_clearance": false
+    },
+    {
+      "task_id": "onboarding-examination-v1-a804935ada9d87b2997e-1",
+      "specialty": "palliative medicine",
+      "kind": "examination",
+      "disposition": "ready_for_authoring_ci",
+      "entry_sha256": "23d29d2c233d5366f741392632e270aa8859f32ec56d7e3d8b7722fcbaabf1a1",
+      "entry_checksum_valid": true,
+      "resume": false,
+      "source_artifact": "output/specialty-onboarding/openai-trial-35415041635/10575777332/trial-rejected-8677df5dcca1478a99130877683e1c79.json",
+      "source_artifact_sha256": "8532d16b5ba5934b64147bb3247ece600058ae3b55df751e13ec0cd3908c632d",
+      "review_diagnostics_count": 2,
+      "reference_file": "output/specialty-onboarding/reference-preflight-sources/palliative-medicine-examination.json",
+      "reference_file_sha256": "5ae0ab8d672beed846e173a0e1c1d7d61e51f7bd1ad1e27c2f5de62c298946e9",
+      "substantive_source_candidates": [
+        {
+          "id": "36949360",
+          "pmcid": "PMC10241762",
+          "title": "Guidelines for Neuroprognostication in Comatose Adult Survivors of Cardiac Arrest.",
+          "source_type": "primary_society_guideline",
+          "sha256": "03000e8d98c5cdb095205a896ab5486925fc6ecbc0bc7a3e367f7a422d147b0c",
+          "body_excerpts_sha256": "a72342a55137c2bd69260c4b2483033144ca4f4a2d59b4ebd49e72a63112b578",
+          "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+        },
+        {
+          "id": "38182945",
+          "pmcid": "PMC10770006",
+          "title": "Mastering the brain in critical conditions: an update.",
+          "source_type": "secondary_clinical_review",
+          "sha256": "40e227d616c89460601fbe52d7ff17b447735ee7d9d2b7bca48b8070441f8180",
+          "body_excerpts_sha256": "fb4f180026da8f21176543bb62278fc59904c6ee4680af8c9d7394ee136c7057",
+          "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+        }
+      ],
+      "finding": "Primary post-arrest guidance and a clearly labeled secondary clinical synthesis support confounder exclusion, multimodal prognosis and further observation under uncertainty when consistent with goals. Feedback correctly gives the primary guideline precedence for timing after rewarming and prohibits single-test futility and visible prognosis-framework cues.",
+      "clinical_clearance": false
+    },
+    {
+      "task_id": "onboarding-practice-v1-a804935ada9d87b2997e-1",
+      "specialty": "palliative medicine",
+      "kind": "practice",
+      "disposition": "ready_for_authoring_ci",
+      "entry_sha256": "b93c67f347b958f944f34a37ee7d86b8a63e2c2a8a69dd78e5f883ba0b472115",
+      "entry_checksum_valid": true,
+      "resume": false,
+      "source_artifact": "output/specialty-onboarding/openai-trial-35415041635/10575777332/trial-rejected-1d247171ec4c47bc81b9fd770927eb98.json",
+      "source_artifact_sha256": "e575a37252a0485db9f10839b156c03c7d603a922bf4dd7b886076c0417f3b67",
+      "review_diagnostics_count": 2,
+      "reference_file": "output/specialty-onboarding/reference-preflight-sources/palliative-medicine-practice.json",
+      "reference_file_sha256": "9fc0c11415c704b4ec197b91ae5510c4a5449eb95450a586ad21e9c5bdbcf08d",
+      "substantive_source_candidates": [
+        {
+          "id": "33617290",
+          "pmcid": null,
+          "title": "Management of Dyspnea in Advanced Cancer: ASCO Guideline.",
+          "source_type": "primary_society_guideline",
+          "sha256": "94fb29a8ad85290af424a57c3d065313728e4e3a766ae350254fcb0f8be05c34",
+          "body_excerpts_sha256": null,
+          "body_license_url": null
+        },
+        {
+          "id": "37338727",
+          "pmcid": "PMC10390357",
+          "title": "Opioids for the management of dyspnea in cancer patients: a systematic review and meta-analysis.",
+          "source_type": "systematic_review",
+          "sha256": "1a8e40b6f25b14da55c707323af7fb68ec1d811a8805de8974352366f198faf4",
+          "body_excerpts_sha256": "f4bb99b23b35fc890bf4a9690ee41ee19b1cf39feb68f12629b832bc2cb082f1",
+          "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+        }
+      ],
+      "finding": "The new ASCO abstract and cancer-specific systematic review support a cautious systemic-opioid offer after inadequate nonpharmacologic relief in advanced cancer. The old draft is COPD-specific and must actually be replaced or changed to the instructed cancer population; the new pair does not validate the old short-acting-versus-sustained-release COPD comparison. Feedback preserves uncertainty and avoids unsupported dose/route claims.",
+      "clinical_clearance": false
+    },
+    {
+      "task_id": "onboarding-examination-v1-0e0315b9abae6616594d-1",
+      "specialty": "physical medicine and rehabilitation",
+      "kind": "examination",
+      "disposition": "ready_for_authoring_ci",
+      "entry_sha256": "24979d046b10711cc0c08c146bc08965c7395736acb006334510dc76cb70532c",
+      "entry_checksum_valid": true,
+      "resume": false,
+      "source_artifact": "output/specialty-onboarding/openai-trial-35415041635/10575662214/trial-rejected-26896d674b994afaacfe21c81a9df82c.json",
+      "source_artifact_sha256": "b0f7623b851036368654a14ffb0b086c8ff124813cb9bf2b64c5125a027eb586",
+      "review_diagnostics_count": 2,
+      "reference_file": "output/specialty-onboarding/reference-preflight-sources/physical-medicine-and-rehabilitation-examination.json",
+      "reference_file_sha256": "45027f07df23218a08cb1e926b9a66244cd057d07d18530103d023ba838540e9",
+      "substantive_source_candidates": [
+        {
+          "id": "42430939",
+          "pmcid": null,
+          "title": "Treating neurogenic detrusor overactivity in order to manage autonomic dysreflexia - A systematic review.",
+          "source_type": "systematic_review",
+          "sha256": "fcdbab5904d6fb5b90b15a7d60e6954e3d682decb9ac75397a5b58c740c20ffd",
+          "body_excerpts_sha256": null,
+          "body_license_url": null
+        },
+        {
+          "id": "38393175",
+          "pmcid": "PMC10892370",
+          "title": "From Toxin to Treatment: A Narrative Review on the Use of Botulinum Toxin for Autonomic Dysfunction.",
+          "source_type": "secondary_clinical_review",
+          "sha256": "881df5d496b7cf9e4f80ce10c72296a78e73cfa41a57eecfebe48f47b259908c",
+          "body_excerpts_sha256": "77ddb2a378bed312f6efd0a9eb496dade784a0f319130649fc37953270cfbb6e",
+          "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+        }
+      ],
+      "finding": "The actual narrative-review body identifies oral-anticholinergic-refractory SCI/MS NDO and describes retention and procedure-triggered AD risks. The AD review supports possible symptom improvement. Feedback now requires relevant prior drug failure/intolerance and reliable CIC, frames toxin as an individualized option, and separates elective prevention from acute AD rescue.",
+      "clinical_clearance": false
+    },
+    {
+      "task_id": "onboarding-practice-v1-0e0315b9abae6616594d-1",
+      "specialty": "physical medicine and rehabilitation",
+      "kind": "practice",
+      "disposition": "ready_for_authoring_ci",
+      "entry_sha256": "234ebf2171335119f0142b0c353e331c5b9ec5153dbae80df19f41bc1b53dac8",
+      "entry_checksum_valid": true,
+      "resume": false,
+      "source_artifact": "output/specialty-onboarding/openai-trial-35415041635/10575662214/trial-rejected-d95012dd1f1a42b8bf656d8770987bd6.json",
+      "source_artifact_sha256": "9bb6ce18dbf5ef4a7fb990d3fef268621feda66172ca87c2bfd7236c0f995c1d",
+      "review_diagnostics_count": 2,
+      "reference_file": "output/specialty-onboarding/reference-preflight-sources/physical-medicine-and-rehabilitation-practice.json",
+      "reference_file_sha256": "86ec1d83fabd74bde523b5b6b56c69ec3a26b4f02f2e88a1b921d572cb61d3b0",
+      "substantive_source_candidates": [
+        {
+          "id": "33675603",
+          "pmcid": null,
+          "title": "A Clinical Practice Guideline for the Use of Ankle-Foot Orthoses and Functional Electrical Stimulation Post-Stroke.",
+          "source_type": null,
+          "sha256": "033a1196734112cfe4f2432cc69b1448dd92178aec03dde69c434a2c8c1df259",
+          "body_excerpts_sha256": null,
+          "body_license_url": null
+        },
+        {
+          "id": "38907596",
+          "pmcid": null,
+          "title": "The effectiveness of early interventions for post-stroke spasticity: a systematic review.",
+          "source_type": null,
+          "sha256": "4b9b3d5d81a9a68a536047675bf9cbb356446b5f5f47cd2c0c7fb99c4ed9b7bd",
+          "body_excerpts_sha256": null,
+          "body_license_url": null
+        }
+      ],
+      "finding": "The retained abstracts distinguish AFO mobility benefits from plantarflexor spasticity reduction and support early botulinum-toxin effects on measured tone, without established activity gains. The retained draft is eight weeks after stroke, within the early-intervention population. Feedback avoids mandatory injections and promised gait gains.",
+      "clinical_clearance": false
+    },
+    {
+      "task_id": "onboarding-practice-v1-eab374162d4f1d645638-1",
+      "specialty": "radiation oncology",
+      "kind": "practice",
+      "disposition": "ready_for_authoring_ci",
+      "entry_sha256": "fa8e60359cb57e5ef3d813eb703de7863d48fa7f1ec47c429699bac805d8cf8d",
+      "entry_checksum_valid": true,
+      "resume": false,
+      "source_artifact": "output/specialty-onboarding/openai-trial-35415041635/10574959502/trial-rejected-1734740812cd4addb02310e1d4186b61.json",
+      "source_artifact_sha256": "1b4f73828db9e7df1ff22c0752193d5016f38e9bec64109f5eb0ee703fc9a3ab",
+      "review_diagnostics_count": 2,
+      "reference_file": "output/specialty-onboarding/reference-preflight-sources/radiation-oncology-practice.json",
+      "reference_file_sha256": "25727b988f8ad91fc5cd884762e83f13963e68a4ca4a986c46aa177880bb3909",
+      "substantive_source_candidates": [
+        {
+          "id": "34955420",
+          "pmcid": null,
+          "title": "Radiotherapy of bone metastases.",
+          "source_type": null,
+          "sha256": "a841a54d173730c438fa1b2ea1c1330723fe123b02c349fa766f2675b6ceae17",
+          "body_excerpts_sha256": null,
+          "body_license_url": null
+        },
+        {
+          "id": "41317503",
+          "pmcid": null,
+          "title": "Radiotherapy of bone metastases: 2025 update.",
+          "source_type": null,
+          "sha256": "1969c69807495239858a5fbd9183d302fd803c2764e79acab40c9b5f9aa51619",
+          "body_excerpts_sha256": null,
+          "body_license_url": null
+        }
+      ],
+      "finding": "Both supplied French radiotherapy guidance abstracts substantively identify pain reduction as an indication. Feedback narrows to symptomatic uncomplicated bone metastasis and removes unnecessary technique, modality and fractionation assertions. The sources are successive society updates, not independent trials.",
+      "clinical_clearance": false
+    },
+    {
+      "task_id": "onboarding-examination-v1-f56c68f42cb42511dd16-1",
+      "specialty": "radiology",
+      "kind": "examination",
+      "disposition": "ready_for_authoring_ci",
+      "entry_sha256": "bb48d7c3dac95b1208b5a7d32aaa9cd64d1d7c50d95eb4b2200fd0544951bb30",
+      "entry_checksum_valid": true,
+      "resume": false,
+      "source_artifact": "output/specialty-onboarding/openai-trial-35415041635/10575144388/trial-rejected-dccd5e978e844ee8a86188650b7a9acd.json",
+      "source_artifact_sha256": "0ae1b9fd7cefbcfa6fc00be9c4ec6f9736bd40c5aa3fa27f9c993dd8af08e181",
+      "review_diagnostics_count": 2,
+      "reference_file": "output/specialty-onboarding/reference-preflight-sources/radiology-examination.json",
+      "reference_file_sha256": "58e646cb3ccff643211e5531dbabc49d15310a5917acfac6b4aa675d9b004aa7",
+      "substantive_source_candidates": [
+        {
+          "id": "35020003",
+          "pmcid": "PMC8753325",
+          "title": "[Pulmonary nodules and pneumonia : A diagnostic guideline].",
+          "source_type": null,
+          "sha256": "eed32f30a9d510b2cca64e527aff59e225cc30bac16477bb04d9fe1e5cc4ccc7",
+          "body_excerpts_sha256": "3bf7d897869dcf384153a3fbb2744cda2904eb8c9651fe60fd9ae041ea8439f6",
+          "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+        },
+        {
+          "id": "38040464",
+          "pmcid": null,
+          "title": "ACR Appropriateness Criteria® Incidentally Detected Indeterminate Pulmonary Nodule.",
+          "source_type": null,
+          "sha256": "d6cae49466b9b6be1e74342ce1cce77a6542cf74ced795eb21fc05e376dbdc21",
+          "body_excerpts_sha256": null,
+          "body_license_url": null
+        }
+      ],
+      "finding": "The ACR abstract and radiology teaching guideline support CT characterization and radiograph limitations; they do not both support the old exact 7-mm surveillance schedule. Feedback narrows the decision accordingly. The catalog now agrees with initial CT characterization using a structured chest-imaging report; exact interval, contrast and PET/biopsy threshold claims remain outside this preparation clearance.",
+      "clinical_clearance": false
+    },
+    {
+      "task_id": "onboarding-practice-v1-98d3f77f8d4d452b76d0-1",
+      "specialty": "vascular surgery",
+      "kind": "practice",
+      "disposition": "ready_for_authoring_ci",
+      "entry_sha256": "7d695a8bff63d36ce0dbbddaaf5db95ce2e40f681fcf865f5fd5d9c6f1aaea86",
+      "entry_checksum_valid": true,
+      "resume": false,
+      "source_artifact": "output/specialty-onboarding/openai-trial-35415041635/10574869485/trial-rejected-db5fe4da81fd4c9b873b567112196943.json",
+      "source_artifact_sha256": "ab3e181a6911621f3beeb66bfcb3e68545c32fa5db209f6dd8ecffd399048b64",
+      "review_diagnostics_count": 2,
+      "reference_file": "output/specialty-onboarding/reference-preflight-sources/vascular-surgery-practice.json",
+      "reference_file_sha256": "89801287dde34d45af382300c6c021029375cfd40b7a0892d767bffb0e2a141c",
+      "substantive_source_candidates": [
+        {
+          "id": "31416204",
+          "pmcid": "PMC6723825",
+          "title": "Acute Limb Ischemia: An Update on Diagnosis and Management.",
+          "source_type": "secondary_clinical_review",
+          "sha256": "0a2c234a577752632b8ee1276e104d8ac11d72d7b91df92d7b82b72637d0afce",
+          "body_excerpts_sha256": "9ba6d1907f75038629ca824dc9d15f96d24701d7b9255071eddcb3370033271c",
+          "body_license_url": "http://creativecommons.org/licenses/by/4.0/"
+        },
+        {
+          "id": "42097877",
+          "pmcid": null,
+          "title": "Comparative Safety and Effectiveness of Endovascular Versus Surgical Treatment for Acute Limb Ischemia: A Systematic Review and Meta-Analysis.",
+          "source_type": "systematic_review_meta_analysis",
+          "sha256": "3dc51fcd079b262dcab5a7d0b42ba02f5050ffb92cb5bf70a40b62c45bc50068",
+          "body_excerpts_sha256": null,
+          "body_license_url": null
+        },
+        {
+          "id": "40428785",
+          "pmcid": "PMC12113467",
+          "title": "Treatment Strategies and Prognostic Outcomes in Acute Limb Ischemia: A Systematic Review and Meta-Analysis Comparing Thrombolytic Therapy and Open Surgical Interventions.",
+          "source_type": "systematic_review_meta_analysis",
+          "sha256": "b35b1e9e4cb35e3e6291b0e9dc6cacebdd252d0bfe68438c0703c2f40dcfe514",
+          "body_excerpts_sha256": "859575764d296a8b48df3bf8e6b1a5aeab7f4aee35c8350a31e7c2eeb1d3dbb8",
+          "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+        }
+      ],
+      "finding": "The correctly labeled 2019 secondary review contains emergency vascular-center and UFH passages. Newer comparative evidence supports individualized revascularization. Feedback expressly excludes the outdated nonviable-limb open-revascularization sentence, requires salvageability and neutral contraindication facts, and avoids ranking open surgery universally above rapid endovascular/hybrid options.",
+      "clinical_clearance": false
+    }
+  ],
+  "original_41_preservation": [
+    {
+      "filename": "onboarding-examination-v1-0e709f79e5406de4e058-1.json",
+      "sha256": "6875e247e4b8548977d80c4e1ed116cabcc99472b6d1c77a6fb132b6d84a28a6",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-306f5a139a55f0c90a72-1.json",
+      "sha256": "346a14e90edcfd776a7d324473de778595055970aaf3c7c8a3b5677af78c557a",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-33aa98a024c410e5e9b7-1.json",
+      "sha256": "355b00d0aef417d17a70480e8808df45bbd7d827212d36a29674dd450e96332a",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-33ab997763c8ffce91de-1.json",
+      "sha256": "e56463b54f8287dbbd704c957da281a604e0eb7b1734d33314799262010d8923",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-35e2a2612a84e34c4349-1.json",
+      "sha256": "6c12978c1a206bca81b898a72df48e4e0797976af71b9a907048a96b3096dde4",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-49c4d5f3a0a7242591f8-1.json",
+      "sha256": "1ca5f1ba9f4df012635e786fbabc2687a93f0236a0bba82b1f930f16ec2b8459",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-6e7fdf319c0398ff7d9b-1.json",
+      "sha256": "53b28e3712ac6fc3ca0e512007c41c605b7c36f2f29ae80ff9b1ee384c51d1dd",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-76e4644baee47eeda234-1.json",
+      "sha256": "9268ba3a3e26559b96a88b38dd1e92730daf3893a2e9c2cdebd6fb3ee64852d2",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-7e10bcdcaa72d9b4a621-1.json",
+      "sha256": "ba83f1789cf3a555ce9663007ec1d11c8ef0729249e8a3f9541e5c18410c7204",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-8caab966bd6fc783dbf4-1.json",
+      "sha256": "e04be5e285d20b3791bcda8b511bfe09702e75c7e82f5eacd55d5b2f323840d0",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-98d3f77f8d4d452b76d0-1.json",
+      "sha256": "768b4e350439a71e9277df910d5feafa509a4b73ba037b7d19825649f2f443c4",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-a06f761693889cca8f11-1.json",
+      "sha256": "06bb0a2c817225677b7162d3896155dc2f686be23d6ffb2790255eaa8c43d066",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-a3873ec0669a1b8026f4-1.json",
+      "sha256": "355375fa52dad49a471c6887eae7e71d6f5bc94a9b55c04efb4811b841d95e59",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-b0b91d66638590da5847-1.json",
+      "sha256": "623a06cecd8294f18f974260d4ad8552dfd34cc7180de308d641f408996682b0",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-c72bcc59869444a84f98-1.json",
+      "sha256": "e354d84e36f5ab3539003ad2503be65376f6cb6ae14499f1f52e3fa7073dae27",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-c81048b60c5736de1ba4-1.json",
+      "sha256": "6717c4d850e0f95a90eae5dbe4319754a407672484ce58908ee52f4e31581805",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-d6cc8a50a7bd4ff6e9f8-1.json",
+      "sha256": "e894f74d49ab032a60261cf502965b01dfc338536800c697cbe348e27b70ba75",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-examination-v1-f9bdbf3cfce2a57bc57b-1.json",
+      "sha256": "737200542532008f9932b1347314f76780acedda24b8e44aee1d0f24e58343de",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-06867f80c28206f80670-1.json",
+      "sha256": "bdebe5a91d7e484f10aff9b0ee8f4dfedb69c4fa1255a1fb57c2a832c623cab5",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-0e709f79e5406de4e058-1.json",
+      "sha256": "17057078f66e80cca64f652c61615c06d327bcce6cdec980a04c7be72d1c606b",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-33aa98a024c410e5e9b7-1.json",
+      "sha256": "1af87119e690dfb2ee5cb78d8552d7aeb9a12aa6745e4ff878463570729fabdc",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-33ab997763c8ffce91de-1.json",
+      "sha256": "82cc7a763167d220ed54abd55315c2b091b14fb72758a7f7b75eae404fd37f89",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-3f575170e141e983093b-1.json",
+      "sha256": "9cda3238997bf0bd965f130aa219b4a4d63f25f33009d35c8e830348d0d7310b",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-44054454697e27006b24-1.json",
+      "sha256": "e9cebba5817bcc2234a71b19571627d353ced359de1bcdba4f60331b6eae5167",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-49c4d5f3a0a7242591f8-1.json",
+      "sha256": "b4406816f6a6d35daee12d8e522e07bba5f0fe5a2ba6813b334ae32b69c6fbec",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-50bdde6ac891da15cea7-1.json",
+      "sha256": "86975b80493a5782cbe384bfaa6dba001061cb448a887a3c862878e8bff93121",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-558a055d93f6a8479019-1.json",
+      "sha256": "20ec0601a2ff0d5f8f8f30fa089594e70bb0e38a6ecab0497fa2ed6303105ba4",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-6e7fdf319c0398ff7d9b-1.json",
+      "sha256": "9c2511a51b9894fe50607c50a4eafd01c532266bd4710657388694acbfc7f121",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-7c4ff9e6c4470cdf7d03-1.json",
+      "sha256": "24e9bdb3176f42afe1f2cb476222fd7148a0d9e86d799ce0e82bc7717f529d99",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-8caab966bd6fc783dbf4-1.json",
+      "sha256": "f3de14568cc62f9bbde3313716351fe379f7d85bf0a433668bd22c41bd67f326",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-8e91610afd9fe9c9d129-1.json",
+      "sha256": "e7192c48e4774237a252c5e63eb5851d5dcb772806e08578aa4aee2b1da5ad2d",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-a06f761693889cca8f11-1.json",
+      "sha256": "dba320fde2fd53db0f90badc303bc2eeb3df2ca615b0e8df2cdef650a4f3c927",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-a3873ec0669a1b8026f4-1.json",
+      "sha256": "3b286cdeed3a4954c2d8765f841d17160622215a8a3b3c97f26447e3303eaff9",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-aa3792e95218f1af9490-1.json",
+      "sha256": "a64b8d54f60eb6dba5bcf73c0009d8759f3ab3dc87e4677b402b3b4420a7e250",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-b3588e5ac8c59e52674a-1.json",
+      "sha256": "fb3cb151fd6eb714d69bc202c9d2cff285958c06e3b0145ac143da56ad975247",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-b71cdb20a2f872d6b152-1.json",
+      "sha256": "030c4f09b16d5ef58d2d54dcfbe77333d1dd0e7e242173207c3cd7086bb7cdfd",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-c72bcc59869444a84f98-1.json",
+      "sha256": "00cb402fa1d1f2e715be6eb9b038a56fe6e06a8cbe70c290cc9b85c5e1fb6795",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-ca25a37ef4cffb536a33-1.json",
+      "sha256": "1e972857a927e84a9159d1e89027e32aeeb186963844e9a64801c6017c5cbb54",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-d6cc8a50a7bd4ff6e9f8-1.json",
+      "sha256": "902b5c41e9743364bc873c453144b74b7999bc6bec5e937dc71f714ff325dc1c",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-f56c68f42cb42511dd16-1.json",
+      "sha256": "14e107aa5b261c02b7787060f2af4846ddfbdc824292daf5e36a2f7253e71d95",
+      "unchanged": true
+    },
+    {
+      "filename": "onboarding-practice-v1-f9bdbf3cfce2a57bc57b-1.json",
+      "sha256": "f18af9a01bd7338befabe1703a0024f0b3f6fc03462c97d5eb1b2d34698d4efe",
+      "unchanged": true
+    }
+  ],
+  "limits": [
+    "Ready for authoring CI is not a claim that the retained rejected drafts are acceptable, that future authoring will follow feedback, or that a physician has reviewed these cases.",
+    "Author feedback cannot supply evidence absent from retained source text. Old incidental-source search results must not be used as padding; every final cited source must support its claim and at least two sources must substantively inform the assessed decision.",
+    "Secondary reviews remain labeled secondary; systematic-review association is not a causal recommendation. The ALI nonviable-limb sentence and nuclear incorrect unit remain present in original source text and require the explicit exclusions documented in feedback.",
+    "Exact generated artifacts need fresh blind solves, clinical/source/quote/image gates, content and public-payload audits, companion-case distinctness review and the separate hash-bound release audit. The current report confers no release eligibility."
+  ]
+}

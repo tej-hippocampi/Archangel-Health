@@ -1,0 +1,481 @@
+{
+  "audit_date": "2026-09-18",
+  "scope": "Independent evidence audit only; no repository edits, real model calls, patient data, or physician certification.",
+  "parser_file": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_evidence.py",
+  "parser_sha256": "658db47043e33448a1dce04b326858546a9f6e65d5fe14f13babfb1baaddf3cd",
+  "method": "Verified exact PubMed identities, publication types/dates and correction relations against EFetch XML; checked Europe PMC license blocks and content. Ran latest local parser including restrictive-license and third-party-illustration filters on actual XML. Verified all quoted claims literally against resulting abstract plus retained body.",
+  "recommended_pins": {
+    "refractory breathlessness symptom management": {
+      "excerpt_terms": "cancer dyspnea breathlessness systemic opioids morphine pharmacological efficacy safety palliative",
+      "sources": [
+        {
+          "id": "33617290",
+          "pmcid": "",
+          "title": "Management of Dyspnea in Advanced Cancer: ASCO Guideline.",
+          "source_type": "primary_society_guideline",
+          "require_licensed_fulltext": false
+        },
+        {
+          "id": "37338727",
+          "pmcid": "PMC10390357",
+          "title": "Opioids for the management of dyspnea in cancer patients: a systematic review and meta-analysis.",
+          "source_type": "systematic_review",
+          "require_licensed_fulltext": true
+        }
+      ]
+    },
+    "goals of care shared decision making in serious illness": {
+      "excerpt_terms": "neuroprognostication cardiac arrest multimodal hypoxic ischemic HIE prognostic extended observation confounding concordant rewarming",
+      "sources": [
+        {
+          "id": "36949360",
+          "pmcid": "PMC10241762",
+          "title": "Guidelines for Neuroprognostication in Comatose Adult Survivors of Cardiac Arrest.",
+          "source_type": "primary_society_guideline",
+          "require_licensed_fulltext": true
+        },
+        {
+          "id": "38182945",
+          "pmcid": "PMC10770006",
+          "title": "Mastering the brain in critical conditions: an update.",
+          "source_type": "secondary_clinical_review",
+          "require_licensed_fulltext": true
+        }
+      ]
+    },
+    "spinal cord injury autonomic dysreflexia management": {
+      "excerpt_terms": "neurogenic detrusor overactivity autonomic dysreflexia spinal cord antimuscarinic anticholinergics refractory oral bladder botulinum retention",
+      "sources": [
+        {
+          "id": "42430939",
+          "pmcid": "",
+          "title": "Treating neurogenic detrusor overactivity in order to manage autonomic dysreflexia - A systematic review.",
+          "source_type": "systematic_review",
+          "require_licensed_fulltext": false
+        },
+        {
+          "id": "38393175",
+          "pmcid": "PMC10892370",
+          "title": "From Toxin to Treatment: A Narrative Review on the Use of Botulinum Toxin for Autonomic Dysfunction.",
+          "source_type": "secondary_clinical_review",
+          "require_licensed_fulltext": true
+        }
+      ]
+    }
+  },
+  "new_type_exceptions_needed": [
+    "33617290",
+    "38182945",
+    "38393175"
+  ],
+  "ordinary_eligible_pinned_for_determinism": [
+    "37338727",
+    "36949360",
+    "42430939"
+  ],
+  "decision_summary": {
+    "palliative_practice": "ASCO33617290 plus adult-cancer SR37338727 directly support a cautious offer of systemic opioid treatment after inadequate nonpharmacologic relief and evaluation of reversible causes. Replace COPD37710987 for a cancer case; avoid unsupported dosing or certainty of relief.",
+    "palliative_examination": "Existing36949360 plus ESICM-course synthesis38182945 support multimodal assessment, confounder exclusion and avoiding premature pessimism, with extended observation when uncertainty remains and goals of care allow. Second source is secondary clinical guidance and explicitly not an independent primary guideline.",
+    "pmr_examination": "Current AD SR42430939 plus narrative review38393175 support botulinum toxin for refractory NDO with potential reduction in recurrent bladder-triggered AD, after failed/intolerated oral anticholinergic therapy. This is elective disease-management escalation, not acute AD rescue; no head-to-head superiority is established."
+  },
+  "records": [
+    {
+      "pmid": "33617290",
+      "pmcid": "",
+      "pin": {
+        "id": "33617290",
+        "pmcid": "",
+        "title": "Management of Dyspnea in Advanced Cancer: ASCO Guideline.",
+        "source_type": "primary_society_guideline",
+        "require_licensed_fulltext": false
+      },
+      "publication_types": [
+        "Journal Article"
+      ],
+      "publication_date": "2021 Apr 20",
+      "article_dates": [
+        {
+          "DateType": "Electronic",
+          "date": "2021-02-22"
+        }
+      ],
+      "corrections": [],
+      "source_class": "primary_society_guideline",
+      "authority": "ASCO expert panel commissioned systematic evidence reviews and formulated this official ASCO guideline. PubMed indexes Journal Article only.",
+      "disposition": "clear_with_stated_scope",
+      "ordinary_parser_accepts": false,
+      "exact_pin_parser_accepts": true,
+      "licensed_fulltext_retained": false,
+      "license_statement": null,
+      "body_license_url": null,
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/33617290-source.json",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-pubmed.xml",
+      "xml_path": null,
+      "abstract_sha256": "94fb29a8ad85290af424a57c3d065313728e4e3a766ae350254fcb0f8be05c34",
+      "body_excerpts_sha256": null,
+      "xml_sha256": null,
+      "retained_body_characters": 0,
+      "supporting_quotes": [
+        {
+          "quote": "For patients who derive inadequate relief from nonpharmacologic interventions, systemic opioids should be offered.",
+          "literal_in_retained_evidence": true,
+          "section": "abstract"
+        }
+      ],
+      "limits": [
+        "Adult advanced cancer, not COPD-only dyspnea.",
+        "Abstract supports offering systemic opioids after nonpharmacologic measures and evaluation/treatment of reversible causes; no specific drug dose, titration schedule, route, renal-adjustment or assured benefit is established by this abstract.",
+        "No PMCID or reusable full-text license asserted; retained evidence is the PubMed abstract only."
+      ]
+    },
+    {
+      "pmid": "37338727",
+      "pmcid": "PMC10390357",
+      "pin": {
+        "id": "37338727",
+        "pmcid": "PMC10390357",
+        "title": "Opioids for the management of dyspnea in cancer patients: a systematic review and meta-analysis.",
+        "source_type": "systematic_review",
+        "require_licensed_fulltext": true
+      },
+      "publication_types": [
+        "Meta-Analysis",
+        "Systematic Review",
+        "Journal Article"
+      ],
+      "publication_date": "2023 Aug",
+      "article_dates": [
+        {
+          "DateType": "Electronic",
+          "date": "2023-06-20"
+        }
+      ],
+      "corrections": [],
+      "source_class": "systematic_review",
+      "authority": "2023 systematic review/meta-analysis of randomized trials in adult cancer dyspnea; ordinary PubMed Systematic Review eligibility.",
+      "disposition": "clear_with_stated_scope",
+      "ordinary_parser_accepts": true,
+      "exact_pin_parser_accepts": true,
+      "licensed_fulltext_retained": true,
+      "license_statement": "© The Author(s) 2023 https://creativecommons.org/licenses/by/4.0/ Open Access This article is licensed under a Creative Commons Attribution 4.0 International License, which permits use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons licence, and indicate if changes were made. The images or other third party material in this article are included in the article's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the article's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit http://creativecommons.org/licenses/by/4.0/ .",
+      "body_license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/37338727-source.json",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-pubmed-extra.xml",
+      "xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-PMC10390357.xml",
+      "abstract_sha256": "1a8e40b6f25b14da55c707323af7fb68ec1d811a8805de8974352366f198faf4",
+      "body_excerpts_sha256": "f4bb99b23b35fc890bf4a9690ee41ee19b1cf39feb68f12629b832bc2cb082f1",
+      "xml_sha256": "3f7d31983bda75733610ffe6e5ad2e107f957ea54c0adf14825b4a3ad279d9af",
+      "retained_body_characters": 26288,
+      "supporting_quotes": [
+        {
+          "quote": "Palliative treatment is necessary when the symptoms do not respond to treatment for their cause.",
+          "literal_in_retained_evidence": true,
+          "section": "abstract"
+        },
+        {
+          "quote": "Systemic administration of opioids is more effective than placebo in relieving dyspnea in cancer patients.",
+          "literal_in_retained_evidence": true,
+          "section": "abstract"
+        },
+        {
+          "quote": "Robust evidence on the efficacy and safety of opioids on dyspnea in cancer patients is lacking, and further studies are needed.",
+          "literal_in_retained_evidence": true,
+          "section": "abstract"
+        }
+      ],
+      "limits": [
+        "Evidence limited and heterogeneous, with only12 trials of dyspnea relief; should support a cautious therapeutic offer, not guaranteed effectiveness or universal safety.",
+        "Does not establish exact morphine dose/titration or that all opioid agents/routes are interchangeable.",
+        "Newer2025 SR40282545 also finds limited evidence and no statistically significant benefit in its rest-dyspnea subgroup. Preserve uncertainty, avoid asserting proven benefit for every resting-dyspnea population; ASCO nevertheless directly recommends offering opioids after inadequate nonpharmacologic relief."
+      ]
+    },
+    {
+      "pmid": "36949360",
+      "pmcid": "PMC10241762",
+      "pin": {
+        "id": "36949360",
+        "pmcid": "PMC10241762",
+        "title": "Guidelines for Neuroprognostication in Comatose Adult Survivors of Cardiac Arrest.",
+        "source_type": "primary_society_guideline",
+        "require_licensed_fulltext": true
+      },
+      "publication_types": [
+        "Guideline",
+        "Journal Article",
+        "Systematic Review",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "publication_date": "2023 Jun",
+      "article_dates": [
+        {
+          "DateType": "Electronic",
+          "date": "2023-03-22"
+        }
+      ],
+      "corrections": [],
+      "source_class": "primary_society_guideline",
+      "authority": "Neurocritical Care Society and Deutsche Gesellschaft für Neurointensivmedizin official neuroprognostication guideline; GRADE systematic review.",
+      "disposition": "clear_with_stated_scope",
+      "ordinary_parser_accepts": true,
+      "exact_pin_parser_accepts": true,
+      "licensed_fulltext_retained": true,
+      "license_statement": "© The Author(s) 2023 Open Access This article is licensed under a Creative Commons Attribution 4.0 International License, which permits use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons licence, and indicate if changes were made. The images or other third party material in this article are included in the article's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the article's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit http://creativecommons.org/licenses/by/4.0/ .",
+      "body_license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/36949360-source.json",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-pubmed.xml",
+      "xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-PMC10241762.xml",
+      "abstract_sha256": "03000e8d98c5cdb095205a896ab5486925fc6ecbc0bc7a3e367f7a422d147b0c",
+      "body_excerpts_sha256": "a72342a55137c2bd69260c4b2483033144ca4f4a2d59b4ebd49e72a63112b578",
+      "xml_sha256": "4d2760f903a2a2257bd48b53efe4b31f8703b3add23eb1a11d0a8bbf8f42335e",
+      "retained_body_characters": 31969,
+      "supporting_quotes": [
+        {
+          "quote": "Good practice recommendations include waiting 72 h following ROSC/rewarming prior to neuroprognostication, avoiding sedation or other confounders, the use of multimodal assessment, and an extended period of observation for awakening in patients with an indeterminate prognosis, if consistent with goals of care.",
+          "literal_in_retained_evidence": true,
+          "section": "abstract"
+        }
+      ],
+      "limits": [
+        "Comatose adult survivors of cardiac arrest; must respect timing after rewarming and exclude confounders.",
+        "Does not imply that normal individual tests guarantee recovery or that patient values can be inferred from clinical findings."
+      ]
+    },
+    {
+      "pmid": "38182945",
+      "pmcid": "PMC10770006",
+      "pin": {
+        "id": "38182945",
+        "pmcid": "PMC10770006",
+        "title": "Mastering the brain in critical conditions: an update.",
+        "source_type": "secondary_clinical_review",
+        "require_licensed_fulltext": true
+      },
+      "publication_types": [
+        "Journal Article"
+      ],
+      "publication_date": "2024 Jan 05",
+      "article_dates": [
+        {
+          "DateType": "Electronic",
+          "date": "2024-01-05"
+        }
+      ],
+      "corrections": [],
+      "source_class": "secondary_clinical_review",
+      "authority": "Clinical educational synthesis of ESICM Neurointensive Care section September2023 course. Article is Journal Article only; it is not a primary society guideline or a systematic review.",
+      "disposition": "clear_with_stated_scope",
+      "ordinary_parser_accepts": false,
+      "exact_pin_parser_accepts": true,
+      "licensed_fulltext_retained": true,
+      "license_statement": "© The Author(s) 2023 https://creativecommons.org/licenses/by/4.0/ Open Access This article is licensed under a Creative Commons Attribution 4.0 International License, which permits use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons licence, and indicate if changes were made. The images or other third party material in this article are included in the article's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the article's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit http://creativecommons.org/licenses/by/4.0/ .",
+      "body_license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/38182945-source.json",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-pubmed-final.xml",
+      "xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-PMC10770006.xml",
+      "abstract_sha256": "40e227d616c89460601fbe52d7ff17b447735ee7d9d2b7bca48b8070441f8180",
+      "body_excerpts_sha256": "fb4f180026da8f21176543bb62278fc59904c6ee4680af8c9d7394ee136c7057",
+      "xml_sha256": "01dd188316500cc8f8153f4ebbca13b0f7942fe01b86797ec23fb36dcfd776e3",
+      "retained_body_characters": 20152,
+      "supporting_quotes": [
+        {
+          "quote": "Contemporary guidelines advocate for a minimum 72-h observation period before prognostication to diminish premature WLST, exclusion of confounding factors and, in the case of HIE, require at least two concordant test results",
+          "literal_in_retained_evidence": true,
+          "section": "licensed_body"
+        },
+        {
+          "quote": "Where confounding variables exist, or precise diagnostic tools lack, extended observation is advised",
+          "literal_in_retained_evidence": true,
+          "section": "licensed_body"
+        }
+      ],
+      "limits": [
+        "Mixed acute-brain-injury review; use the explicit post-cardiac-arrest hypoxic-ischemic encephalopathy paragraph, not TBI/stroke population generalizations.",
+        "The review summarizes guidelines, including the existing2023 source. It is a second substantive publication, not a second independent primary evidence base.",
+        "Keep exact timing and the definition of reliable/moderately reliable predictors grounded in36949360. This review supports multimodality, confounder exclusion and avoiding premature nihilistic prognosis, but does not replace its finer distinctions.",
+        "Observation is conditional on goals of care; do not prescribe an arbitrary observation duration or claim certain functional recovery."
+      ]
+    },
+    {
+      "pmid": "42430939",
+      "pmcid": "",
+      "pin": {
+        "id": "42430939",
+        "pmcid": "",
+        "title": "Treating neurogenic detrusor overactivity in order to manage autonomic dysreflexia - A systematic review.",
+        "source_type": "systematic_review",
+        "require_licensed_fulltext": false
+      },
+      "publication_types": [
+        "Journal Article",
+        "Systematic Review"
+      ],
+      "publication_date": "2026 Oct",
+      "article_dates": [
+        {
+          "DateType": "Electronic",
+          "date": "2026-07-08"
+        }
+      ],
+      "corrections": [],
+      "source_class": "systematic_review",
+      "authority": "Systematic review of SCI-related autonomic dysreflexia and NDO treatment; five studies with12 fesoterodine and95 BTX participants included.",
+      "disposition": "clear_with_stated_scope",
+      "ordinary_parser_accepts": true,
+      "exact_pin_parser_accepts": true,
+      "licensed_fulltext_retained": false,
+      "license_statement": null,
+      "body_license_url": null,
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/42430939-source.json",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-pubmed-more.xml",
+      "xml_path": null,
+      "abstract_sha256": "fcdbab5904d6fb5b90b15a7d60e6954e3d682decb9ac75397a5b58c740c20ffd",
+      "body_excerpts_sha256": null,
+      "xml_sha256": null,
+      "retained_body_characters": 0,
+      "supporting_quotes": [
+        {
+          "quote": "The use of BTX and fesoterodine for NDO treatment effectively reduces AD episodes in patients with SCI.",
+          "literal_in_retained_evidence": true,
+          "section": "abstract"
+        },
+        {
+          "quote": "Further long-term studies are needed to confirm the cardiovascular benefits and inform future therapeutic strategies.",
+          "literal_in_retained_evidence": true,
+          "section": "abstract"
+        }
+      ],
+      "limits": [
+        "Supports both fesoterodine and BTX; does not establish mandatory order, superiority of BTX, or reduction in long-term cardiovascular events.",
+        "Journal issue is2026Oct but article was available online before this audit; metadata electronic publication date retained. Do not interpret future issue month as unavailable research.",
+        "No PMCID; abstract-only retained evidence."
+      ]
+    },
+    {
+      "pmid": "38393175",
+      "pmcid": "PMC10892370",
+      "pin": {
+        "id": "38393175",
+        "pmcid": "PMC10892370",
+        "title": "From Toxin to Treatment: A Narrative Review on the Use of Botulinum Toxin for Autonomic Dysfunction.",
+        "source_type": "secondary_clinical_review",
+        "require_licensed_fulltext": true
+      },
+      "publication_types": [
+        "Journal Article",
+        "Review"
+      ],
+      "publication_date": "2024 Feb 10",
+      "article_dates": [
+        {
+          "DateType": "Electronic",
+          "date": "2024-02-10"
+        }
+      ],
+      "corrections": [],
+      "source_class": "secondary_clinical_review",
+      "authority": "Peer-reviewed narrative review in Toxins, with dedicated NDO and autonomic-dysreflexia sections; not primary AUA guidance or a systematic review.",
+      "disposition": "clear_with_stated_scope",
+      "ordinary_parser_accepts": false,
+      "exact_pin_parser_accepts": true,
+      "licensed_fulltext_retained": true,
+      "license_statement": "© 2024 by the authors. 2024 https://creativecommons.org/licenses/by/4.0/ Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license ( https://creativecommons.org/licenses/by/4.0/ ).",
+      "body_license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/38393175-source.json",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-pubmed-extra.xml",
+      "xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-PMC10892370.xml",
+      "abstract_sha256": "881df5d496b7cf9e4f80ce10c72296a78e73cfa41a57eecfebe48f47b259908c",
+      "body_excerpts_sha256": "77ddb2a378bed312f6efd0a9eb496dade784a0f319130649fc37953270cfbb6e",
+      "xml_sha256": "d2cc76d2f7150a33d091f40e6f8ba476d908c76954bce59b8d44d346727a68e0",
+      "retained_body_characters": 32048,
+      "supporting_quotes": [
+        {
+          "quote": "Currently, only Botox ® is recommended by the American Urological Association specifically for the treatment of NLUTD in patients with SCI or multiple sclerosis refractory to oral anticholinergics",
+          "literal_in_retained_evidence": true,
+          "section": "licensed_body"
+        },
+        {
+          "quote": "Intravesical injections of 200 U of Botox ® diminished bladder-related AD events during UDS",
+          "literal_in_retained_evidence": true,
+          "section": "licensed_body"
+        },
+        {
+          "quote": "Intravesical Botox ® BoNT injections also improved daily bladder-related AD events outside of UDS during 24 h blood pressure monitoring",
+          "literal_in_retained_evidence": true,
+          "section": "licensed_body"
+        },
+        {
+          "quote": "Currently, only off-label use of Botox ® has been evaluated in the treatment of AD",
+          "literal_in_retained_evidence": true,
+          "section": "licensed_body"
+        }
+      ],
+      "limits": [
+        "Case should explicitly establish recurrent bladder-triggered AD with documented NDO, inadequate or intolerable prior oral anticholinergic treatment and ability/readiness for catheterization.",
+        "This supports intradetrusor onabotulinumtoxinA as a reasonable next treatment for refractory NDO that may reduce AD; it does not prove superiority over every alternative oral therapy or mandate a universal sequence.",
+        "Frame the intervention as longer-term NDO management, not an immediate rescue for an active hypertensive AD episode.",
+        "Urinary retention and UTI risk matter; bladder instrumentation/injection can itself provoke AD. A patient already doing intermittent catheterization gives a clearer fit.",
+        "AD reduction is an off-label effect discussed in the review; do not claim FDA approval to treat AD. Avoid doses/formulation substitutions unless explicitly needed and supported."
+      ]
+    }
+  ],
+  "excluded_candidates": [
+    {
+      "pmid": "37710987",
+      "pmcid": "",
+      "reason": "COPD-only population; not a suitable cancer-dyspnea companion source."
+    },
+    {
+      "pmid": "33765189",
+      "pmcid": "PMC7993077",
+      "reason": "Temporary COVID-pandemic reuse permission, no CC BY/CC0. Abstract scope-only for neuroprognostication.",
+      "license_statement": "© European Resuscitation Council 2021 This article is made available via the PMC Open Access Subset for unrestricted research re-use and secondary analysis in any form or by any means with acknowledgement of the original source. These permissions are granted for the duration of the World Health Organization (WHO) declaration of COVID-19 as a global pandemic.",
+      "current_parser_accepts_body": false,
+      "xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-PMC7993077.xml"
+    },
+    {
+      "pmid": "38798010",
+      "pmcid": "PMC11232065",
+      "reason": "Conflicting license label Attribution-NonCommercial4 with CC BY4 hyperlink. Updated parser now correctly rejects.",
+      "license_statement": "2024 authors Content of this journal is licensed under a Creative Commons Attribution-NonCommercial 4.0 International License.",
+      "current_parser_accepts_body": false,
+      "xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-PMC11232065.xml"
+    },
+    {
+      "pmid": "38754732",
+      "pmcid": "",
+      "reason": "Abstract describes NDO consensus scope/methods but does not state treatment sequence."
+    },
+    {
+      "pmid": "34156189",
+      "pmcid": "PMC8932021",
+      "reason": "Full text states CC Attribution in words but contains no exact allowed license URL/version. Current parser rejects; do not invent metadata or loosen gate.",
+      "license_statement": "This is an Open Access article distributed under the terms of the Creative Commons Attribution License, which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly cited.",
+      "current_parser_accepts_body": false,
+      "xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-PMC8932021.xml"
+    },
+    {
+      "pmid": "32915254",
+      "pmcid": "PMC7527362",
+      "reason": "CC BY-NC4 full text excluded. Abstract has predictor accuracy results but not extended-observation advice.",
+      "license_statement": "© The Author(s) 2020 Open Access This article is licensed under a Creative Commons Attribution-NonCommercial 4.0 International License, which permits any non-commercial use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons licence, and indicate if changes were made. The images or other third party material in this article are included in the article's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the article's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit http://creativecommons.org/licenses/by-nc/4.0/ .",
+      "current_parser_accepts_body": false,
+      "xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-PMC7527362.xml"
+    },
+    {
+      "pmid": "35244745",
+      "pmcid": "PMC8940794",
+      "reason": "CC BY-NC4 full text excluded. Abstract has favorable-predictor accuracy but not extended-observation recommendation.",
+      "license_statement": "© The Author(s) 2022 Open Access This article is licensed under a Creative Commons Attribution-NonCommercial 4.0 International License, which permits any non-commercial use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons licence, and indicate if changes were made. The images or other third party material in this article are included in the article's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the article's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit http://creativecommons.org/licenses/by-nc/4.0/ .",
+      "current_parser_accepts_body": false,
+      "xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-PMC8940794.xml"
+    }
+  ],
+  "additional_uncertainty": {
+    "pmid": "40282545",
+    "pmcid": "PMC12025979",
+    "title": "A Systematic Review and Meta-Analysis on Opioid Management of Dyspnea in Cancer Patients.",
+    "license": "CC BY4",
+    "note": "Newer2025 SR finds low-grade evidence, benefit overall/morphine/exertional subgroups but not significant for rest-dyspnea subgroup. Do not portray opioid benefit as universal; ASCO offer recommendation remains directly supported. Not needed as an extra pin."
+  },
+  "gate_conclusion": "All proposed pins pass existing identity/recency/population/retraction and current license restrictions. No blanket Review eligibility or license relaxation required. Keep sources truthful and case claims within retained recommendations."
+}

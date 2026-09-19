@@ -40,7 +40,7 @@ CURRICULUM = (
     ("Emergency Medicine", "acute pulmonary embolism risk stratification", "sepsis early recognition and management"),
     ("Anesthesiology", "malignant hyperthermia recognition and management", "local anesthetic systemic toxicity initial management"),
     ("Critical Care Medicine", "septic shock initial management", "acute respiratory distress syndrome lung protective ventilation"),
-    ("Radiology", "iodinated contrast kidney risk assessment", "incidental pulmonary nodule follow up using a supplied structured CT report"),
+    ("Radiology", "iodinated contrast kidney risk assessment", "incidental pulmonary nodule initial CT characterization using a supplied structured chest imaging report"),
     ("Pathology", "basal cell carcinoma histopathologic interpretation of supplied H&E micrograph", "invasive squamous cell carcinoma histopathologic interpretation of supplied H&E micrograph"),
     ("Nuclear Medicine", "thyroid scintigraphy indications and pregnancy precautions", "FDG PET CT preparation hyperglycemia and uptake interpretation using a structured report"),
     ("Psychiatry", "bipolar depression assessment before antidepressant treatment", "suicide risk assessment and safety planning"),

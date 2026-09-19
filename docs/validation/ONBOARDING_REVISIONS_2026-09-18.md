@@ -60,3 +60,36 @@ OpenAI credentials held only in GitHub Secrets, and one attempt per queued case.
 It skips the 16 audited initial passes. Both review outcomes and safe rejection
 diagnostics are retained. Further iterations must address specific defects and
 receive fresh reviews; no failing verdict is changed into an approval.
+
+## Second targeted revision
+
+The first revision run completed 29 attempts: 16 passed model review and 13 were
+rejected. All 16 passes subsequently cleared independent artifact audits, bringing
+the prepared library to 73 of 86. The 27 original rejections plus 2 independently
+held model passes have not been silently approved or removed from coverage.
+
+The remaining 13 inputs retain their latest safely validated synthetic draft and
+review findings. Revisions narrow unsupported treatment rankings, remove public
+answer cues and use exact substantive sources for the assessed decision. Source
+audits are retained in `onboarding_material/source_audits`. They distinguish
+primary guidelines, systematic reviews and secondary clinical reviews, and do not
+confer publication authority on any case. The nuclear-medicine audit records the
+publisher's corrected glucose unit; the case must not reproduce the typo.
+
+Retained full text now rejects a restrictive human-readable license even when a
+link says CC BY. Separately credited third-party tables or figures and containing
+paragraphs are excluded; article-level licensing does not grant their reuse. The
+ENT query now uses mass/masses explicitly so it cannot expand to neck massage.
+
+Latest focused suite: **249 passed**, with the 86-case completeness gate separately
+held until all artifacts are approved. Public-reference preflight: **13/13 available**.
+
+Independent retention-code audit: clear after fixing credit-only table/figure
+notices; 71 focused tests, 76 independent rejection probes and five intact-source
+compatibility fixtures passed. The immutable report is retained with source audits.
+
+Second-round input audit: ready for authoring CI, no open blockers. It verified
+all 13 input hashes, unchanged resume rows, fresh source bodies/abstracts, exact
+pins and original bundle hashes. Removed unrelated ENT fallback sources and
+aligned the radiology curriculum with the evidence-backed initial CT decision.
+This input audit does not clear any future generated artifact for release.

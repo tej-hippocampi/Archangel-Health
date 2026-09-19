@@ -1,0 +1,459 @@
+{
+  "task_id": "onboarding-practice-v1-f72e684372859ac1757a-1",
+  "specialty": "preventive medicine",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Preventive Health Review in an Asymptomatic Adult",
+    "question": "Which preventive approach is most appropriate for this patient at the current visit?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "preventive medicine",
+      "demographics": {
+        "age_band": "45-49",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Seasonal allergic rhinitis",
+          "since": "early adulthood",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Preventive visit",
+          "author_role": "preventive medicine clinician",
+          "text": "A 47-year-old woman presents for a routine preventive visit. She feels well and reports no rectal bleeding, change in bowel habits, persistent abdominal pain, or unexplained weight loss. She has never undergone colorectal cancer screening. She has no personal history of colorectal cancer, adenomatous polyps, inflammatory bowel disease, hereditary colorectal cancer syndrome, or other known colorectal cancer-predisposing condition. No relative has had colorectal cancer. She is independent in daily activities and has no major chronic illness limiting life expectancy.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "basic",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the preventive decision",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "The patient is asymptomatic, 47 years old, previously unscreened, and at average colorectal cancer risk based on the documented absence of relevant personal, hereditary, and family risk factors. Current recommendations support beginning average-risk screening at age 45. Screening options can be selected according to availability and individual preference. If a noncolonoscopy option produces a positive result, timely colonoscopy is required to complete the screening process. Candidate B is consequentially flawed because it applies the former age-50 threshold and omits currently indicated screening.",
+        "evidence": {
+          "framework": "Average-risk adult colorectal cancer screening"
+        },
+        "key_data": [
+          "The patient is 47 years old and has never undergone colorectal cancer screening.",
+          "She has no symptoms suggesting that a diagnostic evaluation should replace routine screening.",
+          "She has no personal history of colorectal cancer, adenomatous polyps, or inflammatory bowel disease.",
+          "She has no hereditary colorectal cancer syndrome, other known predisposing condition, or family history of colorectal cancer.",
+          "She has no major illness documented as limiting life expectancy."
+        ]
+      },
+      "hard_hook": "The patient has reached the current initiation age for average-risk screening but is younger than the former age-50 threshold.",
+      "reasoning_divergence": "The flawed response applies an outdated starting-age threshold and therefore omits indicated screening."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Begin colorectal cancer screening now. Use shared decision-making to select an accepted option based on availability and patient preference, such as colonoscopy, fecal immunochemical testing, multitarget stool DNA-FIT, flexible sigmoidoscopy with FIT, or CT colonography. A positive noncolonoscopy test should receive timely follow-up colonoscopy."
+      },
+      {
+        "id": "B",
+        "text": "Defer colorectal cancer screening until age 50 because the patient is asymptomatic, has no family history of colorectal cancer, and has no inflammatory bowel disease or known hereditary syndrome. Continue routine preventive visits without initiating screening at this time."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "colorectal cancer",
+      "average risk",
+      "screening initiation",
+      "follow-up colonoscopy"
+    ],
+    "evidence_keywords": [
+      "age 45",
+      "fecal immunochemical test",
+      "colonoscopy",
+      "multitarget stool DNA-FIT",
+      "CT colonography"
+    ],
+    "error_tags": [
+      "outdated_guideline",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "AGA advice considers individuals at average risk when they lack personal colorectal cancer, inflammatory bowel disease, hereditary syndromes, other predisposing conditions, and a family history of colorectal cancer.",
+        "source_ids": [
+          "37737817"
+        ]
+      },
+      {
+        "statement": "The USPSTF screening recommendation applies to asymptomatic adults without prior colorectal cancer, adenomatous polyps, inflammatory bowel disease, or known high-risk genetic disorders.",
+        "source_ids": [
+          "34003218"
+        ]
+      },
+      {
+        "statement": "Average-risk adults should initiate colorectal cancer screening at 45 years of age rather than waiting until age 50.",
+        "source_ids": [
+          "37737817",
+          "34003218",
+          "42200680"
+        ]
+      },
+      {
+        "statement": "Average-risk screening options include colonoscopy, fecal immunochemical testing, flexible sigmoidoscopy plus FIT, multitarget stool DNA-FIT, and CT colonography according to availability and preference.",
+        "source_ids": [
+          "37737817"
+        ]
+      },
+      {
+        "statement": "A positive result from a noncolonoscopy colorectal cancer screening test requires timely follow-up colonoscopy to complete the screening process.",
+        "source_ids": [
+          "42200680"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T02:27:32.184513+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "33657038",
+        "title": "ACG Clinical Guidelines: Colorectal Cancer Screening 2021.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33657038/",
+        "abstract": "Colorectal cancer (CRC) is the third most common cancer in men and women in the United States. CRC screening efforts are directed toward removal of adenomas and sessile serrated lesions and detection of early-stage CRC. The purpose of this article is to update the 2009 American College of Gastroenterology CRC screening guidelines. The guideline is framed around several key questions. We conducted a comprehensive literature search to include studies through October 2020. The inclusion criteria were studies of any design with men and women age 40 years and older. Detailed recommendations for CRC screening in average-risk individuals and those with a family history of CRC are discussed. We also provide recommendations on the role of aspirin for chemoprevention, quality indicators for colonoscopy, approaches to organized CRC screening and improving adherence to CRC screening. CRC screening must be optimized to allow effective and sustained reduction of CRC incidence and mortality. This can be accomplished by achieving high rates of adherence, quality monitoring and improvement, following evidence-based guidelines, and removing barriers through the spectrum of care from noninvasive screening tests to screening and diagnostic colonoscopy. The development of cost-effective, highly accurate, noninvasive modalities associated with improved overall adherence to the screening process is also a desirable goal.",
+        "sha256": "cc29447fa5fdae2efec4a6ec107225594974aed6251e6ea1bd2c5327a9dd63d8",
+        "retrieved_at": "2026-09-19T02:26:42.281800+00:00"
+      },
+      {
+        "id": "39236750",
+        "title": "NCCN Guidelines\u00ae Insights: Colorectal Cancer Screening, Version 1.2024.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39236750/",
+        "abstract": "The NCCN Guidelines for Colorectal Cancer (CRC) Screening describe various colorectal screening modalities as well as recommended screening schedules for patients at average or increased risk of developing sporadic CRC. They are intended to aid physicians with clinical decision-making regarding CRC screening for patients without defined genetic syndromes. These NCCN Guidelines Insights focus on select recent updates to the NCCN Guidelines, including a section on primary and secondary CRC prevention, and provide context for the panel's recommendations regarding the age at which to initiate screening in average-risk individuals and those with increased risk based on personal history of childhood, adolescent, and young adult cancer.",
+        "sha256": "b32dd09371a3309c3d5ea79bc2f91241a28ae860b7bf908d340aac19fb3189af",
+        "retrieved_at": "2026-09-19T02:26:42.281800+00:00"
+      },
+      {
+        "id": "34003218",
+        "title": "Screening for Colorectal Cancer: US Preventive Services Task Force Recommendation Statement.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34003218/",
+        "abstract": "Colorectal cancer is the third leading cause of cancer death for both men and women, with an estimated 52\u202f980 persons in the US projected to die of colorectal cancer in 2021. Colorectal cancer is most frequently diagnosed among persons aged 65 to 74 years. It is estimated that 10.5% of new colorectal cancer cases occur in persons younger than 50 years. Incidence of colorectal cancer (specifically adenocarcinoma) in adults aged 40 to 49 years has increased by almost 15% from 2000-2002 to 2014-2016. In 2016, 26% of eligible adults in the US had never been screened for colorectal cancer and in 2018, 31% were not up to date with screening.\nTo update its 2016 recommendation, the US Preventive Services Task Force (USPSTF) commissioned a systematic review to evaluate the benefits and harms of screening for colorectal cancer in adults 40 years or older. The review also examined whether these findings varied by age, sex, or race/ethnicity. In addition, as in 2016, the USPSTF commissioned a report from the Cancer Intervention and Surveillance Modeling Network Colorectal Cancer Working Group to provide information from comparative modeling on how estimated life-years gained, colorectal cancer cases averted, and colorectal cancer deaths averted vary by different starting and stopping ages for various screening strategies.\nAsymptomatic adults 45 years or older at average risk of colorectal cancer (ie, no prior diagnosis of colorectal cancer, adenomatous polyps, or inflammatory bowel disease; no personal diagnosis or family history of known genetic disorders that predispose them to a high lifetime risk of colorectal cancer [such as Lynch syndrome or familial adenomatous polyposis]).\nThe USPSTF concludes with high certainty that screening for colorectal cancer in adults aged 50 to 75 years has substantial net benefit. The USPSTF concludes with moderate certainty that screening for colorectal cancer in adults aged 45 to 49 years has moderate net benefit. The USPSTF concludes with moderate certainty that screening for colorectal cancer in adults aged 76 to 85 years who have been previously screened has small net benefit. Adults who have never been screened for colorectal cancer are more likely to benefit.\nThe USPSTF recommends screening for colorectal cancer in all adults aged 50 to 75 years. (A recommendation) The USPSTF recommends screening for colorectal cancer in adults aged 45 to 49 years. (B recommendation) The USPSTF recommends that clinicians selectively offer screening for colorectal cancer in adults aged 76 to 85 years. Evidence indicates that the net benefit of screening all persons in this age group is small. In determining whether this service is appropriate in individual cases, patients and clinicians should consider the patient's overall health, prior screening history, and preferences. (C recommendation).",
+        "sha256": "6e11ee71e2e94e4fac31e43cc0a5ebf81f0958f680b86c64bdb2bfa1c6046ba5",
+        "retrieved_at": "2026-09-19T02:26:42.281800+00:00"
+      },
+      {
+        "id": "42200680",
+        "title": "Colorectal cancer screening: An update to the American Cancer Society guideline, 2026.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/42200680/",
+        "abstract": "Colorectal cancer (CRC) is a leading cause of cancer incidence and mortality in the United States, with rates recently increasing among adults younger than 65 years. In 2018, the American Cancer Society (ACS) lowered the recommended age to initiate screening for average-risk adults to age 45 years. Since then, new molecular-based screening tests-a multitarget stool RNA test (mt-sRNA), a next-generation mt-sDNA test, and a blood-based cell-free DNA assay-have received regulatory approval for CRC screening. For this update, the ACS Guideline Development Group commissioned a targeted, systematic evidence review evaluating diagnostic performance and published modeling studies to judge the potential impact of these tests on CRC incidence and mortality. The ACS reaffirms the recommendation that average-risk adults should initiate CRC screening at age 45 years and continue through age 75 years for those with a life expectancy greater than 10 years. Consistent with prior guidelines, the ACS emphasizes that offering multiple, recommended\u00a0screening options supports informed patient choice and may improve participation, because the most effective screening test is the one that the patient completes. The next-generation mt-sDNA test, which is an updated version of an already recommended mt-sDNA test, and the mt-sRNA test demonstrated high sensitivity for CRC and moderate sensitivity for advanced precancerous lesions and are recommended, along with annual high-sensitivity fecal immunochemical and high-sensitivity guaiac-based fecal occult blood tests, as preferred stool-based screening options at 3-year intervals. Compared with established stool-based tests, blood-based tests demonstrated lower sensitivity for both advanced precancerous lesions and stage I cancers, with modeling studies predicting less effectiveness in reducing CRC incidence and mortality. At this time, blood-based tests should be recommended only to individuals who decline or do not complete preferred screening tests. Ongoing evaluation of adherence, real-world implementation, and clinical outcomes will inform future updates for these new tests. For screening to be effective, a positive result on any noncolonoscopy screening test requires timely follow-up with colonoscopy, preferably within 6 months, to complete the screening process.",
+        "sha256": "e2ccef446e4158390a8b3243e49f9cc5fc428adbc19fea052d7bc3d8492b76ec",
+        "retrieved_at": "2026-09-19T02:26:43.080284+00:00"
+      },
+      {
+        "id": "37737817",
+        "title": "AGA Clinical Practice Update on Risk Stratification for Colorectal Cancer Screening and Post-Polypectomy Surveillance: Expert Review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37737817/",
+        "abstract": "Since the early 2000s, there has been a rapid decline in colorectal cancer (CRC) mortality, due in large part to screening and removal of precancerous polyps. Despite these improvements, CRC remains the second leading cause of cancer deaths in the United States, with approximately 53,000 deaths projected in 2023. The aim of this American Gastroenterological Association (AGA) Clinical Practice Update Expert Review was to describe how individuals should be risk-stratified for CRC screening and post-polypectomy surveillance and to highlight opportunities for future research to fill gaps in the existing literature.\nThis Expert Review was commissioned and approved by the American Gastroenterological Association (AGA) Institute Clinical Practice Updates Committee (CPUC) and the AGA Governing Board to provide timely guidance on a topic of high clinical importance to the AGA membership, and underwent internal peer review by the CPUC and external peer review through standard procedures of Gastroenterology. These Best Practice Advice statements were drawn from a review of the published literature and from expert opinion. Because systematic reviews were not performed, these Best Practice Advice statements do not carry formal ratings regarding the quality of evidence or strength of the presented considerations. Best Practice Advice Statements BEST PRACTICE ADVICE 1: All individuals with a first-degree relative (defined as a parent, sibling, or child) who was diagnosed with CRC, particularly before the age of 50 years, should be considered at increased risk for CRC. BEST PRACTICE ADVICE 2: All individuals without a personal history of CRC, inflammatory bowel disease, hereditary CRC syndromes, other CRC predisposing conditions, or a family history of CRC should be considered at average risk for CRC. BEST PRACTICE ADVICE 3: Individuals at average risk for CRC should initiate screening at age 45 years and individuals at increased risk for CRC due to having a first-degree relative with CRC should initiate screening 10 years before the age at diagnosis of the youngest affected relative or age 40 years, whichever is earlier. BEST PRACTICE ADVICE 4: Risk stratification for initiation of CRC screening should be based on an individual's age, a known or suspected predisposing hereditary CRC syndrome, and/or a family history of CRC. BEST PRACTICE ADVICE 5: The decision to continue CRC screening in individuals older than 75 years should be individualized, based on an assessment of risks, benefits, screening history, and comorbidities. BEST PRACTICE ADVICE 6: Screening options for individuals at average risk for CRC should include colonoscopy, fecal immunochemical test, flexible sigmoidoscopy plus fecal immunochemical test, multitarget stool DNA fecal immunochemical test, and computed tomography colonography, based on availability and individual preference. BEST PRACTICE ADVICE\u00a07: Colonoscopy should be the screening strategy used for individuals at increased CRC risk. BEST PRACTICE ADVICE 8: The decision to continue post-polypectomy surveillance for individuals older than 75 years should be individualized, based on an assessment of risks, benefits, and comorbidities. BEST PRACTICE ADVICE 9: Risk-stratification tools for CRC screening and post-polypectomy surveillance that emerge from research should be examined for real-world effectiveness and cost-effectiveness in diverse populations (eg, by race, ethnicity, sex, and other sociodemographic factors associated with disparities in CRC outcomes) before widespread implementation.",
+        "sha256": "bbb4206b57a353960cce5fa4a6ef9d99db76b1f0991495c1b812ea4a3e16f75c",
+        "retrieved_at": "2026-09-19T02:26:43.080284+00:00",
+        "pmcid": "PMC10591903"
+      },
+      {
+        "id": "33022639",
+        "title": "NCCN Guidelines Insights: Colorectal Cancer Screening, Version 2.2020.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33022639/",
+        "abstract": "The NCCN Guidelines for Colorectal Cancer (CRC) Screening describe various colorectal screening modalities as well as recommended screening schedules for patients at average or increased risk of developing sporadic CRC. They are intended to aid physicians with clinical decision-making regarding CRC screening for patients without defined genetic syndromes. These NCCN Guidelines Insights focus on select recent updates to the NCCN Guidelines, including a section on primary and secondary CRC prevention, and provide context for the panel's recommendations regarding the age to initiate screening in average risk individuals and follow-up for low-risk adenomas.",
+        "sha256": "f50492eaf9190c49184ab40023b88aea2a80341cef7befb90a970d9468858274",
+        "retrieved_at": "2026-09-19T02:26:43.080284+00:00",
+        "pmcid": "PMC8311627"
+      },
+      {
+        "id": "31578196",
+        "title": "Colorectal cancer screening with faecal immunochemical testing, sigmoidoscopy or colonoscopy: a clinical practice guideline.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31578196/",
+        "abstract": "Recent 15-year updates of sigmoidoscopy screening trials provide new evidence on the effectiveness of colorectal cancer screening. Prompted by the new evidence, we asked: \"Does colorectal cancer screening make an important difference to health outcomes in individuals initiating screening at age 50 to 79? And which screening option is best?\"\nNumerous guidelines recommend screening, but vary on recommended test, age and screening frequency. This guideline looks at the evidence and makes recommendations on screening for four screening options: faecal immunochemical test (FIT) every year, FIT every two years, a single sigmoidoscopy, or a single colonoscopy.\nThese recommendations apply to adults aged 50-79 years with no prior screening, no symptoms of colorectal cancer, and a life expectancy of at least 15 years. For individuals with an estimated 15-year colorectal cancer risk below 3%, we suggest no screening (weak recommendation). For individuals with an estimated 15-year risk above 3%, we suggest screening with one of the four screening options: FIT every year, FIT every two years, a single sigmoidoscopy, or a single colonoscopy (weak recommendation). With our guidance we publish the linked research, a graphic of the absolute harms and benefits, a clear description of how we reached our value judgments, and linked decision aids.\nA guideline panel including patients, clinicians, content experts and methodologists produced these recommendations using GRADE and in adherence with standards for trustworthy guidelines. A linked systematic review of colorectal cancer screening trials and microsimulation modelling were performed to inform the panel of 15-year screening benefits and harms. The panel also reviewed each screening option's practical issues and burdens. Based on their own experience, the panel estimated the magnitude of benefit typical members of the population would value to opt for screening and used the benefit thresholds to inform their recommendations.\nOverall there was substantial uncertainty (low certainty evidence) regarding the 15-year benefits, burdens and harms of screening. Best estimates suggested that all four screening options resulted in similar colorectal cancer mortality reductions. FIT every two years may have little or no effect on cancer incidence over 15 years, while FIT every year, sigmoidoscopy, and colonoscopy may reduce cancer incidence, although for FIT the incidence reduction is small compared with sigmoidoscopy and colonoscopy. Screening related serious gastrointestinal and cardiovascular adverse events are rare. The magnitude of the benefits is dependent on the individual risk, while harms and burdens are less strongly associated with cancer risk.\nBased on benefits, harms, and burdens of screening, the panel inferred that most informed individuals with a 15-year risk of colorectal cancer of 3% or higher are likely to choose screening, and most individuals with a risk of below 3% are likely to decline screening. Given varying values and preferences, optimal care will require shared decision making.",
+        "sha256": "2483ddf484a8580bfc4b257bc4b97f90fe12e07919411435e3fd297ca0cab346",
+        "retrieved_at": "2026-09-19T02:26:43.688104+00:00"
+      },
+      {
+        "id": "40409877",
+        "title": "ACR Appropriateness Criteria\u00ae Colorectal Cancer Screening: 2024 Update.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40409877/",
+        "abstract": "This document serves to update the 2018 ACR Appropriateness Criteria\u00ae colorectal screening guidance document. In light of new recommendations from the US Preventative Services Task Force (USPSTF), an updated literature review of the imaging procedures for the screening of colorectal cancer was performed. Average-risk, elevated-risk, and high-risk individuals as well as those individuals who had an incomplete colonoscopy or were unable to tolerate colonoscopy were included. CT colonography without contrast was found to be usually appropriate for individuals at average and elevated risk between 45 to 75 years of age at initial screening. Additionally, CT colonography without contrast was found to be usually appropriate in individuals at average risk, elevated risk, and at high risk after incomplete colonoscopy or unable to tolerate colonoscopy. Other imaging procedures such as barium fluoroscopy and CT of the abdomen and pelvis were usually not appropriate. CT colonography without contrast, barium fluoroscopy, and CT of the abdomen and pelvis were usually not appropriate in high-risk individuals who can undergo a complete colonoscopy. The American College of Radiology Appropriateness Criteria are evidence-based guidelines for specific clinical conditions that are reviewed annually by a multidisciplinary expert panel. The guideline development and revision process support the systematic analysis of the medical literature from peer reviewed journals. Established methodology principles such as Grading of Recommendations Assessment, Development, and Evaluation or GRADE are adapted to evaluate the evidence. The RAND/UCLA Appropriateness Method User Manual provides the methodology to determine the appropriateness of imaging and treatment procedures for specific clinical scenarios. In those instances where peer reviewed literature is lacking or equivocal, experts may be the primary evidentiary source available to formulate a recommendation.",
+        "sha256": "7a23ae32bc16ac1ddde77b2c5a5a2b6c34120769055a3a0f612aa529052ee5b1",
+        "retrieved_at": "2026-09-19T02:26:43.688104+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "She is 47, asymptomatic, previously unscreened, and at average colorectal cancer risk. Current USPSTF guidance recommends screening average-risk adults beginning at age 45, with moderate net benefit for ages 45\u201349. AGA and ACS guidance likewise supports initiation at 45 and selection among accepted modalities according to availability and patient preference. Any positive noncolonoscopy screening result requires timely diagnostic colonoscopy. Therefore, screening should begin now rather than be deferred until age 50.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.99,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37737817"
+              ],
+              "reason": "The AGA passage explicitly defines average risk by the absence of the listed personal, hereditary, predisposing, and family-history factors.",
+              "source_passage_ids": [
+                "37737817:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37737817",
+                  "quote": "Best Practice Advice Statements BEST PRACTICE ADVICE 1: All individuals with a first-degree relative (defined as a parent, sibling, or child) who was diagnosed with CRC, particularly before the age of 50 years, should be considered at increased risk for CRC. BEST PRACTICE ADVICE 2: All individuals without a personal history of CRC, inflammatory bowel disease, hereditary CRC syndromes, other CRC predisposing conditions, or a family history of CRC should be considered at average risk for CRC. BEST PRACTICE ADVICE 3: Individuals at average risk for CRC should initiate screening at age 45 years and individuals at increased risk for CRC due to having a first-degree relative with CRC should initiate screening 10 years before the age at diagnosis of the youngest affected relative or age 40 years, whichever is earlier."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34003218"
+              ],
+              "reason": "The USPSTF passage explicitly identifies its population as asymptomatic adults at average risk and lists the relevant exclusions.",
+              "source_passage_ids": [
+                "34003218:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34003218",
+                  "quote": "The review also examined whether these findings varied by age, sex, or race/ethnicity. In addition, as in 2016, the USPSTF commissioned a report from the Cancer Intervention and Surveillance Modeling Network Colorectal Cancer Working Group to provide information from comparative modeling on how estimated life-years gained, colorectal cancer cases averted, and colorectal cancer deaths averted vary by different starting and stopping ages for various screening strategies. Asymptomatic adults 45 years or older at average risk of colorectal cancer (ie, no prior diagnosis of colorectal cancer, adenomatous polyps, or inflammatory bowel disease; no personal diagnosis or family history of known genetic disorders that predispose them to a high lifetime risk of colorectal cancer [such as Lynch syndrome or familial adenomatous polyposis])."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37737817",
+                "34003218",
+                "42200680"
+              ],
+              "reason": "AGA and ACS explicitly state initiation at age 45, while USPSTF specifically recommends screening adults aged 45 to 49. These recommendations directly apply to this previously unscreened 47-year-old average-risk patient.",
+              "source_passage_ids": [
+                "37737817:p2",
+                "34003218:p2",
+                "42200680:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37737817",
+                  "quote": "Best Practice Advice Statements BEST PRACTICE ADVICE 1: All individuals with a first-degree relative (defined as a parent, sibling, or child) who was diagnosed with CRC, particularly before the age of 50 years, should be considered at increased risk for CRC. BEST PRACTICE ADVICE 2: All individuals without a personal history of CRC, inflammatory bowel disease, hereditary CRC syndromes, other CRC predisposing conditions, or a family history of CRC should be considered at average risk for CRC. BEST PRACTICE ADVICE 3: Individuals at average risk for CRC should initiate screening at age 45 years and individuals at increased risk for CRC due to having a first-degree relative with CRC should initiate screening 10 years before the age at diagnosis of the youngest affected relative or age 40 years, whichever is earlier."
+                },
+                {
+                  "source_id": "34003218",
+                  "quote": "The USPSTF concludes with high certainty that screening for colorectal cancer in adults aged 50 to 75 years has substantial net benefit. The USPSTF concludes with moderate certainty that screening for colorectal cancer in adults aged 45 to 49 years has moderate net benefit. The USPSTF concludes with moderate certainty that screening for colorectal cancer in adults aged 76 to 85 years who have been previously screened has small net benefit. Adults who have never been screened for colorectal cancer are more likely to benefit. The USPSTF recommends screening for colorectal cancer in all adults aged 50 to 75 years. (A recommendation) The USPSTF recommends screening for colorectal cancer in adults aged 45 to 49 years. (B recommendation) The USPSTF recommends that clinicians selectively offer screening for colorectal cancer in adults aged 76 to 85 years."
+                },
+                {
+                  "source_id": "42200680",
+                  "quote": "The ACS reaffirms the recommendation that average-risk adults should initiate CRC screening at age 45 years and continue through age 75 years for those with a life expectancy greater than 10 years. Consistent with prior guidelines, the ACS emphasizes that offering multiple, recommended screening options supports informed patient choice and may improve participation, because the most effective screening test is the one that the patient completes. The next-generation mt-sDNA test, which is an updated version of an already recommended mt-sDNA test, and the mt-sRNA test demonstrated high sensitivity for CRC and moderate sensitivity for advanced precancerous lesions and are recommended, along with annual high-sensitivity fecal immunochemical and high-sensitivity guaiac-based fecal occult blood tests, as preferred stool-based screening options at 3-year intervals."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37737817"
+              ],
+              "reason": "The AGA passage explicitly lists all five modalities named in candidate A and states that selection may be based on availability and individual preference.",
+              "source_passage_ids": [
+                "37737817:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37737817",
+                  "quote": "BEST PRACTICE ADVICE 4: Risk stratification for initiation of CRC screening should be based on an individual's age, a known or suspected predisposing hereditary CRC syndrome, and/or a family history of CRC. BEST PRACTICE ADVICE 5: The decision to continue CRC screening in individuals older than 75 years should be individualized, based on an assessment of risks, benefits, screening history, and comorbidities. BEST PRACTICE ADVICE 6: Screening options for individuals at average risk for CRC should include colonoscopy, fecal immunochemical test, flexible sigmoidoscopy plus fecal immunochemical test, multitarget stool DNA fecal immunochemical test, and computed tomography colonography, based on availability and individual preference. BEST PRACTICE ADVICE 7: Colonoscopy should be the screening strategy used for individuals at increased CRC risk."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "42200680"
+              ],
+              "reason": "The ACS passage explicitly requires timely follow-up colonoscopy after any positive noncolonoscopy screening test to complete screening.",
+              "source_passage_ids": [
+                "42200680:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "42200680",
+                  "quote": "Compared with established stool-based tests, blood-based tests demonstrated lower sensitivity for both advanced precancerous lesions and stage I cancers, with modeling studies predicting less effectiveness in reducing CRC incidence and mortality. At this time, blood-based tests should be recommended only to individuals who decline or do not complete preferred screening tests. Ongoing evaluation of adherence, real-world implementation, and clinical outcomes will inform future updates for these new tests. For screening to be effective, a positive result on any noncolonoscopy screening test requires timely follow-up with colonoscopy, preferably within 6 months, to complete the screening process."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is an average-risk, asymptomatic, previously unscreened 47-year-old with no documented life-limiting illness. Candidate A correctly initiates colorectal cancer screening now, offers guideline-recognized choices according to preference and availability, and includes the essential follow-up colonoscopy requirement after a positive noncolonoscopy test. The central initiation decision is substantively supported by multiple independent sources, including USPSTF, AGA, and ACS recommendations. Candidate B uses the obsolete age-50 threshold and would omit currently indicated screening. The applicant-visible title, question, and notes provide the clinical facts but do not disclose the intended answer or management plan. The case is also distinct from the prior lung cancer case because it concerns a different cancer-risk population, screening modalities, eligibility framework, and follow-up pathway."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The patient is a 47-year-old asymptomatic woman at average risk for colorectal cancer: she has no personal history of colorectal cancer, adenomatous polyps, inflammatory bowel disease, hereditary colorectal cancer syndrome, or family history of colorectal cancer. Current major guidelines support initiating colorectal cancer screening at age 45 for average-risk adults. The USPSTF recommends screening adults aged 45 to 49 years, and the AGA expert review states that average-risk individuals should initiate screening at age 45, with options including colonoscopy, FIT, flexible sigmoidoscopy plus FIT, multitarget stool DNA-FIT, and CT colonography based on availability and preference. The ACS also emphasizes multiple recommended screening options and timely colonoscopy after any positive non-colonoscopy test. Therefore, screening should begin now rather than be deferred until age 50.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37737817"
+              ],
+              "reason": "The AGA passage directly defines average-risk individuals as those without personal CRC, IBD, hereditary CRC syndromes, other predisposing conditions, or family history of CRC.",
+              "source_passage_ids": [
+                "37737817:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37737817",
+                  "quote": "Best Practice Advice Statements BEST PRACTICE ADVICE 1: All individuals with a first-degree relative (defined as a parent, sibling, or child) who was diagnosed with CRC, particularly before the age of 50 years, should be considered at increased risk for CRC. BEST PRACTICE ADVICE 2: All individuals without a personal history of CRC, inflammatory bowel disease, hereditary CRC syndromes, other CRC predisposing conditions, or a family history of CRC should be considered at average risk for CRC. BEST PRACTICE ADVICE 3: Individuals at average risk for CRC should initiate screening at age 45 years and individuals at increased risk for CRC due to having a first-degree relative with CRC should initiate screening 10 years before the age at diagnosis of the youngest affected relative or age 40 years, whichever is earlier."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34003218"
+              ],
+              "reason": "The USPSTF passage states that the recommendation population is asymptomatic adults age 45 or older at average risk and specifies the excluded prior diagnoses and high-risk genetic disorders.",
+              "source_passage_ids": [
+                "34003218:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34003218",
+                  "quote": "The review also examined whether these findings varied by age, sex, or race/ethnicity. In addition, as in 2016, the USPSTF commissioned a report from the Cancer Intervention and Surveillance Modeling Network Colorectal Cancer Working Group to provide information from comparative modeling on how estimated life-years gained, colorectal cancer cases averted, and colorectal cancer deaths averted vary by different starting and stopping ages for various screening strategies. Asymptomatic adults 45 years or older at average risk of colorectal cancer (ie, no prior diagnosis of colorectal cancer, adenomatous polyps, or inflammatory bowel disease; no personal diagnosis or family history of known genetic disorders that predispose them to a high lifetime risk of colorectal cancer [such as Lynch syndrome or familial adenomatous polyposis])."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37737817",
+                "34003218",
+                "42200680"
+              ],
+              "reason": "All cited passages support initiating average-risk colorectal cancer screening at age 45, including adults 45 to 49 rather than deferring until 50.",
+              "source_passage_ids": [
+                "37737817:p2",
+                "34003218:p2",
+                "42200680:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37737817",
+                  "quote": "Best Practice Advice Statements BEST PRACTICE ADVICE 1: All individuals with a first-degree relative (defined as a parent, sibling, or child) who was diagnosed with CRC, particularly before the age of 50 years, should be considered at increased risk for CRC. BEST PRACTICE ADVICE 2: All individuals without a personal history of CRC, inflammatory bowel disease, hereditary CRC syndromes, other CRC predisposing conditions, or a family history of CRC should be considered at average risk for CRC. BEST PRACTICE ADVICE 3: Individuals at average risk for CRC should initiate screening at age 45 years and individuals at increased risk for CRC due to having a first-degree relative with CRC should initiate screening 10 years before the age at diagnosis of the youngest affected relative or age 40 years, whichever is earlier."
+                },
+                {
+                  "source_id": "34003218",
+                  "quote": "The USPSTF concludes with high certainty that screening for colorectal cancer in adults aged 50 to 75 years has substantial net benefit. The USPSTF concludes with moderate certainty that screening for colorectal cancer in adults aged 45 to 49 years has moderate net benefit. The USPSTF concludes with moderate certainty that screening for colorectal cancer in adults aged 76 to 85 years who have been previously screened has small net benefit. Adults who have never been screened for colorectal cancer are more likely to benefit. The USPSTF recommends screening for colorectal cancer in all adults aged 50 to 75 years. (A recommendation) The USPSTF recommends screening for colorectal cancer in adults aged 45 to 49 years. (B recommendation) The USPSTF recommends that clinicians selectively offer screening for colorectal cancer in adults aged 76 to 85 years."
+                },
+                {
+                  "source_id": "42200680",
+                  "quote": "The ACS reaffirms the recommendation that average-risk adults should initiate CRC screening at age 45 years and continue through age 75 years for those with a life expectancy greater than 10 years. Consistent with prior guidelines, the ACS emphasizes that offering multiple, recommended screening options supports informed patient choice and may improve participation, because the most effective screening test is the one that the patient completes. The next-generation mt-sDNA test, which is an updated version of an already recommended mt-sDNA test, and the mt-sRNA test demonstrated high sensitivity for CRC and moderate sensitivity for advanced precancerous lesions and are recommended, along with annual high-sensitivity fecal immunochemical and high-sensitivity guaiac-based fecal occult blood tests, as preferred stool-based screening options at 3-year intervals."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37737817"
+              ],
+              "reason": "The AGA passage directly lists colonoscopy, FIT, flexible sigmoidoscopy plus FIT, multitarget stool DNA-FIT, and CT colonography as average-risk screening options based on availability and preference.",
+              "source_passage_ids": [
+                "37737817:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37737817",
+                  "quote": "BEST PRACTICE ADVICE 4: Risk stratification for initiation of CRC screening should be based on an individual's age, a known or suspected predisposing hereditary CRC syndrome, and/or a family history of CRC. BEST PRACTICE ADVICE 5: The decision to continue CRC screening in individuals older than 75 years should be individualized, based on an assessment of risks, benefits, screening history, and comorbidities. BEST PRACTICE ADVICE 6: Screening options for individuals at average risk for CRC should include colonoscopy, fecal immunochemical test, flexible sigmoidoscopy plus fecal immunochemical test, multitarget stool DNA fecal immunochemical test, and computed tomography colonography, based on availability and individual preference. BEST PRACTICE ADVICE 7: Colonoscopy should be the screening strategy used for individuals at increased CRC risk."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "42200680"
+              ],
+              "reason": "The ACS passage directly states that positive noncolonoscopy screening tests require timely colonoscopy to complete screening.",
+              "source_passage_ids": [
+                "42200680:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "42200680",
+                  "quote": "Compared with established stool-based tests, blood-based tests demonstrated lower sensitivity for both advanced precancerous lesions and stage I cancers, with modeling studies predicting less effectiveness in reducing CRC incidence and mortality. At this time, blood-based tests should be recommended only to individuals who decline or do not complete preferred screening tests. Ongoing evaluation of adherence, real-world implementation, and clinical outcomes will inform future updates for these new tests. For screening to be effective, a positive result on any noncolonoscopy screening test requires timely follow-up with colonoscopy, preferably within 6 months, to complete the screening process."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The chart describes an asymptomatic 47-year-old woman who has never been screened and has no documented personal history of colorectal cancer, adenomatous polyps, inflammatory bowel disease, hereditary colorectal cancer syndrome, other predisposing condition, family history of colorectal cancer, or life-limiting illness. This places her in the average-risk screening population addressed by the cited sources. Current supplied guidance supports colorectal cancer screening beginning at age 45, with multiple acceptable screening options chosen according to availability and patient preference, and timely colonoscopy after any positive noncolonoscopy screening test. Candidate A matches this; Candidate B incorrectly applies an outdated age-50 threshold and would omit indicated screening. The visible title and question are generic and do not disclose the intended answer beyond the clinical facts necessary for the preventive decision. The prior case concerns lung cancer screening, so this is a distinct clinical decision."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "6c7e262f24468212c5f9ed4337a5110258c0bd63e62ff719d3e0e4ea91287dbf"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

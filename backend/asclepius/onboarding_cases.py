@@ -158,6 +158,7 @@ claim_checks (one {index,supported,source_ids,reason,source_quotes} for each
 zero-based claim; source_quotes is [{source_id,quote}] covering all its source_ids),
 issues (array of concrete problems), rationale (string). Use false and explain
 uncertainty when any clinical or evidence conclusion cannot be established.
+When confidence is below 0.90, explain the concrete clinical or evidence uncertainty in rationale so it can be investigated. Do not inflate confidence to meet a release threshold.
 issues is a BLOCKING list, not a notebook: it is machine-checked and any entry
 rejects the case outright. Put an entry there only for a defect that must stop
 publication: an unsafe or unsupported recommendation, a key that contradicts

@@ -26,6 +26,38 @@ _LOCKS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 # differentials. It is educational morphology evidence, not a treatment guideline.
 # Explicit identity pinning avoids broadening the guideline search to case reports.
 _PATHOLOGY_TEACHING = {"40687210": ("PMC12271062", "Educational Case: Squamous cell carcinoma.")}
+_ILLUSTRATION_TAGS = {"table-wrap", "table-wrap-group", "table", "fig", "fig-group", "graphic", "media"}
+
+
+def _restrictive_license(node: ElementTree.Element) -> bool:
+    # Check both the human-readable license and its links/attributes. A CC BY
+    # link cannot override a contradictory NonCommercial/NoDerivatives label.
+    text = " ".join(node.itertext()) + " " + " ".join(
+        value for child in node.iter() for value in child.attrib.values())
+    text = re.sub(r"[\u2010-\u2015\u2212]", "-", text)
+    return bool(re.search(
+        r"\b(?:non[\s-]*commercial|no[\s-]*deriv(?:ative)?s?|share[\s-]*alike)\b"
+        r"|\b(?:by|attribution)[\s-]+(?:nc|nd|sa)\b", text, re.I))
+
+
+def _restricted_illustration(node: ElementTree.Element) -> bool:
+    # An article's license does not grant reuse of separately credited material.
+    # Be conservative when a table/figure carries its own copyright or permission
+    # notice; do not remove the credit and retain its underlying clinical text.
+    if _restrictive_license(node) or any(
+        child.tag in {"copyright-statement", "copyright-holder"}
+        or (child.tag == "attrib" and " ".join(child.itertext()).strip())
+        for child in node.iter()
+    ):
+        return True
+    text = " ".join(" ".join(node.itertext()).split())
+    return bool(re.search(
+        r"\bcopyright\b|©|\ball rights reserved\b|\bcourtesy of\b"
+        r"|\bwith\s+(?:kind\s+)?permission\b"
+        r"|\b(?:adapted|reproduced|reprinted|republished|modified|used)\b.{0,100}\bpermission\b"
+        r"|\bpermission\s+(?:of|from|granted)\b"
+        r"|\b(?:adapted|reproduced|reprinted|republished|modified)\s+from\b"
+        r"|\bsource\s*:", text, re.I))
 
 
 def source_text(source: dict) -> str:
@@ -74,7 +106,10 @@ def parse_open_text(raw: bytes, source: dict, topic: str) -> dict | None:
     pmcids = [n.text or "" for n in meta.findall('./article-id') if n.get('pub-id-type') in {'pmc', 'pmcid'}]
     if not pmcids or any(pmcid.removeprefix("PMC") != source["pmcid"].removeprefix("PMC") for pmcid in pmcids):
         return None
-    license_nodes = [node for license_node in meta.findall("./permissions/license")
+    licenses = meta.findall("./permissions/license")
+    if any(_restrictive_license(license_node) for license_node in licenses):
+        return None
+    license_nodes = [node for license_node in licenses
                      for node in license_node.iter()]
     # Some publishers put the URL in plain license-p text, not an ext-link.
     # Read only the permissions/license node; a URL in the article body is not
@@ -97,6 +132,12 @@ def parse_open_text(raw: bytes, source: dict, topic: str) -> dict | None:
             title = node.find("./title")
             headings += (" ".join(title.itertext()) if title is not None else "",)
         if node.tag in {"p", "table-wrap"}:
+            # JATS permits tables/figures inside paragraphs. itertext() would
+            # otherwise copy a restricted nested object with its surrounding
+            # prose. Skip the entire block rather than splice its text.
+            if any(child.tag in _ILLUSTRATION_TAGS and _restricted_illustration(child)
+                   for child in node.iter()):
+                return
             text = " ".join(" ".join(node.itertext()).split())
             if 40 <= len(text) <= 12000:
                 heading = " > ".join(h for h in headings if h)
@@ -316,7 +357,9 @@ async def retrieve(specialty: str, *, topic: str | None = None) -> list[dict]:
             # Explicit field tags disable PubMed's automatic singular/plural
             # expansion. Without a suffix, "infant" misses the AAP guideline
             # titled "Febrile Infants". NCBI permits truncation from four chars.
-            disease_query = ' AND '.join(f'{word}{"*" if len(word) >= 4 else ""}[{field}]' for word in words)
+            disease_query = ' AND '.join(
+                f'(mass[{field}] OR masses[{field}])' if word.lower() == 'mass'
+                else f'{word}{"*" if len(word) >= 4 else ""}[{field}]' for word in words)
             search = json.loads(await _request(client, "esearch.fcgi",
                 {"term": f'({disease_query}) AND ({category}) AND {filters}', "retmode": "json", "retmax": 12, "sort": "relevance"}))
             ids = [str(i) for i in search.get("esearchresult", {}).get("idlist", []) if str(i).isdigit() and str(i) not in seen][:12]
