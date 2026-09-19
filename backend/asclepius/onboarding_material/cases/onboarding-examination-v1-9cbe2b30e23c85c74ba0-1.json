@@ -1,0 +1,422 @@
+{
+  "task_id": "onboarding-examination-v1-9cbe2b30e23c85c74ba0-1",
+  "specialty": "medical genetics",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Post-test review of a BRCA2 germline panel finding",
+    "question": "Which counseling and risk-management approach is appropriate at this post-test genetics visit?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "medical genetics",
+      "demographics": {
+        "age_band": "50-59",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Personal history of early-stage breast carcinoma",
+          "since": "diagnosed in the 40-49 age band",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Family history of breast and ovarian cancer",
+          "since": "reported during genetics evaluation",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Genetics consultation",
+          "author_role": "medical genetics",
+          "text": "The patient is a woman in her early 50s with a history of early-stage breast carcinoma treated with breast-conserving surgery and radiation several years ago. She has no evidence of recurrent disease. Her mother had bilateral breast cancers, with the first diagnosed in her 40s, and a maternal aunt had ovarian cancer in her 50s. Pretest counseling and informed consent were completed before a hereditary cancer germline panel was obtained. She now presents to review the result and asks whether it establishes hereditary breast and ovarian cancer syndrome and whether it should change her preventive care.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Germline molecular genetic testing",
+          "label": "Hereditary cancer multigene panel",
+          "findings": "A heterozygous BRCA2 variant was detected and classified by the testing laboratory as a variant of uncertain significance. No pathogenic or likely pathogenic variant was identified in BRCA1, BRCA2, or the other genes analyzed.",
+          "measurements": [],
+          "impression": "BRCA2 variant of uncertain significance; otherwise negative hereditary cancer panel.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional examination case for onboarding; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the counseling decision",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "A BRCA2 variant of uncertain significance is inconclusive and should not be treated as a pathogenic or likely pathogenic variant. It therefore should not independently trigger BRCA-specific screening or preventive surgery. The patient should receive post-test counseling explaining the uncertainty, remain eligible for laboratory reclassification follow-up, and have risk assessment based on her personal and family history rather than on the uncertain variant. Candidate B is clinically consequential because it misclassifies the variant as disease-causing and recommends irreversible interventions without an actionable germline result.",
+        "evidence": null,
+        "key_data": [
+          "The laboratory classified the BRCA2 finding as a variant of uncertain significance.",
+          "No pathogenic or likely pathogenic variant was identified on the germline panel.",
+          "Variants of uncertain significance should not affect clinical management.",
+          "The patient's personal and family cancer history still warrants individualized genetics assessment.",
+          "BRCA-specific preventive strategies are supported for pathogenic or likely pathogenic variant carriers, not for a variant of uncertain significance alone."
+        ]
+      },
+      "hard_hook": "Distinguishing an uncertain BRCA2 variant from a pathogenic or likely pathogenic germline variant.",
+      "reasoning_divergence": "The flawed approach treats an inconclusive molecular finding as confirmation of hereditary breast and ovarian cancer syndrome."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Explain that the BRCA2 variant is currently inconclusive and must not independently alter management. Do not initiate BRCA-specific screening or preventive surgery solely because of this result. Provide individualized post-test genetics counseling based on her personal and family history, and retain the result for laboratory reclassification follow-up."
+      },
+      {
+        "id": "B",
+        "text": "Counsel her that the BRCA2 finding confirms hereditary breast and ovarian cancer syndrome. Manage her as a pathogenic-variant carrier and recommend BRCA-directed preventive measures, including bilateral risk-reducing mastectomy and salpingo-oophorectomy, without waiting for reclassification."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "BRCA2 variant",
+      "variant of uncertain significance",
+      "risk-reducing surgery",
+      "hereditary breast cancer",
+      "ovarian cancer risk"
+    ],
+    "evidence_keywords": [
+      "germline testing",
+      "variant reclassification",
+      "post-test counseling",
+      "pathogenic variant",
+      "family history"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "wrong_diagnosis"
+    ],
+    "claims": [
+      {
+        "statement": "A variant of uncertain significance should not affect clinical management and should be followed for possible reclassification.",
+        "source_ids": [
+          "38175972"
+        ]
+      },
+      {
+        "statement": "Referral to clinicians experienced in cancer genetics can aid interpretation and counseling when no pathogenic germline variant is found but the family history remains significant.",
+        "source_ids": [
+          "38175972"
+        ]
+      },
+      {
+        "statement": "BRCA1 or BRCA2 pathogenic and likely pathogenic variant carriers have elevated breast and ovarian cancer risks warranting consideration of intensive screening and preventive strategies.",
+        "source_ids": [
+          "33406487"
+        ]
+      },
+      {
+        "statement": "Genetic counseling has been associated with improved understanding of cancer risk and reductions in breast cancer worry, anxiety, and depression.",
+        "source_ids": [
+          "31429902"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T01:39:12.961443+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "33406487",
+        "title": "Genetic/Familial High-Risk Assessment: Breast, Ovarian, and Pancreatic, Version 2.2021, NCCN Clinical Practice Guidelines in Oncology.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33406487/",
+        "abstract": "The NCCN Guidelines for Genetic/Familial High-Risk Assessment: Breast, Ovarian, and Pancreatic focus primarily on assessment of pathogenic or likely pathogenic variants associated with increased risk of breast, ovarian, and pancreatic cancer and recommended approaches to genetic testing/counseling and management strategies in individuals with these pathogenic or likely pathogenic variants. This manuscript focuses on cancer risk and risk management for BRCA-related breast/ovarian cancer syndrome and Li-Fraumeni syndrome. Carriers of a BRCA1/2 pathogenic or likely pathogenic variant have an excessive risk for both breast and ovarian cancer that warrants consideration of more intensive screening and preventive strategies. There is also evidence that risks of prostate cancer and pancreatic cancer are elevated in these carriers. Li-Fraumeni syndrome is a highly penetrant cancer syndrome associated with a high lifetime risk for cancer, including soft tissue sarcomas, osteosarcomas, premenopausal breast cancer, colon cancer, gastric cancer, adrenocortical carcinoma, and brain tumors.",
+        "sha256": "3a4fc6e4edce3553fa8b118840e0259bba5070a7c359478a9f818e9a6ec74c97",
+        "retrieved_at": "2026-09-19T01:37:55.418520+00:00"
+      },
+      {
+        "id": "39013199",
+        "title": "Expert consensus: Profiling and management of advanced or metastatic epithelial ovarian cancer.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39013199/",
+        "abstract": "Introduction and objective: The approach to patients with advanced or metastatic high-grade epithelial ovarian cancer (EOC) has evolved over time with the advent of new therapies and multimodal strategies. The objective of this consensus of experts is to generate national recommendations for the profiling and management of advanced or metastatic high-grade OEC, defined as stages III and IV of the \u201cThe International Federation of Gynecology and Obstetrics (FIGO) classification at the time of diagnosis to base on the literature review that included international evidence-based clinical practice guidelines (CPG). Material and methods: Eleven panelists (oncologists and gynecological oncologists) answered 8 questions about the profiling and management of advanced or metastatic ovarian epithelial carcinoma. The panelists were chosen for their academic profile and influence in national health institutions. Guidelines from the \u201cESMO Standardized Operating Procedures Consensus Conference\u201d were used to develop the consensus. It was agreed that the level of agreement to accept a recommendation should be \u2265 80%. The document was peer reviewed. Results: Eight general recommendations are made, which are presented into five domains. Some of these recommendations are subdivided into specific recommendations. Initial treatment Recommendation 1.1 Complete primary cytoreduction (PCS) surgery is suggested as the initial therapy of choice for patients with high-grade or metastatic EOC, which should ideally be carried out in centers with experience, followed by adjuvant therapy. 1.2 Neoadjuvant chemotherapy followed by interval cytoreduction surgery (ICS) is suggested in those who are unlikely to achieve a complete cytoreduction in PCS either due to unresectable metastatic disease or who present unresectability criteria (imaging, laparoscopic and/or by laparotomy) and that have been defined by a gynecological oncologist and patients with poor functional status and comorbidities according to the criteria of the multidisciplinary team (clinical oncology, gynecological oncology, radiology, etc.). Recommendation 2. In patients with high-grade epithelial ovarian cancer (EOC), in stage III locally advanced or metastatic, who received neoadjuvant chemotherapy and achieved a complete or partial response (cytoreduction with tumor residue < 2.5 mm), the use of Hyperthermic IntraPeritoneal Chemotherapy (HIPEC) could be considered as an alternative to standard platinum-based adjuvant intravenous chemotherapy during interval cytoreductive surgery, after discussion in a multidisciplinary tumor board, at a center experienced in treating this type of patients. Use of genetic testing. Recommendation 3. It is suggested at the time of diagnosis to offer molecular genetic testing to all patients with high-grade advanced or metastatic EOC regardless of family history. Recommendation 4. It is suggested to offer genetic counseling, by qualified personnel, to all patients with high-grade advanced or metastatic EOC who are ordered genetic testing. Recommendation 5. It is suggested that all patients with advanced or metastatic high-grade EOC undergo a germ panel that includes the Breast Cancer Susceptibility Genes 1/2 genes (BRCA 1/2) and the other susceptibility genes according to with institutional protocols and the availability of genetic testing panels; If it is negative, then somatic testing should be performed that includes the homologous recombination deficiency (HRD) status, regardless of family history. Adjuvant Therapy Recommendation 6. 6.1. It is suggested that all patients with advanced stage III/IV EOC, with PSC of (0-2), got adjuvant intravenous chemotherapy as standard treatment within six weeks after Prc. It is suggested paclitaxel/carboplatin. Recommendation 6.2. It is suggested to use standard chemotherapy base on platinum plus Bevacizumab as adjuvant chemotherapy to patients with high-risk disease (EOC stage IV or stage III with suboptimal tumor cytoreduction), following by bevacizumab as maintenance. The use of bevacizumab as maintenance therapy is not recommended if bevacizumab was not included in the first line of treatment. We suggested the dose used in GOG-0218 and ICON7 trials. Recommendation 6.3 It is suggested combined intravenous/intraperitoneal chemotherapy only for selected patients, with optimal cytoreduction (residual lesions < 1 cm), especially those without residual disease (R0) and who are evaluated in a multidisciplinary meeting. It is not considered standard treatment. Recommendation 6.4. 6.4.1 It is suggested to use Poly ADP ribose polymerase (PARP) inhibitors such as olaparib or niraparib as maintenance after receiving first-line chemotherapy in patients with stage III/IV BRCA1/2 positive EOC who received platinumbased chemotherapy and obtained complete response/partial response (CR/PR), 6.4.2 It is suggested to use olaparib alone or in combination with bevacizumab or niraparib in patients with stage III/IV BRCA1/2 positive EOC who received platinum-based chemotherapy plus bevacizumab and achieved CR/PR. 6.4.3 It is suggested to use niraparibin patients with stage III/IV BRCA1/2 negative or unknown EOC who received platinum-based chemotherapy and achieved CR/PR. 6.4.4 It is suggested to use bevacizumab or olaparib plus bevacizumab in patients with EOC stage III/IV BRCA1/2 negative or unknown (HRD positive) who received platinum-based chemotherapy plus bevacizumab and obtained CR/PR. Treatment of disease relapse Recommendation 7. Secondary cytoreductive surgery followed by chemotherapy is suggested for selected patients with high-grade advanced EOC in first relapse, platinum-sensitive (platinum-free interval \u2265 6 months), positive \u201cArbeitsgemeinschaft Gyn\u00e4kologische Onkologie \u2013 AGO\u201d score or \u201cI-model\u201d positive (< 4.7) with a potential resection to R0 in centers with access to optimal surgical and postoperative support. Note: Platinum-free interval and AGO score have only been developed as positive predictors of complete resection and not to exclude patients from surgery. Recommendation 8. 8.1 For patients with relapse advanced high-grade EOC platinum-sensitive, the following is suggested: Platinum-based combination chemotherapy: carboplatin/liposomal doxorubicin or carboplatin/paclitaxel or carboplatin/nab-paclitaxel or carboplatin/docetaxel or carboplatin/gemcitabine) for six cycles. If combination therapy is not tolerated, give carboplatin or cisplatin alone. Combination chemotherapy (carboplatin/gemcitabine or carboplatin/paclitaxel or carboplatin/doxorubicin liposomal) plus bevacizumab followed by bevacizumab as maintenance (until progression or toxicity). Recommendation 8.2 For patients with relapsed advanced high-grade EOC platinum-resistant, it is suggested: Sequential treatment with chemotherapy, preferably with a non-platinum single agent (weekly paclitaxel or pegylated liposomal doxorubicin or docetaxel or oral etoposide or gemcitabine or trabectidine or, topotecan). Weekly paclitaxel or pegylated liposomal doxorubicin or topotecan could be administrate with or without bevacizumab. Other agents are considered potentially active (capecitabine, cyclophosphamide, ifosfamide, irinotecan, oxaliplatin, pemetrexed, vinorelbine, cyclophosphamide) could be recommended for later lines. Hormone receptor-positive patients who do not tolerate or have no response to cytotoxic regimens may receive hormone therapy with tamoxifen or other agents, including aromatase inhibitors (anastrozole and letrozole) or leuprolide acetate, or megestrol acetate. Patients with a performance score \u2265 3 should be considered only for best supportive care. Recommendation 8.3 Maintenance therapy with PARP inhibitors: It is suggested in patients with relapse advanced high-grade EOC stage III/IV BRCA1/2 (positive, negative or unknown) who have received two or more lines of platinum-based chemotherapy and have achieved CR/PR, use olaparib, niraparib or rucaparib. Niraparib could be useful in BRCA 1/2 +/-/unknown patients, as rucaparib, however, the latter does not yet have approval from the regulatory office in Colombia. Conclusions: It is expected that the recommendations issued in this consensus will contribute to improving clinical care, oncological impact, and quality of life of these women.",
+        "sha256": "f196c69085f058436bb9ceffda14a63f5c4cb7da3e0604f7725682f31399c9db",
+        "retrieved_at": "2026-09-19T01:37:55.418520+00:00",
+        "pmcid": "PMC11210286"
+      },
+      {
+        "id": "38175972",
+        "title": "Germline Testing in Patients With Breast Cancer: ASCO-Society of Surgical Oncology Guideline.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38175972/",
+        "abstract": "To develop recommendations for germline mutation testing for patients with breast cancer.\nAn ASCO-Society of Surgical Oncology (SSO) panel convened to develop recommendations based on a systematic review and formal consensus process.\nForty-seven articles met eligibility criteria for the germline mutation testing recommendations; 18 for the genetic counseling recommendations.\nBRCA1/2 mutation testing should be offered to all newly diagnosed patients with breast cancer \u226465 years and select patients >65 years based on personal history, family history, ancestry, or eligibility for poly(ADP-ribose) polymerase (PARP) inhibitor therapy. All patients with recurrent breast cancer who are candidates for PARP inhibitor therapy should be offered BRCA1/2 testing, regardless of family history. BRCA1/2 testing should be offered to women who develop a second primary cancer in the ipsilateral or contralateral breast. For patients with prior history of breast cancer and without active disease, testing should be offered to patients diagnosed \u226465 years and selectively in patients diagnosed after 65 years, if it will inform personal and family risk. Testing for high-penetrance cancer susceptibility genes beyond BRCA1/2 should be offered to those with supportive family histories; testing for moderate-penetrance genes may be offered if necessary to inform personal and family cancer risk. Patients should be provided enough pretest information for informed consent; those with pathogenic variants should receive individualized post-test counseling. Variants of uncertain significance should not impact management, and patients with such variants should be followed for reclassification. Referral to providers experienced in clinical cancer genetics may help facilitate patient selection and interpretation of expanded testing, and provide counseling of individuals without pathogenic germline variants but with significant family history.Additional information is available at www.asco.org/breast-cancer-guidelines.",
+        "sha256": "f5abeeb917ed633a5206dfbebb5cd521be35094640be5fbd5515a21e0bd5e643",
+        "retrieved_at": "2026-09-19T01:37:55.418520+00:00"
+      },
+      {
+        "id": "32259785",
+        "title": "NCCN Guidelines Insights: Genetic/Familial High-Risk Assessment: Breast, Ovarian, and Pancreatic, Version 1.2020.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32259785/",
+        "abstract": "The NCCN Guidelines for Genetic/Familial High-Risk Assessment: Breast, Ovarian, and Pancreatic provide recommendations for genetic testing and counseling for hereditary cancer syndromes, and risk management recommendations for patients who are diagnosed with syndromes associated with an increased risk of these cancers. The NCCN panel meets at least annually to review comments, examine relevant new data, and reevaluate and update recommendations. These NCCN Guidelines Insights summarize the panel's discussion and most recent recommendations regarding criteria for high-penetrance genes associated with breast and ovarian cancer beyond BRCA1/2, pancreas screening and genes associated with pancreatic cancer, genetic testing for the purpose of systemic therapy decision-making, and testing for people with Ashkenazi Jewish ancestry.",
+        "sha256": "63544a26e96f66a175d9610c472784f68f1438259bff82abb0d0b99340aafc26",
+        "retrieved_at": "2026-09-19T01:37:55.984688+00:00"
+      },
+      {
+        "id": "41002090",
+        "title": "[Hereditary genetic testing and its application in the diagnosis, treatment, and prevention of breast cancer].",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41002090/",
+        "abstract": "To formulate standardized recommendations for recognizing and managing the genetic risk of breast cancer, based on the latest scientific evidence and clinical experience.\nThe authors adapted international professional guidelines to local conditions, which were reviewed within the framework of the 5th Hungarian Breast Cancer Consensus Conference.\nThe consensus document provides detailed guidance on the indications for genetic testing, the process of clinical genetic counseling, and hereditary genetic testing in breast cancer patients. Given their prevalence and importance, separate chapters address breast, ovarian, and other cancer risks in carriers of pathogenic or likely pathogenic BRCA1/2 variants, along with related screening, prevention, and management recommendations, including risk-reducing surgery, chemoprevention, and hormone replacement therapy. The consensus also covers risk assessment and management in carriers of other high-penetrance gene variants (CDH1, PALB2, PTEN, STK11, TP53), as well as the role of moderate-penetrance genes.\nThis consensus provides a unified professional framework for genetic risk assessment and management in national practice, supporting personalized patient care and contributing to the early detection and prevention of hereditary breast and ovarian cancer.",
+        "sha256": "749397aceb2b915624dffbb181848892b0c227768a8d00d14a1d617684b8b341",
+        "retrieved_at": "2026-09-19T01:37:55.984688+00:00",
+        "pmcid": "PMC12495544"
+      },
+      {
+        "id": "33625671",
+        "title": "SEOM clinical guidelines for the treatment of advanced prostate cancer (2020).",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33625671/",
+        "abstract": "The treatment of advanced prostate cancer has evolved due to recent advances in molecular research and new drug development. Dynamic aberrations in the androgen receptor, DNA repair genes, PTEN-PI3K, and other pathways drive the behavior of advanced prostate cancer allowing a better selection of therapies in each patient. Tumor testing for BRCA1 and BRCA2 is recommended for patients with metastatic prostate cancer, also considering a broad panel to guide decisions and genetic counseling. In symptomatic metastatic patients, castration should be stared to palliate symptoms and prolong survival. In high-risk or high-volume metastatic hormone-na\u00efve patients, castration should be combined with docetaxel, abiraterone, enzalutamide or apalutamide. Radiotherapy to the primary tumor combined with systemic therapy is recommended in low-volume mHNPC patients. In patients with non-metastatic castration-resistant tumors, risk stratification can define the frequency of imaging. Adding enzalutamide, darolutamide or apalutamide to these patients prolongs metastasis-free and overall survival, but potential adverse events need to be taken into consideration. The choice of docetaxel, abiraterone or enzalutamide for treating metastatic castration-resistant patients depends on previous therapies, with cabazitaxel being also recommended after docetaxel. Olaparib is recommended in BRCA1/BRCA2 mutated castration-resistant patients after progression on at least one new hormonal therapy. Aggressive variants of prostate cancer respond to platinum-based chemotherapy. To optimize treatment efficiency, oncologists should incorporate all of these advances into an overall therapeutic strategy.",
+        "sha256": "d88683cc79fd55d32e378699578acd51c655db5a92d87b1c320ca982b0590cc9",
+        "retrieved_at": "2026-09-19T01:37:55.984688+00:00",
+        "pmcid": "PMC8057980",
+        "body_excerpts": "Introduction\nProstate cancer is a major health issue in Western countries, representing the most frequent cancer and the fifth cause of cancer-related deaths among males. According to GLOBOCAN, new 1.3 million prostate cancer cases were diagnosed in the world and accounted for 359,000 deaths in 2018 (3.8% of cancer mortality) [ 1 ]. In Spain, the incidence in 2020 was 35,126 new cases with an estimated mortality in 2018 of 5841 cases [ 2 ].\n\nMethodology\nThis guideline is focused on the systemic treatment of advanced prostate cancer and has been developed based on the consensus of 10 genitourinary medical oncologists, designed by the Spanish Society of Medical Oncology (SEOM) and the Spanish Oncology Genitourinary Group (SOGUG), with the purpose of reviewing and summarizing the available evidence regarding the management of MPC, as well as generating evidence-based statements on diagnostics and therapeutic strategies. To be in accordance with previous SEOM guidelines [ 3 ], the rating system for quality of the evidence (I\u2013III) and strength of the recommendation (A\u2013E) criteria summarized in Table 1 has been followed [ 4 ]. Systematic reviews and meta-analysis of well-designed randomized clinical trials, although not included in the table, have also been considered as level of evidence I. Recommendations are based on current evidence, but the local regulatory status of drugs and procedures should be considered by the reader.\n\nMethodology\nTable 1 Levels of evidence and grades of recommendation Category, grade Criteria Quality of evidence I Evidence from at least 1 properly randomized, controlled trial * II Evidence from at least 1 well-designed clinical trial without randomization, from cohort or case-controlled analytical studies (Preferably from more than 1 centre), or from multiple time-series or dramatic results from uncontrolled experiments III Evidence from opinions of respected authorities based on clinical Experience, descriptive studies, or reports of expert committees Strength of recommendation A Both strong evidence of efficacy and substantial clinical benefit Support recommendation for use. Should always be offered B Moderate evidence of efficacy\u2014or strong evidence of efficacy but only limited clinical benefit\u2014supports recommendation for use Should generally be offered C Evidence of efficacy is insufficient to support a recommendation For or against use, or evidence for efficacy might not outweigh adverse consequences (e.g., drug toxicity, drug interactions) or Cost of the chemoprophylaxis or alternative approaches Optional D Moderate evidence of lack of efficacy or of adverse outcome supports a recommendation against use Should generally not be offered E Good evidence of lack of efficacy or of adverse outcome supports a recommendation against use Should never be offered\n\nMolecular features and biomarkers.\nIn recent years, several studies have depicted the molecular landscape of advanced prostate cancer revealing that most patients with advanced prostate cancer harbor actionable alterations in some specific pathways [ 5 ].\n\nMolecular features and biomarkers.\nApproximately 23% of metastatic prostate cancers harbor mutations in DNA-Damage Repair (DDR) genes [4], including BRCA2, BRCA1, ATM, CDK12 , or PALB2 among others. Importantly, half of the DDR mutations identified in prostate tumors are also present in the germline [ 13 ] and represent an inherited cancer predisposition. Germline mutations in BRCA2 and BRCA1 are associated with increased incidence and aggressiveness of prostate cancer [ 14 ], and have been identified as biomarkers for platinum therapy [ 15 ] and PARP inhibitors [ 16 ].\n\nMolecular features and biomarkers.\nGenomic events leading to a mismatch repair (MMR) deficiency and microsatellite instability (MSI) have been reported in 3.1% of prostate cancer cases, mostly affecting MSH2 [ 17 ], and associated with increased risk of prostate cancer and higher mutational tumor burden [ 18 ]. Finally, loss of TP53 is observed in up to 50% of lethal prostate cancers and when associated with loss of RB, is associated with divergent neuroendocrine differentiation, a more aggressive AR-independent disease [ 19 ].\n\nMolecular features and biomarkers.\nGiven the above landscape of actionable specific pathways, the assessment of predictive biomarkers of response should be steadily incorporated in clinical practice, particularly in patients with castration-resistant prostate cancer (CRPC). However, several questions remain open such as how to optimize tissue quality for genetic testing, the use of samples from the primary tumor to take decisions at the time of castration resistance, the validity of liquid biopsy, and the genes that should be included in the panels for tumor profiling as further evidence emerges.\n\nMolecular features and biomarkers. > Recommendations\nTumor testing for BRCA1 and BRCA2 is recommended for patients with metastatic prostate cancer [I, A].\n\nMolecular features and biomarkers. > Recommendations\nThe assessment of other potential biomarkers of response should be steadily incorporated in clinical practice as further evidence emerges. Consider a broad panel including other HHR and MMR genes (and/or perform MSI assessment) (II, B).\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC)\nAndrogen deprivation therapy (ADT): strategies, indications, and duration\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC)\nPrimary androgen deprivation therapy (ADT) is mandatory in the first-line treatment for mHNPC. Nearly 90% of patients respond to ADT with a median progression-free survival (PFS) of 12\u201324 months. There is no clear evidence in favor of any type of ADT (orchiectomy vs LHRH analog vs LHRH antagonist). The only exception are patients with impending or high-risk spinal cord compression for whom either a bilateral orchidectomy, or LHRH antagonists are the preferred options to avoid testosterone flare that could worsen symptomatology of the patients. The combination of anti-androgen blockade with a first-generation non-steroidal anti-androgen is recommended during the first month to avoid androgen flare. Longer duration appears to offer a small 5-year overall survival (OS) advantage (less than 5%) vs surgical castration or LHRH agonists, that should be balanced against the higher toxicity associated with long-term anti-androgen use [ 22 ]. As indicated below, the addition of newer hormonal therapies or docetaxel has improved these results.\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC)\nADT is the cornerstone treatment for all metastatic patients. Once the diagnosis is established, immediate initiation is mandatory in symptomatic patients and should be recommended to asymptomatic ones, after discussion with the patient on the risk and benefits of the treatment. Although controversy still exists concerning initial vs deferral initiation of ADT, current evidence favors early over delayed ADT in terms of survival and other oncological outcomes [ 23 ].\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC)\nSeveral studies have elucidated the role of intermittent androgen deprivation (IAD) in mHNPC patients [ 24 ]. In the SWOG 9346 trial, non-inferior OS with IAD could not be completely ruled out. Although in different trials, there is a trend to a better quality of life with IAD and a protective effect against bone loss, metabolic syndrome and cardiovascular problems, the lack of any survival benefit suggest that this treatment should only be considered as an option in a well-informed patient bothered by significant side-effects. Usually, patients are treated with an induction period of ADT for 9 months. If no clinical progression and PSA response < 4 ng/ml are achieved, therapy is stopped. Patient should be strictly followed up every 3\u20136 months. If PSA raises over 10\u201320 ng/ml, treatment with AT is resumed at least for 3\u20136 months. Treatment is stopped again if the patient shows no clinical progression and PSA response. Subsequent cycles of treatment are based on the same criteria until the first sign of castration resistance becomes apparent [ 25 ].\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC)\nRecommendations: In symptomatic metastatic patients, ADT should be offered immediately to palliate symptoms and prolong survival (I, A). Deferred ADT could be considered in selected well-informed asymptomatic patients to minimize long-term adverse effects (II,A). Combination of LHRH with first generation anti-androgens for longer than one month to avoid androgen flare, does not offer clinical benefit (I, D).\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC)\nCombination of ADT and chemotherapy or new hormonal agents\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC)\nRecently, the combination of ADT with docetaxel, abiraterone, apalutamide, or enzalutamida , or enzalutamida has demonstrated to improve OS in mHNPC in selected patients and it has been incorporated into most clinical practice guidelines. Optimal patient selection for this approach is not well-established.\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC) > b1. ADT plus Docetaxel in mHNPC\nThe addition of docetaxel for mHNPC was studied in three phase III trials. The CHAARTED study randomized 790 patients to receive ADT alone or in combination with docetaxel 75 mg/m 2 every 21 days for 6 cycles. Docetaxel improved OS (median 58 versus 47 months, hazard ratio (HR) 0.72; 95% CI 0.59\u20130.89). Benefit was more significant (median 51 versus 34 months, HR 0.63, 95% CI 0.50\u20130.79) for men with high-volume metastatic disease (defined as the presence of visceral metastases or at least four bone lesions with at least one outside the vertebral bodies and pelvis) [ 26 , 27 ]. STAMPEDE was a multi-arm, multi-stage phase III study designed to test whether adding additional treatments to ADT improved OS. It included patients with M0 and M1 disease. Patients were randomized to ADT alone ( n = 1184) or in combination with docetaxel 75 mg/m 2 every 21 days with prednisone 10 mg daily for six cycles ( n = 592). The addition of docetaxel in M1 patients significantly improved OS compared to ADT alone (HR 0.76; 95% CI 0.62\u20130.92) [ 28 ]. The benefit of docetaxel for OS was similar when combined with zoledronic acid (HR 0.79; 95% CI 0.66\u20130.96). The third study, GETUG-AFU15, randomized 385 patients with mHNPC to receive ADT or ADT plus docetaxel 75 mg/m 2 every 21 days for 9 cycles. Patients in the docetaxel arm had improved PSA, PFS and radiographic PFS (rPFS), but without an OS benefit (HR 1.01; 95% CI 0.75\u20131.36) [ 29 ]. The meta-analysis of CHAARTED, STAMPEDE, and GETUG-AFU 15 confirmed the benefit of docetaxel and ADT in OS regardless of the disease volume (HR 0.77; 95% CI 0.68\u20130.87) [ 30 ].\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC) > b2. ADT plus Abiraterone\u2014prednisone in mHNPC\nTwo randomized clinical trials (LATITUDE and STAMPEDE) have shown that the combination of abiraterone plus ADT significantly prolongs OS and secondary endpoints in patients with mHNPC.\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC) > b2. ADT plus Abiraterone\u2014prednisone in mHNPC\nIn the LATITUDE trial, 1199 men with newly diagnosed mHNPC were randomly assigned to ADT plus abiraterone and prednisone or placebo. All patients had \u201chigh-risk\u201d disease (at least two of these high-risk factors: Gleason score \u2265 8, three or more bone lesions, or the measurable visceral metastasis). After a median follow-up of 52 months, OS was significantly increased in the arm of abiraterone plus prednisone (median OS 53.3 versus 36.5 months, HR 0.66, 95% CI 0.56\u20130.78) [ 31 , 32 ].\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC) > b2. ADT plus Abiraterone\u2014prednisone in mHNPC\nIn the STAMPEDE trial, 1917 men were randomly assigned to ADT plus abiraterone and prednisolone or to ADT alone. The patient population was heterogeneous and included newly diagnosed patients (94.9%) or patients relapsing after radical prostatectomy or radiotherapy (5.1%), who had either high-risk localized prostate cancer (26.6%), node-positive non-metastatic disease (N1M0, 19.2%), or metastatic disease (M1, 49.1%). OS was significantly increased with the addition of abiraterone (three-year OS: 83% versus 76%, HR 0.63, 95% CI 0.52\u20130.76). The benefit was seen in both, non-metastatic and metastatic disease (HR 0.75 and 0.61, respectively) [ 33 ].\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC) > b3. ADT plus new generation anti-androgens\nThree randomized trials (TITAN, ARCHES and ENZAMET) compared ADT plus new generation anti-androgens over ADT alone for mHNPC. In the TITAN trial, 1052 patients were randomly assigned to ADT plus either apalutamide (240 mg daily) or placebo. Approximately 11% had received prior docetaxel, but concurrent use of docetaxel was not permitted. At a median follow-up of 23 months, OS was longer with apalutamide (two-year OS 82% versus 74%, HR 0.67, 95% CI 0.51\u20130.89). Benefit was seen in men with high-volume (63%) and with low-volume metastatic disease (37%) [ 34 ]. ARCHES randomized 1150 mHNPC patients to ADT plus enzalutamide 160 mg daily or placebo. Patients were stratified by disease volume and prior docetaxel therapy. Enzalutamide significantly improved rPFS (HR 0.39; 95% CI 0.30\u20130.50; p < 0.001). Final OS results have not been published yet [ 35 ]. The ENZAMET study randomized 1125 men with mHNPC to either ADT plus other non-steroidal anti-androgens, (bicalutamide, nilutamide or flutamide), versus ADT plus enzalutamide. Enzalutamide showed a significant improvement in OS (HR 0.67; 95% CI 0.52\u20130.86); 45% of patients were planned to receive docetaxel. There was no OS benefit when the analysis was restricted to patients who received docetaxel and concurrent enzalutamide (three-year OS 73% versus 74%) that was even associated with more docetaxel toxicity [ 36 ].\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC) > b3. ADT plus new generation anti-androgens\nAccording to the results of several meta-analyses, no clear advantage of one regimen over the others can be found in terms of OS [ 37 \u2013 40 ]. The choice of the specific regimen should be discussed with the patient taking into consideration the potential toxicities associated, duration of treatment, comorbidities, preferences, and cost.\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC) > b4. Radiotherapy in mHNPC\nThe impact of concurrent local prostate radiotherapy with ADT has been also tested in two randomized trials. The phase III HORRAD trial assigned men with primary mHNPC, bone metastases PSA > 20 ng/mL to ADT with or without external beam radiotherapy. Two-thirds of the men had more than five bone metastases. At a median follow-up of 47 months, median OS was not improved by the addition of radiotherapy, although some benefit could be found in the subgroup of patients with fewer than five metastases [ 41 ]. The STAMPEDE trial allowed docetaxel in both arms in addition to ADT, and radiotherapy to the primary started within 3\u20134 weeks after docetaxel. In the whole population, radiotherapy improved failure-free survival (HR 0.76; 95% CI 0.68\u20130.84; p < 0.0001) but not OS (HR 0.92; 95% CI 0.80\u20131.06). The prespecified low-volume subgroup (CHAARTED criteria), had a significant benefit in both failure-free survival (HR 0.59; 95% CI 0.49\u20130.72) and OS (HR 0.68; 95% CI 0.52\u20130.90) [ 42 ].\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC) > Recommendations:\nIn high-risk or high-volume mHNPC patients, ADT should be combined with docetaxel, abiraterone, enzalutamide or apalutamide, rather than using ADT alone (I, A).\n\nTherapeutic approach in metastatic hormone-naive prostate cancer patients (mHNPC) > Recommendations:\nIn low-volume mHNPC patients, RT to the primary tumor combined with systemic therapy is recommended (I, B).\n\nDefinition of castration-resistant prostate cancer (CPRC).\nDefinition of castration-resistant prostate cancer.\n\nDefinition of castration-resistant prostate cancer (CPRC).\nThe Prostate Cancer Clinical Trials Working Group 2 (PCWG2) defines CRPC as the state of castrate serum levels of testosterone (< 50 ng/dl or 1.7 nmol/l) plus biochemical or radiological progression as defined by the PCWG2 [ 43 ], despite anti-androgen withdrawal for at least 4\u20136 weeks.\n\nDefinition of castration-resistant prostate cancer (CPRC).\nThe CRPC state can be categorized as either metastatic (mCRPC) or nonmetastatic (nmCRPC). NmCRPC ultimately evolves to mCRPC and the average duration of this transition from ADT initiation is 19 months [ 44 ].\n\nDefinition of castration-resistant prostate cancer (CPRC).\nDefinition of non-metastatic castrate-resistant prostate cancer (nmCRPC).\n\nDefinition of castration-resistant prostate cancer (CPRC).\nNmCRPC is defined as PSA progression occurring despite treatment with primary ADT and in the absence of obvious disease in conventional imaging [ 45 ]. The PCWG-3 definition of nmCRPC includes: a minimum PSA level of 1.0 ng/ml, a rising PSA that is at least 2 ng/ml higher than the nadir PSA, castrate levels of testosterone, and no radiographic or bone scan evidence of metastases [ 46 ]. Without treatment, median bone metastasis-free survival (MFS) in nmCRPC ranges between 25 and 30 months, and 70% of patients remaining bone-metastases-free after 2 years. Baseline PSA level, PSA velocity and PSA-DT have been associated with bone metastasis-free and OS. These factors may be used to guide follow-up. The RADAR consensus statement (Radiographic Assessments for Detection of Advanced Recurrence) suggested a bone scan and a CT scan when the PSA reached 2 ng/ml. If negative, it should be repeated with PSA \u2265 5 ng/ml, and then after every doubling of PSA based on PSA testing every three months [ 47 ]. MRI has a low sensitivity when PSA is below 2 ng/ml, however, PSMA PET/CT has been shown to identify cancer in 33%, 46%, 57%, 82%, and 97%, in men with post-RP PSA ranges of 0\u20130.19, 0.2\u20130.49, 0.5\u20130.99, 1\u20131.99, and > 2 ng/ml, respectively. New imaging techniques will likely enable earlier and more accurate diagnosis of subclinical metastatic disease [ 48 ].\n\nDefinition of castration-resistant prostate cancer (CPRC). > Recommendations:\nStandard of care imaging for patients with nmCRPC is still conventional CT and bone scan. Perform new imaging techniques if results may condition the therapy (III,C).\n\nDefinition of castration-resistant prostate cancer (CPRC). > Recommendations:\nRisk stratification can define the frequency of imaging (III;B) .\n\nTherapeutic options for nmCRPC\nContinuing ADT is the most recommended strategy for nmCRPC patients [ 49 ]. A 2 to 6-month median OS advantage was reported in nmCRPC patients who were castrated compared to those discontinuing ADT once CRPC developed. In addition, all subsequent treatments have been developed in men with ongoing ADT. Although first generation anti-androgens have been used in the past, no trial showed any benefit in terms of survival or quality of life, and they are not exempt of toxicity [ 22 ]. In addition, rotating LHRH agonist does not provide any clinical benefit.\n\nTherapeutic options for nmCRPC\nRecommendation: ADT should be continued in patients with CRPC (III, C).\n\nTherapeutic options for nmCRPC\nFor patients with high-risk nmCRPC ADT plus enzalutamide, darolutamide or apalutamide prolong MFS and OS. Selection of systemic therapy should be based on toxicity profile and an overall strategy. In view of the long-term treatment with these AR targeted agents in asymptomatic patients, potential adverse events need to be taken into consideration and the patient informed accordingly (I, A).\n\nCriteria for selecting the therapeutic sequence in mCPRC\nFirst-line treatment for mCRPC should be decided considering previous treatments and the population of patients that were included in the available trials.\n\nCriteria for selecting the therapeutic sequence in mCPRC\nAccording to the TAX327 study [ 56 ], docetaxel improves symptoms and OS of patients who progressed to ADT. Symptomatic patients should receive docetaxel as first line, except in case of contraindication (i.e., hypersensitivity or high risk for toxicity). An increase in OS and symptoms relief has also been demonstrated by adding abiraterone\u2013prednisone or enzalutamide to ADT in asymptomatic or mildly symptomatic patients [ 57 , 58 ]. No direct comparison between docetaxel, abiraterone, and enzalutamide has been performed to date. Patients with visceral metastases were only included in the pivotal trials of docetaxel and enzalutamide.\n\nCriteria for selecting the therapeutic sequence in mCPRC\nThe strongest evidence for a third line after docetaxel and a new generation AR targeted therapy comes from the CARD trial that compared cabazitaxel versus the new generation anti-androgen not previously administered [ 64 ]. Significant benefit was demonstrated both in PFS (HR: 0.54; 95% CI 0.40\u20130.73; p < 0.001) and OS (HR 0.64; 95% CI 0.46\u20130.89; p = 0.008]. According to these results, in absence of contraindication, cabazitaxel should be the third line of choice. In case of contraindication for chemotherapy, exclusive bone metastases and symptomatic disease, radium-223 may be considered, since OS benefit has been demonstrated in mCRPC [ 65 ]. The role of new targeted therapies in the sequence is discussed below.\n\nCriteria for selecting the therapeutic sequence in mCPRC\nDocetaxel\u2014prednisone should be the first option for symptomatic patients who have received ADT alone. For asymptomatic or mildly symptomatic patients, docetaxel, abiraterone\u2013prednisone or enzalutamide are recommended (I, A)\n\nCriteria for selecting the therapeutic sequence in mCPRC\nIn mCRPC patients who have progressed to docetaxel, abiraterone\u2013prednisone, enzalutamide or cabazitaxel are recommended (I, A).\n\nCriteria for selecting the therapeutic sequence in mCPRC\nIn mCRPC patients who have progressed to a new generation anti-androgen therapy docetaxel-prednisone are recommended (I, B).\n\nAggressive variants\nAdenocarcinoma is the most frequent histology in prostate cancer with other histologies including small-cell neuroendocrine carcinoma accounting for 1%.\n\nAggressive variants\nAggressive variants of prostate cancer are increasingly recognized in the clinic, probably as consequence of a greater survival and the pressure of the new hormonal treatments on the androgen receptor (AR).\n\nAggressive variants\nNeuroendocrine prostate cancer (NEPC) comprises a wide range of situations among pure small-cell carcinomas and aggressive variant prostate cancers (AVPC), that can arise de novo (< 1% of cases), or much more commonly as intermediate variants after hormonal therapy for prostate adenocarcinoma. In a multi-institutional prospective study of 202 consecutive patients, 73% with prior progression to abiraterone and/or enzalutamide, the incidence of NEPC was 17% [ 66 ].\n\nAggressive variants\nSmall-cell NEPC is an aggressive subtype characterized by small, round, blue neuroendocrine cells, which do not express AR or secrete PSA, but usually express neuroendocrine markers (chromogranin A, synaptophysin and NSE) [ 67 ]. NEPC frequently metastasizes to visceral organs, and responds only transiently to platinum-based chemotherapy, with a median OS of less than one year. The AVPC share clinical, biological, and response profiles with androgen-indifferent, platinum-sensitive small-cell carcinomas but maintaining histological features of undifferentiated carcinoma, and harboring defects in tumor suppressors genes such as TP53 , RB1 , and PTEN [ 68 ]. According to the most accepted definition of AVPC must have at least one of the clinical characteristics showed in Table 2 .\n\nAggressive variants\nPlatinum-based chemotherapy should be considered the first option in mCRPC with clinicopathological characteristics of AVPC (II, B).\n\nNew strategies in metastatic prostate cancer (MPC)\nGiven the prevalence of inactivating mutations in genes involved in DDR pathways such as the Homologous Recombination Repair (HRR) pathway [ 71 ], MPC may be sensitive to ADP-ribose polymerase (PARP) inhibition by a mechanism of \u201csynthetic lethality\u201d [ 72 ]. The randomized phase III double blind PROfound trial compared the PARP inhibitor olaparib versus abiraterone or enzalutamide in mCRPC patients with deleterious alterations in at least one of 15 genes involved in DDR, and previous treatment with one of these two AR signaling inhibitor. In this study, 28% of the 2792 samples analyzed harbored an alteration in the HHR pathway. BRCA2 was the gene most frequently altered (8.7%) followed by CDK12 (6.3%), ATM (5.9%), CHEK2 (1.2%), and BRCA1 (1%). In cohort A (patients with BRCA1, BRCA2 or ATM alterations), a significant benefit was observed for olaparib in rPFS (7.4 vs 3.6 months; HR 0.34; 95% CI 0.25\u20130.47). A longer OS was also observed (median OS 18.5 vs 15.1 months; HR: 0.64, 95% CI 0.43\u20130.97), despite crossover to olaparib in 66% of patients [ 73 , 74 ] In the single-arm, phase II TRITON2 trial, Rucaparib showed a 43.5% ORR and 54.8% PSA response rate in BRCA1/BRCA2 mutated mCRPC patients progressing after AR inhibitors and docetaxel [ 75 ]. Both olaparib and rucaparib have received FDA approval, and olaparib EMA approval for BRCA1/2 -mutated patients in the mCPRC setting, so that BRCA1 or BRCA2 mutations, might be the first predictive biomarker implemented in the clinic. While benefit in BRCA2 mutated patients is well-established, the role of mutations in other genes such as ATM, PALB2 or CDK12 warrant further study. Evidence from retrospective studies also suggest that platinum therapy could confer clinical benefit in DDR deficient prostate cancer [ 76 ].\n\nNew strategies in metastatic prostate cancer (MPC)\nLoss of PTEN results in activation of the AKT pathway. In the phase III IPATential 150 trial, the combination of abiraterone and the AKT inhibitor ipatasertib showed a benefit in rPFS compared to abiraterone (HR 0.77, 95% CI 0.61\u20130.98; p = 0.033) in patients with PTEN loss as defined by IHC. Further follow-up and data on the impact on OS will be necessary to elucidate the role of Akt inhibitors in mCRPC.\n\nNew strategies in metastatic prostate cancer (MPC)\nAlthough prostate cancer was one of the first diseases where an immunotherapeutic agent was approved (sipuleucel-T) [ 77 ], this strategy remains investigational. Pembrolizumab achieves ORR of 5\u201310% [ 78 ]. This drug has been approved for tumors MMR deficiency or MSI independent of the tumor type, accounting for 3\u20138% of MPC.\n\nNew strategies in metastatic prostate cancer (MPC)\nTheragnostics, defined as the combination of a predictive biomarker with a therapeutic agent [ 79 ] is another still investigational promising strategy. Some trials with radioligands and PSMA a type II transmembrane overexpressed on prostatic cancer cells [ 80 ] are ongoing to clarify the role of RLT in the treatment algorithm of mCRPC [ 81 ].\n\nNew strategies in metastatic prostate cancer (MPC)\nOlaparib is recommended in BRCA1/BRCA2 mutated mCRPC patients after progression on at least one new generation AR targeted therapy [I, A]\n\nNew strategies in metastatic prostate cancer (MPC)\nImmune checkpoint inhibitors may be considered in patients with microsatellite instability or mismatch repair deficiency [II, B]\n\nNew strategies in metastatic prostate cancer (MPC)\nCurrently, insufficient evidence is available in mCRPC to recommend Akt inhibitors [I, C] or radioligand therapy [II, B].\n\nCriteria for genetic testing\nImportantly, half of the DDR mutations identified in prostate tumors are also present in the germline [ 13 ] and may represent an inherited cancer predisposition. Early identification of mutation carriers is relevant for cancer screening and early detection programs. Genetic testing has traditionally been based on an early age at diagnosis and a strong family history of cancer, however, such family background is absent in a third of prostate cancer patients found to carry a germline mutation [ 82 \u2013 84 ]. Therefore, experts and major cancer organizations recommend germline testing for all patients with metastatic prostate cancer, regardless of tumor characteristics or family history [ 85 \u2013 87 ]. The second Philadelphia Prostate Cancer Consensus Conference recommends the use of a comprehensive gene panel that should include BRCA1, BRCA2 and MMR genes ( MSH2, MLH1, PMS2, MSH6 and EPCAM) . The inclusion of ATM and other genes linked to cancer predisposition syndromes should be considered on the bases of personal or family history of cancer. Germline testing is also recommended for patients with pathogenic/likely pathogenic BRCA2 mutations identified through tumor sequencing and should also be considered in patients with alterations in other genes linked to cancer predisposition syndromes (i.e., BRCA1, ATM , MMR genes). Genetic counseling should always be offered before ordering the test [ 88 ]. During this process, healthcare providers should discuss with patients the purpose of genetic testing; potential types of test results; the possibility of uncovering hereditary cancer syndromes and additional cancer risks as well as addition familial testing. Clinicians without specific training or expertise should refer patients to genetic counseling before ordering germline testing.\n\nCriteria for genetic testing\nGermline testing for BRCA1/2 and other genes associated with cancer predisposition syndromes is recommended for patients with a family history of cancer [I,A] as well as in all patients with metastatic prostate cancer [III, A].\n\nCriteria for genetic testing\nPatients with somatic pathogenic/likely pathogenic mutations in genes linked to cancer predisposition syndromes ( i.e., BRCA2) should undergo germline testing [III, A].\n\nCriteria for genetic testing\nGenetic counseling by clinicians with specific training or expertise should always be offered before ordering germinal testing [III, A]",
+        "body_excerpts_sha256": "01e7b82b94706e22e152e4f04149e011011425e2b1347ca682b020ea9d826794",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8057980/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "33131182",
+        "title": "A systematic review and meta-analysis of telephone vs in-person genetic counseling in BRCA1/BRCA2 genetic testing.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33131182/",
+        "abstract": "Pathogenic variants in the BRCA1 and BRCA2 genes increase the risk of breast and ovarian cancer. Individuals with identified pathogenic variants in the BRCA1 or BRCA2 gene can benefit from cancer risk-reducing strategies. In the recent years, there has been an increase in the demand of genetic services. In light of the ongoing COVID19 pandemic, alternatives to face-to-face consultations have had to be considered and adopted, including telemedicine. Informed consent is necessary for genetic testing. Studies have suggested that increased levels of cancer-specific distress may impair the patient's ability to retain information, therefore, providing informed consent. This systematic review and meta-analysis aimed to answer if telephone genetic counseling for BRCA1 and BRCA2 genetic testing is non-inferior to in-person genetic counseling for the outcomes of cancer-specific distress and genetic knowledge. Databases of Medline, Embase, PsycINFO, CINAHL, SciELO, Web of Science, CENTRAL, ProQuest Dissertation & Theses Database, Clinicaltrials.gov, EU clinical trials register were accessed to identify any published or unpublished relevant literature. Random-effects models were used for the meta-analysis. Four studies were included in the qualitative synthesis of the results. Three studies were included in the quantitative synthesis of the results. Telephone genetic counseling was non-inferior compared to in-person genetic counseling for the outcomes of cancer-specific distress and genetic knowledge. Sensitivity analysis corroborated the main results. Telephone genetic counseling for BRCA1/BRCA2 genetic testing may be an alternative model of delivering genetic services in front of the increased demand/or when required by social context. However, the paucity of the evidence prevents from drawing strong conclusions regarding the generalizability of these results. Further research is needed to strengthen the conclusions.",
+        "sha256": "ff48b5da6a6d70d6ae13e50ac03b623b128fe1a7afd9591ccb25d16da01ceaff",
+        "retrieved_at": "2026-09-19T01:37:57.004776+00:00"
+      },
+      {
+        "id": "31429902",
+        "title": "Risk Assessment, Genetic Counseling, and Genetic Testing for BRCA-Related Cancer in Women: Updated Evidence Report and Systematic Review for the US Preventive Services Task Force.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31429902/",
+        "abstract": "Pathogenic mutations in breast cancer susceptibility genes BRCA1 and BRCA2 increase risks for breast, ovarian, fallopian tube, and peritoneal cancer in women; interventions reduce risk in mutation carriers.\nTo update the 2013 US Preventive Services Task Force review on benefits and harms of risk assessment, genetic counseling, and genetic testing for BRCA1/2-related cancer in women.\nCochrane libraries; MEDLINE, PsycINFO, EMBASE (January 1, 2013, to March 6, 2019, for updates; January 1, 1994, to March 6, 2019, for new key questions and populations); reference lists.\nDiscriminatory accuracy studies, randomized clinical trials (RCTs), and observational studies of women without recently diagnosed BRCA1/2-related cancer.\nData on study methods, setting, population characteristics, eligibility criteria, interventions, numbers enrolled and lost to follow-up, outcome ascertainment, and results were abstracted. Two reviewers independently assessed study quality.\nCancer incidence and mortality; discriminatory accuracy of risk assessment tools for BRCA1/2 mutations; benefits and harms of risk assessment, genetic counseling, genetic testing, and risk-reducing interventions.\nFor this review, 103 studies (110 articles; N\u2009=\u200992\u202f712) were included. No studies evaluated the effectiveness of risk assessment, genetic counseling, and genetic testing in reducing incidence and mortality of BRCA1/2-related cancer. Fourteen studies (n\u2009=\u200943\u202f813) of 8 risk assessment tools to guide referrals to genetic counseling demonstrated moderate to high accuracy (area under the receiver operating characteristic curve, 0.68-0.96). Twenty-eight studies (n\u2009=\u20098060) indicated that genetic counseling was associated with reduced breast cancer worry, anxiety, and depression; increased understanding of risk; and decreased intention for testing. Twenty studies (n\u2009=\u20094322) showed that breast cancer worry and anxiety were higher after testing for women with positive results and lower for others; understanding of risk was higher after testing. In 8 RCTs (n\u2009=\u200954\u202f651), tamoxifen (relative risk [RR], 0.69 [95% CI, 0.59-0.84]; 4 trials), raloxifene (RR, 0.44 [95% CI, 0.24-0.80]; 2 trials), and aromatase inhibitors (RR, 0.45 [95% CI, 0.26-0.70]; 2 trials) were associated with lower risks of invasive breast cancer compared with placebo; results were not specific to mutation carriers. Mastectomy was associated with 90% to 100% reduction in breast cancer incidence (6 studies; n\u2009=\u20092546) and 81% to 100% reduction in breast cancer mortality (1 study; n\u2009=\u2009639); oophorectomy was associated with 69% to 100% reduction in ovarian cancer (2 studies; n\u2009=\u20092108); complications were common with mastectomy.\nAmong women without recently diagnosed BRCA1/2-related cancer, the benefits and harms of risk assessment, genetic counseling, and genetic testing to reduce cancer incidence and mortality have not been directly evaluated by current research.",
+        "sha256": "4780d08e888f703fb1c2b622e724e069690721e4b5fb2d6000a4f7dcd011330a",
+        "retrieved_at": "2026-09-19T01:37:57.004776+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "A BRCA2 variant of uncertain significance is an inconclusive result and does not establish hereditary breast and ovarian cancer syndrome. ASCO-SSO guidance explicitly states that variants of uncertain significance should not affect management and should be followed for possible reclassification. BRCA-specific intensified surveillance and risk-reducing surgery are intended for pathogenic or likely pathogenic variants, not a VUS. Her ongoing care should therefore be individualized according to her personal breast cancer history and significant family history, with post-test genetic counseling and reclassification follow-up.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.99,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "38175972"
+              ],
+              "reason": "The guideline explicitly states that variants of uncertain significance should not affect management and that affected patients should be followed for reclassification.",
+              "source_passage_ids": [
+                "38175972:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38175972",
+                  "quote": "BRCA1/2 testing should be offered to women who develop a second primary cancer in the ipsilateral or contralateral breast. For patients with prior history of breast cancer and without active disease, testing should be offered to patients diagnosed \u226465 years and selectively in patients diagnosed after 65 years, if it will inform personal and family risk. Testing for high-penetrance cancer susceptibility genes beyond BRCA1/2 should be offered to those with supportive family histories; testing for moderate-penetrance genes may be offered if necessary to inform personal and family cancer risk. Patients should be provided enough pretest information for informed consent; those with pathogenic variants should receive individualized post-test counseling. Variants of uncertain significance should not impact management, and patients with such variants should be followed for reclassification."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38175972"
+              ],
+              "reason": "The guideline specifically supports referral to experienced cancer-genetics providers for interpretation and counseling when no pathogenic germline variant is found but family history remains significant.",
+              "source_passage_ids": [
+                "38175972:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38175972",
+                  "quote": "Referral to providers experienced in clinical cancer genetics may help facilitate patient selection and interpretation of expanded testing, and provide counseling of individuals without pathogenic germline variants but with significant family history.Additional information is available at www.asco.org/breast-cancer-guidelines."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33406487"
+              ],
+              "reason": "The source expressly identifies excessive breast and ovarian cancer risk in BRCA1/2 pathogenic or likely pathogenic variant carriers and recommends considering more intensive screening and preventive strategies for that population.",
+              "source_passage_ids": [
+                "33406487:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33406487",
+                  "quote": "The NCCN Guidelines for Genetic/Familial High-Risk Assessment: Breast, Ovarian, and Pancreatic focus primarily on assessment of pathogenic or likely pathogenic variants associated with increased risk of breast, ovarian, and pancreatic cancer and recommended approaches to genetic testing/counseling and management strategies in individuals with these pathogenic or likely pathogenic variants. This manuscript focuses on cancer risk and risk management for BRCA-related breast/ovarian cancer syndrome and Li-Fraumeni syndrome. Carriers of a BRCA1/2 pathogenic or likely pathogenic variant have an excessive risk for both breast and ovarian cancer that warrants consideration of more intensive screening and preventive strategies. There is also evidence that risks of prostate cancer and pancreatic cancer are elevated in these carriers."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "31429902"
+              ],
+              "reason": "The systematic review reports associations between genetic counseling and increased risk understanding plus reduced breast-cancer worry, anxiety, and depression.",
+              "source_passage_ids": [
+                "31429902:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31429902",
+                  "quote": "Twenty-eight studies (n = 8060) indicated that genetic counseling was associated with reduced breast cancer worry, anxiety, and depression; increased understanding of risk; and decreased intention for testing. Twenty studies (n = 4322) showed that breast cancer worry and anxiety were higher after testing for women with positive results and lower for others; understanding of risk was higher after testing. In 8 RCTs (n = 54 651), tamoxifen (relative risk [RR], 0.69 [95% CI, 0.59-0.84]; 4 trials), raloxifene (RR, 0.44 [95% CI, 0.24-0.80]; 2 trials), and aromatase inhibitors (RR, 0.45 [95% CI, 0.26-0.70]; 2 trials) were associated with lower risks of invasive breast cancer compared with placebo; results were not specific to mutation carriers."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The laboratory result is a BRCA2 variant of uncertain significance, with no pathogenic or likely pathogenic variant identified. The supplied ASCO-SSO guideline directly states that a VUS should not affect management and that patients should be followed for reclassification. It also supports genetics-provider involvement for people with significant family history despite the absence of a pathogenic germline finding. Therefore, candidate A correctly avoids treating the VUS as confirmation of hereditary breast and ovarian cancer syndrome, avoids BRCA-directed screening or irreversible surgery solely because of the VUS, and preserves individualized risk assessment based on personal and family history. Candidate B is the intentionally unsafe option because it misclassifies the VUS and recommends irreversible risk-reducing operations as though a pathogenic variant had been established. The visible title, note, and question do not disclose the management answer; the molecular classification is necessary clinical data. No imaging or additional testing is needed to resolve this post-test counseling decision. This decision is distinct from the prior case, which concerned when to begin colorectal surveillance in a confirmed pathogenic MSH6 carrier."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The germline panel found a BRCA2 variant of uncertain significance (VUS), with no pathogenic or likely pathogenic variant identified. A VUS is not diagnostic of hereditary breast and ovarian cancer syndrome and should not be used by itself to justify BRCA-carrier management such as BRCA-specific enhanced screening or risk-reducing mastectomy/salpingo-oophorectomy. The 2024 ASCO-SSO breast cancer germline testing guideline explicitly states that variants of uncertain significance should not impact management and that patients with such variants should be followed for reclassification. NCCN guidance similarly frames BRCA-directed intensive screening and preventive strategies for carriers of pathogenic or likely pathogenic BRCA1/2 variants, not VUS findings. Given her significant personal and family history, she should still receive individualized post-test genetics counseling and risk assessment based on that history, and the VUS should be retained for possible future laboratory reclassification.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.96,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "38175972"
+              ],
+              "source_passage_ids": [
+                "38175972:p1"
+              ],
+              "reason": "The ASCO-SSO guideline passage directly states that variants of uncertain significance should not impact management and should be followed for reclassification.",
+              "source_quotes": [
+                {
+                  "source_id": "38175972",
+                  "quote": "BRCA1/2 testing should be offered to women who develop a second primary cancer in the ipsilateral or contralateral breast. For patients with prior history of breast cancer and without active disease, testing should be offered to patients diagnosed \u226465 years and selectively in patients diagnosed after 65 years, if it will inform personal and family risk. Testing for high-penetrance cancer susceptibility genes beyond BRCA1/2 should be offered to those with supportive family histories; testing for moderate-penetrance genes may be offered if necessary to inform personal and family cancer risk. Patients should be provided enough pretest information for informed consent; those with pathogenic variants should receive individualized post-test counseling. Variants of uncertain significance should not impact management, and patients with such variants should be followed for reclassification."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38175972"
+              ],
+              "source_passage_ids": [
+                "38175972:p2"
+              ],
+              "reason": "The passage supports referral to experienced clinical cancer genetics providers for interpretation of expanded testing and counseling when there is significant family history without a pathogenic germline variant.",
+              "source_quotes": [
+                {
+                  "source_id": "38175972",
+                  "quote": "Referral to providers experienced in clinical cancer genetics may help facilitate patient selection and interpretation of expanded testing, and provide counseling of individuals without pathogenic germline variants but with significant family history.Additional information is available at www.asco.org/breast-cancer-guidelines."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33406487"
+              ],
+              "source_passage_ids": [
+                "33406487:p0"
+              ],
+              "reason": "The NCCN abstract passage states that BRCA1/2 pathogenic or likely pathogenic variant carriers have excessive breast and ovarian cancer risk warranting consideration of more intensive screening and preventive strategies.",
+              "source_quotes": [
+                {
+                  "source_id": "33406487",
+                  "quote": "The NCCN Guidelines for Genetic/Familial High-Risk Assessment: Breast, Ovarian, and Pancreatic focus primarily on assessment of pathogenic or likely pathogenic variants associated with increased risk of breast, ovarian, and pancreatic cancer and recommended approaches to genetic testing/counseling and management strategies in individuals with these pathogenic or likely pathogenic variants. This manuscript focuses on cancer risk and risk management for BRCA-related breast/ovarian cancer syndrome and Li-Fraumeni syndrome. Carriers of a BRCA1/2 pathogenic or likely pathogenic variant have an excessive risk for both breast and ovarian cancer that warrants consideration of more intensive screening and preventive strategies. There is also evidence that risks of prostate cancer and pancreatic cancer are elevated in these carriers."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "31429902"
+              ],
+              "source_passage_ids": [
+                "31429902:p2"
+              ],
+              "reason": "The systematic review passage states that genetic counseling was associated with reduced breast cancer worry, anxiety, and depression and increased understanding of risk.",
+              "source_quotes": [
+                {
+                  "source_id": "31429902",
+                  "quote": "Twenty-eight studies (n = 8060) indicated that genetic counseling was associated with reduced breast cancer worry, anxiety, and depression; increased understanding of risk; and decreased intention for testing. Twenty studies (n = 4322) showed that breast cancer worry and anxiety were higher after testing for women with positive results and lower for others; understanding of risk was higher after testing. In 8 RCTs (n = 54 651), tamoxifen (relative risk [RR], 0.69 [95% CI, 0.59-0.84]; 4 trials), raloxifene (RR, 0.44 [95% CI, 0.24-0.80]; 2 trials), and aromatase inhibitors (RR, 0.45 [95% CI, 0.26-0.70]; 2 trials) were associated with lower risks of invasive breast cancer compared with placebo; results were not specific to mutation carriers."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The independent clinical decision is that answer A is appropriate. The patient\u2019s germline panel found a heterozygous BRCA2 variant classified as a variant of uncertain significance, with no pathogenic or likely pathogenic variant identified. A VUS is not diagnostic of hereditary breast and ovarian cancer syndrome and should not independently trigger BRCA-carrier risk-reducing surgery or BRCA-specific intensified management. The supported approach is post-test counseling explaining uncertainty, management based on personal and family history, and follow-up for possible variant reclassification. Answer B incorrectly treats the VUS as pathogenic and recommends irreversible BRCA-directed surgery without an actionable germline result, making it unsafe. The case is within medical genetics, has enough information for the counseling decision, and is distinct from the prior Lynch syndrome colonoscopy-surveillance case."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "8092f01a92959daa9113bdf0b7a426aaa3f3a0b5145e3c2efde09c89047277de"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

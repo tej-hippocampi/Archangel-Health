@@ -1,0 +1,593 @@
+{
+  "task_id": "onboarding-examination-v1-558a055d93f6a8479019-1",
+  "specialty": "general surgery",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Postoperative adult with acute abdominal symptoms",
+    "question": "Which management strategy is most appropriate at this decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "general surgery",
+      "demographics": {
+        "age_band": "50-59",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Acute cramping abdominal pain with vomiting and distension",
+          "since": "Day 0",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Prior open abdominal surgery",
+          "since": "More than 10 years earlier",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Clinical dehydration",
+          "since": "Day 0",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Isotonic crystalloid",
+          "dose": null,
+          "route": "intravenous",
+          "freq": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "heart_rate_bpm": 112,
+        "blood_pressure_mmHg": "108/68",
+        "respiratory_rate_per_min": 22,
+        "temperature_c": 37.8,
+        "oxygen_saturation_percent": 97
+      },
+      "lab_panels": [
+        {
+          "panel": "Initial surgical assessment laboratories",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "White blood cell count",
+              "loinc": null,
+              "value": 17.2,
+              "unit": "x10^9/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Lactate",
+              "loinc": null,
+              "value": 4.1,
+              "unit": "mmol/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "C-reactive protein",
+              "loinc": null,
+              "value": 86,
+              "unit": "mg/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Creatinine",
+              "loinc": null,
+              "value": 1.3,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Emergency surgical assessment",
+          "author_role": "general surgery",
+          "text": "On day 0, this adult presented after 18 hours of worsening colicky abdominal pain, repeated bilious vomiting, progressive distension, and absence of flatus. A remote open pelvic operation was her only prior abdominal procedure. Examination showed dry mucous membranes and a distended abdomen with focal guarding and rebound tenderness in the lower abdomen; no abdominal-wall or groin hernia was found. Nasogastric decompression and intravenous crystalloid replacement were initiated. Despite decompression, the pain became continuous and the focal peritoneal findings persisted.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "CT abdomen and pelvis",
+          "label": "Day 0 contrast-enhanced CT",
+          "findings": "Dilated small-bowel loops lead to two closely positioned transition points surrounding a C-shaped segment in the lower abdomen. The involved mesentery is edematous, and moderate free intraperitoneal fluid is present. No obstructing mass, external hernia, or pneumoperitoneum is identified.",
+          "measurements": [],
+          "impression": "Mechanical small-bowel obstruction with a closed-loop configuration.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "Urgent operative exploration is indicated because the patient has persistent focal peritoneal signs, an elevated lactate, and a CT-demonstrated closed-loop obstruction with mesenteric edema and free intraperitoneal fluid. These findings indicate possible strangulation or ischemia and should not be managed by delaying for a water-soluble contrast challenge. Decompression and fluid/electrolyte correction already underway should continue during preparation for surgery.",
+        "evidence": null,
+        "key_data": [
+          "Persistent focal guarding and rebound tenderness indicate peritoneal irritation.",
+          "CT demonstrates a closed-loop small-bowel obstruction.",
+          "Mesenteric edema and free intraperitoneal fluid are present on CT.",
+          "Lactate is elevated at 4.1 mmol/L.",
+          "Pain became continuous despite nasogastric decompression and fluid replacement."
+        ]
+      },
+      "hard_hook": "The candidate must distinguish an uncomplicated obstruction suitable for a non-operative trial from obstruction with signs of strangulation or ischemia.",
+      "reasoning_divergence": "The flawed response overweights hemodynamic stability and absence of perforation while disregarding peritoneal findings and operative-risk CT features."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Continue fasting, nasogastric decompression, and intravenous fluid replacement, then administer water-soluble contrast and obtain follow-up imaging before deciding on surgery because there is no pneumoperitoneum or sustained hypotension."
+      },
+      {
+        "id": "B",
+        "text": "Continue the initiated decompression and fluid/electrolyte correction while proceeding to urgent operative exploration with assessment of bowel viability and treatment of the obstruction; do not delay surgery for a water-soluble contrast trial."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "strangulation",
+      "bowel ischemia",
+      "peritonitis",
+      "closed-loop obstruction",
+      "emergency surgery"
+    ],
+    "evidence_keywords": [
+      "mesenteric edema",
+      "free intraperitoneal fluid",
+      "elevated lactate",
+      "adhesive small bowel obstruction",
+      "water-soluble contrast"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Signs of peritonitis, strangulation, or ischemia are indications for emergency operative exploration in small-bowel obstruction.",
+        "source_ids": [
+          "34217331"
+        ]
+      },
+      {
+        "statement": "Closed-loop obstruction, mesenteric edema, and free intraperitoneal fluid on CT predict the need for operative management.",
+        "source_ids": [
+          "34217331"
+        ]
+      },
+      {
+        "statement": "Elevated lactate, leukocytosis, and elevated inflammatory markers may indicate bowel ischemia, while normal laboratory values cannot exclude it.",
+        "source_ids": [
+          "34217331"
+        ]
+      },
+      {
+        "statement": "Non-operative care includes fasting, fluid and electrolyte replacement, and nasogastric bowel decompression when an appropriate conservative trial is undertaken.",
+        "source_ids": [
+          "34217331"
+        ]
+      },
+      {
+        "statement": "Evidence comparing expectant management with early non-emergent surgery is confounded when patients with emergency operative indications are included in the early-surgery group.",
+        "source_ids": [
+          "30788717"
+        ]
+      },
+      {
+        "statement": "Randomized-trial meta-analysis found that water-soluble contrast did not reduce the need for surgery or mortality in adhesive small-bowel obstruction.",
+        "source_ids": [
+          "31485900",
+          "35837888"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T01:25:09.205258+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "34217331",
+        "title": "Diagnosis and management of small bowel obstruction in virgin abdomen: a WSES position paper.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34217331/",
+        "abstract": "Small bowel obstruction (SBO) is a common surgical emergency, causing high morbidity and healthcare costs. The majority of SBOs are caused by adhesions that result from previous surgeries. Bowel obstruction, however, also occurs in patients without previous operation or known pathology, a so called virgin abdomen. It is unknown if small bowel obstruction in the virgin abdomen (SBO-VA) can be managed according to the same principles as other cases of small bowel obstruction. The aim of this position paper is to evaluate the available evidence on etiology and management of small bowel obstruction in the virgin abdomen.\nThis is a narrative review with scoping aspects. Clinical topics covered in this review include epidemiology and etiology of SBO-VA, diagnosis and imaging, initial assessment, the role of surgical management in SBO-VA, and the role of non-operative management in SBO-VA.\nOur scoping search revealed seven original studies reporting original patient data related to SBO-VA. All the included studies are retrospective cohorts, with populations ranging between 44 and 103 patients with SBO-VA. Adhesions were found to be the cause of the obstruction in approximately half of the reported cases of SBO-VA. A relatively high number of cases of SBO-VA were managed surgically with studies reporting 39-83%. However, in cases where a trial of non-operative management was started, this was generally successful.\nThe data available suggest that etiology and treatment results for patients with SBO-VA are largely comparable to the results in patients with SBO after previous abdominal surgery. We therefore propose that patients with a virgin abdomen could be treated according to existing guidelines for SBO and adhesive small bowel obstruction.",
+        "sha256": "d46160bb8f5771007de4648f52d31f8f475bee4d0c2967df723f3673e99b8537",
+        "retrieved_at": "2026-09-19T01:23:26.459759+00:00",
+        "pmcid": "PMC8254282",
+        "body_excerpts": "Background\nSmall bowel obstruction (SBO) is a common surgical emergency, accounting for almost 50% of all emergency laparotomies with significant in-hospital morbidity and costs [ 1 \u2013 4 ]. Most patients with SBO have undergone previous abdominal operations (80%) [ 5 , 6 ], with adhesions as the single most common cause (60\u201375%) of SBO [ 1 , 7 ]. However, SBO also occurs in patients who had no prior abdominal surgery, referred to as a virgin abdomen.\n\nBackground\nIn the past decade, a paradigm shift in the treatment of SBO in patients with previous abdominal surgery has been implemented. Today, the majority of small bowel obstructions are managed non-operatively, treatment comprising bowel decompression, water-soluble contrast agents, and fluid resuscitation. Non-operative management has been found safe and efficacious in 70% of SBOs caused by adhesions (ASBO) [ 8 ]. Many authors, however, suggest that surgical exploration is still mandatory in the case of SBO in the virgin abdomen (SBO-VA), based on the assumption that SBO-VA is usually caused by other etiologies than adhesions, such as malignancy, internal hernia, and bezoars as the most prominent causes [ 9 , 10 ].\n\nBackground\nThe present paper aims to provide an overview of the literature on the etiology and management of SBO-VA and to generate recommendations for clinical management and future research.\n\nMethods\nTherefore, a scooping review search framework was found more appropriate to guide our position paper. In contrast to systematic reviews, where a focused research question with narrow parameter should be chosen, a scoping search allows for a broad research question, adjusting the inclusion and exclusion criteria according to available literature, and the quality of the chosen studies is not a priority. Data might be extracted mainly for qualitative assessment; the quality of the studies found and the data extracted are used to identify gaps in the literature.\n\nMethods\nPubMed, the Cochrane database, EMBASE database, and Google Scholar were searched to March 2020 without date restrictions. PubMed studies were identified using the following MeSH terms: \u201cintestinal obstruction,\u201d \u201csmall intestine,\u201d \u201cileum,\u201d \u201cjejunum,\u201d and \u201caged\u201d and keywords \u201csmall bowel obstruction,\u201d \u201cVirgin abdomen,\u201d \u201cnon-operative management,\u201d \u201cwater-soluble contrast agents,\u201d and \u201cGastrografin.\u201d Similar search strategies were performed in Embase and Google scholar. The Cochrane database was searched for all articles relating to small bowel obstruction. After performing the different searches, duplicates were identified and deleted.\n\nMethods > Definitions > Small bowel obstruction\nSmall bowel obstruction is a surgical emergency in which a mechanical obstruction of the small intestine hinders the passage of intestinal contents. Typical symptoms of small bowel obstruction are abdominal pain, vomiting, distension, and constipation [ 8 ]. However, not all these symptoms may be present especially in the elderly population [ 15 ].\n\nMethods > Definitions > Small bowel obstruction\nSmall bowel obstruction can be classified as partial (incomplete) or complete obstruction. Imaging studies such as water-soluble contrast agents (WSCA) or CT can help differentiate between complete and incomplete obstruction. In case of a partial obstruction, there is a higher likelihood that a bowel obstruction can be managed by non-operative means [ 16 , 17 ].\n\nResults > Epidemiology and etiology\nSeveral recent studies retrospectively analyzed the etiology of small bowel obstruction in patients with SBO-VA. Among patients operated for SBO-VA, etiology of SBO was adhesions in 26\u2013100% (Table 1 ) [ 6 , 11 , 18 , 25 \u2013 27 ]. In two studies, 75\u2013100% of patients conservatively treated were diagnosed with adhesion [ 6 , 11 ]. In total, adhesions were the cause of bowel obstruction in 134/280 (47.9%) cases of SBO-VA reported in the studies included (Table 1 ).\n\nResults > Epidemiology and etiology\nOther etiologies reported for SBO-VA include malignant or benign tumors, arising primarily from the small bowel (NETs, lymphoma, and carcinomas), mesentery and retroperitoneum, or a metastatic origin (most commonly from a colonic, ovarian, or prostatic origin). Based on the results from the operative findings in the included studies, malignancy as the cause of SBO-VA was encountered in 4\u201313% [ 6 , 11 , 26 ].\n\nResults > Epidemiology and etiology\nOther less common causes of SBA-VA include bezoar, small bowel volvulus, intussusception, Meckel\u2019s diverticulum, gallstone ileus, internal hernia, and new-onset IBD [ 6 , 18 , 26 ]. Detailed results of the etiology of SBO-VA are found in Table 1 .\n\nResults > Diagnostics in SBO-VA > Initial assessment\nAs for SBO in general, one of the main priorities in the initial assessment of the patient with SBO-VA is to identify indications for emergent surgical exploration [ 8 ]. Indications for emergency operation are signs of peritonitis, strangulation, and ischemia. History taking and physical examination might also reveal clues about the etiology of the obstruction [ 28 ]. During physical examination, the physician should seek abdominal wall hernias, including groin hernias. The initial assessment should also comprise an evaluation of nutritional status and sequelae of SBO such as dehydration.\n\nResults > Diagnostics in SBO-VA > Initial assessment\nLaboratory tests should include blood count, CRP, lactate, electrolytes, BUN/creatinine, and coagulation profile; elevated CRP, leukocytosis with left shift, and elevated lactate might be helpful indicating the presence of peritonitis and bowel ischemia, although normal values cannot exclude ischemia [ 29 , 30 ].\n\nResults > Imaging studies > Abdominal plain radiography\nThere are no studies discussing the diagnostic value of plain radiography specifically in patients with SBO-VA. Abdominal plain radiography is still used as first-line imaging in a patient with suspected of SBO, but it has limited value as complementary to the initial clinical assessment [ 31 ]. Sensitivity and specificity of plain X-rays for SBO is approximately 60\u201370% [ 32 , 33 ]. Moreover, plain radiographs do not provide additional information on the etiology of the obstruction nor the need to perform emergency surgery.\n\nResults > Imaging studies > Water-soluble contrast\nWater-soluble contrast agents (WSCA) imaging has an established place in the management of ASBO in cases where a CT scan is not required [ 8 ]. WSCA has both prognostic and potential therapeutic value in the management of patients with small bowel obstruction; several studies have shown promising results in the management of ASBO [ 34 \u2013 36 ]. The appearance of contrast in the colon within 4\u201324 h after the administration had a sensitivity of 96% and specificity of 98% in predicting resolution of SBO with conservative therapy; if the contrast did reach the colon on an abdominal X-ray taken 24 h following administration of the contrast, this was highly indicative of a failure of non-operative management [ 34 \u2013 36 ].\n\nResults > Imaging studies > Water-soluble contrast\nOnly two studies reported on the use of WSCA imaging in SBO-VA [ 24 , 27 ]. Collom et al. reported WSCA to have been used less frequently in patients with SBO-VA (35.6%), as compared to patients with SBO after previous surgery (52.2%) [ 24 ]. A potential explanation might be that an adhesive etiology in the case of SBO-VA cannot be assumed, requiring a CT to establish the cause of the obstruction. Nevertheless, in the study of Fukami et al., WSCA seems to be equally effective in 44 patients with SBO-VA compared to 794 patients with surgery in history [ 27 ]. There were no significant differences in the duration of nasogastric tube decompression between patients with and without virgin abdomen (2.2 versus 2.5 days, p = 0.40), and intervals until the initiation of oral intake were also comparable (2.4 versus 2.6 days, p = 0.55). The overall operative rate was 16% in the VA and 17% in the group with previous surgery ( p = 1.000) [ 27 ].\n\nResults > Imaging studies > Computed tomography\nThe ability of computed tomography (CT) to provide information related to the underlying cause of SBO, and predict the need for emergency surgery, makes CT the primary diagnostic tool of choice in patients with SBO [ 8 , 32 ]. However, two of the included studies on SBO-VA reported that the accuracy of CT in establishing the exact cause of obstruction seems to be low (53% and 76%). A possible explanation for this finding is that cases of SBO-VA were included over many years and (parts of) these cohorts were not recent [ 6 , 11 ]. The introduction of multidetector-row computed tomography (MDCT) has improved the diagnostic accuracy with high sensitivity and specificity for the etiology of SBO (87 and 90%, respectively) [ 37 , 38 ].\n\nResults > Imaging studies > Computed tomography\nCT scan plays a key role in the decision on the management of patients with SBO; its importance is not just in the confirmation of the diagnosis of SBO, but also in identifying the underlying cause of obstruction and predicting the need for emergency surgery. Moreover, CT scan is also able to provide information about an alternative diagnosis if no signs of bowel obstruction are present [ 28 ].\n\nResults > Imaging studies > Computed tomography\nFindings on CT scan help define the potential location of the obstruction (e.g., high in the jejunum or deep in the pelvis), the grade of the obstruction, partial or complete, and may also identify a possible transition zone [ 39 ]. The use of water-soluble contrast optimizes the diagnostic value of CT scan, and X-ray can evaluate the progress of the contrast at 24 h after CT [ 8 ]. Findings on the CT scan that predict the need for operative management, include a closed-loop obstruction, markers of bowel ischemia (mesenteric edema, free intraperitoneal fluid), and the \u201csmall bowel feces sign\u201d, and additional radiological scores can be used to predict the need for surgery [ 37 , 40 ].\n\nResults > Imaging studies > Computed tomography\nThere is increasing evidence that adhesions are a major cause of SBO-VA, similar to SBO in general. Although adhesions are not directly visible even on CT, the absence of other etiologies and a transition zone are highly predictive for adhesions as the cause of the obstruction [ 8 , 36 , 41 ]. When adhesive etiology is established by CT, patients with SBO-VA can be treated according to the same management algorithms as other patients with ASBO.\n\nResults > Management of SBO-VA > Operative management\nOperative intervention can be on an urgent basis for patients with signs of bowel compromise or later intervention when non-operative management fails. This distinction in the indication for surgery was reported in only one of the studies on SBO-VA [ 11 ]. In 32 of 43 operated patients (74%) with SBO-VA in this cohort, surgical exploration was performed as the primary treatment [ 11 ]. It was not reported if there were signs of peritonitis or ischemia in these patients as the indication of surgery, nor was data related to bowel resections reported. In the remaining 11 patients in whom a conservative trial was started, 5 were operated on after failure of non-operative management [ 11 ].\n\nResults > Management of SBO-VA > Operative management\nThe cohort of Collom et al. and Strajina et al. excluded patients with signs of compromised bowel [ 24 , 26 ]. Nevertheless, the operative rates remained high, reporting 39% and 83% respectively to have been treated surgically [ 24 , 26 ].\n\nResults > Management of SBO-VA > Surgical technique\nTwo studies reported results related to the laparoscopic approach. Ng et al. reported a laparoscopic approach to have been used in 5/43 patients. Three patients were converted to laparotomy, two for open adhesiolysis, and one for better assessment of small bowel viability [ 11 ]. Strajina et al. reported that surgical exploration was completed laparoscopically in 18 out of 50 operated patients with SBO-VA (35%); it was not reported if there were conversions from an initial laparoscopic approach [ 26 ]. A higher rate of negative explorations was reported following laparoscopy compared to open surgery [ 26 ].\n\nResults > Management of SBO-VA > Surgical technique\nThe use of adhesion barriers can reduce recurrence rates in case of a small bowel obstruction caused by adhesions [ 8 , 42 ]. None of the studies on SBO-VA reported on the use of barriers or other means to reduce the recurrence of adhesions.\n\nResults > Management of SBO-VA > Results of surgical treatment\nA few studies reported that the cause of obstruction could not be identified even in some cases even with operative exploration [ 6 , 11 , 18 , 25 ]. Strikingly Strajina et al. reported negative finding in as many as 20 (40%) of surgical explorations [ 26 ]. In only three of these patients, the etiology of obstructive symptoms was established during follow-up, including one case of a neuroendocrine tumor, a motility disorder, and angioedema [ 26 ].\n\nResults > Management of SBO-VA > Results of surgical treatment\nTable 2 Recurrences after initial operative management in SBO-VA Study Operative management (n) Recurrence (n) Findings (n) Ng et al., 2018 [ 11 ] 43/72 1 SB volvulus secondary to adhesions. Strajina et al., 2019 [ 26 ] 49/60 Therapeutic 29/49 2 Not specified. Negative 20/49 3 1 Small bowel - NET 1 Motility disorder 1 ACE angioedema.\n\nResults > Management of SBO-VA > Non-operative management\nAs with ASBO in patients with previous surgery, the cornerstone of the non-operative management is fasting, fluid and electrolytes replacement, and bowel decompression by nasogastric tube [ 27 ]. Detailed information such as the duration of the non-operative trial and type of decompression tubes was not reported. Two of the studies reported the use of WSCA in patients assigned for non-operative management [ 24 , 27 ]. The protocol for administration of WSCA in the study of Collom et al. was not detailed [ 24 ]. In the cohort by Fukami et al., all patients who were assigned for non-operative management received 100 ml Gastrografin within 24 h after admission; abdominal X-rays were taken after WSCA administration, and the obstruction grade was classified into two major categories, complete obstruction group and incomplete obstruction [ 27 ].\n\nResults > Management of SBO-VA > Follow-up and recurrence\nStrajina et al. reported a median follow-up of 53 months after patients treated non-operatively; one patient had transverse colon cancer diagnosed at colonoscopy 3 months later; 2 patients suffered recurrent SBO, one patient required bowel resection due to endometriosis, and the other had resection of benign small bowel stricture [ 26 ].\n\nResults > Management of SBO-VA > Follow-up and recurrence\nNg et al. reported that only 5/29 patients in the non-operative group had a colonoscopy or small bowel study in the follow-up, and the remaining 24 patients did not have any further evaluation. Interestingly, only two out of the 29 patients required readmission for recent SBO at follow-up. [ 11 ].\n\nDiscussion\nSBO-VA is a relatively uncommon subgroup of small bowel obstructions, and there are only a few reports dedicated to patients in this subgroup.\n\nDiscussion\nThe data from the reviewed studies shows that etiology and treatment results for patients with SBO-VA are largely comparable to the results in patients with SBO after previous abdominal surgery. CT scan has a pivotal role in the assessment of SBO-VA to assess the etiology and to evaluate if the bowel is compromised, demanding early surgery. Moreover, modern high resolution CT is also useful in minimizing the risk of failure to detect a malignant cause. As with ASBO in general, the majority of cases with SBO-VA can be treated by non-operative trial initially. Nevertheless, a laparotomy remains indicated in case of a non-resolving obstruction.\n\nDiscussion\nBased on the findings in our review, SBO-VA mostly has a benign cause; this is in contrast to older literature and surgical textbooks that suggest malignancy as the main cause of obstruction in patients with a virgin abdomen [ 10 , 43 ]. Possibly, improvements in imaging and diagnostics techniques in past decades have contributed to the diagnosis of abdominal pathologies, including malignancies, at an earlier stage, resulting in fewer cases presenting as a bowel obstruction. For example, recent studies have shown that improved diagnostics and screening programs have resulted in a stage shift in the diagnosis of colon carcinoma, with more tumors diagnosed at an early stage in both the USA and Europe [ 44 , 45 ]. Although such epidemiological data is not available for small bowel disease, a similar trend might also be applicable.",
+        "body_excerpts_sha256": "025058531b543685cfff79f0f3e499fe44a7a1cac71b5ea9c013a101069aafe5",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8254282/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "38609340",
+        "title": "A systematic review of participant descriptors reported in studies of adhesive small bowel obstruction.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38609340/",
+        "abstract": "Reporting of participant descriptors in studies of adhesive small bowel obstruction (ASBO) can help identify characteristics associated with favourable outcomes and allow comparison with other studies and real-world clinical populations. The aim was to identify the pattern of participant descriptors reported in studies assessing interventions for ASBO.\nThis systematic review was registered with PROSPERO (CRD42021281031) and reported in line with the PRISMA checklist. Systematic searches of Ovid MEDLINE, Embase, and Cochrane Central Register of Controlled Trials (CENTRAL) were undertaken to identify studies assessing operative and non-operative interventions for adults with ASBO. Studies were dual screened for inclusion. Descriptors were categorised into conceptual domains by the research team.\nSearches identified 2648 studies, of which 73 were included. A total of 156 unique descriptors were identified. On average, studies reported 12 descriptors. The most frequently reported descriptors were sex, age, SBO aetiology, history of abdominal surgery, BMI and ASA classification. The highest number of descriptors in a single study was 34, compared to the lowest number of descriptors which was one. Pathway factors were the least frequently described domain. Overall, 37 descriptors were reported in just one study.\nThere is a lack of consistency in participant descriptors reported in studies of SBO. Furthermore, a significant proportion of the descriptors were used infrequently. This makes it challenging to assess whether study participants are representative of the wider population. Further work is required to develop a Core Descriptor Set to standardise the reporting of patient characteristics and reduce heterogeneity between studies.",
+        "sha256": "b3cf55a08598aab0ed94b746ec043b82a0544c0a80e7c630affe3d46e56bf677",
+        "retrieved_at": "2026-09-19T01:23:27.696530+00:00"
+      },
+      {
+        "id": "39369214",
+        "title": "Seprafilm\u00ae and adhesive small bowel obstruction in colorectal/abdominal surgery: an updated systematic review.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39369214/",
+        "abstract": "The efficacy of Seprafilm\u00ae in preventing clinically significant adhesive small bowel obstruction (ASBO) is controversial and deserves further review. The aim of this review was to assess the utility of Seprafilm\u00ae in preventing clinically significant adhesive bowel obstruction after abdominal operations, with separate focus on colorectal resections. The secondary aim was to provide an updated literature review on the safety profile of this implant.\nAn up-to-date systematic review was performed on the available literature between 2000 and 2023 on PubMed, EMBASE, Medline, and Cochrane Library databases. The main outcome measures were rates of adhesive bowel obstruction, as well as rates of intervention. The secondary outcome was the clinical safety profile of Seprafilm\u00ae as described in current literature.\nA total of 17 observational studies were included, accounting for 62,886 patients. Use of Seprafilm\u00ae was associated with a significant reduction in adhesive bowel obstruction events (OR 0.449, 95% CI: 0.3271 to 0.6122, p\u2009<\u20090.001), with preserved efficacy seen in laparoscopic cases. This did not translate into a reduced rate of reintervention. Clinicians should also be aware of isolated reports of a paradoxical inflammatory reaction leading to fluid collections after Seprafilm\u00ae use, although they appear uncommon.\nSeprafilm\u00ae can be considered in select patients although further study to determine which patients will benefit most is required.",
+        "sha256": "bc26d1518e8618eee546f1c1fd19c3e050448bdaf56659e2b1ab2df45217c806",
+        "retrieved_at": "2026-09-19T01:23:27.696530+00:00",
+        "pmcid": "PMC11452999"
+      },
+      {
+        "id": "30788717",
+        "title": "The Safety of Expectant Management for Adhesive Small Bowel Obstruction: A Systematic Review.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30788717/",
+        "abstract": "Surgical training has long been to \"never let the sun set on a bowel obstruction\" without an operation to rule out and/or treat compromised bowel. However, advances in diagnostics have called into question the appropriate timing of non-emergent operations and expectant management is increasingly used. We performed a systematic review to evaluate the safety and effectiveness of expectant management for adhesive small bowel obstruction (aSBO) compared to early, non-emergent operation.\nWe queried PubMed, EMBASE, and Cochrane databases for studies (1990-present) comparing early, non-emergent operations and expectant management for aSBO (PROSPERO #CRD42017057676).\nOf 4873 studies, 29 cohort studies were included for full-text review. Four studies directly compared early surgery with expectant management, but none excluded patients who underwent emergent operations from those having early non-emergent surgery, precluding a direct comparison of the two treatment types of interest. When aggregated, the rate of bowel resection was 29% in patients undergoing early operation vs. 10% in those undergoing expectant management. The rate of successful, non-operative management in the expectant group was 58%. There was a 1.3-day difference in LOS favoring expectant management (LOS 9.7 vs. 8.4\u00a0days), and the rate of death was 2% in both groups.\nDespite the shift towards expectant management of aSBO, no published studies have yet compared early, non-emergent operation and expectant management. A major limitation in evaluating the outcomes of these approaches using existing studies is confounding by indication related to including patients with emergent indications for surgery on admission in the early operative group. A future study, randomizing patients to early non-emergent surgery or expectant management, should inform the comparative safety and value of these approaches.",
+        "sha256": "c1fdf6aac346095c073d64d0539a13d6ab3e6ad518abdfe3a4dbc077bd549839",
+        "retrieved_at": "2026-09-19T01:23:27.696530+00:00",
+        "pmcid": "PMC6988581"
+      },
+      {
+        "id": "31485900",
+        "title": "Therapeutic Role of Water-Soluble Contrast Media in Adhesive Small Bowel Obstruction: a Systematic Review and Meta-Analysis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31485900/",
+        "abstract": "Adhesive small bowel obstruction (ASBO) is a common post-operative cause of hospitalisation. Water-soluble contrast media (WSCM) has become a popular non-surgical approach to treatment. However, previous reviews have concluded with conflicting results. This meta-analysis of randomised controlled trials (RCTs) re-evaluated the therapeutic value of WSCM in the management of ASBO.\nA comprehensive search of PubMed, Embase, and Cochrane databases was undertaken to identify RCTs from January 2000 to November 2018. The primary outcomes of length of stay and secondary outcomes of time to resolution, need for surgery, and mortality were extracted from the included studies. Quantitative pooling of the data was based on the random effects model.\nEight hundred and seventy-nine patients from the nine studies were included in the analysis. The administration of oral WSCM reduced the length of hospital stay (weighted mean difference -\u20090.15\u00a0days, P\u2009<\u20090.0001). However, WSCM does not reduce the need for surgery (relative risk 0.84, P\u2009<\u20090.009) and makes no difference to mortality rate (RR 0.99, P\u2009<\u20091.000). The definition of time to resolution of ASBO differed between the studies, ranging from time to passing flatus, to cessation of abdominal pain, and time to initiating oral intake. The significant differences in definition precluded meaningful quantitative pooling of this outcome.\nThis meta-analysis evaluating the therapeutic value of WSCM has shown that it does not reduce the need for operative management in ASBO or impact mortality rates. It shortens hospital stay by 0.15\u00a0days (3.6\u00a0h) which is not clinically significant.",
+        "sha256": "87fc0528682bf3c23c2c46ab3484f14b8fa2cf5ec06a3c140b89c18e2f07640f",
+        "retrieved_at": "2026-09-19T01:23:28.257492+00:00"
+      },
+      {
+        "id": "32195994",
+        "title": "Laparoscopic versus open approach for adhesive small bowel obstruction, a systematic review and meta-analysis of short term outcomes.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32195994/",
+        "abstract": "Adhesive small bowel obstruction (ASBO) is one of the most frequent causes of emergency hospital admissions and surgical treatment. Current surgical treatment of ASBO consists of open adhesiolysis. With laparoscopic procedures rising, the question arises if laparoscopy for ASBO is safe and results in better patient outcomes. Although adhesiolysis was among the first surgical procedures to be approached laparoscopically, uncertainty remains about its potential advantages over open surgery. Therefore, we performed a systematic review and meta-analysis on the benefits and harms of laparoscopic surgery for ASBO.\nA systematic literature review was conducted for articles published up to May 2019. Two reviewers screened all articles and did the quality assessment. Consecutively a meta-analysis was performed. To reduce selection bias, only matched studies were used in our primary analyses. All other studies were used in a sensitivity analyses. All the outcomes were measured within the 30th postoperative day. Core outcome parameters were postoperative mortality, iatrogenic bowel perforations, length of postoperative stay [days], severe postoperative complications, and early readmissions. Secondary outcomes were operative time [min], missed iatrogenic bowel perforations, time to flatus [days], and early unplanned reoperations.\nIn our meta-analysis, 14 studies (participants = 37.007) were included: 1 randomized controlled trial, 2 matched studies, and 11 unmatched studies. Results of our primary analyses show no significant differences in core outcome parameters (postoperative mortality, iatrogenic bowel perforations, length of postoperative stay, severe postoperative complications, early readmissions). In sensitivity analyses, laparoscopic surgery favored open adhesiolysis in postoperative mortality (relative risk [RR], 0.36; 95% CI, 0.29-0.45), length of postoperative hospital stay (mean difference [MD], -4.19; 95% CI, -4.43 to -3.95), operative time (MD, -18.19; 95% CI, -20.98 to -15.40), time to flatus (MD, -0.98; 95% CI, -1.28 to -0.68), severe postoperative complications (RR, 0.51; 95% CI, 0.46-0.56) and early unplanned reoperations (RR, 0.82; 95% CI, 0.70-0.96).\nResults of this systematic review indicate that laparoscopic surgery for ASBO is safe and feasible. Laparoscopic surgery is not associated with better or worse postoperative outcomes compared with open adhesiolysis. Future research should focus on the correct selection of those patients who are suitable for laparoscopic approach and may benefit from this approach.\nSystematic Review/Meta-analysis, Level III.",
+        "sha256": "7cb5b81776f125233a2f95368c91a9c1ca3f3a2ab8741f66b0c5b2ce83fcb062",
+        "retrieved_at": "2026-09-19T01:23:28.257492+00:00"
+      },
+      {
+        "id": "35837888",
+        "title": "The Effect of Hyperosmolar Water-Soluble Contrast for the Management of Adhesive Small Bowel Obstruction: A Systematic Review and Meta-Analysis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35837888/",
+        "abstract": "To better understand the efficacy of water-soluble contrast (WSC) in the treatment of adhesive small bowel obstruction (SBO).\nGuidelines recommend using WSC to treat adhesive SBO nonoperatively by acting as a cathartic agent. The evidence supporting this practice is mixed.\nA systematic review and meta-analysis of published articles describing the effect of WSC compared with control treatments was performed for the period of January 1, 1990 to November 1, 2021. Study quality was assessed using the Cochrane risk-of-bias and the Newcastle-Ottawa tools. The therapeutic effect of WSC was assessed by operative rates and hospital length of stay (HLOS) in nonsurgical patients.\nThe initial search yielded 4879 articles, of which, 28 were selected for full text review. We identified 11 eligible randomized controlled trials (RCTs) which included 817 patients and 9 observational studies of 3944 patients. HLOS in nonsurgical patients decreased by 1.95 days (95% confidence interval: 0.56-3.3) in the RCTs and could not be assessed in the observational studies. WSC did not significantly affect operative rates in the RCTs (19.8% vs. 21.4%) but did reduce rates in the observational studies (11% vs. 16%, risk ratio: 0.56, 95% confidence interval: 0.39-0.82).\nWSC studies may reduce HLOS for patients who have SBO and do not require surgery. However, the current literature is heterogenous with considerable design limitations. High-quality RCTs are needed using standardized protocols to determine the full benefit of WSC for the management of SBO.",
+        "sha256": "f1eea7c232fe153b191ecdeb65039f890968900ba9fb1c2dbfa67fe527342174",
+        "retrieved_at": "2026-09-19T01:23:28.257492+00:00"
+      },
+      {
+        "id": "36104043",
+        "title": "Water-soluble contrast in the management of adhesive small-bowel obstruction: a Canadian centre's experience with guideline development and implementation.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36104043/",
+        "abstract": "Orally administered water-soluble contrast (WSC) can track resolution of small-bowel obstruction (SBO), but no universal pathway for its use exists. We developed and implemented an evidence-based guideline for the use of WSC in the management of adhesive SBO, to be implemented across hospitals affiliated with the University of Toronto.\nWe performed a systematic review and created a clinical practice guideline for WSC use in the management of adhesive SBO. The guideline was approved through consensus by an expert panel and implemented in 2018. We performed a prospective cohort study of guideline implementation at 1 pilot site (a large academic tertiary care centre), facilitated by the centre's acute care general surgery service. Primary outcomes included compliance with the guideline and hospital length of stay (LOS). Secondary outcomes included rates of failure of nonoperative management, morbidity, mortality and readmission for recurrence of SBO within 1 year. Patients with adhesive SBO admitted in 2016 served as a control cohort.\nWe analyzed the data for 152 patients with adhesive SBO admitted to the centre, 65 in 2016 (historical cohort), 56 in January-June 2018 (transitional cohort) and 31 in July-December 2018 (implementation cohort). There was a significant increase in compliance with the WSC protocol in 2018, with the proportion of patients receiving WSC increasing from 45% (n = 25) in the transitional cohort to 71% (n = 22) in the implementation cohort (p < 0.001). The median LOS did not differ across the cohorts (p = 0.06). There was a significantly lower readmission rate in the transitional and implementation cohorts (13 [23%] and 9 [29%], respectively) than in the historical cohort (29 [45%]) (p = 0.04). Among patients assigned to nonoperative management initially, a significantly higher proportion of those who received WSC than those who did not receive WSC went on to undergo surgery (14.6% v. 3.6%, p = 0.01), with no difference in median time to surgery (p = 0.2).\nAn evidence-based guideline for WSC use in SBO management was successfully developed and implemented; no difference in LOS or time to surgery was seen after implementation, but rates of immediate operation increased and readmission rates decreased. Our experience shows that implementation of an evidence-based clinical practice guideline is feasible through multidisciplinary efforts and coordination.",
+        "sha256": "f2c042590dffbbf9d23af982fa8119dd7f6fe494ffc0e3b2b71ebf31d879c7d0",
+        "retrieved_at": "2026-09-19T01:23:28.922700+00:00",
+        "pmcid": "PMC9484612"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This patient has a closed-loop small-bowel obstruction with multiple signs of threatened strangulation or ischemia: continuous pain, persistent focal guarding and rebound, tachycardia, leukocytosis, lactate 4.1 mmol/L, and CT evidence of mesenteric edema and free intraperitoneal fluid. The WSES source identifies peritonitis, strangulation, and ischemia as indications for emergency exploration and specifically lists closed-loop obstruction, mesenteric edema, and free fluid as CT predictors of operative need. Resuscitation and nasogastric decompression should continue, but surgery should not be delayed for a water-soluble contrast trial. Absence of pneumoperitoneum or sustained hypotension does not exclude compromised bowel.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34217331"
+              ],
+              "reason": "The position paper explicitly identifies peritonitis, strangulation, and ischemia as indications for emergency operation in SBO.",
+              "source_passage_ids": [
+                "34217331:p8"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34217331",
+                  "quote": "Results > Diagnostics in SBO-VA > Initial assessment As for SBO in general, one of the main priorities in the initial assessment of the patient with SBO-VA is to identify indications for emergent surgical exploration [ 8 ]. Indications for emergency operation are signs of peritonitis, strangulation, and ischemia. History taking and physical examination might also reveal clues about the etiology of the obstruction [ 28 ]. During physical examination, the physician should seek abdominal wall hernias, including groin hernias. The initial assessment should also comprise an evaluation of nutritional status and sequelae of SBO such as dehydration."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34217331"
+              ],
+              "reason": "The source explicitly lists closed-loop obstruction, mesenteric edema, and free intraperitoneal fluid as CT findings predicting operative management.",
+              "source_passage_ids": [
+                "34217331:p14"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34217331",
+                  "quote": "Moreover, CT scan is also able to provide information about an alternative diagnosis if no signs of bowel obstruction are present [ 28 ]. Results > Imaging studies > Computed tomography Findings on CT scan help define the potential location of the obstruction (e.g., high in the jejunum or deep in the pelvis), the grade of the obstruction, partial or complete, and may also identify a possible transition zone [ 39 ]. The use of water-soluble contrast optimizes the diagnostic value of CT scan, and X-ray can evaluate the progress of the contrast at 24 h after CT [ 8 ]. Findings on the CT scan that predict the need for operative management, include a closed-loop obstruction, markers of bowel ischemia (mesenteric edema, free intraperitoneal fluid), and the \u201csmall bowel feces sign\u201d, and additional radiological scores can be used to predict the need for surgery [ 37 , 40 ]."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34217331"
+              ],
+              "reason": "The source states that elevated CRP, leukocytosis, and lactate can indicate peritonitis or bowel ischemia and that normal results do not exclude ischemia.",
+              "source_passage_ids": [
+                "34217331:p9"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34217331",
+                  "quote": "Results > Diagnostics in SBO-VA > Initial assessment Laboratory tests should include blood count, CRP, lactate, electrolytes, BUN/creatinine, and coagulation profile; elevated CRP, leukocytosis with left shift, and elevated lactate might be helpful indicating the presence of peritonitis and bowel ischemia, although normal values cannot exclude ischemia [ 29 , 30 ]. Results > Imaging studies > Abdominal plain radiography There are no studies discussing the diagnostic value of plain radiography specifically in patients with SBO-VA. Abdominal plain radiography is still used as first-line imaging in a patient with suspected of SBO, but it has limited value as complementary to the initial clinical assessment [ 31 ]. Sensitivity and specificity of plain X-rays for SBO is approximately 60\u201370% [ 32 , 33 ]."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34217331"
+              ],
+              "reason": "The stated components are explicitly identified as the cornerstone of non-operative SBO management.",
+              "source_passage_ids": [
+                "34217331:p19"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34217331",
+                  "quote": "Negative 20/49 3 1 Small bowel - NET 1 Motility disorder 1 ACE angioedema. Results > Management of SBO-VA > Non-operative management As with ASBO in patients with previous surgery, the cornerstone of the non-operative management is fasting, fluid and electrolytes replacement, and bowel decompression by nasogastric tube [ 27 ]. Detailed information such as the duration of the non-operative trial and type of decompression tubes was not reported. Two of the studies reported the use of WSCA in patients assigned for non-operative management [ 24 , 27 ]. The protocol for administration of WSCA in the study of Collom et al. was not detailed [ 24 ]."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "30788717"
+              ],
+              "reason": "The review explicitly reports that inclusion of patients with emergent operative indications in early-surgery groups created confounding by indication and precluded the intended comparison.",
+              "source_passage_ids": [
+                "30788717:p1",
+                "30788717:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "30788717",
+                  "quote": "Four studies directly compared early surgery with expectant management, but none excluded patients who underwent emergent operations from those having early non-emergent surgery, precluding a direct comparison of the two treatment types of interest. When aggregated, the rate of bowel resection was 29% in patients undergoing early operation vs. 10% in those undergoing expectant management. The rate of successful, non-operative management in the expectant group was 58%. There was a 1.3-day difference in LOS favoring expectant management (LOS 9.7 vs. 8.4 days), and the rate of death was 2% in both groups. Despite the shift towards expectant management of aSBO, no published studies have yet compared early, non-emergent operation and expectant management."
+                },
+                {
+                  "source_id": "30788717",
+                  "quote": "A major limitation in evaluating the outcomes of these approaches using existing studies is confounding by indication related to including patients with emergent indications for surgery on admission in the early operative group. A future study, randomizing patients to early non-emergent surgery or expectant management, should inform the comparative safety and value of these approaches."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "31485900",
+                "35837888"
+              ],
+              "reason": "The 2020 randomized-trial meta-analysis reports no reduction in operative management or mortality, while the newer meta-analysis corroborates the absence of a significant reduction in operative rates among randomized trials.",
+              "source_passage_ids": [
+                "31485900:p0",
+                "31485900:p1",
+                "35837888:p0",
+                "35837888:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31485900",
+                  "quote": "Adhesive small bowel obstruction (ASBO) is a common post-operative cause of hospitalisation. Water-soluble contrast media (WSCM) has become a popular non-surgical approach to treatment. However, previous reviews have concluded with conflicting results. This meta-analysis of randomised controlled trials (RCTs) re-evaluated the therapeutic value of WSCM in the management of ASBO. A comprehensive search of PubMed, Embase, and Cochrane databases was undertaken to identify RCTs from January 2000 to November 2018. The primary outcomes of length of stay and secondary outcomes of time to resolution, need for surgery, and mortality were extracted from the included studies. Quantitative pooling of the data was based on the random effects model. Eight hundred and seventy-nine patients from the nine studies were included in the analysis."
+                },
+                {
+                  "source_id": "31485900",
+                  "quote": "The administration of oral WSCM reduced the length of hospital stay (weighted mean difference - 0.15 days, P < 0.0001). However, WSCM does not reduce the need for surgery (relative risk 0.84, P < 0.009) and makes no difference to mortality rate (RR 0.99, P < 1.000). The definition of time to resolution of ASBO differed between the studies, ranging from time to passing flatus, to cessation of abdominal pain, and time to initiating oral intake. The significant differences in definition precluded meaningful quantitative pooling of this outcome. This meta-analysis evaluating the therapeutic value of WSCM has shown that it does not reduce the need for operative management in ASBO or impact mortality rates. It shortens hospital stay by 0.15 days (3.6 h) which is not clinically significant."
+                },
+                {
+                  "source_id": "35837888",
+                  "quote": "To better understand the efficacy of water-soluble contrast (WSC) in the treatment of adhesive small bowel obstruction (SBO). Guidelines recommend using WSC to treat adhesive SBO nonoperatively by acting as a cathartic agent. The evidence supporting this practice is mixed. A systematic review and meta-analysis of published articles describing the effect of WSC compared with control treatments was performed for the period of January 1, 1990 to November 1, 2021. Study quality was assessed using the Cochrane risk-of-bias and the Newcastle-Ottawa tools. The therapeutic effect of WSC was assessed by operative rates and hospital length of stay (HLOS) in nonsurgical patients. The initial search yielded 4879 articles, of which, 28 were selected for full text review."
+                },
+                {
+                  "source_id": "35837888",
+                  "quote": "We identified 11 eligible randomized controlled trials (RCTs) which included 817 patients and 9 observational studies of 3944 patients. HLOS in nonsurgical patients decreased by 1.95 days (95% confidence interval: 0.56-3.3) in the RCTs and could not be assessed in the observational studies. WSC did not significantly affect operative rates in the RCTs (19.8% vs. 21.4%) but did reduce rates in the observational studies (11% vs. 16%, risk ratio: 0.56, 95% confidence interval: 0.39-0.82). WSC studies may reduce HLOS for patients who have SBO and do not require surgery. However, the current literature is heterogenous with considerable design limitations. High-quality RCTs are needed using standardized protocols to determine the full benefit of WSC for the management of SBO."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Candidate B is the appropriate and safe choice. The patient has persistent guarding and rebound tenderness, continuous pain despite decompression, elevated lactate and inflammatory markers, and a CT-demonstrated closed-loop obstruction with mesenteric edema and free fluid. These collectively raise concern for bowel compromise and meet supported indications for urgent operative exploration rather than a delayed water-soluble contrast trial. Continuing nasogastric decompression and fluid/electrolyte correction during preparation is appropriate supportive care. Candidate A is intentionally unsafe because the absence of pneumoperitoneum or sustained hypotension does not negate the documented peritoneal and ischemia-risk findings. The case remains within general surgery, supplies the necessary contrast-enhanced CT and clinical data, and tests a different decision from the previous acute-cholecystitis case. Neither the title nor the question discloses the intended management."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This patient has mechanical small-bowel obstruction with multiple features concerning for strangulation/ischemia and bowel compromise: persistent focal guarding and rebound, continuous pain despite decompression, leukocytosis, elevated lactate, CT closed-loop configuration, mesenteric edema, and free intraperitoneal fluid. The WSES position paper states that indications for emergency operation in SBO include peritonitis, strangulation, and ischemia, and that CT findings predicting need for operative management include closed-loop obstruction plus markers of ischemia such as mesenteric edema and free intraperitoneal fluid. Water-soluble contrast trials are appropriate only for selected patients undergoing nonoperative management, not when urgent surgical indications are present. Therefore, continuing resuscitation/decompression while proceeding urgently to operative exploration is most appropriate.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.94,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34217331"
+              ],
+              "reason": "The source explicitly states that signs of peritonitis, strangulation, and ischemia are indications for emergency operation/exploration in SBO assessment.",
+              "source_passage_ids": [
+                "34217331:p8"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34217331",
+                  "quote": "Results > Diagnostics in SBO-VA > Initial assessment As for SBO in general, one of the main priorities in the initial assessment of the patient with SBO-VA is to identify indications for emergent surgical exploration [ 8 ]. Indications for emergency operation are signs of peritonitis, strangulation, and ischemia. History taking and physical examination might also reveal clues about the etiology of the obstruction [ 28 ]. During physical examination, the physician should seek abdominal wall hernias, including groin hernias. The initial assessment should also comprise an evaluation of nutritional status and sequelae of SBO such as dehydration."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34217331"
+              ],
+              "reason": "The source explicitly lists closed-loop obstruction, mesenteric edema, and free intraperitoneal fluid as CT findings that predict need for operative management.",
+              "source_passage_ids": [
+                "34217331:p14"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34217331",
+                  "quote": "Moreover, CT scan is also able to provide information about an alternative diagnosis if no signs of bowel obstruction are present [ 28 ]. Results > Imaging studies > Computed tomography Findings on CT scan help define the potential location of the obstruction (e.g., high in the jejunum or deep in the pelvis), the grade of the obstruction, partial or complete, and may also identify a possible transition zone [ 39 ]. The use of water-soluble contrast optimizes the diagnostic value of CT scan, and X-ray can evaluate the progress of the contrast at 24 h after CT [ 8 ]. Findings on the CT scan that predict the need for operative management, include a closed-loop obstruction, markers of bowel ischemia (mesenteric edema, free intraperitoneal fluid), and the \u201csmall bowel feces sign\u201d, and additional radiological scores can be used to predict the need for surgery [ 37 , 40 ]."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34217331"
+              ],
+              "reason": "The source states that elevated CRP, leukocytosis, and elevated lactate may indicate peritonitis or bowel ischemia, and that normal values cannot exclude ischemia.",
+              "source_passage_ids": [
+                "34217331:p9"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34217331",
+                  "quote": "Results > Diagnostics in SBO-VA > Initial assessment Laboratory tests should include blood count, CRP, lactate, electrolytes, BUN/creatinine, and coagulation profile; elevated CRP, leukocytosis with left shift, and elevated lactate might be helpful indicating the presence of peritonitis and bowel ischemia, although normal values cannot exclude ischemia [ 29 , 30 ]. Results > Imaging studies > Abdominal plain radiography There are no studies discussing the diagnostic value of plain radiography specifically in patients with SBO-VA. Abdominal plain radiography is still used as first-line imaging in a patient with suspected of SBO, but it has limited value as complementary to the initial clinical assessment [ 31 ]. Sensitivity and specificity of plain X-rays for SBO is approximately 60\u201370% [ 32 , 33 ]."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34217331"
+              ],
+              "reason": "The source identifies fasting, fluid/electrolyte replacement, and nasogastric decompression as the cornerstone of non-operative management when such a trial is appropriate.",
+              "source_passage_ids": [
+                "34217331:p19"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34217331",
+                  "quote": "Negative 20/49 3 1 Small bowel - NET 1 Motility disorder 1 ACE angioedema. Results > Management of SBO-VA > Non-operative management As with ASBO in patients with previous surgery, the cornerstone of the non-operative management is fasting, fluid and electrolytes replacement, and bowel decompression by nasogastric tube [ 27 ]. Detailed information such as the duration of the non-operative trial and type of decompression tubes was not reported. Two of the studies reported the use of WSCA in patients assigned for non-operative management [ 24 , 27 ]. The protocol for administration of WSCA in the study of Collom et al. was not detailed [ 24 ]."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "30788717"
+              ],
+              "reason": "The systematic review states that comparisons of early surgery with expectant management were limited because emergent operative cases were included in the early-operation group, creating confounding by indication.",
+              "source_passage_ids": [
+                "30788717:p1",
+                "30788717:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "30788717",
+                  "quote": "Four studies directly compared early surgery with expectant management, but none excluded patients who underwent emergent operations from those having early non-emergent surgery, precluding a direct comparison of the two treatment types of interest. When aggregated, the rate of bowel resection was 29% in patients undergoing early operation vs. 10% in those undergoing expectant management. The rate of successful, non-operative management in the expectant group was 58%. There was a 1.3-day difference in LOS favoring expectant management (LOS 9.7 vs. 8.4 days), and the rate of death was 2% in both groups. Despite the shift towards expectant management of aSBO, no published studies have yet compared early, non-emergent operation and expectant management."
+                },
+                {
+                  "source_id": "30788717",
+                  "quote": "A major limitation in evaluating the outcomes of these approaches using existing studies is confounding by indication related to including patients with emergent indications for surgery on admission in the early operative group. A future study, randomizing patients to early non-emergent surgery or expectant management, should inform the comparative safety and value of these approaches."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "31485900",
+                "35837888"
+              ],
+              "reason": "The 2020 randomized-trial meta-analysis explicitly found no reduction in operative management or mortality with water-soluble contrast. The 2022 meta-analysis corroborates no significant operative-rate reduction in RCTs and does not contradict the claim\u2019s management implication for this case.",
+              "source_passage_ids": [
+                "31485900:p1",
+                "35837888:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31485900",
+                  "quote": "The administration of oral WSCM reduced the length of hospital stay (weighted mean difference - 0.15 days, P < 0.0001). However, WSCM does not reduce the need for surgery (relative risk 0.84, P < 0.009) and makes no difference to mortality rate (RR 0.99, P < 1.000). The definition of time to resolution of ASBO differed between the studies, ranging from time to passing flatus, to cessation of abdominal pain, and time to initiating oral intake. The significant differences in definition precluded meaningful quantitative pooling of this outcome. This meta-analysis evaluating the therapeutic value of WSCM has shown that it does not reduce the need for operative management in ASBO or impact mortality rates. It shortens hospital stay by 0.15 days (3.6 h) which is not clinically significant."
+                },
+                {
+                  "source_id": "35837888",
+                  "quote": "We identified 11 eligible randomized controlled trials (RCTs) which included 817 patients and 9 observational studies of 3944 patients. HLOS in nonsurgical patients decreased by 1.95 days (95% confidence interval: 0.56-3.3) in the RCTs and could not be assessed in the observational studies. WSC did not significantly affect operative rates in the RCTs (19.8% vs. 21.4%) but did reduce rates in the observational studies (11% vs. 16%, risk ratio: 0.56, 95% confidence interval: 0.39-0.82). WSC studies may reduce HLOS for patients who have SBO and do not require surgery. However, the current literature is heterogenous with considerable design limitations. High-quality RCTs are needed using standardized protocols to determine the full benefit of WSC for the management of SBO."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Answer B is clinically the best management strategy. The patient has mechanical SBO in the setting of prior open abdominal surgery, with persistent focal guarding/rebound, continuous pain despite decompression, elevated lactate, leukocytosis, elevated CRP, and CT evidence of closed-loop obstruction with mesenteric edema and free intraperitoneal fluid. These findings raise concern for strangulation or bowel ischemia and support urgent operative exploration rather than delaying for a water-soluble contrast challenge. The designated flawed answer A is unsafe because it relies on absence of pneumoperitoneum or sustained hypotension despite peritoneal signs and high-risk CT/laboratory features. The case is within general surgery, has adequate clinical and CT information, and is distinct from the prior cholecystitis management case. The title and question do not disclose the intended management plan; the visible chart contains necessary diagnostic data rather than an explicit answer."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "cbdad2308d506cb039c49408149317960ceb4ed9965d414eebf24e3b9e621be9"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

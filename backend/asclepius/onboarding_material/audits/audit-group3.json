@@ -1,0 +1,312 @@
+{
+  "audit_kind": "independent_artifact_audit",
+  "audited_at_utc": "2026-09-19T02:00:53.256857+00:00",
+  "scope": "Manifest indexes 12 through 17; read-only review of retained trial entries, actual public_case transformation, source text, literal quotations, reviewer reports, available paired cases, and pinned pathology image.",
+  "physician_certification": false,
+  "real_models_called": false,
+  "source_artifacts_modified": false,
+  "release_authorization": false,
+  "shared_limitations": [
+    "A clear disposition means no blocking content defect found in this audit; it is not physician certification or an approval to bypass release validation.",
+    "These exact reports use method openai_only_trial and two OpenAI model reviews (gpt-5.6-sol and gpt-5.5); gpt-5.6-sol also authored the cases. They do not satisfy the inspected library validator, which currently requires two_provider_evidence_review and providers anthropic plus openai.",
+    "Five specialties lack accepted practice artifacts in the current library; rejected practice drafts were inspected for provisional distinctness only. Eventual accepted pairs need their own distinctness review."
+  ],
+  "summary": {
+    "clear": 5,
+    "hold": 1
+  },
+  "cases": [
+    {
+      "manifest_index": 12,
+      "task_id": "onboarding-examination-v1-3e19e5ff97ee3c9c1348-1",
+      "specialty": "pain medicine",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10574910879/trial-onboarding-examination-v1-3e19e5ff97ee3c9c1348-1.json",
+      "entry_sha256": "222a86218badbe236134fa968bc3d793608a5bb293a8ab11b893b8853acc451f",
+      "document_sha256": "14459d9ce3b702eefdb683cd329a8dc720a4264a0defc52b796bd9e87d73510b",
+      "public_payload_sha256": "39288bb83ee5c2d6f3e860ed3f7bb45022e2192b2eaa82c805c36976d3305625",
+      "integrity": {
+        "manifest_and_review_entry_hashes_match": true,
+        "source_abstract_and_body_hashes_match": true,
+        "all_reviewer_quotes_literal": true,
+        "literal_quotes_checked": 19,
+        "problems": []
+      },
+      "retained_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_answer": "B",
+          "blind_confidence": 0.98,
+          "review_confidence": 0.98,
+          "image_sha256": null
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_answer": "B",
+          "blind_confidence": 0.95,
+          "review_confidence": 0.93,
+          "image_sha256": null
+        }
+      ],
+      "disposition": "clear",
+      "clinical_key": "B",
+      "decisive_evidence": [
+        "32430926 directly recommends slow tapering for long-lasting opioid overuse, and withdrawal plus proven preventive therapy when education fails. The fictional adult has specialist-established medication-overuse headache after four years of daily codeine use and unsuccessful education.",
+        "39874194 supports individualized patient-centered tapering; 38117465 supports caution with rapid tapering. No specific taper rate is asserted without dosing details."
+      ],
+      "visible_payload_review": "Neutral title and question. Medication-overuse headache is explicitly established because the tested decision is the withdrawal approach. No management answer is disclosed through surviving metadata.",
+      "pair_review": "No accepted practice case is present in the current bundle. The three retained rejected practice drafts concern active rehabilitation for chronic low back pain, a distinct decision from opioid withdrawal in medication-overuse headache. Recheck against the eventual accepted practice artifact.",
+      "findings": []
+    },
+    {
+      "manifest_index": 13,
+      "task_id": "onboarding-examination-v1-a804935ada9d87b2997e-1",
+      "specialty": "palliative medicine",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10574761496/trial-onboarding-examination-v1-a804935ada9d87b2997e-1.json",
+      "entry_sha256": "6ccfc1132e9c6c43f76e90c57aa45c6745abc06401d21dcb5640b25c79cc87ea",
+      "document_sha256": "f7cb96d21366c262fec5595e152a16248b46da27f7fcdbbb8960d164640c1cae",
+      "public_payload_sha256": "878dac7d22e814f5657903d0e857b3c45f8d24fc0095616a3833e1c9a0545049",
+      "integrity": {
+        "manifest_and_review_entry_hashes_match": true,
+        "source_abstract_and_body_hashes_match": true,
+        "all_reviewer_quotes_literal": true,
+        "literal_quotes_checked": 21,
+        "problems": []
+      },
+      "retained_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_answer": "B",
+          "blind_confidence": 0.99,
+          "review_confidence": 0.98,
+          "image_sha256": null
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_answer": "B",
+          "blind_confidence": 0.96,
+          "review_confidence": 0.92,
+          "image_sha256": null
+        }
+      ],
+      "disposition": "hold",
+      "clinical_key": "B",
+      "decisive_evidence": [
+        "36949360 retained full-text recommendations directly support delayed, unconfounded multimodal prognosis; persistent coma or extensor motor response alone does not establish poor outcome. The patient is beyond 72 hours after rewarming, with reactive pupils and no diffuse CT injury or suppressed EEG.",
+        "The same guideline supports communicating uncertainty and further observation when consistent with patient goals; the surrogate reports willingness to accept a temporary treatment trial. 41122894 is used only for the limited descriptive claim that newer guidance addresses timing/modalities."
+      ],
+      "visible_payload_review": "A study impression survives public_case and states the prognostic interpretation that the learner is meant to derive. Title, question, and clinical notes otherwise preserve the decision.",
+      "pair_review": "No accepted practice case is present in the current bundle. The three retained rejected practice drafts concern opioids for breathlessness in COPD, distinct from a surrogate goals-of-care meeting after arrest. Recheck the eventual accepted practice artifact.",
+      "findings": [
+        {
+          "severity": "P2",
+          "category": "visible_answer_cue",
+          "field": "entry.case.studies[0].impression",
+          "text": "No diffuse CT pattern identified as a moderately reliable predictor of poor functional outcome.",
+          "detail": "This public impression labels the scan in the exact guideline reliability framework underlying the keyed answer. The study findings already supply neutral observations; the impression adds answer-oriented prognostic teaching text. The source support for the clinical key is sound, but this cue weakens the examination.",
+          "correction": "Replace the impression with neutral radiologic wording such as \"Preserved gray-white differentiation without diffuse sulcal effacement\" or null. Keep observations visible, and regenerate blind/source-quote reviews for the changed entry hash."
+        }
+      ]
+    },
+    {
+      "manifest_index": 14,
+      "task_id": "onboarding-examination-v1-b8ef799a756d2d5dc30e-1",
+      "specialty": "pathology",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412091089/10574529149/trial-onboarding-examination-v1-b8ef799a756d2d5dc30e-1.json",
+      "entry_sha256": "e242c8239ec635e1dfa5617dc73b20c4e9282bcdeb394913ca002e84f4837d74",
+      "document_sha256": "3948742c631ed406f029537823b394129b7394e866f217543f551a75509fc048",
+      "public_payload_sha256": "cec89aacc6fb771deb3d9d50b6b45d757e88633b5c7913e5cc9facd2700a96af",
+      "integrity": {
+        "manifest_and_review_entry_hashes_match": true,
+        "source_abstract_and_body_hashes_match": true,
+        "all_reviewer_quotes_literal": true,
+        "literal_quotes_checked": 9,
+        "problems": []
+      },
+      "retained_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_answer": "B",
+          "blind_confidence": 0.99,
+          "review_confidence": 0.99,
+          "image_sha256": "ff98b0cdf80bc6c075b8a2668c8f2ca468d30a08d652c6fb3182654ae530a758"
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_answer": "B",
+          "blind_confidence": 0.96,
+          "review_confidence": 0.96,
+          "image_sha256": "ff98b0cdf80bc6c075b8a2668c8f2ca468d30a08d652c6fb3182654ae530a758"
+        }
+      ],
+      "disposition": "clear",
+      "clinical_key": "B",
+      "decisive_evidence": [
+        "40687210 retained teaching-article text explicitly supports the relationship between dermal atypical squamous nests/keratin pearls and invasive SCC, and contrasts basaloid palisading/retraction in BCC. It is appropriate morphology evidence rather than treatment guidance.",
+        "The retained reference caption supports the description of this pinned field. Independent local image inspection shows abundant surface keratin and ulceration, irregular eosinophilic squamous nests within stroma, and conspicuous concentric keratinization. The limited field supports the requested SCC-versus-BCC interpretation without implying whole-slide stage, margin status, or absent adverse findings elsewhere."
+      ],
+      "visible_payload_review": "Actual public_case output blanks study findings and impression because study_findings_policy is hidden. Title, note, asset metadata, and provenance disclaimer do not name the diagnosis; source refs are empty. No labels or identifiers are visible in the pixels.",
+      "pair_review": "No accepted practice case is present in the current bundle. The two retained rejected practice drafts concern limiting high-risk subtype/margin/perineural-invasion assertions from a BCC field; this examination tests SCC-versus-BCC morphology on a different image. Recheck against the eventual accepted practice artifact.",
+      "findings": [],
+      "image_audit": {
+        "local_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/images/ff98b0cdf80bc6c075b8a2668c8f2ca468d30a08d652c6fb3182654ae530a758.png",
+        "sha256": "ff98b0cdf80bc6c075b8a2668c8f2ca468d30a08d652c6fb3182654ae530a758",
+        "byte_size": 4691252,
+        "inspected": true,
+        "reviewer_hashes_match": true,
+        "identifiers_or_diagnostic_labels_visible": false,
+        "findings_hidden_in_public_payload": true
+      }
+    },
+    {
+      "manifest_index": 15,
+      "task_id": "onboarding-examination-v1-06867f80c28206f80670-1",
+      "specialty": "plastic surgery",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10573988764/trial-onboarding-examination-v1-06867f80c28206f80670-1.json",
+      "entry_sha256": "006887e65da04b86af6c96a8af8ec5f57a49aa544244fe10ccad007cb7365ecb",
+      "document_sha256": "276f9b870838f05a7663df42fc98086369d8986ec2cba7d4728810ea21d6c6d9",
+      "public_payload_sha256": "500b044a20eb7925b14de6b4b8b959a25ba150e32afd11a42b4ccf4afef79ef5",
+      "integrity": {
+        "manifest_and_review_entry_hashes_match": true,
+        "source_abstract_and_body_hashes_match": true,
+        "all_reviewer_quotes_literal": true,
+        "literal_quotes_checked": 10,
+        "problems": []
+      },
+      "retained_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_answer": "B",
+          "blind_confidence": 0.98,
+          "review_confidence": 0.94,
+          "image_sha256": null
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_answer": "B",
+          "blind_confidence": 0.94,
+          "review_confidence": 0.93,
+          "image_sha256": null
+        }
+      ],
+      "disposition": "clear",
+      "clinical_key": "B",
+      "decisive_evidence": [
+        "38051821 directly addresses acute resuscitation of adults with at least 20% TBSA burns and recommends a 2 mL/kg/%TBSA starting basis. The fictional adult has 24% TBSA burns and weighs 72 kg; 2 \u00d7 72 \u00d7 24 = 3456 mL.",
+        "41578417 is low-resource conflict guidance, but it is used only for the general initial-assessment elements of airway evaluation and burn-size estimation; the decisive formula is supplied by the directly applicable ABA guideline. There is no case-specific dosing extrapolation from the conflict population."
+      ],
+      "visible_payload_review": "No keyed formula or volume appears in the public stem. Answers call the numerical volume a formula-derived basis rather than an immediate bolus. This is adequate for the initial-formula choice as framed, not a complete bedside infusion prescription.",
+      "pair_review": "Accepted practice artifact onboarding-practice-v1-06867f80c28206f80670-1.json, entry_sha256 1239841f0d8a8651d786a14a5a321fa5af5118390cee614c3319c17373f3d8a1, tests comprehensive examination before labeling an isolated flexor-tendon injury. The burn assessment/resuscitation decision is distinct.",
+      "findings": [],
+      "nonblocking_suggestions": [
+        "For a future author revision, explicitly describe the first-24-hour volume estimate and subsequent titration to response if the question is expanded beyond selecting the starting formula. The current retained abstract does not provide an operational infusion schedule; add retained primary support before adding that detail."
+      ],
+      "external_verification": [
+        {
+          "url": "https://ameriburn.org/wp-content/uploads/2019/08/2018-abls-providermanual.pdf",
+          "purpose": "Primary ABA manual corroborates that traditional formula volumes describe a first-24-hour estimate and are adjusted to urinary output/clinical response. This is a clarification suggestion, not substituted evidence for release."
+        }
+      ]
+    },
+    {
+      "manifest_index": 16,
+      "task_id": "onboarding-examination-v1-f72e684372859ac1757a-1",
+      "specialty": "preventive medicine",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10573764536/trial-onboarding-examination-v1-f72e684372859ac1757a-1.json",
+      "entry_sha256": "944e0c148e163706068e8a99b81a6b7cf5bc958815816943569916c75df0e611",
+      "document_sha256": "10cfea2e689f63e13af0c6bf71a2a39cc97f02a7a3602ec13c5f3c8db868f080",
+      "public_payload_sha256": "2b3f01fa0c903d796b5ca8ba18cead00c9be021d682ee90c6382128e22e52bcc",
+      "integrity": {
+        "manifest_and_review_entry_hashes_match": true,
+        "source_abstract_and_body_hashes_match": true,
+        "all_reviewer_quotes_literal": true,
+        "literal_quotes_checked": 14,
+        "problems": []
+      },
+      "retained_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_answer": "A",
+          "blind_confidence": 0.99,
+          "review_confidence": 0.99,
+          "image_sha256": null
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_answer": "A",
+          "blind_confidence": 0.98,
+          "review_confidence": 0.96,
+          "image_sha256": null
+        }
+      ],
+      "disposition": "clear",
+      "clinical_key": "A",
+      "decisive_evidence": [
+        "37909877 directly supports annual LDCT screening for an asymptomatic current smoker age 50\u201380 with at least 20 pack-years, shared decision making before initiation, and cessation counseling/resources. The case has age 56, 22 pack-years, no symptoms or life-limiting comorbidity, and willingness to consider curative treatment.",
+        "33687470 and 34270968 support the remaining bounded eligibility/benefit-harm claims. Naming the 2023 ACS framework resolves potential guideline ambiguity rather than disclosing the eligibility threshold."
+      ],
+      "visible_payload_review": "Neutral clinical data require applying the stated guideline. No answer key, screening threshold, required modality, or management plan survives in author-only metadata. The incorrect alternative deliberately uses older criteria; the age clause is logically \u201cnot both\u201d rather than incorrectly claiming the patient is younger than 55.",
+      "pair_review": "No accepted practice case is present in the current bundle. The three retained rejected practice drafts concern starting colorectal screening at age 45 and completing a positive stool test with colonoscopy; this exam concerns LDCT eligibility and smoking cessation. These are different clinical decisions despite a shared outdated-guideline distractor pattern. Recheck the eventual accepted practice artifact.",
+      "findings": []
+    },
+    {
+      "manifest_index": 17,
+      "task_id": "onboarding-examination-v1-eab374162d4f1d645638-1",
+      "specialty": "radiation oncology",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10573704377/trial-onboarding-examination-v1-eab374162d4f1d645638-1.json",
+      "entry_sha256": "610175c58c667b898c7b2c61a57c2f1dabc86fadb5a7f38a0e116106fd2b3633",
+      "document_sha256": "22de71a420f26867f2f1224e8b354ff3fe3b373317b599dbfa7ea714a295acd4",
+      "public_payload_sha256": "48201f57bd60afea13569832854ae9b4c3dd0ca20627b7265f04540f94af6094",
+      "integrity": {
+        "manifest_and_review_entry_hashes_match": true,
+        "source_abstract_and_body_hashes_match": true,
+        "all_reviewer_quotes_literal": true,
+        "literal_quotes_checked": 23,
+        "problems": []
+      },
+      "retained_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_answer": "A",
+          "blind_confidence": 0.98,
+          "review_confidence": 0.93,
+          "image_sha256": null
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_answer": "A",
+          "blind_confidence": 0.92,
+          "review_confidence": 0.91,
+          "image_sha256": null
+        }
+      ],
+      "disposition": "clear",
+      "clinical_key": "A",
+      "decisive_evidence": [
+        "39637710 directly supports decompression plus radiotherapy for high-grade symptomatic MESCC from less radiosensitive tumors. The case supplies severe MRI compression, rapidly progressive deficits and recent loss of independent ambulation, radioresistant histology, good baseline function, and apparent operative candidacy.",
+        "37890190 concerns mobile/ambulatory patients and does not justify avoiding decompression in this now nonambulatory phenotype. The artifact correctly treats that extrapolation as the flawed answer, and explicitly acknowledges the high risk of bias and nonsignificant solid-tumor subgroup in 39477818.",
+        "Corticosteroids have already been initiated. The keyed answer requests urgent surgical/radiation coordination rather than specifying an unsupported radiation fractionation schedule."
+      ],
+      "visible_payload_review": "The study identifies the established compression diagnosis because the tested decision is local treatment. No surgical recommendation appears in the stem or public metadata. Prior histology being described as radioresistant is a clinically relevant fact, not a concealed treatment answer.",
+      "pair_review": "No accepted practice case is present in the current bundle. The two retained rejected practice drafts concern palliation of an uncomplicated painful iliac metastasis with conventional radiation versus SBRT; this examination concerns urgent decompression for severe cord compression. Recheck the eventual accepted practice artifact.",
+      "findings": []
+    }
+  ]
+}

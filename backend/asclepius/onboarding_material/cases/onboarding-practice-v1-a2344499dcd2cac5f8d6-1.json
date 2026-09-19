@@ -1,0 +1,557 @@
+{
+  "task_id": "onboarding-practice-v1-a2344499dcd2cac5f8d6-1",
+  "specialty": "otolaryngology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Assessment after acute unilateral hearing loss",
+    "question": "Which assessment strategy is guideline-concordant now under the 2019 AAO-HNSF sudden hearing loss framework?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "otolaryngology",
+      "demographics": {
+        "age_band": "50-59",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Abrupt right-sided hearing loss",
+          "since": "4 days",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Right nonpulsatile tinnitus",
+          "since": "4 days",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Systemic corticosteroid",
+          "dose": null,
+          "route": "oral",
+          "freq": null,
+          "collected_offset_days": -2
+        }
+      ],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Otolaryngology consultation",
+          "author_role": "otolaryngology",
+          "text": "The patient reports awakening four days ago with abrupt hearing loss and nonpulsatile tinnitus in the right ear. There was no preceding trauma, recurrent hearing-loss episode, contralateral symptom, otalgia, discharge, or recent acoustic exposure. She denies vertigo, facial weakness, diplopia, limb weakness, sensory change, or severe headache. Otoscopy shows clear canals and intact tympanic membranes without effusion. Cranial nerve and focused neurologic examinations are nonfocal. Audiologic testing performed two days after onset confirmed an asymmetric right sensorineural deficit. An outside otolaryngologist began a short course of oral corticosteroid after discussing potential benefits, risks, and uncertainty. No laboratory testing or cranial imaging has yet been performed.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Pure-tone and speech audiometry",
+          "label": "Initial audiologic evaluation",
+          "findings": "Right ear demonstrates moderate-to-severe sensorineural hearing loss across contiguous tested frequencies, with air and bone thresholds closely aligned and reduced speech recognition. Left-ear thresholds and speech recognition are substantially better.",
+          "measurements": [],
+          "impression": "Acute asymmetric right sensorineural hearing loss.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -2
+        },
+        {
+          "modality": "Tympanometry",
+          "label": "Middle-ear assessment",
+          "findings": "Normal middle-ear pressure and compliance bilaterally, without a pattern suggesting middle-ear effusion or another conductive process.",
+          "measurements": [],
+          "impression": "No tympanometric evidence of a conductive cause.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -2
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional onboarding assessment case; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete to decision point",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "The confirmed sudden sensorineural hearing loss warrants evaluation for retrocochlear pathology with MRI; auditory brainstem response is a supported alternative when MRI cannot be obtained. Routine nontargeted head CT and routine laboratory panels are not recommended in the initial evaluation. Deferring retrocochlear assessment while substituting low-yield routine testing risks delayed recognition of a specific cause.",
+        "evidence": null,
+        "key_data": [
+          "Audiometry obtained within four days of onset confirms acute unilateral sensorineural hearing loss.",
+          "Otoscopy and tympanometry do not identify a conductive explanation.",
+          "The episode is unilateral and nonrecurrent, with no focal neurologic findings.",
+          "No evaluation for retrocochlear pathology has yet been completed.",
+          "Routine cranial imaging and laboratory panels have not already been performed."
+        ]
+      },
+      "hard_hook": "Distinguishing the indicated retrocochlear evaluation from routine low-yield testing.",
+      "reasoning_divergence": "The flawed response substitutes routine head CT and broad laboratory screening for the recommended retrocochlear assessment."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Obtain MRI to evaluate for retrocochlear pathology; if MRI cannot be obtained, auditory brainstem response is a guideline-supported alternative. Do not add routine nontargeted head CT or broad laboratory panels."
+      },
+      {
+        "id": "B",
+        "text": "Order a routine noncontrast head CT and broad laboratory screening now, then defer MRI or auditory brainstem response unless the hearing deficit remains unchanged after treatment and follow-up audiometry."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "sudden sensorineural hearing loss",
+      "retrocochlear pathology",
+      "head CT",
+      "magnetic resonance imaging",
+      "auditory brainstem response"
+    ],
+    "evidence_keywords": [
+      "audiometry",
+      "tympanometry",
+      "retrocochlear evaluation",
+      "routine laboratory testing",
+      "unilateral hearing loss"
+    ],
+    "error_tags": [
+      "omission",
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "Adults with sudden sensorineural hearing loss should be evaluated for retrocochlear pathology using MRI or auditory brainstem response.",
+        "source_ids": [
+          "31369359",
+          "31369349"
+        ]
+      },
+      {
+        "statement": "The Spanish consensus recommends MRI after clinical diagnosis, ideally during the first 15 days, to exclude specific causes.",
+        "source_ids": [
+          "30093087"
+        ]
+      },
+      {
+        "statement": "Routine nontargeted head computed tomography is not recommended during the initial evaluation of presumptive sudden sensorineural hearing loss.",
+        "source_ids": [
+          "31369359",
+          "31369349"
+        ]
+      },
+      {
+        "statement": "Routine laboratory testing should not be obtained in patients undergoing evaluation for sudden sensorineural hearing loss.",
+        "source_ids": [
+          "31369359",
+          "31369349"
+        ]
+      },
+      {
+        "statement": "Audiometry should be obtained as soon as possible and within 14 days of symptom onset to confirm sudden sensorineural hearing loss.",
+        "source_ids": [
+          "31369359",
+          "31369349"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T01:27:25.893931+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "30093087",
+        "title": "Update on consensus on diagnosis and treatment of idiopathic sudden sensorineural hearing loss.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30093087/",
+        "abstract": "Idiopathic sudden sensorineural hearing loss (ISSNHL) is a sudden, unexplained unilateral hearing loss.\nTo update the Spanish Consensus on the diagnosis, treatment and follow-up of ISSNHL.\nAfter a systematic review of the literature from 1966 to March 2018, on MESH terms \u00ab(acute or sudden) hearing loss or deafness\u00bb, a third update was performed, including 1508 relevant papers.\nRegarding diagnosis, 11ISSNHL is clinically suspected, the following diagnostic tests are mandatory: otoscopy, acumetry, tonal audiometry, speech audiometry, and tympanometry, to discount conductive causes. After clinical diagnosis has been established, and before treatment is started, a full analysis should be performed. An MRI should then be requested, ideally performed during the first 15 days after diagnosis, to discount specific causes and to help to understand the physiopathological mechanisms in each case. Although treatment is very controversial, due to its effect on quality of life after ISSNHL and the few rare adverse effects associated with short-term steroid treatment, this consensus recommends that all patients should be treated with steroids, orally and/or intratympanically, depending on each patient. In the event of failure of systemic steroids, intratympanic rescue is also recommended. Follow-up should be at day 7, and after 12 months.\nBy consensus, results after treatment should be reported as absolute decibels recovered in pure tonal audiometry and as improvement in speech audiometry.",
+        "sha256": "155ea168b1042bd1397d33aeaef6aa0f03a0c5e6ccf3868b12a03e33c5bf62c9",
+        "retrieved_at": "2026-09-19T01:26:00.193534+00:00"
+      },
+      {
+        "id": "31369359",
+        "title": "Clinical Practice Guideline: Sudden Hearing Loss (Update).",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31369359/",
+        "abstract": "Sudden hearing loss is a frightening symptom that often prompts an urgent or emergent visit to a health care provider. It is frequently but not universally accompanied by tinnitus and/or vertigo. Sudden sensorineural hearing loss affects 5 to 27 per 100,000 people annually, with about 66,000 new cases per year in the United States. This guideline update provides evidence-based recommendations for the diagnosis, management, and follow-up of patients who present with sudden hearing loss. It focuses on sudden sensorineural hearing loss in adult patients aged \u226518 years and primarily on those with idiopathic sudden sensorineural hearing loss. Prompt recognition and management of sudden sensorineural hearing loss may improve hearing recovery and patient quality of life. The guideline update is intended for all clinicians who diagnose or manage adult patients who present with sudden hearing loss.\nThe purpose of this guideline update is to provide clinicians with evidence-based recommendations in evaluating patients with sudden hearing loss and sudden sensorineural hearing loss, with particular emphasis on managing idiopathic sudden sensorineural hearing loss. The guideline update group recognized that patients enter the health care system with sudden hearing loss as a nonspecific primary complaint. Therefore, the initial recommendations of this guideline update address distinguishing sensorineural hearing loss from conductive hearing loss at the time of presentation with hearing loss. They also clarify the need to identify rare, nonidiopathic sudden sensorineural hearing loss to help separate those patients from those with idiopathic sudden sensorineural hearing loss, who are the target population for the therapeutic interventions that make up the bulk of the guideline update. By focusing on opportunities for quality improvement, this guideline should improve diagnostic accuracy, facilitate prompt intervention, decrease variations in management, reduce unnecessary tests and imaging procedures, and improve hearing and rehabilitative outcomes for affected patients.\nConsistent with the American Academy of Otolaryngology-Head and Neck Surgery Foundation's \"Clinical Practice Guideline Development Manual, Third Edition\" (Rosenfeld et al. Otolaryngol Head Neck Surg. 2013;148[1]:S1-S55), the guideline update group was convened with representation from the disciplines of otolaryngology-head and neck surgery, otology, neurotology, family medicine, audiology, emergency medicine, neurology, radiology, advanced practice nursing, and consumer advocacy. A systematic review of the literature was performed, and the prior clinical practice guideline on sudden hearing loss was reviewed in detail. Key Action Statements (KASs) were updated with new literature, and evidence profiles were brought up to the current standard. Research needs identified in the original clinical practice guideline and data addressing them were reviewed. Current research needs were identified and delineated.\nThe guideline update group made strong recommendations for the following: (KAS 1) Clinicians should distinguish sensorineural hearing loss from conductive hearing loss when a patient first presents with sudden hearing loss. (KAS 7) Clinicians should educate patients with sudden sensorineural hearing loss about the natural history of the condition, the benefits and risks of medical interventions, and the limitations of existing evidence regarding efficacy. (KAS 13) Clinicians should counsel patients with sudden sensorineural hearing loss who have residual hearing loss and/or tinnitus about the possible benefits of audiologic rehabilitation and other supportive measures. These strong recommendations were modified from the initial clinical practice guideline for clarity and timing of intervention. The guideline update group made strong recommendations against the following: (KAS 3) Clinicians should not order routine computed tomography of the head in the initial evaluation of a patient with presumptive sudden sensorineural hearing loss. (KAS 5) Clinicians should not obtain routine laboratory tests in patients with sudden sensorineural hearing loss. (KAS 11) Clinicians should not routinely prescribe antivirals, thrombolytics, vasodilators, or vasoactive substances to patients with sudden sensorineural hearing loss. The guideline update group made recommendations for the following: (KAS 2) Clinicians should assess patients with presumptive sudden sensorineural hearing loss through history and physical examination for bilateral sudden hearing loss, recurrent episodes of sudden hearing loss, and/or focal neurologic findings. (KAS 4) In patients with sudden hearing loss, clinicians should obtain, or refer to a clinician who can obtain, audiometry as soon as possible (within 14 days of symptom onset) to confirm the diagnosis of sudden sensorineural hearing loss. (KAS 6) Clinicians should evaluate patients with sudden sensorineural hearing loss for retrocochlear pathology by obtaining magnetic resonance imaging or auditory brainstem response. (KAS 10) Clinicians should offer, or refer to a clinician who can offer, intratympanic steroid therapy when patients have incomplete recovery from sudden sensorineural hearing loss 2 to 6 weeks after onset of symptoms. (KAS 12) Clinicians should obtain follow-up audiometric evaluation for patients with sudden sensorineural hearing loss at the conclusion of treatment and within 6 months of completion of treatment. These recommendations were clarified in terms of timing of intervention and audiometry and method of retrocochlear workup. The guideline update group offered the following KASs as options: (KAS 8) Clinicians may offer corticosteroids as initial therapy to patients with sudden sensorineural hearing loss within 2 weeks of symptom onset. (KAS 9a) Clinicians may offer, or refer to a clinician who can offer, hyperbaric oxygen therapy combined with steroid therapy within 2 weeks of onset of sudden sensorineural hearing loss. (KAS 9b) Clinicians may offer, or refer to a clinician who can offer, hyperbaric oxygen therapy combined with steroid therapy as salvage therapy within 1 month of onset of sudden sensorineural hearing loss.\nIncorporation of new evidence profiles to include quality improvement opportunities, confidence in the evidence, and differences of opinion Included 10 clinical practice guidelines, 29 new systematic reviews, and 36 new randomized controlled trials Highlights the urgency of evaluation and initiation of treatment, if treatment is offered, by emphasizing the time from symptom occurrence Clarification of terminology by changing potentially unclear statements; use of the term sudden sensorineural hearing loss to mean idiopathic sudden sensorineural hearing loss to emphasize that >90% of sudden sensorineural hearing loss is idiopathic sudden sensorineural hearing loss and to avoid confusion in nomenclature for the reader Changes to the KASs from the original guideline: KAS 1-When a patient first presents with sudden hearing loss, conductive hearing loss should be distinguished from sensorineural. KAS 2-The utility of history and physical examination when assessing for modifying factors is emphasized. KAS 3-The word \"routine\" is added to clarify that this statement addresses nontargeted head computerized tomography scan that is often ordered in the emergency room setting for patients presenting with sudden hearing loss. It does not refer to targeted scans, such as temporal bone computerized tomography scan, to assess for temporal bone pathology. KAS 4-The importance of audiometric confirmation of hearing status as soon as possible and within 14 days of symptom onset is emphasized. KAS 5-New studies were added to confirm the lack of benefit of nontargeted laboratory testing in sudden sensorineural hearing loss. KAS 6-Audiometric follow-up is excluded as a reasonable workup for retrocochlear pathology. Magnetic resonance imaging, computerized tomography scan if magnetic resonance imaging cannot be done, and, secondarily, auditory brainstem response evaluation are the modalities recommended. A time frame for such testing is not specified, nor is it specified which clinician should be ordering this workup; however, it is implied that it would be the general or subspecialty otolaryngologist. KAS 7-The importance of shared decision making is highlighted, and salient points are emphasized. KAS 8-The option for corticosteroid intervention within 2 weeks of symptom onset is emphasized. KAS 9-Changed to KAS 9A and 9B. Hyperbaric oxygen therapy remains an option but only when combined with steroid therapy for either initial treatment (9A) or salvage therapy (9B). The timing of initial therapy is within 2 weeks of onset, and that of salvage therapy is within 1 month of onset of sudden sensorineural hearing loss. KAS 10-Intratympanic steroid therapy for salvage is recommended within 2 to 6 weeks following onset of sudden sensorineural hearing loss. The time to treatment is defined and emphasized. KAS 11-Antioxidants were removed from the list of interventions that the clinical practice guideline recommends against using. KAS 12-Follow-up audiometry at conclusion of treatment and also within 6 months posttreatment is added. KAS 13-This statement on audiologic rehabilitation includes patients who have residual hearing loss and/or tinnitus who may benefit from treatment. Addition of an algorithm outlining KASs Enhanced emphasis on patient education and shared decision making with tools provided to assist in same.",
+        "sha256": "6a52f0282c6aa77a18aa4af6a0b2a57ea53d98f576abc93b74691d74d8a484f8",
+        "retrieved_at": "2026-09-19T01:26:01.322443+00:00"
+      },
+      {
+        "id": "38968877",
+        "title": "Clinical practice guidelines for the diagnosis and management of acute sensorineural hearing loss.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38968877/",
+        "abstract": "Acute sensorineural hearing loss represents a spectrum of conditions characterized by sudden onset hearing loss. The \"Clinical Practice Guidelines for the Diagnosis and Management of Acute Sensorineural Hearing Loss\" were issued as the first clinical practice guidelines in Japan outlining the standard diagnosis and treatment. The purpose of this article is to strengthen the guidelines by adding the scientific evidence including a systematic review of the latest publications, and to widely introduce the current treatment options based on the scientific evidence.\nThe clinical practice guidelines were completed by 1) retrospective data analysis (using nationwide survey data), 2) systematic literature review, and 3) selected clinical questions (CQs). Additional systematic review of each disease was performed to strengthen the scientific evidence of the diagnosis and treatment in the guidelines.\nBased on the nationwide survey results and the systematic literature review summary, the standard diagnosis flowchart and treatment options, including the CQs and recommendations, were determined.\nThe guidelines present a summary of the standard approaches for the diagnosis and treatment of acute sensorineural hearing loss. We hope that these guidelines will be used in medical practice and that they will initiate further research.",
+        "sha256": "c2b7df6680f555c14e1559ce71f461b290077b12511c0587b15d1cb9a5f5806f",
+        "retrieved_at": "2026-09-19T01:26:01.322443+00:00"
+      },
+      {
+        "id": "31369349",
+        "title": "Clinical Practice Guideline: Sudden Hearing Loss (Update) Executive Summary.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31369349/",
+        "abstract": "Sudden hearing loss is a frightening symptom that often prompts an urgent or emergent visit to a health care provider. It is frequently, but not universally, accompanied by tinnitus and/or vertigo. Sudden sensorineural hearing loss affects 5 to 27 per 100,000 people annually, with about 66,000 new cases per year in the United States. This guideline update provides evidence-based recommendations for the diagnosis, management, and follow-up of patients who present with sudden hearing loss. It focuses on sudden sensorineural hearing loss in adult patients aged 18 and over and primarily on those with idiopathic sudden sensorineural hearing loss. Prompt recognition and management of sudden sensorineural hearing loss may improve hearing recovery and patient quality of life. The guideline update is intended for all clinicians who diagnose or manage adult patients who present with sudden hearing loss.\nThe purpose of this guideline update is to provide clinicians with evidence-based recommendations in evaluating patients with sudden hearing loss and sudden sensorineural hearing loss, with particular emphasis on managing idiopathic sudden sensorineural hearing loss. The guideline update group recognized that patients enter the health care system with sudden hearing loss as a nonspecific primary complaint. Therefore, the initial recommendations of this guideline update address distinguishing sensorineural hearing loss from conductive hearing loss at the time of presentation with hearing loss. They also clarify the need to identify rare, nonidiopathic sudden sensorineural hearing loss to help separate those patients from those with idiopathic sudden sensorineural hearing loss, who are the target population for the therapeutic interventions that make up the bulk of the guideline update. By focusing on opportunities for quality improvement, this guideline should improve diagnostic accuracy, facilitate prompt intervention, decrease variations in management, reduce unnecessary tests and imaging procedures, and improve hearing and rehabilitative outcomes for affected patients.\nConsistent with the American Academy of Otolaryngology-Head and Neck Surgery Foundation's Clinical Practice Guideline Development Manual, Third Edition, the guideline update group was convened with representation from the disciplines of otolaryngology-head and neck surgery, otology, neurotology, family medicine, audiology, emergency medicine, neurology, radiology, advanced practice nursing, and consumer advocacy. A systematic review of the literature was performed, and the prior clinical practice guideline on sudden hearing loss was reviewed in detail. Key action statements (KASs) were updated with new literature, and evidence profiles were brought up to the current standard. Research needs identified in the original clinical practice guideline and data addressing them were reviewed. Current research needs were identified and delineated.\nThe guideline update group made strong recommendations for the following: clinicians should distinguish sensorineural hearing loss from conductive hearing loss when a patient first presents with sudden hearing loss (KAS 1); clinicians should educate patients with sudden sensorineural hearing loss about the natural history of the condition, the benefits and risks of medical interventions, and the limitations of existing evidence regarding efficacy (KAS 7); and clinicians should counsel patients with sudden sensorineural hearing loss who have residual hearing loss and/or tinnitus about the possible benefits of audiological rehabilitation and other supportive measures (KAS 13). These strong recommendations were modified from the initial clinical practice guideline for clarity and timing of intervention. The guideline update group made strong recommendation against the following: clinicians should not order routine computed tomography of the head in the initial evaluation of a patient with presumptive sudden sensorineural hearing loss (KAS 3); clinicians should not obtain routine laboratory tests in patients with sudden sensorineural hearing loss (KAS 5); and clinicians should not routinely prescribe antivirals, thrombolytics, vasodilators, or vasoactive substances to patients with sudden sensorineural hearing loss (KAS 11). The guideline update group made recommendations for the following: clinicians should assess patients with presumptive sudden sensorineural hearing loss through history and physical examination for bilateral sudden hearing loss, recurrent episodes of sudden hearing loss, and/or focal neurologic findings (KAS 2); in patients with sudden hearing loss, clinicians should obtain, or refer to a clinician who can obtain, audiometry as soon as possible (within 14 days of symptom onset) to confirm the diagnosis of sudden sensorineural hearing loss (KAS 4); clinicians should evaluate patients with sudden sensorineural hearing loss for retrocochlear pathology by obtaining a magnetic resonance imaging or auditory brainstem response (KAS 6); clinicians should offer, or refer to a clinician who can offer, intratympanic steroid therapy when patients have incomplete recovery from sudden sensorineural hearing loss 2 to 6 weeks after onset of symptoms (KAS 10); and clinicians should obtain follow-up audiometric evaluation for patients with sudden sensorineural hearing loss at the conclusion of treatment and within 6 months of completion of treatment (KAS 12). These recommendations were clarified in terms of timing of intervention and audiometry, as well as method of retrocochlear workup. The guideline update group offered the following KASs as options: clinicians may offer corticosteroids as initial therapy to patients with sudden sensorineural hearing loss within 2 weeks of symptom onset (KAS 8); clinicians may offer, or refer to a clinician who can offer, hyperbaric oxygen therapy combined with steroid therapy within 2 weeks of onset of sudden sensorineural hearing loss (KAS 9a); and clinicians may offer, or refer to a clinician who can offer, hyperbaric oxygen therapy combined with steroid therapy as salvage therapy within 1 month of onset of sudden sensorineural hearing loss (KAS 9b).\nIncorporation of new evidence profiles to include quality improvement opportunities, confidence in the evidence, and differences of opinion Included 10 clinical practice guidelines, 29 new systematic reviews, and 36 new randomized controlled trials Highlights the urgency of evaluation and initiation of treatment, if treatment is offered, by emphasizing the time from symptom occurrence Clarification of terminology by changing potentially unclear statements; use of the term sudden sensorineural hearing loss to mean idiopathic sudden sensorineural hearing loss to emphasize that over 90% of sudden sensorineural hearing loss is idiopathic sudden sensorineural hearing loss and to avoid confusion in nomenclature for the reader Changes to the key action statements (KASs) from the original guideline: KAS 1: When a patient first presents with sudden hearing loss, conductive hearing loss should be distinguished from sensorineural. KAS 2: The utility of history and physical examination when assessing for modifying factors is emphasized. KAS 3: The word routine is added to clarify that this statement addresses a nontargeted head computed tomography scan that is often ordered in the emergency room setting for patients presenting with sudden hearing loss. It does not refer to targeted scans such as a temporal bone computed tomography scan to assess for temporal bone pathology. KAS 4: The importance of audiometric confirmation of hearing status as soon as possible and within 14 days of symptom onset is emphasized. KAS 5: New studies were added to confirm the lack of benefit of nontargeted laboratory testing in sudden sensorineural hearing loss. KAS 6: Audiometric follow-up is excluded as a reasonable workup for retrocochlear pathology. Magnetic resonance imaging, computed tomography scan if magnetic resonance imaging cannot be done, or, secondarily, auditory brainstem response evaluation are the modalities recommended. A time frame for such testing is not specified, nor is it specified which clinician should be ordering this workup; however, it is implied that it would be the general or subspecialty otolaryngologist. KAS 7: The importance of shared decision making is highlighted, and salient points are emphasized. KAS 8: The option for corticosteroid intervention within 2 weeks of symptom onset is emphasized. KAS 9: Changed to KAS 9a and 9b; hyperbaric oxygen therapy remains an option but only when combined with steroid therapy for either initial treatment (9a) or for salvage therapy (9b). The timing is within 2 weeks of onset for initial therapy and within 1 month of onset of sudden sensorineural hearing loss for salvage therapy. KAS 10: Intratympanic steroid therapy for salvage is recommended within 2 to 6 weeks following onset of sudden sensorineural hearing loss. The time to treatment is defined and emphasized. KAS 11: Antioxidants were removed from the list of interventions that the clinical practice guideline recommends against using. KAS 12: Follow-up audiometry at conclusion of treatment and also within 6 months posttreatment is added. KAS 13: This statement on audiologic rehabilitation includes patients who have residual hearing loss and/or tinnitus who may benefit from treatment. Addition of an algorithm outlining KASs Enhanced emphasis on patient education and shared decision making with tools provided to assist in the same.",
+        "sha256": "949eec9128974f099f7026919ddd8b430bd76d1110239e0229c543d583e31fd8",
+        "retrieved_at": "2026-09-19T01:26:01.322443+00:00"
+      },
+      {
+        "id": "34709348",
+        "title": "Hyperbaric Oxygen Therapy for Patients With Sudden Sensorineural Hearing Loss: A Systematic Review and Meta-analysis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34709348/",
+        "abstract": "Sudden sensorineural hearing loss (SSNHL) is an acute, usually unilateral deficit. Systemic and intratympanic steroids are accepted treatments. Although evidence suggests that hyperbaric oxygen therapy (HBOT) may be beneficial, it is not widely offered.\nTo review and evaluate recent evidence of the association of HBOT with hearing outcomes in SSNHL and to determine if HBOT should be a single or part of a combination treatment regimen.\nCochrane Central Register of Controlled Trials, PubMed, EMBASE, CINAHL, Web of Science, CAB, ICTRP, Google Scholar, Clinicaltrials.gov, and ISRCTN databases were searched for randomized controlled trials (RCTs) published in English from January 1, 2000, and April 30, 2020.\nProspective RCTs involving only adult participants (\u226518 years) with SSNHL and comparing HBOT, as a single or combination therapy, with control therapies, such as steroids and/or placebo. Only RCTs that used the American Academy of Otolaryngology-Head and Neck Surgery's diagnostic criteria for SSNHL were included.\nData were extracted independently by 2 researchers. A fixed-effects model was used for analysis and performed from November 30, 2020, to May 20, 2021.\nThe mean difference in absolute hearing gain recorded by pure-tone audiometric (PTA) thresholds averaged across 4 low (0.5, 1, 2, and 3 or 4 kHz) or 3 high (3 or 4, 6, and 8 kHz) frequencies was the primary outcome. The secondary outcomes were the odds ratio of hearing recovery defined as a hearing gain of \u226510 decibels (dB) in PTA average and treatment-related adverse effects.\nOf the 826 records initially identified, 358 duplicates and 451 articles were excluded based on article type, title, and abstract. The full texts of 17 articles were reviewed, of which 14 were excluded because they were either not prospective RCTs (11 articles), the participants were less than 18 years old (2 articles), or the PTA was not reported at frequencies of interest (1 article). Three prospective RCTs with a total of 88 participants who received HBOT in the intervention groups and 62 participants who received only medical therapy in the control groups were studied. The intergroup difference in mean absolute hearing gain (mean difference, 10.3 dB; 95% CI, 6.5-14.1 dB; I2\u2009=\u20090%) and the odds ratio of hearing recovery (4.3; 95% CI, 1.6-11.7; I2\u2009=\u20090%) favored HBOT over the control therapy.\nIn this systematic review and meta-analysis, HBOT as part of a combination treatment was significantly associated with improved hearing outcomes in patients with SSNHL over control treatments.\nPROSPERO Identifier: CRD42020193191.",
+        "sha256": "69b8187453504d9a605e7e87cf6ee28616f72bf5eeb08331a0d935cb3f21b8d4",
+        "retrieved_at": "2026-09-19T01:26:02.386108+00:00",
+        "pmcid": "PMC8554691"
+      },
+      {
+        "id": "35867413",
+        "title": "Intratympanic corticosteroids for sudden sensorineural hearing loss.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35867413/",
+        "abstract": "Idiopathic sudden sensorineural hearing loss (ISSNHL) is common, and defined as a sudden decrease in sensorineural hearing sensitivity of unknown aetiology. Systemic corticosteroids are widely used, however their value remains unclear. Intratympanic injections of corticosteroids have become increasingly common in the treatment of ISSNHL.\nTo assess the effects of intratympanic corticosteroids in people with ISSNHL.\nThe Cochrane ENT Information Specialist searched the Cochrane ENT Trials Register; CENTRAL (2021, Issue 9); PubMed; Ovid Embase; CINAHL; Web of Science; ClinicalTrials.gov; ICTRP and additional sources for published and unpublished trials (search date 23 September 2021).\nWe included randomised controlled trials (RCTs) involving people with ISSNHL and follow-up of over a week. Intratympanic corticosteroids were given as primary or secondary treatment (after failure of systemic therapy).\nWe used standard Cochrane methods, including GRADE to assess the certainty of the evidence. Our primary outcome was change in hearing threshold with pure tone audiometry. Secondary outcomes included the proportion of people whose hearing improved, final hearing threshold, speech audiometry, frequency-specific hearing changes and adverse effects.\nWe included 30 studies, comprising 2133 analysed participants. Some studies had more than two treatment arms and were therefore relevant to several comparisons. Studies investigated intratympanic corticosteroids as either primary (initial) therapy or secondary (rescue) therapy after failure of initial treatment. 1. Intratympanic corticosteroids versus systemic corticosteroids as primary therapy We identified 16 studies (1108 participants). Intratympanic therapy may result in little to no improvement in the change in hearing threshold (mean difference (MD) -5.93 dB better, 95% confidence interval (CI) -7.61 to -4.26; 10 studies; 701 participants; low-certainty). We found little to no difference in the proportion of participants whose hearing was improved (risk ratio (RR) 1.04, 95% CI 0.97 to 1.12; 14 studies; 972 participants; moderate-certainty). Intratympanic therapy may result in little to no difference in the final hearing threshold (MD -3.31 dB, 95% CI -6.16 to -0.47; 7 studies; 516 participants; low-certainty). Intratympanic therapy may increase the number of people who experience vertigo or dizziness (RR 2.53, 95% CI 1.41 to 4.54; 1 study; 250 participants; low-certainty) and probably increases the number of people with ear pain (RR 15.68, 95% CI 6.22 to 39.49; 2 studies; 289 participants; moderate-certainty). It also resulted in persistent tympanic membrane perforation (range 0% to 3.9%; 3 studies; 359 participants; very low-certainty), vertigo/dizziness at the time of injection (1% to 21%, 3 studies; 197 participants; very low-certainty) and ear pain at the time of injection (10.5% to 27.1%; 2 studies; 289 participants; low-certainty). 2. Intratympanic plus systemic corticosteroids (combined therapy) versus systemic corticosteroids alone as primary therapy We identified 10 studies (788 participants). Combined therapy may have a small effect on the change in hearing threshold (MD -8.55 dB better, 95% CI -12.48 to -4.61; 6 studies; 435 participants; low-certainty). The evidence is very uncertain as to whether combined therapy changes the proportion of participants whose hearing is improved (RR 1.27, 95% CI 1.15 to 1.41; 10 studies; 788 participants; very low-certainty). Combined therapy may result in slightly lower (more favourable) final hearing thresholds but the evidence is very uncertain, and it is not clear whether the change would be important to patients (MD -9.11 dB, 95% CI -16.56 to -1.67; 3 studies; 194 participants; very low-certainty). Some adverse effects only occurred in those who received combined therapy. These included persistent tympanic membrane perforation (range 0% to 5.5%; 5 studies; 474 participants; very low-certainty), vertigo or dizziness at the time of injection (range 0% to 8.1%; 4 studies; 341 participants; very low-certainty) and ear pain at the time of injection (13.5%; 1 study; 73 participants; very low-certainty).\u00a0 3. Intratympanic corticosteroids versus no treatment or placebo as secondary therapy We identified seven studies (279 participants). Intratympanic therapy may have a small effect on the change in hearing threshold (MD -9.07 dB better, 95% CI -11.47 to -6.66; 7 studies; 280 participants; low-certainty). Intratympanic therapy may result in a much higher proportion of participants whose hearing is improved (RR 5.55, 95% CI 2.89 to 10.68; 6 studies; 232 participants; low-certainty). Intratympanic therapy may result in lower (more favourable) final hearing thresholds (MD -11.09 dB, 95% CI -17.46 to -4.72; 5 studies; 203 participants; low-certainty). Some adverse effects only occurred in those who received intratympanic injection. These included persistent tympanic membrane perforation (range 0% to 4.2%; 5 studies; 185 participants; very low-certainty), vertigo or dizziness at the time of injection (range 6.7% to 33%; 3 studies; 128 participants; very low-certainty) and ear pain at the time of injection (0%; 1 study; 44 participants; very low-certainty).\u00a0 4. Intratympanic plus systemic corticosteroids (combined therapy) versus systemic corticosteroids alone as secondary therapy We identified one study with 76 participants. Change in hearing threshold was not reported. Combined therapy may result in a higher proportion with hearing improvement, but the evidence is very uncertain (RR 2.24, 95% CI 1.10 to 4.55; very low-certainty). Adverse effects were poorly reported with only data for persistent tympanic membrane perforation (rate 8.1%, very low-certainty).\nMost of the evidence in this review is low- or very low-certainty, therefore it is likely that further studies may change our conclusions.\u00a0\u00a0 For primary therapy, intratympanic corticosteroids may have little or no effect compared with systemic corticosteroids. There may be a slight benefit from combined treatment when compared with systemic treatment alone, but the evidence is uncertain. For secondary therapy, there is low-certainty evidence that intratympanic corticosteroids, when compared to no treatment or placebo, may result in a much higher proportion of participants whose hearing is improved, but may only have a small effect on the change in hearing threshold. It is very uncertain whether there is additional benefit from combined treatment over systemic steroids alone. Although adverse effects were poorly reported, the different risk profiles of intratympanic treatment (including tympanic membrane perforation, pain and dizziness/vertigo) and systemic treatment (for example, blood glucose problems) should be considered when selecting appropriate treatment.",
+        "sha256": "fff8edb9fa10be5ddc514ac078a13ab24b42e3056c4acf89209f87253d64c442",
+        "retrieved_at": "2026-09-19T01:26:02.386108+00:00",
+        "pmcid": "PMC9307133"
+      },
+      {
+        "id": "40747804",
+        "title": "Hyperbaric Oxygen and Sudden Sensorineural Hearing Loss: A Systematic Review and Meta-Analysis.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40747804/",
+        "abstract": "Sudden sensorineural hearing loss (SSNHL) Remains a significant enigma, despite its profound impacts on affected individuals. Hyperbaric oxygen therapy (HBOT) has gained significant attention as a potential treatment, but its use remains controversial. We aimed to perform a systematic review and meta-analysis assessing the efficacy of HBOT in treating SSNHL.\nPubMed, EMBASE, CENTRAL, MEDLINE, Google Scholar, Web of Science, and Clinicaltrials.gov were searched through May 7, 2025.\nTwo investigators independently screened articles and extracted data in line with Preferred Reporting Items for Systematic Reviews and Meta-Analyses (PRISMA) guidelines. A meta-analysis calculated pooled odds ratios (ORs) using a random-effects model.\nTwenty studies (16 RCTs and four non-randomized prospective studies) were included; in total, these studies investigated 1087 patients receiving HBOT and 600 receiving medical therapy (MT) alone. Ten studies were included in a meta-analysis, which found that patients receiving HBOT in combination with MT had 2.61 higher odds of experiencing hearing recovery than those treated with MT alone (95% CI 1.86-3.68, p\u2009<\u20090.001). Subgroup analyses for HBOT + systemic steroids (SS) vs. SS alone and HBOT + SS\u2009+\u2009intratympanic steroids (ITS) vs. SS\u2009+\u2009ITS alone found higher odds of hearing recovery with HBOT (OR 2.54, 95% CI 1.63-3.97, p\u2009<\u20090.001 and OR 2.64, 95% CI 1.39-5.02, p\u2009<\u20090.001, respectively).\nThe combination of HBOT with MT is likely to provide benefit in hearing recovery for individuals with SSNHL. However, ongoing work should seek to standardize treatment protocols and data reporting to allow for more definitive conclusions.",
+        "sha256": "ae87ab83867149ac9711581a18e37d436c0f818d8dd7dd7985bc451fa5920ecd",
+        "retrieved_at": "2026-09-19T01:26:02.386108+00:00"
+      },
+      {
+        "id": "38506449",
+        "title": "Prognosis of Bilateral Sudden Sensorineural Hearing Loss: A Systematic Review and Meta-Analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38506449/",
+        "abstract": "To comprehensively examine the characteristics and prognosis of bilateral sudden sensorineural hearing loss (BSSHL) and its subtypes compared to unilateral sudden sensorineural hearing loss (USSHL).\nPubMed, Scopus, and CINAHL.\nDatabases were searched from inception to December 5, 2023, for studies reporting patient characteristics and audiometric outcomes for BSSHL and its simultaneous (Si-BSSHL) and sequential (Se-BSSHL) subtypes. Meta-analysis of continuous measures, proportions (%), mean differences (\u0394), and odds ratio (OR) were performed.\nEleven studies were included, consisting of 368 patients with BSSHL and 2,705 patients with USSHL. The pooled prevalence among all SSHL cases was 88.1% (95% CI: 81.2%-93.6%) for USSHL and 11.9% (95% CI: 6.4% to 18.8%) for BSSHL. PTA improvement following treatment with steroids was significantly worse in patients with BSSHL (\u039415.3\u2009dB; 95% CI: 14.6 to 15.9; p\u2009<\u20090.0001) compared to patients with USSHL. There was no significant difference in post-treatment PTA improvement between the BSSHL subtypes. Patients with Si-BSSHL were significantly less likely to have an idiopathic etiology (OR: 0.4; 95% CI: 0.2 to 0.8; p\u2009=\u20090.01) and significantly more likely to have an autoimmune disease etiology (OR: 27.4; 95% CI: 2.2 to 336.1; p\u2009=\u20090.01), comorbid cardiovascular disease (OR: 2.3; 95% CI: 1.1 to 5.1; p\u2009=\u20090.03), and comorbid hypertension (OR: 2.5; 95% CI: 1.6 to 3.8; p\u2009<\u20090.0001) compared to patients with USSHL.\nBSSHL is a considerably rarer form of SSHL with worse prognosis compared to USSHL. BSSHL, and Si-BSSHL in particular, has significantly greater associations with systemic pathologies compared to USSHL. Laryngoscope, 134:3883-3891, 2024.",
+        "sha256": "1134ee81a9f4995acf9f174e1eba64332df128b7cc7e303ce884e33be28d46d8",
+        "retrieved_at": "2026-09-19T01:26:02.967251+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "Audiometry and tympanometry have already confirmed acute unilateral sensorineural hearing loss without a conductive cause. Under the 2019 AAO-HNSF guideline, patients with sudden sensorineural hearing loss should be evaluated for retrocochlear pathology using MRI or auditory brainstem response (KAS 6). The guideline also strongly recommends against routine nontargeted head CT (KAS 3) and routine laboratory testing (KAS 5). Evaluation should not be deferred pending treatment response or follow-up audiometry, because audiometric follow-up alone is not an adequate retrocochlear workup. Thus A is guideline-concordant, although the detailed guideline notes that targeted CT may also be considered when MRI cannot be performed.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31369359",
+                "31369349"
+              ],
+              "reason": "Both AAO-HNSF publications explicitly recommend evaluating adults with sudden sensorineural hearing loss for retrocochlear pathology using MRI or auditory brainstem response.",
+              "source_passage_ids": [
+                "31369359:p6",
+                "31369349:p6"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31369359",
+                  "quote": "(KAS 4) In patients with sudden hearing loss, clinicians should obtain, or refer to a clinician who can obtain, audiometry as soon as possible (within 14 days of symptom onset) to confirm the diagnosis of sudden sensorineural hearing loss. (KAS 6) Clinicians should evaluate patients with sudden sensorineural hearing loss for retrocochlear pathology by obtaining magnetic resonance imaging or auditory brainstem response. (KAS 10) Clinicians should offer, or refer to a clinician who can offer, intratympanic steroid therapy when patients have incomplete recovery from sudden sensorineural hearing loss 2 to 6 weeks after onset of symptoms. (KAS 12) Clinicians should obtain follow-up audiometric evaluation for patients with sudden sensorineural hearing loss at the conclusion of treatment and within 6 months of completion of treatment."
+                },
+                {
+                  "source_id": "31369349",
+                  "quote": "The guideline update group made recommendations for the following: clinicians should assess patients with presumptive sudden sensorineural hearing loss through history and physical examination for bilateral sudden hearing loss, recurrent episodes of sudden hearing loss, and/or focal neurologic findings (KAS 2); in patients with sudden hearing loss, clinicians should obtain, or refer to a clinician who can obtain, audiometry as soon as possible (within 14 days of symptom onset) to confirm the diagnosis of sudden sensorineural hearing loss (KAS 4); clinicians should evaluate patients with sudden sensorineural hearing loss for retrocochlear pathology by obtaining a magnetic resonance imaging or auditory brainstem response (KAS 6); clinicians should offer, or refer to a clinician who can offer, intratympanic steroid therapy when patients have incomplete recovery from sudden sensorineural"
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "30093087"
+              ],
+              "reason": "The Spanish consensus explicitly recommends requesting MRI after clinical diagnosis, ideally within the first 15 days, to exclude specific causes.",
+              "source_passage_ids": [
+                "30093087:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "30093087",
+                  "quote": "Idiopathic sudden sensorineural hearing loss (ISSNHL) is a sudden, unexplained unilateral hearing loss. To update the Spanish Consensus on the diagnosis, treatment and follow-up of ISSNHL. After a systematic review of the literature from 1966 to March 2018, on MESH terms \u00ab(acute or sudden) hearing loss or deafness\u00bb, a third update was performed, including 1508 relevant papers. Regarding diagnosis, 11ISSNHL is clinically suspected, the following diagnostic tests are mandatory: otoscopy, acumetry, tonal audiometry, speech audiometry, and tympanometry, to discount conductive causes. After clinical diagnosis has been established, and before treatment is started, a full analysis should be performed. An MRI should then be requested, ideally performed during the first 15 days after diagnosis, to discount specific causes and to help to understand the physiopathological mechanisms in each case."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "31369359",
+                "31369349"
+              ],
+              "reason": "The guideline and executive summary recommend against routine head CT during the initial evaluation and clarify that this prohibition concerns nontargeted head CT rather than clinically indicated targeted temporal-bone imaging.",
+              "source_passage_ids": [
+                "31369359:p5",
+                "31369359:p9",
+                "31369349:p5",
+                "31369349:p10"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31369359",
+                  "quote": "The guideline update group made strong recommendations against the following: (KAS 3) Clinicians should not order routine computed tomography of the head in the initial evaluation of a patient with presumptive sudden sensorineural hearing loss. (KAS 5) Clinicians should not obtain routine laboratory tests in patients with sudden sensorineural hearing loss. (KAS 11) Clinicians should not routinely prescribe antivirals, thrombolytics, vasodilators, or vasoactive substances to patients with sudden sensorineural hearing loss. The guideline update group made recommendations for the following: (KAS 2) Clinicians should assess patients with presumptive sudden sensorineural hearing loss through history and physical examination for bilateral sudden hearing loss, recurrent episodes of sudden hearing loss, and/or focal neurologic findings."
+                },
+                {
+                  "source_id": "31369359",
+                  "quote": "sensorineural. KAS 2-The utility of history and physical examination when assessing for modifying factors is emphasized. KAS 3-The word \"routine\" is added to clarify that this statement addresses nontargeted head computerized tomography scan that is often ordered in the emergency room setting for patients presenting with sudden hearing loss. It does not refer to targeted scans, such as temporal bone computerized tomography scan, to assess for temporal bone pathology. KAS 4-The importance of audiometric confirmation of hearing status as soon as possible and within 14 days of symptom onset is emphasized. KAS 5-New studies were added to confirm the lack of benefit of nontargeted laboratory testing in sudden sensorineural hearing loss. KAS 6-Audiometric follow-up is excluded as a reasonable workup for retrocochlear pathology."
+                },
+                {
+                  "source_id": "31369349",
+                  "quote": "The guideline update group made strong recommendation against the following: clinicians should not order routine computed tomography of the head in the initial evaluation of a patient with presumptive sudden sensorineural hearing loss (KAS 3); clinicians should not obtain routine laboratory tests in patients with sudden sensorineural hearing loss (KAS 5); and clinicians should not routinely prescribe antivirals, thrombolytics, vasodilators, or vasoactive substances to patients with sudden sensorineural hearing loss (KAS 11)."
+                },
+                {
+                  "source_id": "31369349",
+                  "quote": "distinguished from sensorineural. KAS 2: The utility of history and physical examination when assessing for modifying factors is emphasized. KAS 3: The word routine is added to clarify that this statement addresses a nontargeted head computed tomography scan that is often ordered in the emergency room setting for patients presenting with sudden hearing loss. It does not refer to targeted scans such as a temporal bone computed tomography scan to assess for temporal bone pathology. KAS 4: The importance of audiometric confirmation of hearing status as soon as possible and within 14 days of symptom onset is emphasized. KAS 5: New studies were added to confirm the lack of benefit of nontargeted laboratory testing in sudden sensorineural hearing loss. KAS 6: Audiometric follow-up is excluded as a reasonable workup for retrocochlear pathology."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "31369359",
+                "31369349"
+              ],
+              "reason": "Both AAO-HNSF publications explicitly recommend against routine laboratory testing in sudden sensorineural hearing loss.",
+              "source_passage_ids": [
+                "31369359:p5",
+                "31369349:p5"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31369359",
+                  "quote": "The guideline update group made strong recommendations against the following: (KAS 3) Clinicians should not order routine computed tomography of the head in the initial evaluation of a patient with presumptive sudden sensorineural hearing loss. (KAS 5) Clinicians should not obtain routine laboratory tests in patients with sudden sensorineural hearing loss. (KAS 11) Clinicians should not routinely prescribe antivirals, thrombolytics, vasodilators, or vasoactive substances to patients with sudden sensorineural hearing loss. The guideline update group made recommendations for the following: (KAS 2) Clinicians should assess patients with presumptive sudden sensorineural hearing loss through history and physical examination for bilateral sudden hearing loss, recurrent episodes of sudden hearing loss, and/or focal neurologic findings."
+                },
+                {
+                  "source_id": "31369349",
+                  "quote": "The guideline update group made strong recommendation against the following: clinicians should not order routine computed tomography of the head in the initial evaluation of a patient with presumptive sudden sensorineural hearing loss (KAS 3); clinicians should not obtain routine laboratory tests in patients with sudden sensorineural hearing loss (KAS 5); and clinicians should not routinely prescribe antivirals, thrombolytics, vasodilators, or vasoactive substances to patients with sudden sensorineural hearing loss (KAS 11)."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "31369359",
+                "31369349"
+              ],
+              "reason": "Both publications state that audiometry should be obtained as soon as possible and within 14 days of symptom onset to confirm sudden sensorineural hearing loss.",
+              "source_passage_ids": [
+                "31369359:p6",
+                "31369349:p6"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31369359",
+                  "quote": "(KAS 4) In patients with sudden hearing loss, clinicians should obtain, or refer to a clinician who can obtain, audiometry as soon as possible (within 14 days of symptom onset) to confirm the diagnosis of sudden sensorineural hearing loss. (KAS 6) Clinicians should evaluate patients with sudden sensorineural hearing loss for retrocochlear pathology by obtaining magnetic resonance imaging or auditory brainstem response. (KAS 10) Clinicians should offer, or refer to a clinician who can offer, intratympanic steroid therapy when patients have incomplete recovery from sudden sensorineural hearing loss 2 to 6 weeks after onset of symptoms. (KAS 12) Clinicians should obtain follow-up audiometric evaluation for patients with sudden sensorineural hearing loss at the conclusion of treatment and within 6 months of completion of treatment."
+                },
+                {
+                  "source_id": "31369349",
+                  "quote": "The guideline update group made recommendations for the following: clinicians should assess patients with presumptive sudden sensorineural hearing loss through history and physical examination for bilateral sudden hearing loss, recurrent episodes of sudden hearing loss, and/or focal neurologic findings (KAS 2); in patients with sudden hearing loss, clinicians should obtain, or refer to a clinician who can obtain, audiometry as soon as possible (within 14 days of symptom onset) to confirm the diagnosis of sudden sensorineural hearing loss (KAS 4); clinicians should evaluate patients with sudden sensorineural hearing loss for retrocochlear pathology by obtaining a magnetic resonance imaging or auditory brainstem response (KAS 6); clinicians should offer, or refer to a clinician who can offer, intratympanic steroid therapy when patients have incomplete recovery from sudden sensorineural"
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The chart establishes acute unilateral sensorineural hearing loss by audiometry, with normal otoscopy and tympanometry and no bilateral, recurrent, or focal neurologic features. No retrocochlear evaluation has been completed. Answer A therefore supplies the relevant next assessment: MRI for retrocochlear pathology, with auditory brainstem response as a guideline-supported alternative, while correctly rejecting routine nontargeted head CT and broad laboratory screening. The detailed guideline text also distinguishes prohibited routine head CT from targeted CT that may be used in selected circumstances, so A's wording is appropriately limited to nontargeted CT. Answer B conflicts with the guideline by ordering routine CT and broad laboratories and by treating follow-up audiometry as a reason to defer retrocochlear evaluation. The question and visible clinical material identify the condition but do not disclose the intended imaging strategy. There are no prior cases against which independence could fail."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The case describes confirmed acute unilateral sudden sensorineural hearing loss with tinnitus, normal otoscopy/tympanometry, and no focal neurologic findings. Under the 2019 AAO-HNSF sudden hearing loss guideline, patients with sudden sensorineural hearing loss should be evaluated for retrocochlear pathology with MRI or auditory brainstem response. The same guideline strongly recommends against routine nontargeted head CT in the initial evaluation and against routine laboratory testing. It also states that audiometric follow-up is not an adequate substitute for retrocochlear workup. Therefore, obtaining MRI now, with ABR as a supported alternative if MRI cannot be obtained, while avoiding routine head CT and broad labs, is guideline-concordant.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.94,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31369359",
+                "31369349"
+              ],
+              "reason": "Both AAO-HNSF guideline abstracts/executive summaries state that the adult guideline covers sudden sensorineural hearing loss and recommend evaluation for retrocochlear pathology by MRI or auditory brainstem response.",
+              "source_passage_ids": [
+                "31369359:p0",
+                "31369359:p6",
+                "31369349:p0",
+                "31369349:p6"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31369359",
+                  "quote": "Sudden hearing loss is a frightening symptom that often prompts an urgent or emergent visit to a health care provider. It is frequently but not universally accompanied by tinnitus and/or vertigo. Sudden sensorineural hearing loss affects 5 to 27 per 100,000 people annually, with about 66,000 new cases per year in the United States. This guideline update provides evidence-based recommendations for the diagnosis, management, and follow-up of patients who present with sudden hearing loss. It focuses on sudden sensorineural hearing loss in adult patients aged \u226518 years and primarily on those with idiopathic sudden sensorineural hearing loss. Prompt recognition and management of sudden sensorineural hearing loss may improve hearing recovery and patient quality of life."
+                },
+                {
+                  "source_id": "31369359",
+                  "quote": "(KAS 4) In patients with sudden hearing loss, clinicians should obtain, or refer to a clinician who can obtain, audiometry as soon as possible (within 14 days of symptom onset) to confirm the diagnosis of sudden sensorineural hearing loss. (KAS 6) Clinicians should evaluate patients with sudden sensorineural hearing loss for retrocochlear pathology by obtaining magnetic resonance imaging or auditory brainstem response. (KAS 10) Clinicians should offer, or refer to a clinician who can offer, intratympanic steroid therapy when patients have incomplete recovery from sudden sensorineural hearing loss 2 to 6 weeks after onset of symptoms. (KAS 12) Clinicians should obtain follow-up audiometric evaluation for patients with sudden sensorineural hearing loss at the conclusion of treatment and within 6 months of completion of treatment."
+                },
+                {
+                  "source_id": "31369349",
+                  "quote": "Sudden hearing loss is a frightening symptom that often prompts an urgent or emergent visit to a health care provider. It is frequently, but not universally, accompanied by tinnitus and/or vertigo. Sudden sensorineural hearing loss affects 5 to 27 per 100,000 people annually, with about 66,000 new cases per year in the United States. This guideline update provides evidence-based recommendations for the diagnosis, management, and follow-up of patients who present with sudden hearing loss. It focuses on sudden sensorineural hearing loss in adult patients aged 18 and over and primarily on those with idiopathic sudden sensorineural hearing loss. Prompt recognition and management of sudden sensorineural hearing loss may improve hearing recovery and patient quality of life."
+                },
+                {
+                  "source_id": "31369349",
+                  "quote": "The guideline update group made recommendations for the following: clinicians should assess patients with presumptive sudden sensorineural hearing loss through history and physical examination for bilateral sudden hearing loss, recurrent episodes of sudden hearing loss, and/or focal neurologic findings (KAS 2); in patients with sudden hearing loss, clinicians should obtain, or refer to a clinician who can obtain, audiometry as soon as possible (within 14 days of symptom onset) to confirm the diagnosis of sudden sensorineural hearing loss (KAS 4); clinicians should evaluate patients with sudden sensorineural hearing loss for retrocochlear pathology by obtaining a magnetic resonance imaging or auditory brainstem response (KAS 6); clinicians should offer, or refer to a clinician who can offer, intratympanic steroid therapy when patients have incomplete recovery from sudden sensorineural"
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "30093087"
+              ],
+              "reason": "The Spanish consensus abstract states that after clinical diagnosis an MRI should be requested, ideally within the first 15 days, to discount specific causes.",
+              "source_passage_ids": [
+                "30093087:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "30093087",
+                  "quote": "Idiopathic sudden sensorineural hearing loss (ISSNHL) is a sudden, unexplained unilateral hearing loss. To update the Spanish Consensus on the diagnosis, treatment and follow-up of ISSNHL. After a systematic review of the literature from 1966 to March 2018, on MESH terms \u00ab(acute or sudden) hearing loss or deafness\u00bb, a third update was performed, including 1508 relevant papers. Regarding diagnosis, 11ISSNHL is clinically suspected, the following diagnostic tests are mandatory: otoscopy, acumetry, tonal audiometry, speech audiometry, and tympanometry, to discount conductive causes. After clinical diagnosis has been established, and before treatment is started, a full analysis should be performed. An MRI should then be requested, ideally performed during the first 15 days after diagnosis, to discount specific causes and to help to understand the physiopathological mechanisms in each case."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "31369359",
+                "31369349"
+              ],
+              "reason": "The AAO-HNSF guideline and executive summary recommend against routine head CT in the initial evaluation and clarify that this refers to nontargeted head CT rather than targeted temporal bone CT.",
+              "source_passage_ids": [
+                "31369359:p5",
+                "31369359:p9",
+                "31369349:p5",
+                "31369349:p10"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31369359",
+                  "quote": "The guideline update group made strong recommendations against the following: (KAS 3) Clinicians should not order routine computed tomography of the head in the initial evaluation of a patient with presumptive sudden sensorineural hearing loss. (KAS 5) Clinicians should not obtain routine laboratory tests in patients with sudden sensorineural hearing loss. (KAS 11) Clinicians should not routinely prescribe antivirals, thrombolytics, vasodilators, or vasoactive substances to patients with sudden sensorineural hearing loss. The guideline update group made recommendations for the following: (KAS 2) Clinicians should assess patients with presumptive sudden sensorineural hearing loss through history and physical examination for bilateral sudden hearing loss, recurrent episodes of sudden hearing loss, and/or focal neurologic findings."
+                },
+                {
+                  "source_id": "31369359",
+                  "quote": "sensorineural. KAS 2-The utility of history and physical examination when assessing for modifying factors is emphasized. KAS 3-The word \"routine\" is added to clarify that this statement addresses nontargeted head computerized tomography scan that is often ordered in the emergency room setting for patients presenting with sudden hearing loss. It does not refer to targeted scans, such as temporal bone computerized tomography scan, to assess for temporal bone pathology. KAS 4-The importance of audiometric confirmation of hearing status as soon as possible and within 14 days of symptom onset is emphasized. KAS 5-New studies were added to confirm the lack of benefit of nontargeted laboratory testing in sudden sensorineural hearing loss. KAS 6-Audiometric follow-up is excluded as a reasonable workup for retrocochlear pathology."
+                },
+                {
+                  "source_id": "31369349",
+                  "quote": "The guideline update group made strong recommendation against the following: clinicians should not order routine computed tomography of the head in the initial evaluation of a patient with presumptive sudden sensorineural hearing loss (KAS 3); clinicians should not obtain routine laboratory tests in patients with sudden sensorineural hearing loss (KAS 5); and clinicians should not routinely prescribe antivirals, thrombolytics, vasodilators, or vasoactive substances to patients with sudden sensorineural hearing loss (KAS 11)."
+                },
+                {
+                  "source_id": "31369349",
+                  "quote": "distinguished from sensorineural. KAS 2: The utility of history and physical examination when assessing for modifying factors is emphasized. KAS 3: The word routine is added to clarify that this statement addresses a nontargeted head computed tomography scan that is often ordered in the emergency room setting for patients presenting with sudden hearing loss. It does not refer to targeted scans such as a temporal bone computed tomography scan to assess for temporal bone pathology. KAS 4: The importance of audiometric confirmation of hearing status as soon as possible and within 14 days of symptom onset is emphasized. KAS 5: New studies were added to confirm the lack of benefit of nontargeted laboratory testing in sudden sensorineural hearing loss. KAS 6: Audiometric follow-up is excluded as a reasonable workup for retrocochlear pathology."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "31369359",
+                "31369349"
+              ],
+              "reason": "Both AAO-HNSF source passages explicitly state that clinicians should not obtain routine laboratory tests in patients with sudden sensorineural hearing loss.",
+              "source_passage_ids": [
+                "31369359:p5",
+                "31369349:p5"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31369359",
+                  "quote": "The guideline update group made strong recommendations against the following: (KAS 3) Clinicians should not order routine computed tomography of the head in the initial evaluation of a patient with presumptive sudden sensorineural hearing loss. (KAS 5) Clinicians should not obtain routine laboratory tests in patients with sudden sensorineural hearing loss. (KAS 11) Clinicians should not routinely prescribe antivirals, thrombolytics, vasodilators, or vasoactive substances to patients with sudden sensorineural hearing loss. The guideline update group made recommendations for the following: (KAS 2) Clinicians should assess patients with presumptive sudden sensorineural hearing loss through history and physical examination for bilateral sudden hearing loss, recurrent episodes of sudden hearing loss, and/or focal neurologic findings."
+                },
+                {
+                  "source_id": "31369349",
+                  "quote": "The guideline update group made strong recommendation against the following: clinicians should not order routine computed tomography of the head in the initial evaluation of a patient with presumptive sudden sensorineural hearing loss (KAS 3); clinicians should not obtain routine laboratory tests in patients with sudden sensorineural hearing loss (KAS 5); and clinicians should not routinely prescribe antivirals, thrombolytics, vasodilators, or vasoactive substances to patients with sudden sensorineural hearing loss (KAS 11)."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "31369359",
+                "31369349"
+              ],
+              "reason": "Both AAO-HNSF sources state that audiometry should be obtained as soon as possible, within 14 days of symptom onset, to confirm sudden sensorineural hearing loss.",
+              "source_passage_ids": [
+                "31369359:p6",
+                "31369349:p6"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31369359",
+                  "quote": "(KAS 4) In patients with sudden hearing loss, clinicians should obtain, or refer to a clinician who can obtain, audiometry as soon as possible (within 14 days of symptom onset) to confirm the diagnosis of sudden sensorineural hearing loss. (KAS 6) Clinicians should evaluate patients with sudden sensorineural hearing loss for retrocochlear pathology by obtaining magnetic resonance imaging or auditory brainstem response. (KAS 10) Clinicians should offer, or refer to a clinician who can offer, intratympanic steroid therapy when patients have incomplete recovery from sudden sensorineural hearing loss 2 to 6 weeks after onset of symptoms. (KAS 12) Clinicians should obtain follow-up audiometric evaluation for patients with sudden sensorineural hearing loss at the conclusion of treatment and within 6 months of completion of treatment."
+                },
+                {
+                  "source_id": "31369349",
+                  "quote": "The guideline update group made recommendations for the following: clinicians should assess patients with presumptive sudden sensorineural hearing loss through history and physical examination for bilateral sudden hearing loss, recurrent episodes of sudden hearing loss, and/or focal neurologic findings (KAS 2); in patients with sudden hearing loss, clinicians should obtain, or refer to a clinician who can obtain, audiometry as soon as possible (within 14 days of symptom onset) to confirm the diagnosis of sudden sensorineural hearing loss (KAS 4); clinicians should evaluate patients with sudden sensorineural hearing loss for retrocochlear pathology by obtaining a magnetic resonance imaging or auditory brainstem response (KAS 6); clinicians should offer, or refer to a clinician who can offer, intratympanic steroid therapy when patients have incomplete recovery from sudden sensorineural"
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The clinical data describe an adult with abrupt unilateral hearing loss and tinnitus for 4 days, normal otoscopy/tympanometry, and audiometry confirming acute asymmetric right sensorineural hearing loss. No focal neurologic findings, bilateral symptoms, recurrent episodes, trauma, or conductive explanation are documented. Under the AAO-HNSF sudden hearing loss framework, the next assessment should include evaluation for retrocochlear pathology, with MRI or ABR supported by the cited guideline text, while routine nontargeted head CT and routine laboratory panels are specifically discouraged. Candidate A matches this decision. Candidate B inappropriately substitutes routine noncontrast head CT and broad laboratory screening and defers retrocochlear evaluation, contrary to the guideline passages. The title and visible question do not disclose the answer or management plan outright; the case remains an assessment decision in otolaryngology and is distinct because no previous cases were supplied."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "67ed813ed13ca348ddef542c46d165bd24eb1212395c4e103cdbbebb7b1c8dc7"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

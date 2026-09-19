@@ -1,0 +1,402 @@
+{
+  "task_id": "onboarding-examination-v1-b8ef799a756d2d5dc30e-1",
+  "specialty": "pathology",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Morphologic assessment of an adult cutaneous lesion",
+    "question": "Which morphologic interpretation and set of visual annotations best fit the supplied H&E tissue field?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "pathology",
+      "demographics": {
+        "age_band": "60-69",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Enlarging ulcerated cutaneous lesion",
+          "since": "Several months",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Surgical pathology history",
+          "author_role": "pathology",
+          "text": "An adult man presented with a gradually enlarging, nonpigmented cutaneous lesion on a chronically sun-exposed site. The lesion had developed surface scale and focal ulceration over several months. A tissue sample was obtained and submitted for routine histologic examination. No prior skin malignancy is documented, and no ancillary stains or additional tissue levels are available for this exercise.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "pathology",
+          "label": "H&E tissue section",
+          "findings": "The field contains surface ulceration and marked hyperkeratosis. Irregular nests and tongues of eosinophilic squamous cells extend into the dermis. Several nests show central concentric keratinization, including a prominent keratin pearl, with surrounding stromal inflammation.",
+          "measurements": [],
+          "impression": null,
+          "asset": {
+            "asset_id": "onboarding-image-ff98b0cdf80bc6c075b8a266",
+            "mime": "image/png",
+            "sha256": "ff98b0cdf80bc6c075b8a2668c8f2ca468d30a08d652c6fb3182654ae530a758",
+            "width": 1359,
+            "height": 1624,
+            "byte_size": 4691252,
+            "page": null,
+            "page_count": null,
+            "source": "public_domain_reference"
+          },
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [],
+        "disclaimers": [
+          "Synthetic patient scenario paired with a public-domain reference micrograph (CC0). The image is not from this fictional patient or a health-system partner. Assess the visible field only; this is not a whole-slide examination."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "hidden",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for single-field morphologic interpretation",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "Candidate B correctly interprets the field as invasive, keratinizing cutaneous squamous cell carcinoma. The supporting annotations are the dermal nests and tongues of eosinophilic squamous cells, central concentric keratinization forming keratin pearls, and overlying ulceration with hyperkeratosis. Candidate A is consequentially flawed because it misdiagnoses basal cell carcinoma and assigns peripheral palisading and stromal retraction to structures that instead demonstrate squamous maturation and keratinization.",
+        "evidence": {
+          "supported_interpretation": "Invasive keratinizing cutaneous squamous cell carcinoma",
+          "flawed_interpretation": "Basal cell carcinoma"
+        },
+        "key_data": [
+          "Irregular nests and tongues of squamous cells extend into the dermis.",
+          "Tumor nests contain central concentric keratinization and a prominent keratin pearl.",
+          "The surface demonstrates ulceration and marked hyperkeratosis.",
+          "The field lacks the basaloid peripheral palisading and tumor-stroma retraction expected for basal cell carcinoma."
+        ]
+      },
+      "hard_hook": "Distinguish true keratin pearls and dermal squamous invasion from purported basaloid palisading and retraction.",
+      "reasoning_divergence": "The candidates assign the same rounded dermal structures to different lines of differentiation: central squamous keratinization versus peripheral basaloid organization."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "The field represents basal cell carcinoma. Annotate the rounded dermal aggregates as basaloid tumor nests with peripheral palisading and stromal retraction; mark the thick surface keratin and ulceration as secondary reactive changes rather than evidence of squamous differentiation."
+      },
+      {
+        "id": "B",
+        "text": "The field represents invasive keratinizing cutaneous squamous cell carcinoma. Annotate irregular nests and tongues extending into the dermis, eosinophilic squamous maturation with central concentric keratin pearls, and the overlying ulceration with marked hyperkeratosis."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "cutaneous squamous cell carcinoma",
+      "dermal invasion",
+      "keratin pearl",
+      "basal cell carcinoma",
+      "ulceration"
+    ],
+    "evidence_keywords": [
+      "atypical keratinocytes",
+      "central keratinization",
+      "invasive nests",
+      "hyperkeratosis",
+      "peripheral palisading"
+    ],
+    "error_tags": [
+      "wrong_diagnosis"
+    ],
+    "claims": [
+      {
+        "statement": "Dermal invasion by nests of atypical keratinocytes with keratin-pearl formation supports invasive squamous cell carcinoma.",
+        "source_ids": [
+          "40687210"
+        ]
+      },
+      {
+        "statement": "Atypical squamous cells that cross the basement membrane and invade the dermis establish invasive rather than in situ carcinoma.",
+        "source_ids": [
+          "40687210"
+        ]
+      },
+      {
+        "statement": "Basal cell carcinoma instead characteristically shows basaloid nests with peripheral palisading and tumor-stroma retraction.",
+        "source_ids": [
+          "40687210"
+        ]
+      },
+      {
+        "statement": "The reference field is described as showing ulceration, hyperkeratosis, and dermal nests of eosinophilic squamous cells with central keratinization.",
+        "source_ids": [
+          "reference-slide-examination"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T01:18:32.157316+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "40687210",
+        "title": "Educational Case: Squamous cell carcinoma.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40687210/",
+        "abstract": "",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "retrieved_at": "2026-09-19T01:17:27.688341+00:00",
+        "source_type": "peer_reviewed_pathology_teaching",
+        "pmcid": "PMC12271062",
+        "body_excerpts": "Primary objective:\nObjective SK5.2: Malignant Skin Neoplasms. Describe the clinical presentation, precursor lesions, risk factors, and hereditary cancer syndromes that lead to the following skin cancers: basal cell carcinomas, squamous cell carcinoma, and melanoma.\n\nQuestions/discussion points, Part 1 > Based on the patient's history and the physical exam, what are the main differential diagnoses to consider?\nGiven the patient's age, fair skin and significant UV exposure (obtained through his occupations as a welder and farmer), the top differential for a nonpigmented lesion is a primary skin cancer such as squamous cell carcinoma, basal cell carcinoma or amelanotic melanoma. The risk of all three of these skin cancers is increased with increased UV light exposure. 2 Melanomas are typically pigmented lesions (although there are amelanotic melanomas), and our patient's lesion is nonpigmented, which makes a diagnosis of melanoma less likely. Although the patient does not have any significant medical history, another differential to consider would be a cutaneous metastasis from an unknown primary malignancy.\n\nQuestions/discussion points, Part 1 > What is the next step in management of the patient?\nTo determine what is causing this patient's skin lesion, a sample must be taken and sent to pathology. Because a neoplastic process is favored, the patient undergoes a shave biopsy. Punch biopsies are generally preferred when the clinical suspicion is for an inflammatory process.\n\nQuestions/discussion points, Part 2 > Describe the histologic findings from the patient's biopsy. What is the diagnosis?\nA histologic image of the entire biopsy is shown in Fig. 1 . The biopsy shows sheets and nests of atypical keratinocytes that are invading through the dermis. The neoplastic cells can be defined as keratinocytes due to the presence of intercellular attachments (desmosomes) between cells. 3 The keratinocytes have abundant eosinophilic cytoplasm, prominent nucleoli, and large, pleomorphic nuclei ( Fig. 2 , Fig. 3 ). There are areas where the neoplastic keratinocytes have produced an abundance of keratin, called keratin pearls ( Fig. 4 ). The skin also shows significant sun damage, as evidenced by solar elastosis, a fibrillary gray material in the upper dermis ( Fig. 5 ). 4\n\nQuestions/discussion points, Part 2 > Describe the histologic findings from the patient's biopsy. What is the diagnosis?\nBased on the findings in this biopsy specimen, the diagnosis is invasive squamous cell carcinoma.\n\nQuestions/discussion points, Part 2 > In this patient, can a basal cell carcinoma be excluded as a diagnostic consideration?\nBasal cell carcinoma is the most common primary skin malignancy. 2 It is an important diagnosis to consider in a patient with this presentation. Basal cell carcinomas are also related to UV exposure and are common on the head and neck. 5 , 6 They clinically present as a pearly papule with prominent telangiectasias. 5 Histologically, they are comprised of darkly hematoxylin-staining (basaloid) cells arranged in nests and nodules, with a palisading of tumor cells around the edges of the nests ( Fig. 6 ). 7 Basal cell carcinomas show numerous mitoses, apoptotic cells, mucin and a retraction of the tumor cells away from the stroma ( Fig. 6 ). 7\n\nQuestions/discussion points, Part 2 > Is there an immunohistochemical stain that can help us delineate between squamous cell carcinoma and basal cell carcinoma?\nLesions often show features that overlap with multiple different diagnoses, and in such situations, immunohistochemistry can be helpful in establishing the correct diagnosis. In a lesion that shows features of both basal cell carcinoma and squamous cell carcinoma, the monoclonal antibody Ber-EP4 can be used. It is almost always positive in basal cell carcinoma and negative in squamous cell carcinoma. 8 Additionally, epithelial membrane antigen (EMA) is an immunohistochemical stain that has a high rate of positivity in squamous cell carcinomas and a low rate of positivity in basal cell carcinomas, making it useful in differentiating between these two diagnoses. 9\n\nQuestions/discussion points, Part 2 > What is the next step for the patient?\nNow that a diagnosis of invasive squamous cell carcinoma has been made, the patient needs to have the remainder of the lesion excised with negative margins. Additionally, a physical exam checking for lymphadenopathy is warranted.\n\nQuestions/discussion points, Part 3 > What environmental factors lead to the development of squamous cell carcinoma?\nThe most important modifiable risk factor for the development of cutaneous squamous cell carcinoma is cumulative UV light exposure. 2 , 11 Immunosuppression also carries a higher risk of squamous cell carcinoma. This is particularly relevant in patients who have received an organ transplant or those with a hematolymphoid neoplasm. 11 Patients on long-term immunosuppression have decreased immune-mediated tumor surveillance, increased susceptibility to oncogenic viruses, and deal with the direct consequences of immunosuppressive agents on initiation of cutaneous cancers. 12\n\nQuestions/discussion points, Part 3 > What environmental factors lead to the development of squamous cell carcinoma?\nAdditional risk factors include HIV, high levels of arsenic exposure and chronic wounds. 13 , 14 , 15\n\nQuestions/discussion points, Part 3 > What are the precursor lesions to squamous cell carcinoma?\nWhen the keratinocytes in sun-damaged skin begin to become atypical, the lesion is termed actinic keratosis. If the atypical keratinocytes spread through the entire epidermis (full-thickness atypia) but are still contained within the basement membrane, the lesion is called squamous cell carcinoma in situ ( Fig. 7 ). When the atypical cells break through the basement membrane and invade into the dermis, invasive squamous cell carcinoma is diagnosed ( Fig. 8 ). 11\n\nQuestions/discussion points, Part 3 > What conditions are associated with multiple basal cell carcinomas and what genetic mutations are implicated?\nGorlin syndrome is an autosomal dominant disorder characterized by mutations in the hedgehog signaling pathway. 16 The hedgehog signaling pathway is crucial for numerous tissue homeostatic and developmental processes and when altered by mutations, the unregulated activation of this pathway has been demonstrated to be the key molecular driver in the development of these tumors. 17 Clinically, patients develop multiple basal cell carcinomas in childhood. 18 A mutation in the tumor suppressor gene, PTCH1 , is present in approximately 70% of patients with this syndrome. 19 , 20\n\nQuestions/discussion points, Part 3 > What conditions are associated with multiple basal cell carcinomas and what genetic mutations are implicated?\nXeroderma pigmentosum is an autosomal recessive condition caused by mutations in XPA-XPF genes that are involved in nuclear excision repair of DNA damaged by UV radiation. 21 These patients have 10,000 times the risk of developing nonmelanotic skin cancer as compared to the general population. 21 The exaggerated response to UV damage leads to premature skin aging and early development of squamous cell carcinoma, basal cell carcinoma, and malignant melanoma, with many patients experiencing their first skin cancer around age nine. 21\n\nQuestions/discussion points, Part 3 > What important preventive measures should be recommended to the patient?\nThis patient should be wearing sunscreen each day and should wear the appropriate personal protective equipment (PPE) while working as a welder and farmer. Additionally, avoiding sun exposure during peak sunlight hours, wearing sun protective clothing, and seeking shade are recommended to reduce his risk of additional skin cancers. 2\n\nTeaching points\nSquamous cell carcinoma, basal cell carcinoma, and melanoma are cutaneous skin cancers that are associated with UV light exposure. The risk of squamous cell carcinoma is increased in patients with organ transplantation or with hematolymphoid neoplasms.\n\nTeaching points\nBasal cell carcinoma is the most common skin malignancy and, in rare cases, can be associated with Gorlin syndrome (multiple basal cell carcinomas at an early age). Mutations in the PTCH1 gene cause unregulated activation of the hedgehog signalizing pathway, which significantly contributes to tumor development.\n\nTeaching points\nThe precursor lesions to invasive squamous cell carcinoma are actinic keratosis and squamous cell carcinoma in situ.\n\nTeaching points\nPatients should be counseled to wear sunscreen and sun protective clothing, avoid peak sunlight hours, and make sure to mitigate occupational risks.",
+        "body_excerpts_sha256": "791aebe64b2ab23d343092b27d577ad48f19f2acd171c02e40edd3377fc4ad31",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12271062/fullTextXML",
+        "body_license_url": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "42248744",
+        "title": "European consensus-based interdisciplinary guideline for invasive cutaneous squamous cell carcinoma. Part 1: Diagnostics and prevention - Update 2026.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/42248744/",
+        "abstract": "Invasive cutaneous squamous cell carcinoma (CSCC) is one of the most common cancers in white populations, accounting for 20% of all cutaneous malignancies. A collaboration of multidisciplinary experts from the European Association of Dermato-Oncology (EADO), the European Dermatology Forum (EDF), the European Society for Radiotherapy and Oncology (ESTRO), the European Union of Medical Specialists (UEMS)-Dermatology Venereology, and the European Organization of Research and Treatment of Cancer (EORTC), was formed to update guideline recommendations on CSCC (previous version 2023), based on current literature and expert consensus. Part 1 of the guidelines addresses diagnostics and prevention in immunocompetent as well as immunosuppressed patients. CSCC may be classified as easy-to-treat (vast majority) or difficult-to-treat, common primary CSCC, and is further defined as low risk or higher risk depending on the risk of recurrence or metastasis. A new classification of five groups of difficult-to-treat CSCC (DTT-CSCC) is proposed, published in 2025 by EADO experts and reflecting the commonly encountered clinical challenges. Difficult-to-treat (DTT) CSCC includes DTT-common CSCC groups 1 and 2 (which correspond to a subgroup of common CSCC that are complex to treat due to tumor and/or patient characteristics or multiplicity), DTT-CSCC group 3 corresponding to locally advanced CSCC, and DTT-CSCC groups 4 and 5 corresponding to CSCC with locoregional or distant metastases, respectively. The first step of diagnostics is based on clinical and dermatoscopic features, and is always confirmed by histopathology. The presence of risk factors characterizes higher risk CSCC, and the more risk factors, the higher the risk. After the histological diagnosis of CSCC has been established, the second step includes staging procedures, such as physical examination and, when indicated, imaging. In the third and final step, the clinical, histologic and radiologic findings are incorporated into staging systems. The more widely used staging systems are the American Joint Committee on Cancer 8th edition (AJCC8) and the Brigham and Women's Hospital (BWH) systems. Prevention strategies include oral nicotinamide and sun protection measures.",
+        "sha256": "4edbc599562fddd756d6751d1fbdc55e60ce408c2569e1241c61bebb0f96f60d",
+        "retrieved_at": "2026-09-19T01:17:30.124412+00:00"
+      },
+      {
+        "id": "41833367",
+        "title": "Desmoplastic Cutaneous Squamous Cell Carcinoma Is an Aggressive and Potentially Fatal Skin Cancer: A Systematic Review.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41833367/",
+        "abstract": "The incidence and mortality of cutaneous squamous cell carcinoma (cSCC) are increasing. Desmoplastic cSCC (dcSCC) is an uncommon yet highly aggressive variant which has received relatively little attention in the literature. No systematic reviews of dcSCC are currently available. This paper aims to summarize the current understanding of the behavior of dcSCC by conducting a systematic review of published series with particular focus on outcomes. A comprehensive search was conducted for original series in English. Six studies reporting a total of 286 dcSCC were included in the final analysis. Most series were single site and retrospective. Pooled estimates demonstrated\u2009local recurrence rate 30% (95% CI: 24%-36%, p\u2009=\u20090.765), nodal metastasis 17% (95% CI: 12%-22%, p\u2009=\u20090.158), distant metastasis 5% (95% CI: 2%-9%, p\u2009=\u20090.574) and disease-specific death 12% (95% CI: 3%-36%, p\u2009=\u20090.047), outcomes which are considerably worse than non-dcSCC. The findings confirm the aggressive nature of dcSCC and suggest early aggressive treatment is warranted. However, given the limitations of existing studies, there is a need for large, prospective, multicentre studies to better define prognostic factors and optimize management strategies.",
+        "sha256": "1212ad6e0d7050a0654a4e72c737db6db830c00d9e248f16f95d48b530279068",
+        "retrieved_at": "2026-09-19T01:17:31.995342+00:00",
+        "pmcid": "PMC13136062",
+        "body_excerpts": "Introduction > Rationale\nThe incidence of cutaneous squamous cell carcinoma (cSCC) is increasing worldwide, resulting in an estimated 64 000 deaths in 2020 [ 1 ]. As the second most common human malignancy, cSCC is extremely common; however, the majority of cases are identified early and easily cured with local therapies [ 2 ]. However, a minority subset of cases show aggressive behavior, which can result in local recurrence, metastasis, and death [ 3 ]. The prognosis of cSCC is strongly influenced by stage, with survival falling significantly once metastasis has occurred [ 4 ]. Therefore, identifying and treating high\u2010risk tumors early is critical to improving outcomes [ 5 ].\n\nIntroduction > Rationale\nConsiderable efforts have been made to identify features which predict poor outcomes for cSCC. High\u2010risk features include both patient\u2010related factors such as immunosuppression and neurological symptoms and tumor\u2010related factors such as large tumor size, histological poor differentiation, deep invasion, perineural invasion (PNI), satellitosis/in transit metastasis (SITM), lymphatic or vascular invasion (LVI), and the desmoplastic cutaneous squamous cell carcinoma (dcSCC) subtype [ 5 , 6 ]. The dcSCC subtype itself is strongly predictive of a poor outcome, with the NCCN Clinical Practice Guideline classifying it as \u201cVery High Risk\u201d and recommending more aggressive local treatment such as adjuvant radiotherapy and more frequent follow\u2010up [ 6 ].\n\nMethod > Information Sources and Search Strategy\nA comprehensive search of PubMed and Web of Science was performed on 20 October 2024 for the following terms: (skin OR cutaneous) AND (\u201csquamous cell carcinoma\u201d) AND (desmoplastic OR sclerosing).\n\nResults\nParenthetically, there is very little written about the clinical appearance of dcSCC and the features do not appear to be distinctive. Reports describe a variety of appearances ranging from scaly erythematous plaques to raised firm nodules [ 9 , 15 ]. Lesions may be large and ulcerated or may be mistaken for sclerosing basal cell carcinoma or desmoplastic melanoma [ 10 , 24 ]. In the authors' personal experience, clinical features of dcSCC are not distinct from those of conventional cSCC.\n\nDiscussion\nInterestingly, most dcSCC are not poorly differentiated, with only 12% recorded as such. In this review, the histological grades of the tumors as proffered by the original authors were accepted, but only 3 of 6 articles included unequivocal grading information. Velasquez et al. described cases of spindle cell dcSCC with areas \u201clargely devoid of significant cytological atypia\u201d [ 14 ]. This presented a dilemma, as spindle cell SCC is poorly differentiated by definition according to the WHO classification; however, the classification also states that spindle cell SCC \u201cis composed of closely packed fascicles of pleomorphic spindle cells, with frequent mitotic activity.\u201d Due to this ambiguity, the 6 cases described by Velasquez et al. were excluded from our analysis of grading.\n\nDiscussion\nThe terminology for dcSCC has not been consistent and series are not necessarily directly comparable [ 41 ]. For example, the first report to coin the term \u201cdesmoplastic cutaneous squamous cell carcinoma\u201d was Haneke in 1989; however, in 1986 Frierson and Cooper published a series of 187 SCC of the lower lip and defined a subgroup with a dispersed pattern of invasion; 13% of their cases had the dispersed pattern and 77% of those patients developed metastases [ 7 , 42 ]. Those cases may be equivalent to dcSCC, although it is acknowledged that it is not clear if these represent cases of SCC from the mucosal lip or cutaneous lip.\n\nDiscussion\nIt is tempting to draw parallels between desmoplastic melanoma and dcSCC; however, there is little to recommend this approach. Both show a tendency to PNI, and both are characterized by abundant collagenous stroma. However, desmoplastic melanoma features highly characteristic, relatively bland, spindle\u2010shaped tumor cells that are different from other melanomas, while dcSCC tumor cells do not differ from the cells of non\u2010dcSCC. Importantly, desmoplastic melanoma has a better prognosis than other melanoma subtypes, while dcSCC has a worse prognosis than non\u2010dcSCC.\n\nDiscussion\nSeveral recently published articles and abstracts offer promising glimpses at the biology of dcSCC. Hirakawa et al. found differences in collagen structure and protein expression in both the tumor keratinocytes and the eponymous stroma of dcSCC compared to non\u2010dcSCC by the application of RNA sequencing and multispectral immunofluorescence [ 43 ]. Schmults et al. used spatial transcriptomics to demonstrate that the tumor keratinocytes in dcSCC show gene expression profiles that were dissimilar to non\u2010dcSCC. The gene expression profiles were intermediate between fibroblasts and keratinocytes [ 43 ]. Gomez\u2010de Castro et al. found statistically significant associations between dcSCC and loss of expression of p21 and phosphorylated S6 ribosomal protein, both of which are involved in cell cycle regulation [ 44 ].",
+        "body_excerpts_sha256": "c6edcf35ec1664e5856c0a6a46bb9b242ab267068686b3de476cbdfe02081f11",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC13136062/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "reference-slide-examination",
+        "title": "Reference H&E micrograph",
+        "url": "https://commons.wikimedia.org/wiki/File:Ulcer_border_of_a_squamous_cell_skin_cancer.jpg",
+        "abstract": "H&E reference micrograph of cutaneous squamous cell carcinoma showing ulceration, hyperkeratosis and dermal invasion by nests of eosinophilic squamous cells with central keratinization.",
+        "sha256": "a6e083f0a7feb2bb00ce99d07633914ee97cf851b606ada706e610bbb54bab59"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The H&E field shows invasive irregular nests and tongues of eosinophilic squamous cells in the dermis, with prominent concentric keratin pearls and overlying marked hyperkeratosis/ulcerative change. These findings support well-differentiated invasive keratinizing cutaneous squamous cell carcinoma. Basal cell carcinoma would instead show basaloid nests with peripheral palisading and stromal retraction, which are not the dominant features here. This interpretation matches the cited teaching source describing invasive SCC as dermal nests of atypical keratinocytes with abundant eosinophilic cytoplasm and keratin-pearl formation.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.99,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "40687210"
+              ],
+              "source_passage_ids": [
+                "40687210:p2"
+              ],
+              "reason": "The passage directly links dermal invasion by atypical keratinocyte nests and keratin-pearl formation with invasive squamous cell carcinoma.",
+              "source_quotes": [
+                {
+                  "source_id": "40687210",
+                  "quote": "The biopsy shows sheets and nests of atypical keratinocytes that are invading through the dermis. The neoplastic cells can be defined as keratinocytes due to the presence of intercellular attachments (desmosomes) between cells. 3 The keratinocytes have abundant eosinophilic cytoplasm, prominent nucleoli, and large, pleomorphic nuclei ( Fig. 2 , Fig. 3 ). There are areas where the neoplastic keratinocytes have produced an abundance of keratin, called keratin pearls ( Fig. 4 ). The skin also shows significant sun damage, as evidenced by solar elastosis, a fibrillary gray material in the upper dermis ( Fig. 5 ). 4 Questions/discussion points, Part 2 > Describe the histologic findings from the patient's biopsy. What is the diagnosis? Based on the findings in this biopsy specimen, the diagnosis is invasive squamous cell carcinoma."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "40687210"
+              ],
+              "source_passage_ids": [
+                "40687210:p7"
+              ],
+              "reason": "The passage explicitly defines invasion through the basement membrane into the dermis as invasive squamous cell carcinoma.",
+              "source_quotes": [
+                {
+                  "source_id": "40687210",
+                  "quote": "When the atypical cells break through the basement membrane and invade into the dermis, invasive squamous cell carcinoma is diagnosed ( Fig. 8 ). 11 Questions/discussion points, Part 3 > What conditions are associated with multiple basal cell carcinomas and what genetic mutations are implicated? Gorlin syndrome is an autosomal dominant disorder characterized by mutations in the hedgehog signaling pathway. 16 The hedgehog signaling pathway is crucial for numerous tissue homeostatic and developmental processes and when altered by mutations, the unregulated activation of this pathway has been demonstrated to be the key molecular driver in the development of these tumors. 17 Clinically, patients develop multiple basal cell carcinomas in childhood. 18 A mutation in the tumor suppressor gene, PTCH1 , is present in approximately 70% of patients with this syndrome."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "40687210"
+              ],
+              "source_passage_ids": [
+                "40687210:p3"
+              ],
+              "reason": "The passage directly describes basal cell carcinoma as basaloid nests with peripheral palisading and tumor-stroma retraction.",
+              "source_quotes": [
+                {
+                  "source_id": "40687210",
+                  "quote": "Questions/discussion points, Part 2 > In this patient, can a basal cell carcinoma be excluded as a diagnostic consideration? Basal cell carcinoma is the most common primary skin malignancy. 2 It is an important diagnosis to consider in a patient with this presentation. Basal cell carcinomas are also related to UV exposure and are common on the head and neck. 5 , 6 They clinically present as a pearly papule with prominent telangiectasias. 5 Histologically, they are comprised of darkly hematoxylin-staining (basaloid) cells arranged in nests and nodules, with a palisading of tumor cells around the edges of the nests ( Fig. 6 ). 7 Basal cell carcinomas show numerous mitoses, apoptotic cells, mucin and a retraction of the tumor cells away from the stroma ( Fig. 6 )."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "reference-slide-examination"
+              ],
+              "source_passage_ids": [
+                "reference-slide-examination:p0"
+              ],
+              "reason": "The reference-slide passage explicitly describes ulceration, hyperkeratosis, dermal eosinophilic squamous nests, and central keratinization.",
+              "source_quotes": [
+                {
+                  "source_id": "reference-slide-examination",
+                  "quote": "H&E reference micrograph of cutaneous squamous cell carcinoma showing ulceration, hyperkeratosis and dermal invasion by nests of eosinophilic squamous cells with central keratinization."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent review favors candidate B. The supplied H&E field visibly shows marked surface hyperkeratosis with ulceration, irregular infiltrative squamous nests and tongues in the dermis, abundant eosinophilic squamous maturation, and prominent concentric keratin-pearl formation. These findings support invasive keratinizing cutaneous squamous cell carcinoma. The image does not show the dark basaloid morphology, peripheral palisading, or characteristic tumor-stroma retraction required for candidate A's basal cell carcinoma interpretation. Candidate B confines itself to the requested field-level morphologic interpretation and does not make unsupported claims about margins, stage, depth, perineural invasion, or ancillary stains. The neutral case title, question, and clinical note do not disclose the diagnosis, and the image is independently diagnostic. With no previous cases supplied, no duplicated prior clinical decision is identifiable.",
+          "image_supports_key": true,
+          "image_has_no_identifiers": true,
+          "image_observations": "Readable H&E micrograph showing extensive laminated surface keratin and ulceration, with irregular dermal nests and tongues of eosinophilic squamous cells. Multiple nests exhibit central concentric keratinization, including a large prominent keratin pearl, amid stromal inflammation. No patient identifiers, diagnostic labels, annotations, or scale overlays are visible."
+        },
+        "image_sha256": "ff98b0cdf80bc6c075b8a2668c8f2ca468d30a08d652c6fb3182654ae530a758"
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The H&E field shows an ulcerated, markedly hyperkeratotic cutaneous lesion with irregular invasive nests and tongues of squamous epithelium extending into the dermis. The tumor cells show eosinophilic squamous maturation and conspicuous concentric keratin pearl formation, which are classic morphologic features of invasive keratinizing cutaneous squamous cell carcinoma. The retrieved pathology teaching source describes invasive SCC as sheets/nests of atypical keratinocytes invading through the dermis with abundant eosinophilic cytoplasm and keratin pearls. In contrast, basal cell carcinoma would be expected to show basaloid nests with peripheral palisading, mucinous stroma, and stromal retraction artifact, which are not the dominant findings in this field.",
+          "confidence": 0.96
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.96,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "40687210"
+              ],
+              "source_passage_ids": [
+                "40687210:p2"
+              ],
+              "reason": "The cited passage directly links nests/sheets of atypical keratinocytes invading the dermis and keratin-pearl formation with the diagnosis of invasive squamous cell carcinoma.",
+              "source_quotes": [
+                {
+                  "source_id": "40687210",
+                  "quote": "The biopsy shows sheets and nests of atypical keratinocytes that are invading through the dermis. The neoplastic cells can be defined as keratinocytes due to the presence of intercellular attachments (desmosomes) between cells. 3 The keratinocytes have abundant eosinophilic cytoplasm, prominent nucleoli, and large, pleomorphic nuclei ( Fig. 2 , Fig. 3 ). There are areas where the neoplastic keratinocytes have produced an abundance of keratin, called keratin pearls ( Fig. 4 ). The skin also shows significant sun damage, as evidenced by solar elastosis, a fibrillary gray material in the upper dermis ( Fig. 5 ). 4 Questions/discussion points, Part 2 > Describe the histologic findings from the patient's biopsy. What is the diagnosis? Based on the findings in this biopsy specimen, the diagnosis is invasive squamous cell carcinoma."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "40687210"
+              ],
+              "source_passage_ids": [
+                "40687210:p6",
+                "40687210:p7"
+              ],
+              "reason": "The cited passages distinguish squamous cell carcinoma in situ as full-thickness atypia contained by the basement membrane and invasive squamous cell carcinoma as atypical cells breaking through the basement membrane into the dermis.",
+              "source_quotes": [
+                {
+                  "source_id": "40687210",
+                  "quote": "11 Patients on long-term immunosuppression have decreased immune-mediated tumor surveillance, increased susceptibility to oncogenic viruses, and deal with the direct consequences of immunosuppressive agents on initiation of cutaneous cancers. 12 Questions/discussion points, Part 3 > What environmental factors lead to the development of squamous cell carcinoma? Additional risk factors include HIV, high levels of arsenic exposure and chronic wounds. 13 , 14 , 15 Questions/discussion points, Part 3 > What are the precursor lesions to squamous cell carcinoma? When the keratinocytes in sun-damaged skin begin to become atypical, the lesion is termed actinic keratosis. If the atypical keratinocytes spread through the entire epidermis (full-thickness atypia) but are still contained within the basement membrane, the lesion is called squamous cell carcinoma in situ ( Fig. 7 )."
+                },
+                {
+                  "source_id": "40687210",
+                  "quote": "When the atypical cells break through the basement membrane and invade into the dermis, invasive squamous cell carcinoma is diagnosed ( Fig. 8 ). 11 Questions/discussion points, Part 3 > What conditions are associated with multiple basal cell carcinomas and what genetic mutations are implicated? Gorlin syndrome is an autosomal dominant disorder characterized by mutations in the hedgehog signaling pathway. 16 The hedgehog signaling pathway is crucial for numerous tissue homeostatic and developmental processes and when altered by mutations, the unregulated activation of this pathway has been demonstrated to be the key molecular driver in the development of these tumors. 17 Clinically, patients develop multiple basal cell carcinomas in childhood. 18 A mutation in the tumor suppressor gene, PTCH1 , is present in approximately 70% of patients with this syndrome."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "40687210"
+              ],
+              "source_passage_ids": [
+                "40687210:p3"
+              ],
+              "reason": "The cited passage describes basal cell carcinoma as basaloid nests/nodules with peripheral palisading and tumor-stroma retraction.",
+              "source_quotes": [
+                {
+                  "source_id": "40687210",
+                  "quote": "Questions/discussion points, Part 2 > In this patient, can a basal cell carcinoma be excluded as a diagnostic consideration? Basal cell carcinoma is the most common primary skin malignancy. 2 It is an important diagnosis to consider in a patient with this presentation. Basal cell carcinomas are also related to UV exposure and are common on the head and neck. 5 , 6 They clinically present as a pearly papule with prominent telangiectasias. 5 Histologically, they are comprised of darkly hematoxylin-staining (basaloid) cells arranged in nests and nodules, with a palisading of tumor cells around the edges of the nests ( Fig. 6 ). 7 Basal cell carcinomas show numerous mitoses, apoptotic cells, mucin and a retraction of the tumor cells away from the stroma ( Fig. 6 )."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "reference-slide-examination"
+              ],
+              "source_passage_ids": [
+                "reference-slide-examination:p0"
+              ],
+              "reason": "The cited reference-slide description states that the micrograph shows ulceration, hyperkeratosis, and dermal invasion by eosinophilic squamous nests with central keratinization.",
+              "source_quotes": [
+                {
+                  "source_id": "reference-slide-examination",
+                  "quote": "H&E reference micrograph of cutaneous squamous cell carcinoma showing ulceration, hyperkeratosis and dermal invasion by nests of eosinophilic squamous cells with central keratinization."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Candidate B is the best answer. The attached H&E field independently shows morphology fitting invasive keratinizing cutaneous squamous cell carcinoma: marked surface hyperkeratosis/ulceration, irregular dermal nests and tongues of eosinophilic squamous cells, and conspicuous central concentric keratinization/keratin pearl formation. Candidate A is incorrect because the field does not show the typical basal cell carcinoma pattern of basaloid nests with peripheral palisading and stromal retraction; the rounded dermal structures are keratinizing squamous nests rather than basaloid aggregates. The case is within pathology and is framed as a single-field morphologic interpretation rather than a staging or treatment decision, so additional levels, stains, margins, or clinical staging data are not required for the asked task. No previous cases are listed, so there is no practice/exam duplication concern.",
+          "image_supports_key": true,
+          "image_has_no_identifiers": true,
+          "image_observations": "The image is an H&E skin section with prominent laminated hyperkeratosis and focal surface ulceration/inflammation. In the dermis there are irregular invasive nests and tongues of eosinophilic squamous epithelium, including a large central concentric keratin pearl and additional keratinizing nests. The morphology supports invasive keratinizing squamous cell carcinoma and does not show convincing basaloid peripheral palisading or tumor-stroma retraction of basal cell carcinoma. No patient identifiers or labels are visible."
+        },
+        "image_sha256": "ff98b0cdf80bc6c075b8a2668c8f2ca468d30a08d652c6fb3182654ae530a758"
+      }
+    ],
+    "entry_sha256": "e242c8239ec635e1dfa5617dc73b20c4e9282bcdeb394913ca002e84f4837d74"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

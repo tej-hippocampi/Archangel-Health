@@ -1,0 +1,166 @@
+{
+  "protocol": "audited_openai_models_v1",
+  "description": "Exact document approvals after two-model OpenAI review and a separate clinical artifact audit. No physician ratification or cross-provider agreement is claimed.",
+  "artifacts": {
+    "onboarding-practice-v1-c81048b60c5736de1ba4-1": {
+      "document_sha256": "3267adcc399a9156fa90063f7b4633a193917cc6a16e664044d2b830a420950d",
+      "source_artifact_sha256": "da73b20a0b4a49659e1fc61b1c11566139a7cc64077330c95fb33de8671f5d12",
+      "entry_sha256": "66517ad2a9a30330033dd62588685837f13e589984197b916bdac7e71205b7b1",
+      "audit_report": "audit-group1.json",
+      "audit_sha256": "b64c40e4fbd346f0a8f670bd05d091996a42dfaaed805be34fd47da359b7113f",
+      "disposition": "clear"
+    },
+    "onboarding-examination-v1-b71cdb20a2f872d6b152-1": {
+      "document_sha256": "681367c827d95f907aae7b7dd15889af322f4eae516a5c5f4d7a5a3c3c337b92",
+      "source_artifact_sha256": "0014bff9729ca90cef9fcb28aa34260d60903d7a67d2f3fd23dcb34a3ae96dba",
+      "entry_sha256": "2bc5af6ffd3fb68326d183fdb462dd1eac413646b280eab38eb6a59a671e44b3",
+      "audit_report": "audit-group1.json",
+      "audit_sha256": "b64c40e4fbd346f0a8f670bd05d091996a42dfaaed805be34fd47da359b7113f",
+      "disposition": "clear"
+    },
+    "onboarding-practice-v1-b0b91d66638590da5847-1": {
+      "document_sha256": "31f049499e191a38a1365e2299a1500dfca69fcba0eca7ea266fb553e90ff786",
+      "source_artifact_sha256": "5f4deff23c04331a03e6a4b9991e21a1a51f6dfb534b12aefcc5324e07667dfa",
+      "entry_sha256": "255834cc33e0ad60f570d1194b817c51917000a27382875d4408b64598b2ac15",
+      "audit_report": "audit-group1.json",
+      "audit_sha256": "b64c40e4fbd346f0a8f670bd05d091996a42dfaaed805be34fd47da359b7113f",
+      "disposition": "clear"
+    },
+    "onboarding-examination-v1-558a055d93f6a8479019-1": {
+      "document_sha256": "ce01b6a3cbd463d48dcce0a8f830f2f94210831d00c314cb0be6789b3b45841b",
+      "source_artifact_sha256": "4b43240494662c49e376eb79d9a6a26414be9e331d4071e662ed1e05cdc2bd04",
+      "entry_sha256": "cbdad2308d506cb039c49408149317960ceb4ed9965d414eebf24e3b9e621be9",
+      "audit_report": "audit-group1.json",
+      "audit_sha256": "b64c40e4fbd346f0a8f670bd05d091996a42dfaaed805be34fd47da359b7113f",
+      "disposition": "clear"
+    },
+    "onboarding-examination-v1-9cbe2b30e23c85c74ba0-1": {
+      "document_sha256": "8fa3a064ac8afc95b182e43597ec0a540b7b36656bcc2766202df1661fc8d18c",
+      "source_artifact_sha256": "a04864c32cd7cedfb36d5dc0042f747b2334ddfb33f10acc709817b4af152f59",
+      "entry_sha256": "8092f01a92959daa9113bdf0b7a426aaa3f3a0b5145e3c2efde09c89047277de",
+      "audit_report": "audit-group1.json",
+      "audit_sha256": "b64c40e4fbd346f0a8f670bd05d091996a42dfaaed805be34fd47da359b7113f",
+      "disposition": "clear"
+    },
+    "onboarding-practice-v1-9cbe2b30e23c85c74ba0-1": {
+      "document_sha256": "275a2e3898465214de96a01c514f927ad3875566956b97b7dfde530acb928a88",
+      "source_artifact_sha256": "6d1e5f768161f0854b33791063fe358fa5056d71818cc5b504509eff175a8341",
+      "entry_sha256": "c52ca37a2d107375d4ab00011c15518a5a0676e0965eb1f28a7c6f58e9787f9c",
+      "audit_report": "audit-group1.json",
+      "audit_sha256": "b64c40e4fbd346f0a8f670bd05d091996a42dfaaed805be34fd47da359b7113f",
+      "disposition": "clear"
+    },
+    "onboarding-examination-v1-f5b5b0bf5ff9d45ef6b3-1": {
+      "document_sha256": "aab2754e79dcc61f64ad6a968f5c0558a80964932885b9eaef387057049dbf53",
+      "source_artifact_sha256": "5912fcba116f137c9f64955686625545ea4f35e8ae2b285ca8d97e399af97502",
+      "entry_sha256": "5111919d3822d773d7c0380a6165cd4e04b75d36b217db447ac0503d126eb407",
+      "audit_report": "audit-group2.json",
+      "audit_sha256": "39b09e636cfce8aa45d17a4b51790e9737783f4958b02c4e271ff5fcaddc4fd4",
+      "disposition": "clear"
+    },
+    "onboarding-practice-v1-b83236bc7e0943e796cb-1": {
+      "document_sha256": "c380a3d713f4a53a5f451b9fd8106c304a676c82b449e7f9f44aca8d80c61a65",
+      "source_artifact_sha256": "5ec3490703ba56362c4ad7f35d9b3c8edb8f71df5d74d9d49eaa02566d982ba0",
+      "entry_sha256": "d2dc5ff93e34e8a071878f714ae346df4d51d15cc9a0ee6d60037a033734835a",
+      "audit_report": "audit-group2.json",
+      "audit_sha256": "39b09e636cfce8aa45d17a4b51790e9737783f4958b02c4e271ff5fcaddc4fd4",
+      "disposition": "clear"
+    },
+    "onboarding-examination-v1-a5ec2abe485f271a3e3d-1": {
+      "document_sha256": "805bf6c7604d30ae42a512575812704b8cb483b4c10bc9b2317068d8a7e48b62",
+      "source_artifact_sha256": "35316a900b738a298abd747f8f0e2817c1a4e5185f0c6ed8ef6287471247d701",
+      "entry_sha256": "826f0e5d8daddf910dced9dca021913b0c577eb2cdc98e211855a6892f6e3c88",
+      "audit_report": "audit-group2.json",
+      "audit_sha256": "39b09e636cfce8aa45d17a4b51790e9737783f4958b02c4e271ff5fcaddc4fd4",
+      "disposition": "clear"
+    },
+    "onboarding-practice-v1-306f5a139a55f0c90a72-1": {
+      "document_sha256": "963ddc3b3c9c024cacb8abf72faa7f89843c65fe5c95ca7835374e7c2050acdc",
+      "source_artifact_sha256": "ffe0ffb7ec4201a88e8bea30bd30e8b270d9d7844c90baa5ce44c46653493ff2",
+      "entry_sha256": "f695c7bf1986cd66c869e96d0382614917ac96cf69b8f338799f3b3f445cc655",
+      "audit_report": "audit-group2.json",
+      "audit_sha256": "39b09e636cfce8aa45d17a4b51790e9737783f4958b02c4e271ff5fcaddc4fd4",
+      "disposition": "clear"
+    },
+    "onboarding-practice-v1-a2344499dcd2cac5f8d6-1": {
+      "document_sha256": "5963d8f27ee3891cb33d16a13be28c39acb478a58a7484c3a8f541fd687f1c53",
+      "source_artifact_sha256": "32829a04fe634676f6a125a9fe4faffdacd015f4ed09363da578d79fcd994918",
+      "entry_sha256": "67ed813ed13ca348ddef542c46d165bd24eb1212395c4e103cdbbebb7b1c8dc7",
+      "audit_report": "audit-group2.json",
+      "audit_sha256": "39b09e636cfce8aa45d17a4b51790e9737783f4958b02c4e271ff5fcaddc4fd4",
+      "disposition": "clear"
+    },
+    "onboarding-examination-v1-3e19e5ff97ee3c9c1348-1": {
+      "document_sha256": "a2600d4d5e8e8a844ecc9ccee3332985ff8c423969b6c9e205cb77ab9828e21d",
+      "source_artifact_sha256": "8552c3abd9fcc0f087b758ba594c10e0b8866b47184d1c0bccb6965b3edb8a10",
+      "entry_sha256": "222a86218badbe236134fa968bc3d793608a5bb293a8ab11b893b8853acc451f",
+      "audit_report": "audit-group3.json",
+      "audit_sha256": "d6a9af715515eead4267b9dcf6ad4f45a02eff9799c89b3fd123fbfb1f36ddf5",
+      "disposition": "clear"
+    },
+    "onboarding-examination-v1-b8ef799a756d2d5dc30e-1": {
+      "document_sha256": "6a1393dea9479191abc5991d346fb6390674d257e5e43a4ac357b864609ec64e",
+      "source_artifact_sha256": "0fb93182b569d001379a53f40684fca703ed93047740e3afb7bdecb58257943a",
+      "entry_sha256": "e242c8239ec635e1dfa5617dc73b20c4e9282bcdeb394913ca002e84f4837d74",
+      "audit_report": "audit-group3.json",
+      "audit_sha256": "d6a9af715515eead4267b9dcf6ad4f45a02eff9799c89b3fd123fbfb1f36ddf5",
+      "disposition": "clear"
+    },
+    "onboarding-examination-v1-06867f80c28206f80670-1": {
+      "document_sha256": "e09a6943c203cc240a6db2adb7c7d09251bddbdee279b0df208c51c1fbbbb425",
+      "source_artifact_sha256": "d8a4c65c9480d63c9edf56e0843ea1e55e73963c6edd332c64701d87c8d2f89e",
+      "entry_sha256": "006887e65da04b86af6c96a8af8ec5f57a49aa544244fe10ccad007cb7365ecb",
+      "audit_report": "audit-group3.json",
+      "audit_sha256": "d6a9af715515eead4267b9dcf6ad4f45a02eff9799c89b3fd123fbfb1f36ddf5",
+      "disposition": "clear"
+    },
+    "onboarding-examination-v1-f72e684372859ac1757a-1": {
+      "document_sha256": "db9a987c9b374f318dfd8a6aae99ca1750f5ab558b5e8dbc060c6efba99d41b3",
+      "source_artifact_sha256": "2df756a042e52a6560a4689d732b8dda06a3fe1b79799ba12873e51c33c7add8",
+      "entry_sha256": "944e0c148e163706068e8a99b81a6b7cf5bc958815816943569916c75df0e611",
+      "audit_report": "audit-group3.json",
+      "audit_sha256": "d6a9af715515eead4267b9dcf6ad4f45a02eff9799c89b3fd123fbfb1f36ddf5",
+      "disposition": "clear"
+    },
+    "onboarding-examination-v1-eab374162d4f1d645638-1": {
+      "document_sha256": "ca59d8e316f3c5ea21be9759585282fafcfa06078d9065fe0ff6fe83347f73df",
+      "source_artifact_sha256": "1e5a2a07e333eed1592b94e958a673e2e1fbcf282d232ee0053fd0e930719d2d",
+      "entry_sha256": "610175c58c667b898c7b2c61a57c2f1dabc86fadb5a7f38a0e116106fd2b3633",
+      "audit_report": "audit-group3.json",
+      "audit_sha256": "d6a9af715515eead4267b9dcf6ad4f45a02eff9799c89b3fd123fbfb1f36ddf5",
+      "disposition": "clear"
+    },
+    "onboarding-practice-v1-b8ef799a756d2d5dc30e-1": {
+      "document_sha256": "87035daebfa374b8824489c0e36fd850657a74894b52c44c800f572b4ddb83c4",
+      "source_artifact_sha256": "8c9929c98ad1621aaf1175db5c68b751a9c76e551280f053e6ca5e32b145f691",
+      "entry_sha256": "5d833ef82276566141328f00cba8fbca8de2c03f8f1ee882de5b4c74644ec143",
+      "audit_report": "audit-revision-batch1b.json",
+      "audit_sha256": "c13985ab4a1837b04fca3db207d86eb77490172768728f8923d0cfd12f9aed00",
+      "disposition": "clear"
+    },
+    "onboarding-examination-v1-b3588e5ac8c59e52674a-1": {
+      "document_sha256": "14c933d4156eeef23cecbd8a22e6de09447fc728818749dd9014e08dd38ff897",
+      "source_artifact_sha256": "99e67c6e67eae2e8d77c25912d0647630255aa88adf9da219c400c222806bd8d",
+      "entry_sha256": "b4d133688a5e23ef75d182d43c24eb80139ae63541d9b7568e4cc304ef27fe1a",
+      "audit_report": "audit-revision-batch1b.json",
+      "audit_sha256": "c13985ab4a1837b04fca3db207d86eb77490172768728f8923d0cfd12f9aed00",
+      "disposition": "clear"
+    },
+    "onboarding-examination-v1-ca25a37ef4cffb536a33-1": {
+      "document_sha256": "5313b04deea8279b939fedecf8864689e8c0641fc6a8a52e6ad3c5db0d3dea94",
+      "source_artifact_sha256": "1aed152bdaa4a51d47066c1e4772688a1efbbc6f3cd310e693bbab1e581c856d",
+      "entry_sha256": "e913d3af714a4e8af40c87624ab27d68ce44f4d1156e0053500d78810fa3d3e7",
+      "audit_report": "audit-revision-batch1a.json",
+      "audit_sha256": "76ecb81e3c1928af9eab33cf1e137135d06e3a670a60b78e8eb68f0aef052645",
+      "disposition": "clear"
+    },
+    "onboarding-examination-v1-aa3792e95218f1af9490-1": {
+      "document_sha256": "66dd383f21d642f7ac161ec8588e5727c57d2db347a4b61e980cf79475727add",
+      "source_artifact_sha256": "42924ab23c87710c662b9f23cee8f8ad7b7258e56da081c3c13540fc4c91b001",
+      "entry_sha256": "e32a2123f16f526e3bfe871595daae423cb180d927a36178ea207f4103f3323a",
+      "audit_report": "audit-revision-batch1a.json",
+      "audit_sha256": "76ecb81e3c1928af9eab33cf1e137135d06e3a670a60b78e8eb68f0aef052645",
+      "disposition": "clear"
+    }
+  }
+}

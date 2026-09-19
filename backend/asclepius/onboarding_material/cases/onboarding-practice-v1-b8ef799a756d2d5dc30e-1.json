@@ -1,0 +1,400 @@
+{
+  "task_id": "onboarding-practice-v1-b8ef799a756d2d5dc30e-1",
+  "specialty": "pathology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Histopathologic interpretation of an adult facial lesion",
+    "question": "Which morphologic interpretation and supporting visual annotations best fit the supplied H&E tissue field?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "pathology",
+      "demographics": {
+        "age_band": "60-69",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Persistent nonpigmented facial papule",
+          "since": "Several months",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Biopsy history",
+          "author_role": "pathology",
+          "text": "An adult with substantial cumulative sun exposure presented with a slowly enlarging, nonpigmented papule on the lateral face. The lesion occasionally crusted but was not painful. A tissue biopsy was obtained and submitted for routine histologic examination. The supplied H&E field is the only material available for this interpretation exercise.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "pathology",
+          "label": "H&E tissue section",
+          "findings": "The field contains multiple dark basaloid epithelial tumor islands embedded in pink fibrous stroma. Cells at the outer edges of several islands show aligned peripheral nuclei, and pale cleft-like spaces separate portions of the epithelial islands from the adjacent stroma. Definite keratin pearls are not identified in this field.",
+          "measurements": [],
+          "impression": null,
+          "asset": {
+            "asset_id": "onboarding-image-680ca4d6cd4426b3b327374f",
+            "mime": "image/png",
+            "sha256": "680ca4d6cd4426b3b327374fe9afab73b9df5a0674c2aa046839b46c8fbc4441",
+            "width": 1170,
+            "height": 1145,
+            "byte_size": 3298929,
+            "page": null,
+            "page_count": null,
+            "source": "public_domain_reference"
+          },
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [],
+        "disclaimers": [
+          "Synthetic patient scenario paired with a public-domain reference micrograph (CC0). The image is not from this fictional patient or a health-system partner. Assess the visible field only; this is not a whole-slide examination."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "introductory",
+      "required_modalities": [],
+      "study_findings_policy": "hidden",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for single-field morphologic interpretation",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "Candidate A correctly interprets the field as basal cell carcinoma. The decisive annotations are dark basaloid epithelial islands, peripheral palisading at the edges of the islands, and tumor-stroma retraction. Candidate B is consequentially flawed because the pale spaces are predominantly retraction clefts around basaloid islands rather than true glandular lumina supporting an adenocarcinoma.",
+        "evidence": {
+          "supported_interpretation": "Basal cell carcinoma",
+          "flawed_interpretation": "Cutaneous adnexal adenocarcinoma with gland formation",
+          "single_field_scope": "Morphologic interpretation only; margin status, stage, and complete excision cannot be determined."
+        },
+        "key_data": [
+          "Multiple dark basaloid epithelial islands are present within pink stromal tissue.",
+          "Peripheral nuclei are aligned in a palisaded arrangement along several tumor islands.",
+          "Cleft-like retraction separates portions of the tumor islands from the surrounding stroma.",
+          "Definite keratin pearls are absent from the supplied field."
+        ]
+      },
+      "hard_hook": "Distinguish stromal retraction around basaloid islands from true gland formation.",
+      "reasoning_divergence": "The candidates assign different significance to pale spaces adjacent to and within the epithelial aggregates."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Basal cell carcinoma. Annotate the dark basaloid epithelial islands, peripheral palisading of nuclei along the island edges, and cleft-like retraction between tumor and pink stroma."
+      },
+      {
+        "id": "B",
+        "text": "Cutaneous adnexal adenocarcinoma with gland formation. Annotate the pale spaces as true ductal lumina and the surrounding epithelial aggregates as infiltrative gland-forming structures."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "basal cell carcinoma",
+      "skin biopsy",
+      "basaloid islands",
+      "peripheral palisading",
+      "stromal retraction"
+    ],
+    "evidence_keywords": [
+      "H&E morphology",
+      "basaloid cells",
+      "tumor nests",
+      "pink stroma",
+      "retraction clefts"
+    ],
+    "error_tags": [
+      "wrong_diagnosis"
+    ],
+    "claims": [
+      {
+        "statement": "Basal cell carcinoma is composed histologically of dark basaloid cells arranged in nests and nodules with peripheral palisading.",
+        "source_ids": [
+          "40687210"
+        ]
+      },
+      {
+        "statement": "Retraction of tumor cells from the surrounding stroma is a recognized histologic feature of basal cell carcinoma.",
+        "source_ids": [
+          "40687210"
+        ]
+      },
+      {
+        "statement": "The supplied reference H&E micrograph shows dark basaloid epithelial tumor islands contrasted with pink stromal tissue.",
+        "source_ids": [
+          "reference-slide-practice"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T02:16:26.671851+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "40687210",
+        "title": "Educational Case: Squamous cell carcinoma.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40687210/",
+        "abstract": "",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "retrieved_at": "2026-09-19T02:15:01.976739+00:00",
+        "source_type": "peer_reviewed_pathology_teaching",
+        "pmcid": "PMC12271062",
+        "body_excerpts": "Primary objective:\nObjective SK5.2: Malignant Skin Neoplasms. Describe the clinical presentation, precursor lesions, risk factors, and hereditary cancer syndromes that lead to the following skin cancers: basal cell carcinomas, squamous cell carcinoma, and melanoma.\n\nQuestions/discussion points, Part 1 > Based on the patient's history and the physical exam, what are the main differential diagnoses to consider?\nGiven the patient's age, fair skin and significant UV exposure (obtained through his occupations as a welder and farmer), the top differential for a nonpigmented lesion is a primary skin cancer such as squamous cell carcinoma, basal cell carcinoma or amelanotic melanoma. The risk of all three of these skin cancers is increased with increased UV light exposure. 2 Melanomas are typically pigmented lesions (although there are amelanotic melanomas), and our patient's lesion is nonpigmented, which makes a diagnosis of melanoma less likely. Although the patient does not have any significant medical history, another differential to consider would be a cutaneous metastasis from an unknown primary malignancy.\n\nQuestions/discussion points, Part 1 > What is the next step in management of the patient?\nTo determine what is causing this patient's skin lesion, a sample must be taken and sent to pathology. Because a neoplastic process is favored, the patient undergoes a shave biopsy. Punch biopsies are generally preferred when the clinical suspicion is for an inflammatory process.\n\nQuestions/discussion points, Part 2 > Describe the histologic findings from the patient's biopsy. What is the diagnosis?\nA histologic image of the entire biopsy is shown in Fig. 1 . The biopsy shows sheets and nests of atypical keratinocytes that are invading through the dermis. The neoplastic cells can be defined as keratinocytes due to the presence of intercellular attachments (desmosomes) between cells. 3 The keratinocytes have abundant eosinophilic cytoplasm, prominent nucleoli, and large, pleomorphic nuclei ( Fig. 2 , Fig. 3 ). There are areas where the neoplastic keratinocytes have produced an abundance of keratin, called keratin pearls ( Fig. 4 ). The skin also shows significant sun damage, as evidenced by solar elastosis, a fibrillary gray material in the upper dermis ( Fig. 5 ). 4\n\nQuestions/discussion points, Part 2 > Describe the histologic findings from the patient's biopsy. What is the diagnosis?\nBased on the findings in this biopsy specimen, the diagnosis is invasive squamous cell carcinoma.\n\nQuestions/discussion points, Part 2 > In this patient, can a basal cell carcinoma be excluded as a diagnostic consideration?\nBasal cell carcinoma is the most common primary skin malignancy. 2 It is an important diagnosis to consider in a patient with this presentation. Basal cell carcinomas are also related to UV exposure and are common on the head and neck. 5 , 6 They clinically present as a pearly papule with prominent telangiectasias. 5 Histologically, they are comprised of darkly hematoxylin-staining (basaloid) cells arranged in nests and nodules, with a palisading of tumor cells around the edges of the nests ( Fig. 6 ). 7 Basal cell carcinomas show numerous mitoses, apoptotic cells, mucin and a retraction of the tumor cells away from the stroma ( Fig. 6 ). 7\n\nQuestions/discussion points, Part 2 > Is there an immunohistochemical stain that can help us delineate between squamous cell carcinoma and basal cell carcinoma?\nLesions often show features that overlap with multiple different diagnoses, and in such situations, immunohistochemistry can be helpful in establishing the correct diagnosis. In a lesion that shows features of both basal cell carcinoma and squamous cell carcinoma, the monoclonal antibody Ber-EP4 can be used. It is almost always positive in basal cell carcinoma and negative in squamous cell carcinoma. 8 Additionally, epithelial membrane antigen (EMA) is an immunohistochemical stain that has a high rate of positivity in squamous cell carcinomas and a low rate of positivity in basal cell carcinomas, making it useful in differentiating between these two diagnoses. 9\n\nQuestions/discussion points, Part 2 > What is the next step for the patient?\nNow that a diagnosis of invasive squamous cell carcinoma has been made, the patient needs to have the remainder of the lesion excised with negative margins. Additionally, a physical exam checking for lymphadenopathy is warranted.\n\nQuestions/discussion points, Part 3 > What environmental factors lead to the development of squamous cell carcinoma?\nThe most important modifiable risk factor for the development of cutaneous squamous cell carcinoma is cumulative UV light exposure. 2 , 11 Immunosuppression also carries a higher risk of squamous cell carcinoma. This is particularly relevant in patients who have received an organ transplant or those with a hematolymphoid neoplasm. 11 Patients on long-term immunosuppression have decreased immune-mediated tumor surveillance, increased susceptibility to oncogenic viruses, and deal with the direct consequences of immunosuppressive agents on initiation of cutaneous cancers. 12\n\nQuestions/discussion points, Part 3 > What environmental factors lead to the development of squamous cell carcinoma?\nAdditional risk factors include HIV, high levels of arsenic exposure and chronic wounds. 13 , 14 , 15\n\nQuestions/discussion points, Part 3 > What are the precursor lesions to squamous cell carcinoma?\nWhen the keratinocytes in sun-damaged skin begin to become atypical, the lesion is termed actinic keratosis. If the atypical keratinocytes spread through the entire epidermis (full-thickness atypia) but are still contained within the basement membrane, the lesion is called squamous cell carcinoma in situ ( Fig. 7 ). When the atypical cells break through the basement membrane and invade into the dermis, invasive squamous cell carcinoma is diagnosed ( Fig. 8 ). 11\n\nQuestions/discussion points, Part 3 > What conditions are associated with multiple basal cell carcinomas and what genetic mutations are implicated?\nGorlin syndrome is an autosomal dominant disorder characterized by mutations in the hedgehog signaling pathway. 16 The hedgehog signaling pathway is crucial for numerous tissue homeostatic and developmental processes and when altered by mutations, the unregulated activation of this pathway has been demonstrated to be the key molecular driver in the development of these tumors. 17 Clinically, patients develop multiple basal cell carcinomas in childhood. 18 A mutation in the tumor suppressor gene, PTCH1 , is present in approximately 70% of patients with this syndrome. 19 , 20\n\nQuestions/discussion points, Part 3 > What conditions are associated with multiple basal cell carcinomas and what genetic mutations are implicated?\nXeroderma pigmentosum is an autosomal recessive condition caused by mutations in XPA-XPF genes that are involved in nuclear excision repair of DNA damaged by UV radiation. 21 These patients have 10,000 times the risk of developing nonmelanotic skin cancer as compared to the general population. 21 The exaggerated response to UV damage leads to premature skin aging and early development of squamous cell carcinoma, basal cell carcinoma, and malignant melanoma, with many patients experiencing their first skin cancer around age nine. 21\n\nQuestions/discussion points, Part 3 > What important preventive measures should be recommended to the patient?\nThis patient should be wearing sunscreen each day and should wear the appropriate personal protective equipment (PPE) while working as a welder and farmer. Additionally, avoiding sun exposure during peak sunlight hours, wearing sun protective clothing, and seeking shade are recommended to reduce his risk of additional skin cancers. 2\n\nTeaching points\nSquamous cell carcinoma, basal cell carcinoma, and melanoma are cutaneous skin cancers that are associated with UV light exposure. The risk of squamous cell carcinoma is increased in patients with organ transplantation or with hematolymphoid neoplasms.\n\nTeaching points\nBasal cell carcinoma is the most common skin malignancy and, in rare cases, can be associated with Gorlin syndrome (multiple basal cell carcinomas at an early age). Mutations in the PTCH1 gene cause unregulated activation of the hedgehog signalizing pathway, which significantly contributes to tumor development.\n\nTeaching points\nThe precursor lesions to invasive squamous cell carcinoma are actinic keratosis and squamous cell carcinoma in situ.\n\nTeaching points\nPatients should be counseled to wear sunscreen and sun protective clothing, avoid peak sunlight hours, and make sure to mitigate occupational risks.",
+        "body_excerpts_sha256": "791aebe64b2ab23d343092b27d577ad48f19f2acd171c02e40edd3377fc4ad31",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12271062/fullTextXML",
+        "body_license_url": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "39584658",
+        "title": "S2k guideline basal cell carcinoma of the skin (update 2023).",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39584658/",
+        "abstract": "Basal cell carcinoma is the most common malignant tumor in the fair-skinned population and its incidence continues to rise. An update of the S2k guideline with the participation of all specialist societies familiar with the clinical picture and previous literature research is of great importance for the quality of care for affected patients. In addition to epidemiology, diagnostics and histology are discussed. After risk stratification, therapy is divided into topical, systemic and radiation therapy. Surgical removal remains the treatment of first choice in most cases. The approval of anti-PD1 inhibitors for locally advanced and metastatic tumors has opened up a new option in second-line therapy (after hedgehog inhibitors).",
+        "sha256": "530aec8c02a65a1667c3ba665de95fb1de65eec8a7b999079e5b571acefaba28",
+        "retrieved_at": "2026-09-19T02:15:05.367204+00:00",
+        "pmcid": "PMC11626229"
+      },
+      {
+        "id": "36448272",
+        "title": "S1-Guideline: Microscopically controlled surgery.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36448272/",
+        "abstract": "Microscopically controlled surgery (MCS) comprises various methods allowing histologically proven complete resection of malignant tumors while at the same time sparing the tumor-free tissue in the immediate vicinity as much as possible. All procedures subsumed under MCS have in common the marking of the excised tissue for topographical orientation, which provides an assignment of remaining tumor remnants. Indications for MCS are malignant skin tumors in problem localizations as well as aggressive subtypes of skin tumors. Established indications for MCS include basal cell carcinoma, cutaneous squamous cell carcinoma, Bowen's disease as well as Bowen's carcinoma, dermatofibrosarcoma protuberans, melanoma in chronically light-damaged skin as well as acral lentiginous melanoma and Merkel cell carcinoma. For other tumors such as extramammary Paget's disease and various cutaneous sarcomas, evidence exists that MCS has demonstrated benefits, such as local recurrence rates. In addition, MCS is indicated when it is foreseeable that a complex closure technique is required and complete resection of the tumor must be assured. Various methods of MCS have been described, including 3D histology, horizontal method and Mohs surgery. A close cooperation of qualified surgeons and (dermato)pathologists as well as laboratory staff is essential for the successful application of MCS.",
+        "sha256": "7df651863b77b4523ebe7aeeec815efbba9ef379fdab04d6b66bdfb2f5eca77c",
+        "retrieved_at": "2026-09-19T02:15:05.367204+00:00"
+      },
+      {
+        "id": "34955421",
+        "title": "Radiation therapy of cutaneous cancers.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34955421/",
+        "abstract": "We present the update of the recommendations of the French society of oncological radiotherapy on radiotherapy of cutaneous cancers. The indications of radiotherapy for skin cancers are not clearly defined because of the lack of randomized trials or prospective studies. For basal cell carcinomas, radiotherapy frequently offers a good local control, but a randomized trial showed that surgery is more efficient and less toxic. Indications of radiotherapy are contra-indications of surgery for patients older than 60, non-sclerodermiform histology and located in non-sensitive areas. Adjuvant radiotherapy could be proposed to squamous cell carcinomas, in case of poor prognostic factors. Dose of 60 to 70Gy are usually required, and must be modulated to the size of the lesions. Adjuvant radiotherapy seems beneficial for desmoplastic melanomas but not for the other histological types. Prophylactic nodal irradiation (45 to 50Gy), for locally advanced tumors (massive nodal involvement), decreases the locoregional failure rate but do not increase survival. Adjuvant radio- therapy (50 to 56Gy) for Merkel cell carcinomas increases also the local control rate, as demonstrated by meta-analysis and a large epidemiological study. Nodal areas must be included, if there is no surgical exploration (sentinel lymph node dissection). Kaposi sarcomas are radiosensitive and could be treated with relatively low doses (24 to 30Gy). Also, cutaneous lymphomas are good indications for radiotherapy: B lymphomas are electively treated with limited fields. The role of total skin electron therapy for T-lymphomas is still discussed; but palliative radiotherapy is very efficient in case of cutaneous nodules.",
+        "sha256": "84a62629a081de32726f2265b0802614c2a92bbb00ed24026cbdd0378bf4e55c",
+        "retrieved_at": "2026-09-19T02:15:05.367204+00:00"
+      },
+      {
+        "id": "30033747",
+        "title": "Patient Indications for Mohs Micrographic Surgery: A Systematic Review.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30033747/",
+        "abstract": "The purpose of the present review was to describe evidence-based indications for Mohs micrographic surgery (MMS) in patients with a diagnosis of skin cancer. Relevant studies were identified from a systematic MEDLINE, EMBASE, and Cochrane Database of Systematic Reviews search of studies published from 1970 to 2017. Randomized controlled trials (RCTs), prospective and retrospective comparative studies with greater than 30 patients, and single-arm retrospective studies with multivariate analyses were included. A total of 2 RCTs, 3 prospective studies, and 16 retrospective studies (14 comparative and 2 single-arm) were included. Data on recurrence rate, cure rate, complications, cosmesis, and quality of life were extracted. Surgery (with postoperative or intraoperative marginal assessment) or radiation for those who are ineligible for surgery should remain the standard of care for patients with skin cancer given the lack of high-quality, comparative evidence. MMS is recommended for those with histologically confirmed recurrent basal cell carcinoma (BCC) of the face and is appropriate for primary BCCs of the face that are >1 cm, have aggressive histology, or are located on the H zone of the face. The available evidence is difficult to generalize to all patients with skin cancer because the evidence did not adequately cover non-BCC skin cancers; however, those skin cancers can be considered on a case-by-case basis for MMS. MMS should be performed by physicians who have completed a degree in medicine or equivalent, including a Royal College of Physicians and Surgeons of Canada Specialist Certificate or equivalent, and have received advanced training in MMS.",
+        "sha256": "e7e60b3e3b8df128c093b8fc49013834dbb25ce42b1759d157983d017b353811",
+        "retrieved_at": "2026-09-19T02:15:07.390727+00:00"
+      },
+      {
+        "id": "36790451",
+        "title": "Basal cell carcinosarcoma: a systematic review and reappraisal of its challenges and the role of Mohs surgery.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36790451/",
+        "abstract": "Basal cell carcinosarcoma (BCCS) is a rare malignant biphasic tumor of the skin, composed of epithelial and mesenchymal components, and may be underdiagnosed. We sought to summarize the current understanding of BCCS including its reported history, clinical presentation, diagnosis, and treatment. We also reappraise and present our recommendations of histological interpretation for its diagnosis and treatment. A systematic review of PubMed and EMBASE, from inception of databases to December 1, 2022, identified all reported cases of basal cell carcinosarcoma. A total of 34 reports containing 54 patients with basal cell carcinosarcoma were included. The neoplasm was most commonly associated in areas of sun-exposed skin and primarily affected the elderly. Diagnosis was made on histology specimens using H&E. To address underdiagnosis, additional immunohistochemical markers have been proposed due to unreliable phenotypic appearance in this poorly differentiated neoplasm. Treatment consists of excision of the tumor, typically with Mohs surgery, and is curative in most cases. There are limited treatment options for metastatic disease. There were limitations to this study as various immunohistochemical stains used on suspected BCCS without providing an explanation as to why certain markers were included and others were excluded. Continued efforts in characterizing this complex neoplasm are critical in establishing reliable and accurate diagnostic tests and accompanying treatment options, especially in cases of metastatic disease.",
+        "sha256": "018c4b228991504103f9600452eb9501596eeef6a428b075ddb67c6579485191",
+        "retrieved_at": "2026-09-19T02:15:07.390727+00:00"
+      },
+      {
+        "id": "35778249",
+        "title": "Complete Margin Assessment Versus Sectional Assessment in Surgically Excised High-Risk Keratinocyte Carcinomas: A Systematic Review and Meta-Analysis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35778249/",
+        "abstract": "Keratinocyte carcinomas (KCs) are the most diagnosed cancers worldwide and are commonly excised via complete margin assessment (CMA) or excision with sectional assessment (SA). National Comprehensive Cancer Network guidelines encourage CMA for KC with high-risk features.\nTo systematically compare recurrence outcomes for CMA vs SA in high-risk KC based on National Comprehensive Cancer Network guidelines criteria.\nEMBASE and MEDLINE were searched for articles reporting recurrences of high-risk KC undergoing excision using CMA or SA. High-risk KCs were defined as recurrent, having perineural invasion (PNI), or basal cell carcinomas (BCC) with aggressive histology. Chi-squared tests and risk ratios evaluated differences between CMA and SA groups, and a random-effects meta-analysis was performed.\nTwenty-eight studies met inclusion criteria. Pooled percentages of locoregional recurrences were significantly lower with CMA vs SA for all KCs (3.9% [95% CI: 2.9-4.9] vs 13.5% [7.7, 19.2, p = .001]), cutaneous squamous cell carcinoma with PNI (9.8% [5.4-14.1] vs 32.0% [25.0-39.0], p < .001), and recurrent BCC (4.4% [2.9-5.9] vs 11.9% [8.0-15.8], p < .001).\nFor high-risk KCs, recurrence risk was over 3-times greater with SA compared with CMA. Expanded access to CMA for high-risk KC is likely to reduce recurrence risk and improve clinical outcomes.",
+        "sha256": "4e34ffed3a241def8adc73bf16cbdb9e1ac5d297f48fbb48e32806538c5fe57a",
+        "retrieved_at": "2026-09-19T02:15:07.390727+00:00"
+      },
+      {
+        "id": "42298375",
+        "title": "The Diagnostic Accuracy of Ex Vivo Confocal Laser Scanning Microscopy for Basal Cell Carcinoma: A Systematic Review and Meta-analysis.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/42298375/",
+        "abstract": "This systematic review and meta-analysis evaluated available data on the diagnostic accuracy of ex vivo confocal laser scanning microscopy (EVCM) for the diagnosis of basal cell carcinoma (BCC) in tissue specimens and for margin assessment in micrographic surgery, using conventional histopathological analysis as reference standard. MEDLINE and Embase were systematically searched in November 2024 in accordance with PRISMA guidelines to identify diagnostic accuracy studies evaluating EVCM for BCC. Pooled sensitivity and specificity were estimated using bivariate random effects models. Sixteen studies comprising 1,387 specimens were included. The pooled mean EVCM acquisition time was 7.0 min (95% confidence interval [CI]: 5.3-9.4). For BCC diagnosis in tissue specimens, pooled sensitivity was 91.4% (95% CI: 85.9-94.9) and pooled specificity was 91.1% (95% CI: 79.2-94.5). Regarding margin assessment, pooled sensitivity and specificity were 79.5% (95% CI: 65.0-89.0) and 92.2% (95% CI: 85.5-95.9). In conclusion, EVCM shows high sensitivity and specificity for BCC diagnosis in tissue specimens and may selectively replace conventional histology when rapid diagnosis is desired. For margin assessment, EVCM has high specificity but moderate sensitivity. Therefore, conventional histology should still be considered as a subsequent step, particularly after the final excision stage of stepwise micrographic surgery.",
+        "sha256": "93e583c3e310ec1c646208d7b7909a33be531f421f00df2300abd1fe9334cc18",
+        "retrieved_at": "2026-09-19T02:15:08.036690+00:00",
+        "pmcid": "PMC13269050"
+      },
+      {
+        "id": "reference-slide-practice",
+        "title": "Reference H&E micrograph",
+        "url": "https://commons.wikimedia.org/wiki/File:High-magnification_micrograph_of_basal-cell_carcinoma.jpg",
+        "abstract": "H&E reference micrograph of basal-cell carcinoma: dark basaloid epithelial tumor islands contrasted with pink stromal tissue.",
+        "sha256": "e7c360c9ae5adc370e06d204383566b1dfe8cca055217478cfdaae5a40a7e6ce"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The field shows dark basaloid epithelial nests with conspicuous peripheral nuclear palisading and cleft-like retraction from the surrounding eosinophilic stroma. The pale spaces are predominantly stromal retraction/mucinous change rather than true ductal lumina. This morphology, together with the sun-exposed facial papule, supports basal cell carcinoma. These features match the cited teaching source's description of BCC as basaloid nests with peripheral palisading and tumor-stromal retraction.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "40687210"
+              ],
+              "source_passage_ids": [
+                "40687210:p3"
+              ],
+              "reason": "The passage directly describes basal cell carcinoma as dark basaloid cells in nests and nodules with peripheral palisading.",
+              "source_quotes": [
+                {
+                  "source_id": "40687210",
+                  "quote": "Questions/discussion points, Part 2 > In this patient, can a basal cell carcinoma be excluded as a diagnostic consideration? Basal cell carcinoma is the most common primary skin malignancy. 2 It is an important diagnosis to consider in a patient with this presentation. Basal cell carcinomas are also related to UV exposure and are common on the head and neck. 5 , 6 They clinically present as a pearly papule with prominent telangiectasias. 5 Histologically, they are comprised of darkly hematoxylin-staining (basaloid) cells arranged in nests and nodules, with a palisading of tumor cells around the edges of the nests ( Fig. 6 ). 7 Basal cell carcinomas show numerous mitoses, apoptotic cells, mucin and a retraction of the tumor cells away from the stroma ( Fig. 6 )."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "40687210"
+              ],
+              "source_passage_ids": [
+                "40687210:p3"
+              ],
+              "reason": "The passage explicitly identifies retraction of tumor cells away from the stroma as a histologic feature of basal cell carcinoma.",
+              "source_quotes": [
+                {
+                  "source_id": "40687210",
+                  "quote": "Questions/discussion points, Part 2 > In this patient, can a basal cell carcinoma be excluded as a diagnostic consideration? Basal cell carcinoma is the most common primary skin malignancy. 2 It is an important diagnosis to consider in a patient with this presentation. Basal cell carcinomas are also related to UV exposure and are common on the head and neck. 5 , 6 They clinically present as a pearly papule with prominent telangiectasias. 5 Histologically, they are comprised of darkly hematoxylin-staining (basaloid) cells arranged in nests and nodules, with a palisading of tumor cells around the edges of the nests ( Fig. 6 ). 7 Basal cell carcinomas show numerous mitoses, apoptotic cells, mucin and a retraction of the tumor cells away from the stroma ( Fig. 6 )."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "reference-slide-practice"
+              ],
+              "source_passage_ids": [
+                "reference-slide-practice:p0"
+              ],
+              "reason": "The reference-slide passage directly describes the supplied BCC micrograph as showing dark basaloid epithelial islands contrasted with pink stroma, consistent with independent inspection of the image.",
+              "source_quotes": [
+                {
+                  "source_id": "reference-slide-practice",
+                  "quote": "H&E reference micrograph of basal-cell carcinoma: dark basaloid epithelial tumor islands contrasted with pink stromal tissue."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent review favors A. The image is readable and shows multiple deeply basophilic epithelial nests and islands in fibrous eosinophilic stroma, conspicuous peripheral nuclear palisading, and pale retraction clefts along tumor-stroma interfaces. These features are characteristic of basal cell carcinoma and match the cited teaching source. Although some pale spaces occur within or near the aggregates, their overall relationship to basaloid nests and the prominent peripheral palisading do not support the true infiltrative gland formation asserted by B. The key does not overreach into margin status, stage, subtype, or treatment. The applicant-visible title, note, study label, and question do not disclose the diagnosis or intended interpretation. The assessed decision is distinct from the previous case: the prior task distinguished keratinizing squamous cell carcinoma from BCC, whereas this case distinguishes BCC retraction/palisading from alleged adnexal gland formation. Two substantive sources support the decision: the pathology teaching article establishes the defining morphology, and the reference-slide source documents the matching appearance of the supplied image.",
+          "image_supports_key": true,
+          "image_has_no_identifiers": true,
+          "image_observations": "The H&E field is adequately focused and shows irregular dark basaloid tumor islands separated by pink fibrous stroma. Several islands have aligned peripheral nuclei and clear cleft-like separation from adjacent stroma. No patient identifiers, labels, scale annotations, or diagnostic text are visible."
+        },
+        "image_sha256": "680ca4d6cd4426b3b327374fe9afab73b9df5a0674c2aa046839b46c8fbc4441"
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The field shows multiple dark basaloid epithelial tumor islands/nodules within pink fibromyxoid stroma, with conspicuous peripheral nuclear palisading and cleft-like stromal retraction around tumor nests. These are classic morphologic features of basal cell carcinoma and match the provided clinical setting of an older man with a persistent nonpigmented sun-exposed facial papule. The supplied teaching source describes basal cell carcinoma as dark hematoxylin-staining basaloid cells in nests/nodules with peripheral palisading and retraction of tumor cells away from stroma. Candidate B is less fitting because the pale spaces in this field are better interpreted as stromal retraction/mucinous clefting around basaloid nests rather than true ductal lumina of an infiltrative gland-forming adnexal adenocarcinoma.",
+          "confidence": 0.93
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "40687210"
+              ],
+              "reason": "The cited passage explicitly describes basal cell carcinoma as dark basaloid cells in nests/nodules with peripheral palisading.",
+              "source_passage_ids": [
+                "40687210:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40687210",
+                  "quote": "Questions/discussion points, Part 2 > In this patient, can a basal cell carcinoma be excluded as a diagnostic consideration? Basal cell carcinoma is the most common primary skin malignancy. 2 It is an important diagnosis to consider in a patient with this presentation. Basal cell carcinomas are also related to UV exposure and are common on the head and neck. 5 , 6 They clinically present as a pearly papule with prominent telangiectasias. 5 Histologically, they are comprised of darkly hematoxylin-staining (basaloid) cells arranged in nests and nodules, with a palisading of tumor cells around the edges of the nests ( Fig. 6 ). 7 Basal cell carcinomas show numerous mitoses, apoptotic cells, mucin and a retraction of the tumor cells away from the stroma ( Fig. 6 )."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "40687210"
+              ],
+              "reason": "The cited passage explicitly lists retraction of tumor cells away from stroma as a histologic feature of basal cell carcinoma.",
+              "source_passage_ids": [
+                "40687210:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40687210",
+                  "quote": "Questions/discussion points, Part 2 > In this patient, can a basal cell carcinoma be excluded as a diagnostic consideration? Basal cell carcinoma is the most common primary skin malignancy. 2 It is an important diagnosis to consider in a patient with this presentation. Basal cell carcinomas are also related to UV exposure and are common on the head and neck. 5 , 6 They clinically present as a pearly papule with prominent telangiectasias. 5 Histologically, they are comprised of darkly hematoxylin-staining (basaloid) cells arranged in nests and nodules, with a palisading of tumor cells around the edges of the nests ( Fig. 6 ). 7 Basal cell carcinomas show numerous mitoses, apoptotic cells, mucin and a retraction of the tumor cells away from the stroma ( Fig. 6 )."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "reference-slide-practice"
+              ],
+              "reason": "The reference-slide passage describes the supplied reference H&E micrograph as showing dark basaloid epithelial tumor islands contrasted with pink stromal tissue; this is also consistent with direct inspection of the pixels.",
+              "source_passage_ids": [
+                "reference-slide-practice:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "reference-slide-practice",
+                  "quote": "H&E reference micrograph of basal-cell carcinoma: dark basaloid epithelial tumor islands contrasted with pink stromal tissue."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Candidate A best fits the visible H&E field: multiple basophilic epithelial nests/islands are embedded in eosinophilic fibrous stroma, with peripheral nuclear palisading in several nests and cleft-like tumor-stromal retraction. These findings support basal cell carcinoma rather than a gland-forming adnexal adenocarcinoma. The visible applicant case does not disclose the answer in the title, question, note, or study label. The case is appropriately within pathology and limited to single-field morphologic interpretation, so absence of margin status, staging, or whole-slide context is not a blocking defect. The previous case concerned invasive keratinizing squamous cell carcinoma versus basal cell carcinoma; this case tests the different distinction between basal cell carcinoma retraction clefts and true gland formation.",
+          "image_supports_key": true,
+          "image_has_no_identifiers": true,
+          "image_observations": "The image is a high-power H&E micrograph without visible patient identifiers or labels. It shows basaloid tumor islands/nests in pink fibrous stroma, peripheral palisading of nuclei at several nest borders, and pale cleft-like spaces around tumor islands consistent with stromal retraction. Definite keratin pearls are not apparent in the field."
+        },
+        "image_sha256": "680ca4d6cd4426b3b327374fe9afab73b9df5a0674c2aa046839b46c8fbc4441"
+      }
+    ],
+    "entry_sha256": "5d833ef82276566141328f00cba8fbca8de2c03f8f1ee882de5b4c74644ec143"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

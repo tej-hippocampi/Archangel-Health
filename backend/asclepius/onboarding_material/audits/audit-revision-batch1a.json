@@ -1,0 +1,239 @@
+{
+  "audit": "Independent revised artifact content audit, batch 1a",
+  "audited_at": "2026-09-19T02:20:38.890675+00:00",
+  "scope": "Pediatrics examination and dermatology examination from audit-revision-batch1.json only. Actual entries, public payloads, retained sources, every decisive recommendation, literal reviewer passages, checksums and final bundled practice counterparts inspected. No artifact edits or real-model calls.",
+  "summary": {
+    "clear": 2,
+    "hold": 0,
+    "source_abstracts_verified": 17,
+    "literal_quote_references_verified": 32
+  },
+  "limitations": [
+    "Clear means this independent content audit found no blocking defect in the exact entry hash. It is not physician ratification or certification.",
+    "Both artifacts retain openai_only_trial, physician_ratified=false and release_eligible=false. The separate release workflow must truthfully record two OpenAI models and hash-bound independent approval."
+  ],
+  "cases": [
+    {
+      "task_id": "onboarding-examination-v1-ca25a37ef4cffb536a33-1",
+      "specialty": "pediatrics",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10575048827/trial-onboarding-examination-v1-ca25a37ef4cffb536a33-1.json",
+      "entry_sha256": "e913d3af714a4e8af40c87624ab27d68ce44f4d1156e0053500d78810fa3d3e7",
+      "source_artifact_sha256": "1aed152bdaa4a51d47066c1e4772688a1efbbc6f3cd310e693bbab1e581c856d",
+      "disposition": "clear",
+      "findings": [],
+      "evidence": [
+        {
+          "criterion": "Population and complete decision data",
+          "assessment": "Exact age is 45 days in the visible note, within the directly studied 29-to-60-day cohort. Term birth, prior health, well appearance and absence of neurologic findings are stated. Procalcitonin 0.18 ng/mL and CRP 8 mg/L satisfy the actual low-risk criteria quoted from the UTI systematic review. No score was invented.",
+          "source_ids": [
+            "33978724",
+            "31473824"
+          ],
+          "passage_ids": [
+            "33978724:p1",
+            "31473824:p1",
+            "31473824:p2"
+          ]
+        },
+        {
+          "criterion": "Decisive lumbar-puncture recommendation",
+          "assessment": "The meta-analysis explicitly concludes that urinalysis results alone should not guide LP, and the separate UTI review says LP may not be indicated for the defined low-risk group. Candidate B is correspondingly qualified: no routine LP solely because of positive urine testing. It does not assert zero meningitis risk, prohibit individualized LP, or prescribe a full discharge/antibiotic algorithm. Candidate A falsely makes urinary infection an automatic indication irrespective of the risk assessment.",
+          "source_ids": [
+            "33978724",
+            "31473824"
+          ],
+          "passage_ids": [
+            "33978724:p2",
+            "33978724:p3",
+            "31473824:p1",
+            "31473824:p2"
+          ]
+        },
+        {
+          "criterion": "Evidence limitation and guideline-scope distinction",
+          "assessment": "The AAP abstract is correctly used for its population scope only; its omitted algorithm is not treated as retained evidence. The decisive claims rest on two substantive systematic reviews. The low-risk subgroup evidence is limited (253 infants, only 15 underwent LP), which the held-out rationale acknowledges; the answer retains may/not-routine qualification. The newer biomarker meta-analysis does not contradict these low values or make the known UTI equivalent to invasive infection.",
+          "source_ids": [
+            "34281996",
+            "31473824",
+            "38499017"
+          ],
+          "passage_ids": [
+            "34281996:p0",
+            "31473824:p1",
+            "31473824:p2"
+          ]
+        },
+        {
+          "criterion": "Prior treatment and chart coherence",
+          "assessment": "Urine sampling and inflammatory markers were obtained before/relevant to treatment, and culture-confirmed E. coli UTI and an oral first dose are completed history. The retained pediatric UTI guideline supports culture diagnosis and oral treatment in a non-toxic infant; the question does not ask to select an antibiotic, duration, disposition, or full sepsis workup.",
+          "source_ids": [
+            "37897526"
+          ],
+          "passage_ids": []
+        },
+        {
+          "criterion": "Public payload",
+          "assessment": "Inspected title, question, structured chart, candidates, public_case output and rendered prompt. Internal answer, hard_hook and reasoning_divergence are absent. Visible facts establish age, appearance, fever, markers and urinary infection without telling the evaluator whether to perform LP.",
+          "source_ids": [],
+          "passage_ids": []
+        },
+        {
+          "criterion": "Final pair distinctness",
+          "assessment": "The bundled practice case asks initial low-flow versus high-flow oxygen for a four-month-old with hypoxemic bronchiolitis. This examination asks CSF evaluation in a 45-day-old with febrile UTI; the decision and evidence are distinct.",
+          "source_ids": [],
+          "passage_ids": []
+        }
+      ],
+      "integrity": {
+        "entry_matches_manifest_and_retained_validation": true,
+        "source_abstract_checksums_verified": 9,
+        "body_excerpt_checksums_verified": 1,
+        "literal_quote_references_verified": 16,
+        "public_key_fields_absent": true,
+        "existing_entry_age_and_review_gates_pass": true
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_answer": "B",
+          "review_answer": "B",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_answer": "B",
+          "review_answer": "B",
+          "issues": []
+        }
+      ],
+      "paired_case": {
+        "task_id": "onboarding-practice-v1-ca25a37ef4cffb536a33-1",
+        "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-practice-v1-ca25a37ef4cffb536a33-1.json",
+        "entry_sha256": "ea15e0aa9c43e9ce29350c805c1ba749f749fab9de4df1d9f464aa676ec82fcc",
+        "distinct": true
+      },
+      "release_metadata": {
+        "method": "openai_only_trial",
+        "physician_ratified": false,
+        "release_eligible": false
+      }
+    },
+    {
+      "task_id": "onboarding-examination-v1-aa3792e95218f1af9490-1",
+      "specialty": "dermatology",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10575018901/trial-onboarding-examination-v1-aa3792e95218f1af9490-1.json",
+      "entry_sha256": "e32a2123f16f526e3bfe871595daae423cb180d927a36178ea207f4103f3323a",
+      "source_artifact_sha256": "42924ab23c87710c662b9f23cee8f8ad7b7258e56da081c3c13540fc4c91b001",
+      "disposition": "clear",
+      "findings": [],
+      "evidence": [
+        {
+          "criterion": "Population and complete decision data",
+          "assessment": "An adult woman with established facial acne has completed 12 weeks of doxycycline with topical trifarotene and improved to two papules plus comedones. There are no nodules/cysts, active scarring or truncal disease; topical tolerability and pregnancy/lactation status are explicitly supplied. This matches the guideline question about antibiotic duration and the adult maintenance example.",
+          "source_ids": [
+            "41847993",
+            "41457483"
+          ],
+          "passage_ids": [
+            "41847993:p12",
+            "41847993:p13",
+            "41457483:p17",
+            "41457483:p18",
+            "41457483:p19"
+          ]
+        },
+        {
+          "criterion": "Stopping systemic doxycycline",
+          "assessment": "The retained EuroGuiDerm text generally limits systemic antibiotics to three months and reserves extension for exceptional circumstances, including severe/truncal disease with continuing partial response or recurrence when alternatives are unsuitable. The actual case has minimal residual disease and no stated exception. Candidate A incorrectly says any remaining papule requires another three months; candidate B stops at the completed 12-week course. The AAD guideline independently supports limiting systemic antibiotics and concurrent topical therapy.",
+          "source_ids": [
+            "41847993",
+            "38300170"
+          ],
+          "passage_ids": [
+            "41847993:p12",
+            "41847993:p13",
+            "41847993:p18",
+            "38300170:p1"
+          ]
+        },
+        {
+          "criterion": "Continuing topical trifarotene",
+          "assessment": "The advisory describes an adult receiving doxycycline 100 mg daily with trifarotene, stopping doxycycline after week 12, and continuing trifarotene maintenance. This is an explicitly identified illustrative adult case in an expert advisory, not comparative-trial evidence; the claim accurately describes that evidence and the answer makes no unsupported superiority claim. Its efficacy/maintenance role is also discussed beyond the individual case, and the patient already tolerates the treatment.",
+          "source_ids": [
+            "41457483",
+            "38300170"
+          ],
+          "passage_ids": [
+            "41457483:p17",
+            "41457483:p18",
+            "41457483:p19",
+            "41457483:p25",
+            "38300170:p1"
+          ]
+        },
+        {
+          "criterion": "Pregnancy caution and dosing",
+          "assessment": "The prior doxycycline 100 mg daily regimen is present in the retained adult case. The pregnancy statement accurately reflects the supplied advisory to discontinue trifarotene if pregnancy is confirmed; the vignette documents negative testing, no intention to conceive and no breastfeeding. The keyed answer does not introduce a new dose or treat a pregnancy-negative test as proof of future safety.",
+          "source_ids": [
+            "41457483"
+          ],
+          "passage_ids": [
+            "41457483:p18",
+            "41457483:p24"
+          ]
+        },
+        {
+          "criterion": "Public payload",
+          "assessment": "Inspected title, question, notes, structured examination, candidates, public_case output and rendered prompt. The study impression reports observed improvement rather than a prospective antibiotic plan. Internal key, hard_hook and reasoning_divergence are stripped; no visible field orders doxycycline discontinuation.",
+          "source_ids": [],
+          "passage_ids": []
+        },
+        {
+          "criterion": "Final pair distinctness",
+          "assessment": "The bundled practice case asks topical anti-inflammatory treatment versus antibiotic monotherapy for an atopic-dermatitis flare without infection. This examination asks systemic-antibiotic duration and maintenance treatment in improved acne. The diagnosis, treatment decision and governing evidence differ.",
+          "source_ids": [],
+          "passage_ids": []
+        }
+      ],
+      "integrity": {
+        "entry_matches_manifest_and_retained_validation": true,
+        "source_abstract_checksums_verified": 8,
+        "body_excerpt_checksums_verified": 3,
+        "literal_quote_references_verified": 16,
+        "public_key_fields_absent": true,
+        "existing_entry_age_and_review_gates_pass": true
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_answer": "B",
+          "review_answer": "B",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_answer": "B",
+          "review_answer": "B",
+          "issues": []
+        }
+      ],
+      "paired_case": {
+        "task_id": "onboarding-practice-v1-aa3792e95218f1af9490-1",
+        "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-practice-v1-aa3792e95218f1af9490-1.json",
+        "entry_sha256": "a3a26f97ec398f83d7ab912268baa0562ffd50a6716856bbad27ab67ea9ba264",
+        "distinct": true
+      },
+      "release_metadata": {
+        "method": "openai_only_trial",
+        "physician_ratified": false,
+        "release_eligible": false
+      }
+    }
+  ]
+}
