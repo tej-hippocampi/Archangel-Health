@@ -57,3 +57,12 @@ establish perfect extraction of arbitrary CV layouts, physician verification,
 clinical ratification of cases, or production backup/restore coverage. Unsupported
 wording and uncertainty deliberately require the physician to confirm their field.
 The data-safety change record documents the open operational release gate.
+
+## CI clock regression
+
+The first CI run passed the CV/OCR, browser, form and visual checks but exposed
+two existing webinar tests that seeded September 2 events and queried them using
+the real current date. Both failures reproduced locally. The shared webinar test
+fixture now uses the same fixed clock as its seeded scenarios. All original
+assertions remain; no community production behavior changed. The complete file
+passes **35 tests**, independently rerun and cleared by the fresh auditor.

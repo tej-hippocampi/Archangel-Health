@@ -360,6 +360,9 @@ def _utc(y, m, d, hh=12):
 @pytest.fixture
 def webinar_world(monkeypatch):
     """A store with #events, wired so no post reaches a real member map."""
+    # These scenarios seed September 2 occurrences. Queries must share that
+    # clock, or the events silently become past events as the calendar advances.
+    monkeypatch.setattr("community.store._utcnow_iso", lambda: "2026-09-02T12:00:00Z")
     store = _fresh_store()
     store.ensure_default_channels([])
     monkeypatch.setattr(cwebinars, "get_community_store", lambda: store)
