@@ -1,6 +1,6 @@
 # Agreement enforcement — data-safety change record
 
-Date: 2026-09-18. Initial audit: origin/main 321994b; final comparison base: d964fdb. Branch: fix/agreement-enforcement.
+Date: 2026-09-18. Initial audit: origin/main 321994b; initial validation base: d964fdb; CI repair base: 3338963 (2026-09-19). Branch: fix/agreement-enforcement.
 Related specification: [Agreement enforcement](PRD_AGREEMENT_ENFORCEMENT.md).
 
 ## Scope and preserved data
@@ -90,11 +90,11 @@ reenable retry. The shared refusal classifier and realm link are browser tested.
   fixture now provides the location used by agreement deep links, and eight
   shifted citations in existing PRDs were refreshed. All **74** applicant-home
   and harness checks passed on the corrected tree.
-- The remaining failure, `test_release_library_contains_all_86_reviewed_cases`,
-  also fails on a separately archived, clean `d964fdb` main tree. Required
-  specialty case artifacts are missing from that upstream release. This branch
-  changes neither the library nor its material or acceptance test. The test is
-  retained and the PR stays draft; the repository-wide suite is not fully green.
+- The initial remaining failure, `test_release_library_contains_all_86_reviewed_cases`,
+  also failed on a separately archived, clean `d964fdb` main tree: only 41 of
+  86 required specialty case artifacts were present. It caused both backend
+  and keyless shard 1 to fail. The September 19 repair below resolves this
+  by incorporating the completed upstream library, with the strict test retained.
 - The six agreement browser cases pass after relocation into the existing
   physician-onboarding browser module. This puts them in the Chromium CI job
   without changing shard selection or permitting silent browser skips.
@@ -108,6 +108,21 @@ reenable retry. The shared refusal classifier and realm link are browser tested.
 The full-run and focused logs, clean-main reproduction, and CI logs are retained
 in the task's local output/agreement-enforcement directory. PR #166 carries the
 latest CI status and final focused agreement/attestation result.
+
+### CI repair — 2026-09-19
+
+Merged main `3338963` (PR #167) into this branch without conflicts. The merge
+brings in 45 reviewed library cases and their release validation from upstream.
+All 41 original case files retain their exact hashes. The agreement enforcement
+production files are byte-for-byte unchanged from the previous PR head `2623812`.
+Evidence: [file preservation](evidence/agreement-enforcement/ci-fix-preservation.json).
+
+The combined local suite passed **452 tests**: onboarding library/evidence/review,
+agreement enforcement, attestation persistence, applicant-home behavior, and
+repository harness checks. All **six** agreement signing/retry browser cases
+also pass. The former failing coverage assertion now validates all 86 cases.
+No test assertion, skip, or shard configuration was relaxed. The existing PR
+records final CI results for the updated commit.
 
 ## Release decision and recovery
 
