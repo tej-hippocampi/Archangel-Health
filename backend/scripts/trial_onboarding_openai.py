@@ -1,7 +1,8 @@
-"""CI-only OpenAI experiment. Outputs cannot be loaded as release case bundles.
+"""CI-only OpenAI experiment. Raw outputs are ineligible for release.
 
-One attempt per missing case bounds spend and measures first-pass yield. The
-unchanged release validator still requires independent OpenAI/Anthropic review.
+One attempt per missing case bounds spending. A separate, checksum-bound
+artifact audit must explicitly admit a trial output to the release library.
+Ordinary runtime generation still requires cross-provider review.
 """
 from __future__ import annotations
 
