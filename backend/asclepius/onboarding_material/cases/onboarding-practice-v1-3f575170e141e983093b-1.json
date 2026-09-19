@@ -1,0 +1,478 @@
+{
+  "task_id": "onboarding-practice-v1-3f575170e141e983093b-1",
+  "specialty": "transplant surgery",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Progressive kidney allograft dysfunction after prior rejection therapy",
+    "question": "Which proposed approach most appropriately addresses the current graft dysfunction?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "transplant surgery",
+      "demographics": {
+        "age_band": "40-49",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Kidney transplant recipient",
+          "since": "2 years",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Progressive increase in serum creatinine",
+          "since": "6 weeks",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Prior biopsy-proven T cell-mediated rejection",
+          "since": "3 months",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Tacrolimus",
+          "dose": null,
+          "route": "oral",
+          "freq": null,
+          "collected_offset_days": 0
+        },
+        {
+          "drug": "Mycophenolic acid",
+          "dose": null,
+          "route": "oral",
+          "freq": null,
+          "collected_offset_days": 0
+        },
+        {
+          "drug": "Prednisone",
+          "dose": null,
+          "route": "oral",
+          "freq": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "temperature_c": 36.8,
+        "blood_pressure_mmHg": "132/78",
+        "heart_rate_bpm": 76
+      },
+      "lab_panels": [
+        {
+          "panel": "Kidney function trend",
+          "collected_offset_days": -42,
+          "results": [
+            {
+              "analyte": "Serum creatinine",
+              "loinc": null,
+              "value": 1.7,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": true
+            }
+          ]
+        },
+        {
+          "panel": "Kidney function trend",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Serum creatinine",
+              "loinc": null,
+              "value": 2.6,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "increased from prior",
+              "ref_range_unusable": true
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Transplant follow-up",
+          "author_role": "transplant surgery",
+          "text": "A man in his forties received a kidney transplant two years ago for kidney failure of uncertain cause. He has no known history of nephrolithiasis. Three months ago, an allograft biopsy showed T cell-mediated rejection, and he completed anti-rejection therapy. His creatinine initially improved but has risen progressively over the past six weeks. He reports adherence to maintenance immunosuppression and has no fever, dysuria, graft tenderness, vomiting, or diarrhea. A repeat allograft biopsy was completed because of the persistent dysfunction.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Kidney allograft biopsy",
+          "label": "Repeat allograft biopsy",
+          "findings": "Tubular injury is present with abundant intratubular and intracellular crystalline deposits. The crystals are strongly birefringent under polarized light. There is no histologic evidence of active T cell-mediated rejection in the sampled tissue.",
+          "measurements": [],
+          "impression": "Crystalline nephropathy involving the kidney allograft; no active cellular rejection identified.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -2
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [
+        "clinical history",
+        "laboratory trend",
+        "allograft biopsy report"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the diagnostic decision",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "The current biopsy demonstrates crystalline nephropathy without active T cell-mediated rejection. APRT deficiency is an under-recognized, treatable cause of crystalline nephropathy and kidney allograft dysfunction, and genetic determination should remain in the differential even without prior nephrolithiasis. Repeating empiric rejection therapy would disregard the current histology and could delay identification of the actual graft-injury mechanism.",
+        "evidence": null,
+        "key_data": [
+          "Repeat biopsy shows crystalline deposits and tubular injury.",
+          "Repeat biopsy shows no active T cell-mediated rejection.",
+          "The native-kidney disease was uncertain.",
+          "Absence of nephrolithiasis does not exclude APRT deficiency.",
+          "Creatinine continued to rise after completed rejection therapy."
+        ]
+      },
+      "hard_hook": "The history of prior rejection is a potential anchor, but the repeat biopsy identifies a different injury pattern.",
+      "reasoning_divergence": "The sound approach follows current allograft histology and investigates crystalline nephropathy; the flawed approach assumes recurrent rejection from the creatinine trend and prior history."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Use the repeat-biopsy findings to evaluate crystalline nephropathy, including genetic determination for APRT deficiency despite the absence of nephrolithiasis. Do not diagnose recurrent cellular rejection or repeat anti-rejection therapy when the current biopsy shows no active rejection."
+      },
+      {
+        "id": "B",
+        "text": "Treat this as recurrent T cell-mediated rejection with another empiric pulse-steroid course because creatinine is rising and rejection occurred recently. Defer evaluation of the crystalline deposits unless kidney function fails to improve after additional anti-rejection therapy."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "kidney allograft dysfunction",
+      "crystalline nephropathy",
+      "T cell-mediated rejection",
+      "empiric corticosteroids",
+      "APRT deficiency"
+    ],
+    "evidence_keywords": [
+      "allograft biopsy",
+      "APRT genetic determination",
+      "2,8-dihydroxyadenine",
+      "histologic remission",
+      "nephrolithiasis"
+    ],
+    "error_tags": [
+      "wrong_diagnosis",
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "APRT deficiency is an under-recognized and treatable cause of reversible crystalline nephropathy and kidney allograft dysfunction.",
+        "source_ids": [
+          "35635787"
+        ]
+      },
+      {
+        "statement": "Genetic determination of APRT deficiency should be included in the differential diagnosis of crystalline nephropathy even without a history of nephrolithiasis.",
+        "source_ids": [
+          "35635787"
+        ]
+      },
+      {
+        "statement": "A substantial proportion of patients have persistent biopsy-proven T cell-mediated rejection after anti-rejection therapy.",
+        "source_ids": [
+          "34860468"
+        ]
+      },
+      {
+        "statement": "Histology is important for characterizing remission after treatment of T cell-mediated kidney transplant rejection.",
+        "source_ids": [
+          "34860468"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:49:18.817587+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "35635787",
+        "title": "Adenine phosphoribosyl transferase deficiency leads to renal allograft dysfunction in kidney transplant recipients: a systematic review.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35635787/",
+        "abstract": "Adenine phosphoribosyl transferase (APRT) deficiency has great implications on graft survival in kidney transplant patients. This systematic review investigated the diagnostic pattern, treatment approach, and kidney transplant outcomes among kidney transplant patients with adenine phosphoribosyl transferase deficiency.\nArticles reporting the APRT enzyme deficiency and kidney allograft dysfunction were retrieved from PubMed/Medline, ScienceDirect, Cochrane library and Google scholar databases. Descriptive analysis was used to draw inferences.\nThe results from 20 selected studies covering 30 patients receiving 39 grafts had an average age of 46.37 years are presented. Graft survival time of more than 6 months was reported in 23 (76.7%) patients, while other 7 (23.3%) patients had graft survival time of less than 6 months. Only 4 (13.3%) patients had APRT deficiency before transplantation. After follow-up, one-third of the patients 10 (33.3%) had stable graft function, 1 patient had allograft loss, 8 (26.6%) patients had delayed graft function while the remaining 11 (36.6%) patients had chronic kidney graft dysfunction.\nAPRT deficiency is an under-recognized, treatable condition that causes reversible crystalline nephropathy, leading to loss of allograft or allograft dysfunction. The study results showed that inclusion of genetic determination of APRT deficiency in the differential diagnosis of crystalline nephropathy, even in the absence of a history of nephrolithiasis, can improve renal outcomes and may improve allograft survival.",
+        "sha256": "2d8cd8be929fe691bb988fcd2879dee481df632e361b6c47313181cc5f13a2f3",
+        "retrieved_at": "2026-09-18T23:47:53.283313+00:00",
+        "pmcid": "PMC9518620"
+      },
+      {
+        "id": "41054117",
+        "title": "The prevalence and risk factors of erectile dysfunction in kidney transplant recipients: A systematic review and meta-analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41054117/",
+        "abstract": "Erectile dysfunction (ED) is a common complication in male kidney transplant recipients (KTRs), yet its prevalence and associated risk factors remain inadequately characterized. This study aimed to systematically evaluate the pooled prevalence of ED among KTRs and identify its significant risk factors.\nA comprehensive literature search was conducted in PubMed, Embase, Web of Science, Cochrane Library, Scopus, CNKI, Wanfang, VIP, and CBM from inception to March 1, 2025. Observational studies reporting the prevalence or risk factors of ED in male KTRs using validated instruments (e.g., the International Index of Erectile Function) were included. Data synthesis was performed using a random-effects meta-analysis model. Subgroup analyses and meta-regression were applied to explore sources of heterogeneity. Publication bias was assessed using funnel plots and Egger test.\nA total of 28 studies involving 3520 male KTRs were included. The pooled prevalence of ED was 53.0% (95% confidence interval [CI]: 48.0%-57.9%). Among the analyzed factors, diabetes mellitus was significantly associated with ED (odds ratio = 3.80; 95% CI: 2.0700-6.9717). When the cutoff value was set at 50 years, age demonstrated the strongest association with ED (odds ratio = 7.22, 95% CI: 1.0273-50.7553).\nMore than half of male KTRs experience ED, with advanced age and diabetes being key risk factors. These findings emphasize the need for routine sexual health assessments and targeted interventions in posttransplant care to improve quality of life.",
+        "sha256": "425369a794a97e955b209612f6b7bba81baceb366c63f2090d64fbd4f0004242",
+        "retrieved_at": "2026-09-18T23:47:53.283313+00:00",
+        "pmcid": "PMC12499830"
+      },
+      {
+        "id": "37068952",
+        "title": "Cranberries for preventing urinary tract infections.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37068952/",
+        "abstract": "Cranberries contain proanthocyanidins (PACs), which inhibit the adherence of p-fimbriated Escherichia coli to the urothelial cells lining the bladder. Cranberry products have been used widely for several decades to prevent urinary tract infections (UTIs). This is the fifth update of a review first published in 1998 and updated in 2003, 2004, 2008, and 2012.\nTo assess the effectiveness of cranberry products in preventing UTIs in susceptible populations.\nWe searched the Cochrane Kidney and Transplant Specialised Register up to 13 March 2023 through contact with the Information Specialist using search terms relevant to this review. Studies in the Register are identified through searches of CENTRAL, MEDLINE, and EMBASE, conference proceedings, the International Clinical Trials Register Search Portal (ICTRP) and ClinicalTrials.gov.\nAll randomised controlled trials (RCTs) or quasi-RCTs of cranberry products compared with placebo, no specific treatment or other intervention (antibiotics, probiotics) for the prevention of UTIs were included.\nTwo authors independently assessed and extracted data. Information was collected on methods, participants, interventions and outcomes (incidence of symptomatic UTIs, positive culture results, side effects, adherence to therapy). Risk ratios (RR) with 95% confidence intervals (CI) were calculated where appropriate. Study quality was assessed using the Cochrane risk of bias assessment tool. Confidence in the evidence was assessed using the Grading of Recommendations Assessment, Development and Evaluation (GRADE) approach.\nFor this update 26 new studies were added, bringing the total number of included studies to 50 (8857 randomised participants). The risk of bias for sequence generation and allocation concealment was low for 29 and 28 studies, respectively. Thirty-six studies were at low risk of performance bias, and 23 studies were at low risk of detection bias. Twenty-seven, 41, and 17 studies were at low risk of attrition bias, reporting bias and other bias, respectively. Forty-five studies compared cranberry products with placebo or no specific treatment in six different groups of participants. Twenty-six of these 45 studies could be meta-analysed for the outcome of symptomatic, culture-verified UTIs. In moderate certainty evidence, cranberry products reduced the risk of UTIs (6211 participants: RR 0.70, 95% CI 0.58 to 0.84; I² = 69%). When studies were divided into groups according to the treatment indication, cranberry products probably reduced the risk of symptomatic, culture-verified UTIs in women with recurrent UTIs (8 studies, 1555 participants: RR 0.74, 95% CI 0.55 to 0.99; I² = 54%), in children (5 studies, 504 participants: RR 0.46, 95% CI 0.32 to 0.68; I² = 21%) and in people with a susceptibility to UTIs due to an intervention (6 studies, 1434 participants: RR 0.47, 95% CI 0.37 to 0.61; I² = 0%). However, in low certainty evidence, there may be little or no benefit in elderly institutionalised men and women (3 studies, 1489 participants: RR 0.93, 95% CI 0.67 to 1.30; I² = 9%), pregnant women (3 studies, 765 participants: RR 1.06, 95% CI 0.75 to 1.50; I² = 3%), or adults with neuromuscular bladder dysfunction with incomplete bladder emptying (3 studies, 464 participants: RR 0.97, 95% CI 0.78 to 1.19; I² = 0%). Other comparisons were cranberry products with probiotics (three studies) or antibiotics (six studies), cranberry tablets with cranberry liquid (one study), and different doses of PACs (two studies). Compared to antibiotics, cranberry products may make little or no difference to the risk of symptomatic, culture-verified UTIs (2 studies, 385 participants: RR 1.03, 95% CI 0.80 to 1.33; I² = 0%) or the risk of clinical symptoms without culture (2 studies, 336 participants: RR 1.30, 95% CI 0.79 to 2.14; I² = 68%). Compared to probiotics, cranberry products may reduce the risk of symptomatic, culture-verified UTIs (3 studies, 215 participants: RR 0.39, 95% CI 0.27 to 0.56; I = 0%). It is unclear whether efficacy differs between cranberry juice and tablets or between different doses of PACs as the certainty of the evidence was very low. The number of participants with gastrointestinal side effects probably does not differ between those taking cranberry products and those receiving placebo or no specific treatment (10 studies, 2166 participants: RR 1.33, 95% CI 1.00 to 1.77; I² = 0%; moderate certainty evidence). There was no clear relationship between compliance with therapy and the risk for repeat UTIs. No difference in the risk for UTIs could be demonstrated between low, moderate and high doses of PACs.\nThis update adds a further 26 studies taking the total number of studies to 50 with 8857 participants. These data support the use of cranberry products to reduce the risk of symptomatic, culture-verified UTIs in women with recurrent UTIs, in children, and in people susceptible to UTIs following interventions. The evidence currently available does not support its use in the elderly, patients with bladder emptying problems, or pregnant women.",
+        "sha256": "3e70d0e278f6ded471425a5f30b2518e0f9ac7d10ff3aad628bf2e6556f29884",
+        "retrieved_at": "2026-09-18T23:47:54.848067+00:00",
+        "pmcid": "PMC10108827"
+      },
+      {
+        "id": "36442770",
+        "title": "Harmonizing Definitions for Diagnostic Criteria and Prognostic Assessment of Transplantation-Associated Thrombotic Microangiopathy: A Report on Behalf of the European Society for Blood and Marrow Transplantation, American Society for Transplantation and Cellular Therapy, Asia-Pacific Blood and Marrow Transplantation Group, and Center for International Blood and Marrow Transplant Research.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36442770/",
+        "abstract": "Transplantation-associated thrombotic microangiopathy (TA-TMA) is an increasingly recognized complication of hematopoietic cell transplantation (HCT) associated with significant morbidity and mortality. However, TA-TMA is a clinical diagnosis, and multiple criteria have been proposed without universal application. Although some patients have a self-resolving disease, others progress to multiorgan failure and/or death. Poor prognostic features also are not uniformly accepted. The lack of harmonization of diagnostic and prognostic markers has precluded multi-institutional studies to better understand incidence and outcomes. Even current interventional trials use different criteria, making it challenging to interpret the data. To address this urgent need, the American Society for Transplantation and Cellular Therapy, Center for International Bone Marrow Transplant Research, Asia-Pacific Blood and Marrow Transplantation, and European Society for Blood and Marrow Transplantation nominated representatives for an expert panel tasked with reaching consensus on diagnostic and prognostic criteria. The panel reviewed literature, generated consensus statements regarding diagnostic and prognostic features of TA-TMA using the Delphi method, and identified future directions of investigation. Consensus was reached on 4 key concepts: (1) TA-TMA can be diagnosed using clinical and laboratory criteria or tissue biopsy of kidney or gastrointestinal tissue; however, biopsy is not required; (2) consensus diagnostic criteria are proposed using the modified Jodele criteria with additional definitions of anemia and thrombocytopenia. TA-TMA is diagnosed when ≥4 of the following 7 features occur twice within 14 days: anemia, defined as failure to achieve transfusion independence despite neutrophil engraftment; hemoglobin decline by ≥1 g/dL or new-onset transfusion dependence; thrombocytopenia, defined as failure to achieve platelet engraftment, higher-than-expected transfusion needs, refractory to platelet transfusions, or ≥50% reduction in baseline platelet count after full platelet engraftment; lactate dehydrogenase (LDH) exceeding the upper limit of normal (ULN); schistocytes; hypertension; soluble C5b-9 (sC5b-9) exceeding the ULN; and proteinuria (≥1 mg/mg random urine protein-to-creatinine ratio [rUPCR]); (3) patients with any of the following features are at increased risk of nonrelapse mortality and should be stratified as high-risk TA-TMA: elevated sC5b-9, LDH ≥2 times the ULN, rUPCR ≥1 mg/mg, multiorgan dysfunction, concurrent grade II-IV acute graft-versus-host disease (GVHD), or infection (bacterial or viral); and (4) all allogeneic and pediatric autologous HCT recipients with neuroblastoma should be screened weekly for TA-TMA during the first 100 days post-HCT. Patients diagnosed with TA-TMA should be risk-stratified, and those with high-risk disease should be offered participation in a clinical trial for TA-TMA-directed therapy if available. We propose that these criteria and risk stratification features be used in data registries, prospective studies, and clinical practice across international settings. This harmonization will facilitate the investigation of TA-TMA across populations diverse in race, ethnicity, age, disease indications, and transplantation characteristics. As these criteria are widely used, we expect continued refinement as necessary. Efforts to identify more specific diagnostic and prognostic biomarkers are a top priority of the field. Finally, an investigation of the impact of TA-TMA-directed treatment, particularly in the setting of concurrent highly morbid complications, such as steroid-refractory GVHD and infection, is critically needed.",
+        "sha256": "78b4646a31eaf7a1a06b6379b889f3cf80cef6d7aadc6a1b612f0fcc8ba60f9c",
+        "retrieved_at": "2026-09-18T23:47:54.848067+00:00",
+        "pmcid": "PMC10119629"
+      },
+      {
+        "id": "37947276",
+        "title": "Cranberries for preventing urinary tract infections.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37947276/",
+        "abstract": "Cranberries contain proanthocyanidins (PACs), which inhibit the adherence of p-fimbriated Escherichia coli to the urothelial cells lining the bladder. Cranberry products have been used widely for several decades to prevent urinary tract infections (UTIs). This is the fifth update of a review first published in 1998 and updated in 2003, 2004, 2008, and 2012.\nTo assess the effectiveness of cranberry products in preventing UTIs in susceptible populations.\nWe searched the Cochrane Kidney and Transplant Specialised Register up to 13 March 2023 through contact with the Information Specialist using search terms relevant to this review. Studies in the Register are identified through searches of CENTRAL, MEDLINE, and EMBASE, conference proceedings, the International Clinical Trials Registry Platform (ICTRP) Search Portal and ClinicalTrials.gov.\nAll randomised controlled trials (RCTs) or quasi-RCTs of cranberry products compared with placebo, no specific treatment or other intervention (antibiotics, probiotics) for the prevention of UTIs were included.\nAt least two authors independently assessed and extracted data. Information was collected on methods, participants, interventions and outcomes (incidence of symptomatic UTIs, positive culture results, side effects, adherence to therapy). Risk ratios (RR) with 95% confidence intervals (CI) were calculated where appropriate. Study quality was assessed using the Cochrane risk of bias assessment tool. Confidence in the evidence was assessed using the Grading of Recommendations Assessment, Development and Evaluation (GRADE) approach.\nFor this update, 26 new studies were added, bringing the total number of included studies to 50 (8857 randomised participants). The risk of bias for sequence generation and allocation concealment was low for 29 and 28 studies, respectively. Thirty-six studies were at low risk of performance bias, and 23 studies were at low risk of detection bias. Twenty-seven, 41, and 17 studies were at low risk of attrition bias, reporting bias and other bias, respectively. Forty-five studies compared cranberry products with placebo, water or no specific treatment in six different groups of participants. Twenty-six of these 45 studies could be meta-analysed for the outcome of symptomatic, culture-verified UTIs. In moderate certainty evidence, cranberry products reduced the risk of UTIs (6211 participants: RR 0.70, 95% CI 0.58 to 0.84; I² = 69%). When studies were divided into groups according to the treatment indication, cranberry products probably reduced the risk of symptomatic, culture-verified UTIs in women with recurrent UTIs (8 studies, 1555 participants: RR 0.74, 95% CI 0.55 to 0.99; I² = 54%), in children (5 studies, 504 participants: RR 0.46, 95% CI 0.32 to 0.68; I² = 21%) and in people with a susceptibility to UTIs due to an intervention (6 studies, 1434 participants: RR 0.47, 95% CI 0.37 to 0.61; I² = 0%). However, there may be little or no benefit in elderly institutionalised men and women (3 studies, 1489 participants: RR 0.93, 95% CI 0.67 to 1.30; I² = 9%; moderate certainty evidence), pregnant women (3 studies, 765 participants: RR 1.06, 95% CI 0.75 to 1.50; I² = 3%; moderate certainty evidence), or adults with neuromuscular bladder dysfunction with incomplete bladder emptying (3 studies, 464 participants: RR 0.97, 95% CI 0.78 to 1.19; I² = 0%; low certainty evidence). Other comparisons were cranberry products with probiotics (three studies) or antibiotics (six studies), cranberry tablets with cranberry liquid (one study), and different doses of PACs (two studies). Compared to antibiotics, cranberry products may make little or no difference to the risk of symptomatic, culture-verified UTIs (2 studies, 385 participants: RR 1.03, 95% CI 0.80 to 1.33; I² = 0%) or the risk of clinical symptoms without culture (2 studies, 336 participants: RR 1.30, 95% CI 0.79 to 2.14; I² = 68%). Compared to probiotics, cranberry products may reduce the risk of symptomatic, culture-verified UTIs (3 studies, 215 participants: RR 0.39, 95% CI 0.27 to 0.56; I = 0%). It is unclear whether efficacy differs between cranberry juice and tablets or between different doses of PACs, as the certainty of the evidence was very low. The number of participants with gastrointestinal side effects probably does not differ between those taking cranberry products and those receiving a placebo or no specific treatment (10 studies, 2166 participants: RR 1.33, 95% CI 1.00 to 1.77; I² = 0%; moderate certainty evidence). There was no clear relationship between compliance with therapy and the risk for repeat UTIs. No difference in the risk for UTIs could be demonstrated between low, moderate and high doses of PACs.\nThis update adds a further 26 studies, taking the total number of studies to 50 with 8857 participants. These data support the use of cranberry products to reduce the risk of symptomatic, culture-verified UTIs in women with recurrent UTIs, in children, and in people susceptible to UTIs following interventions. The evidence currently available does not support its use in the elderly, patients with bladder emptying problems, or pregnant women.",
+        "sha256": "86f589c27e683a33bbf37c5ac530cf817838ecad585be6cd82526dfba95e461a",
+        "retrieved_at": "2026-09-18T23:47:54.848067+00:00",
+        "pmcid": "PMC10636779"
+      },
+      {
+        "id": "40702593",
+        "title": "SGLT2 Inhibitors and GLP-1 Receptor Agonists in Kidney Transplantation: A Systematic Review and Meta-Analysis.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40702593/",
+        "abstract": "Kidney transplant (KT) recipients experience high rates of cardiovascular disease, allograft dysfunction, and diabetes, negatively impacting long-term outcomes. Sodium-glucose cotransporter 2 inhibitors (SGLT2i) and glucagon-like peptide-1 receptor agonists (GLP-1RAs) provide cardiovascular and kidney benefits in non-KT recipients, but evidence in KT recipients remains limited. This systematic review and meta-analysis provide updated evidence on the efficacy and safety of SGLT2i and GLP-1RAs on KT recipients.\nA comprehensive search of MEDLINE, Embase, and Cochrane databases was conducted through February 27, 2025. Data extraction, risk of bias assessment, and meta-analysis were performed using standardized methods with a random-effects model.\nA total of 32 studies, including 7834 KT recipients, were analyzed, comprising 21 studies (3856 patients) on SGLT2i and 12 studies (3978 patients) on GLP-1RAs. Their use was associated with reduced mortality and improved cardiovascular and kidney outcomes in matched control studies. Both agents promoted weight loss (SGLT2i: standardized mean difference -0.59; 95% confidence interval [CI], -1.04 to -0.15; GLP-1RA: standardized mean difference -0.27; 95% CI, -0.44 to -0.10) and hemoglobin A1c reduction (SGLT2i: mean difference, -0.33%; 95% CI, -0.55% to -0.12%; GLP-1RA: mean difference, -0.48%; 95% CI, -0.82% to -0.13%) while maintaining stable kidney function. SGLT2i increased serum magnesium levels and reduced uric acid levels. Safety analysis showed no increased risk of infections (SGLT2i) or pancreatitis (GLP-1RAs).\nSGLT2i and GLP-1RA were associated with improved survival, cardiovascular, and kidney outcomes with a favorable safety profile. Future randomized controlled trials are necessary to confirm the efficacy and safety in this high-risk population.",
+        "sha256": "ac147a45231dc25cfb2f1e1a3dc47b4917c333175341db27edb3003de360befd",
+        "retrieved_at": "2026-09-18T23:47:55.502516+00:00"
+      },
+      {
+        "id": "36190229",
+        "title": "[Clinical practice guideline for the diagnosis and management of urinary tract infections: 2022 update].",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36190229/",
+        "abstract": "In 2015, the \"New recommendations regarding the current controversies in urinary infection\" were published in the Archivos Argentinos de Pediatría. Given the fact that in these past years, new evidence has emerged regarding the diagnosis and treatment of urinary infection, the Pediatric Nephrology Committee of Sociedad Argentina de Pediatría has decided to update these recommendations. The main goal is to provide the pediatrician with the necessary tools to make a correct diagnosis, define the most appropriate treatment, select the patients who will benefit from antibiotic prophylaxis, and decide which imaging studies will be necessary, avoiding costly and invasive interventions. These guidelines also include the management of children with urinary tract infections associated with special situations such as: bladder bowel dysfunction, the newborn, children with neurogenic bladder, kidney transplant patients and fungal urinary tract infections.",
+        "sha256": "772b39853a833e2eb7b0c7f04e8a6fa1ebedc45267f4e8afb9e1272ab75d7738",
+        "retrieved_at": "2026-09-18T23:47:55.502516+00:00"
+      },
+      {
+        "id": "34860468",
+        "title": "Effectiveness of T cell-mediated rejection therapy: A systematic review and meta-analysis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34860468/",
+        "abstract": "The effectiveness of T cell-mediated rejection (TCMR) therapy for achieving histological remission remains undefined in patients on modern immunosuppression. We systematically identified, critically appraised, and summarized the incidence and histological outcomes after TCMR treatment in patients on tacrolimus (Tac) and mycophenolic acid (MPA). English-language publications were searched in MEDLINE (Ovid), Embase (Ovid), Cochrane Central (Ovid), CINAHL (EBSCO), and Clinicaltrials.gov (NLM) up to January 2021. Study quality was assessed with the National Institutes of Health Study Quality Tool. We pooled results using an inverse variance, random-effects model and report the binomial proportions with associated 95% confidence intervals (95% CI). Statistical heterogeneity was explored using the I2  statistic. From 2875 screened citations, we included 12 studies (1255 participants). Fifty-eight percent were good/high quality while the rest were moderate quality. Thirty-nine percent of patients (95% CI 0.26-0.53, I2 77%) had persistent ≥Banff Borderline TCMR 2-9 months after anti-rejection therapy. Pulse steroids and augmented maintenance immunosuppression were mainstays of therapy, but considerable practice heterogeneity was present. A high proportion of biopsy-proven rejection exists after treatment emphasizing the importance of histology to characterize remission. Anti-rejection therapy is foundational to transplant management but well-designed clinical trials in patients on Tac/MPA immunosuppression are lacking to define the optimal therapeutic approach.",
+        "sha256": "435104bf1777ec07fc105f061b210dce6eca17112b983c2012b17397e9cd5880",
+        "retrieved_at": "2026-09-18T23:47:55.502516+00:00",
+        "pmcid": "PMC9300092"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The repeat allograft biopsy is definitive: it shows tubular injury with abundant strongly birefringent intratubular/intracellular crystalline deposits and explicitly no active T cell-mediated rejection. This establishes crystalline nephropathy as the cause of the current progressive dysfunction, not recurrent rejection. Source 35635787 directly supports including genetic determination of APRT deficiency in the differential for crystalline nephropathy even absent nephrolithiasis, since it is an under-recognized, treatable cause of reversible crystalline nephropathy in allografts that can improve renal outcomes. Answer B is inappropriate and potentially harmful: giving empiric pulse steroids for 'recurrent rejection' when the biopsy shows no active rejection would add immunosuppression toxicity without treating the actual crystalline pathology, and delaying evaluation of the crystals risks ongoing, potentially reversible graft injury. While TCMR frequently persists after therapy (source 34860468 notes histologic persistence), the point of that literature is that histology should characterize remission—and here histology shows no rejection, reinforcing that treatment should not be driven by creatinine alone.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "35635787"
+              ],
+              "source_passage_ids": [
+                "35635787:p1"
+              ],
+              "reason": "The abstract conclusion explicitly states APRT deficiency is an under-recognized, treatable condition causing reversible crystalline nephropathy leading to allograft loss or dysfunction.",
+              "source_quotes": [
+                {
+                  "source_id": "35635787",
+                  "quote": "After follow-up, one-third of the patients 10 (33.3%) had stable graft function, 1 patient had allograft loss, 8 (26.6%) patients had delayed graft function while the remaining 11 (36.6%) patients had chronic kidney graft dysfunction. APRT deficiency is an under-recognized, treatable condition that causes reversible crystalline nephropathy, leading to loss of allograft or allograft dysfunction. The study results showed that inclusion of genetic determination of APRT deficiency in the differential diagnosis of crystalline nephropathy, even in the absence of a history of nephrolithiasis, can improve renal outcomes and may improve allograft survival."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "35635787"
+              ],
+              "source_passage_ids": [
+                "35635787:p1"
+              ],
+              "reason": "The abstract states inclusion of genetic determination of APRT deficiency in the differential of crystalline nephropathy, even absent nephrolithiasis history, can improve outcomes.",
+              "source_quotes": [
+                {
+                  "source_id": "35635787",
+                  "quote": "After follow-up, one-third of the patients 10 (33.3%) had stable graft function, 1 patient had allograft loss, 8 (26.6%) patients had delayed graft function while the remaining 11 (36.6%) patients had chronic kidney graft dysfunction. APRT deficiency is an under-recognized, treatable condition that causes reversible crystalline nephropathy, leading to loss of allograft or allograft dysfunction. The study results showed that inclusion of genetic determination of APRT deficiency in the differential diagnosis of crystalline nephropathy, even in the absence of a history of nephrolithiasis, can improve renal outcomes and may improve allograft survival."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34860468"
+              ],
+              "source_passage_ids": [
+                "34860468:p1"
+              ],
+              "reason": "39% had persistent Banff Borderline TCMR after anti-rejection therapy, supporting a substantial proportion with persistent biopsy-proven rejection.",
+              "source_quotes": [
+                {
+                  "source_id": "34860468",
+                  "quote": "Fifty-eight percent were good/high quality while the rest were moderate quality. Thirty-nine percent of patients (95% CI 0.26-0.53, I2 77%) had persistent ≥Banff Borderline TCMR 2-9 months after anti-rejection therapy. Pulse steroids and augmented maintenance immunosuppression were mainstays of therapy, but considerable practice heterogeneity was present. A high proportion of biopsy-proven rejection exists after treatment emphasizing the importance of histology to characterize remission. Anti-rejection therapy is foundational to transplant management but well-designed clinical trials in patients on Tac/MPA immunosuppression are lacking to define the optimal therapeutic approach."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34860468"
+              ],
+              "source_passage_ids": [
+                "34860468:p1"
+              ],
+              "reason": "The abstract emphasizes the importance of histology to characterize remission after treatment.",
+              "source_quotes": [
+                {
+                  "source_id": "34860468",
+                  "quote": "Fifty-eight percent were good/high quality while the rest were moderate quality. Thirty-nine percent of patients (95% CI 0.26-0.53, I2 77%) had persistent ≥Banff Borderline TCMR 2-9 months after anti-rejection therapy. Pulse steroids and augmented maintenance immunosuppression were mainstays of therapy, but considerable practice heterogeneity was present. A high proportion of biopsy-proven rejection exists after treatment emphasizing the importance of histology to characterize remission. Anti-rejection therapy is foundational to transplant management but well-designed clinical trials in patients on Tac/MPA immunosuppression are lacking to define the optimal therapeutic approach."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is a well-constructed transplant surgery diagnostic scenario. A kidney allograft recipient with rising creatinine after prior TCMR therapy has a repeat biopsy showing crystalline nephropathy (strongly birefringent intratubular crystals) with NO active TCMR. The correct decision is to follow current histology and investigate crystalline nephropathy, including APRT deficiency genetic testing (2,8-DHA crystals are birefringent), rather than blindly re-treating for rejection the biopsy does not show. Answer A does this; Answer B (intended flawed) empirically re-treats presumed rejection with pulse steroids and defers crystalline workup, contradicting the current biopsy and risking harm from unnecessary immunosuppression escalation and delayed diagnosis of a treatable metabolic cause. I solved the case independently from the clinical data before consulting the key; my conclusion matches ground_truth A.\n\nEvidence check: Source 35635787 directly supports the APRT claims including the 'even in the absence of a history of nephrolithiasis' point, which matches the patient's stated absence of nephrolithiasis. Source 34860468 supports both that persistent TCMR is common post-therapy (39%) AND crucially that histology is essential to characterize remission — which actually undercuts B's empiric strategy, since one should confirm rejection histologically (which the repeat biopsy did NOT show). All four claims are entailed by the cited abstracts, not merely titles. The many irrelevant sources (cranberry, ED, TA-TMA, SGLT2i, pediatric UTI) are distractors and are not relied upon by the key.\n\nCoherence/disclosure check: The visible note and study impression describe crystalline nephropathy without disclosing the specific answer (APRT genetic testing) or the management decision; the title mentions 'progressive dysfunction after prior rejection therapy' but does not reveal the intended answer. No essential care omitted by A — recommending targeted diagnostic evaluation of the demonstrated crystalline injury while avoiding unwarranted immunosuppression is appropriate and safe. Data is complete for the diagnostic decision (biopsy report, creatinine trend, history present). Correct specialty (transplant surgery). Decision is distinct (histology-guided workup vs empiric rejection re-treatment). Minor observation: doses/frequencies of maintenance meds are null, but this does not affect the decision. No blocking defects identified."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The repeat biopsy directly identifies crystalline nephropathy with tubular injury and strongly birefringent deposits, while showing no active T cell-mediated rejection. Therefore, empiric repeat rejection therapy is not supported. APRT deficiency is an underrecognized, treatable cause of recurrent crystalline nephropathy and allograft dysfunction; the cited systematic review specifically supports genetic evaluation even without a history of nephrolithiasis. Prior rejection does not override the current histology, which should guide management.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "35635787"
+              ],
+              "reason": "The systematic review explicitly characterizes APRT deficiency as under-recognized and treatable, causing reversible crystalline nephropathy and kidney allograft dysfunction or loss.",
+              "source_passage_ids": [
+                "35635787:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35635787",
+                  "quote": "After follow-up, one-third of the patients 10 (33.3%) had stable graft function, 1 patient had allograft loss, 8 (26.6%) patients had delayed graft function while the remaining 11 (36.6%) patients had chronic kidney graft dysfunction. APRT deficiency is an under-recognized, treatable condition that causes reversible crystalline nephropathy, leading to loss of allograft or allograft dysfunction. The study results showed that inclusion of genetic determination of APRT deficiency in the differential diagnosis of crystalline nephropathy, even in the absence of a history of nephrolithiasis, can improve renal outcomes and may improve allograft survival."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "35635787"
+              ],
+              "reason": "The source explicitly recommends including genetic determination of APRT deficiency in the differential diagnosis of crystalline nephropathy even without nephrolithiasis.",
+              "source_passage_ids": [
+                "35635787:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35635787",
+                  "quote": "After follow-up, one-third of the patients 10 (33.3%) had stable graft function, 1 patient had allograft loss, 8 (26.6%) patients had delayed graft function while the remaining 11 (36.6%) patients had chronic kidney graft dysfunction. APRT deficiency is an under-recognized, treatable condition that causes reversible crystalline nephropathy, leading to loss of allograft or allograft dysfunction. The study results showed that inclusion of genetic determination of APRT deficiency in the differential diagnosis of crystalline nephropathy, even in the absence of a history of nephrolithiasis, can improve renal outcomes and may improve allograft survival."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34860468"
+              ],
+              "reason": "The meta-analysis reports persistent biopsy-proven borderline-or-greater TCMR in 39% of patients 2–9 months after therapy, supporting the claim that persistence is substantial.",
+              "source_passage_ids": [
+                "34860468:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34860468",
+                  "quote": "Fifty-eight percent were good/high quality while the rest were moderate quality. Thirty-nine percent of patients (95% CI 0.26-0.53, I2 77%) had persistent ≥Banff Borderline TCMR 2-9 months after anti-rejection therapy. Pulse steroids and augmented maintenance immunosuppression were mainstays of therapy, but considerable practice heterogeneity was present. A high proportion of biopsy-proven rejection exists after treatment emphasizing the importance of histology to characterize remission. Anti-rejection therapy is foundational to transplant management but well-designed clinical trials in patients on Tac/MPA immunosuppression are lacking to define the optimal therapeutic approach."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34860468"
+              ],
+              "reason": "The source expressly states that the high proportion of biopsy-proven rejection after treatment emphasizes histology's importance in characterizing remission.",
+              "source_passage_ids": [
+                "34860468:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34860468",
+                  "quote": "Fifty-eight percent were good/high quality while the rest were moderate quality. Thirty-nine percent of patients (95% CI 0.26-0.53, I2 77%) had persistent ≥Banff Borderline TCMR 2-9 months after anti-rejection therapy. Pulse steroids and augmented maintenance immunosuppression were mainstays of therapy, but considerable practice heterogeneity was present. A high proportion of biopsy-proven rejection exists after treatment emphasizing the importance of histology to characterize remission. Anti-rejection therapy is foundational to transplant management but well-designed clinical trials in patients on Tac/MPA immunosuppression are lacking to define the optimal therapeutic approach."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Answer A appropriately follows the current allograft biopsy, which identifies tubular injury with abundant birefringent crystals and no active T cell-mediated rejection. It proposes a broad crystalline-nephropathy evaluation that includes, but does not prematurely diagnose, APRT deficiency. The supplied review directly supports considering genetic determination even without nephrolithiasis. Avoiding another empiric rejection course is clinically consistent with the negative current histology and prevents unnecessary immunosuppression while the demonstrated alternative injury mechanism is investigated. Answer B anchors on the prior rejection and rising creatinine while deferring evaluation of the biopsy-proven crystalline process; that approach is unsafe and unsupported. No additional imaging or laboratory result is required to distinguish these two proposed approaches, although a real-world crystalline-nephropathy workup would further characterize the crystals and assess metabolic, medication-related, and other causes. There are no previous cases against which to identify duplication, so this constitutes a distinct decision."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "bd18db131442d3d9019e11bca96ce05253c8f4baa3c9ff8f7bda5c84b4bb9d7d"
+  }
+}

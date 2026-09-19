@@ -28,7 +28,7 @@ image bytes, agree with the answer, and confirm no identifiers are visible.
 ## Build and release
 
 The manual **LLM smoke (real models)** workflow's `onboarding-library` mode accepts
-one launch specialty or `all` (43). Each isolated job prepares practice before
+one launch specialty, a comma-separated subset, or `all` (43). Each isolated job prepares practice before
 examination, checks independence, and uploads passing cases separately from
 rejected-attempt diagnostics. Existing
 committed cases are reused; building never overwrites their identities. A failed
@@ -67,6 +67,25 @@ Alongside PubMed abstracts, it can retain bounded CC BY/CC0 Europe PMC body
 excerpts with matching publication IDs, license metadata and hashes. Excerpts
 are selected paragraphs, not a claim to include the complete guideline. No
 model-provided URL or redirect target is fetched.
+
+Reference searches preserve singular/plural matches and omit unindexed stopwords;
+temporary NCBI throttles receive at most three bounded attempts. License URLs may
+be linked or plain text in the article's permissions section. CC BY-NC/ND/SA and
+licenses mentioned elsewhere in an article remain ineligible.
+
+Pathology additionally retrieves one explicitly pinned, peer-reviewed teaching
+paper, [Scholl et al., 2025](https://pmc.ncbi.nlm.nih.gov/articles/PMC12271062/)
+(CC BY 4.0). Its text covers both squamous and basal-cell morphology. PMID, PMCID,
+title, recency and retraction checks must match, and licensed full text must be
+available. The same source is supplied for both case kinds. This narrow exception
+does not label educational papers as guidelines or admit arbitrary case reports.
+The assessment compares interpretations of visible morphology; whole-slide
+margins, staging and additional stains cannot be inferred from the reference field.
+
+`authoring_feedback.json` preserves independent audit defects for regeneration.
+Feedback is author-only context, never evidence, clinical approval, an applicant
+payload or input to the blinded reviewers. Rejected artifacts stay outside the
+released bank until fresh authorship and both clinical reviews succeed.
 
 Seven pre-protocol artifacts received an independent audit against their actual
 source text. `legacy_evidence_audits.json` pins each entire original document,

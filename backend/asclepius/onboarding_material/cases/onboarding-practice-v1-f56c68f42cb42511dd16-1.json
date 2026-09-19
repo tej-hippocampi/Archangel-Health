@@ -1,0 +1,550 @@
+{
+  "task_id": "onboarding-practice-v1-f56c68f42cb42511dd16-1",
+  "specialty": "radiology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Contrast strategy for lower-extremity intervention in chronic kidney disease",
+    "question": "Which proposed intraprocedural contrast strategy is more appropriate for this patient?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "radiology",
+      "demographics": {
+        "age_band": "60-69",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Chronic kidney disease, stage 4",
+          "since": "Established before current presentation",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Peripheral arterial disease with nonhealing forefoot ulcer",
+          "since": "Several months",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Type 2 diabetes mellitus",
+          "since": "Longstanding",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [
+        {
+          "panel": "Renal function",
+          "collected_offset_days": -30,
+          "results": [
+            {
+              "analyte": "Serum creatinine",
+              "loinc": null,
+              "value": 2.6,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Estimated glomerular filtration rate",
+              "loinc": null,
+              "value": 24,
+              "unit": "mL/min/1.73 m2",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Renal function",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Serum creatinine",
+              "loinc": null,
+              "value": 2.7,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Estimated glomerular filtration rate",
+              "loinc": null,
+              "value": 23,
+              "unit": "mL/min/1.73 m2",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Preprocedure assessment",
+          "author_role": "radiology",
+          "text": "An adult in her sixties has a nonhealing forefoot ulcer and exertional calf pain despite completed wound care and vascular risk-factor treatment. Duplex findings localize severe infrainguinal arterial disease, and multidisciplinary review documented an indication for catheter-based revascularization. She has established stage 4 chronic kidney disease and diabetes. Renal function has remained near its recent baseline, with current eGFR 23 mL/min/1.73 m2. She is not receiving dialysis and has no recorded prior iodinated-contrast hypersensitivity.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Duplex ultrasound",
+          "label": "Lower-extremity arterial duplex",
+          "findings": "Monophasic distal waveforms and markedly elevated velocity at the proximal superficial femoral artery, with additional severe tibial runoff disease.",
+          "measurements": [],
+          "impression": "Hemodynamically significant infrainguinal peripheral arterial disease.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -5
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [
+        "angiography"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for contrast-strategy decision",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "For the already-indicated infrainguinal intervention, the contrast approach should account for the patient's stage 4 chronic kidney disease and eGFR below 30. A systematic angiographic technique can permit intervention with relatively small contrast volumes, and the supplied evidence advises using the lowest possible iodinated-contrast dose in patients with impaired renal function. Candidate A incorrectly treats observational evidence that intravenous ioversol did not independently increase PC-AKI as permission for unrestricted intra-arterial contrast use. That inference disregards the different route and procedure population, the recognized renal vulnerability associated with severe CKD, and the need for an individualized risk-benefit assessment.",
+        "evidence": null,
+        "key_data": [
+          "The patient has established stage 4 chronic kidney disease.",
+          "Current eGFR is 23 mL/min/1.73 m2, with a similar recent baseline.",
+          "Diabetes and severe infrainguinal peripheral arterial disease are present.",
+          "Catheter-based infrainguinal revascularization has already been judged clinically indicated.",
+          "The decision concerns contrast use during angiography rather than whether revascularization is indicated."
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Use the usual unrestricted operator-selected iodinated contrast volume and obtain repeat angiographic runs whenever convenient. Because intravenous ioversol has not independently increased PC-AKI in controlled comparisons, the eGFR below 30 should not alter the procedural contrast strategy."
+      },
+      {
+        "id": "B",
+        "text": "For the already-indicated intervention, first apply an individualized renal risk-benefit assessment, then use a systematic subtraction-view technique with the lowest iodinated contrast amount that still provides diagnostically adequate images, avoiding discretionary repeat runs and unnecessary contrast use."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "stage 4 chronic kidney disease",
+      "post-contrast acute kidney injury",
+      "iodinated contrast",
+      "eGFR below 30",
+      "diabetes mellitus"
+    ],
+    "evidence_keywords": [
+      "infrainguinal angioplasty",
+      "systematic angiographic technique",
+      "contrast volume reduction",
+      "renal risk-benefit assessment",
+      "lowest possible contrast dose"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "misreads_labs"
+    ],
+    "claims": [
+      {
+        "statement": "Acute kidney injury is recognized after iodinated contrast administration during endovascular interventions for peripheral arterial disease.",
+        "source_ids": [
+          "31814551"
+        ]
+      },
+      {
+        "statement": "Standard infrainguinal angioplasty can be performed with relatively small contrast volumes by following a systematic technique.",
+        "source_ids": [
+          "31814551"
+        ]
+      },
+      {
+        "statement": "Chronic kidney disease is a major PC-AKI risk factor, with reported risk increasing substantially when eGFR is below 30 mL/min/1.73 m2.",
+        "source_ids": [
+          "35312790"
+        ]
+      },
+      {
+        "statement": "The reviewed evidence advises using the lowest possible iodinated contrast dose in patients with impaired renal function or relevant comorbidities.",
+        "source_ids": [
+          "35312790"
+        ]
+      },
+      {
+        "statement": "Reducing individual iodinated contrast doses can improve safety for patients at risk of contrast-associated acute kidney injury.",
+        "source_ids": [
+          "37156181"
+        ]
+      },
+      {
+        "statement": "Use of iodinated contrast in renal failure should be evaluated critically according to patient-specific factors and the clinical cost-benefit ratio.",
+        "source_ids": [
+          "33958111"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T00:00:17.649154+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "31814551",
+        "title": "Standardisation of Technique and Volume of Iodinated Contrast Administration During Infrainguinal Angioplasty.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31814551/",
+        "abstract": "Acute Kidney injury is recognised to occur after administration of iodinated contrast during endovascular interventions for peripheral arterial disease. There are no standardised protocols for contrast delivery during infrainguinal angiography.\nThe objective of this paper is to review published practice regarding the technique of conventional infrainguinal angiography and intervention, and describe a standard set of subtraction views, injection rates and contrast volumes for infrainguinal angioplasty.\nDatabase searches and review of papers containing (Angioplasty or Angiography) and (\"lower limb\" or peripheral or infrainguinal) and (method or technique or guidelines or protocol) was performed and defined procedures assessed.\nA small number of papers provided specific technical details relating to contrast volumes and angiography views. There was considerable variation from authors who have described the contrast volumes used for lower limb angiography. We describe our simple and consistent method. The precise pathophysiology of contrast related nephropathy is under scrutiny. There is interest in new technology to minimise contrast induced kidney injury.\nFew publications specify iodinated contrast doses, injection volumes or imaging views for infrainguinal arteriography. Standard infrainguinal angioplasty can be performed with conventional equipment using relatively small volumes of contrast by following a systematic technique.",
+        "sha256": "21ff0a5723ffd9e9d37faf3decb4cdfca6190e7ee96672e2ffbc3d6612ab4141",
+        "retrieved_at": "2026-09-18T23:58:39.739886+00:00"
+      },
+      {
+        "id": "37156181",
+        "title": "Shortage of iodinated contrast media: Status and possible chances - A systematic review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37156181/",
+        "abstract": "Covid-19 related lockdowns have resulted in a shortage of iodinated contrast media (ICM) in 2022. Health care providers have reacted with implementing conservation strategies to stay operational without compromising patient care. Although articles describing the implemented Interventions have been published, possible chances of the shortage have not yet been mentioned in the literature.\nWe conducted a literature search in PubMed and Google Scholar, and analysed the background, interventions, and possible benefits of low-dose ICM regimens.\nWe included 22 articles dealing with \"ICM shortage\" for the analysis. The delivery bottlenecks in the USA and Australia led to two different countermeasures, 1. reduction of the number of contrast-enhanced image-guided examinations and 2. reduction of the (single) ICM dose. Interventions from both groups have resulted in significant reduction of ICM usage; however, group 1 has contributed more to overall ICM reduction. As benefit of the ICM reduction, we revealed an increased safety for patients at risk (e.g. hypersensitivity reactions, contrast-induced acute kidney injury, thyroid toxic effects).\nThe ICM shortage of 2022 has forced health care providers to implement conservation strategies to stay operational. Although there were already proposals for dose reduction before the corona pandemic and the associated supply bottlenecks, this situation led to the use of a reduced amount of contrast agent on a large scale. This presents a good opportunity to reconsider protocols and the use of contrast-enhanced imaging in general for future practice as it offers chances and advantages regarding costs, environmental impact, and patient safety.",
+        "sha256": "b608042a5c3c2b811235b9e86695feebfd54ec6eaf088ec5672c52b7f84dbf8c",
+        "retrieved_at": "2026-09-18T23:58:39.739886+00:00",
+        "pmcid": "PMC10155429"
+      },
+      {
+        "id": "33958111",
+        "title": "ACR Appropriateness Criteria® Renal Failure.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33958111/",
+        "abstract": "Renal failure can be divided into acute kidney injury and chronic kidney disease. Both are common and result in increased patient morbidity and mortality. The etiology is multifactorial and differentiation of acute kidney injury from chronic kidney disease includes clinical evaluation, laboratory tests, and imaging. The main role of imaging is to detect treatable causes of renal failure such as ureteral obstruction or renovascular disease and to evaluate renal size and morphology. Ultrasound is the modality of choice for initial imaging, with duplex Doppler reserved for suspected renal artery stenosis or thrombosis. CT and MRI may be appropriate, particularly for urinary tract obstruction. However, the use of iodinated and gadolinium-based contrast should be evaluated critically depending on specific patient factors and cost-benefit ratio. The American College of Radiology Appropriateness Criteria are evidence-based guidelines for specific clinical conditions that are reviewed annually by a multidisciplinary expert panel. The guideline development and revision include an extensive analysis of current medical literature from peer reviewed journals and the application of well-established methodologies (RAND/UCLA Appropriateness Method and Grading of Recommendations Assessment, Development, and Evaluation or GRADE) to rate the appropriateness of imaging and treatment procedures for specific clinical scenarios. In those instances where evidence is lacking or equivocal, expert opinion may supplement the available evidence to recommend imaging or treatment.",
+        "sha256": "b02d3a7cfa157fb8454d9b6e4a87030eaae167870ca0666392b00620f05b9375",
+        "retrieved_at": "2026-09-18T23:58:39.739886+00:00"
+      },
+      {
+        "id": "32155642",
+        "title": "Does Iodinated Contrast Affect Residual Renal Function in Dialysis Patients? A Systematic Review and Meta-Analysis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32155642/",
+        "abstract": "It is important for medical practitioners to be aware of the effect of iodinated contrast media on the residual renal function (RRF) of dialysis patients who require diagnostic or therapeutic imaging procedures. Preservation of RRF is important given that it is a robust predictor of higher survival. However, the absence of any effect would allow for easier diagnostic or therapeutic imaging tests to be performed.\nThis systematic review with meta-analysis will quantify the effect of intravascular administration of iodinated contrast on the residual function of adult dialysis patients.\nThe selection criteria included adult (age ≥ 18 years) populations undergoing dialysis, who have been administered an intravascular contrast. The primary outcome was the measurement of residual function. Secondary outcomes were disease progression from peritoneal dialysis to hemodialysis, hospitalization following contrast administration, and all-cause mortality.\nNine studies including 434 patients met the inclusion criteria. A meta-analysis was performed on 7 trials with complete quantitative data. The weighted difference in means was -0.16 mL/min (95% confidence interval -0.66 to 0.34 mL/min; p = 0.53), suggesting a small reduction in residual function following contrast administration. Significant heterogeneity in the data was observed, with a Cochran Q of 35.83 and an I2 of 83.25 (p < 0.0001). Subgroup analysis of retrospective versus prospective study design resolved heterogeneity. Few data were reported for clinical outcomes.\nSmall sample size of included studies.\nIntravascularly administered contrast media may not result in a significant reduction of residual function in dialysis patients.",
+        "sha256": "9a16196f1ab5ec5afcced7525db747b32f096faf6e922a1b73350dcb5d1bf429",
+        "retrieved_at": "2026-09-18T23:58:40.239716+00:00"
+      },
+      {
+        "id": "34334337",
+        "title": "Acute Kidney Injury Following Transcatheter Edge-to-Edge Mitral Valve Repair: A Systematic Review and Meta-Analysis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34334337/",
+        "abstract": "Aim of this study was to perform a systematic review a meta-analysis of the literature in order to identify predictors of acute kidney injury (AKI) in patients with mitral regurgitation (MR) undergoing transcatheter edge-to-edge repair (TEER) and assess its effect on in-hospital outcomes and mortality. Although iodinated contrast is not typically used in TEER, these patients are still at risk for developing AKI.\nStudies reporting on the effect of incident AKI on mortality following TEER for MR were included. Random-effects meta-analysis was performed, comparing clinical outcomes between the patients with or without incident AKI.\nSix studies including a total of 2057 patients (377 AKI and 1680 No-AKI) were included and analyzed. AKI was significantly associated with 30-day mortality after TEER (Odds ratio (OR): 8.06; 95% CI: 3.20, 20.30, p < 0.01; I2 = 18.4%) and all-cause mortality over a mean follow-up time of 30 months (Hazard ratio (HR): 2.48; 95% CI: 1.89, 3.24, p < 0.01; I2 = 23.7%). AKI after TEER was associated with prolonged hospitalization (Mean difference (in days): 1.41; 95% CI: 0.52, 2.31, p < 0.01; I2 = 82.4%). Stage 4 chronic kidney disease (CKD), device failure and history of chronic obstructive pulmonary disease (COPD) were significant predictors of AKI following TEER (CKD stage 4: OR: 2.38; 95% CI: 1.18, 4.78, p = 0.02; I2 = 0.0%; Device failure: OR: 3.15; 95% CI: 1.94, 5.12, p < 0.01; I2 = 0.0%; COPD: OR: 1.92; 95% CI: 1.16, 3.17; I2 = 26.7%).\nOur findings highlight the renal vulnerability of the TEER population to renal injury and the associated deterioration in clinical outcomes and survival.",
+        "sha256": "b06b1282d18c435ce4d62161f76d5e948c21eb1af4fb8493fd845933a4cb2270",
+        "retrieved_at": "2026-09-18T23:58:40.239716+00:00"
+      },
+      {
+        "id": "33153554",
+        "title": "ACR Appropriateness Criteria® Indeterminate Renal Mass.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33153554/",
+        "abstract": "Renal masses are increasingly detected in asymptomatic individuals as incidental findings. CT and MRI with intravenous contrast and a dedicated multiphase protocol are the mainstays of evaluation for indeterminate renal masses. A single-phase postcontrast dual-energy CT can be useful when a dedicated multiphase renal protocol CT is not available. Contrast-enhanced ultrasound with microbubble agents is a useful alternative for characterizing renal masses, especially for patients in whom iodinated CT contrast or gadolinium-based MRI contrast is contraindicated. The American College of Radiology Appropriateness Criteria are evidence-based guidelines for specific clinical conditions that are reviewed annually by a multidisciplinary expert panel. The guideline development and revision include an extensive analysis of current medical literature from peer reviewed journals and the application of well-established methodologies (RAND/UCLA Appropriateness Method and Grading of Recommendations Assessment, Development, and Evaluation or GRADE) to rate the appropriateness of imaging and treatment procedures for specific clinical scenarios. In those instances where evidence is lacking or equivocal, expert opinion may supplement the available evidence to recommend imaging or treatment.",
+        "sha256": "12e2b36dfe5ee4069045607a85daa35b80632e577a2982977efeec3c20543acc",
+        "retrieved_at": "2026-09-18T23:58:40.239716+00:00"
+      },
+      {
+        "id": "35636024",
+        "title": "Systematic review and meta-analysis of prophylaxis use with intravenous contrast exposure to prevent contrast-induced nephropathy.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35636024/",
+        "abstract": "Iodinated radiographic contrast media has been associated with an acute deterioration in renal function, termed contrast induced nephropathy (CIN). This review aims to establish the efficacy of prophylaxis interventions used in adult patients prior to intravenous exposure to iodinated contrast to reduce the risk of CIN.\nAn electronic search for published peer-reviewed articles was performed, supplemented with manual review of references from previous systematic reviews and the National Institute for Health and Care Excellence guidelines. Risk of bias was assessed using the Cochrane Collaboration's tool for assessing risk of bias. Random-effect meta-analyses were used to assess CIN incidence, need for kidney replacement therapy (KRT), mortality, fluid overload and persistent kidney dysfunction.\n22 studies assessing a range of interventions were included in the qualitative analysis. The incidence of CIN was reduced by the use of N-acetylcysteine compared to a control group of saline (risk difference = -0.07, 95% CI -0.13 to -0.01) but not by sodium bicarbonate compared to control group of saline (risk difference = -0.02, 95% CI -0.04 to 0.01). Published studies give no indication that prophylactic interventions have significant impact on the need for KRT, mortality or persistent renal impairment.\nEvidence for prophylaxis against CIN in patients receiving intravenous iodinated contrast is limited. There was an association with the use of NAC with reduced incidence of CIN following intravenous contrast but there was no impact on other clinical outcomes assessed. The clinical significance of these findings remains unclear and further research focusing on these clinical outcomes is required.",
+        "sha256": "63b42e286fded7fce0a105760a89f694dba7b29a0359b86fb185844feb76d52c",
+        "retrieved_at": "2026-09-18T23:58:40.815484+00:00"
+      },
+      {
+        "id": "35312790",
+        "title": "A systematic review of the incidence of hypersensitivity reactions and post-contrast acute kidney injury after ioversol in more than 57,000 patients: part 1-intravenous administration.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35312790/",
+        "abstract": "To evaluate the incidence of adverse drug reactions (ADRs), including hypersensitivity reactions (HSRs) and post-contrast acute kidney injury (PC-AKI), after intravenous (IV) administration of ioversol.\nA systematic literature search (1980-2021) of studies documenting IV use of ioversol and presence or absence of ADRs, HSRs, or PC-AKI was performed. Key information including patients' characteristics, indication and dose of ioversol, safety outcome incidence, intensity and seriousness were extracted.\nThirty-one studies (> 57,000 patients) were selected, including 4 pediatric studies. The incidence of ADRs in adults was reported in 12 studies from ioversol clinical development with a median (range) of 1.65% (0-33.3%), and 3 other studies with an incidence between 0.13 and 0.28%. The incidence of HSRs (reported in 2 studies) ranged from 0.20 to 0.66%, and acute events (4 studies) from 0.23 to 1.80%. Severe reactions were rare with a median (range) of 0 (0-4%), and none were reported among pediatric patients. The incidence of ADRs and HSRs with ioversol, especially those of severe intensity, was among the lowest in studies comparing different iodinated contrast media (ICM) of the same class. PC-AKI incidence was variable (1-42% in 5 studies); however, ioversol exposure per se did not increase the incidence.\nWhen administered by the IV route, ioversol has a good safety profile comparable to that of other ICM within the same class, with a low incidence of severe/serious ADRs overall, and particularly HSRs. PC-AKI incidence does not seem to be increased compared to patients who did not receive ioversol. Further well-designed studies are warranted to confirm these results.\n• Ioversol has a good safety profile in adult and pediatric patients when IV administered. • ADR and HSR incidence with ioversol, especially those of severe intensity, was among the lowest compared to other ICM. • IV administration of ioversol per se did not increase PC-AKI incidence.",
+        "sha256": "5de87841e38c121e437902fa25d51ff02e472aa49af30550ab0d237d8a8d34ff",
+        "retrieved_at": "2026-09-18T23:58:40.815484+00:00",
+        "pmcid": "PMC9279198",
+        "body_excerpts": "Introduction\nIodine-based contrast media (ICM) are widely used in clinical practice for various X-ray-based modalities, and can be classified, according to their osmolality, into hyperosmolar CM (HOCM), low-osmolar CM (LOCM), and iso-osmolar CM (IOCM) [ 1 ]. They can be further subdivided into ionic and non-ionic CM, which do not dissociate into ions in water and are therefore lower in osmolality [ 2 ].\n\nIntroduction\nPost-contrast acute kidney injury (PC-AKI) is a complication that might occur after intravascular exposure to ICM. PC-AKI has been associated with excess morbidity and mortality [ 4 – 6 ], and chronic kidney disease (CKD) is the most well-known risk factor [ 7 ]. The risk of PC-AKI could increase from 5% at an estimated glomerular filtration rate (eGFR) ≥ 60 to 30% at an eGFR < 30 mL/min/1.73 m 2 [ 8 ]. Several definitions of PC-AKI, based on serum creatinine (SCr) concentration, have been proposed by different initiatives, the European Society of Urogenital Radiology (ESUR) [ 9 ], the Acute Kidney Injury Network (AKIN) [ 10 ], and the Kidney Disease Improving Global Outcomes (KDIGO) being the most recent [ 11 ].\n\nIntroduction\nAs the causal relationship between ICM exposure and the occurrence of AKI is often confounded by several patient- and procedure-related factors, the term PC-AKI is preferred for AKI associated with CM administration for studies lacking a control population [ 9 ]. Only when the ICM is demonstrated as the causative factor is the term contrast-induced acute kidney injury (CI-AKI) or contrast-induced nephropathy (CIN) appropriate.\n\nMaterials and methods > Data sources and searches\nA search of MEDLINE (PubMed) and EMBASE (Elsevier) references from January 1980 to May 2021 was performed using keywords related to adverse events usually associated with the use of ICM such as “allergic reaction,” “hypersensitivity,” “anaphylactic,” “nephrotoxicity,” and “kidney injury” (Appendix 1).\n\nMaterials and methods > Data extraction and study quality assessment\nThe methodological quality of the non-randomized studies was assessed using a modified Newcastle-Ottawa Scale (NOS) [ 14 ]. The score ranged from 0 to 8, based on 8 questions (one question excluded as not appropriate for safety outcomes) related to patient selection, comparability of cohorts, and outcomes assessment. Scores of 7–8 and 5–6 indicated high-quality and moderate-quality studies, respectively. The revised Cochrane Risk of Bias assessment tool for randomized trials (ROB 2) algorithm was used for randomized controlled trials (RCT) [ 15 ].\n\nResults > Study selection\nThe NOS was applied to all non-RCT and one RCT (randomized for patient hydration and not for ICM allocation) [ 36 ], indicating high quality for 4 studies and medium quality for 18 studies. All RCTs had a low risk of bias, except one [ 37 ] where some concerns linked to a potential performance bias were raised as the study was not double blinded.\n\nResults > Study selection\nTable 1 Description of all selected studies Study Country Study Design Indication & Population Contrast Media Dose N patients Outcome Quality Score a Clinical development program of ioversol McClennan 1989 [ 41 ] USA DB, RCT, S Adult patients who underwent body CT Ioversol 320 100.4 (33.7) mL 40 ADRs Low risk of bias Diatrizoate 370 84.9 (28.6) mL 40 Chagnaud 1992 [ 31 ] France DB, RCT, S Adult patients who underwent body CT Ioversol 300 146 (12.8) mL 41 ADRs Low risk of bias Iopamidol 300 145 (15.4) mL 39 Kopecky 1989 [ 32 ] USA OL, S Adult patients who underwent body CT Ioversol 320 141 (75–150) mL 42 ADRs 5 Sartor 1989 [ 33 ] USA OL, S Adult patients who underwent head CT Ioversol 320 132.4 mL 60 ADRs 5 Gillard 1992 [ 34 ] France OL, S Adult patients who underwent head CT Ioversol 300 60 mL 92 ADRs 5 Théron 1991 [ 35 ] France OL, S Adult patients who underwent head CT Ioversol 350 1 (0.1) mL/kg 40 ADRs 5 Wilkins 1990 [ 20 ] England DB, RCT, S Adult patients who underwent venography Ioversol 240 84.8 (40–200) mL 25 ADRs Low risk of bias Iohexol 240 88.4 (40–150) mL 25 Wilson 1989 [ 22 ] USA DB, RCT, S Adult patients who underwent venography Ioversol 240 NR 25 ADRs Low risk of bias Iothalamate 202 25 Scott 1990 [ 23 ] Australia RCT, S Adult patients who underwent venography Ioversol 240 71.3 (35–160) mL 26 ADRs Low risk of bias Ioversol 320 76.3 (35–140) mL 26 Colthurst 1990 [ 24 ] England DB, RCT, S Adult patients who underwent urography Ioversol 320 76.2 mL 40 ADRs Low risk of bias Iohexol 300 76.6 mL 40 Voegeli 1992 [ 25 ] Switzerland DB, RCT, S Adult patients who underwent urography Ioversol 350 50 mL 42 ADRs Low risk of bias Iohexol 350 50 mL 35 Lemaitre 1992 [ 26 ] France OL, S Adult patients who underwent urography Ioversol 350 45-100 mL 100 ADRs 5 Rieser 1992 [ 29 ] Germany DB, RCT, S Adult patients who underwent intravenous DSA Ioversol 300 176.2 mL 41 ADRs Low risk of bias Iohexol 300 182.2 mL 39 Wilkins 1989 [ 21 ] England SB, RCT, S Healthy volunteers undergoing pharmacokinetic study Ioversol 320 50–100–150 mL 18 ADRs 7 Saline 6 Montagne 1992 [ 27 ] France OL, S Pediatric patients who underwent urography Ioversol 300 2 (1–3) mL/kg 25 ADRs 5 Panuel 1992 [ 30 ] France OL, S Pediatric patients who underwent body CT Ioversol 300 2.8 (0.1) mL/kg 40 ADRs 5 Other studies Vogl 2012 [ 42 ] Germany O, P, M Adult patients who underwent contrast-enhanced CT Ioversol 160, 240, 300, 320, 350 NR 10,836 ADRs Anaphylactoid reactions 5 An 2019 [ 17 ] Korea R, M Adult patients who underwent contrast-enhanced CT Ioversol NR 1,592,523 b ADRs 6 Iohexol 3,816,072 Iopamidol 2,333,794 Iopromide 1,310,393 Iomeprol 1,042,096 Iobitridol 938,251 Iodixanol 679,667 Chen 2017 [ 43 ] China R, S Adult patients who underwent contrast-enhanced CT Ioversol (Optiray) NR 5261 ADRs 6 Ioversol (Hengrui) 105 Iohexol (Omnipaque) 12,824 Iohexol (Ousu) 18,773 Iopamidol 18,044 Iopromide 17,616 Iodixanol 5219 Morales 2017 [ 40 ] Spain P, S Adult patients c, d Ioversol NR 20,958 b HSRs 5 Iopamidol 54,453 Iomeprol 17,645 Cha 2019 [ 41 ] Korea P, M Adult patients who underwent contrast-enhanced CT Ioversol 240, 320, 350 NR 24,220 HSRs 6 Iopromide 370 7335 Iopamidol 300, 370 53,037 Iomeprol 350, 400 29,247 Iohexol 240, 300, 350 51,586 Iodixanol 270, 320 3043 Iobitrodol 300, 350 27,613 Gomi 2010 [ 37 ] Japan P, RCT, S Adult patients who underwent contrast-enhanced CT Ioversol 320 2 mL/kg 1886 Acute ADRs Some concerns Iomeprol 300 1751 Iopamidol 300 1697 Iohexol 300 1792 Iopromide 300 1805 Juchem 2007 [ 18 ] Brazil P, S Adult patients who underwent contrast-enhanced CT Ioversol NR 190 Acute ADRs 6 Meglumine diatrizoate 161 Motosugi 2016 [ 36 ] Japan P, RCT e , S Adult patients who underwent contrast-enhanced abdominal and pelvic CT Ioversol 320 No reaction 583.8 ± 44.7 mgI/Kg 440 Acute allergic-like and physiologic reactions 6 Iohexol 300 1722 Iopamidol 370 Reaction 576.8 ± 42.4 mgI/Kg 1298 Iomeprol 350 1028 Federle 1998 [ 43 ] USA P, S Adult patients who underwent contrast-enhanced thorax or abdomen CT Slow injection rate 150 mL in 92% of cases Anaphylactoid reactions 7 Ioversol 320 250 Iothalamate 725 Fast injection rate Ioversol 320 202 Iothalamate 650 Callahan 2009 [ 38 ] USA R, S Pediatric and young adults (up to 21 years old) who underwent contrast-enhanced CT or excretory urography. Ioversol 320 1.5–2 mL/Kg 12,494 ADRs 5 Louvel 1996 [ 46 ] France P, S Contrast-enhanced CT in geriatric population Ioversol 300 Age > 69 years old 1.36 ± 0.06 mL/Kg 47 PC-AKI 5 Age < 60 years old 1.39 ± 0.08 mL/Kg 44 Ng 2010 [ 47 ] USA R, S Head and torso CT in oncologic patients Ioversol 320 95-150 mL 81 PC-AKI 8 Unenhanced CT 81 Gomez 2013 [ 19 ] Spain P, S Contrast-enhanced CT in diabetic patients Ioversol 320 Mean: 100 mL Maximum: 150 mL 98 PC-AKI 5 Moura 2017 [ 16 ] Brazil R, S Patients undergoing examination with IV contrast injection, with a length of stay in ICU > 3 days Ioversol 320 92.9 ± 10.3 mL 140 PC-AKI 5 Gilligan 2020 [ 39 ] USA R, S Hospitalized pediatric patients undergoing contrast-enhanced CT or abdominal US Ioversol 320 1.5–2 mL/kg 925 PC-AKI 7 Unenhanced US 925 ADRs Adverse drug reactions; HSRs Hypersensitivity reactions; PC-AKI Post-contrast acute kidney injury; P Prospective; R Retrospective; RCT Randomized Controlled Trial; S single-center; M Multicenter; ICU Intensive care unit; eGFR estimated Glomerular Filtration Rate; IV Intravenous; NR Not reported a Quality score according to Newcastle-Ottawa Scale (NOS) or revised Cochrane Risk of Bias assessment tool for randomized trials (ROB 2) algorithm b Number of administered doses of contrast media c No specification of route of administration in the publication d Age and gender reported only for 329 patients who experienced HSRs e Randomization for hydration but not for contrast allocation\n\nResults > Study selection\nAmong the selected studies, 26 [ 17 , 18 , 20 – 38 , 40 , 42 – 45 ] documented the incidence of all ADRs or specifically HSRs (56,502 patients and 1,613,481 doses) and 5 studies [ 16 , 19 , 39 , 46 , 47 ] reported the incidence of PC-AKI (1335 patients). Contrast-enhanced CT was the main indication for which ioversol was used, followed by venography and urography. The mean age was 28–78 years old in adult studies and 5–10 years old in pediatric studies.\n\nResults > Study selection\nTable 2 Incidence of ADRs/HSRs after intravenous administration of ioversol Study Contrast Media N Patients Type of Reaction Incidence (%) Incidence of Serious/Severe Reactions (%) McClennan 1989 [ 41 ] Ioversol 40 ADRs 0% None severe Diatrizoate 40 35% Chagnaud 1992 [ 31 ] Ioversol 41 ADRs 63.4% i None severe Iopamidol 39 69.2% i Kopecky 1989 [ 32 ] Ioversol 42 ADRs 0% - Sartor 1989 [ 33 ] Ioversol 60 ADRs 3.3% None severe Gillard 1992 [ 34 ] Ioversol 92 ADRs 42.4% i None severe Théron 1991 [ 35 ] Ioversol 40 ADRs 12.5% None severe Wilkins 1990 [ 20 ] Severe ADRs Ioversol 25 ADRs 4% 4% Iohexol 25 0% 0% Wilson 1989 [ 22 ] Ioversol 25 ADRs 0% None serious Iothalamate 25 4% Scott 1990 [ 23 ] Ioversol 26 ADRs 0% - Ioversol 26 Colthurst 1990 [ 24 ] Ioversol 40 ADRs 0% None serious Iohexol 40 2.5% Voegeli 1992 [ 25 ] Ioversol 42 ADRs 0% - Iohexol 35 0% Lemaitre 1992 [ 26 ] Ioversol 100 ADRs 1 st injection 12% h 2 nd injection 6.3% h NR Rieser 1992 [ 29 ] Ioversol 41 ADRs 4.9% NR Iohexol 39 5.1% Wilkins 1989 [ 21 ] ADRs Severe ADRs Ioversol 18 33.3% 0% Saline 6 16.7% 16.7% Montagne 1992 [ 27 ] Ioversol 25 ADRs 4% NR Panuel 1992 [ 30 ] Ioversol 40 ADRs 5% NR Vogl 2012 [ 42 ] Ioversol 10836 ADRs 0.28% Serious ADRs 0.037% Anaphylactoid reactions 0.18% Serious anaphylactoid reactions 0.028% An 2019 [ 17 ] ADRs Serious ADRs c Ioversol 1592523 b 0.23% 0.01% Iohexol 3816072 0.24% 0.01% Iopamidol 2333794 0.30% 0.02% Iopromide 1310393 0.59% 0.03% Iomeprol 1042096 0.70% 0.05% Iobitridol 938251 0.55% 0.02% Iodixanol 679667 0.27% 0.03% Chen 2017 [ 43 ] ADRs Moderate/Severe ADRs d Ioversol (Optiray) 5261 0.13% 0.02% Ioversol (Hengrui) 105 0.95% 0.00% Iohexol (Omnipaque) 12824 0.23% 0.02% Iohexol (Ousu) 18773 0.31% 0.04% Iopamidol 18044 0.25% 0.06% Iopromide 17616 0.61% 0.02% Iodixanol 5219 0.67% 0.48% Morales 2017 [ 40 ] a Ioversol 20958 b HSRs 0.2% NR Iopamidol 54453 0.14% Iomeprol 17645 0.4% Cha 2019 [ 44 ] HSRs Severe HSR e Ioversol 24220 0.66% 0.00% Iopromide 7335 0.37% 0.00% Iopamidol 53037 0.70% 0.01% Iomeprol 29247 0.95% 0.01% Iohexol 51586 0.62% 0.01% Iodixanol 3043 0.99% 0.07% Iobitrodol 27613 0.89% 0.01% Gomi 2010 [ 37 ] Ioversol 1886 Acute ADRs 1.80% NR Iomeprol 1751 3.90% Iopamidol 1697 2.20% Iohexol 1792 2.00% Iopromide 1805 3.50% Juchem 2007 [ 18 ] Ioversol 190 Acute ADRs 1.0% c,f None severe Meglumine diatrizoate 161 12.4% g Motosugi 2016 [ 36 ] Ioversol 440 Acute allergic-like reactions 1.8% None severe e 2.0% Iohexol 1722 2.0% 3.6% Iopamidol 1298 Acute physiologic reactions 1.1% 1.6% Iomeprol 1028 2.5% 2.7% Federle 1998 [ 45 ] Slow injection rate Anaphylactoid reactions NR Ioversol 250 2.0% c Iothalamate 725 8.3% Fast injection rate Ioversol 202 2.5% c Iothalamate 650 9.1% Callahan 2009 [ 38 ] Ioversol 12494 ADRs 0.46% None severe e NR Not reported; ADRs Adverse drug reactions; HSRs Hypersensitivity reactions a No specification of route of administration in the publication b Number of administered doses of contrast media c Statistically significant difference d According to guidelines for iodinated contrast agents use of Chinese Society of Radiology e According to American College of Radiology Manual on Contrast Media f Only 2 cases of vomiting g 85% of the reactions were anaphylactoid h Excluding heat sensation i Including heat sensation\n\nResults > Study selection\nTable 3 Event classification by intensity Study Outcome Main source of classification Mild Moderate Severe Callahan 2009 [ 38 ] ADRs ACR Manual on Contrast Media (5 th edition) Itching, hives or rash, flushing, nasal congestion Tachycardia, bradycardia, hypertension, hypotension, pronounced cutaneous reaction, dyspnea, wheezing Laryngeal edema, cardiopulmonary arrest, profound hypotension, unstable arrhythmias, convulsions, unresponsiveness Chen 2017 [ 43 ] ADRs CSR guidelines for iodinated contrast agents use Cough, sneezing, nasal congestion, transient chest tightness, conjunctivitis, rhinitis, nausea, systematic fever, urticaria, itching, angioneurotic edema, mild or localized facial swelling, mild trembling or shivering, single symptom such as mild gastrointestinal discomfort, feeling of binaural blockage, transient blurred vision, dizziness, and numb limbs Severe vomiting, systematic urticaria, moderate or substantial facial swelling, dyspnea, and vasovagal reaction, single systematic trembling or shivering, hypertension, chest distress, palpitation Laryngeal edema, seizure, trembling, convulsions, single trembling or shivering coupled with severe systematic symptoms, oxygen desaturation unconsciousness, shock, death Morales 2017 [ 40 ] HSRs Brown grading [ 48 ] Generalized erythema, urticaria, periorbital edema, angioedema Dyspnea, stridor, wheeze, nausea, vomiting, dizziness (presyncope), diaphoresis, chest or throat tightness, abdominal pain Cyanosis or SpO 2 ≤ 92%, hypotension, confusion, collapse, loss of consciousness, or incontinence Cha 2019 [ 44 ] HSRs ACR Manual on Contrast Media (10 th edition) Limited urticaria and pruritis, limited cutaneous edema, itching or scratchy throat, nasal congestion, sneezing, conjunctivitis, rhinorrhea Diffuse urticaria and pruritis, diffuse erythema with stable vital signs, facial edema without dyspnea, throat tightness or hoarseness without dyspnea, wheezing or bronchospasm with mild or no hypoxia Diffuse edema or facial edema with dyspnea, diffuse erythema with hypotension, anaphylactic shock with hypotension and tachycardia, wheezing or bronchospasm with marked hypoxia ADRs adverse drug reactions, HSRs hypersensitivity reactions, CSR Chinese Society of Radiology, ACR American College of Radiology\n\nStudies with a comparison with other ICM > Post-contrast acute kidney injury\nPC-AKI prophylactic measures were described in two studies, and consisted of oral or IV hydration [ 16 , 19 ]. A large heterogeneity in PC-AKI incidence was observed among the 5 studies (1–42%), due to heterogenous patient populations and differences in used PC-AKI definitions (Table 4 ).\n\nStudies with a comparison with other ICM > Post-contrast acute kidney injury\nTable 4 Incidence of PC-AKI after intravenous administration of ioversol Study Contrast Media N Patients PC-AKI Definition Incidence (%) Louvel 1996 [ 46 ] Ioversol Total: 91 sCr rise > 25% within 72 hours 1.1% Age > 69 years old: 47 2.1% Age < 60 years old: 44 0% Ng 2010 [ 47 ] Ioversol 81 sCr rise > 0.3 mg/dL or > 50% within 7 days 17% Unenhanced CT 81 17% Gomez 2013 [ 19 ] Ioversol 98 sCr rise > 0.5 mg/dL 1% Moura 2017 [ 16 ] Ioversol 140 sCr rise ≥ 0.5 mg/dL or > 25% within 72 hours 12.1% sCr rise > 0.3 mg/dL or > 50% within 48 hours 42.1% KDIGO stage 1 (×1.5 sCr rise) 23.5% KDIGO stage 2 (×2 sCr rise) 8.5% KDIGO stage 3 (×3 sCr rise) 12.1% Gilligan 2020 [ 39 ] Ioversol 925 sCr rise ≥ 0.3 mg/dL or ≥ 50% within 48h 2.4% Unenhanced US 925 2.6% KDIGO Kidney Disease Improving Global Outcomes; ICU intensive care unit; sCr Serum creatinine\n\nStudies with a comparison with other ICM > Post-contrast acute kidney injury\nIn Louvel et al [ 46 ], one patient (1.1%) aged 82 years had a 25% increase in sCr (87 to 109 mmol/L) which rapidly improved. An increase > 10% in sCr was observed in 8 patients aged > 69 years and 4 patients aged < 60 years, with no significant difference between the two age groups. In Gomez et al [ 19 ] (98 diabetic patients using metformin), PC-AKI was observed for only one patient (1%) with an eGFR < 60 mL/min/1.73 m 2 (incidence of 4.7% in this subpopulation), without clinical repercussion. During a 1-month follow-up period, no patient had alteration of renal function requiring medical care.\n\nStudies with a comparison with other ICM > Post-contrast acute kidney injury\nNg et al [ 47 ] included two matched groups of patients who underwent CT with or without ioversol, and showed no difference in PC-AKI incidence (17%), sCr increase (0.25 and 0.11 mg/dL, respectively), need for hemodialysis (2% and 1%, respectively), and in-hospital mortality (17% and 21%, respectively). Moura et al [ 16 ] included a high-risk population of patients admitted to intensive care unit (ICU) with a length of stay > 3 days. The broader PC-AKI definition used in this study resulted in an incidence of 42%. Hemodialysis was needed for seven patients (12%) and deaths reported for 9 patients (6.5%).\n\nStudies with a comparison with other ICM > Post-contrast acute kidney injury\nGilligan et al [ 39 ] included two matched groups of pediatric patients exposed to ioversol (aged 8 [6] years), and those who underwent abdominal US, and showed no difference in PC-AKI incidence (2.4% and 2.6%, respectively). In patients with an eGFR < 60 mL/min/1.73 m 2 , PC-AKI incidence was lower with ioversol (5.6% vs. 11.1%, respectively), although not statistically significant.\n\nDiscussion\nThe risk of ADRs after using ICM in pediatric patients, and particularly life-threatening reactions, is low [ 54 , 55 ]. Callahan et al reported a low incidence of ADRs (0.46%) and absence of severe events [ 38 ]. In one study, where non-ionic ICM were administered in 13,461 pediatric patients, the overall incidence of ADRs was 3.4%, and that of severe ADRs was 0.07% [ 55 ]. Another study reported an incidence of allergic-like reactions of 0.18% overall and 0.027% for severe reactions on 11,306 IV administrations [ 56 ]. This variability could be due to the different reporting (all ADRs or specific types, some mild symptoms not recorded as ADRs) [ 38 ]. ADR incidence was previously associated with the age of the patients with lower incidences observed in patients aged ≤ 10 years (0.22%) [ 50 ]. This could be linked to weak immune responses in pediatric patients compared to adults. Overall, it can be concluded that ioversol has a similar safety profile as other non-ionic ICM when IV administered to pediatric patients.\n\nDiscussion\nSeveral large retrospective studies investigated the safety profile of different ICM. Two studies using different non-ionic ICM reported that cutaneous and gastrointestinal disorders were the most frequent for mild events (51–69% and 12–14%, respectively) [ 49 , 50 ]. In contrast, in a comparison of the safety profile of seven ICM, it was reported that skin (69.4%) and respiratory system disorders (8.9%) were the most frequent, followed by gastrointestinal disorders (5.7%). For ioversol, the proportion of gastrointestinal disorders and cardiovascular disorders was significantly higher than the general profile of LOCM (8% vs. 6% and 2% vs. 1%, respectively) and skin disorders significantly lower (65% vs. 70%) [ 57 ]. Despite some differences between LOCM, cutaneous and gastrointestinal manifestations are the most frequent and it could be concluded that ioversol has a similar safety profile to other LOCM.\n\nDiscussion\nPC-AKI incidence was highly variable, with the highest incidence reported in a critical care population with strong competing risk factors for AKI [ 16 ]. It is advised to use the lowest dose of ICM as possible in patients with diabetes and other co-morbidities and/or in patients with impaired renal function [ 7 , 58 , 59 ]. Consistent with what has been reported by Gomez et al [ 19 ], others reported a PC-AKI incidence of 1% in patients with normal renal function, which increased to 14% in those with severe renal impairment [ 60 ].\n\nDiscussion\nIn the two studies comparing CT with ioversol to unenhanced CT or abdominal US, IV administration of ioversol per se did not increase the incidence of PC-AKI in adult and pediatric patients [ 39 , 47 ]. Others reported that IV ICM administration for CT was not associated with an increased risk of PC-AKI [ 60 ], and large retrospective studies using propensity score matching suggested a lower incidence of PC-AKI than previously estimated [ 61 ]. In studies comparing the safety profile of iodixanol to that of other non-ionic LOCM, urinary system disorders were more frequently reported than with non-ionic LOCM [ 57 ]. However, this could be due to iodixanol being used more frequently in high-risk patients with underlying renal diseases [ 17 ]. The proportion of urinary system disorders with ioversol was comparable to the general profile of LOCM, suggesting a similar safety profile with regard to PC-AKI [ 17 , 57 ]. In procedures involving IV administration of ICM, several meta-analyses showed that iodixanol was not associated with a reduction in PC-AKI compared to non-ionic LOCM [ 62 – 64 ].",
+        "body_excerpts_sha256": "1dba4b10220adfa912ad7dba876744a11dce7df8c54c43cb9fd8ccb114e87bee",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC9279198/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient has stage 4 CKD (eGFR ~23), diabetes, and PAD—all major risk factors for post-contrast AKI. The cited evidence supports a conservative, individualized strategy: source 31814551 documents that standardized infrainguinal angioplasty can be performed with relatively small contrast volumes using a systematic subtraction-view technique; source 33958111 (ACR Appropriateness Criteria Renal Failure) advises that iodinated contrast use be evaluated critically based on patient factors and cost-benefit; source 37156181 shows low-dose ICM regimens reduce usage while increasing safety for at-risk patients including those prone to CI-AKI; and source 35312790 explicitly notes PC-AKI risk rises from ~5% at eGFR ≥60 to ~30% at eGFR <30, and advises using the lowest possible ICM dose in patients with diabetes/renal impairment. Answer A misapplies the ioversol systematic review: that data pertains to INTRAVENOUS administration and to whether ioversol per se (vs. other agents) increases PC-AKI—it does not license unrestricted volumes or discretionary repeat runs in a high-risk intra-arterial peripheral intervention, and the same paper still recommends lowest-possible dosing in renal impairment. Answer B correctly combines an individualized renal risk-benefit assessment with volume-minimizing technique for an already-indicated procedure.",
+          "confidence": 0.9
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31814551"
+              ],
+              "source_passage_ids": [
+                "31814551:p0"
+              ],
+              "reason": "The abstract explicitly states AKI is recognized after iodinated contrast during endovascular PAD interventions.",
+              "source_quotes": [
+                {
+                  "source_id": "31814551",
+                  "quote": "Acute Kidney injury is recognised to occur after administration of iodinated contrast during endovascular interventions for peripheral arterial disease. There are no standardised protocols for contrast delivery during infrainguinal angiography. The objective of this paper is to review published practice regarding the technique of conventional infrainguinal angiography and intervention, and describe a standard set of subtraction views, injection rates and contrast volumes for infrainguinal angioplasty. Database searches and review of papers containing (Angioplasty or Angiography) and (\"lower limb\" or peripheral or infrainguinal) and (method or technique or guidelines or protocol) was performed and defined procedures assessed. A small number of papers provided specific technical details relating to contrast volumes and angiography views."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "31814551"
+              ],
+              "source_passage_ids": [
+                "31814551:p1"
+              ],
+              "reason": "The abstract directly states standard infrainguinal angioplasty can be done with relatively small contrast volumes via a systematic technique.",
+              "source_quotes": [
+                {
+                  "source_id": "31814551",
+                  "quote": "There was considerable variation from authors who have described the contrast volumes used for lower limb angiography. We describe our simple and consistent method. The precise pathophysiology of contrast related nephropathy is under scrutiny. There is interest in new technology to minimise contrast induced kidney injury. Few publications specify iodinated contrast doses, injection volumes or imaging views for infrainguinal arteriography. Standard infrainguinal angioplasty can be performed with conventional equipment using relatively small volumes of contrast by following a systematic technique."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "35312790"
+              ],
+              "source_passage_ids": [
+                "35312790:p3"
+              ],
+              "reason": "The body text states CKD is the most well-known PC-AKI risk factor and risk rises to ~30% at eGFR <30.",
+              "source_quotes": [
+                {
+                  "source_id": "35312790",
+                  "quote": "PC-AKI has been associated with excess morbidity and mortality [ 4 – 6 ], and chronic kidney disease (CKD) is the most well-known risk factor [ 7 ]. The risk of PC-AKI could increase from 5% at an estimated glomerular filtration rate (eGFR) ≥ 60 to 30% at an eGFR < 30 mL/min/1.73 m 2 [ 8 ]. Several definitions of PC-AKI, based on serum creatinine (SCr) concentration, have been proposed by different initiatives, the European Society of Urogenital Radiology (ESUR) [ 9 ], the Acute Kidney Injury Network (AKIN) [ 10 ], and the Kidney Disease Improving Global Outcomes (KDIGO) being the most recent [ 11 ]. Introduction As the causal relationship between ICM exposure and the occurrence of AKI is often confounded by several patient- and procedure-related factors, the term PC-AKI is preferred for AKI associated with CM administration for studies lacking a control population [ 9 ]."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "35312790"
+              ],
+              "source_passage_ids": [
+                "35312790:p27"
+              ],
+              "reason": "The discussion advises using the lowest dose of ICM possible in patients with diabetes, comorbidities, or impaired renal function.",
+              "source_quotes": [
+                {
+                  "source_id": "35312790",
+                  "quote": "Discussion PC-AKI incidence was highly variable, with the highest incidence reported in a critical care population with strong competing risk factors for AKI [ 16 ]. It is advised to use the lowest dose of ICM as possible in patients with diabetes and other co-morbidities and/or in patients with impaired renal function [ 7 , 58 , 59 ]. Consistent with what has been reported by Gomez et al [ 19 ], others reported a PC-AKI incidence of 1% in patients with normal renal function, which increased to 14% in those with severe renal impairment [ 60 ]. Discussion In the two studies comparing CT with ioversol to unenhanced CT or abdominal US, IV administration of ioversol per se did not increase the incidence of PC-AKI in adult and pediatric patients [ 39 , 47 ]."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37156181"
+              ],
+              "source_passage_ids": [
+                "37156181:p1"
+              ],
+              "reason": "The review reports ICM dose reduction increased safety for at-risk patients including contrast-induced AKI.",
+              "source_quotes": [
+                {
+                  "source_id": "37156181",
+                  "quote": "Interventions from both groups have resulted in significant reduction of ICM usage; however, group 1 has contributed more to overall ICM reduction. As benefit of the ICM reduction, we revealed an increased safety for patients at risk (e.g. hypersensitivity reactions, contrast-induced acute kidney injury, thyroid toxic effects). The ICM shortage of 2022 has forced health care providers to implement conservation strategies to stay operational. Although there were already proposals for dose reduction before the corona pandemic and the associated supply bottlenecks, this situation led to the use of a reduced amount of contrast agent on a large scale. This presents a good opportunity to reconsider protocols and the use of contrast-enhanced imaging in general for future practice as it offers chances and advantages regarding costs, environmental impact, and patient safety."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "33958111"
+              ],
+              "source_passage_ids": [
+                "33958111:p0"
+              ],
+              "reason": "The ACR criteria abstract states iodinated contrast use should be evaluated critically per patient factors and cost-benefit ratio.",
+              "source_quotes": [
+                {
+                  "source_id": "33958111",
+                  "quote": "Renal failure can be divided into acute kidney injury and chronic kidney disease. Both are common and result in increased patient morbidity and mortality. The etiology is multifactorial and differentiation of acute kidney injury from chronic kidney disease includes clinical evaluation, laboratory tests, and imaging. The main role of imaging is to detect treatable causes of renal failure such as ureteral obstruction or renovascular disease and to evaluate renal size and morphology. Ultrasound is the modality of choice for initial imaging, with duplex Doppler reserved for suspected renal artery stenosis or thrombosis. CT and MRI may be appropriate, particularly for urinary tract obstruction. However, the use of iodinated and gadolinium-based contrast should be evaluated critically depending on specific patient factors and cost-benefit ratio."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is a coherent on-specialty radiology contrast-strategy question. The patient has documented stage 4 CKD (eGFR 23, near baseline), diabetes, and an already-indicated infrainguinal revascularization; the decision concerns intraprocedural contrast use, not whether to revascularize. Candidate B correctly recommends an individualized renal risk-benefit assessment plus a systematic subtraction-view technique minimizing contrast, which aligns with the supplied evidence: 31814551 (systematic technique with small volumes for infrainguinal angioplasty), 35312790 (CKD major PC-AKI risk factor, risk rises to ~30% at eGFR<30, advises lowest possible dose in impaired renal function/diabetes/comorbidities), 37156181 (dose reduction improves at-risk patient safety), and 33958111 (contrast use should be evaluated critically per patient factors). Candidate A is the intended flawed option: it misapplies 35312790's finding that IV ioversol per se did not increase PC-AKI to justify unrestricted intra-arterial contrast in a stage-4 CKD patient, ignoring route, population, and the recognized renal vulnerability — an unsafe recommendation. All six claims are supported by exact source text. The key answer (B) does not contradict the chart, no essential care is omitted, and the visible note does not disclose the intended contrast strategy (it only establishes the revascularization indication and renal status, not the contrast-minimization plan). Minor caveat: 35312790's eGFR<30 30% figure is cited to a secondary reference within the review, but the supplied body text does state it, so it is adequately supported. The two candidates represent genuinely distinct clinical decisions."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient has stage 4 CKD (eGFR 23 mL/min/1.73 m2) and diabetes, placing her at elevated renal risk during an intra-arterial lower-extremity intervention. The intervention remains clinically indicated, but contrast use should follow an individualized risk-benefit assessment and be limited to the lowest amount that provides adequate diagnostic and procedural imaging. A systematic subtraction-view protocol can perform infrainguinal angioplasty with relatively small contrast volumes (PMID 31814551). More generally, contrast use in renal failure should be critically evaluated according to patient-specific benefit and risk (PMID 33958111). The cited ioversol evidence concerns intravenous administration, largely CT, and does not justify unrestricted intra-arterial dosing or discretionary repeat angiographic runs; that review itself advises using the lowest possible dose in patients with diabetes or impaired renal function (PMID 35312790).",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.96,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31814551"
+              ],
+              "reason": "The source explicitly recognizes AKI after iodinated contrast during peripheral arterial endovascular interventions.",
+              "source_passage_ids": [
+                "31814551:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31814551",
+                  "quote": "Acute Kidney injury is recognised to occur after administration of iodinated contrast during endovascular interventions for peripheral arterial disease. There are no standardised protocols for contrast delivery during infrainguinal angiography. The objective of this paper is to review published practice regarding the technique of conventional infrainguinal angiography and intervention, and describe a standard set of subtraction views, injection rates and contrast volumes for infrainguinal angioplasty. Database searches and review of papers containing (Angioplasty or Angiography) and (\"lower limb\" or peripheral or infrainguinal) and (method or technique or guidelines or protocol) was performed and defined procedures assessed. A small number of papers provided specific technical details relating to contrast volumes and angiography views."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "31814551"
+              ],
+              "reason": "The source explicitly states that systematic technique permits standard infrainguinal angioplasty with relatively small contrast volumes.",
+              "source_passage_ids": [
+                "31814551:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31814551",
+                  "quote": "There was considerable variation from authors who have described the contrast volumes used for lower limb angiography. We describe our simple and consistent method. The precise pathophysiology of contrast related nephropathy is under scrutiny. There is interest in new technology to minimise contrast induced kidney injury. Few publications specify iodinated contrast doses, injection volumes or imaging views for infrainguinal arteriography. Standard infrainguinal angioplasty can be performed with conventional equipment using relatively small volumes of contrast by following a systematic technique."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "35312790"
+              ],
+              "reason": "The source identifies CKD as the best-known PC-AKI risk factor and reports a substantial increase in risk at eGFR below 30.",
+              "source_passage_ids": [
+                "35312790:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35312790",
+                  "quote": "PC-AKI has been associated with excess morbidity and mortality [ 4 – 6 ], and chronic kidney disease (CKD) is the most well-known risk factor [ 7 ]. The risk of PC-AKI could increase from 5% at an estimated glomerular filtration rate (eGFR) ≥ 60 to 30% at an eGFR < 30 mL/min/1.73 m 2 [ 8 ]. Several definitions of PC-AKI, based on serum creatinine (SCr) concentration, have been proposed by different initiatives, the European Society of Urogenital Radiology (ESUR) [ 9 ], the Acute Kidney Injury Network (AKIN) [ 10 ], and the Kidney Disease Improving Global Outcomes (KDIGO) being the most recent [ 11 ]. Introduction As the causal relationship between ICM exposure and the occurrence of AKI is often confounded by several patient- and procedure-related factors, the term PC-AKI is preferred for AKI associated with CM administration for studies lacking a control population [ 9 ]."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "35312790"
+              ],
+              "reason": "The source expressly advises the lowest possible iodinated-contrast dose in patients with diabetes, comorbidities, or impaired renal function.",
+              "source_passage_ids": [
+                "35312790:p27"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35312790",
+                  "quote": "Discussion PC-AKI incidence was highly variable, with the highest incidence reported in a critical care population with strong competing risk factors for AKI [ 16 ]. It is advised to use the lowest dose of ICM as possible in patients with diabetes and other co-morbidities and/or in patients with impaired renal function [ 7 , 58 , 59 ]. Consistent with what has been reported by Gomez et al [ 19 ], others reported a PC-AKI incidence of 1% in patients with normal renal function, which increased to 14% in those with severe renal impairment [ 60 ]. Discussion In the two studies comparing CT with ioversol to unenhanced CT or abdominal US, IV administration of ioversol per se did not increase the incidence of PC-AKI in adult and pediatric patients [ 39 , 47 ]."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37156181"
+              ],
+              "reason": "The systematic review reports increased safety from contrast reduction for at-risk patients, including those at risk of contrast-associated kidney injury.",
+              "source_passage_ids": [
+                "37156181:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37156181",
+                  "quote": "Interventions from both groups have resulted in significant reduction of ICM usage; however, group 1 has contributed more to overall ICM reduction. As benefit of the ICM reduction, we revealed an increased safety for patients at risk (e.g. hypersensitivity reactions, contrast-induced acute kidney injury, thyroid toxic effects). The ICM shortage of 2022 has forced health care providers to implement conservation strategies to stay operational. Although there were already proposals for dose reduction before the corona pandemic and the associated supply bottlenecks, this situation led to the use of a reduced amount of contrast agent on a large scale. This presents a good opportunity to reconsider protocols and the use of contrast-enhanced imaging in general for future practice as it offers chances and advantages regarding costs, environmental impact, and patient safety."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "33958111"
+              ],
+              "reason": "The source states that iodinated contrast in renal failure should be evaluated critically according to patient-specific factors and the cost-benefit ratio.",
+              "source_passage_ids": [
+                "33958111:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33958111",
+                  "quote": "Renal failure can be divided into acute kidney injury and chronic kidney disease. Both are common and result in increased patient morbidity and mortality. The etiology is multifactorial and differentiation of acute kidney injury from chronic kidney disease includes clinical evaluation, laboratory tests, and imaging. The main role of imaging is to detect treatable causes of renal failure such as ureteral obstruction or renovascular disease and to evaluate renal size and morphology. Ultrasound is the modality of choice for initial imaging, with duplex Doppler reserved for suspected renal artery stenosis or thrombosis. CT and MRI may be appropriate, particularly for urinary tract obstruction. However, the use of iodinated and gadolinium-based contrast should be evaluated critically depending on specific patient factors and cost-benefit ratio."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "B is the appropriate strategy. This patient has stable but severe CKD with eGFR 23 and diabetes, while the intervention has already been judged indicated. The supplied evidence supports individualized risk-benefit assessment, a systematic infrainguinal angiographic technique, and use of the lowest practicable contrast dose. Avoiding discretionary repeat runs is a direct operational consequence of minimizing unnecessary contrast while retaining diagnostically adequate imaging. Candidate A improperly extrapolates findings about intravenous ioversol—principally in CT populations—to intra-arterial peripheral intervention and treats absence of an independently detected IV risk as permission for unrestricted dosing. The evidence expressly limits those findings to IV administration and separately recognizes CKD-related vulnerability and recommends dose minimization. The visible title, question, and note do not disclose the intended strategy. No previous cases were supplied, so there is no demonstrated duplication of a prior clinical decision."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "22efd042cdd46f4c163556ff7061cef6e6ff21c1a6c87ca56c3c008b90033027"
+  }
+}

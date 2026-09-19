@@ -202,3 +202,42 @@ Full-text retrieval API: https://europepmc.org/RestfulWebService
 
 This is still a draft, pending the remaining 77 cases, fresh real-model runs,
 complete CI and the previously documented production preservation requirements.
+
+## Recovery build and retrieval corrections
+
+Build `35405811432` produced additional reviewed companions. **40/86 artifacts
+are now independently audited and retained; 46 remain missing.** This supersedes
+the earlier inventory counts. Existing committed artifacts were not changed.
+The current Tests workflow `35405793078` still has exactly two red jobs, both
+the completeness assertion in backend/keyless shard 4; the other ten jobs pass.
+Backend shard 4 has 1687 passed, 3 skipped and that one failure.
+
+Independent artifact review reads retained evidence and the complete public
+payload. It rejected both new geriatrics cases (research inclusion criteria
+misread as a clinical schedule; an instructional study impression) and the new
+colorectal examination (future-test metadata exposed the answer and was used by
+the blinded solver). Originals remain outside the released bank and are
+denylisted from reimport. Corrected cardiology and confirmed-HIT examination
+artifacts now pass the source audit. Neither pathology case is released yet.
+
+Recovery changes prioritize actual guidelines, preserve plural PubMed matches,
+omit unindexed stopwords and retry bounded public-service throttles. Licensed
+body text is accepted when the CC BY/CC0 URL is plain text in permissions as well
+as a link. Pathology uses a strictly identity-pinned CC BY educational paper
+describing both image differentials. Missing licensed text, changed identity and
+retracted publications fail closed. A code auditor found an initial identity
+check gap; the fixed parser and retrieval verify exact pinned identity even when
+an unrelated returned article would otherwise qualify as a guideline.
+
+New drafts cannot populate `required_modalities`, preventing future-test hints
+from reaching blinded reviewers. Independent rejection feedback goes only to the
+author, never the reviewers, released case or evidence. The unpublished dermatology
+exam topic is acne antibiotic stewardship, supported by its guideline; the
+practice/examination pair remains distinct. Recovery matrices accept an explicit
+specialty subset and reuse passing committed companions.
+
+Builder validation: **153 targeted tests passed**, with the incomplete-library
+assertion explicitly excluded from this diagnostic run. Independent code audit:
+152 focused tests and 23 post-fix tests passed; all clinical confidence, source,
+image and 86-case release gates remain unchanged. Merge readiness is clear,
+0 commits behind main. Data preservation and production release holds above remain.

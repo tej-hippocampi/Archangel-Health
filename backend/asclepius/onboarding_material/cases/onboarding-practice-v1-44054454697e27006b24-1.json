@@ -1,0 +1,423 @@
+{
+  "task_id": "onboarding-practice-v1-44054454697e27006b24-1",
+  "specialty": "sports medicine",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Road Cycling Head-Impact Assessment",
+    "question": "What is the most appropriate participation decision for this cyclist at this point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "sports medicine",
+      "demographics": {
+        "age_band": "25-29",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Helmeted head impact during road cycling crash",
+          "since": "Current race stage",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Post-traumatic amnesia for events immediately after the crash",
+          "since": "Current race stage",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Headache and balance errors after impact",
+          "since": "Current race stage",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Sideline assessment",
+          "author_role": "sports medicine clinician",
+          "text": "A male competitive road cyclist in his late twenties crashed during an adult stage race after contacting another rider. His helmet struck the roadway. He did not have witnessed loss of consciousness and walked independently to the support area. He reports a new headache and cannot recall the crash or approximately two minutes afterward. He repeatedly asks whether his bicycle was damaged. Examination shows fluent speech, equal reactive pupils, symmetric strength, and no cervical midline tenderness. A roadside concussion screen documents impaired delayed recall and three balance errors beyond his preseason result. He remains eager to rejoin the race.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Clinical concussion assessment",
+          "label": "Roadside head-impact screen",
+          "findings": "No witnessed loss of consciousness. The cyclist has post-traumatic amnesia, impaired delayed recall, and more balance errors than documented at preseason assessment.",
+          "measurements": [],
+          "impression": "Abnormal roadside assessment after a helmeted head impact.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional onboarding case; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "moderate",
+      "required_modalities": [
+        "clinical concussion assessment"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete at decision point",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "The cyclist should be withdrawn from the current competition because post-traumatic amnesia is present despite the absence of witnessed loss of consciousness. A formal concussion assessment should be completed, and any later return to riding should occur through a stepwise return-to-play process. Allowing immediate continuation based on a normal basic neurologic examination omits the significance of amnesia and the abnormal cognitive and balance findings.",
+        "evidence": null,
+        "key_data": [
+          "Post-traumatic amnesia is present after the crash.",
+          "Delayed recall is impaired relative to preseason assessment.",
+          "Balance errors exceed the cyclist's preseason result.",
+          "Absence of witnessed loss of consciousness does not negate the amnesia finding."
+        ]
+      },
+      "hard_hook": "The cyclist has no witnessed loss of consciousness and a normal basic neurologic examination, but he has post-traumatic amnesia and abnormalities on a roadside concussion screen.",
+      "reasoning_divergence": "The flawed approach treats preserved consciousness and gross neurologic function as sufficient for immediate return, whereas the supported approach recognizes amnesia as a reason for withdrawal and uses structured, stepwise return assessment."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Withdraw the cyclist from the current competition because post-traumatic amnesia is present. Complete a formal concussion assessment using a SCAT-based approach as feasible in road cycling, and permit later return to riding only through a stepwise return-to-play protocol."
+      },
+      {
+        "id": "B",
+        "text": "Allow the cyclist to rejoin the race now because there was no witnessed loss of consciousness, his pupils and strength are normal, and he can walk independently; reassess symptoms after the stage without requiring a staged return process."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "post-traumatic amnesia",
+      "sports concussion",
+      "head impact",
+      "return to play",
+      "road cycling"
+    ],
+    "evidence_keywords": [
+      "SCAT",
+      "competition withdrawal",
+      "stepwise return",
+      "concussion assessment",
+      "amnesia"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Road cyclists should, at minimum, be withdrawn from competition after loss of consciousness or amnesia.",
+        "source_ids": [
+          "31205745"
+        ]
+      },
+      {
+        "statement": "The road-cycling concussion review highlights the utility of SCAT evaluation after a suspected sports-related concussion.",
+        "source_ids": [
+          "31205745"
+        ]
+      },
+      {
+        "statement": "A stepwise return-to-play process is important before return to riding after a sports-related concussion.",
+        "source_ids": [
+          "31205745"
+        ]
+      },
+      {
+        "statement": "Coaches and match officials are important stakeholders in early recognition, immediate management, and appropriate return to play after sports-related concussion.",
+        "source_ids": [
+          "32132829"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T00:00:23.932072+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "39589220",
+        "title": "Concussion and executive functions in combat sports: A systematic review.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39589220/",
+        "abstract": "Concussion is a diagnosis given due to trauma caused by abrupt acceleration and deceleration of the brain. The consequences involve, among others, impairments in executive functions. Considering the high incidence of concussions in combat sports, this study investigated the impacts of this trauma on core executive functions. A systematic search was carried out until November 2023, using the PRISMA method on the Virtual Health Library (BVS), PubMed, Science Direct and Scielo platforms. 11 studies, including case studies and quantitative empirical studies, met the eligibility criteria. Risk of bias was assessed using the Cochrane Collaboration risk of bias measurement tool. The results produced high and low bias studies, evaluated by three independent evaluators. Of the 11 studies selected, 91% included samples of boxers and 27.3% included mixed samples (men and women). The total sample was 1,130, aged between 15 and 68 years. 81.9% indicate impairment of executive functions in fighters, with impacts most frequently reported on memory (36.5%) and inhibitory control (27.5%). The results suggest that concussion impairs executive functions in boxing and MMA. However, more studies are needed to relate the diagnosis of concussion to possible deficits in executive functions in combat sports.",
+        "sha256": "316f03ba83512f6ab5b989b497cc2bd77356954c23526e0e2eb85db390386619",
+        "retrieved_at": "2026-09-18T23:58:48.286635+00:00"
+      },
+      {
+        "id": "39773663",
+        "title": "A Systematic Review of Sports-Related Concussion Education Programs: Design, Outcomes, and Recommendations.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39773663/",
+        "abstract": "This systematic literature review was undertaken to identify the main design features of sport-related concussion (SRC) education programs, examine their outcomes, and consider the relationship between design and effectiveness.\nSystematic review.\nStudies which report on educational interventions (a dedicated in-person or online teaching session) that purport to change knowledge, attitudes, and/or behavior toward sports-related concussion. Searches were performed across 5 databases.\nOut of the 9192 records that were initially screened, 28 retrieved studies were identified. The review found considerable diversity in the content, mode of delivery, and aims of SRC education programs. Sport-related concussion programs were largely successful in increasing recipients' knowledge, but these gains were often transitory, and stronger among adults than among children. There was little evidence of a tangible impact on behavior.\nWe recommend that future research should (1) seek to clarify what constitutes achievable goals for education programs, (2) move toward better intervention standardization through greater consolidation and coordination of the field, (3) feature explicit attempts to tailor interventions to specific target audiences, and (4) ensure the greater involvement of participants in the creation and design of SRC educational interventions.",
+        "sha256": "1f2b0c49e2fb1d84b645739751cafffd8b342b42a73a784a8a4d50cda892b9c9",
+        "retrieved_at": "2026-09-18T23:58:48.286635+00:00"
+      },
+      {
+        "id": "31567052",
+        "title": "Sex-Based Differences in the Incidence of Sports-Related Concussion: Systematic Review and Meta-analysis.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31567052/",
+        "abstract": "The incidence of sports-related concussion in females has been increasing in recent years.\nTo conduct a meta-analysis on sex-based differences in concussion incidence in various sports and to determine the effects of study design (retrospective vs prospective), setting (competition vs practice), and population (university and above vs high school and below) via a meta-regression.\nPubMed (Medline), EMBASE, and Cochrane Library databases were searched from January 2000 to January 2018.\nStudies reporting sports-related concussion incidence data for both males and females (age ≥10 years) were included.\nSystematic review with meta-analysis and meta-regression.\nLevel 4.\nThe rate ratio was calculated as the concussion rate in females/males. Data were pooled using the DerSimonian-Laird random-effects model.\nThirty-eight studies met the eligibility criteria and were included in the meta-analysis. Soccer and basketball demonstrated significantly higher incidence of concussions in females compared with males (rate ratio [95% CI], 1.76 [1.43-2.16] and 1.99 [1.56-2.54], respectively; P < 0.01). Sex-based differences in concussion incidence rates for baseball/softball, ice hockey, lacrosse, swimming/diving, and track and field were not statistically significant. In the meta-regression analysis, there were no significant effects on the rate ratio when evaluating study design, setting, and population.\nConcussion incidence rates were significantly higher in females than in males for soccer and basketball.",
+        "sha256": "f0926a55ec90e79f7bf9f31a636cbef956b2296c53fa333b930912a21fc44a6a",
+        "retrieved_at": "2026-09-18T23:58:48.286635+00:00",
+        "pmcid": "PMC6822209"
+      },
+      {
+        "id": "35929029",
+        "title": "Biological Significance of Serum Biomarkers in Sports- Related Concussion Injury-A Systematic Review.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35929029/",
+        "abstract": "To evaluate all serum biomarkers in sports-related concussion injury (SRC) to determine diagnostic validity, changes with symptom severity, and return to play, as well as detect early changes in serum concentration.\nStudies were searched in various electronic databases (MEDLINE/PubMed, EMBASE, CINAHL, Scopus and Cochrane databases) from their commencement to May 2021. Studies were included if athletes aged 12 years and older were diagnosed with a concussion injury and evaluated using serum biomarkers. Studies including athletes with injuries other than concussion injuries were excluded. Articles with fewer than 20 concussed athletes were excluded. There were 1782 articles identified.\nAfter exclusion a total of 17 articles qualified for systematic review. S100 calcium binding protein ? (S-100?) and ubiquitin carboxyl-terminal hydrolase L1 (UCH-L1) showed promising results in distinguishing concussed athletes from contact sports and non-athlete controls. Most of the serum biomarkers increased within 6 hours of SRC. Serum neurofilament light protein (NFL) positively correlated with the severity of post-concussion symptoms. NFL, tau and Interleukins (IL-1 Ra and IL-6) have the potential to determine return to play.\nSerum biomarker measurement is an objective tool that aids in early diagnosis and predicts the severity and prognosis of injury.",
+        "sha256": "43d9de61d5647d3364f55da9394325319ce350808a122d1dc48fcfa739ee3cdb",
+        "retrieved_at": "2026-09-18T23:58:48.813523+00:00"
+      },
+      {
+        "id": "32132829",
+        "title": "A Systematic Review and Qualitative Analysis of Concussion Knowledge amongst Sports Coaches and Match Officials.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32132829/",
+        "abstract": "Sport-related concussion (SRC) is a public health issue of increasing concern. Sports coaches and match officials are important stakeholders in facilitating early recognition, immediate management and appropriate return-to-play following SRC. This systematic review analyses the current evidence on SRC knowledge amongst sports coaches and match officials. The review was conducted in accordance to PRISMA guideline. A qualitative analysis of knowledge on identification, management, prevention and consequences of SRC as well as return-to-play principles was performed. The Appraisal Tool for Cross-sectional Studies was employed to assess the quality and reliability of each study. Searches were conducted on PubMed, Medline Ovid, Web of Science, CINAHL, SPORTDiscus and Psycinfo. Studies included were primary studies in English published in peer-reviewed journals assessing the level of concussion knowledge or education level amongst coaches, officials or both, regardless of sports or competitive level. A total of 20880 studies were identified, from which 27 were included in this review. There were 26 cross-sectional studies and one randomized controlled trial; 20 assessed SRC knowledge amongst coaches, one considered only officials and six studies assessed both groups. Concussion knowledge amongst coaches and match officials was deemed moderate in most studies, although significant knowledge gaps were identified. There is considerable room for further education on SRC amongst coaches and officials, particularly with the less commonly recognized symptoms of SRC and misconceptions about SRC management and prevention. Beyond knowledge assessment, further investigation should explore the translation of concussion knowledge to on-field management of players with SRC.",
+        "sha256": "90a715b0d77b9e852ee54e54b872530a0a389a3c35259eb733a7928e281a2e27",
+        "retrieved_at": "2026-09-18T23:58:48.813523+00:00",
+        "pmcid": "PMC7039019"
+      },
+      {
+        "id": "36799499",
+        "title": "Sports-Related Concussion Affects Cognitive Function in Adolescents: A Systematic Review and Meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36799499/",
+        "abstract": "Rates of sports-related concussion (SRC) are high in adolescents. Ambiguity exists regarding the effect of SRC on cognitive function in adolescents.\nTo rigorously examine adolescents' cognitive function after SRC.\nSystematic review and meta-analysis; Level of evidence, 4.\nWeb of Science, Scopus, and PubMed were searched from database inception until September 2021. Studies were included if participants were adolescents aged 13 to 18 years, if the definition of SRC was fully consistent with the Berlin Consensus Statement on Concussion in Sport, if the study included a control group or in-group baseline test, and if the study reported cognitive outcomes (eg, visual memory, processing speed) that could be separately extracted.\nA total of 47 studies were included in the systematic review, of which 31 were included in the meta-analysis, representing 8877 adolescents with SRC. Compared with individuals in the non-SRC group, individuals with SRC had worse performance in cognitive function and reported more symptoms not only in the acute phase but also in the prolonged phase (1-6 months after injury) (visual memory: d = -0.21, 95% CI, -0.37 to -0.05, P = .012; executive function: d = -0.56, 95% CI, -1.07 to -0.06, P = .028; and symptoms: d = 1.17, 95% CI, 0.13 to 2.22, P = .028). Lower scores in most of the outcomes of cognitive function were observed at <3 days and at 3 to 7 days, but higher scores for verbal memory (d = 0.10; 95% CI, 0.03 to 0.17; P = .008) and processing speed (d = 0.17; 95% CI, 0.10 to 0.24; P < .001) were observed at 7 to 14 days after SRC relative to baseline. The effects of SRC on cognitive function decreased over time (100% of the variance in reaction time, P < .001; 99.94% of the variance in verbal memory, P < .001; 99.88% of the variance in visual memory, P < .001; 39.84% of the variance in symptoms, P = .042) in control group studies. Study design, participant sex, measurement tools, and concussion history were found to be modulators of the relationship between cognitive function and SRC.\nThis study revealed that adolescent cognitive function is impaired by SRC even 1 to 6 months after injury. Results of this study point to the need for tools to measure cognitive function with multiple parallel versions that have demographically diversiform norms in adolescents. Effective prevention of SRC, appropriate treatment, and adequate evaluation of cognitive function before return to play are needed in adolescent SRC management. Moreover, caution is warranted when using the baseline-to-postconcussion paradigm in return-to-play decisions.",
+        "sha256": "bab431b4a65dc4291fdaaa0f614b4246fe753ba52b45d70688a48191f863af15",
+        "retrieved_at": "2026-09-18T23:58:48.813523+00:00"
+      },
+      {
+        "id": "37115014",
+        "title": "Do Climate and Environmental Characteristics Influence Concussion Incidence in Outdoor Contact Sports? A Systematic Review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37115014/",
+        "abstract": "To obtain a comprehensive understanding of the implications of environmental and climate factors on sport-related concussion incidence in outdoor contact sports.\nMEDLINE (via Ovid), Embase (via Elsevier), CINAHL Complete (via EBSCOhost), SPORTDiscus (via EBSCOhost), and Scopus (via Elsevier).\nStudies that report incidence of sport-related concussion, assess data from athletes participating in outdoor contact sports, report on 1 or more climate or environmental factors, and report a diagnosis of concussion performed by a licensed medical professional were included. Reasons for exclusion included no report on extrinsic or environmental factors, no data on sport-related concussion incidence, and self-report of concussion diagnosis.\nThis systematic review was conducted using Preferred Reporting Items for Systematic Reviews and Meta-Analyses guidelines using 2 reviewers at each phase and a third reviewer for conflict resolution.\nA total of 7558 articles were reviewed, and 20 met the inclusion criteria. There was moderate to strong strength of evidence concluding no difference between surface type (grass versus artificial) on sport-related concussion risk. Moderate to strong strength of evidence was found supporting no difference in sport-related concussion incidence based on game location (home versus away). There was no consensus on the effects of altitude or temperature on sport-related concussion incidence. One high-quality study found a decreased risk of sport-related concussion when playing in wet versus dry conditions. Heterogenous populations and data collection methods prevented extraction and meta-analysis.\nAlthough a consensus on specific environmental and climate factors that influence sport-related concussion incidence was limited, the majority of studies were of high quality and gave insight into opportunities for future investigation. Administrators of large injury surveillance databases should consider including specific environmental and climate factors to provide investigators with robust data sets to better understand potential associations with sport-related concussion.",
+        "sha256": "14116dfecc7f814d9561bfbf049b58eb833bd45e20b7e2f25bf627ab33840fd5",
+        "retrieved_at": "2026-09-18T23:58:49.340529+00:00",
+        "pmcid": "PMC10784884"
+      },
+      {
+        "id": "31205745",
+        "title": "Sports-related concussion (SRC) assessment in road cycling: a systematic review and call to action.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31205745/",
+        "abstract": "Sports-related concussion (SRC) is a recognised risk in road cycling and can have serious health consequences. Recent high-profile cases of professional road cyclists continuing to participate in races despite suffering obvious SRC have highlighted the difficulties in assessing SRC within road cycling.\nTo undertake a systematic review of the literature on SRC assessment in road cycling.\nSystematic review.\nLiterature describing SRC assessment in road cycling was identified by searching MEDLINE, EMBASE, PsycINFO and Web of Science. Two reviewers independently screened titles and abstracts for eligibility and a qualitative analysis was undertaken of included studies.\nFrom 94 studies identified, two were included for review. Gordon et al describe the presentation of a single case of paediatric concussion following a cycling crash. They highlight the utility of SRC evaluation using the Sport Concussion Assessment Tool (SCAT) as well as the importance of a stepwise return-to-play protocol. Greve and Modabber discuss a number of traumatic brain injuries that occurred during the 2011 road cycling season and, as a minimum, call for riders to be withdrawn from competition following loss of consciousness or amnesia. Both studies are at high risk of bias and of low quality.\nRoad cycling poses unique challenges for the assessment of SRC. This review illustrates the lack of published evidence to advise effective means of SRC assessment within road cycling. The Union Cycliste Internationale (UCI) regulations advise the use of SCAT-5 for concussion assessment but this tool is impractical, requiring modification for use in road cycling. We would like to call on the UCI to hold a consensus meeting to establish an evidence-based SRC assessment protocol and return-to-riding protocol for road cycling.",
+        "sha256": "1e353608668bf5c18653626937748e4d8507e08815d00b1fb9bb077d80b8a7fc",
+        "retrieved_at": "2026-09-18T23:58:49.340529+00:00",
+        "pmcid": "PMC6540321"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "This cyclist has multiple positive concussion indicators after a helmeted head impact: post-traumatic amnesia (cannot recall the crash or ~2 minutes afterward), repetitive questioning, new headache, impaired delayed recall, and three balance errors beyond his preseason baseline. Loss of consciousness is not required to diagnose concussion, so the absence of witnessed LOC and the presence of normal pupils, strength, and independent ambulation in Answer B do not clear him. Source 31205745 (SRC assessment in road cycling systematic review) directly supports this decision: it endorses SCAT-based evaluation, cites the recommendation that riders be withdrawn from competition following loss of consciousness OR amnesia, and emphasizes a stepwise return-to-play protocol. Additional sources (36799499) document that concussion impairs cognitive function acutely and warrant proper evaluation before return to play. Answer A aligns with recognized sport-concussion principles—remove from play, formal assessment, and graded return—whereas Answer B constitutes unsafe same-day return with objective abnormal findings.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31205745"
+              ],
+              "source_passage_ids": [
+                "31205745:p1"
+              ],
+              "reason": "The review explicitly cites Greve and Modabber calling, as a minimum, for riders to be withdrawn from competition following loss of consciousness or amnesia.",
+              "source_quotes": [
+                {
+                  "source_id": "31205745",
+                  "quote": "They highlight the utility of SRC evaluation using the Sport Concussion Assessment Tool (SCAT) as well as the importance of a stepwise return-to-play protocol. Greve and Modabber discuss a number of traumatic brain injuries that occurred during the 2011 road cycling season and, as a minimum, call for riders to be withdrawn from competition following loss of consciousness or amnesia. Both studies are at high risk of bias and of low quality. Road cycling poses unique challenges for the assessment of SRC. This review illustrates the lack of published evidence to advise effective means of SRC assessment within road cycling. The Union Cycliste Internationale (UCI) regulations advise the use of SCAT-5 for concussion assessment but this tool is impractical, requiring modification for use in road cycling."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "31205745"
+              ],
+              "source_passage_ids": [
+                "31205745:p1"
+              ],
+              "reason": "The review highlights utility of SCAT evaluation after suspected SRC in road cycling.",
+              "source_quotes": [
+                {
+                  "source_id": "31205745",
+                  "quote": "They highlight the utility of SRC evaluation using the Sport Concussion Assessment Tool (SCAT) as well as the importance of a stepwise return-to-play protocol. Greve and Modabber discuss a number of traumatic brain injuries that occurred during the 2011 road cycling season and, as a minimum, call for riders to be withdrawn from competition following loss of consciousness or amnesia. Both studies are at high risk of bias and of low quality. Road cycling poses unique challenges for the assessment of SRC. This review illustrates the lack of published evidence to advise effective means of SRC assessment within road cycling. The Union Cycliste Internationale (UCI) regulations advise the use of SCAT-5 for concussion assessment but this tool is impractical, requiring modification for use in road cycling."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "31205745"
+              ],
+              "source_passage_ids": [
+                "31205745:p1"
+              ],
+              "reason": "The same passage states the importance of a stepwise return-to-play protocol.",
+              "source_quotes": [
+                {
+                  "source_id": "31205745",
+                  "quote": "They highlight the utility of SRC evaluation using the Sport Concussion Assessment Tool (SCAT) as well as the importance of a stepwise return-to-play protocol. Greve and Modabber discuss a number of traumatic brain injuries that occurred during the 2011 road cycling season and, as a minimum, call for riders to be withdrawn from competition following loss of consciousness or amnesia. Both studies are at high risk of bias and of low quality. Road cycling poses unique challenges for the assessment of SRC. This review illustrates the lack of published evidence to advise effective means of SRC assessment within road cycling. The Union Cycliste Internationale (UCI) regulations advise the use of SCAT-5 for concussion assessment but this tool is impractical, requiring modification for use in road cycling."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "32132829"
+              ],
+              "source_passage_ids": [
+                "32132829:p0"
+              ],
+              "reason": "The review states coaches and match officials are important stakeholders in early recognition, immediate management, and appropriate return to play after SRC.",
+              "source_quotes": [
+                {
+                  "source_id": "32132829",
+                  "quote": "Sport-related concussion (SRC) is a public health issue of increasing concern. Sports coaches and match officials are important stakeholders in facilitating early recognition, immediate management and appropriate return-to-play following SRC. This systematic review analyses the current evidence on SRC knowledge amongst sports coaches and match officials. The review was conducted in accordance to PRISMA guideline. A qualitative analysis of knowledge on identification, management, prevention and consequences of SRC as well as return-to-play principles was performed. The Appraisal Tool for Cross-sectional Studies was employed to assess the quality and reliability of each study. Searches were conducted on PubMed, Medline Ovid, Web of Science, CINAHL, SPORTDiscus and Psycinfo."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Case is on-specialty (sports medicine, sports concussion RTP assessment in road cycling). The clinical facts—helmeted head impact, post-traumatic amnesia (~2 min), impaired delayed recall, and three balance errors beyond preseason baseline—clearly indicate suspected concussion warranting withdrawal from competition. Answer A (withdraw, formal SCAT-based assessment, stepwise return-to-play) is the safe, evidence-supported decision. Answer B (immediate return based on preserved consciousness and normal gross exam) is the intended flawed and unsafe option, ignoring amnesia and abnormal cognitive/balance findings; this is the case working as designed.\n\nThe directly supporting source (31205745) is a road-cycling SRC systematic review that explicitly (a) calls, as a minimum, for withdrawal following loss of consciousness OR amnesia, (b) highlights utility of SCAT evaluation, and (c) affirms the importance of stepwise return-to-play. These map exactly onto answer A. Note the review characterizes the underlying studies as high risk of bias and low quality and calls for a consensus meeting; the recommendation is thus modest in evidence strength, but it is the correct direction and is not contradicted by any newer source—the adolescent (36799499) and other reviews reinforce cautious pre-RTP evaluation. Claim 3 (32132829) about coaches/officials is peripheral to the decision but accurately quoted.\n\nThe visible note does not disclose the answer; it presents findings requiring interpretation (the question asks for the participation decision, and the note describes abnormal findings without stating the plan). The two candidates represent genuinely distinct clinical decisions (withdraw vs. continue). No essential imaging is missing—concussion is a clinical diagnosis and the case is complete at the decision point (cervical exam documented, neuro exam normal, no red flags requiring emergent CT stated, though continued monitoring is implied by withdrawal). No contradictions between chart and key. Confidence is high; slight reservation only because the supporting evidence base is explicitly low-quality per the source itself, but the direction of the recommendation is safe and standard."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The cyclist has multiple findings consistent with an acute sport-related concussion: post-traumatic amnesia, repetitive questioning, headache, impaired delayed recall, and worsened balance after a head impact. Loss of consciousness is not required, and normal pupils, strength, and ambulation do not make immediate return safe. The road-cycling review specifically recommends withdrawal when amnesia is present, SCAT-based assessment adapted to the cycling setting, and a stepwise return-to-riding protocol (PMID: 31205745).",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.94,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31205745"
+              ],
+              "reason": "The road-cycling review expressly reports a minimum recommendation to withdraw riders after loss of consciousness or amnesia.",
+              "source_passage_ids": [
+                "31205745:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31205745",
+                  "quote": "They highlight the utility of SRC evaluation using the Sport Concussion Assessment Tool (SCAT) as well as the importance of a stepwise return-to-play protocol. Greve and Modabber discuss a number of traumatic brain injuries that occurred during the 2011 road cycling season and, as a minimum, call for riders to be withdrawn from competition following loss of consciousness or amnesia. Both studies are at high risk of bias and of low quality. Road cycling poses unique challenges for the assessment of SRC. This review illustrates the lack of published evidence to advise effective means of SRC assessment within road cycling. The Union Cycliste Internationale (UCI) regulations advise the use of SCAT-5 for concussion assessment but this tool is impractical, requiring modification for use in road cycling."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "31205745"
+              ],
+              "reason": "The source specifically highlights SCAT evaluation and notes that UCI regulations advise SCAT-5, while also warning that adaptation is needed for road cycling.",
+              "source_passage_ids": [
+                "31205745:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31205745",
+                  "quote": "They highlight the utility of SRC evaluation using the Sport Concussion Assessment Tool (SCAT) as well as the importance of a stepwise return-to-play protocol. Greve and Modabber discuss a number of traumatic brain injuries that occurred during the 2011 road cycling season and, as a minimum, call for riders to be withdrawn from competition following loss of consciousness or amnesia. Both studies are at high risk of bias and of low quality. Road cycling poses unique challenges for the assessment of SRC. This review illustrates the lack of published evidence to advise effective means of SRC assessment within road cycling. The Union Cycliste Internationale (UCI) regulations advise the use of SCAT-5 for concussion assessment but this tool is impractical, requiring modification for use in road cycling."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "31205745"
+              ],
+              "reason": "The review explicitly identifies the importance of a stepwise return-to-play protocol, although it also acknowledges that the underlying cycling-specific evidence is low quality.",
+              "source_passage_ids": [
+                "31205745:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31205745",
+                  "quote": "They highlight the utility of SRC evaluation using the Sport Concussion Assessment Tool (SCAT) as well as the importance of a stepwise return-to-play protocol. Greve and Modabber discuss a number of traumatic brain injuries that occurred during the 2011 road cycling season and, as a minimum, call for riders to be withdrawn from competition following loss of consciousness or amnesia. Both studies are at high risk of bias and of low quality. Road cycling poses unique challenges for the assessment of SRC. This review illustrates the lack of published evidence to advise effective means of SRC assessment within road cycling. The Union Cycliste Internationale (UCI) regulations advise the use of SCAT-5 for concussion assessment but this tool is impractical, requiring modification for use in road cycling."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "32132829"
+              ],
+              "reason": "The systematic review directly identifies coaches and match officials as stakeholders in early recognition, immediate management, and appropriate return to play.",
+              "source_passage_ids": [
+                "32132829:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32132829",
+                  "quote": "Sport-related concussion (SRC) is a public health issue of increasing concern. Sports coaches and match officials are important stakeholders in facilitating early recognition, immediate management and appropriate return-to-play following SRC. This systematic review analyses the current evidence on SRC knowledge amongst sports coaches and match officials. The review was conducted in accordance to PRISMA guideline. A qualitative analysis of knowledge on identification, management, prevention and consequences of SRC as well as return-to-play principles was performed. The Appraisal Tool for Cross-sectional Studies was employed to assess the quality and reliability of each study. Searches were conducted on PubMed, Medline Ovid, Web of Science, CINAHL, SPORTDiscus and Psycinfo."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Answer A is the appropriate participation decision. The cyclist has a new headache, post-traumatic amnesia, repetitive questioning, impaired delayed recall, and worsened balance after a head impact. Preserved walking, normal pupils and strength, and absence of witnessed loss of consciousness do not make immediate continuation safe. The cycling-specific source directly supports withdrawal for amnesia, SCAT-based evaluation adapted to the practical setting, and a stepwise return process. The source acknowledges sparse, low-quality cycling-specific evidence and practical limitations of SCAT, but those caveats do not contradict the conservative participation decision. No imaging result is required to decide that he must not return to the current race; further medical assessment should determine whether escalation is needed. Candidate B is intentionally unsafe because it relies on a normal gross neurologic examination while disregarding clear post-impact cognitive and balance abnormalities. No previous cases were supplied, so there is no demonstrated decision overlap."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "7405724bdcba52010736c6f5aaa93be522bcfa6302db2aba52592d7737659750"
+  }
+}

@@ -20,6 +20,10 @@ import httpx
 
 _BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
 _LOCKS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+# A peer-reviewed, CC BY pathology teaching article describes both slide
+# differentials. It is educational morphology evidence, not a treatment guideline.
+# Explicit identity pinning avoids broadening the guideline search to case reports.
+_PATHOLOGY_TEACHING = {"40687210": ("PMC12271062", "Educational Case: Squamous cell carcinoma.")}
 
 
 def source_text(source: dict) -> str:
@@ -70,10 +74,14 @@ def parse_open_text(raw: bytes, source: dict, topic: str) -> dict | None:
         return None
     license_nodes = [node for license_node in meta.findall("./permissions/license")
                      for node in license_node.iter()]
-    license_url = next((node.get("{http://www.w3.org/1999/xlink}href", "")
-        for node in license_nodes
-        if re.fullmatch(r"https?://creativecommons\.org/(licenses/by|publicdomain/zero)/[1-4]\.0/?",
-                        node.get("{http://www.w3.org/1999/xlink}href", ""))), None)
+    # Some publishers put the URL in plain license-p text, not an ext-link.
+    # Read only the permissions/license node; a URL in the article body is not
+    # a reuse license. Exact matching still excludes NC/ND/SA and lookalike hosts.
+    license_candidates = [node.get("{http://www.w3.org/1999/xlink}href", "") for node in license_nodes]
+    license_candidates += [url.rstrip(".,;)") for node in meta.findall("./permissions/license")
+                           for url in re.findall(r"https?://[^\s<>]+", " ".join(node.itertext()))]
+    license_url = next((url for url in license_candidates if re.fullmatch(
+        r"https?://creativecommons\.org/(licenses/by|publicdomain/zero)/[1-4]\.0/?", url)), None)
     if not license_url:
         return None
     body = root.find("./body")
@@ -144,20 +152,28 @@ async def _request(client: httpx.AsyncClient, endpoint: str, params: dict) -> by
     loop = asyncio.get_running_loop()
     lock = _LOCKS.setdefault(loop, asyncio.Lock())
     async with lock:
-        await asyncio.sleep(0.4)
-        async with client.stream("GET", _BASE + endpoint,
-                                 params={"db": "pubmed", "tool": "archangel_onboarding", **params}) as response:
-            response.raise_for_status()
-            chunks, size = [], 0
-            async for chunk in response.aiter_bytes():
-                size += len(chunk)
-                if size > 2_000_000:
-                    raise ValueError("Clinical reference response too large")
-                chunks.append(chunk)
-            return b"".join(chunks)
+        for attempt in range(3):
+            await asyncio.sleep(0.4)
+            async with client.stream("GET", _BASE + endpoint,
+                                     params={"db": "pubmed", "tool": "archangel_onboarding", **params}) as response:
+                if response.status_code in {429, 500, 502, 503, 504} and attempt < 2:
+                    # Brief public-service throttles are not a clinical rejection.
+                    # Respect numeric Retry-After with a bounded wait; never
+                    # discard source/clinical checks or continue with empty text.
+                    delay = response.headers.get("Retry-After", "")
+                    await asyncio.sleep(min(30, max(2, int(delay))) if delay.isdigit() else 2 ** (attempt + 1))
+                    continue
+                response.raise_for_status()
+                chunks, size = [], 0
+                async for chunk in response.aiter_bytes():
+                    size += len(chunk)
+                    if size > 2_000_000:
+                        raise ValueError("Clinical reference response too large")
+                    chunks.append(chunk)
+                return b"".join(chunks)
 
 
-def parse_articles(raw: bytes, *, now: datetime | None = None) -> list[dict]:
+def parse_articles(raw: bytes, *, now: datetime | None = None, pathology_teaching: bool = False) -> list[dict]:
     if b"<!ENTITY" in raw.upper():
         raise ValueError("Unexpected XML entity")
     root = ElementTree.fromstring(raw)
@@ -173,18 +189,25 @@ def parse_articles(raw: bytes, *, now: datetime | None = None) -> list[dict]:
         date_text = " ".join(pubdate.itertext()) if pubdate is not None else ""
         year_match = re.search(r"\b(19|20)\d{2}\b", date_text)
         year = int(year_match.group()) if year_match else 0
-        if (not pmid.isdigit() or len(abstract) < 300 or len(abstract) > 16000
+        pmcid = article.findtext("./PubmedData/ArticleIdList/ArticleId[@IdType='pmc']", "")
+        teaching = pathology_teaching and _PATHOLOGY_TEACHING.get(pmid) == (pmcid, title)
+        if pathology_teaching and not teaching:
+            # The pinned fetch must not be satisfied by an unrelated article,
+            # even if that article would qualify for the ordinary guideline path.
+            continue
+        if (not pmid.isdigit() or (len(abstract) < 300 and not teaching) or len(abstract) > 16000
                 or not today.year - 7 <= year <= today.year
                 or types & {"Retracted Publication", "Retraction of Publication"}
                 or relations & {"RetractionIn", "ExpressionOfConcernIn"}
-                or not types & {"Guideline", "Practice Guideline", "Systematic Review", "Consensus Development Conference"}):
+                or (not teaching and not types & {"Guideline", "Practice Guideline", "Systematic Review", "Consensus Development Conference"})):
             continue
         row = {"id": pmid, "title": title, "year": year,
                      "url": "https://pubmed.ncbi.nlm.nih.gov/" + pmid + "/",
                      "abstract": abstract,
                      "sha256": hashlib.sha256(abstract.encode()).hexdigest(),
                      "retrieved_at": today.isoformat()}
-        pmcid = article.findtext("./PubmedData/ArticleIdList/ArticleId[@IdType='pmc']", "")
+        if teaching:
+            row["source_type"] = "peer_reviewed_pathology_teaching"
         if re.fullmatch(r"PMC[0-9]+", pmcid):
             row["pmcid"] = pmcid
         rows.append(row)
@@ -204,20 +227,40 @@ async def retrieve(specialty: str, *, topic: str | None = None) -> list[dict]:
     # Untagged PubMed terms also match society/author affiliations. Searching
     # "asthma" previously returned urticaria guidelines merely authored by an
     # asthma society. Bind every disease term to the actual title/abstract.
-    filters = ('(guideline[Publication Type] OR practice guideline[Publication Type] '
-             'OR systematic review[Publication Type] OR consensus development conference[Publication Type]) '
-             f'AND ("{year - 7}"[Date - Publication] : "{year}"[Date - Publication]) '
+    filters = (f'("{year - 7}"[Date - Publication] : "{year}"[Date - Publication]) '
              'NOT (retracted publication[Publication Type] OR retraction of publication[Publication Type])')
     async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
         rows = []
         seen = set()
-        # Start with articles about the disease itself. Title/Abstract is a
-        # fallback for narrower topics that have too few title matches. Even
-        # abstracts sometimes name an asthma society in unrelated guidelines.
-        for field in ('Title', 'Title/Abstract'):
-            disease_query = ' AND '.join(f'{word}[{field}]' for word in clinical_term.split())
+        if specialty == "pathology":
+            teaching = parse_articles(await _request(client, "efetch.fcgi",
+                {"id": ",".join(_PATHOLOGY_TEACHING), "retmode": "xml"}), pathology_teaching=True)
+            if len(teaching) != len(_PATHOLOGY_TEACHING) or {s['id'] for s in teaching} != set(_PATHOLOGY_TEACHING):
+                raise ValueError("Pinned pathology teaching reference unavailable or retracted")
+            for source in teaching:
+                extra = await _open_text(client, source, "basal squamous carcinoma histology morphology keratin palisading")
+                if not extra:
+                    raise ValueError("Licensed pathology morphology evidence unavailable")
+                source.update(extra)
+                rows.append(source)
+                seen.add(source["id"])
+        # First obtain actual practice guidance. A combined query can fill all
+        # eight slots with narrow systematic reviews and exclude the guideline
+        # containing the clinical algorithm. Within each publication category,
+        # start with disease-title matches and then use title/abstract fallback.
+        guidance = '(guideline[Publication Type] OR practice guideline[Publication Type] OR consensus development conference[Publication Type])'
+        searches = [(category, field) for category in (guidance, 'systematic review[Publication Type]')
+                    for field in ('Title', 'Title/Abstract')]
+        for category, field in searches:
+            # PubMed does not index standalone stopwords (e.g. the "A" in
+            # type A dissection). The curriculum still enforces that subtype.
+            words = [word for word in clinical_term.split() if len(word) > 1 and word.lower() not in {'and', 'of', 'the'}]
+            # Explicit field tags disable PubMed's automatic singular/plural
+            # expansion. Without a suffix, "infant" misses the AAP guideline
+            # titled "Febrile Infants". NCBI permits truncation from four chars.
+            disease_query = ' AND '.join(f'{word}{"*" if len(word) >= 4 else ""}[{field}]' for word in words)
             search = json.loads(await _request(client, "esearch.fcgi",
-                {"term": f'({disease_query}) AND {filters}', "retmode": "json", "retmax": 12, "sort": "relevance"}))
+                {"term": f'({disease_query}) AND ({category}) AND {filters}', "retmode": "json", "retmax": 12, "sort": "relevance"}))
             ids = [str(i) for i in search.get("esearchresult", {}).get("idlist", []) if str(i).isdigit() and str(i) not in seen][:12]
             seen.update(ids)
             # Guidelines can carry huge reference lists; keep response pages small.
@@ -230,10 +273,12 @@ async def retrieve(specialty: str, *, topic: str | None = None) -> list[dict]:
                 break
         # Supply the actual recommendations where reusable full text exists,
         # rather than expecting a scope-only abstract to establish an algorithm.
-        expanded = 0
+        expanded = sum(bool(s.get("body_excerpts")) for s in rows[:8])
         for source in rows[:8]:
             if expanded >= 3:
                 break
+            if source.get("body_excerpts"):
+                continue
             extra = await _open_text(client, source, topic or clinical_term)
             if extra:
                 source.update(extra)

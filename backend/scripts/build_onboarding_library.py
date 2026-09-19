@@ -16,6 +16,17 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
+def matrix_specialties(value: str) -> list[str]:
+    """A bounded subset lets a recovery build retry only unfinished specialties."""
+    from asclepius.onboarding_catalog import SPECIALTIES
+    from asclepius.onboarding_specialties import canonical
+    choices = list(SPECIALTIES) if value == 'all' else [canonical(s.strip()) for s in value.split(',')]
+    if any(s not in SPECIALTIES for s in choices) or len(choices) != len(set(choices)):
+        raise ValueError('Choose unique supported launch specialties or all')
+    priority = ('pathology', 'dermatology', 'neurology')
+    return sorted(choices, key=lambda s: priority.index(s) if s in priority else len(priority))
+
+
 async def build(specialty: str, output: Path, diagnostics: Path | None = None):
     from asclepius import onboarding_cases as bank
 
@@ -83,14 +94,10 @@ if __name__ == "__main__":
     from asclepius.onboarding_specialties import canonical
     if args.matrix:
         value = args.specialty or os.getenv("SMOKE_SPECIALTY", "all")
-        choices = list(SPECIALTIES) if value == "all" else [canonical(value)]
-        # Surface the specialties applicants reported first, while still
-        # preparing every curriculum entry in the same bounded matrix.
-        priority = ('pathology', 'dermatology', 'neurology')
-        choices.sort(key=lambda s: priority.index(s) if s in priority else len(priority))
-        if any(s not in SPECIALTIES for s in choices):
-            raise SystemExit("Choose a supported launch specialty or all")
-        print(json.dumps(choices))
+        try:
+            print(json.dumps(matrix_specialties(value)))
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
     elif args.check:
         from asclepius import onboarding_library
         report = onboarding_library.coverage()

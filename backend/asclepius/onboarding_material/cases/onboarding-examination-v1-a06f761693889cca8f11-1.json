@@ -1,0 +1,547 @@
+{
+  "task_id": "onboarding-examination-v1-a06f761693889cca8f11-1",
+  "specialty": "anesthesiology",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Acute instability during an awake regional anesthetic",
+    "question": "Which immediate response is most appropriate for this evolving peri-procedural event?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "anesthesiology",
+      "demographics": {
+        "age_band": "18-19",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Generalized convulsive activity",
+          "since": "During regional anesthetic injection",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Acute severe hypotension",
+          "since": "Immediately following convulsive activity",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Wide-complex ventricular ectopy",
+          "since": "Immediately following convulsive activity",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Ropivacaine",
+          "dose": null,
+          "route": "Perineural injection",
+          "freq": "Single procedural administration, stopped after symptom onset",
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "heart_rate_bpm": 128,
+        "blood_pressure_mmHg": "64/38",
+        "oxygen_saturation_percent": 91,
+        "respiratory_pattern": "Shallow and irregular after convulsive activity"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Procedure event",
+          "author_role": "anesthesiology",
+          "text": "An awake young adult undergoing an ultrasound-guided interscalene block reported a metallic taste and loud ringing in both ears shortly after ropivacaine injection began. She became agitated and then developed generalized convulsive activity. The injection was stopped and the needle removed. After the convulsion, respirations were shallow and irregular, blood pressure was 64/38 mmHg, and the monitor showed tachycardia with frequent wide-complex ventricular beats and QRS widening. No rash, wheezing, or facial swelling was observed.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Electrocardiography",
+          "label": "Intra-procedural rhythm tracing",
+          "findings": "Sinus tachycardia with QRS widening and frequent wide-complex ventricular ectopic beats.",
+          "measurements": [],
+          "impression": "Acute ventricular conduction and rhythm disturbance.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional examination case for onboarding; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "Intermediate",
+      "required_modalities": [
+        "clinical note",
+        "electrocardiography"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "Complete through the initial management decision point",
+      "ground_truth": {
+        "answer": "Candidate B",
+        "rationale": "The rapid progression from metallic taste, tinnitus, and agitation to a generalized convulsion, severe hypotension, QRS widening, and ventricular ectopy during ropivacaine injection is consistent with severe local anesthetic systemic toxicity. Immediate management includes maintaining cessation of local anesthetic administration, requesting assistance, securing intravenous access, administering 100% oxygen, supporting ventilation and the airway with intubation if necessary, treating convulsions with a benzodiazepine, and promptly administering 20% lipid emulsion according to the established protocol because severe hypotension and arrhythmia are present. Propofol should not be used as a substitute for lipid emulsion because it can worsen cardiovascular depression.",
+        "evidence": {
+          "decision_basis": "Recognition and initial management of severe local anesthetic systemic toxicity",
+          "population": "Adult aged 18 years with neurologic and cardiovascular toxicity during regional anesthesia"
+        },
+        "key_data": [
+          "Metallic taste and bilateral tinnitus began shortly after ropivacaine injection.",
+          "Neurologic findings progressed from agitation to generalized convulsive activity.",
+          "Blood pressure fell to 64/38 mmHg.",
+          "Electrocardiography showed QRS widening and frequent wide-complex ventricular ectopy.",
+          "The patient developed shallow, irregular respirations after the convulsion."
+        ]
+      },
+      "hard_hook": "The examinee must recognize combined neurologic and cardiovascular toxicity and initiate antidotal treatment before cardiac arrest.",
+      "reasoning_divergence": "The flawed response delays lipid emulsion until pulseless arrest and substitutes a cardiovascular-depressant anesthetic for the indicated antidotal therapy."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Continue oxygen and treat the convulsion with propofol, but withhold lipid emulsion unless pulseless cardiac arrest develops. Observe the QRS widening and ventricular ectopy while waiting for spontaneous resolution."
+      },
+      {
+        "id": "B",
+        "text": "Maintain cessation of the local anesthetic, summon assistance, secure intravenous access, give 100% oxygen, and support ventilation and the airway with intubation if necessary. Treat convulsions with a benzodiazepine and promptly administer 20% lipid emulsion according to protocol for the severe hypotension and ventricular arrhythmia; do not substitute propofol for lipid emulsion."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "local anesthetic systemic toxicity",
+      "seizure",
+      "severe hypotension",
+      "ventricular arrhythmia",
+      "airway management",
+      "lipid emulsion"
+    ],
+    "evidence_keywords": [
+      "ropivacaine toxicity",
+      "100% oxygen",
+      "benzodiazepine",
+      "20% lipid emulsion",
+      "QRS widening",
+      "cardiovascular depression"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Local anesthetic systemic toxicity can progress from central nervous system excitation and convulsions to respiratory arrest and cardiovascular conduction disturbances or collapse.",
+        "source_ids": [
+          "30417244"
+        ]
+      },
+      {
+        "statement": "When systemic toxicity is suspected, local anesthetic administration should be halted and assistance, intravenous access, airway support, and 100% oxygen should be provided immediately.",
+        "source_ids": [
+          "30417244"
+        ]
+      },
+      {
+        "statement": "Benzodiazepines are recommended for convulsions associated with local anesthetic systemic toxicity.",
+        "source_ids": [
+          "30417244",
+          "38489714"
+        ]
+      },
+      {
+        "statement": "Administration of 20% lipid emulsion according to protocol is recommended when local anesthetic toxicity causes severe hypotension or arrhythmia.",
+        "source_ids": [
+          "30417244"
+        ]
+      },
+      {
+        "statement": "Early lipid emulsion administration is recommended during incipient toxicity rather than being reserved only for intractable cardiac arrest.",
+        "source_ids": [
+          "38489714"
+        ]
+      },
+      {
+        "statement": "Propofol should not be administered as a substitute for 20% lipid emulsion because propofol itself can exacerbate cardiovascular depression.",
+        "source_ids": [
+          "38489714"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:58:13.648115+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "38489714",
+        "title": "Lipid emulsion treatment for local anesthetic systemic toxicity in pediatric patients: A systematic review.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38489714/",
+        "abstract": "Local anesthetic systemic toxicity (LAST) is rare, but fatal; the current widely used treatment is lipid emulsion (LE). The goal of this study was to analyze and review case reports on LE treatment for LAST in pediatric patients.\nWe performed a systematic review using case reports on LE treatment for LAST in pediatric patients, searching PubMed and Scopus databases to March 2023 using the following keywords: (\"local anesthetic toxicity\" OR \"local anesthetic systemic toxicity\" OR LAST\") AND (\"newborn\" OR \"infant\" OR \"child\" OR \"children\" OR \"adolescent\" OR \"pediatric\") AND (\"lipid emulsion\" OR \"Intralipid\").\nOur search yielded 21 cases, revealing that nearly 43% patients with LAST were less than 1 year old, and most cases were caused by bupivacaine (approximately 67% cases). \"Inadvertent intravascular injection\" by anesthesiologists and \"overdose of local anesthetics\" mainly by surgeons were responsible for 52% and 24% cases of LAST, respectively. LAST occurred in the awake state (52%) and under general anesthesia (48%), mainly causing seizures and arrhythmia, respectively. Approximately 55% of patients received LE treatment in <10 minutes after LAST, mainly improving cardiovascular symptoms. A 20% LE (1.5 mL/kg) dose followed by 0.25 mL/kg/minutes dose was frequently used. LE and anticonvulsants were mainly used in the awake state, whereas LE with or without vasopressors was mainly used under general anesthesia. LE treatment led to full recovery from LAST in 20 cases; however, 1 patient died due to underlying disease.\nConsequently, our findings reveal that LE is effective in treating pediatric LAST.",
+        "sha256": "60e6b1135f2d200172d0481433a4ffcabb13e7af33545761d3b923c593648c36",
+        "retrieved_at": "2026-09-18T23:56:25.875130+00:00",
+        "pmcid": "PMC10939516",
+        "body_excerpts": "1. Introduction\nLocal anesthetics are widely used for peripheral nerve block, local infiltration, and spinal and epidural anesthesia. While the occurrence of local anesthetic systemic toxicity (LAST) is rare, it is fatal. Lipid emulsion, originally developed for parenteral nutrition in 1961, is now widely used to treat LAST. [ 1 ] In addition, lipid emulsion was reported to be effective in treating intractable systemic toxicity in pediatric patients caused by non-local anesthetic drugs with a high lipid solubility, which is unresponsive to supportive treatments. [ 2 ] The incidence of LAST in children was estimated to be 8 per 100,000 nerve blocks (95% confidence interval: 0.3–1.6). LAST is induced mainly by inadvertent intravascular injection or overdose of local anesthetic; it causes cardiac arrhythmia, myocardial depression, and cardiac arrest via inhibition of cardiac sodium, potassium, and calcium channels. [ 3 ] In addition, LAST causes central nervous systemic symptoms such as seizures. [ 3 ] Predominantly, regional anesthesia in children is administered while they are under general anesthesia, and diagnosis of LAST may be delayed, increasing the risk of LAST. [ 4 , 5 ] When comparing pharmacokinetics with adults, the pediatric population generally exhibits decreased drug absorption, protein binding of the drug, metabolism, and excretion, whereas volume of distribution of the drug is increased. [ 6 ] Amino-amide local anesthetics are metabolized by the hepatic cytochrome P450 enzymes and extensively bind to α1-acid glycoprotein. [ 7 ] Neonates and infants have low levels of α1-acid glycoproteins and the immature form of hepatic microsomal enzymes, leading to increased free form of amino-amide local anesthetics and decreased metabolism, respectively. [ 5 ] Thus, the risk of LAST in neonates and infants may be increased. [ 5 ] Moreover, pediatric patients who were born prematurely, have low muscle mass, and suffer from hepatic or cardiac diseases, may have an increased risk of LAST compared with the healthy pediatric population. Presently, no systematic reviews have been conducted on lipid emulsion treatment for LAST in pediatric patients. Thus, the goal of this study was to analyze and review case reports, retrieved through PubMed and Scopus databases, on lipid emulsion treatment for LAST in pediatric patients (<19 years old).\n\n2. Methods\nA PubMed and Scopus database search was performed for relevant case reports from their respective dates of inception until March 31, 2023, using the following keywords: (“local anesthetic toxicity” OR “local anesthetic systemic toxicity” OR “LAST”) AND (“newborn” OR “infant” OR “child” OR “children” OR “adolescent” OR “pediatric”) AND (“lipid emulsion” OR “Intralipid”). Institutional review board approval was not required as this involved an analysis and review of case reports. We retrieved 21,043 and 44,923 case reports through the PubMed and Scopus databases, respectively (Fig. 1 ). After applying the exclusion criteria, a total of 21 cases were selected for analysis (Fig. 1 ). The following data were extracted from each case report: age, body weight, route of administration of the local anesthetic, administration of local anesthetic under general anesthesia, dosage of local anesthetics, presumed cause of LAST, use of ultrasonography, whether anesthesia was induced by anesthesiologists or non-anesthesiologists, symptoms of LAST, administration method of lipid emulsion, lipid emulsion dosage, improvement in symptoms by lipid emulsion, other treatments, and outcomes (Table 1 ).\n\n2. Methods\nTable 1 Lipid emulsion treatment for local anesthetic systemic toxicity in pediatric patients. No Age BW (kg) Route of Adm of LA Under GA Dosages of LA Presumed cause of LAST Usage of US Induced by AN or SG Sx of LAST Adm method of LE LE dosage Improved Sx by LE Other Tx 1 [ 8 ] 3 mo 5.9 Local Inf Y BPV 20 mg LDC 80 mg Overdose SG Seizure, VF, broad-complex arrhythmia Bolus: 1.5 mL/kg Con: 0.25 mL/kg/min Bolus: 9 mL, Con: N/A CV, CNS Supportive care, ICU care, anticonvulsant, 2 [ 9 ] 6 d 4 ESPB Y LBP 1 mg/kg IIVI Y AN Decreased ETCO 2 Bolus: 1.5 mL/kg 6 mL CV Epi (1 mcg/kg) 3 [ 10 ] 3 mo 3.9 Caudal + IV Y BPV 7.5 mg LDC 120 mg Overdose AN Bradycardia, hypotension, seizure Bolus: 1 st 3 mL/kg 2 nd 2.56 mL/kg Con: 1 mL/min 144mL CV, CNS Intubation, anticonvulsant, ICU care 4 [ 11 ] 11 mo 8 Penile B Y BPV 40 mg Overdose SG VT Bolus: 1.5 mL/kg Con: 0.25 mL/kg/min Bolus: 12 mL, Con: N/A CV Supportive care 5 [ 12 ] 17 yr N/A Axillary B N BPV 75 mg IIVI AN Seizure, VA Bolus: 1 st 100 mL 2 nd 100 mL Con: N/A Bolus 200 mL Con: N/A CV Anticonvulsant, CPR, ICU care 6 [ 13 ] 11 yr 55.6 MNB N MPV 54 mg IIVI SG Light headedness, seizure, numbness, emesis Bolus: 1 st 1 mL/kg 2 nd 1 mL/kg 3 rd 1 mL/kg Con: 0.25 mL/kg/min Bolus: 166.8 mL Con: 5838 mL CNS Anticonvulsant 7 [ 14 ] 17 mo 10 Caudal Y LBP 2.5 mg/kg IIVI AN ST depression, T-wave elevation, Hypotension Bolus: 1 mL/kg 10 mL CV Supportive care 8 [ 15 ] 4 mo 6.54 Dermal N EMLA (LDC 1500 mg, and PLC 1500 mg) Overdose SG Seizure, respiratory depression, hypoxia, methemoglobinemia Bolus: 5 mL/kg 32.7 mL CNS Supportive care, methylene blue 9 [ 16 ] 2 mo 4.8 Caudal N BPV 2.12 5mg/kg IIVI AN Seizure, apnea, SVT, BP dropped Bolus: 1.25 mL/kg Con: 0.26 mL/kg/min Bolus 6 mL Con: 75 mL/hr CNS, CV Supportive care, anticonvulsant 10 [ 17 ] 2 d 3.2 Caudal Y BPV 8 mg IIVI Y AN Multifocal PVC, bradycardia Bolus: 1 mL/kg 3.2 mL CV CPR 11 [ 18 ] 13 yr 55 PLPB Y LDC 10 0 mg RPV75 mg IIVI AN Tachycardia, VA, wide QRS Bolus: 3 mL/kg 165 mL CV None 12 [ 19 ] 17 yr 61 FNB N BPV 100 mg IIVI AN Seizure, pulseless activity of ECG, VA Bolus: N/A, Con: N/A 500 mL (8 mL/kg) CNS, CV Anticonvulsant, supportive care, CPR, defibrillation 13 [ 20 ] 2 mo 12 ECB N BPV 22.5 mg LDC 120 mg Overdose SG Seizure, desaturation, tachycardia, T-wave & ST elevation Bolus: 6 mL 6 mL CNS, CV Supportive care, anticonvulsant, 14 [ 21 ] 40 d 4.96 Caudal Y BPV 8.75 mg IIVI AN Tachycardia, ST depression, decreased ETCO 2, hypotension, hypoxia Bolus: 2 mL/kg 9.92 mL CV Epi, albumin, ICU care 15 [ 22 ] 3 yr 11 Caudal Y BPV 25 mg IIVI AN Pulseless VA Bolus: 1 st 1.36 mL/kg 2 nd 0.45 mL/kg Con: 0.23 mL/kg/min Bolus: 20 mL Con: N/A CV Supportive care, CPR, Epi 16 [ 23 ] 18 yr 86 Epidural N BPV 65 mg IIVI AN Restless, agitated, unresponsive, twitching, tachycardia, Bolus: 1 st 0.58 mL/kg 2 nd 0.58 mL/kg 3 rd 4.65 mL/kg CNS Anticonvulsant 17 [ 24 ] 6 yr 24 Epidural N BPV 12 mg Secondary carnitine deficiency AN Bradycardia, wide complex VA, sinus tachycardia Bolus: 0.8 mL/kg Con: 0.25 mL/kg/min Bolus 20 mL Con: 192 mL CV CPR, vasopressor, ICU care 18 [ 25 ] 15 mo N/A Oral N EMLA (LDC, and PLC), N/A Ingestion Seizure, hypoxia Bolus: 1.5 mL/kg Con: 0.25 mL/kg/min N/A CNS Anticonvulsant, NaHCO 3 , methylene blue 19 [ 19 ] 17 yr 61 FNB N BPV 100 mg IIVI AN N/A N/A N/A N/A Defibrillation, CPR, anticonvulsant 20 [ 26 ] 16 yr 58 ISB N LDC 30 mg RPV 300 mg Overdose Y AN Confusion, visual hallucinations, slightly slurred speech, non-coordinated tremor, increased RR, slightly elevated BP Bolus: 1.5 mL/kg Con: 0.25 mL/kg/min Bolus 87 mL Con: 2610 mL CNS, CV None 21 [ 27 ] 6 yr N/A Local Inf Y BPV 7.5 mg/kg Overdose SG Bradycardia, asystole Bolus: 1.5 mL/kg Con: 0.25 mL/kg/min N/A CV Vasopressor Adm = Administration, AN = Anesthesiologist, AXB = axillary block, B = block, BP = blood pressure, BPV = bupivacaine, BW = body weight, CNS = central nervous system, Con = continuous infusion, CPR = cardiopulmonary resuscitation, CV = cardiovascular system, d = days, D = death, ECB = extraconeal block, Epi = Epinephrine, ESPB = erector spinae plane block, ETCO 2 = end-tidal carbon dioxide tension, FNB = femoral nerve block, FR = full recovery, GA = general anesthesia, hr = hour, ICU = intensive care unit, IIVI = inadvertently intravascular injection, Inf = Infiltration, ISB = interscalene block, LA = local anesthetics, LAST = local anesthetic systemic toxicity, LBP = levobupivacaine, LDC = lidocaine, LE = lipid emulsion, MNB = mandibular nerve block, mo = month, N/A = not available, N = none, No = number, PLC = prilocaine, PLPB = posterior lumbar plexus block, PVC = premature ventricular contraction, RPV = ropivacaine, RR = respiratory rate, SG = surgeon, SVT = supraventricular tachycardia, Sx = symptom, Tx = treatment, Under GA = administration of local anesthetics under general anesthesia, US = Ultrasound, VA = ventricular arrhythmia, VF = ventricular fibrillation, VT = ventricular tachycardia, Y = yes, yr = years.\n\n3. Results > 3.2. Different local anesthetics associated with LAST\nThe most common anesthetic associated with pediatric LAST was bupivacaine (n = 14; either bupivacaine administered alone [n = 11] or bupivacaine plus lidocaine administered in combination [n = 3]) (Fig. 3 A). In pediatric patients, other local anesthetics that caused LAST were levobupivacaine (n = 2), ropivacaine plus lidocaine (n = 2), EMLA cream (prilocaine plus lidocaine, n = 2), and mepivacaine (n = 1) (Fig. 3 A).\n\n3. Results > 3.3. Route of administration of local anesthetics and measures to prevent LAST\nThe routes of local anesthetic administration commonly associated with LAST in pediatric patients were peripheral nerve block (n = 9) and caudal block (n = 5) (Fig. 3 B). Peripheral nerve block (Table 1 ) encompassed erector spinae block (n = 1), femoral nerve block (n = 2), axillary nerve block (n = 1), penile block (n = 1), mandibular nerve block (n = 1), lumbar plexus block (n = 1), extracorneal block (n = 1), and interscalene block (n = 1). Of the 9 peripheral nerve blocks, 6 were performed by anesthesiologists and 3 (mandibular nerve block, extracorneal block, and penile block) by non-anesthesiologists. Local anesthesia was administered under ultrasound guidance in only 3 patients by anesthesiologists (Table 1 ). In 17 patients, regional anesthesia was performed without ultrasound guidance or information regarding usage of ultrasound was not available. The measures that were undertaken to prevent LAST other than administration of regional anesthesia under ultrasound guidance were as follows (Table 1 ): negative aspiration test alone (n = 8), negative aspiration and epinephrine (n = 3), and epinephrine alone (n = 1). In the remaining 8 patients, other measures were not performed or information regarding other measures was not available. As 1 patient accidentally ingested EMLA cream (Case No. 18), this patient was excluded from the analysis of measures to prevent LAST.\n\n3. Results > 3.4. LAST induced by anesthesiologists versus non-anesthesiologists and presumed causes of LAST\nThe administration of local anesthesia by anesthesiologists and non-anesthesiologists (surgeons or dentists) led to 14 and 7 cases of LAST in pediatric patients, respectively. Herein, patients that developed LAST after receiving less than the maximum recommended dose of local anesthetic were considered to have received an “inadvertent intravascular injection of local anesthetics” and those that received more than the recommended dose were considered to have “overdose of local anesthetics.” Occurrence of LAST in 1 patient (Case No. 17) appeared to be owing to secondary carnitine deficiency induced by valproic acid treatment. In addition, the cause of LAST in another patient (Case No. 18) was due to accidental ingestion of EMLA cream. Thus, these 2 cases were excluded from the analysis of presumed causes of LAST. Following were found to be the presumed causes of LAST: inadvertent intravascular injection of local anesthetics (n = 12; by anesthesiologists [n = 11] and by a dentist, i.e., non-anesthesiologist [n = 1]) and overdose of local anesthetics (n = 7; by anesthesiologists [n = 2] and by surgeons, i.e., non-anesthesiologists [n = 5]). The detailed information regarding overdose of local anesthetics is as follows: 20 mg bupivacaine and 80 mg lidocaine were used for local infiltration in a patient weighting 5.9 kg (Case No. 1); 120 mg intravenous lidocaine was used for the treatment of laryngospasm in a patient weighting 3.9 kg (Case No. 3); 40 mg bupivacaine was used for penile block in a patient weighting 8 kg (Case No. 4); EMLA cream (1500 mg lidocaine and prilocaine) was used for dermal application in a patient weighting 6.54 kg (Case No. 8); 22.5 mg bupivacaine and 120 mg lidocaine were used for extracorneal block in a patient weighting 12 kg (Case No. 13); 30 mg lidocaine and 300 mg ropivacaine were used for interscalene block in a patient weighting 58 kg (Case No. 20); and 7.5 mg/kg bupivacaine was used for donor site infiltration in a 6-year-old burn patient (Case No. 21). In pediatric patients, LAST occurred in the operation room, including the recovery room, and in the non-operating room in 17 and 4 cases, respectively.\n\n3. Results > 3.7. LAST and its treatment under general anesthesia\nThe 10 cases of LAST occurred under general anesthesia in the operating room (Figs. 2 and 3 ); of these, 6 patients were infants (<1 year old). The presumed causes of LAST under general anesthesia were inadvertent intravascular injection of local anesthetics (by anesthesiologist [n = 6]) and overdose of local anesthetics (n = 4, by anesthesiologist [n = 1] and by surgeon [n = 3]) (Table 1 ). The presumed symptoms of LAST under general anesthesia were as follows: cardiovascular symptoms (n = 10); low end-tidal carbon dioxide tension (n = 2); central nervous symptoms (seizures, n = 2); and hypoxia (n = 1). Peripheral nerve block and other procedures performed under general anesthesia, which are associated with LAST, were as follows: caudal block (n = 5); local infiltration of anesthetics in the wound site (n = 2), elector spinae plane block (n = 1), penile block (n = 1), and posterior lumbar plexus block (n = 1). Statistics of lipid emulsion treatment with or without other treatments are shown in Figure 4 B.\n\n4. Discussion\nThis systematic review was conducted to analyze and review lipid emulsion treatment for LAST in pediatric patients; our findings indicate that lipid emulsion is effective in treating LAST in pediatric patients. The main findings of the present investigation can be summarized as follows: bupivacaine (used in approximately 67% of included cases) was commonly associated with LAST; LAST in patients for whom anesthesia was administered by anesthesiologists was mainly due to inadvertent intravascular injection of local anesthetics, whereas LAST in patients for whom anesthesia was administered by non-anesthesiologists was mainly due to overdose of local anesthetics; symptoms of LAST frequently included arrhythmia under general anesthesia and seizures in the awake state; lipid emulsion mainly improved cardiovascular symptoms (in approximately 71% of cases); and lipid emulsion and anticonvulsants were frequently used to treat LAST in the awake state, and lipid emulsion with or without vasopressors was frequently used to treat LAST in patients treated under general anesthesia.\n\n4. Discussion\nLocal anesthetics cause myocardial depression in the following order: bupivacaine > ropivacaine > lidocaine. [ 28 ] In addition, the low ratio of “local anesthetic dose required to produce cardiovascular collapse” to “local anesthetic dose required to produce central nervous system toxicity” is associated with high cardiotoxicity, whereas a high ratio is associated with relatively low cardiotoxicity. [ 29 ] This ratio increases in anesthetics in the following order: bupivacaine, levobupivacaine, and ropivacaine. [ 29 ] In children, bupivacaine has been reported to be the most common anesthetic causing LAST. [ 4 ] Similar to this finding, the present review revealed that bupivacaine most commonly caused LAST, which was treated with lipid emulsion. [ 4 ] Thus, alternative local anesthetics such as levobupivacaine and ropivacaine should be considered to prevent bupivacaine-induced LAST. Inadvertent intravascular injection of local anesthetics was mostly associated with anesthesia administered by anesthesiologists (in approximately 92% of cases involving inadvertent intravascular injection of local anesthetics), whereas overdose of local anesthetics was mostly associated with anesthesia administered by non-anesthesiologists (in approximately 71% of cases involving overdose of local anesthetics). Vascularity of the injection site of the local anesthetic is known to be associated with LAST. [ 3 , 30 ] Thus, caudal block, which accounted for approximately 29% of cases of LAST in the present review, may be associated with the high vascularity of the injection site of local anesthetics. Ultrasound-guided nerve block reduces the incidence of LAST and neurologic symptoms. [ 31 ] However, in present review, to prevent LAST in pediatric patients, only 4 cases used ultrasound with regional anesthesia administered by anesthesiologists. In addition, the negative aspiration technique with local anesthetics with or without epinephrine, an alternative measure to ultrasound to prevent LAST, was mainly used (in approximately 52% of cases) in the present review. Intravascular injection of epinephrine-containing lidocaine has been reported to produce increased heart rate and T-wave amplitude in children anesthetized with servoflurane. [ 32 ] However, in agreement with a previous report, use of negative needle aspiration with or without epinephrine did not always prevent LAST in the present review. [ 4 ] According to the previous report, negative aspiration is associated with considerable inaccuracies, and the reaction to adrenaline might lack clinical significance in pediatric cases and other perioperative stimulatory contexts. [ 4 ] The following measures are recommended to prevent LAST: evaluation of risk factors such as low body mass (e.g., in infants) and underlying diseases; performing ultrasound-guided nerve blocks; gradual administration of local anesthetic in small increments; needle or catheter aspiration prior to administering local anesthesia; using epinephrine (0.5 μg/kg) in children to detect intravascular injection; and adhering to the maximal recommended doses of local anesthetics. [ 33 ] The maximal recommended doses (mg/kg) of local anesthetics without epinephrine are as follows: bupivacaine, 2 mg/kg; levobupivacaine, 2 mg/kg; ropivacaine, 3 mg/kg; mepivacaine, 4.5 mg/kg; lidocaine, 4.5 mg/kg; and prilocaine 6 mg/kg. [ 34 ] In addition, the maximum recommended dose of lidocaine and prilocaine is 300 and 400 mg, respectively. [ 30 ] Taking into consideration this maximum recommended dose, the doses of bupivacaine that led to LAST in the present review were found to be approximately 1.69, 2.5, and 3.75 times the maximum recommended dose of bupivacaine. The doses of lidocaine that led to LAST were approximately 2.22 and 3.01 times the maximum recommended dose of lidocaine. The doses of lidocaine and prilocaine contained in EMLA cream that led to LAST in the present review were 5 and 3.75 times their maximum recommended doses, respectively. The dose of ropivacaine that led to LAST was approximately 1.73 times the maximum recommended dose. Therefore, the results of the present review suggest that non-anesthesiologists, specially, should adhere to the maximum recommended doses of local anesthetics to prevent LAST.\n\n4. Discussion\nLAST produces central nervous symptoms, such as perioral numbness, slurred speech, and tinnitus, followed by convulsion, coma, and respiratory depression. [ 3 ] In addition, it produces cardiovascular symptoms, such as hypertension and tachycardia followed by hypotension, myocardial depression, bradycardia, ventricular tachycardia, and cardia arrest. [ 3 ] A previous report on LAST in children stated that initial presentation of LAST in the awake state and under general anesthesia mainly involves central nervous system and cardiovascular system symptoms, respectively. [ 4 ] Similarly, in the present review, the most frequently occurring LAST symptom under general anesthesia was arrhythmia and in the awake state was seizures. [ 4 ] The previous study reported that 68% of instances of LAST in children occurred under anesthesia. [ 4 ] Similarly, in present review, 48% of LAST cases occurred under general anesthesia. [ 4 ] Additionally. consistent with the previous report, all patients who developed LAST under general anesthesia experienced cardiovascular symptoms. [ 4 ] Decreased end-tidal carbon dioxide tension were observed as one of the signs of LAST in 2 cases under general anesthesia, which may be attributed to the decreased venous return caused by local anesthetic-induced myocardial depression. Cardiovascular symptoms showed most improvement (approximately 55% of included cases) after lipid emulsion treatment for non-local anesthetic toxicity in pediatric patients. [ 2 ] Similarly, after lipid emulsion treatment, the maximum improvement was seen in cardiovascular symptoms alone (48%), followed by symptoms of both central nervous and cardiovascular systems, and central nervous system symptoms alone. [ 2 ] Before LAST progresses to cardiovascular collapse, early administration of lipid emulsion produces leads to recovery from central nervous system symptoms induced by ropivacaine toxicity, and shortens recovery time from unconsciousness induced by lidocaine toxicity. [ 37 , 38 ] In addition, lipid emulsion treatment was originally recommended to treat intractable cardiac arrest induced by LAST; however, early administration of lipid emulsion is now recommended to treat the incipient stage of LAST. [ 33 ] According to this recommendation, approximately 36% of patients received lipid emulsion treatment <5 minutes after LAST, and approximately 55% of patients received lipid emulsion treatment < 10 minutes after LAST. [ 33 ] In addition, approximately 45% of patients showed improvement in symptoms in < 4 minutes after lipid emulsion administration for LAST, and approximately 67% of patients showed improvement in symptoms in < 1 hour after lipid emulsion administration for LAST. Treatment of LAST includes airway maintenance to prevent hypoxia and acidosis, lipid emulsion and benzodiazepines to treat seizures, low doses of epinephrine (1 μg/kg), advanced cardiac life support for cardiac arrest, and cardiopulmonary bypass. [ 1 ] According to the present review, lipid emulsion and anticonvulsants were frequently used to treat LAST in the awake state (Fig. 4 B), whereas lipid emulsion alone and lipid emulsion plus vasopressor were frequently used to treat LAST under general anesthesia (Fig. 4 B).\n\n4. Discussion\nThe underlying mechanism of lipid emulsion treatment for LAST is lipid shuttle, increased myocardial contractility, provision of fatty acid, inhibition of mitochondrial dysfunction, attenuation of nitric oxide release, and glycogen synthase kinase-3β phosphorylation. [ 1 ] The most widely accepted mechanism of lipid emulsion treatment for LAST is lipid shuttle; it states that administration of lipid emulsion produces lipid compartments of lipid emulsion, which absorb lipid-soluble local anesthetics (for example: bupivacaine, log P [octanol/water partition coefficient] = 3.41) from the brain and heart, and subsequently, lipid emulsion including the lipid-soluble local anesthetic is carried to the liver, muscle, and adipose tissue, where it undergoes detoxification and is stored. [ 1 ] The decreasing order of lipid solubility in local anesthetics is as follows: levobupivacaine (log P = 3.6), bupivacaine (log P = 3.41), ropivacaine (log P = 2.9), lidocaine (log P = 2.44), and mepivacaine (log P = 1.95). [ 1 ] Moreover, lipid emulsion absorbs lipid-soluble local anesthetics and inhibits vasodilation induced by toxic doses of local anesthetics according to lipid solubility. [ 39 – 41 ] In the present review, LAST occurred most frequently with bupivacaine and lipid emulsion treatment was administered. Thus, we surmised that this seems to be due to highest lipid solubility and high cardiotoxicity of bupivacaine.\n\n4. Discussion\nThe recommended dose of lipid emulsion for LAST is as follows: initial bolus administration of 20% lipid emulsion (1.5 mL/kg) over 2 to 3 minutes followed by continuous infusion of 20% lipid emulsion (0.25 mL/kg/min). [ 1 ] Consistent with this recommendation, 20% lipid emulsion (1.5 mL/kg) bolus administration followed by 0.25 mL/kg/minutes continuous infusion was frequently used in this review (in approximately 42% of cases involving bolus administration followed by continuous infusion). As propofol is dissolved in 10% lipid emulsion and produces cardiovascular depression, propofol should not be administered instead of 20% lipid emulsion because of the cardiovascular depression exacerbated by propofol itself. The most common type of lipid emulsion used in the treatment for LAST in the present review was Intralipid (in approximately 71% of cases), which is a 100% long-chain fatty acid. However, the availability of Intralipid may be limited in hospitals compared with other types of lipid emulsions, because linoleic acid contained in Intralipid induces proinflammatory mediators. [ 42 , 43 ] Moreover, alternative lipid emulsions such as SMOFlipid, Lipofundin MCT/LCT, and Clinoleic are used to treat LAST. [ 44 ] Thus, alternative lipid emulsions other than Intralipid can be used to treat LAST in pediatric patients. Approximately 95% of patients undergoing lipid emulsion treatment in the current review fully recovered from LAST. However, even with lipid emulsion treatment, 1 patient with secondary carnitine deficiency due to valproic acid treatment (Case No. 17) died, and this may be attributed to increased susceptibility to bupivacaine toxicity owing to impaired carnitine shuttle, and subsequently, decreased fatty acid β-oxidation and adenosine triphosphate production in cardiac mitochondria. [ 45 ] Lipid emulsion treatment as an antidote produces the following side effects, which interfere with laboratory examination; lipidemia, pancreatitis, adult respiratory distress syndrome, and fat overload. [ 46 ] However, these side effects of lipid emulsion treatment are relatively mild compared with LAST. The daily recommended dose of 20% lipid emulsion for parenteral nutrition in pediatric and adult patients is 15 and 12.5 mL/kg, respectively. [ 47 ] Consequently, hyperlipidemia and hypertriglyceridemia were observed in only 1 case (Case No. 6) owing to the administration of a high dose (66 mL/kg) of lipid emulsion.\n\n4. Discussion\nLocal anesthetics (benzocaine and lidocaine) and EMLA cream cause methemoglobinemia. [ 48 , 49 ] As methylene blue is converted to leukomethylene blue by nicotinamide adenine dinucleotide phosphate, and leukomethylene blue converts methemoglobin to hemoglobin, methylene blue is used to treat methemoglobinemia. [ 48 ] Methemoglobinemia induced by EMLA cream was treated with methylene blue (Case No. 8).\n\n4. Discussion\nThe present review has the following limitations. As a positive case report is relatively easy to be published compared with negative case reports, the bias of positive case reports should be considered while interpreting these results. The number of included case reports in this review was small, limiting generalizability. Thus, further studies with database registries on lipid emulsion treatment for pediatric LAST are needed.",
+        "body_excerpts_sha256": "6efab52aed96528673b41ccbd26510c43427f82bd7d08dce5e0c01965f6900fa",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10939516/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "40958228",
+        "title": "Local anesthetic systemic toxicity induced by penile nerve block: A systematic review.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40958228/",
+        "abstract": "Local anesthetics are widely used by non-anesthesiologists to provide analgesia. Penile nerve blocks are used for analgesia during urological surgery. Local anesthetic systemic toxicity (LAST), which is rare but likely fatal, is often caused by a penile nerve block. However, there has been no analysis of cases of LAST induced by a penile nerve block. This Preferred Reporting Items for Systematic Reviews and Meta-Analyses-compliant systematic review aimed to analyze case reports involving LAST induced by a penile nerve block, with a particular focus on the presumed causes, local anesthetics, and lipid emulsion treatment.\nRelevant case reports included in PubMed from inception to December 31, 2024, were retrieved using the keywords \"penile nerve block,\" \"dorsal penile nerve block,\" \"penile block,\" \"local anesthetic toxicity,\" \"local anesthetic systemic toxicity,\" and \"local anesthetic overdose.\"\nEleven case reports including 19 patients were obtained. The main presumed causes of penile nerve block-induced LAST were overdose (47.4%) and inadvertent intravascular absorption (47.4%) of local anesthetics. The main local anesthetics associated with overdose and inadvertent intravascular absorption were lidocaine (77.8%) and bupivacaine (88.9%), respectively. Of the patients, 89.5% had risk factors for LAST. Of the patients with LAST, 31.6% received lipid emulsion plus supportive treatment. The age distribution of patients with penile nerve block-induced LAST was as follows: <1 year (73.7%), ≥1 year to <19 years (15.8%), and ≥19 years (10.5%). A penile nerve block was used for circumcision in 84.2% of the cases. The most common symptoms of penile nerve block-induced LAST were cardiovascular symptoms (52.6%) and central nervous system symptoms (42.1%). The negative aspiration technique was used to prevent LAST in 47.4% of patients. All patients recovered from LAST.\nLAST in infants and neonates receiving a penile nerve block for circumcision is mainly caused by lidocaine overdose or inadvertent intravascular absorption of bupivacaine. The following measures should be considered to prevent LAST: adherence to the maximum recommended dose of local anesthetics; awareness of LAST risk factors; slow injection of the local anesthetic with minimal pressure and negative aspiration; and lipid emulsion preparation.",
+        "sha256": "7ca1835b927b8e4176048047f6e08c92f8f9b7a9ab9b853cec56d9ad6df71fb3",
+        "retrieved_at": "2026-09-18T23:56:25.875130+00:00",
+        "pmcid": "PMC12440524",
+        "body_excerpts": "1. Introduction\nLocal anesthetics are widely used to provide analgesia for various procedures. However, inappropriate administration of local anesthetics can lead to local anesthetic systemic toxicity (LAST). LAST is a rare but often fatal condition caused by an excessive dose of a local anesthetic or its inadvertent intravascular absorption. [ 1 ] The incidence of LAST under regional anesthesia performed by anesthesiologists, excluding spinal anesthesia, between 2011 and 2013 in Finnish anesthesia departments was reported to be 0.7 per 10,000. [ 2 ] In addition, the incidence of LAST after peripheral nerve blocks in an Italian registry was reported to be approximately 0.34 per 1000 peripheral nerve blocks. [ 3 ] Furthermore, the estimated incidence of LAST in children has been reported to be 8 per 100,000 blocks. [ 4 ]\n\n1. Introduction\nLAST induces central nervous system symptoms, such as confusion, tinnitus, and seizures, followed by cardiovascular symptoms, including hypotension, cardiac arrhythmia, and cardiac arrest. [ 5 ] Analysis of case reports and online registries regarding lipid emulsion treatment for LAST suggests that the penile nerve block (dorsal nerve block of the penis) is one of the most common nerve blocks associated with LAST. [ 6 ] The incidence of LAST by block type is as follows: penile nerve block (23%), local tissue infiltration (17%), neuraxial block (13%), paravertebral block (8.5%), upper extremity block (8.5%), lower extremity block (8.5%), and head and neck block (8.5%). [ 6 ] Penile and caudal nerve blocks are mainly involved in LAST cases reported in children. [ 4 ] A penile nerve block is commonly used by surgeons for various urologic procedures, such as circumcision, penile debridement, corporal aspiration of priapism, and penile biopsy. [ 7 ] In children, a penile nerve block, which is combined with light sedation, provides longer postoperative analgesia than general anesthesia. [ 8 ] Thus, it is frequently administered for prolonged postoperative analgesia in children undergoing circumcision under general anesthesia. The penis contains highly vascularized tissue, and its dorsal nerve is located close to the dorsal artery and deep dorsal vein within the confined space of the penis. [ 9 ] Hepatic microsomal enzymes contribute to the metabolism of amino-amide local anesthetics, which strongly bind to α 1 -acid glycoprotein. [ 10 ] Infants and neonates, who undergo circumcision, have immature hepatic microsomal enzymes and low levels of the α 1 -acid glycoprotein. These factors contribute to the increased risk of LAST in this population. [ 10 ] Given these physiological and anatomical factors, penile nerve blocks in children, especially during circumcision, represent a high-risk scenario for LAST. To mitigate this risk, prompt recognition and proper management of LAST are essential.\n\n1. Introduction\nLipid emulsions, first developed to meet nutritional requirements via parenteral administration, are now routinely used by anesthesiologists in the clinical management of systemic toxicity due to local anesthetic agents. [ 1 ] Such treatment requires adequate knowledge regarding local anesthetics and lipid emulsion treatment. However, physicians other than anesthesiologists do not have sufficient knowledge of local anesthetics and lipid emulsion treatments for LAST. [ 11 , 12 ] Additionally, a previous questionnaire-based study evaluating healthcare professionals’ knowledge of local anesthetic pharmacology, usage, and toxicity revealed that obstetrics and gynecology professionals had inadequate knowledge levels compared to anesthesiologists. [ 13 ] Thus, there is concern about the preparedness of clinicians (outside of the anesthesiology specialty) regarding LAST when performing penile nerve blocks. To our knowledge, a systematic analysis of LAST cases caused by penile nerve blocks has not been reported. [ 4 , 6 – 13 ] Thus, the goal of this systematic review was to analyze cases of LAST caused by penile nerve blocks, with a particular focus on the presumed cause, local anesthetics involved, risk factors for LAST, and lipid emulsion treatment. Based on the findings, preventive strategies were proposed.\n\n2. Methods\nThe requirement of approval from an institutional review board was waived because the study analyzed previously published case reports. Since this systematic review is based on previously published case reports of LAST induced by penile nerve block, patient consent is not required. A total of 6619 articles included in PubMed up to December 31, 2024, were retrieved using the following keywords: “penile nerve block” or “dorsal penile nerve block” or “penile block” or “local anesthetic toxicity” or “local anesthetic systemic toxicity” or “local anesthetic overdose” (Fig. 1 ). Further, 4043, 1902, and 298 articles were excluded because they were articles pertaining to nonhuman subjects, articles not involving human male patients, and articles other than case reports or letters, respectively. The titles and abstracts of the remaining 385 articles were screened for relevance to this review concerning case reports. Next, 224 of the 385 articles were excluded because they did not contain an abstract or were unrelated to penile nerve blocks. The remaining 161 articles were further evaluated and 84 were excluded because of a lack of full-text availability. The remaining 77 articles were assessed for eligibility. Of these, 42 and 24 articles were removed because they pertained to non-LAST cases and non-penile nerve blocks, respectively. Finally, 11 case reports were retrieved for analysis. One article included 3 case reports and another contained 7. Two authors (Park M and Lee SH) searched, reviewed, and verified cases of LAST induced by a penile nerve block. The following data were retrieved from each case report: publication year; patient age and weight; risk factors for LAST; purpose of using local anesthetics; whether general anesthesia was used; type of local anesthetic used; estimated dose of the local anesthetic used; onset and presumed cause of LAST; measures to prevent LAST; symptoms of LAST; lipid emulsion treatment; type of lipid emulsion; method of lipid emulsion administration; treatment; and outcome (Table 1 ).\n\n2. Methods\nTable 1 Overview of patient characteristics associated with local anesthetic systemic toxicity following a penile nerve block. Case no. Pub year Age Wt (kg) Risk factors Purpose to use LA Under GA LA Estimated doses of LA Onset of LAST Presumed cause of LAST Measures to prevent LAST Sx of LAST LE Tx Type of LE Method of LE Adm Tx Outcome 1 [ 14 ] 2011 6 wk 3.2 Extreme age Circumcision (pain control) N LDC 35 mg (10.9 mg/kg) 30 min Overdose N GTC Sz N Supportive care, BDZ Mx Recovery 2 [ 14 ] 2011 23 d 3.5 Extreme age Circumcision (pain control) N LDC 15 mg (4.2 mg/kg) 2 h Overdose N Generalized Sz, apneic, cyanotic N Supportive care, BDZ Mx Recovery 3 [ 14 ] 2011 3 mo NA Extreme age Circumcision (pain control) N LDC 6 mg/kg 50 min Overdose N GTC Sz N Supportive care, BDZ Mx Recovery 4 [ 15 ] 2012 21 d 2.715 Extreme age, low body weight Circumcision (pain control) N BPV 3.7 mg/kg Within minutes Overdose N Lethargy, disconjugate gaze, intermittent exotropia, altered consciousness, hypotonia N ICU care Recovery 5 [ 16 ] 2014 4 mo 8.9 Extreme age Circumcision (pain control) N LDC 100 mg (11 mg/kg) Immediately Overdose N Abnormal behavior, GTC Sz Erythematous rash on his whole body, locked jaw N Supportive care Recovery 6 [ 17 ] 2014 7 wk 4.5 Extreme age Circumcision (pain control) N LDC 30 mg (6.6 mg/kg) 20–30 min Overdose N Generalized Sz, unresponsiveness, hypertonic N Supportive care, BDZ Mx Recovery 7 [ 18 ] 2014 11 mo 8 Extreme age Circumcision (pain control) Y BPV 40 mg (5 mg/kg) Shortly thereafter Overdose N VT Y Intralipid 20% Bolus + infusion Supportive care Recovery 8 [ 19 ] 2015 4 mo NA Extreme age Circumcision (pain control) N LDC 16 mg/kg Immediately Overdose N GTC Sz, VT Y Intralipid 20% 2 mL/kg CPR, diazepam rectal injection, ECG monitoring, ICU care, brain W/U, blood test Recovery 9 [ 20 ] 2016 9 mo 10.4 Extreme age Circumcision (pain control) Y BPV 25 mg (2.404 mg/kg) 15 min IVA NAT Apnea, wide QRS, peaked T-wave N Supportive care Recovery 10 [ 20 ] 2016 20 mo 12.3 Extreme age Circumcision (pain control) Y BPV 20 mg (1.626 mg/kg) 2–3 min IVA NAT ST-segment depression, inverted T wave N Supportive care recovery 11 [ 20 ] 2016 14 mo 9.7 Extreme age Distal hypospadias repair surgery (pain control) Y BPV <5 mg (<0.515 mg/kg) 15 min IVA NAT Wide QRS, peaked T-waves, hypotension N Supportive care Recovery 12 [ 20 ] 2016 9 mo 8.5 Extreme age Circumcision (pain control) Y BPV 21.25 mg (2.5 mg/kg) Immediately IVA NAT Tachycardia, atrial flutter, hypotension N Supportive care Recovery 13 [ 20 ] 2016 10 mo 10.5 Extreme age Distal hypospadias repair surgery (pain control) Y BPV 25 mg (2.381 mg/kg) Immediately IVA NAT Apnea, ST-segment depression, QRS widening N Adenosine Recovery 14 [ 20 ] 2016 6 mo 9.1 Extreme age Circumcision (pain control) Y BPV 22.5 mg (2.473 mg/kg) Immediately IVA NAT Hypotension, bradycardia, ST-T change, peaked T-wave, QRS widening, peaked T-wave Y Intralipid 20% Bolus CPR Recovery 15 [ 20 ] 2016 6 mo 8.1 Extreme age Circumcision (pain control) Y BPV 20 mg (2.469 mg/kg) 30 s IVA NAT Apnea, bradycardia, hypotension, ST-T change, peaked T-wave Y Intralipid 20% Bolus CPR Recovery 16 [ 21 ] 2016 4.5 yr 26 Extreme age Circumcision (pain control) Y RPV 50 mg (1.923 mg/kg) 2–3 min IVA NAT Severe bradycardia, profound hypotension, ST depression, lethargy, extreme agitated, headache N Supportive care Recovery 17 [ 22 ] 2018 54 yr 112 X Circumcision (pain control) Y BPV 80 mg (0.714 mg/kg) 13 min IVA NAT Tachycardia with multiple VPC, broad QRS complexes with occasional VPC Y 20% LE Bolus + infusion Supportive care Recovery 18 [ 23 ] 2024 39 yr NA X Corporal aspiration N LDC 2000 mg NA Overdose N Hallucination, visual loss, agitation Y 20% LE Infusion Supportive care, ICU care Recovery 19 [ 24 ] 2025 12 wk NA Extreme age Circumcision (pain control) N LDC NA 5 min UD N GTC Sz N Supportive care Recovery Adm = administration, BDZ = benzodiazepine, BPV = bupivacaine, CPR = cardiopulmonary resuscitation, d = days, ECG = electrocardiogram, GA = general anesthesia, GTC = generalized tonic clonic, hr = hour, ICU = intensive care unit, IVA = inadvertently intravascular absorption, LA = local anesthetic, LAST = local anesthetic systemic toxicity, LDC = lidocaine, LE = lipid emulsion, min = minutes, mo = months, Mx = medication, N = none, NA = not available, NAT = negative aspiration technique, Pub = publication, RPV = ropivacaine, s = second, Sx = symptom, Sz = seizure, Tx = treatment, UD = undetermined, VPC = ventricular premature contraction, VT = ventricular tachycardia, W/U = workup, wk = weeks, Wt = weight, X = none, Y = yes, yr = year.\n\n2. Methods\nIn this analysis, if the dose of the local anesthetic used in the penile nerve block exceeded the maximum recommended amount, the presumed cause of LAST was considered to be an overdose of the local anesthetic. Conversely, if the dose was below the maximum recommended level, the presumed cause was inadvertent intravascular absorption of the local anesthetic. However, if the dose of the local anesthetic used in the penile nerve block was not available, the presumed cause of LAST was considered “undetermined.” In addition, this analysis considered the risk factors for LAST, including extreme age (age < 16 or ≥60 years), low muscle mass (in infants and neonates), and comorbidities. [ 25 ] Thus, the presumed causes of LAST in the current analysis were as follows: overdose and risk factors, overdose alone, inadvertent intravascular absorption and risk factors, inadvertent intravascular absorption alone, undetermined cause and risk factor, and undetermined alone. Each parameter to be analyzed was expressed as a percentage of the total number of patients (N = 19, or the total number of patients in each group). Owing to the rounding up of individual item percentages, the cumulative total may not precisely sum up to 100%.\n\n3. Results > 3.3. Local anesthetics associated with LAST induced by a penile nerve block\nThe types of local anesthetics used in the penile nerve block associated with LAST were as follows: bupivacaine (52.6%, N = 10), lidocaine (42.1%, N = 8), and ropivacaine (5.3%, N = 1) (Table 1 , Fig. 3 A). The local anesthetics (N = 10) used in the penile nerve block associated with LAST under general anesthesia were bupivacaine (90%, N = 9) and ropivacaine (10%, N = 1) (Fig. 3 B). The local anesthetics (N = 9) used in the penile nerve block associated with LAST without general anesthesia were lidocaine (88.9%, N = 8) and bupivacaine (11.1%, N = 1) (Fig. 3 B).\n\n3. Results > 3.4. Presumed causes of LAST induced by a penile nerve block and associated risk factors\nThe presumed causes of LAST induced by penile nerve block were overdose (47.4%, N = 9), inadvertent intravascular absorption (47.4%, N = 9), and undetermined (5.3%, N = 1) (Table 1 ). Of all the patients, 89.5% (N = 17) had risk factors for LAST, such as extreme age or low muscle mass while 10.5% (N = 2) did not (Table 1 ). Considering the risk factors for LAST, the frequency of the presumed causes of LAST was as follows (Table 1 and Fig. 4 A): local anesthetic overdose and risk factors (42.1%, N = 8), inadvertent intravascular absorption of the local anesthetic and risk factors (42.1%, N = 8), overdose alone (5.3%, N = 1), inadvertent intravascular absorption alone (5.3%, N = 1), or undetermined cause and risk factors (5.3%, N = 1). The local anesthetics associated with overdose (total N = 9) as the presumed cause of LAST were lidocaine (77.8%, N = 7, 9.12 ± 4.34 [mean ± SD] mg/kg) and bupivacaine (22.2%, N = 2; median: 4.35 mg/kg [Q1–Q3: 4.025–4.675 mg/kg]) (Table 1 and Fig. 4 B). The local anesthetics associated with inadvertent intravascular absorption (N = 9) as the presumed cause of LAST were bupivacaine (88.9%, N = 8) and ropivacaine (11.1%, N = 1). The local anesthetic associated with an undetermined presumed cause of LAST was lidocaine (N = 1).\n\n3. Results > 3.9. Lipid emulsion treatment for LAST induced by a penile nerve block\nLipid emulsion treatment for LAST induced by a penile nerve block in an 11-month-old infant was first reported in 2014 (Table 1 , Case no. 7). [ 18 ] Lipid emulsion treatment was used in 31.6% of the total patients (N = 19) along with supportive treatment (Case nos. 7, 8, 14, 15, 17, and 18; Fig. 6 A). The remaining 68.4% (N = 13) of the patients received only supportive treatment without lipid emulsion treatment (Table 1 ; Fig. 6 A). Among the lipid emulsions used, intralipid was used in 66.7% (N = 4) of the patients (total number of patients: 6) receiving lipid emulsion treatment. However, only 20% lipid emulsions were described in 33.3% (N = 2) of the patients receiving lipid emulsion treatment. The lipid emulsion administration methods used were as follows: bolus administration alone (50%, N = 3), bolus administration followed by continuous infusion (33.3%, N = 2), and infusion alone (16.7%, N = 1) (Table 1 ). The persons who recommended lipid emulsion treatment for LAST were as follows: anesthesiologists (N = 2, 33.3%) and emergency department staff (N = 1, 16.7%). Information regarding physicians recommending lipid emulsion treatment was not available for 3 cases (50%, N = 3). Four patients (66.7% of the total number of patients who received lipid emulsion treatment) with LAST due to a penile nerve block received lipid emulsion treatment under general anesthesia (Table 1 ), whereas 2 with LAST caused by a penile nerve block received lipid emulsion treatment without general anesthesia (Table 1 ). The local anesthetics involved in LAST induced by a penile nerve block for which lipid emulsion treatment was needed along with supportive treatment (total number of patients: 6) were bupivacaine (66.7%, N = 4) and lidocaine (33.3%, N = 2) (Table 1 , Fig. 6 B). Further, the local anesthetics involved in LAST induced by a penile nerve block for which supportive treatment alone was necessary were bupivacaine (46.2%, N = 6), lidocaine (46.2%, N = 6), and ropivacaine (7.7%, N = 1) (total number of patients: 13) (Table 1 , Fig. 6 B).\n\n4. Discussion\nIn this study, we systematically reviewed case reports involving LAST induced by a penile nerve block, with a particular focus on the presumed causes, local anesthetics, and lipid emulsion treatment. Our findings suggest that an overdose of lidocaine or inadvertent intravascular absorption of bupivacaine induces LAST due to a penile block in infants and neonates who undergo circumcision. The main findings of this systematic review are as follows. LAST induced by a penile nerve block developed most commonly in neonates and infants (73.7%). Overdose of lidocaine (77.8% of overdose) or inadvertent intravascular absorption of bupivacaine (88.9% of inadvertent intravascular absorption) was commonly involved in LAST induced by a penile nerve block. LAST due to a penile nerve block developed frequently in children who undergo circumcision (84.2%). Finally, 31.6% of all patients with LAST induced by a penile nerve block received supportive treatment plus lipid emulsion treatment, whereas 68.4% received supportive treatment alone.\n\n4. Discussion\nThe maximum recommended dosages of local anesthetics without epinephrine are as follows [ 5 ] : lidocaine, 3 mg/kg; bupivacaine, 2 mg/kg; and ropivacaine, 3 mg/kg. The mean lidocaine overdose and median bupivacaine overdose observed in this analysis were as follows. Overdoses of lidocaine (N = 6, 9.12 mg/kg) and bupivacaine (N = 2, 4.35 mg/kg) exceeded the maximum recommended doses of lidocaine and bupivacaine by approximately 3.04 and 2.18 times, respectively. Hepatic microsomal enzymes contribute to the metabolism of amino-amide local anesthetics, and α 1 -acid glycoprotein binds to amino-amide local anesthetics. [ 10 ] In addition, infants and neonates, who accounted for 73.7% of patients with LAST induced by a penile nerve block in the current analysis, have immature hepatic function and a low α 1 -acid glycoprotein level. Thus, these factors may have additively contributed to LAST induced by a penile nerve block owing to an overdose or inadvertent absorption of the local anesthetic. Moreover, the dorsal nerve of the penis lies close to the dorsal artery and deep dorsal vein of the penis. [ 9 ] These structures (the dorsal nerve, dorsal artery, and deep dorsal vein of the penis) are situated in a small compartment between Buck’s fascia and the tunica albuginea. [ 9 ] Thus, this factor may also contribute to the inadvertent intravascular absorption of local anesthetics owing to unrecognized high pressure during local anesthetic administration. Furthermore, low muscle mass in infants, which was observed in the current analysis, may contribute to a high risk of LAST. [ 25 ] As found in a previous report, LAST was most frequently observed in neonates and infants younger than 1 year of age in the current analysis. [ 4 ] Taken together, the study findings suggest that the maximum recommended dose of local anesthetic should be adhered to, and risk factors for LAST, which include extreme age, immature hepatic function, low muscle mass, and close location of the dorsal nerve and vessel of the penis, should be considered to prevent LAST induced by the penile nerve block used for circumcision in infants and neonates. If possible, bupivacaine should be avoided because it is highly cardiotoxic compared with other amino-amide local anesthetics. [ 26 ] However, in the current analysis, we found that bupivacaine was commonly used to perform penile nerve blocks under general anesthesia (Fig. 3 B), which may be attributed to the secure airway management provided by general anesthesia.\n\n4. Discussion\nThe treatment of LAST involves several critical steps. [ 1 , 25 ] First and foremost, securing the airway is essential for avoiding hypoxia, acidosis, and hypercapnia, all of which can exacerbate the condition. Second, seizures must be promptly managed with benzodiazepines, lipid emulsion treatment, and low-dose succinylcholine. Third, in cases of cardiac arrest, a reduced dose of epinephrine (<1 μg/kg) should be administered along with amiodarone and lipid emulsion, and advanced cardiac life support. In patients who do not respond to these interventions, cardiopulmonary bypass may be a last resort. The supportive treatments used for LAST induced by a penile nerve block in the current analysis included midazolam, oxygenation, intubation, adenosine, sodium thiopental, atropine, intensive care unit treatment, and close monitoring (Table 1 ).\n\n4. Discussion\nThe dose of the lipid emulsion treatment for LAST recommended by the American Society of Regional Anesthesia and Pain Medicine is as follows: 20% lipid emulsion 1.5 mL/kg bolus administration followed by 20% lipid emulsion continuous infusion at 0.25 mL/kg/min. [ 25 ] In the current analysis, lipid emulsion was used in 4 cases of bupivacaine-induced LAST, which were due to bupivacaine overdose (1 case) or inadvertent intravascular absorption (3 cases), and in 2 cases of lidocaine-induced LAST, which were due to lidocaine overdose (Table 1 and Fig. 6 B). The underlying mechanism of the lipid emulsion treatment for LAST involves both indirect and direct effects. [ 1 ] The theory of lipid shuttle, which is an indirect effect, suggests that a lipid compartment created by lipid emulsion within the bloodstream absorbs highly lipid-soluble local anesthetics (drugs with a log P [octanol/water partition coefficient] > 2; log P of bupivacaine, ropivacaine, and lidocaine: 3.41, 2.9, and 2.44, respectively) from the heart and the brain. [ 1 ] Then, the lipid emulsion containing the local anesthetic is transported to the liver, muscle, and adipose tissue for detoxification and storage. [ 1 ] Thus, the frequent use of lipid emulsions for treating LAST induced by bupivacaine in the current analysis may be associated with the lipid solubility of bupivacaine being the highest (log P : 3.41) among the amino-amide local anesthetics and its relatively high cardiotoxic effect. [ 1 ] In addition, lipid emulsion therapy has multiple direct physiological effects, such as enhancement of cardiac contractility, mitigation of mitochondrial impairment, supply of essential fatty acids, promotion of the phosphorylation of glycogen synthase kinase-3β, and suppression of the release of nitric oxide. [ 1 ] Thus, lipid emulsions produce both scavenging of bupivacaine or lidocaine from the heart and brain via lipid shuttles and direct inotropic effects, which may contribute to recovery from LAST induced by a penile nerve block with bupivacaine or lidocaine. The doses of 20% lipid emulsion injected via bolus administration in the current analysis were 1.5 mL/kg (2 cases) and 2 mL/kg (1 case). The doses of lipid emulsion used in bolus administration followed by continuous infusion in the current analysis were 1.5 ml/kg followed by 0.25 mL/kg/min or 100 mL/122 kg followed by 200 mL/112 kg/20 min (0.089 mL/kg/min) and subsequently 0.5 mL/kg/min. The doses of lipid emulsion, such as 1.5 mL/kg alone (2 cases) or 1.5 mL/kg followed by 0.25 mL/kg/min (1 case), observed in this analysis, seem to be associated with the lipid emulsion doses for LAST recommended by the American Society of Regional Anesthesia and Pain Medicine. [ 25 ] The dose of lipid emulsion administered via only continuous infusion in the current analysis was 840 mL/60 min (body weight: not available). Lipid emulsion therapy may lead to several complications including fat overload syndrome, pyrogenic responses, interference with diagnostic laboratory assessments, pancreatitis, and acute respiratory distress syndrome. [ 27 ] However, in the present analysis, none of the 6 patients who received lipid emulsion treatment experienced any adverse effects attributable to the treatment. In the current analysis, 73.7% of the penile nerve blocks associated with LAST were performed by non-anesthesiologists, such as general practitioners or surgeons. However, information regarding physicians performing penile nerve block was not available for 26.3% of patients with LAST induced by a penile nerve block. Lipid emulsion treatment for LAST resulting from a penile nerve block was recommended by an anesthesiologist in 2 cases and by emergency medicine staff in another case. The first lipid emulsion treatment for LAST attributable to non-anesthesiologists (cardiologists) was reported in 2011. [ 28 ] Further, the first lipid emulsion treatment for LAST induced by a penile nerve block in the current analysis was reported in 2014 (Case no. 7). [ 18 ] Lipid emulsion was administered under less serious conditions in the current analysis, including cases with LAST induced only by penile nerve block, compared with intractable lidocaine toxicity attributable to the involvement of non-anesthesiologists. [ 18 – 20 , 22 , 23 , 28 ] This difference in patient conditions for which lipid emulsion treatment was administered between the current analysis and previous case report may be due to the following factors: early lipid emulsion treatment for LAST has gained wide acceptance over time; of the patients who experienced LAST following a penile nerve block, 52.6% had a secured airway as a result of general anesthesia; and under general anesthesia, continuous monitoring using various surveillance devices, including electrocardiography and blood pressure measurement, facilitated the early detection of LAST signs and enabled prompt intervention. All the patients recovered from LAST in current analysis. Because lipid emulsion therapy is recommended for LAST, lipid emulsions should be prepared during a penile nerve block to treat unexpected LAST.\n\n4. Discussion\nTo prevent LAST due to a penile nerve block, a negative aspiration technique was used in 47.4% of the patients in the current analysis. A previous study suggested that although 52% of children with LAST undergo the negative aspiration technique, this technique does not reliably prevent LAST. [ 29 ] Similar to a previous report, the current analysis showed that the negative aspiration technique used during penile nerve block did not reliably prevent LAST. [ 29 ] Ultrasound-guided nerve block reduces the risk of LAST and postoperative neurological symptoms. [ 30 ] A previous study reported that ultrasound- and landmark-guided penile nerve blocks performed by an experienced investigator in pediatric patients under general anesthesia did not produce adverse effects. [ 31 ] This previous study had the following limitations in terms of comparison of LAST by landmark- and ultrasound-guided penile nerve block: the performance of penile nerve block by one experienced investigator, and a relatively small sample size (310 prepubertal patients). [ 31 ] On the other hand, in the comparison of ultrasound-guided penile nerve block with spontaneous breathing and landmark-guided penile nerve block under general anesthesia, the ultrasound-guided penile nerve block was found to result in a shorter time to discharge from the end of surgery to the recovery room, lower opioid consumption, and lower pain level after surgery. [ 32 ] By enabling real-time visualization of the penile neurovascular anatomy, the ultrasound-guided penile nerve block facilitates precise needle placement, minimizes the required anesthetic dose, and ensures effective local anesthetic dispersion, which may contribute to the reduced risk of LAST. [ 33 ] However, a multi-institutional study is needed to further compare LAST induced by landmark-guided versus ultrasound-guided penile nerve blocks.\n\n4. Discussion\nCollectively, the results of our analysis suggest that an overdose of lidocaine or an inadvertent intravascular injection of bupivacaine causes LAST induced by a penile nerve block in infants and neonates who undergo circumcision. To prevent LAST associated with penile nerve blocks, the following measures should be considered: adherence to the maximum recommended doses of local anesthetics; awareness of increased risk factors for LAST in infants and children, such as immature hepatic microsomal enzyme activity, low levels of α 1 -acid glycoprotein, and low muscle mass; slow injection of local anesthetics with minimal pressure and frequent negative aspiration because of close proximity of the penile nerve and vessels; availability of lipid emulsion for immediate use, and use of ultrasound-guided penile nerve blocks.",
+        "body_excerpts_sha256": "26aed02827d7d49d1184fca20d6ca1a95f1a511bb33937d107bbbc2aff7c1ef5",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12440524/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "41122889",
+        "title": "Part 10: Adult and Pediatric Special Circumstances of Resuscitation: 2025 American Heart Association Guidelines for Cardiopulmonary Resuscitation and Emergency Cardiovascular Care.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41122889/",
+        "abstract": "https://www.ahajournals.org/journal/circ In these guidelines, the American Heart Association provides updated guidance for resuscitation of adults and children in cardiac arrest or with a life-threatening condition due to special circumstances, including anaphylaxis, asthma, cardiac arrest in the cardiac intervention suite, cardiac arrest following cardiac surgery, drowning, electrocution, gas embolism, high-consequence respiratory pathogens, hyperkalemia, hyperthermia, hypothermia, left ventricular assist device failure, pregnancy, pulmonary embolism, and poisoning due to benzodiazepines, β-blockers, calcium channel blockers, cocaine, cyanide, digoxin and related cardiac glycosides, local anesthetic systemic toxicity, methemoglobinemia, opioids, organophosphates and carbamates, sodium channel blockers, sympathomimetics, and volatile hydrocarbons. Recommendations are also provided for alternatives to cardiopulmonary resuscitation and the use of extracorporeal membrane oxygenation for poisoned patients. Adults and children with these conditions require modification of basic life support and advanced life support. These guidelines are based on systematic evidence reviews and provide separate graded recommendations for adults and children.",
+        "sha256": "085eeed6c687d888adef468481836810a07e283ccc0e31288b67e46e18435896",
+        "retrieved_at": "2026-09-18T23:56:27.013601+00:00"
+      },
+      {
+        "id": "31192870",
+        "title": "A Review of Wound Infusion With Local Anesthetics in Plastic Surgery.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31192870/",
+        "abstract": "Suboptimal pain management is a common, yet largely unrecognized, problem in the postsurgical patient population. Current treatment protocols heavily rely on opioid use and, though generally effective in providing pain relief, are associated with multiple side effects. The present systematic review aims to offer plastic surgeons insight into the current state of literature on prolonged local anesthetic wound infusion regimens, evaluating both their efficacy in lowering pain scores and the potential opioid-sparing effect.\nA comprehensive literature search of the Medline, Embase, and Cochrane Library databases was performed to identify relevant studies published between 1980 and December 2017 evaluating the use of prolonged local anesthetic wound infusion for postoperative pain management in plastic surgery.\nA total of 28 articles were selected, including 3904 patients. The overall infection rate in all patients treated with postsurgical local anesthetic wound infiltration was 0.28% (7/2536). There were no reported cases of systemic toxicity. An opioid-sparing effect was found in 92% (12/13) of studies when compared to an active comparator and 88% (7/8) of those comparing to placebo. Pain scores were decreased in 90% (9/10) of studies comparing wound infiltration to narcotic-based regimens and in 67% (6/9) of those comparing to placebo.\nContinuous or intermittent wound infusion is safe and effective in reducing pain scores and opioid consumption in plastic surgery. Though the overall pain-lowering effect appears to be modest, ease of catheter insertion and patient satisfaction make this technique an alluring alternative to more validated approaches such as neuraxial or peripheral nerve blocks.",
+        "sha256": "d65ee185ff3b729cdd0d7622e4645c6d46f8b8a3ccc4be4789ca6bf01fa069d5",
+        "retrieved_at": "2026-09-18T23:56:27.013601+00:00"
+      },
+      {
+        "id": "30417244",
+        "title": "Practical guide for the management of systemic toxicity caused by local anesthetics.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30417244/",
+        "abstract": "Systemic toxicity from local anesthetics can occur in any of the wide range of situations in which these agents are used. This practical guide is created to generate a shared awareness of the prevention, diagnosis, and treatment of local anesthetic systemic toxicity among all medical professionals who perform nerve blocks. Systemic toxicity of local anesthetic is induced by an increase of its protein-unbound plasma concentration. Initial symptoms are characterized by central nervous system signs such as excitation, convulsions, followed by loss of consciousness and respiratory arrest. These symptoms are often accompanied with cardiovascular signs such as hypertension, tachycardia and premature ventricular contractions. Further increase of plasma concentration of local anesthetic induces bradycardia, conduction disturbances, circulatory collapse and asystole. The incidence of local anesthetic systemic toxicity is 1-11 cases per 10,000. Infants, patients with decreased liver function and low cardiac output are vulnerable to systemic toxicity. When performing regional anesthesia, the guideline-directed monitoring, securing a venous line, preparation of medication to treat convulsions and lipid emulsions are required. For prevention of local anesthetic systemic toxicity, small-dose, divided administration, using agents with low toxicity such as ropivacaine and levobupivacaine, performing an aspiration test are recommended. If systemic toxicity is suspected, halt administration of local anesthetic, request assistance, secure venous line, airway, administration of 100% oxygen and if necessary tracheal intubation and artificial respiration should be immediately performed. Benzodiazepines are recommended to treat convulsions. Administration of 20% lipid emulsion according to the protocol is recommended to treat severe hypotension and arrhythmia.",
+        "sha256": "c90247c299ea603c6e086463e75d2150f772e78809c0f22d1f828a415aff146b",
+        "retrieved_at": "2026-09-18T23:56:27.013601+00:00"
+      },
+      {
+        "id": "31172838",
+        "title": "Lipid-based carriers for the delivery of local anesthetics.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31172838/",
+        "abstract": "There is a clinical need for pharmaceutical dosage forms devised to prolong the acting time of local anesthetic (LA) agents or to reduce their toxicity. Encapsulation of LA in drug delivery systems (DDSs) can provide long-term anesthesia for inpatients (e.g. in immediate postsurgical pain control, avoiding the side effects from systemic analgesia) and diminished systemic toxicity for outpatients (in ambulatory/dentistry procedures). The lipid-based formulations described here, such as liposomes, microemulsions, and lipid nanoparticles, have provided several nanotechnological advances and therapeutic alternatives despite some inherent limitations associated with the fabrication processes, costs, and preclinical evaluation models.\nA description of the currently promising lipid-based carriers, including liposomes, microemulsions, and nanostructured lipid carriers, followed by a systematic review of the existing lipid-based formulations proposed for LA. Trends in the research of these LA-in-DDS are then exposed, from the point of view of administration route and alternatives for non-traditionally administered LA molecules.\nConsidering the current state and potential future developments in the field, we discuss the reasons for why dozens of formulations published every year fail to reach clinical trials; only one lipid-based formulation for the delivery of local anesthetic (Exparel®) has been approved so far.",
+        "sha256": "bdee9106ccf86561c97c25600e48352e0c4152b021d2899742a0d8b524b10e21",
+        "retrieved_at": "2026-09-18T23:56:27.596490+00:00"
+      },
+      {
+        "id": "38194789",
+        "title": "Hoigné's syndrome, an uncommon mimicker of anaphylaxis: Systematic literature review.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38194789/",
+        "abstract": "The term Hoigné's syndrome denotes a mimicker of anaphylaxis, which occurs immediately after the parenteral administration of a drug and is likely caused by non-thrombotic pulmonary and systemic drug micro-embolization. It has so far been documented uniquely in case reports and small case series. Because this condition has never been systematically evaluated, we performed a structured literature review (pre-registered as CRD42023392962). The search was carried out in Excerpta Medica, National Library of Medicine, and Google Scholar. Cases with features consistent with anaphylaxis, urticaria, angioedema, asthma, syncope, anxiety, or panic attack triggered by needle phobia, and local anesthetic systemic toxicity were excluded. For the final analysis, we retained reports published between 1951 and 2021, which presented 247 patients with Hoigné's syndrome: 37 children and 211 adults with a male: female ratio of 2.1 : 1.0. The patients presented within 1 min after parenteral administration of a drug (intramuscular penicillin in 90 % of the cases) with chest discomfort, shortness of breath, fear of death, psychomotor agitation, and auditory or visual hallucinations and impairment. Recovery occurred within 30 min. The diagnosis of Hoigné's syndrome was also established in five patients 66-91 years of age with pre-existing cardiovascular or pulmonary diseases, who suddenly died after the administration of penicillin despite not exhibiting the aforementioned symptoms. It was therefore speculated that pulmonary drug micro-embolization induced a lethal cardiovascular compromise in these individuals. Histologic investigations supporting this hypothesis were performed in only one case. The diagnosis of Hoigné's pulmonary drug micro-embolization was established also in five patients with pre-existing cardiovascular or pulmonary diseases, who suddenly died after the administration of penicillin despite not exhibiting the afore mentioned symptoms. Histologic investigations supporting this hypothesis were performed in only one case. In conclusion, Hoigné's syndrome is an uncommon non-immune-mediated reaction. This report seeks to promote broader awareness and knowledge regarding this alarming mimicker of anaphylaxis. Diagnosis relies solely on clinical evaluation.",
+        "sha256": "e3fd4d56c3a381796b8d3d6ffbfaf0923a148b4f47ec9f6c2f0799ca396d20f9",
+        "retrieved_at": "2026-09-18T23:56:27.596490+00:00"
+      },
+      {
+        "id": "33025830",
+        "title": "Heterogeneity and bias in animal models of lipid emulsion therapy: a systematic review and meta-analysis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33025830/",
+        "abstract": "Clinicians utilize lipid emulsion to treat local anesthetic toxicity and non-local anesthetic toxicities, a practice supported by animal experimentation and clinical experience. Prior meta-analysis confirmed a mortality benefit of lipid emulsion in animal models of local anesthetic toxicity but the benefit of lipid emulsion in models of non-local anesthetic toxicity remains unanswered. Further, swine suffer an anaphylactoid reaction from lipid emulsions calling into question their role as a model system to study lipid, so we examined swine and non-swine dependent outcomes in models of intravenous lipid emulsion.\nWe conducted a systematic review and meta-analysis examining the use of lipid emulsion therapy in animal models of cardiac toxicity. We quantified mortality using a random-effects odds-ratio method. Secondary outcomes included survival in the following subgroups: local-anesthetic systemic toxicity, non-local anesthetic toxicity, swine-based models, and non-swine models (e.g., rat, rabbit and dog). We assessed for heterogeneity with Cochran's Q and I2. We examined bias with Egger's test & funnel plot analysis.\nOf 2784 references screened, 58 met criteria for inclusion. Treatment with lipid emulsion reduced chance of death in all models of toxicity with an odds ratio of death of 0.26 (95% CI 0.16-0.44, Z-5.21, p < 0.00001, Cohen's-d = 0.72, n = 60). Secondary outcomes confirmed a reduced chance of death in models of local anesthetic toxicity (OR 0.16 {95% CI 0.1-0.33}) and non-local anesthetic toxicity (OR 0.43 {95% CI 0.22-0.83}). Heterogeneity (Cochran's Q 132 {df = 59, p < 0.01}, I 2 = 0.55) arose primarily from animal-model and disappeared (I 2 < = 0.12) when we analyzed swine and non-swine subgroups independently. Swine only benefited in models of local anesthetic toxicity (OR 0.28 {95% CI 0.11-0.7}, p = 0.0033) whereas non-swine models experienced a homogeneous benefit across all toxins (OR 0.1 {95% CI 0.06-0.16}, p < 0.00001). Egger's test identified risk of bias with outliers on funnel plot analysis.\nLipid emulsion therapy reduces mortality in animal models of toxicity. Heterogeneity arises from the animal-model used. Swine only benefit in models of local anesthetic toxicity, potentially due to lipid dose, experimental design or swine's anaphylactoid reaction to lipid. Outlier analysis reinforced the need for appropriate dosing of lipid emulsion along with airway management and chest compressions in the setting of cardiac arrest.",
+        "sha256": "bf3a0da1c47abb5e312ef9bd4f44c706d2b35bfb56fecdbc14a4ac947ed43a1a",
+        "retrieved_at": "2026-09-18T23:56:27.596490+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The clinical picture is classic for local anesthetic systemic toxicity (LAST): an awake patient during ropivacaine interscalene block develops prodromal CNS symptoms (metallic taste, tinnitus, agitation), progresses to a generalized seizure, and then develops cardiovascular toxicity (severe hypotension 64/38, ventricular ectopy, QRS widening). Absence of rash, wheezing, or facial swelling argues against anaphylaxis. Source 30417244 (practical guide for LAST) directly states the correct response: halt local anesthetic administration, request assistance, secure venous access, give 100% oxygen with airway/ventilation support (intubation if needed), treat convulsions with benzodiazepines, and administer 20% lipid emulsion per protocol for severe hypotension and arrhythmia — matching Answer B verbatim in principle. Multiple sources (38489714, 40958228) confirm early lipid emulsion is now recommended at the incipient/severe stage (not only in pulseless arrest) and explicitly warn that propofol should NOT be substituted for 20% lipid emulsion because propofol is in a dilute 10% lipid vehicle and adds cardiovascular depression. Answer A is dangerous: it withholds lipid emulsion until pulseless arrest, uses propofol (which can worsen the existing profound hypotension), and passively observes life-threatening ventricular conduction disturbance. Therefore B is correct.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "30417244"
+              ],
+              "reason": "The 2019 practical guide describes the progression from CNS excitation/convulsions to respiratory arrest and cardiovascular conduction disturbances/collapse.",
+              "source_quotes": [
+                {
+                  "source_id": "30417244",
+                  "quote": "Systemic toxicity from local anesthetics can occur in any of the wide range of situations in which these agents are used. This practical guide is created to generate a shared awareness of the prevention, diagnosis, and treatment of local anesthetic systemic toxicity among all medical professionals who perform nerve blocks. Systemic toxicity of local anesthetic is induced by an increase of its protein-unbound plasma concentration. Initial symptoms are characterized by central nervous system signs such as excitation, convulsions, followed by loss of consciousness and respiratory arrest. These symptoms are often accompanied with cardiovascular signs such as hypertension, tachycardia and premature ventricular contractions. Further increase of plasma concentration of local anesthetic induces bradycardia, conduction disturbances, circulatory collapse and asystole."
+                }
+              ],
+              "source_passage_ids": [
+                "30417244:p0"
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "30417244"
+              ],
+              "reason": "The guide explicitly lists halting local anesthetic, requesting assistance, securing venous line, airway, 100% oxygen, and intubation if necessary.",
+              "source_quotes": [
+                {
+                  "source_id": "30417244",
+                  "quote": "The incidence of local anesthetic systemic toxicity is 1-11 cases per 10,000. Infants, patients with decreased liver function and low cardiac output are vulnerable to systemic toxicity. When performing regional anesthesia, the guideline-directed monitoring, securing a venous line, preparation of medication to treat convulsions and lipid emulsions are required. For prevention of local anesthetic systemic toxicity, small-dose, divided administration, using agents with low toxicity such as ropivacaine and levobupivacaine, performing an aspiration test are recommended. If systemic toxicity is suspected, halt administration of local anesthetic, request assistance, secure venous line, airway, administration of 100% oxygen and if necessary tracheal intubation and artificial respiration should be immediately performed. Benzodiazepines are recommended to treat convulsions."
+                }
+              ],
+              "source_passage_ids": [
+                "30417244:p1"
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "30417244",
+                "38489714"
+              ],
+              "reason": "Both sources recommend benzodiazepines for convulsions/seizures associated with LAST.",
+              "source_quotes": [
+                {
+                  "source_id": "30417244",
+                  "quote": "The incidence of local anesthetic systemic toxicity is 1-11 cases per 10,000. Infants, patients with decreased liver function and low cardiac output are vulnerable to systemic toxicity. When performing regional anesthesia, the guideline-directed monitoring, securing a venous line, preparation of medication to treat convulsions and lipid emulsions are required. For prevention of local anesthetic systemic toxicity, small-dose, divided administration, using agents with low toxicity such as ropivacaine and levobupivacaine, performing an aspiration test are recommended. If systemic toxicity is suspected, halt administration of local anesthetic, request assistance, secure venous line, airway, administration of 100% oxygen and if necessary tracheal intubation and artificial respiration should be immediately performed. Benzodiazepines are recommended to treat convulsions."
+                },
+                {
+                  "source_id": "38489714",
+                  "quote": "Treatment of LAST includes airway maintenance to prevent hypoxia and acidosis, lipid emulsion and benzodiazepines to treat seizures, low doses of epinephrine (1 μg/kg), advanced cardiac life support for cardiac arrest, and cardiopulmonary bypass. [ 1 ] According to the present review, lipid emulsion and anticonvulsants were frequently used to treat LAST in the awake state (Fig. 4 B), whereas lipid emulsion alone and lipid emulsion plus vasopressor were frequently used to treat LAST under general anesthesia (Fig. 4 B). 4. Discussion The underlying mechanism of lipid emulsion treatment for LAST is lipid shuttle, increased myocardial contractility, provision of fatty acid, inhibition of mitochondrial dysfunction, attenuation of nitric oxide release, and glycogen synthase kinase-3β phosphorylation."
+                }
+              ],
+              "source_passage_ids": [
+                "30417244:p1",
+                "38489714:p30"
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "30417244"
+              ],
+              "reason": "The guide directly recommends 20% lipid emulsion per protocol for severe hypotension and arrhythmia.",
+              "source_quotes": [
+                {
+                  "source_id": "30417244",
+                  "quote": "Administration of 20% lipid emulsion according to the protocol is recommended to treat severe hypotension and arrhythmia."
+                }
+              ],
+              "source_passage_ids": [
+                "30417244:p2"
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "38489714"
+              ],
+              "reason": "The pediatric review states early lipid emulsion is now recommended for the incipient stage rather than reserved only for intractable arrest; although population is pediatric, this reflects the general recommendation cited from reference [33].",
+              "source_quotes": [
+                {
+                  "source_id": "38489714",
+                  "quote": "[ 37 , 38 ] In addition, lipid emulsion treatment was originally recommended to treat intractable cardiac arrest induced by LAST; however, early administration of lipid emulsion is now recommended to treat the incipient stage of LAST. [ 33 ] According to this recommendation, approximately 36% of patients received lipid emulsion treatment <5 minutes after LAST, and approximately 55% of patients received lipid emulsion treatment < 10 minutes after LAST. [ 33 ] In addition, approximately 45% of patients showed improvement in symptoms in < 4 minutes after lipid emulsion administration for LAST, and approximately 67% of patients showed improvement in symptoms in < 1 hour after lipid emulsion administration for LAST."
+                },
+                {
+                  "source_id": "38489714",
+                  "quote": "Cardiovascular symptoms showed most improvement (approximately 55% of included cases) after lipid emulsion treatment for non-local anesthetic toxicity in pediatric patients. [ 2 ] Similarly, after lipid emulsion treatment, the maximum improvement was seen in cardiovascular symptoms alone (48%), followed by symptoms of both central nervous and cardiovascular systems, and central nervous system symptoms alone. [ 2 ] Before LAST progresses to cardiovascular collapse, early administration of lipid emulsion produces leads to recovery from central nervous system symptoms induced by ropivacaine toxicity, and shortens recovery time from unconsciousness induced by lidocaine toxicity."
+                }
+              ],
+              "source_passage_ids": [
+                "38489714:p29",
+                "38489714:p28"
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "38489714"
+              ],
+              "reason": "The review states propofol should not be substituted for 20% lipid emulsion because propofol exacerbates cardiovascular depression.",
+              "source_quotes": [
+                {
+                  "source_id": "38489714",
+                  "quote": "[ 1 ] Consistent with this recommendation, 20% lipid emulsion (1.5 mL/kg) bolus administration followed by 0.25 mL/kg/minutes continuous infusion was frequently used in this review (in approximately 42% of cases involving bolus administration followed by continuous infusion). As propofol is dissolved in 10% lipid emulsion and produces cardiovascular depression, propofol should not be administered instead of 20% lipid emulsion because of the cardiovascular depression exacerbated by propofol itself. The most common type of lipid emulsion used in the treatment for LAST in the present review was Intralipid (in approximately 71% of cases), which is a 100% long-chain fatty acid. However, the availability of Intralipid may be limited in hospitals compared with other types of lipid emulsions, because linoleic acid contained in Intralipid induces proinflammatory mediators."
+                }
+              ],
+              "source_passage_ids": [
+                "38489714:p33"
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is an anesthesiology LAST case. The clinical picture (metallic taste, bilateral tinnitus, agitation progressing to convulsion, then severe hypotension 64/38 and wide-complex ventricular ectopy with QRS widening during ropivacaine interscalene block) is textbook severe LAST. Candidate B provides the guideline-concordant response: stop local anesthetic, call for help, IV access, 100% oxygen, airway/ventilation support with intubation if needed, benzodiazepine for convulsions, and prompt 20% lipid emulsion for the severe hypotension/arrhythmia, and explicitly avoids propofol. Candidate A is the intentionally flawed distractor: it delays lipid emulsion until pulseless arrest, uses propofol (a cardiovascular depressant), and passively observes ventricular ectopy — unsafe. The distinction is a genuine clinical decision (immediate antidotal therapy vs. delay), distinct from the prior MH case. Every decisive recommendation in Candidate B and the key is supported by the supplied sources: the 30417244 practical guide grounds the halt/assist/oxygen/airway/benzodiazepine and lipid-emulsion-for-severe-hypotension-and-arrhythmia claims directly, and 38489714 grounds the early lipid emulsion and anti-propofol claims. Minor caveat: source 38489714 and 40958228 are pediatric/penile-block populations, and claims 4-5 rely on their discussion of the general adult-derived recommendation ([33]/ASRA); this is a mild population mismatch but the propofol and early-lipid statements are general LAST management principles echoed by the adult-inclusive 30417244 guide, so no gap in the decisive recommendation exists. The visible note contains recognizable LAST features but does not name the answer or disclose 'lipid emulsion' as the plan, so no answer disclosure. No missing imaging/data — ECG and clinical note suffice for the management decision point. Case is acceptable."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The metallic taste, tinnitus, agitation, seizure, respiratory compromise, severe hypotension, QRS widening, and ventricular ectopy immediately after ropivacaine injection are classic for severe local anesthetic systemic toxicity (LAST), not anaphylaxis. Immediate management includes stopping the local anesthetic, calling for help, securing IV access, administering 100% oxygen, preventing hypoxia/acidosis through airway and ventilatory support, and treating seizures preferentially with a benzodiazepine. Because cardiovascular toxicity is already present, 20% lipid emulsion should be administered promptly according to protocol rather than delayed until cardiac arrest. The cited guidance recommends lipid emulsion for severe hypotension and arrhythmia and warns that propofol must not substitute for lipid emulsion because its cardiovascular-depressant effect may worsen instability.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "30417244"
+              ],
+              "source_passage_ids": [
+                "30417244:p0"
+              ],
+              "reason": "The passage directly describes progression from CNS excitation and convulsions to respiratory arrest, ventricular ectopy, conduction disturbance, circulatory collapse, and asystole.",
+              "source_quotes": [
+                {
+                  "source_id": "30417244",
+                  "quote": "Systemic toxicity from local anesthetics can occur in any of the wide range of situations in which these agents are used. This practical guide is created to generate a shared awareness of the prevention, diagnosis, and treatment of local anesthetic systemic toxicity among all medical professionals who perform nerve blocks. Systemic toxicity of local anesthetic is induced by an increase of its protein-unbound plasma concentration. Initial symptoms are characterized by central nervous system signs such as excitation, convulsions, followed by loss of consciousness and respiratory arrest. These symptoms are often accompanied with cardiovascular signs such as hypertension, tachycardia and premature ventricular contractions. Further increase of plasma concentration of local anesthetic induces bradycardia, conduction disturbances, circulatory collapse and asystole."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "30417244"
+              ],
+              "source_passage_ids": [
+                "30417244:p1"
+              ],
+              "reason": "The passage explicitly recommends halting local anesthetic administration, requesting assistance, securing venous access and the airway, giving 100% oxygen, and providing intubation and ventilation when necessary.",
+              "source_quotes": [
+                {
+                  "source_id": "30417244",
+                  "quote": "The incidence of local anesthetic systemic toxicity is 1-11 cases per 10,000. Infants, patients with decreased liver function and low cardiac output are vulnerable to systemic toxicity. When performing regional anesthesia, the guideline-directed monitoring, securing a venous line, preparation of medication to treat convulsions and lipid emulsions are required. For prevention of local anesthetic systemic toxicity, small-dose, divided administration, using agents with low toxicity such as ropivacaine and levobupivacaine, performing an aspiration test are recommended. If systemic toxicity is suspected, halt administration of local anesthetic, request assistance, secure venous line, airway, administration of 100% oxygen and if necessary tracheal intubation and artificial respiration should be immediately performed. Benzodiazepines are recommended to treat convulsions."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "30417244",
+                "38489714"
+              ],
+              "source_passage_ids": [
+                "30417244:p1",
+                "38489714:p30"
+              ],
+              "reason": "Both cited sources explicitly include benzodiazepines in treatment of LAST-associated convulsions or seizures.",
+              "source_quotes": [
+                {
+                  "source_id": "30417244",
+                  "quote": "The incidence of local anesthetic systemic toxicity is 1-11 cases per 10,000. Infants, patients with decreased liver function and low cardiac output are vulnerable to systemic toxicity. When performing regional anesthesia, the guideline-directed monitoring, securing a venous line, preparation of medication to treat convulsions and lipid emulsions are required. For prevention of local anesthetic systemic toxicity, small-dose, divided administration, using agents with low toxicity such as ropivacaine and levobupivacaine, performing an aspiration test are recommended. If systemic toxicity is suspected, halt administration of local anesthetic, request assistance, secure venous line, airway, administration of 100% oxygen and if necessary tracheal intubation and artificial respiration should be immediately performed. Benzodiazepines are recommended to treat convulsions."
+                },
+                {
+                  "source_id": "38489714",
+                  "quote": "Treatment of LAST includes airway maintenance to prevent hypoxia and acidosis, lipid emulsion and benzodiazepines to treat seizures, low doses of epinephrine (1 μg/kg), advanced cardiac life support for cardiac arrest, and cardiopulmonary bypass. [ 1 ] According to the present review, lipid emulsion and anticonvulsants were frequently used to treat LAST in the awake state (Fig. 4 B), whereas lipid emulsion alone and lipid emulsion plus vasopressor were frequently used to treat LAST under general anesthesia (Fig. 4 B). 4. Discussion The underlying mechanism of lipid emulsion treatment for LAST is lipid shuttle, increased myocardial contractility, provision of fatty acid, inhibition of mitochondrial dysfunction, attenuation of nitric oxide release, and glycogen synthase kinase-3β phosphorylation."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "30417244"
+              ],
+              "source_passage_ids": [
+                "30417244:p2"
+              ],
+              "reason": "The source expressly recommends protocol-based 20% lipid emulsion for severe hypotension and arrhythmia, matching this patient's presentation.",
+              "source_quotes": [
+                {
+                  "source_id": "30417244",
+                  "quote": "Administration of 20% lipid emulsion according to the protocol is recommended to treat severe hypotension and arrhythmia."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "38489714"
+              ],
+              "source_passage_ids": [
+                "38489714:p29"
+              ],
+              "reason": "The passage explicitly states that lipid emulsion was formerly reserved for intractable cardiac arrest but is now recommended early in incipient LAST.",
+              "source_quotes": [
+                {
+                  "source_id": "38489714",
+                  "quote": "[ 37 , 38 ] In addition, lipid emulsion treatment was originally recommended to treat intractable cardiac arrest induced by LAST; however, early administration of lipid emulsion is now recommended to treat the incipient stage of LAST. [ 33 ] According to this recommendation, approximately 36% of patients received lipid emulsion treatment <5 minutes after LAST, and approximately 55% of patients received lipid emulsion treatment < 10 minutes after LAST. [ 33 ] In addition, approximately 45% of patients showed improvement in symptoms in < 4 minutes after lipid emulsion administration for LAST, and approximately 67% of patients showed improvement in symptoms in < 1 hour after lipid emulsion administration for LAST."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "38489714"
+              ],
+              "source_passage_ids": [
+                "38489714:p33"
+              ],
+              "reason": "The source directly states that propofol should not replace 20% lipid emulsion because propofol can exacerbate cardiovascular depression.",
+              "source_quotes": [
+                {
+                  "source_id": "38489714",
+                  "quote": "[ 1 ] Consistent with this recommendation, 20% lipid emulsion (1.5 mL/kg) bolus administration followed by 0.25 mL/kg/minutes continuous infusion was frequently used in this review (in approximately 42% of cases involving bolus administration followed by continuous infusion). As propofol is dissolved in 10% lipid emulsion and produces cardiovascular depression, propofol should not be administered instead of 20% lipid emulsion because of the cardiovascular depression exacerbated by propofol itself. The most common type of lipid emulsion used in the treatment for LAST in the present review was Intralipid (in approximately 71% of cases), which is a 100% long-chain fatty acid. However, the availability of Intralipid may be limited in hospitals compared with other types of lipid emulsions, because linoleic acid contained in Intralipid induces proinflammatory mediators."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The event independently fits severe local anesthetic systemic toxicity: metallic taste and tinnitus immediately after ropivacaine exposure progressed to agitation, generalized convulsions, respiratory compromise, profound hypotension, QRS widening, and ventricular ectopy. Candidate B appropriately continues cessation of the local anesthetic, mobilizes help, supports oxygenation and ventilation, treats convulsions with a benzodiazepine, and promptly initiates 20% lipid emulsion rather than waiting for cardiac arrest. These decisive actions are directly supported by the supplied passages. Candidate A is intentionally unsafe because it delays lipid therapy despite severe cardiovascular toxicity, proposes propofol in a profoundly hypotensive patient, and merely observes a potentially lethal conduction and rhythm disturbance. The visible title and question do not disclose the diagnosis or management plan. The decision is also distinct from the previous malignant-hyperthermia case because it tests recognition and antidotal treatment of LAST rather than cessation of triggering anesthetics and dantrolene administration."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "3a289dab2f78663028df01846da89cc10f7ba3ffb9f7642ce14ddb540bd90a11"
+  }
+}

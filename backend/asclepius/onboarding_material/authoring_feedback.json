@@ -1,0 +1,22 @@
+{
+  "onboarding-practice-v1-536d65a07b5d16bb9bde-1": {
+    "issues": [
+      "Do not turn a systematic review's study-eligibility measurement schedule into a bedside screening recommendation. The wording POD had to be measured at least once per day and by postoperative day 1 in PMID37599617 describes included research. Use actual clinical recommendations and omit unsupported timing claims."
+    ]
+  },
+  "onboarding-examination-v1-536d65a07b5d16bb9bde-1": {
+    "issues": [
+      "The prior functional-study impression instructed the applicant to integrate measurements with clinical assessment, directly cueing the comprehensive-assessment answer. Keep all visible findings and impressions neutral and observational; put instructional reasoning only in the held-out answer key."
+    ]
+  },
+  "onboarding-examination-v1-76e4644baee47eeda234-1": {
+    "issues": [
+      "A prior suspected-HIT draft required empiric therapeutic anticoagulation before confirmation, but its retained sources did not establish that probability-based rule. Do not extrapolate an algorithm for refractory autoimmune HIT to ordinary initial suspected HIT. Choose a decision and patient population directly established by the supplied text."
+    ]
+  },
+  "onboarding-examination-v1-7c4ff9e6c4470cdf7d03-1": {
+    "issues": [
+      "Independent audit: required_modalities names the exact correct next staging tests before those investigations have been performed, leaking the answer to the blinded solver and public payload."
+    ]
+  }
+}

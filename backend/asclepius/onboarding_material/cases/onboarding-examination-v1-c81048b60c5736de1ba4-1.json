@@ -1,0 +1,555 @@
+{
+  "task_id": "onboarding-examination-v1-c81048b60c5736de1ba4-1",
+  "specialty": "cardiothoracic surgery",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Heart team review of progressive exertional symptoms",
+    "question": "Which management strategy is most appropriate after reviewing the completed clinical assessment?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "cardiothoracic surgery",
+      "demographics": {
+        "age_band": "70-79",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Progressive exertional dyspnea",
+          "since": "Several months",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Exertional chest pressure",
+          "since": "Several weeks",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Near-syncope with activity",
+          "since": "Recent",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Hypertension",
+          "since": "Longstanding",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "blood_pressure": "128/70 mm Hg",
+        "heart_rate": "74 beats/min",
+        "oxygen_saturation": "96% on room air"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Heart team assessment",
+          "author_role": "cardiothoracic surgery",
+          "text": "An independently living woman in her seventies reports several months of declining exercise tolerance and dyspnea when walking one block. She has recently developed exertional chest pressure and two episodes of near-syncope without complete loss of consciousness. Examination shows a late-peaking systolic murmur radiating to the neck and a diminished second heart sound. There is no active infection, recent stroke, advanced malignancy, or other documented illness expected to determine short-term prognosis. The echocardiographic report and functional history were reviewed at the multidisciplinary assessment.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Transthoracic echocardiography",
+          "label": "Resting transthoracic echocardiogram",
+          "findings": "The aortic valve is trileaflet, markedly calcified, and severely restricted. Doppler demonstrates high-gradient obstruction. Left ventricular systolic function is preserved, with concentric hypertrophy and no other severe valvular lesion.",
+          "measurements": [
+            {
+              "analyte": "Peak aortic jet velocity",
+              "loinc": null,
+              "value": 4.6,
+              "unit": "m/s",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Mean aortic transvalvular gradient",
+              "loinc": null,
+              "value": 52,
+              "unit": "mm Hg",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Aortic valve area",
+              "loinc": null,
+              "value": 0.7,
+              "unit": "cm2",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Left ventricular ejection fraction",
+              "loinc": null,
+              "value": 58,
+              "unit": "%",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ],
+          "impression": "Severe high-gradient calcific aortic valve stenosis with preserved left ventricular ejection fraction.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -3
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical review"
+        ],
+        "disclaimers": [
+          "Fictional examination case for onboarding; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "moderate",
+      "required_modalities": [
+        "clinical history",
+        "transthoracic echocardiography"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the assessed decision",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The patient has severe calcific aortic stenosis with exertional dyspnea, chest pressure, and near-syncope. Valve replacement, rather than pharmacologic attempts to slow stenosis or continued surveillance alone, is the supported treatment strategy. Selection between transcatheter and surgical replacement should be individualized by the heart team with shared decision-making because the approaches have different complication profiles and neither is universally dominant across patients. Lipoprotein(a)-lowering cannot substitute for valve replacement because no pharmacologic treatment has been shown to slow hemodynamic progression.",
+        "evidence": {
+          "decision_focus": "Valve replacement versus pharmacologic deferral or surveillance",
+          "modality_focus": "Individualized transcatheter versus surgical assessment"
+        },
+        "key_data": [
+          "Progressive exertional dyspnea, chest pressure, and near-syncope",
+          "Peak aortic jet velocity of 4.6 m/s",
+          "Mean transvalvular gradient of 52 mm Hg",
+          "Aortic valve area of 0.7 cm2",
+          "Preserved left ventricular ejection fraction of 58%"
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Defer valve intervention and continue clinical surveillance while starting a lipoprotein(a)-lowering strategy intended to slow calcific valve progression; reconsider replacement only if left ventricular systolic function later declines."
+      },
+      {
+        "id": "B",
+        "text": "Proceed with heart-team evaluation for aortic valve replacement now. Use shared decision-making to select transcatheter or surgical replacement according to individualized procedural risks, benefits, feasibility, and patient preferences rather than delaying for unproven disease-modifying medication."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "severe aortic stenosis",
+      "near-syncope",
+      "aortic valve replacement",
+      "TAVI",
+      "SAVR",
+      "hemodynamic progression"
+    ],
+    "evidence_keywords": [
+      "symptomatic severe aortic stenosis",
+      "heart team",
+      "shared decision-making",
+      "transcatheter valve replacement",
+      "surgical valve replacement",
+      "lipoprotein(a)"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Untreated severe symptomatic calcific aortic stenosis carries substantial mortality, and treatment is directed at relieving the mechanical obstruction.",
+        "source_ids": [
+          "39457433"
+        ]
+      },
+      {
+        "statement": "No pharmacological treatment is currently available to slow the hemodynamic progression of aortic stenosis.",
+        "source_ids": [
+          "39018080"
+        ]
+      },
+      {
+        "statement": "Transcatheter or surgical aortic valve replacement is the evidence-based treatment for severe aortic stenosis associated with heart-failure symptoms.",
+        "source_ids": [
+          "40948025"
+        ]
+      },
+      {
+        "statement": "TAVI and SAVR have different complication profiles, and the evidence supports individualized heart-team assessment and shared decision-making rather than universal procedural dominance.",
+        "source_ids": [
+          "34873012"
+        ]
+      },
+      {
+        "statement": "Compared with SAVR, TAVI reduces major bleeding, acute kidney injury, new atrial fibrillation, and hospital stay but increases major vascular complications and permanent pacemaker implantation.",
+        "source_ids": [
+          "34873012"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:46:23.659794+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "37880038",
+        "title": "Neuraxial Anesthesia in Patients With Aortic Stenosis: A Systematic Review.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37880038/",
+        "abstract": "Neuraxial anesthesia (NA) has been contraindicated in patients with aortic stenosis (AS) due to concerns of sympathetic blockade and hemodynamic instability. These considerations are based on precautionary expert recommendations, supported by expected physiologic effects, but in the absence of any published scientific evidence. In light of the increasing elderly population and the prevalence of AS, this systematic review compiles available literature on NA in patients with AS to address the understanding of the anesthetic practice and safety in this population. Using a systematic approach, PubMed, Embase, and Web of Science were searched for studies of patients with AS who exclusively received NA. Primary outcomes included intraoperative and postoperative complications. Of 1,433 citations, 61 met full-text inclusion criteria, including 3,228 patients undergoing noncardiac (n = 3,146, 97.5%), obstetric (n = 69, 2.1%), and cardiac (n = 13, 0.4%) procedures. Significant data heterogeneity (local anesthetic dosing, intraoperative interventions, and measured outcomes) prevented formal metanalysis, but descriptive data are presented. Spinal block (n = 2,856, 88.5%) and epidural anesthesia (n = 397, 12.3%) were administered most frequently. Hypotension requiring vasopressors was the most common intraoperative complication-noncardiac (n = 16, 9.9%), obstetric (n = 6, 13.0%), and cardiac (n = 1, 7.7%)-with resolution in all patients and no reported intraoperative cardiovascular collapse or mortality. The relative risk of different AS severities remains unclear, and optimal medication dosing remains elusive. The authors' data suggested that NA may not be contraindicated in carefully selected patients with AS. The authors' results should inform the design of future prospective studies comparing NA and general anesthesia in patients with AS.",
+        "sha256": "a91897ff41ba28b95b858d9f8dfb4023b5c1b2d9c1934c9d8855a974a84f1ea6",
+        "retrieved_at": "2026-09-18T23:44:42.315659+00:00"
+      },
+      {
+        "id": "39018080",
+        "title": "Lipoprotein(a) and Calcific Aortic Valve Stenosis Progression: A Systematic Review and Meta-Analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39018080/",
+        "abstract": "There are currently no pharmacological treatments available to slow hemodynamic progression of aortic stenosis. Plasma lipoprotein(a) concentrations predict incident aortic stenosis but its association with hemodynamic progression is controversial.\nTo determine the association between plasma lipoprotein(a) concentrations and hemodynamic progression in patients with aortic stenosis.\nThe study included patients with aortic stenosis from 5 longitudinal clinical studies conducted from March 2001 to March 2023 in Canada and the UK. Of 757 total patients, data on plasma lipoprotein(a) concentrations and rates of hemodynamic progression assessed by echocardiography were available for 710, who were included in this analysis. Data were analyzed from March 2023 to April 2024.\nCohort-specific plasma lipoprotein(a) concentration tertiles.\nHemodynamic aortic stenosis progression on echocardiography as assessed by annualized change in peak aortic jet velocity, mean transvalvular gradient, and aortic valve area.\nAmong the included patients, 497 (70%) were male and 213 (30%) were female. The mean (SD) age was 65.2 (13.1) years. Patients in the top lipoprotein(a) tertile demonstrated 41% (estimate, 1.41; 95% CI, 1.13-1.75) faster progression of peak aortic jet velocity and 57% (estimate, 1.57; 95% CI, 1.18-2.10) faster progression of mean transvalvular gradient than patients in the bottom tertile. There was no evidence of heterogeneity across the individual cohorts. Progression of aortic valve area was comparable between groups (estimate, 1.23; 95% CI, 0.71-2.12). Similar results were observed when plasma lipoprotein(a) concentrations were treated as a continuous variable.\nIn this study, higher plasma lipoprotein(a) concentrations were associated with faster rates of hemodynamic progression in patients with aortic stenosis. Lowering plasma lipoprotein(a) concentrations warrants further investigation in the prevention and treatment of aortic stenosis.",
+        "sha256": "22abcef1b5075fdeed00053c6c1704969322644527ac6a297955a76a82b7cfa4",
+        "retrieved_at": "2026-09-18T23:44:42.315659+00:00",
+        "pmcid": "PMC11255972"
+      },
+      {
+        "id": "39641732",
+        "title": "Aortic Valve Replacement vs Clinical Surveillance in Asymptomatic Severe Aortic Stenosis: A Systematic Review and Meta-Analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39641732/",
+        "abstract": "Current guidelines recommend a strategy of clinical surveillance (CS) for patients with asymptomatic severe aortic stenosis (AS) and a normal left ventricular ejection fraction.\nThe aim of this study was to conduct a study-level meta-analysis of randomized controlled trials (RCTs) evaluating the effect of early aortic valve replacement (AVR) compared with CS in patients with asymptomatic severe AS.\nStudies were quantitatively assessed in a meta-analysis using random-effects modeling. Prespecified outcomes included all-cause and cardiovascular mortality, unplanned cardiovascular or heart failure (HF) hospitalization, and stroke. The meta-analysis is registered at the International Platform of Registered Systematic Review and Meta-Analysis Protocols (INPLASY202490002).\nFour RCTs were identified, including a total of 1,427 patients (719 in the early AVR group and 708 in the CS group). At an average follow-up time of 4.1 years, early AVR was associated with a significant reduction in unplanned cardiovascular or HF hospitalization (pooled rate 14.6% vs 31.9%; HR: 0.40; 95% CI: 0.30-0.53; I2 = 4%; P < 0.01) and stroke (pooled rate 4.5% vs 7.2%; HR: 0.62; 95% CI: 0.40-0.97; I2 = 0%; P = 0.03). No differences in all-cause mortality (pooled rate 9.7% vs 13.7%; HR: 0.68; 95% CI: 0.40-1.17; I2 = 61%; P = 0.17) and cardiovascular mortality (pooled rate 5.1% vs 8.3%; HR: 0.67; 95% CI: 0.35-1.29; I2 = 50%; P = 0.23) were observed with early AVR compared with CS, although there was a high degree of heterogeneity among studies.\nIn this meta-analysis of 4 RCTs, early AVR was associated with a significant reduction in unplanned cardiovascular or HF hospitalization and stroke and no differences in all-cause and cardiovascular mortality compared with CS.",
+        "sha256": "73575f15cf7945f8d195a564b4a0f7b70029deeb67c5e44e071dd2c7382229a4",
+        "retrieved_at": "2026-09-18T23:44:42.315659+00:00"
+      },
+      {
+        "id": "31329852",
+        "title": "Transcatheter aortic valve implantation vs. surgical aortic valve replacement for treatment of symptomatic severe aortic stenosis: an updated meta-analysis.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31329852/",
+        "abstract": "Owing to new evidence from randomized controlled trials (RCTs) in low-risk patients with severe aortic stenosis, we compared the collective safety and efficacy of transcatheter aortic valve implantation (TAVI) vs. surgical aortic valve replacement (SAVR) across the entire spectrum of surgical risk patients.\nThe meta-analysis is registered with PROSPERO (CRD42016037273). We identified RCTs comparing TAVI with SAVR in patients with severe aortic stenosis reporting at different follow-up periods. We extracted trial, patient, intervention, and outcome characteristics following predefined criteria. The primary outcome was all-cause mortality up to 2 years for the main analysis. Seven trials that randomly assigned 8020 participants to TAVI (4014 patients) and SAVR (4006 patients) were included. The combined mean STS score in the TAVI arm was 9.4%, 5.1%, and 2.0% for high-, intermediate-, and low surgical risk trials, respectively. Transcatheter aortic valve implantation was associated with a significant reduction of all-cause mortality compared to SAVR {hazard ratio [HR] 0.88 [95% confidence interval (CI) 0.78-0.99], P = 0.030}; an effect that was consistent across the entire spectrum of surgical risk (P-for-interaction = 0.410) and irrespective of type of transcatheter heart valve (THV) system (P-for-interaction = 0.674). Transcatheter aortic valve implantation resulted in lower risk of strokes [HR 0.81 (95% CI 0.68-0.98), P = 0.028]. Surgical aortic valve replacement was associated with a lower risk of major vascular complications [HR 1.99 (95% CI 1.34-2.93), P = 0.001] and permanent pacemaker implantations [HR 2.27 (95% CI 1.47-3.64), P < 0.001] compared to TAVI.\nCompared with SAVR, TAVI is associated with reduction in all-cause mortality and stroke up to 2 years irrespective of baseline surgical risk and type of THV system.",
+        "sha256": "dd8980b5d4811b3aca0cc3cc798978377cf96c2afcca042bb6ecea127f553f83",
+        "retrieved_at": "2026-09-18T23:44:43.291691+00:00"
+      },
+      {
+        "id": "34873012",
+        "title": "Transcatheter aortic valve implantation versus surgical aortic valve replacement in patients with severe aortic stenosis: a systematic review and meta-analysis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34873012/",
+        "abstract": "Patients undergoing surgery for severe aortic stenosis (SAS) can be treated with either transcatheter aortic valve implantation (TAVI) or surgical aortic valve replacement (SAVR). The choice of procedure depends on several factors, including the clinical judgement of the heart team and patient preferences, which are captured by actively informing and involving patients in a process of shared decision making (SDM). We synthesised the most up-to-date and accessible evidence on the benefits and risks that may be associated with TAVI versus SAVR to support SDM in this highly personalised decision-making process.\nSystematic review and meta-analysis.\nMEDLINE (Ovid), Embase (Ovid) and the Cochrane Central Register of Controlled Trials (CENTRAL; Wiley) were searched from January 2000 to August 2020 with no language restrictions. Reference lists of included studies were searched to identify additional studies.\nRandomised controlled trials (RCTs) that compared TAVI versus SAVR in patients with SAS and reported on all-cause or cardiovascular mortality, length of stay in intensive care unit or hospital, valve durability, rehospitalisation/reintervention, stroke (any stroke or major/disabling stroke), myocardial infarction, major vascular complications, major bleeding, permanent pacemaker (PPM) implantation, new-onset or worsening atrial fibrillation (NOW-AF), endocarditis, acute kidney injury (AKI), recovery time or pain were included.\nTwo independent reviewers were involved in data extraction and risk of bias (ROB) assessment using the Cochrane tool (one reviewer extracted/assessed the data, and the second reviewer checked it). Dichotomous data were pooled using the Mantel-Haenszel method with random-effects to generate a risk ratio (RR) with 95% CI. Continuous data were pooled using the inverse-variance method with random-effects and expressed as a mean difference (MD) with 95% CI. Heterogeneity was assessed using the I2 statistic.\n8969 records were retrieved and nine RCTs (61 records) were ultimately included (n=8818 participants). Two RCTs recruited high-risk patients, two RCTs recruited intermediate-risk patients, two RCTs recruited low-risk patients, one RCT recruited high-risk (≥70 years) or any-risk (≥80 years) patients; and two RCTs recruited all-risk or 'operable' patients. While there was no overall change in the risk of dying from any cause (30 day: RR 0.89, 95% CI 0.65 to 1.22; ≤1 year: RR 0.90, 95% CI 0.79 to 1.03; 5 years: RR 1.09, 95% CI 0.98 to 1.22), cardiovascular mortality (30 day: RR 1.03, 95% CI 0.77 to 1.39; ≤1 year: RR 0.90, 95% CI 0.76 to 1.06; 2 years: RR 0.96, 95% CI 0.83 to 1.12), or any type of stroke (30 day: RR 0.83, 95% CI 0.61 to 1.14;≤1 year: RR 0.94, 95% CI 0.72 to 1.23; 5 years: RR 1.07, 95% CI 0.88 to 1.30), the risk of several clinical outcomes was significantly decreased (major bleeding, AKI, NOW-AF) or significantly increased (major vascular complications, PPM implantation) for TAVI vs SAVR. TAVI was associated with a significantly shorter hospital stay vs SAVR (MD -3.08 days, 95% CI -4.86 to -1.29; 4 RCTs, n=2758 participants). Subgroup analysis generally favoured TAVI patients receiving implantation via the transfemoral (TF) route (vs non-TF); receiving a balloon-expandable (vs self-expanding) valve; and those at low-intermediate risk (vs high risk). All RCTs were rated at high ROB, predominantly due to lack of blinding and selective reporting.\nNo overall change in the risk of death from any cause or cardiovascular mortality was identified but 95% CIs were often wide, indicating uncertainty. TAVI may reduce the risk of certain side effects while SAVR may reduce the risk of others. Most long-term (5-year) results are limited to older patients at high surgical risk (ie, early trials), therefore more data are required for low risk populations. Ultimately, neither surgical technique was considered dominant, and these results suggest that every patient with SAS should be individually engaged in SDM to make evidence-based, personalised decisions around their care based on the various benefits and risks associated with each treatment.\nCRD42019138171.",
+        "sha256": "f2fc82ae5747ec3b6159727dae1942abce5a019a99f0357b646e8b7e7915eb00",
+        "retrieved_at": "2026-09-18T23:44:43.291691+00:00",
+        "pmcid": "PMC8650468"
+      },
+      {
+        "id": "40948025",
+        "title": "Management of aortic stenosis and chronic heart failure: A clinical consensus statement of the Heart Failure Association (HFA) and the European Association of Percutaneous Cardiovascular Interventions (EAPCI) of the ESC.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40948025/",
+        "abstract": "Aortic stenosis (AS) is common and can cause heart failure (HF) or contribute to the progression of pre-existing HF. The management of patients with concomitant AS and HF poses specific clinical challenges. Optimization of guideline-directed medical therapy for HF may be difficult in patients with AS, especially in case of reduced left ventricular ejection fraction. Transcatheter or surgical aortic valve replacement (AVR) is the evidence-based treatment of choice for patients with severe AS and HF. However, advanced cardiac damage, concomitant conditions that can cause HF in addition to AS, as well as some procedure-related factors, may contribute to persistence or worsening of HF after AVR. A multidisciplinary management involving an HF specialist is crucial in this setting and should include a dedicated pre-procedural HF and AS assessment, as well as a careful post-procedural follow-up, including monitoring of HF status. The aim of this clinical consensus statement is to summarize current knowledge on AS and HF, with a focus on pre-procedural and post-procedural management of patients with HF undergoing AVR.",
+        "sha256": "64ecb9e1aeebb0358b7e0a48a41736d0806bb9691e8832e4f39221ae6c388fd5",
+        "retrieved_at": "2026-09-18T23:44:43.291691+00:00"
+      },
+      {
+        "id": "39457433",
+        "title": "Genetics of Calcific Aortic Stenosis: A Systematic Review.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39457433/",
+        "abstract": "Background: Calcific aortic stenosis is the most prevalent valvular abnormality in the Western world. Factors commonly associated with calcific aortic stenosis include advanced age, male sex, hypertension, diabetes and impaired renal function. This review synthesises the existing literature on genetic associations with calcific aortic stenosis. Methods: A systematic search was conducted in the PubMed, Ovid and Cochrane libraries from inception to 21 July 2024 to identify human studies investigating the genetic factors involved in calcific aortic stenosis. From an initial pool of 1392 articles, 78 were selected for full-text review and 31 were included in the final qualitative synthesis. The risk of bias in these studies was assessed using the Newcastle Ottawa Scale. Results: Multiple genes have been associated with calcific aortic stenosis. These genes are involved in different biological pathways, including the lipid metabolism pathway (PLA, LDL, APO, PCSK9, Lp-PLA2, PONS1), the inflammatory pathway (IL-6, IL-10), the calcification pathway (PALMD, TEX41) and the endocrine pathway (PTH, VIT D, RUNX2, CACNA1C, ALPL). Additional genes such as NOTCH1, NAV1 and FADS1/2 influence different pathways. Mechanistically, these genes may promote a pro-inflammatory and pro-calcific environment in the aortic valve itself, leading to increased osteoblastic activity and subsequent calcific degeneration of the valve. Conclusions: Numerous genetic associations contribute to calcific aortic stenosis. Recognition of these associations can enhance risk stratification for individuals and their first-degree relatives, facilitate family screening, and importantly, pave the way for targeted therapeutic interventions focusing on the identified genetic factors. Understanding these genetic factors can also lead to gene therapy to prevent calcific aortic stenosis in the future.",
+        "sha256": "936a1d1d4b3874d4a40919719d170311cb8b5ef2103a76cedb8128a6a1b3f608",
+        "retrieved_at": "2026-09-18T23:44:44.005397+00:00",
+        "pmcid": "PMC11508093",
+        "body_excerpts": "1. Introduction\nThe aortic valve serves as the primary outlet valve of the heart, operating approximately 40 million times annually to maintain a one-way flow of blood from the left ventricle (LV), the main pumping chamber of the heart, to the aorta, the principal artery responsible for distributing blood throughout the body. Anatomically, the aortic valve consists of three distinct layers [ 1 ]. The Fibrosa is the outermost layer; it is rich in collagen, located closest to the ascending aorta and is frequently susceptible to disease. Secondly, the Ventricularis is positioned adjacent to the LV and is rich in elastin. This layer is relatively shielded from disease. Thirdly, the Spongiosa is situated between the fibrosa and ventricularis and is predominantly composed of proteoglycans.\n\n1. Introduction\nIn healthy aortic valves, valvular interstitial cells (VICs) are distributed across all layers, ensuring the structural integrity of the valve ( Figure 1 ).\n\n1. Introduction\nThis process results in thickening and stiffening of the valve leaflets, which over time causes narrowing of the valve opening, a condition known as aortic stenosis. When this narrowing is due to valve calcification, it is referred to as calcific aortic stenosis (CAS), which impedes the smooth flow of blood from the LV to the aorta.\n\n1. Introduction\nCAS is the most prevalent form of aortic stenosis and the most common valvular abnormality in the Western world [ 4 ], affecting approximately 13 million people globally [ 5 ]. Primarily an age-related disease, its prevalence is anticipated to double in the next 20 years with the ageing population [ 6 ]. CAS is multifactorial, involving environmental, mechanical and genetic factors, with recent research increasingly emphasising the genetic basis of the disease [ 7 ].\n\n1. Introduction\nIf the pressure overload caused by CAS is not relieved, it leads to heart failure and premature death. Without treatment, it is estimated that 50% of patients with severe symptomatic CAS will die within two years [ 8 ]. Currently, there are no pharmacological treatments available to slow, reverse or prevent CAS. Consequently, the primary treatment involves interventions to relieve the mechanical obstruction and pressure overload [ 9 ], typically through open-heart surgery to replace the calcified valve with a mechanical one, or when the anatomy is favourable, the less invasive transcatheter aortic valve implantation (TAVI) is an option.\n\n2. Materials and Methods\n(calcific aortic stenosis) AND ((gene) OR (genome) OR (loci) or (variant) OR (mutation) OR (genetics)) and corresponding MeSH (Medical Subjects Heading) terms .\n\n2. Materials and Methods\nThe search results were imported into the dedicated systematic review software, Covidence [ 13 ], for screening. Studies were included in the systematic review if they investigated specific genes associated with CAS. Eligible studies included any original human research (observational, prospective, retrospective or randomised) involving adults (>18 years old) that provided a genetic association with CAS. Editorials, reviews, abstracts, case reports and animal studies were excluded. Studies solely focusing on aortic calcification without valve narrowing (i.e., without stenosis) or only on the genetic influence in the progression of aortic stenosis without data on incident CAS were also excluded. Additionally, studies involving patients with bicuspid aortic valves (i.e., non-CAS) were excluded, unless CAS data were provided.\n\n3. Results > 3.1. Lipid Metabolism Genes and CAS  > 3.1.1. Lipoprotein (A)\nTraditionally, elevated plasma Lp(a) is linked to an increased risk of cardiovascular events such as myocardial infarctions and strokes, independently of other lipids like low density lipoprotein (LDL). In 2013, Thanassoulis et al. [ 15 ] however, demonstrated through three cohort studies (Framingham Heart Study (FHS) cohort [ 47 ], the Age, Gene/Environment Susceptibility–Reykjavik Study (AGES-RS) cohort [ 48 ], and white European participants in the Multi-Ethnic Study of Atherosclerosis (MESA) [ 49 ]) that one single nucleotide polymorphism (SNP) on chromosome 6, rs10455872, located within intron 25 of the LPA gene, achieved genome-wide significance for aortic valve calcification after adjustment for age and sex (odd ratio [OR] = 2.05; 95% confidence interval [CI] = 1.63–2.57, p = 9.0 × 10 −10 ). This meant that the presence of the G allele at this location more than doubled the risk of aortic valve calcification. This finding was further validated in the Malmö Diet and Cancer Study (MDCS) [ 50 ], which included 28,193 individuals followed for 14 years, during which 308 (1.1%) developed CAS. After adjusting for other risk factors, notably male sex, increasing age, smoking and body mass index (BMI), the rs10455872 SNP remained independently associated with CAS (hazard ratio [HR] = 1.68, CI = 1.32–2.15; p = 3 × 10 −5 ). Subsequent studies, including large cohorts from the UK Biobank (2574 CAS cases, 405,829 controls) [ 19 ], Million Veterans Program (14,451 CAS cases, 398,544 controls) [ 12 ] and the EPIC-Norfolk Study (508 cases, 20,421 controls) [ 23 ] also confirmed the association between LPA and CAS.\n\n3. Results > 3.1. Lipid Metabolism Genes and CAS  > 3.1.1. Lipoprotein (A)\nHigh Lp(a) levels have been shown to contribute to a pro-inflammatory and pro-calcific environment in the aortic valve [ 51 ], and various mechanisms have been proposed for how this leads to valve calcification. One mechanism suggests that after being transferred from the bloodstream into the inner wall of the aortic valve cusps [ 52 ], Lp(a) induces cholesterol deposition similar to LDL cholesterol, leading to thickening of the valve cusps. This is supported by the structural similarity between Lp(a) and LDL. Another potential mechanism involves Lp(a) promoting thrombosis by competing with plasminogen and inhibiting plasmin from dissolving fibrous clots, which could result in fibrin deposition and aortic valve calcification [ 53 ]. Furthermore, within the valve layers, oxidised phospholipids are converted by the enzyme Lp-phospholipase-2 into lysophosphatidylcholine, promoting valve mineralisation. This is subsequently converted into lysophosphatidic acid by the enzyme autotaxin on Lp(a), stimulating VICs to produce osteoblastic transcription factors [ 54 , 55 ]. Finally, oxidised phospholipids elicit an inflammatory response with macrophages, T-lymphocytes and mast cells producing microcalcifications within the endothelium [ 56 ]. Overall, these processes promote a pro-inflammatory and pro-fibrotic environment that leads to calcific degeneration of the aortic valve cusps, resulting in CAS.\n\n3. Results > 3.1. Lipid Metabolism Genes and CAS  > 3.1.2. Low Density Lipoprotein\nContinuing with the lipid theme, a study by Smith et al. [ 62 ] utilised the Malmö study and a genetic risk score for LDL, based on 57 SNPs, to investigate the incidence of CAS. Within this cohort of 28,461 patients, there were 473 cases of CAS. The LDL genetic risk score demonstrated an HR = 1.28 (CI = 1.04–1.57; p = 0.02), even after adjusting for age, sex, height, weight, diabetes, hypertension and smoking. This finding was further confirmed by Allara et al. [ 25 ], who performed polygenic LDL estimation and assessed its association with multiple endpoints, including aortic stenosis. Their study showed a significant association with CAS (OR per one standard deviation [SD] increase, 1.46 [95% CI = 1.25–1.70; p < 0.003]). This means that for every increase of one SD in LDL, the associated increase in CAS was 46%. These results provide strong evidence that higher LDL levels are associated with a higher incidence of CAS.\n\n3. Results > 3.1. Lipid Metabolism Genes and CAS  > 3.1.2. Low Density Lipoprotein\nThis observation could potentially revolutionise the approach to pharmacotherapy in CAS. It might explain why multiple studies, including those using statins (such as SALTIRE [ 63 ], TASS [ 64 ], SEAS [ 65 ] and ASTRONOMER [ 66 ]) have failed to identify a medication that effectively reduces the progression of calcification in aortic stenosis. There are two possible explanations for this: first, the overall effect of LDL in CAS may be small, with other factors such as Lp(a) having a more significant impact; second, LDL might initiate CAS and sustain its early progression, but after a certain threshold of calcification (as seen, for example, in mild aortic stenosis), the progression to moderate and severe aortic stenosis may become independent of LDL. Consequently, offering LDL-reducing therapy for moderate or severe aortic stenosis might be too late; it may need to be provided at the earliest stage of aortic calcification.\n\n3. Results > 3.1. Lipid Metabolism Genes and CAS  > 3.1.2. Low Density Lipoprotein\nMoreover, this suggests that targeting a single factor may be insufficient. For instance, reducing LDL without addressing Lp(a) may not achieve the desired effect. This genetic understanding identifies areas for improvement in research and suggests that future studies should consider early pharmacotherapy for CAS and ensure that all possible mechanisms identified through genetic associations are targeted.\n\n3. Results > 3.2. PCSK9-Proprotein Convertase Subtilisin/Kexin 9\nSeveral mechanisms likely contribute to the reduction in CAS with PCSK9 loss of function. Firstly, its direct effect on lowering LDL and Lp(a) levels can diminish the pro-inflammatory and pro-calcific environment in the valve. Additionally, higher levels of PCSK9 are known to trigger the expression of inflammatory cytokines, adhesion molecules, and chemoattractants, leading to increased monocyte adhesion and inflammation [ 69 ]. PCSK9 levels were found to be elevated in explanted calcific aortic valve VICs, while PCSK9 inhibition in these valves reduced VIC expression by more than 50%, suggesting that PCSK9 has an independent effect beyond LDL and Lp(a).\n\n3. Results > 3.3. Apolipoprotein > 3.3.2. Apolipoprotein B \nGaudreault et al. [ 31 ] further compared SNPs from 457 patients with severe aortic stenosis who underwent surgical aortic valve replacement to 3294 controls. The APOB gene, which encodes apolipoprotein B (a primary component of LDL), was the focus. They identified a significant association between a missense mutation in the APOB gene (rs1042031, E4181K) and aortic stenosis ( p = 0.00001). Additionally, a second SNP located 5.6 kilobases downstream of the APOB stop codon (rs6725189) was also linked to the disease ( p = 0.000013). Although the study did not specify that all patients had CAS, the average age of 70 at the time of surgery suggests that most had CAS rather than bicuspid aortic valve disease, which typically requires surgery by age 60.\n\n3. Results > 3.6. Inflammatory Pathway Genes and CAS  > 3.6.1. Interleukin 6\nInterleukin 6 (IL-6) is located on chromosome 7 at position 7p15.3. It is a pro-inflammatory cytokine involved in inflammatory and immune responses. It has been suggested that the increased inflammatory response associated with the IL-6 gene facilitates valve damage and calcification [ 74 ]. Specifically, the IL-6 protein as dictated by the IL-6 gene, can activate VICs and induce their transformation into osteoblast-like cells, contributing to calcium deposition in the valve matrix. Furthermore, elevated IL-6 levels can lead to an imbalance between matrix synthesis and degradation, promoting calcification and fibrosis in the aortic valve.\n\n3. Results > 3.6. Inflammatory Pathway Genes and CAS  > 3.6.2. Interleukin 10\nAnother gene associated with inflammation is interleukin 10 ( IL-10 ), located on chromosome 1 at position 1q31-32. Unlike IL-6, IL-10 has an anti-inflammatory role by suppressing pro-inflammatory cytokines such as IL-1 and tumour necrosis factor α (TNF-α), which promote inflammation and calcification of heart valves. Additionally, IL-10 has been shown to reduce oxidative stress, thereby decreasing the differentiation of valvular interstitial cells (VICs) into osteoblast-like cells that deposit calcium in the valve [ 75 ].\n\n3. Results > 3.7. Calcification Pathway Genes and CAS  > 3.7.1. Palmdelphin \nThe palmdelphin gene (PALMD) is located on chromosome 1 at position 1p21.2. Theriault et al., in 2018 [ 38 ], initially identified PALMD as a gene potentially associated with CAS through transcriptomic analysis and confirmed their findings in the QUEBEC-CANS (1009 CAS, 1017 matched controls) and UK Biobank (1319 CAS and 352,191 controls) datasets. They found that rs6702619 was strongly associated with CAS in both cohorts, with a combined OR = 1.28 (CI = 1.20–1.36; p = 1.88 × 10 −14 ). Helgadottir et al. [ 37 ] studied 2457 CAS cases from Iceland and 249,342 controls, identifying a new locus near PALMD (rs7543130; OR = 1.20, CI = 1.16–1.35; p = 1.2 × 10 −22 ). Theriault et al. [ 19 ] further confirmed these findings in 2019, analysing 5115 CAS cases and 354,072 controls, and found an association for rs7543039-T with an OR = 1.20 (CI = 1.10–1.30; p = 1.89 × 10 −6 ). Junco-Vicente et al. [ 37 ] also supported these findings, reporting that the rs6702619-G allele was associated with CAS in their study of CAS and 478 controls (OR 1.42, CI = 1.01–2.00; p = 0.045). Additionally, Small et al. [ 12 ], using data from the Million Veteran Program (14,451 CAS patients and 398,544 controls), found that the rs7543130 allele was associated with CAS (OR 1.14, CI = 1.11–1.17; p = 6.2 × 10 −24 ). Furthermore, using 17 SNPs within 1 Mb of PALMD on two cohorts, Li et al. [ 39 ] found that this 17 SNP model explained 48% of expression variance. Both cohorts were individually associated with CAS, and when combined in a meta-analysis, the OR = 0.84 (CI, 0.80–0.88; p = 1.1 × 10 −12 ). This is in line with the previous studies, as it investigated genetically determined higher levels of palmdelphin associating with less CAS, whilst previous SNPs like in the Theriault et al. [ 38 ] study showed decreased mRNA expression levels of PALMD in valve tissues, thus explaining the reversed OR. The effect was slightly more significant in women, as shown by Theriault [ 19 ], which may be important since aortic valves in women have more fibrosis but less calcification than men [ 76 ]. This suggests that a one-size-fits-all treatment for aortic stenosis is unlikely to be effective, and precision medicine considering the patient’s sex may be more beneficial. The study indicates that individuals with lower PALMD expression in the aortic valve, as predicted by their genotype, and women may benefit more from therapies that enhance PALMD expression.\n\n3. Results > 3.7. Calcification Pathway Genes and CAS  > 3.7.1. Palmdelphin \nHan et al. [ 77 ] generated PALMD knockout mice using CRISPR, demonstrating that PALMD deficiency worsened aortic valve remodelling and impaired valve function via an NF-κB (NF-κB)-dependent mechanism. Additionally, Wang et al. [ 78 ] showed that palmdelphin might influence CAS development through the regulation of glycolysis and NF-κB-mediated inflammation.\n\n3. Results > 3.10. Alkaline Phosphatase, Liver/Bone/Kidney\nThe alkaline phosphatase, liver/bone/kidney ( ALPL ) gene, located on chromosome 1 at position 1p36.12, encodes the enzyme alkaline phosphatase (ALP), which plays a role in bone formation, liver and kidney function. ALP facilitates bone formation by hydrolysing phosphate groups from organic molecules [ 79 ], promoting the deposition of calcium and phosphate in the bone matrix. Theriault et al. [ 19 ] showed that the rs12141569-C SNP of the ALPL gene was associated with CAS (OR = 1.15, CI 1.07–1.23; p = 0.00036). Increased ALP activity in VICs can lead to higher calcium deposition in the valve tissue, contributing to CAS progression by making the aortic valve stiff and narrowed due to calcium buildup. ALPL also promotes the transformation of VICs into osteoblast-like cells, accelerating valve calcification.\n\n3. Results > 3.11. Miscellaneous Genes and CAS > 3.11.1. Neurogenic Locus Notch Homolog Protein 1\nNeurogenic locus notch homolog protein 1 ( NOTCH1 ), located on chromosome 9 at position 9q34.3, is a key regulator of various cellular processes, including differentiation, proliferation and apoptosis. In mice, NOTCH1 product represses the gene encoding bone morphogenetic protein 2, thereby inhibiting osteoblast-initiated calcification. Studying this effect in humans, Ducharme et al., in 2013 [ 43 ], studied a common NOTCH1 polymorphism (rs13290979) located in intron 2 in 457 CAS patients and 3294 controls. Whilst this was significantly associated with CAS ( p = 0.003) and remained significant after correction for multiple testing, it failed to remain significant after adjusting for population stratification ( p = 0.088). Thus, unlike in bicuspid aortic stenosis, there was no evidence to support an association between NOTCH1 and CAS.\n\n4. Discussion\nIn the lipid metabolism pathway, key genes such as LPA , LDL , PCSK9 and APOE are significant players in CAS. They create a pro-inflammatory and pro-calcific environment within the aortic valve itself, leading to excessive osteoblast activity in VICs and subsequent calcification. Identifying patients at risk due to elevated Lp(a) and LDL levels suggests novel therapeutic targets. Medications such as inclisiran and PCSK9 inhibitors, which lower Lp(a) and LDL, show early promise, with ongoing studies aiming to establish their efficacy in slowing CAS progression. These insights may explain why statin trials have failed despite theoretical benefits: lowering LDL alone may not suffice without addressing other factors including Lp(a) and PCSK9. Additionally, LDL may initiate valve calcification, but other mechanisms sustain the process, indicating that early intervention targeting multiple pathways could be more effective.\n\n4. Discussion\nFurthermore, the calcification pathway is also implicated in the development of disease, with genes including PALMD and TEX41 . PALMD , involved in cell adhesion and migration, has been shown to influence aortic valve remodelling and function through, for example, NF-κB-mediated inflammation [ 84 ]. Similarly to the interleukin pathways, anti-inflammatory medications targeting individuals genetically predisposed to inflammation as a result of the PALMD gene may warrant investigation as a potential strategy, not only for reducing the incidence but also for slowing the progression of calcific aortic stenosis. TEX41 is also believed to affect gene regulation and chromatin maintenance whilst higher expression in men could explain the sex differences of CAS.\n\n4. Discussion\nSeveral challenges, however, must be addressed. Firstly, ethical considerations regarding data privacy, including which parts of the genome are reported and how incidental findings are handled, must be addressed. Secondly, infrastructure must be updated to accommodate the large amount of data generated by genomic testing. Thirdly, implementing routine genetic and genomic testing will require education and training for healthcare professionals, as well as the development of clear guidelines and protocols to guide clinicians.",
+        "body_excerpts_sha256": "dbeca5145c749c947bcdc0a9393bda6cb2cd68911117e5b01b1ada1e23e01d56",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11508093/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "36648053",
+        "title": "Aortic Stenosis Progression: A Systematic Review and Meta-Analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36648053/",
+        "abstract": "Aortic valve stenosis is a progressive disorder with variable progression rates. The factors affecting aortic stenosis (AS) progression remain largely unknown.\nThis systematic review and meta-analysis sought to determine AS progression rates and to assess the impact of baseline AS severity and sex on disease progression.\nThe authors searched Medline, Embase, and the Cochrane Central Register of Controlled Trials from inception to July 1, 2020, for prospective studies evaluating the progression of AS with the use of echocardiography (mean gradient [MG], peak velocity [PV], peak gradient [PG], or aortic valve area [AVA]) or computed tomography (calcium score [AVC]). Random-effects meta-analysis was performed to evaluate the rate of AS progression for each parameter stratified by baseline severity, and meta-regression was performed to determine the impact of baseline severity and of sex on AS progression rate.\nA total of 24 studies including 5,450 patients (40% female) met inclusion criteria. The pooled annualized progression of MG was +4.10 mm Hg (95% CI: 2.80-5.41 mm Hg), AVA -0.08 cm2 (95% CI: 0.06-0.10 cm2), PV +0.19 m/s (95% CI: 0.13-0.24 m/s), PG +7.86 mm Hg (95% CI: 4.98-10.75 mm Hg), and AVC +158.5 AU (95% CI: 55.0-261.9 AU). Increasing baseline severity of AS was predictive of higher rates of progression for MG (P < 0.001), PV (P = 0.001), and AVC (P < 0.001), but not AVA (P = 0.34) or PG (P = 0.21). Only 4 studies reported AS progression stratified by sex, with only PV and AVC having 3 studies to perform a meta-analysis. No difference between sex was observed for PV (P = 0.397) or AVC (P = 0.572), but the level of confidence was low.\nThis study provides progression rates for both hemodynamic and anatomic parameters of AS and shows that increasing hemodynamic and anatomic baseline severity is associated with faster AS progression. More studies are needed to determine if sex differences affect AS progression. (Aortic Valve Stenosis Progression Rate: A Systematic Review and Meta-Analysis; CRD42021207726).",
+        "sha256": "769d969fca1800df2a035a2aeab01079ee54f8b99e8994aa8bf05d10539c73e0",
+        "retrieved_at": "2026-09-18T23:44:44.005397+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This patient has symptomatic severe high-gradient calcific aortic stenosis: peak jet velocity 4.6 m/s, mean gradient 52 mm Hg, and AVA 0.7 cm2, with the classic triad of exertional dyspnea, angina (chest pressure), and near-syncope, plus a late-peaking systolic murmur and diminished S2. Symptomatic severe AS carries a dismal untreated prognosis (~50% mortality within 2 years per source 39457433), and there is no pharmacologic therapy that slows hemodynamic progression (39018080, 39457433). Aortic valve replacement (transcatheter or surgical) is the evidence-based treatment of choice for severe symptomatic AS (40948025), and randomized data support both approaches across risk categories, with the modality selected via shared decision-making based on individualized procedural risk, anatomy, and patient preference (31329852, 34873012). The heart team note explicitly documents no competing condition limiting short-term prognosis, so intervention is appropriate now. Answer A is unsafe: deferring intervention in a symptomatic patient and waiting for LV dysfunction ignores the symptom-driven indication, and Lp(a)-lowering is unproven for slowing established severe AS (39018080 shows only an association with progression, not a treatment effect; source 39641732 addresses asymptomatic AS, not this symptomatic presentation).",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "39457433"
+              ],
+              "reason": "Body excerpt states 50% of untreated severe symptomatic CAS die within two years and primary treatment relieves mechanical obstruction.",
+              "source_passage_ids": [
+                "39457433:p4",
+                "39457433:p5"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39457433",
+                  "quote": "When this narrowing is due to valve calcification, it is referred to as calcific aortic stenosis (CAS), which impedes the smooth flow of blood from the LV to the aorta. 1. Introduction CAS is the most prevalent form of aortic stenosis and the most common valvular abnormality in the Western world [ 4 ], affecting approximately 13 million people globally [ 5 ]. Primarily an age-related disease, its prevalence is anticipated to double in the next 20 years with the ageing population [ 6 ]. CAS is multifactorial, involving environmental, mechanical and genetic factors, with recent research increasingly emphasising the genetic basis of the disease [ 7 ]. 1. Introduction If the pressure overload caused by CAS is not relieved, it leads to heart failure and premature death. Without treatment, it is estimated that 50% of patients with severe symptomatic CAS will die within two years [ 8 ]."
+                },
+                {
+                  "source_id": "39457433",
+                  "quote": "Currently, there are no pharmacological treatments available to slow, reverse or prevent CAS. Consequently, the primary treatment involves interventions to relieve the mechanical obstruction and pressure overload [ 9 ], typically through open-heart surgery to replace the calcified valve with a mechanical one, or when the anatomy is favourable, the less invasive transcatheter aortic valve implantation (TAVI) is an option. 2. Materials and Methods (calcific aortic stenosis) AND ((gene) OR (genome) OR (loci) or (variant) OR (mutation) OR (genetics)) and corresponding MeSH (Medical Subjects Heading) terms . 2. Materials and Methods The search results were imported into the dedicated systematic review software, Covidence [ 13 ], for screening. Studies were included in the systematic review if they investigated specific genes associated with CAS."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39018080"
+              ],
+              "reason": "Abstract explicitly states no pharmacological treatments are available to slow hemodynamic progression of aortic stenosis.",
+              "source_passage_ids": [
+                "39018080:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39018080",
+                  "quote": "There are currently no pharmacological treatments available to slow hemodynamic progression of aortic stenosis. Plasma lipoprotein(a) concentrations predict incident aortic stenosis but its association with hemodynamic progression is controversial. To determine the association between plasma lipoprotein(a) concentrations and hemodynamic progression in patients with aortic stenosis. The study included patients with aortic stenosis from 5 longitudinal clinical studies conducted from March 2001 to March 2023 in Canada and the UK. Of 757 total patients, data on plasma lipoprotein(a) concentrations and rates of hemodynamic progression assessed by echocardiography were available for 710, who were included in this analysis. Data were analyzed from March 2023 to April 2024. Cohort-specific plasma lipoprotein(a) concentration tertiles."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "40948025"
+              ],
+              "reason": "Consensus statement says transcatheter or surgical AVR is the evidence-based treatment of choice for severe AS with HF; patient has HF-type symptoms.",
+              "source_passage_ids": [
+                "40948025:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40948025",
+                  "quote": "Aortic stenosis (AS) is common and can cause heart failure (HF) or contribute to the progression of pre-existing HF. The management of patients with concomitant AS and HF poses specific clinical challenges. Optimization of guideline-directed medical therapy for HF may be difficult in patients with AS, especially in case of reduced left ventricular ejection fraction. Transcatheter or surgical aortic valve replacement (AVR) is the evidence-based treatment of choice for patients with severe AS and HF. However, advanced cardiac damage, concomitant conditions that can cause HF in addition to AS, as well as some procedure-related factors, may contribute to persistence or worsening of HF after AVR."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34873012"
+              ],
+              "reason": "Meta-analysis concludes neither technique dominant and every patient should engage in shared decision-making with heart team.",
+              "source_passage_ids": [
+                "34873012:p0",
+                "34873012:p5"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34873012",
+                  "quote": "Patients undergoing surgery for severe aortic stenosis (SAS) can be treated with either transcatheter aortic valve implantation (TAVI) or surgical aortic valve replacement (SAVR). The choice of procedure depends on several factors, including the clinical judgement of the heart team and patient preferences, which are captured by actively informing and involving patients in a process of shared decision making (SDM). We synthesised the most up-to-date and accessible evidence on the benefits and risks that may be associated with TAVI versus SAVR to support SDM in this highly personalised decision-making process. Systematic review and meta-analysis. MEDLINE (Ovid), Embase (Ovid) and the Cochrane Central Register of Controlled Trials (CENTRAL; Wiley) were searched from January 2000 to August 2020 with no language restrictions."
+                },
+                {
+                  "source_id": "34873012",
+                  "quote": "Ultimately, neither surgical technique was considered dominant, and these results suggest that every patient with SAS should be individually engaged in SDM to make evidence-based, personalised decisions around their care based on the various benefits and risks associated with each treatment. CRD42019138171."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "34873012"
+              ],
+              "reason": "Meta-analysis reports decreased major bleeding, AKI, NOW-AF and increased major vascular complications and PPM for TAVI vs SAVR, plus shorter hospital stay.",
+              "source_passage_ids": [
+                "34873012:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34873012",
+                  "quote": "While there was no overall change in the risk of dying from any cause (30 day: RR 0.89, 95% CI 0.65 to 1.22; ≤1 year: RR 0.90, 95% CI 0.79 to 1.03; 5 years: RR 1.09, 95% CI 0.98 to 1.22), cardiovascular mortality (30 day: RR 1.03, 95% CI 0.77 to 1.39; ≤1 year: RR 0.90, 95% CI 0.76 to 1.06; 2 years: RR 0.96, 95% CI 0.83 to 1.12), or any type of stroke (30 day: RR 0.83, 95% CI 0.61 to 1.14;≤1 year: RR 0.94, 95% CI 0.72 to 1.23; 5 years: RR 1.07, 95% CI 0.88 to 1.30), the risk of several clinical outcomes was significantly decreased (major bleeding, AKI, NOW-AF) or significantly increased (major vascular complications, PPM implantation) for TAVI vs SAVR. TAVI was associated with a significantly shorter hospital stay vs SAVR (MD -3.08 days, 95% CI -4.86 to -1.29; 4 RCTs, n=2758 participants)."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is an on-specialty cardiothoracic surgery case. The chart shows a woman in her 70s with symptomatic severe high-gradient calcific aortic stenosis: peak velocity 4.6 m/s, mean gradient 52 mmHg, AVA 0.7 cm2, preserved EF 58%, with exertional dyspnea, chest pressure, and near-syncope—all classic symptomatic triggers for intervention. The note explicitly documents absence of prohibitive comorbidities. Standard of care for symptomatic severe AS is valve replacement (TAVI or SAVR) via heart-team shared decision-making, which is exactly candidate B. Candidate A (deferring intervention, starting an unproven Lp(a)-lowering strategy, and waiting for LV dysfunction) is clearly unsafe: it withholds the only life-prolonging therapy in a symptomatic patient at high risk of sudden death, and it relies on a pharmacologic approach that source 39018080 and 39457433 confirm has no proven ability to slow hemodynamic progression. The intended-flawed designation (A) is correct.\n\nAll five claims are supported by the supplied evidence passages. Claim 0 is grounded in the 39457433 body excerpt (50% two-year mortality untreated; treatment relieves obstruction). Claim 1 is a direct quote from 39018080. Claim 2 comes from 40948025 (AVR is evidence-based treatment of choice for severe AS with HF); the patient's dyspnea/exertional presentation reasonably falls in this population. Claim 3 and 4 are directly supported by the 34873012 meta-analysis, including the specific complication-profile differences and the 'neither dominant / individualized SDM' conclusion. The key rationale matches the evidence and the chart.\n\nDecision independence: no previous cases supplied, so no overlap concern. The question and visible note do not disclose the answer—the note describes findings only and does not state a management plan, so no coherence/key-disclosure defect. The sound candidate B includes the essential care (proceed to AVR evaluation with SDM) and does not omit decisive management. Minor observations (not blocking): sources like 31329852 and 39641732 pertain to comparative TAVI/SAVR mortality and asymptomatic AS respectively and were not needed to establish the key; the neuraxial-anesthesia source (37880038) is irrelevant filler. None of these undermine the case. No missing decisive data—echo and functional history are sufficient for the heart-team decision posed. Case is acceptable as designed.",
+          "distinct_decision_reason": "No previous cases provided; decision is a valve-replacement-versus-deferral management choice.",
+          "no_missing_information_reason": "Symptomatic status, echo hemodynamics, EF, and comorbidity screen are all present and sufficient for the heart-team decision."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient has symptomatic severe high-gradient calcific aortic stenosis: exertional dyspnea, chest pressure, and near-syncope with a peak velocity of 4.6 m/s, mean gradient of 52 mm Hg, and valve area of 0.7 cm². Preserved ejection fraction does not justify delay once symptoms are present. Aortic valve replacement is the evidence-based treatment, with the heart team and patient selecting TAVR versus SAVR based on anatomy, procedural risk, expected benefits, feasibility, life expectancy, and preferences. The supplied evidence also states that no pharmacologic treatment is currently proven to slow hemodynamic progression; lipoprotein(a) lowering remains investigational and cannot replace indicated valve intervention.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "39457433"
+              ],
+              "reason": "The cited review directly states the estimated two-year mortality of untreated severe symptomatic calcific aortic stenosis and identifies relief of mechanical obstruction and pressure overload as the primary treatment.",
+              "source_passage_ids": [
+                "39457433:p4",
+                "39457433:p5"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39457433",
+                  "quote": "When this narrowing is due to valve calcification, it is referred to as calcific aortic stenosis (CAS), which impedes the smooth flow of blood from the LV to the aorta. 1. Introduction CAS is the most prevalent form of aortic stenosis and the most common valvular abnormality in the Western world [ 4 ], affecting approximately 13 million people globally [ 5 ]. Primarily an age-related disease, its prevalence is anticipated to double in the next 20 years with the ageing population [ 6 ]. CAS is multifactorial, involving environmental, mechanical and genetic factors, with recent research increasingly emphasising the genetic basis of the disease [ 7 ]. 1. Introduction If the pressure overload caused by CAS is not relieved, it leads to heart failure and premature death. Without treatment, it is estimated that 50% of patients with severe symptomatic CAS will die within two years [ 8 ]."
+                },
+                {
+                  "source_id": "39457433",
+                  "quote": "Currently, there are no pharmacological treatments available to slow, reverse or prevent CAS. Consequently, the primary treatment involves interventions to relieve the mechanical obstruction and pressure overload [ 9 ], typically through open-heart surgery to replace the calcified valve with a mechanical one, or when the anatomy is favourable, the less invasive transcatheter aortic valve implantation (TAVI) is an option. 2. Materials and Methods (calcific aortic stenosis) AND ((gene) OR (genome) OR (loci) or (variant) OR (mutation) OR (genetics)) and corresponding MeSH (Medical Subjects Heading) terms . 2. Materials and Methods The search results were imported into the dedicated systematic review software, Covidence [ 13 ], for screening. Studies were included in the systematic review if they investigated specific genes associated with CAS."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39018080"
+              ],
+              "reason": "The cited systematic review explicitly states that no pharmacological treatment is currently available to slow hemodynamic progression; it characterizes lipoprotein(a) lowering as requiring further investigation.",
+              "source_passage_ids": [
+                "39018080:p0",
+                "39018080:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39018080",
+                  "quote": "There are currently no pharmacological treatments available to slow hemodynamic progression of aortic stenosis. Plasma lipoprotein(a) concentrations predict incident aortic stenosis but its association with hemodynamic progression is controversial. To determine the association between plasma lipoprotein(a) concentrations and hemodynamic progression in patients with aortic stenosis. The study included patients with aortic stenosis from 5 longitudinal clinical studies conducted from March 2001 to March 2023 in Canada and the UK. Of 757 total patients, data on plasma lipoprotein(a) concentrations and rates of hemodynamic progression assessed by echocardiography were available for 710, who were included in this analysis. Data were analyzed from March 2023 to April 2024. Cohort-specific plasma lipoprotein(a) concentration tertiles."
+                },
+                {
+                  "source_id": "39018080",
+                  "quote": "In this study, higher plasma lipoprotein(a) concentrations were associated with faster rates of hemodynamic progression in patients with aortic stenosis. Lowering plasma lipoprotein(a) concentrations warrants further investigation in the prevention and treatment of aortic stenosis."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "40948025"
+              ],
+              "reason": "The consensus statement directly identifies transcatheter or surgical AVR as the evidence-based treatment of choice for severe aortic stenosis with heart failure.",
+              "source_passage_ids": [
+                "40948025:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40948025",
+                  "quote": "Aortic stenosis (AS) is common and can cause heart failure (HF) or contribute to the progression of pre-existing HF. The management of patients with concomitant AS and HF poses specific clinical challenges. Optimization of guideline-directed medical therapy for HF may be difficult in patients with AS, especially in case of reduced left ventricular ejection fraction. Transcatheter or surgical aortic valve replacement (AVR) is the evidence-based treatment of choice for patients with severe AS and HF. However, advanced cardiac damage, concomitant conditions that can cause HF in addition to AS, as well as some procedure-related factors, may contribute to persistence or worsening of HF after AVR."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34873012"
+              ],
+              "reason": "The meta-analysis states that procedural choice depends on heart-team judgment and patient preferences, documents differing benefits and harms, and concludes that neither approach is dominant and that individualized shared decision-making is appropriate.",
+              "source_passage_ids": [
+                "34873012:p0",
+                "34873012:p3",
+                "34873012:p5"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34873012",
+                  "quote": "Patients undergoing surgery for severe aortic stenosis (SAS) can be treated with either transcatheter aortic valve implantation (TAVI) or surgical aortic valve replacement (SAVR). The choice of procedure depends on several factors, including the clinical judgement of the heart team and patient preferences, which are captured by actively informing and involving patients in a process of shared decision making (SDM). We synthesised the most up-to-date and accessible evidence on the benefits and risks that may be associated with TAVI versus SAVR to support SDM in this highly personalised decision-making process. Systematic review and meta-analysis. MEDLINE (Ovid), Embase (Ovid) and the Cochrane Central Register of Controlled Trials (CENTRAL; Wiley) were searched from January 2000 to August 2020 with no language restrictions."
+                },
+                {
+                  "source_id": "34873012",
+                  "quote": "While there was no overall change in the risk of dying from any cause (30 day: RR 0.89, 95% CI 0.65 to 1.22; ≤1 year: RR 0.90, 95% CI 0.79 to 1.03; 5 years: RR 1.09, 95% CI 0.98 to 1.22), cardiovascular mortality (30 day: RR 1.03, 95% CI 0.77 to 1.39; ≤1 year: RR 0.90, 95% CI 0.76 to 1.06; 2 years: RR 0.96, 95% CI 0.83 to 1.12), or any type of stroke (30 day: RR 0.83, 95% CI 0.61 to 1.14;≤1 year: RR 0.94, 95% CI 0.72 to 1.23; 5 years: RR 1.07, 95% CI 0.88 to 1.30), the risk of several clinical outcomes was significantly decreased (major bleeding, AKI, NOW-AF) or significantly increased (major vascular complications, PPM implantation) for TAVI vs SAVR. TAVI was associated with a significantly shorter hospital stay vs SAVR (MD -3.08 days, 95% CI -4.86 to -1.29; 4 RCTs, n=2758 participants)."
+                },
+                {
+                  "source_id": "34873012",
+                  "quote": "Ultimately, neither surgical technique was considered dominant, and these results suggest that every patient with SAS should be individually engaged in SDM to make evidence-based, personalised decisions around their care based on the various benefits and risks associated with each treatment. CRD42019138171."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "34873012"
+              ],
+              "reason": "The cited meta-analysis reports significantly less major bleeding, acute kidney injury, and new or worsening atrial fibrillation and a shorter hospital stay with TAVI, but more major vascular complications and permanent pacemaker implantation.",
+              "source_passage_ids": [
+                "34873012:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34873012",
+                  "quote": "While there was no overall change in the risk of dying from any cause (30 day: RR 0.89, 95% CI 0.65 to 1.22; ≤1 year: RR 0.90, 95% CI 0.79 to 1.03; 5 years: RR 1.09, 95% CI 0.98 to 1.22), cardiovascular mortality (30 day: RR 1.03, 95% CI 0.77 to 1.39; ≤1 year: RR 0.90, 95% CI 0.76 to 1.06; 2 years: RR 0.96, 95% CI 0.83 to 1.12), or any type of stroke (30 day: RR 0.83, 95% CI 0.61 to 1.14;≤1 year: RR 0.94, 95% CI 0.72 to 1.23; 5 years: RR 1.07, 95% CI 0.88 to 1.30), the risk of several clinical outcomes was significantly decreased (major bleeding, AKI, NOW-AF) or significantly increased (major vascular complications, PPM implantation) for TAVI vs SAVR. TAVI was associated with a significantly shorter hospital stay vs SAVR (MD -3.08 days, 95% CI -4.86 to -1.29; 4 RCTs, n=2758 participants)."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The history and echocardiogram establish severe, high-gradient calcific aortic stenosis with classic exertional symptoms: dyspnea, chest pressure, and near-syncope. Preserved ejection fraction does not justify waiting for systolic dysfunction. Answer B appropriately advances the patient toward valve replacement while leaving the TAVI-versus-SAVR choice to individualized heart-team assessment and shared decision-making. The available information is sufficient for the intervention-versus-surveillance decision; additional anatomical, coronary, frailty, and procedural-risk assessment can occur when selecting the replacement modality. Answer A is intentionally unsafe because it delays definitive treatment in symptomatic severe disease and substitutes an unproven lipoprotein(a)-lowering strategy. The visible title, question, and clinical note do not disclose the intended management plan. There are no previous cases against which this decision duplicates."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "3f4685fb5b827b0dc95c327c8355c56968450ac5ccfe23f3e1e3653cdf56ce69"
+  }
+}

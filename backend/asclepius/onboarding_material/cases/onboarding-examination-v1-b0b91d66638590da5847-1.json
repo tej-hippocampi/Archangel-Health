@@ -1,0 +1,446 @@
+{
+  "task_id": "onboarding-examination-v1-b0b91d66638590da5847-1",
+  "specialty": "family medicine",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Acute low back pain evaluation in an adult primary care visit",
+    "question": "Which management approach is most appropriate based on the current presentation and examination?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "family medicine",
+      "demographics": {
+        "age_band": "40-49",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Acute low back pain",
+          "since": "4 days",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Pain with bending and lifting",
+          "since": "4 days",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "temperature": "afebrile",
+        "blood_pressure": "stable",
+        "heart_rate": "normal"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Initial assessment",
+          "author_role": "family medicine",
+          "text": "An adult in his forties presents with four days of central low back pain that began while lifting a heavy box. Pain is worse with bending and changing position but does not radiate below the buttocks. He reports no significant trauma, fever, unexplained weight loss, history of cancer, injection drug use, immunosuppression, prolonged corticosteroid exposure, or known osteoporosis. He denies leg weakness, saddle sensory change, urinary retention, incontinence, and bowel dysfunction. Examination shows lumbar paraspinal tenderness and reduced flexion because of pain. Lower-extremity strength and sensation are symmetric, reflexes are preserved, and gait is steady. There is no focal vertebral percussion tenderness or abdominal pulsatile mass.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete through initial assessment",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "This short-duration presentation followed lifting, with a normal neurologic examination and no features suggesting fracture, infection, malignancy, cauda equina syndrome, aortic aneurysm, or systemic inflammatory disease. The supplied guideline review strongly recommends against routine low-back imaging, with exceptions for red flags or deterioration. Complete care at this decision point therefore consists of deferring immediate imaging, providing reassurance and education, encouraging activity as tolerated rather than bed rest, and reassessing if symptoms deteriorate or red flags emerge. Immediate MRI based only on pain severity and paraspinal tenderness is unsupported and constitutes consequential over-imaging.",
+        "evidence": {
+          "population": "Adult with acute low back pain in primary care",
+          "decision": "Immediate imaging versus conservative initial management"
+        },
+        "key_data": [
+          "Symptoms began four days ago during lifting without significant trauma.",
+          "There is no cancer, infection, fracture, or immunosuppression risk identified.",
+          "There are no bowel, bladder, saddle sensory, or progressive neurologic symptoms.",
+          "Lower-extremity neurologic examination and gait are intact.",
+          "Pain and paraspinal tenderness alone are not identified red flags in the supplied evidence."
+        ]
+      },
+      "hard_hook": "Severe movement-related pain and focal paraspinal tenderness may prompt imaging despite the absence of supported red flags.",
+      "reasoning_divergence": "The flawed approach treats symptom intensity as an imaging indication; the sound approach bases imaging on red flags or deterioration."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Defer immediate lumbar imaging because no red flags or neurologic deficits are present. Provide reassurance and education, encourage continued activity as tolerated rather than bed rest, and reassess if symptoms deteriorate or features suggesting serious pathology emerge."
+      },
+      {
+        "id": "B",
+        "text": "Order an immediate lumbar MRI because the pain is acute, limits flexion, and is accompanied by localized tenderness. Advise bed rest while awaiting the result so that an occult structural lesion is not aggravated."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "cauda equina syndrome",
+      "neurologic deficit",
+      "spinal infection",
+      "vertebral fracture",
+      "malignancy",
+      "aortic aneurysm"
+    ],
+    "evidence_keywords": [
+      "acute low back pain",
+      "red flags",
+      "imaging stewardship",
+      "remain active",
+      "bed rest",
+      "primary care"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Low-back imaging is strongly discouraged in routine presentations, with exceptions when red flags are present.",
+        "source_ids": [
+          "33064878"
+        ]
+      },
+      {
+        "statement": "Supported imaging red flags include fracture, infection, metastatic cancer, cauda equina syndrome, aortic aneurysm, and systemic inflammatory arthritis.",
+        "source_ids": [
+          "33064878"
+        ]
+      },
+      {
+        "statement": "Guidelines strongly support advice to remain active and strongly oppose bed rest except for limited use in selected severe acute cases.",
+        "source_ids": [
+          "33064878"
+        ]
+      },
+      {
+        "statement": "The supplied exercise review enrolled adults with chronic nonspecific low back pain lasting more than twelve weeks, not four-day acute presentations.",
+        "source_ids": [
+          "34580864"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:34:03.436381+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "34580864",
+        "title": "Exercise therapy for chronic low back pain.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34580864/",
+        "abstract": "Low back pain has been the leading cause of disability globally for at least the past three decades and results in enormous direct healthcare and lost productivity costs.\nThe primary objective of this systematic review is to assess the impact of exercise treatment on pain and functional limitations in adults with chronic non-specific low back pain compared to no treatment, usual care, placebo and other conservative treatments.\nWe searched CENTRAL (which includes the Cochrane Back and Neck trials register), MEDLINE, Embase, CINAHL, PsycINFO, PEDro, SPORTDiscus, and trials registries (ClinicalTrials.gov and World Health Organization International Clinical Trials Registry Platform), and conducted citation searching of relevant systematic reviews to identify additional studies. The review includes data for trials identified in searches up to 27 April 2018. All eligible trials have been identified through searches to 7 December 2020, but have not yet been extracted; these trials will be integrated in the next update.\nWe included randomised controlled trials that assessed exercise treatment compared to no treatment, usual care, placebo or other conservative treatment on the outcomes of pain or functional limitations for a population of adult participants with chronic non-specific low back pain of more than 12 weeks' duration.\nTwo authors screened and assessed studies independently, with consensus. We extracted outcome data using electronic databases; pain and functional limitations outcomes were re-scaled to 0 to 100 points for meta-analyses where 0 is no pain or functional limitations. We assessed risk of bias using the Cochrane risk of bias (RoB) tool and used GRADE to evaluate the overall certainty of the evidence. When required, we contacted study authors to obtain missing data. To interpret meta-analysis results, we considered a 15-point difference in pain and a 10-point difference in functional limitations outcomes to be clinically important for the primary comparison of exercise versus no treatment, usual care or placebo.\nWe included 249 trials of exercise treatment, including studies conducted in Europe (122 studies), Asia (38 studies), North America (33 studies), and the Middle East (24 studies). Sixty-one per cent of studies (151 trials) examined the effectiveness of two or more different types of exercise treatment, and 57% (142 trials) compared exercise treatment to a non-exercise comparison treatment. Study participants had a mean age of 43.7 years and, on average, 59% of study populations were female. Most of the trials were judged to be at risk of bias, including 79% at risk of performance bias due to difficulty blinding exercise treatments. We found moderate-certainty evidence that exercise treatment is more effective for treatment of chronic low back pain compared to no treatment, usual care or placebo comparisons for pain outcomes at earliest follow-up (MD -15.2, 95% CI -18.3 to -12.2), a clinically important difference. Certainty of evidence was downgraded mainly due to heterogeneity. For the same comparison, there was moderate-certainty evidence for functional limitations outcomes (MD -6.8 (95% CI -8.3 to -5.3); this finding did not meet our prespecified threshold for minimal clinically important difference. Certainty of evidence was downgraded mainly due to some evidence of publication bias.  Compared to all other investigated conservative treatments, exercise treatment was found to have improved pain (MD -9.1, 95% CI -12.6 to -5.6) and functional limitations outcomes (MD -4.1, 95% CI -6.0 to -2.2). These effects did not meet our prespecified threshold for clinically important difference. Subgroup analysis of pain outcomes suggested that exercise treatment is probably more effective than education alone (MD -12.2, 95% CI -19.4 to -5.0) or non-exercise physical therapy (MD -10.4, 95% CI -15.2 to -5.6), but with no differences observed for manual therapy (MD 1.0, 95% CI -3.1 to 5.1). In studies that reported adverse effects (86 studies), one or more adverse effects were reported in 37 of 112 exercise groups (33%) and 12 of 42 comparison groups (29%). Twelve included studies reported measuring adverse effects in a systematic way, with a median of 0.14 (IQR 0.01 to 0.57) per participant in the exercise groups (mostly minor harms, e.g. muscle soreness), and 0.12 (IQR 0.02 to 0.32) in comparison groups.\nWe found moderate-certainty evidence that exercise is probably effective for treatment of chronic low back pain compared to no treatment, usual care or placebo for pain. The observed treatment effect for the exercise compared to no treatment, usual care or placebo comparisons is small for functional limitations, not meeting our threshold for minimal clinically important difference. We also found exercise to have improved pain (low-certainty evidence) and functional limitations outcomes (moderate-certainty evidence) compared to other conservative treatments; however, these effects were small and not clinically important when considering all comparisons together. Subgroup analysis suggested that exercise treatment is probably more effective than advice or education alone, or electrotherapy, but with no differences observed for manual therapy treatments.",
+        "sha256": "0bbed8e7b7faa05217e70c12d252d3abd94ac79b2d3d0039357e1b54239e8502",
+        "retrieved_at": "2026-09-18T23:32:46.517592+00:00",
+        "pmcid": "PMC8477273"
+      },
+      {
+        "id": "35722759",
+        "title": "Best Exercise Options for Reducing Pain and Disability in Adults With Chronic Low Back Pain: Pilates, Strength, Core-Based, and Mind-Body. A Network Meta-analysis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35722759/",
+        "abstract": "To determine which type of exercise is best for reducing pain and disability in adults with chronic low back pain (LBP).\nSystematic review with a network meta-analysis (NMA) of randomized controlled trials (RCTs).\nSix electronic databases were systematically searched from inception to July 2021.\nRCTs testing the effects of exercise on reducing self-perceived pain or disability in adults (aged 18-65 years) with chronic LBP.\nWe followed the PRISMA-NMA (Preferred Reporting Items for Systematic Reviews and Meta-Analyses, incorporating NMAs of health care interventions) statement when reporting our NMA. A frequentist NMA was conducted. The probability of each intervention being the most effective was conducted according to surface under the cumulative ranking curve (SUCRA) values.\nWe included 118 trials (9710 participants). There were 28 head-to-head comparisons, 7 indirect comparisons for pain, and 8 indirect comparisons for disability. Compared with control, all types of physical exercises were effective for improving pain and disability, except for stretching exercises (for reducing pain) and the McKenzie method (for reducing disability). The most effective interventions for reducing pain were Pilates, mind-body, and core-based exercises. The most effective interventions for reducing disability were Pilates, strength, and core-based exercises. On SUCRA analysis, Pilates had the highest likelihood for reducing pain (93%) and disability (98%).\nAlthough most exercise interventions had benefits for managing pain and disability in chronic LBP, the most beneficial programs were those that included (1) at least 1 to 2 sessions per week of Pilates or strength exercises; (2) sessions of less than 60 minutes of core-based, strength, or mind-body exercises; and (3) training programs from 3 to 9 weeks of Pilates and core-based exercises. J Orthop Sports Phys Ther 2022;52(8):505-521. Epub: 19 June 2022. doi:10.2519/jospt.2022.10671.",
+        "sha256": "84ff5f4e063dc135e814f678093b466082b5c08bdbfb0a8822a3817326b65d14",
+        "retrieved_at": "2026-09-18T23:32:46.517592+00:00"
+      },
+      {
+        "id": "38035307",
+        "title": "Exercise intervention for patients with chronic low back pain: a systematic review and network meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38035307/",
+        "abstract": "Chronic low back pain (CLBP) is an aging and public health issue that is a leading cause of disability worldwide and has a significant economic impact on a global scale. Treatments for CLBP are varied, and there is currently no study with high-quality evidence to show which treatment works best. Exercise therapy has the characteristics of minor harm, low cost, and convenient implementation. It has become a mainstream treatment method in clinics for chronic low back pain. However, there is insufficient evidence on which specific exercise regimen is more effective for chronic non-specific low back pain. This network meta-analysis aimed to evaluate the effects of different exercise therapies on chronic low back pain and provide a reference for exercise regimens in CLBP patients.\nWe searched PubMed, EMBASE, Cochrane Library, and Web of Science from inception to 10 May 2022. Inclusion and exclusion criteria were used for selection. We collected information from studies to compare the effects of 20 exercise interventions on patients with chronic low back pain.\nThis study included 75 randomized controlled trials (RCTs) with 5,254 participants. Network meta-analysis results showed that tai chi [standardized mean difference (SMD), -2.11; 95% CI, -3.62 to -0.61], yoga (SMD, -1.76; 95% CI -2.72 to -0.81), Pilates exercise (SMD, -1.52; 95% CI, -2.68, to -0.36), and sling exercise (SMD, -1.19; 95% CI, -2.07 to -0.30) showed a better pain improvement than conventional rehabilitation. Tai chi (SMD, -2.42; 95% CI, -3.81 to -1.03) and yoga (SMD, -2.07; 95% CI, -2.80 to -1.34) showed a better pain improvement than no intervention provided. Yoga (SMD, -1.72; 95% CI, -2.91 to -0.53) and core or stabilization exercises (SMD, -1.04; 95% CI, -1.80 to -0.28) showed a better physical function improvement than conventional rehabilitation. Yoga (SMD, -1.81; 95% CI, -2.78 to -0.83) and core or stabilization exercises (SMD, -1.13; 95% CI, -1.66 to -0.59) showed a better physical function improvement than no intervention provided.\nCompared with conventional rehabilitation and no intervention provided, tai chi, toga, Pilates exercise, sling exercise, motor control exercise, and core or stabilization exercises significantly improved CLBP in patients. Compared with conventional rehabilitation and no intervention provided, yoga and core or stabilization exercises were statistically significant in improving physical function in patients with CLBP. Due to the limitations of the quality and quantity of the included studies, it is difficult to make a definitive recommendation before more large-scale and high-quality RCTs are conducted.",
+        "sha256": "d622c3ce2a78496dd6c34bab99ecf2606a827ca0addd2e0b1dffffd3aaf1e786",
+        "retrieved_at": "2026-09-18T23:32:46.517592+00:00",
+        "pmcid": "PMC10687566"
+      },
+      {
+        "id": "33064878",
+        "title": "Evidence-based treatment recommendations for neck and low back pain across Europe: A systematic review of guidelines.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33064878/",
+        "abstract": "This systematic review synthesized evidence from European neck and low back pain (NLBP) clinical practice guidelines (CPGs) to identify recommended treatment options for use across Europe.\nComprehensive searches of thirteen databases were conducted, from 1st January 2013 to 4th May 2020 to identify up-to-date evidence-based European CPGs for primary care management of NLBP, issued by professional bodies/organizations. Data extracted included; aim and target population, methods for development and implementation and treatment recommendations. The AGREE II checklist was used to critically appraise guidelines. Criteria were devised to summarize and synthesize the direction and strength of recommendations across guidelines.\nSeventeen CPGs (11 low back; 5 neck; 1 both) from eight European countries were identified, of which seven were high quality. For neck pain, there were consistent weak or moderate strength recommendations for: reassurance, advice and education, manual therapy, referral for exercise therapy/programme, oral analgesics and topical medications, plus psychological therapies or multidisciplinary treatment for specific subgroups. Notable recommendation differences between back and neck pain included, i) analgesics for neck pain (not for back pain); ii) options for back pain-specific subgroups-work-based interventions, return to work advice/programmes and surgical interventions (but not for neck pain) and iii) a greater strength of recommendations (generally moderate or strong) for back pain than those for neck pain.\nThis review of European CPGs identified a range of mainly non-pharmacological recommended treatment options for NLBP that have broad consensus for use across Europe.\nConsensus regarding evidence-based treatment recommendations for patients with neck and low back pain (NLBP) from recent European clinical practice guidelines identifies a wide range of predominantly non-pharmacological treatment options. This includes options potentially applicable to all patients with NLBP and those applicable to only specific patient subgroups. Future work within our Back-UP research team will transfer these evidence-based treatment options to an accessible clinician decision support tool for first contact clinicians.",
+        "sha256": "9578710a9c4d9598234324837a7fc3b82e47fd23405c3f4f88262f9fb4efccd0",
+        "retrieved_at": "2026-09-18T23:32:47.063841+00:00",
+        "pmcid": "PMC7839780",
+        "body_excerpts": "INTRODUCTION\nNeck and low back pain (NLBP) are among the most frequent reasons for visiting a general practitioner (GP) or physiotherapist in primary care in Europe (Bot et al., 2005 ; Jordan et al., 2010 ). The substantial burden of illness from these conditions was shown by the most recent Lancet‐Global Burden of Disease study which highlighted low back pain (LBP) as the single highest cause of years lived with disability (out of 354 conditions studied), with neck pain ranked eighth (female) and twelfth (male) (GBD 2017 Disease and Injury Incidence and Prevalence Collaborators, 2018 ). Outlining potential ways to address this societal burden, the recent Lancet series on LBP (Foster et al., 2018 ) recommended a greater focus on improving decision making in first‐contact consultations as current treatment is highly variable (Maserejian et al., 2014 ) and often not in line with clinical guidelines (Darlow et al., 2014 ; Somerville et al., 2008 ), leading to suboptimal treatment outcomes (Maher et al., 2017 ). For example referrals to secondary care specialists are too common, provision of self‐management advice and education can be limited, opioids and imaging are over‐prescribed, and sign‐posting to locally available non‐pharmacological options such as exercise groups are limited (Chou, et al., 2017a ; Koes et al., 2010 ; Maserejian et al., 2014 ). Finding solutions that promote best‐practice care for patients with NLBP in first‐contact consultations is therefore a priority (Foster et al., 2012 ).\n\nINTRODUCTION\nThe Keele STarT Back stratified care Tool for back pain has recently been superseded by the Keele STarT MSK Tool (Dunn et al., submited ), which has been validated in UK primary care and shown to be predictive of pain and disability across a range of common musculoskeletal (MSK) pain sites, including NLBP. In addition, a new set of recommended matched treatment options for MSK patients at low, medium and high‐risk of poor outcomes (Babatunde et al., 2017 ; Protheroe et al., 2019 ) have been piloted in a feasibility trial (Hill et al., 2020 ). However, these matched treatments were designed to evaluate stratified care in UK general practice rather than for use across European countries by a broader range of first‐contact clinicians such as occupational health physicians. We therefore felt the matched treatments should be further refined for the specific context of this European project.\n\nINTRODUCTION\nRecent systematic reviews of clinical practice guidelines (CPGs) for musculoskeletal pain (Lin et al., 2020 ), and back pain (Oliveira et al., 2018 ; Wong et al., 2017 ) aimed to summarize recommended treatments for either LBP or neck pain. However, less emphasis was placed on improving decision making in first‐contact consultations, identifying specific CPG recommendations for patient subgroups defined by their risk of persistent pain and disability and the potential relevance, and on improving the referral process. To our knowledge, no prior reviews of CPGs have assessed treatment recommendations for both neck and low back pain and explored consistencies or similarities between recommendations for these common spinal pain presentations.\n\nINTRODUCTION\nThe aim of this study was therefore to conduct a systematic review of published European back and neck pain clinical guidelines to describe and synthesize the evidence of recommended treatment options with broad consensus for use across Europe.\n\nMETHODS > Eligibility criteria > Inclusion criteria\nRecent evidence‐based European clinical guidelines issued by professional bodies or organizations for guideline development [published from 2013 onwards]. We included recently published guidance only, to ensure treatment recommendations emerging from the review would be based on relatively up‐to‐date evidence; Guidelines concern adult populations (18 years or over), with NLBP (including patients presenting to first contact health professionals with symptoms of whiplash‐related disorders or symptoms of radiculopathy such as radicular pain); Guidelines that include recommendations regarding treatment options for patients presenting with NLBP, in particular: Treatments deliverable within primary care (as broadly considered across Europe, including occupational healthcare) or referral pathways from primary to secondary care recommended for clinical practice (in at least two European countries). Treatments aiming to reduce pain, improve function and/or support return to work. Relevant outcomes also included evidence‐based recommendations regarding factors (patient, clinician, environment) that may be associated with the effectiveness of treatment, and recommendations regarding clinical prediction rules or decision tools supporting the selection of treatment for specific patient subgroups (where mentioned in the guideline).\n\nRESULTS > Guideline characteristics\nAn overview of characteristics of included CPGs and the methods used in their development and implementation is presented in Table 1 , with guideline‐specific details provided in Appendices S3 & S4 . The 17 contemporary CPGs originate from eight European countries (Belgium, Denmark, France, Germany, Italy, The Netherlands, Poland and the UK). The majority address low back pain and/or radicular pain ( n = 12; 71%), whereas six (35%) are concerned with neck pain and/or radicular pain. Five guidelines (29%) focus specifically on patients presenting with symptoms of radiculopathy. Three of these guidelines (Schaafstra et al., 2015 ; Sundhedsstyrelsen, 2015 ; 2016b ) are specifically developed for the management of radiculopathy in general practice or primary care. The two other guidelines were designed for healthcare professionals responsible for the management of acute lumbar (Glocker et al., 2018 ) or cervical (Pohl et al., 2018 ) radiculopathy in any ambulant, outpatient or secondary care setting. Conversely, three CPGs (18%) explicitly exclude radiculopathy.\n\nRESULTS > Guideline characteristics\nTable 1 Characteristics of included clinical practice guidelines Characteristic n Reference Country Belgium 1 van Wambeke et al., 2017 Denmark 4 Sundhedsstyrelsen, 2015 , 2016a , 2016b , 2016c France 1 SFMT, 2013 Germany 3 BÄK et al., 2017 ; Glocker et al., 2018 ; Pohl et al., 2018 Italy 2 Monticone et al., 2013 ; Regione Toscana, 2015 The Netherlands 4 Schaafstra et al., 2015 ; Bier et al., 2016 ; Bons et al., 2017 ; Staal et al., 2017 Poland 1 Kassolik et al., 2017 UK 1 NICE, 2016 Pain site Neck 5 Monticone et al., 2013 ; Sundhedsstyrelsen, 2015 ; Bier et al., 2016 ; Sundhedsstyrelsen, 2016c ; Pohl et al., 2018 Low back 11 SFMT, 2013 ; Regione Toscana, 2015 ; Schaafstra et al., 2015 ; NICE, 2016 ; Sundhedsstyrelsen, 2016a , 2016b ; BÄK et al., 2017 ; Bons et al., 2017 ; Staal et al., 2017 ; van Wambeke et al., 2017 ; Glocker et al., 2018 Neck & low back 1 Kassolik et al., 2017 Specifically excludes radiculopathy Neck 1 Sundhedsstyrelsen, 2016c Low back 3 Sundhedsstyrelsen, 2016a ; BÄK, et al., 2017 ; Bons et al., 2017 Radiculopathy only focus Neck 2 Sundhedsstyrelsen, 2015 ; Pohl et al., 2018 Low back 3 Schaafstra et al., 2015 ; Sundhedsstyrelsen, 2016b ; Glocker et al., 2018 Multidisciplinary group or single profession Multidisciplinary 14 SFMT, 2013 ; Regione Toscana, 2015 ; Schaafstra et al., 2015 ; Sundhedsstyrelsen, 2015 ; NICE, 2016 ; Sundhedsstyrelsen, 2016a , 2016b , 2016c ; BÄK et al., 2017 ; Bons et al., 2017 ; Kassolik et al., 2017 ; van Wambeke et al., 2017 ; Glocker et al., 2018 ; Pohl et al., 2018 Single 2 Bier et al., 2016 ; Staal et al., 2017 Not reported 1 Monticone et al., 2013 Formal grading of evidence and/or recommendation Yes 13 Monticone et al., 2013 ; SFMT, 2013 ; Regione Toscana, 2015 ; Sundhedsstyrelsen, 2015 , Bier et al., 2016 ; NICE, 2016 ; Sundhedsstyrelsen, 2016a , 2016b , 2016c ; BÄK et al., 2017 ; Kassolik et al., 2017 ; Staal et al., 2017 ; van Wambeke et al., 2017 ; Pohl et al., 2018 No 3 Schaafstra et al., 2015 ; Bons et al., 2017 ; Glocker et al., 2018 Not reported 1 Kassolik et al., 2017 Details of consensus process given Yes 8 SFMT, 2013 ; Schaafstra et al., 2015 ; NICE, 2016 ; BÄK et al., 2017 ; Bons et al., 2017 ; Glocker et al., 2018 ; Pohl et al., 2018 ; van Wambeke et al., 2017 No 9 Monticone et al., 2013 ; Regione Toscana, 2015 ; Sundhedsstyrelsen, 2015 ; Bier et al., 2016 ; Sundhedsstyrelsen, 2016a , 2016b , 2016c ; Kassolik et al., 2017 ; Staal et al., 2017 Includes recommendations regarding Future revision 10 Sundhedsstyrelsen, 2015 ; NICE, 2016 ; Sundhedsstyrelsen, 2016a , 2016b , 2016c ; BÄK, et al., 2017 ; Staal et al., 2017 ; van Wambeke et al., 2017 ; Glocker et al., 2018 ; Pohl et al., 2018 Evaluation of red flags 12 Monticone et al., 2013 ; SFMT, 2013 ; Regione Toscana, 2015 ; Schaafstra et al., 2015 ; Bier et al., 2016 ; NICE, 2016 ; BÄK et al., 2017 ; Staal et al., 2017 ; van Wambeke et al., 2017 ; Bons et al., 2017 ; Glocker et al., 2018 ; Pohl et al., 2018 Evaluation of yellow flags 10 SFMT, 2013 ; Regione Toscana, 2015 ; Bier et al., 2016 ; NICE, 2016 ; BÄK et al., 2017 ; Bons et al., 2017 ; Staal et al., 2017 ; van Wambeke et al., 2017 ; Pohl et al., 2018 ; Glocker et al., 2018 Evaluation of blue/black flags 7 SFMT, 2013 ; Regione Toscana, 2015 ; Bier et al., 2016 ; BÄK, et al., 2017 ; Bons et al., 2017 ; Staal et al., 2017 ; van Wambeke et al., 2017 Diagnosis 12 Monticone et al., 2013 ; SFMT, 2013 ; Regione Toscana, 2015 ; Schaafstra et al., 2015 ; Bier et al., 2016 ; NICE, 2016 ; BÄK et al., 2017 ; Bons et al., 2017 ; Kassolik et al., 2017 ; Staal et al., 2017 ; Pohl et al., 2018 ; Glocker et al., 2018 Planning of care 14 Monticone et al., 2013 ; Bier et al., 2016 ; Pohl et al., 2018 ; Sundhedsstyrelsen, 2015 , 2016a , 2016b , 2016c ; BÄK et al., 2017 ; Bons et al., 2017 ; NICE, 2016 ; Regione Toscana, 2015 ; Schaafstra et al., 2015 ; Staal et al., 2017 ; van Wambeke et al., 2017 , a Practitioner education 8 Sundhedsstyrelsen, 2015 ; Regione Toscana, 2015 ; Sundhedsstyrelsen, 2016a , 2016b , 2016c ; NICE, 2016 ; van Wambeke et al., 2017 , a ; Pohl et al., 2018 Organization & policy 5 SFMT, 2013 ; Regione Toscana, 2015 ; BÄK et al., 2017 ; Bons et al., 2017 ; van Wambeke et al., 2017 , a a subsequent clinical pathway developed that addressed this issue (Jonckheer et al., 2017 ) John Wiley & Sons, Ltd\n\nRESULTS > Quality appraisal\nTable 2 Quality appraisal of guidelines: AGREE II domain scores (%) and quality assessment. Cells in green indicate domain attained ‘high’ rating. Guideline Domain 1. Scope and Purpose Domain 2. Stakeholder Involvement Domain 3. Rigour of Development Domain 4. Clarity of Presentation Domain 5. Applicability Domain 6. Editorial In‐dependence Overall quality of guideline Guideline recommended for use Quality (high/low) Neck pain only Bier et al., 2016 72% 94% 52% 67% 38% 50% 67% Yes Low Monticone et al., 2013 50% 33% 38% 100% 0% 50% 33% Yes, with modifications a Low Pohl et al., 2018 61% 72% 54% 89% 17% 92% 50% No Low Sundhedsstyrelsen, 2015 78% 67% 71% 72% 58% 83% 67% Yes, with modifications a High Sundhedsstyrelsen, 2016c 89% 72% 75% 67% 63% 83% 83% Yes High Back pain only BÄK et al., 2017 89% 89% 77% 94% 79% 75% 83% Yes High Bons et al., 2017 72% 78% 81% 61% 29% 83% 83% Yes Low Glocker et al., 2018 72% 44% 44% 56% 21% 100% 33% No Low NICE, 2016 100% 78% 79% 94% 79% 58% 83% Yes High Regione Toscana, 2015 83% 78% 48% 100% 25% 17% 50% Yes, with modifications a Low Schaafstra et al., 2015 72% 78% 65% 50% 29% 83% 50% Yes with modifications a Low SFMT, 2013 89% 72% 65% 100% 13% 100% 83% Yes Low Staal B. et al., 2017 83% 83% 77% 94% 33% 42% 67% Yes with modifications a Low Sundhedsstyrelsen, 2016a 78% 67% 71% 61% 63% 83% 67% Yes, with modifications a High Sundhedsstyrelsen, 2016b 89% 72% 79% 72% 63% 83% 83% Yes High van Wambeke et al., 2017 100% 83% 92% 94% 71% 100% 100% Yes High Neck and back pain Kassolik et al., 2017 39% 22% 4% 44% 8% 42% 33% No Low a AGREE II user manual provides no guidance on what this actually means and so is open to different interpretations by the different reviewers. But, broadly this was taken to mean a guideline was close to being recommended for use, but just need a little more detail in one or two areas. John Wiley & Sons, Ltd\n\nRESULTS > Consistency of CPG recommendations for neck pain\nSix guidelines provided treatment recommendations for neck pain (Bier et al., 2016 ; Kassolik et al., 2017 ; Monticone et al., 2013 ; Pohl et al., 2018 ; Sundhedsstyrelsen, 2015 ; 2016c ). Appendix S5 details the specific treatment options or intervention modalities identified in each guideline together with the direction and strength of each recommendation. In total, recommendations were provided that covered a wide range of treatment options: reassurance; advice and education; medication; injection/infiltration; acupuncture; thermotherapy; manual therapy; exercise therapy; postural therapy; traction; electrotherapy; orthotics; ergonomic interventions; taping/strapping; psychological interventions; multidisciplinary treatments; referral for imaging and referral for specialist opinion; plus a disparate group of interventions that were labelled ‘miscellaneous’.\n\nRESULTS > Consistency of CPG recommendations for neck pain\nTable 3 Consistency of recommendations across guidelines for neck pain (see Appendix S5 for individual guidelines). Symbol – classification: // ‐ should do; / ‐ could do; /* ‐ for (generic); O [O+/O‐] – Open [expert opinion in favour/against]; X* ‐ against (generic); X – should not do; XX – definitely do not do (see Supporting Information Appendix S2 for further detail). Intervention No. guidelines (countries) Recommendations by guideline quality Overall strength of recommendation Comments HIGH quality LOW quality FOR Reassurance 3(3) 1x O+ 1x / ; 1x /* Weak FOR Advice and Education 5(5) 1x O+ For: 1x // ; 1x /; 1x /* Against: 1x X Weak FOR Remain active (advice) 2(2) 1x O+ 1x / Weak FOR Encourage exercise (advice) 3(3) 1x O+ 1x / ; 1x /* Weak FOR Analgesics incl. for neuropathic pain 2(2) 1x // ; 1x /* Weak FOR Paracetamol 2(2) 1x O+ 1x / Weak FOR NSAIDs 4(3) 2x O+ 1x / ; 1x /* Weak FOR Short‐term use Opioids including tramadol 2(1) 2x O+ Weak FOR Short‐term use Topical medications incl. NSAIDs 2(2) 1x / 1x /* Moderate FOR Manual therapy + other treatment 3(3) 1x / 1x // & / ; 1x / & O+ Moderate FOR Exercise programs/therapy 5(5) 1x / & O+ 2x // ; 1x / ; 1x /* Moderate FOR Exercise therapy + other treatment 2(2) 1x / 1x // Moderate FOR Psychological therapies 3(3) 1x / ; 1x /* ; 1x O+ Weak FOR SPECIFIC SUBGROUPS For specific cases: mood problems, psychosocial risks, or complex, persistent pain problems Multidisciplinary treatment 2(2) 2x / Weak FOR SPECIFIC SUBGROUPS For those with more complex or persistent pain MIXED i.e. inconsistent or inconclusive Thermotherapy 2(2) For: 1x /* Against: 1x X* Inconclusive Manual therapies 5(4) Mixed: 1x / & O‐ Against: 1x X For: 2x // ; 1x /* Inconsistent Traction 3(3) For: 1x / Mixed: 1x O+ & X* Against: 1x X Inconclusive For specific cases: radiculopathy (Sundhedsstyrelsen, 2015), Grade III, profile D (Bier et al., 2016) Electrotherapies 4(4) Mixed: 1x / & O+ & X ; 1 x /* & X* Against: 1x XX ; 1x X* Inconclusive Cervical orthoses 4(4) For: 1x /* Mixed: 1x O+ & X* Against: 2x O‐ Inconclusive For specific cases: Grade III, profile D (Bier et al., 2016), or short‐term in cases of severe pain (Pohl et al., 2018) Acupuncture/dry needling 4(3) For: 1x / Against: 1x O‐ For: 1x // Against: 1x X* Inconsistent Imaging 2(2) For: 1x // Against 1x X* Inconclusive Single guideline recommendation ‐ in favour of: O+, /*, / or // Avoid movement that provokes radiating pain or other symptoms in the arm (advice) Electrotherapies + active treatment Encourage patient to contact GP, psychologist or psychosomatic therapist Psychosocial aspects that delay recovery (advice) Kinesiology tape Workplace interventions Continue/return to work (advice) Cervical cushion/pillow Referral to GP and/or occupational health officer Work‐related/occupational advice Bioptron lamps Referral to GP or referring specialist Thermotherapy + other treatment Ledotherapy lamps Referral to physical therapist specialized in worker rehabilitation Steroids Infra‐red lamps Referral to occupational health and safety service Spinal epidural steroid injection (transforaminal route with imaging) Bath salts with mud extracts, special water‐pearling inserts or ozone Referral to occupational health officer or a physical therapist specialised in worker rehabilitation Postural re‐education Magnetic mattress Referral to surgeon/surgery Single guideline recommendation ‐ against: O‐, X*, X or XX Bed rest (advice) [1‐2 days, selected cases only] Written information (advice) John Wiley & Sons, Ltd\n\nRESULTS > Consistency of CPG recommendations for neck pain\nRecommendations were inconsistent or inconclusive regarding manual therapies (delivered without additional active treatment); traction; electrotherapies; thermotherapies; cervical orthoses; acupuncture/dry needling and referral for imaging.\n\nRESULTS > Consistency of CPG recommendations for low back pain\nTwelve guidelines provided treatment recommendations for back pain (Bons et al., 2017 ; BÄK et al., 2017 ; Glocker et al., 2018 ; Kassolik et al., 2017 ; NICE, 2016 ; Regione Toscana, 2015 ; Schaafstra et al., 2015 ; SFMT, 2013 ; Staal et al., 2017 ; Sundhedsstyrelsen, 2016a , 2016b ; van Wambeke et al., 2017 ). Details regarding the specific treatment options or intervention modalities identified from each guideline can be found in Appendix S6 , along with the direction and strength of each recommendation. Similar to guidelines for neck pain, recommendations were provided that covered a wide range of treatment and referral options. For many of these treatment options, the body of evidence underpinning recommendations was larger compared to neck pain, although often still inconsistent or of low quality.\n\nRESULTS > Consistency of CPG recommendations for low back pain\nTable 4 Consistency of recommendations across guidelines for low back pain (see Appendix S6 for individual guidelines). Symbol – classification: // ‐ should do; / ‐ could do; /* ‐ for (generic); O [O+/O‐] – Open [expert opinion in favour/against]; X* ‐ against (generic); X – should not do; XX – definitely do not do (see Supporting Information Appendix S2 for further detail) Intervention No. guidelines (countries) Recommendations by guideline quality Overall strength of recommendation Comments HIGH quality LOW quality FOR Reassurance 4(4) 1x O+ 1x // ; 2x /* Weak FOR Advice and Education (including individualised) 10(8) 1x // ; 1x / ; 2x O+ For : 1x // ; 4x /* Mixed : 1x O+ & O Strong FOR Remain active 9(6) 1x // & O+; 2x / ; 2x O+ 1x // & O+; 3x /* Strong FOR Encourage physical exercise (unsupervised) 7(6) 2x O+ 1x // ; 1x // & O+ ; 3x /* Weak FOR Continue/return to work 2(2) 1x // & O+ ; 1x /* Weak FOR Manual therapy in combination with other treatment 4(3) 2x / ; 1x O+ 1x /* Moderate FOR Exercise programs/therapy 9(6) For : 3x / Mixed : 1x // & O For: 4x /* Against: 1x XX Strong FOR Group exercise programmes/back schools 3(3) 1x / ; 1x / & O+ 1x /* Moderate FOR Psychological therapies including behavioural and CBT 4(3) 1x // 3x /* Strong FOR SPECIFIC SUBGROUPS For specific cases: mood problems, psychosocial risks, or complex, persistent pain problems Psychological therapies in combination with other treatment (exercise) 2(2) 2x / Moderate FOR Multidisciplinary treatment including MBR programs, and multidisciplinary rehabilitation involving work focus 7(5) 1x // ; 2x / For : 2x /* ; 1x O+ Mixed: 1x / & O Strong FOR SPECIFIC SUBGROUPS For specific cases: subacute and chronic LBP with patient strongly motivated to resolve and/or psychosocial obstacles to recovery. Work‐based interventions including rehabilitation programmes 3(3) 1x / 1x // ; 1x // & / Moderate FOR Return to work programmes 3(3) 1x // ; 2x O+ Strong FOR To surgeon/surgery 8(6) For : 1x // ; 1x /; 1x O+ Against: 1x XX For : 2x /* Against : 1x X* Mixed: 1x O+ & O Strong FOR SPECIFIC SUBGROUPS For specific cases: failure of non‐surgical treatment, moderate/severe persistent pain; specific indications e.g. cauda equine, severe neurological symptoms etc. AGAINST Bed rest 6(4) 1x XX 1x XX ; 4x X* Strong AGAINST WITH EXCEPTIONS Except: for a few days in severe/acute cases Paracetamol 8(6) Against: 3x X, 1x X* For: 1x // & O+ & O ; 3x /* Moderate AGAINST Antidepressants including SSRIs, SNRIs, Tricyclics 6(5) Against: 1x X* ; 1x XX & X Mixed: 1x O+ & X Against: 1x X* Mixed: 1x /* & X* Open: 1x O Strong AGAINST WITH EXCEPTIONS For specific cases: comorbid depression (BÄK et al., 2017, high quality) or chronic pain [tricyclics only] (Glocker et al., 2018, low quality) Anticonvulsants/Antiepileptics including gabapentin, pregablin, carbamazepine, topiramat 5(5) Against: 1x XX ; 1x X ; 1x X* Against: 1x X* Mixed: 1x XX & O‐ & O Strong AGAINST Muscle relaxants including diazepines/benzodiazepines 5(4) Against : 1x XX Mixed: 1x XX & X & O+ Against : 2x X* Mixed: 1x // & O Strong AGAINST WITH EXCEPTIONS For specific cases: non‐specific LBP where non‐drug and non‐opioid treatments ineffective (BÄK et al., 2017, high quality); 2 nd line medication for acute non‐specific LBP (Regione Toscana, 2015, Low quality) Spinal injections [for non‐specific LBP] 6(5) Against: 1x XX; 1x X* 2x X* , 2x O Strong AGAINST Traction 6(6) Against: 2x XX ; 1x X* For: 1x /* Against: 1x O‐ Open : 1x O Strong AGAINST Electrotherapy including laser therapies, TENS, PENS, shortwave diathermy, US, ultra‐shortwave, inferential, magnetic field, electromagnetic, light therapy, shockwave, electrostimulation 6(6) Against: 2x XX ; 1x X* Against: 1x O‐ Mixed: 1x /* & X*; 1x XX & O‐ & O Strong AGAINST Orthoses including belts, corsets, foot orthotics, insoles, rocker shoes, pull‐ups, walking stick, elbow crutches and bands 6(6) Against: 2x XX ; 1x X* For: 1x /* Against: 1x X Mixed: 1x XX & O‐ & O Strong AGAINST Imaging 9(6) Against : 3x X Mixed : 1x XX & // Against : 1x XX ; 4x X* Strong AGAINST WITH EXCEPTIONS Except: in cases of red flags MIXED NSAIDs 9(7) For: 2x / ; 1x / & O+ Against: 1x X For: 4x /* ; 1x // & O Inconsistent Opioids (including tramadol) +/‐ paracetamol (or NSAIDs) 8(6) Mixed: 1x // & X ; 1x O+ & X ; 1x / & X* Against: 1x X For: 3x /* Mixed: 1x // & O+ & O Inconsistent Generally, ‘Against’ for chronic LBP (unless severe limitations) and ‘For’ where other analgesics ineffective, contraindicated, or not tolerated. Topical medications/NSAIDS 3(3) Against : 1 x XX For: 2x /* Inconclusive Spinal epidural steroid injection 5(5) For: 1x / Mixed : 1x / & X* Against : 1x X For: 1x /* Mixed : 1x O+ & O Inconsistent Other injections including intravenous, intramuscular, infiltration of trigger points and ligaments, intradiscal infiltration, prolotherapy, Botulium toxin 2(2) 1x XX 1x O Inconclusive Thermotherapy including local heat, hot/cold compresses, baths, sauna 5(4) Mixed: 1x O+ & X For: 2x /* Open: 1x O Mixed : 1x // & O Inconsistent Manual therapy including mobilisation, manipulation and soft‐tissue techniques 8(6) For: 2x / Mixed: 1x XX & O For: 1x /* Against: 2x X* Mixed: 1x XX & O ; 1x ( XX & O‐ & O ) & ( // & O ) Inconsistent Postural therapies e.g. Alexander therapy, postural re‐education 3(3) Open: 2x O For: 1x /* Inconclusive Acupuncture 5(4) For : 1x O+ Against : 1x X ; 1x X* ; 1x O‐ Open: 1x O Inconsistent Single guideline recommendation FOR AGAINST Analgesics (general) Antibiotics Metamizol Flurpirtin Collaborate with company doctor, company physical therapist or occupation health and safety service Uridine monophosphate (UMP) CAM (general ie acupuncture and TCM, phytotherapy, homeopathy, manual therapies) Kinesiotaping Referral to family doctor Shock‐absorbing or anti‐fatigue flooring Referral to manual therapist MIXED Referral to family doctor, company doctor and/or psychologist Steroids Referral for specialist assessment Progressive muscle relaxation Bioptron lamps (SC) Phytotherapeutics Ledotherapy lamps (SC) Topical phytotherapeutics Infra‐red raditation (SC) OPEN Bath salts with mud extracts or special water‐pearling inserts or even ozone (SC) Spa treatments Magnetic mattress (SC) Ozone therapy Medullary stimulations 'Taking it slowly/easy' John Wiley & Sons, Ltd\n\nRESULTS > Consistency of CPG recommendations for low back pain\nPsychological therapies are mainly recommended for subgroups of patients with increased psychosocial risks, mood problems, or more complex, persistent back pain; whereas referral for surgery is only supported for cases with signs of specific pathology.\n\nRESULTS > Consistency of CPG recommendations for low back pain\nOverall, guidelines recommended strongly against the use of more than a couple of days bedrest for patients with low back pain. Referral for imaging is only supported for those with red flags, such as increased risk of fracture, infection, (metastatic) cancer, neurological emergencies including cauda equina syndrome, aortic aneurysm or systemic inflammatory arthritis (detailed in Appendix S7 ), or deterioration of symptoms. And although mixed, moderate to strong recommendations were also given against the use of paracetamol, anti‐depressants, anticonvulsants and muscle relaxants; spinal injections for non‐specific LBP; traction; orthoses and a range of applications (e.g. electrotherapies, shortwave, laser).\n\nRESULTS > Consistency of CPG recommendations for low back pain\nRecommendations were inconsistent or inconclusive with respect to medication (NSAIDs, opioids; topical); epidural steroid and other injections; acupuncture and manual, postural and thermotherapies.\n\nRESULTS > Comparison of CPG recommendations for neck and low back pain\nIn order to examine the consistency of CPG recommendations across neck and low back pain, overall strengths of recommendation for each identified intervention (see Tables 3 & 4 ), were assessed (Table 5 ). Despite a larger body of evidence for the effectiveness of treatment for back pain and a larger number of back pain guidelines, recommendations were generally consistent for neck and back pain (Table 5 ), in particular regarding support for the use of advice and education, reassurance, certain oral and topical pharmacologic treatments (with the exception of paracetamol), exercise interventions, manual therapy when combined with active treatment and psychological interventions. Guidance was also consistent in terms of the limited use of imaging (only for patients with red flags or where imaging is likely to change management), and recommendations against the use of bed rest, orthoses, traction and a range of modalities (laser therapy, electrotherapy, shortwave).\n\nRESULTS > Comparison of CPG recommendations for neck and low back pain\nTable 5 Consistency of recommendations across low back pain vs neck pain guidelines Intervention Low Back Pain Neck Pain No. guidelines (countries) Overall strength of recommendation No. guidelines (countries) Overall strength of recommendation Reassurance (advice) 4(4) Weak FOR 3(3) Weak FOR Advice and Education (advice) 10(8) Strong FOR 5(5) Weak FOR Remain active (advice) 9(6) Strong FOR 2(2) Weak FOR Encourage physical exercise (advice) 7(6) Weak FOR 3(3) Weak FOR Continue/return to work (advice) 2(2) Weak FOR 1(1) (For) Bed rest (advice) 6(4) Strong AGAINST WITH EXCEPTIONS 1(1) (Against) Analgesics incl. for neuropathic pain 1(1) (For) 2(2) Weak FOR Paracetamol 8(6) Moderate AGAINST 2(2) Weak FOR NSAIDs 9(7) Inconsistent 4(3) Weak FOR Opioids (including tramadol) +/‐ paracetamol (or NSAIDs) 8(6) Inconsistent 2(1) Weak FOR Antidepressants 6(5) Strong AGAINST WITH EXCEPTIONS Anticonvulsants/Antiepileptics 5(5) Strong AGAINST Muscle relaxants 5(4) Strong AGAINST WITH EXCEPTIONS Topical medications incl. NSAIDS 3(3) Inconclusive 2(2) Moderate FOR Spinal injections [for non‐specific LBP] 6(5) Strong AGAINST Spinal epidural steroid injection 5(5) Inconsistent 1(1) (For) Other injections 2(2) Inconclusive Thermotherapy 5(4) Inconsistent 2(2) Inconclusive Manual therapy 8(6) Inconsistent 5(4) Inconsistent Manual therapy combined with other treatment 4(3) Moderate FOR 3(3) Moderate FOR Exercise programs/therapy 9(6) Strong FOR 5(5) Moderate FOR Exercise therapy combined with other treatment 2(2) Moderate FOR Group exercise programmes/back schools 3(3) Moderate FOR Postural therapies 3(3) Inconclusive Traction 6(6) Strong AGAINST 3(3) Inconclusive Electrotherapy 6(6) Strong AGAINST 4(4) Inconclusive Orthoses 6(6) Strong AGAINST 4(4) Inconclusive Acupuncture 5(4) Inconsistent 4(3) Inconsistent Psychological therapies 4(3) Strong FOR SPECIFIC SUBGROUPS 3(3) Weak FOR SPECIFIC SUBGROUPS Psychological therapies combined with other treatment 2(2) Moderate FOR Multidisciplinary treatment 7(5) Strong FOR SPECIFIC SUBGROUPS 2(2) Weak FOR SPECIFIC SUBGROUPS Work‐based interventions 3(3) Moderate FOR Return to work programmes 3(3) Strong FOR Imaging 9(6) Strong AGAINST WITH EXCEPTIONS 2(2) Inconclusive To surgeon/surgery 8(6) Strong FOR SPECIFIC SUBGROUPS Appendix S1 Appendix S2 Appendix S3 Appendix S4 Appendix S5 Appendix S6 Appendix S7 John Wiley & Sons, Ltd\n\nRESULTS > Comparison of CPG recommendations for neck and low back pain\nReferral for imaging or surgical intervention, bed rest, antidepressant and muscle relaxant medications, psychological or multidisciplinary interventions are recommended for specific subgroups of patients (FOR ‘SPECIFIC SUBGROUPS’ or AGAINST ‘WITH EXCEPTIONS’ in Table 5 ).\n\nDISCUSSION\nFor neck pain , high‐quality guidelines consistently recommended the following evidence‐based treatment options: reassurance, advice and education (including to remain active and exercise), manual therapy in combination with other treatment, referral for exercise therapy/programme and a range of oral analgesics and topical medications, plus psychological therapies or multidisciplinary treatment for specific subgroups of patients. There was no strong evidence for use across Europe (as shown in Table 3 ). In contrast to the recommendations for low back pain, the neck pain guidelines included the use of painkillers such as paracetamol, NSAIDs (for acute pain only), opioids (for acute pain only) and neuropathic pain medication. However, these were only based on weak evidence (meaning the recommendations were based on expert opinion only from high‐quality guidelines, and/or multiple low‐quality guidelines) and it should be noted that these medications are no longer consistently recommended for low back pain within the recent European guidelines. In fact, for low back pain the guidelines recommended entirely non‐pharmacological treatments, additionally including work‐based interventions, advice/programmes to return to work and surgical intervention for specific subgroups. These recommendations were based on stronger evidence than those for neck pain.\n\nDISCUSSION\nIn relation to previous literature, the findings of this review summarising the consensus from European guidelines, are consistent with recommendations in The Lancet back pain series (Foster et al., 2018 ) which advocated for greater use of non‐pharmacological options for patients with back pain. The treatment options identified in this study are also broadly similar and consistent with two recent systematic reviews of clinical practice guidelines for musculoskeletal pain (Lin et al., 2020 ) and back pain (Oliveira et al., 2018 ) which identified similar key management recommendations (patient information, physical activity advice, return to work interventions, exercise interventions), although Oliveira et al., additionally identified antidepressants (for chronic LBP), NSAIDs and weak opioids for short periods of time (for acute LBP) to be frequently recommended across guidelines.",
+        "body_excerpts_sha256": "91c633d7c05094cb6486ffe9212098df3a624967815d0be6269c84d281afe90f",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC7839780/fullTextXML",
+        "body_license_url": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "38157883",
+        "title": "Treating myofascial pain with dry needling: a systematic review for the best evidence-based practices in low back pain.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38157883/",
+        "abstract": "Myofascial pain syndrome (MPS) is a common source of pain in primary care or pain clinics. There are many different ways to manage and treat MPS, such as physical exercise, trigger points massage, and dry needling.\nThe objective of this overview is to highlight and discuss the evidence-based treatment of myofascial pain by dry needling in patients with low back pain.\nA systematic review was made based on meta-analysis (MA) and randomized controlled trials (RCTs) related to dry needling treatment for myofascial pain in patients with lumbar pain, published from 2000 to 2023.\nA total of 509 records were identified at first. Seventy were published before 2000, so they were excluded. From the remaining 439 studies, ninety-two were RCTs or MA, of which 86 additional studies were excluded for the following reasons: not related to dry needling treatment (n = 79), not published in English (n = 4), duplicated (n = 1), project protocol (n = 1), and not related to myofascial pain (n = 1). So, this review was based on 4 RCTs and two MA. These studies compared dry needling efficacy to other treatments, such as acupuncture, sham dry needling, laser therapy, physical therapy, local anesthetic injection, ischemic compression, and neuroscience education. Despite outcomes and follow-up period varied between them, they showed that dry needling can decrease post-intervention pain intensity and pain disability.\nDry needling is an effective procedure for the treatment of myofascial pain in patients with acute and chronic low back pain. Further high-quality studies are needed to clarify the long-term outcomes.",
+        "sha256": "4eeff185a7dad515c47eb7b438667de10eb8767cb23b0a8bf4b84d1d809b2e42",
+        "retrieved_at": "2026-09-18T23:32:47.063841+00:00",
+        "pmcid": "PMC10756779"
+      },
+      {
+        "id": "35067217",
+        "title": "Treatment-based classification for low back pain: systematic review with meta-analysis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35067217/",
+        "abstract": "To systematically review the effects of treatment-based classification (TBC) in patients with specific and nonspecific acute, subacute and chronic low back pain.\nThe following databases were searched: MEDLINE, EMBASE, PsycINFO, Global Health, CENTRAL, Web of Science, CINAHL, SPORTDiscus, PEDro and WHO from inception up to December 2021. We used the PEDro scale, the TIDieR checklist and the GRADE approach to evaluate the risk of bias, quality on reporting and the certainty of the evidence, respectively.\nTwenty-three trials (pooled n = 2,649) met the inclusion criteria. We have identified a total of 22 comparisons and 134 estimates of treatment effects. There was a very large heterogeneity with regards to the comparison groups. Most of individual trials had low risk of bias with a mean score of 6.8 (SD = 1.3) on a 0-10 scale. The certainty of evidence for most comparisons was low, which indicates that more high quality and robust trials are needed. We were able to pool the data using a meta-analysis approach for only two comparisons (TBC versus mobility exercises in patients with acute low back pain and traction for patients with sciatica). In general, the TBC approach seems to be useful for patients with acute low back pain, sciatica and with spinal stenosis. We strongly suggest readers to carefully read our summary of findings table for further details on each comparison.\nThe TBC approach seems to be useful for patients with acute low back pain, sciatica and with spinal stenosis.",
+        "sha256": "24fa47afe5722be374b3f2a005ec85a253a352957c8f849523020fbc35c2e866",
+        "retrieved_at": "2026-09-18T23:32:47.063841+00:00",
+        "pmcid": "PMC9344960"
+      },
+      {
+        "id": "37632387",
+        "title": "Effectiveness of Pilates exercise on low back pain: a systematic review with meta-analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37632387/",
+        "abstract": "Low back pain is the most frequently reported musculoskeletal disorder and represents one of the highest patient burdens in healthcare. This systematic review and meta-analysis aimed to investigate the effectiveness of Pilates exercise on pain intensity and functional disability caused by low back pain (LBP).\nA Systematic review with meta-analysis was conducted. Data sources: MEDLINE-NLM and MEDLINE-EBSCO. We also searched on Scopus Elsevier, Cochrane, DOAJ, SciELO, PEDro, and PLOS ONE databases. Eligibility criteria: randomized controlled trials (RCTs) evaluating LBP in which the primary treatment was based on Pilates exercise compared with no exercise, or non-specific exercise.\nThe search returned 1566 records of which 36 articles were included in the systematic review and 19 in the meta-analysis. Twenty-two studies compared the effects of Pilates exercise vs no exercise and 13 studies examined the effects of Pilates exercise vs non-specific exercise. Analysis showed that Pilates had a positive effect on the perception of LBP vs no exercise. A similar trend occurred with non-specific exercise.\nPilates exercise can decrease LBP compared to no exercise and non-specific exercise. General practitioners should consider Pilates exercise as an effective strategy to manage LBP and counteract the growing health.\nPROSPERO registration number: CRD42022308387.IMPLICATIONS FOR REHABILITATIONPilates is a good strategy for improving low back pain and is more effective than other exercise programs or no exercise.Pilates is a safe tool to apply to most of the population with low back pain.Pilates is a non-pharmacological strategy useful for counteracting low back pain.",
+        "sha256": "b4dc1c94f2ba4549a90ca9e60e0209d1ec268298167af5c9c5d12fe8b36cbcfe",
+        "retrieved_at": "2026-09-18T23:32:47.661083+00:00"
+      },
+      {
+        "id": "33355180",
+        "title": "Treating low back pain in athletes: a systematic review with meta-analysis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33355180/",
+        "abstract": "To summarise the evidence for non-pharmacological management of low back pain (LBP) in athletes, a common problem in sport that can negatively impact performance and contribute to early retirement.\nFive databases (EMBASE, Medline, CINAHL, Web of Science, Scopus) were searched from inception to September 2020. The main outcomes of interest were pain, disability and return to sport (RTS).\nAmong 1629 references, 14 randomised controlled trials (RCTs) involving 541 athletes were included. The trials had biases across multiple domains including performance, attrition and reporting. Treatments included exercise, biomechanical modifications and manual therapy. There were no trials evaluating the efficacy of surgery or injections. Exercise was the most frequently investigated treatment; no RTS data were reported for any exercise intervention. There was a reduction in pain and disability reported after all treatments.\nWhile several treatments for LBP in athletes improved pain and function, it was unclear what the most effective treatments were, and for whom. Exercise approaches generally reduced pain and improved function in athletes with LBP, but the effect on RTS is unknown. No conclusions regarding the value of manual therapy (massage, spinal manipulation) or biomechanical modifications alone could be drawn because of insufficient evidence. High-quality RCTs are urgently needed to determine the effect of commonly used interventions in treating LBP in athletes.",
+        "sha256": "c9f82f9d3c92c48f0e213795a84cc30794986949cfe1ea8538b74bc63335cfd4",
+        "retrieved_at": "2026-09-18T23:32:47.661083+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "This is a classic acute nonspecific low back pain presentation: 4 days of mechanical, activity-related central low back pain after lifting, without any red flags (no fever, no unexplained weight loss, no cancer history, no injection drug use, no immunosuppression, no prolonged corticosteroid use, no known osteoporosis, no significant trauma) and without neurologic deficits (no leg weakness, no saddle anesthesia, no urinary/bowel dysfunction, symmetric strength/sensation, preserved reflexes, steady gait, no vertebral percussion tenderness, no pulsatile abdominal mass). The retrieved European guideline systematic review (PMID 33064878) shows a 'Strong AGAINST WITH EXCEPTIONS' recommendation for imaging in low back pain, with referral for imaging supported only for patients with red flags or when it would change management, and a 'Strong AGAINST WITH EXCEPTIONS' recommendation for bed rest, alongside 'Strong FOR' recommendations for reassurance, advice/education, and remaining active. Option A aligns directly with these consensus recommendations: defer imaging, reassure and educate, encourage activity as tolerated, and reassess if red flags or deterioration emerge. Option B is contraindicated by the evidence: it orders immediate MRI absent any red flags (imaging is not indicated for localized tenderness or reduced flexion alone) and prescribes bed rest, which is strongly recommended against. Immediate MRI in this setting risks incidental findings, over-medicalization, and unnecessary downstream intervention.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33064878"
+              ],
+              "source_passage_ids": [
+                "33064878:p33",
+                "33064878:p37",
+                "33064878:p39"
+              ],
+              "reason": "The supplied body excerpts state imaging for LBP is a strong recommendation AGAINST with exceptions only for red flags, and that referral for imaging is only supported for those with red flags or deterioration.",
+              "source_quotes": [
+                {
+                  "source_id": "33064878",
+                  "quote": ": 1x XX ; 4x X* Strong AGAINST WITH EXCEPTIONS Except: in cases of red flags MIXED NSAIDs 9(7) For: 2x / ; 1x / & O+ Against: 1x X For: 4x /* ; 1x // & O Inconsistent Opioids (including tramadol) +/‐ paracetamol (or NSAIDs) 8(6) Mixed: 1x // & X ; 1x O+ & X ; 1x / & X* Against: 1x X For: 3x /* Mixed: 1x // & O+ & O Inconsistent Generally, ‘Against’ for chronic LBP (unless severe limitations) and ‘For’ where other analgesics ineffective, contraindicated, or not tolerated."
+                },
+                {
+                  "source_id": "33064878",
+                  "quote": "Referral for imaging is only supported for those with red flags, such as increased risk of fracture, infection, (metastatic) cancer, neurological emergencies including cauda equina syndrome, aortic aneurysm or systemic inflammatory arthritis (detailed in Appendix S7 ), or deterioration of symptoms. And although mixed, moderate to strong recommendations were also given against the use of paracetamol, anti‐depressants, anticonvulsants and muscle relaxants; spinal injections for non‐specific LBP; traction; orthoses and a range of applications (e.g. electrotherapies, shortwave, laser). RESULTS > Consistency of CPG recommendations for low back pain Recommendations were inconsistent or inconclusive with respect to medication (NSAIDs, opioids; topical); epidural steroid and other injections; acupuncture and manual, postural and thermotherapies."
+                },
+                {
+                  "source_id": "33064878",
+                  "quote": "Guidance was also consistent in terms of the limited use of imaging (only for patients with red flags or where imaging is likely to change management), and recommendations against the use of bed rest, orthoses, traction and a range of modalities (laser therapy, electrotherapy, shortwave). RESULTS > Comparison of CPG recommendations for neck and low back pain Table 5 Consistency of recommendations across low back pain vs neck pain guidelines Intervention Low Back Pain Neck Pain No. guidelines (countries) Overall strength of recommendation No."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "33064878"
+              ],
+              "source_passage_ids": [
+                "33064878:p37"
+              ],
+              "reason": "The excerpt explicitly lists red flags: fracture, infection, (metastatic) cancer, cauda equina syndrome, aortic aneurysm, systemic inflammatory arthritis.",
+              "source_quotes": [
+                {
+                  "source_id": "33064878",
+                  "quote": "Referral for imaging is only supported for those with red flags, such as increased risk of fracture, infection, (metastatic) cancer, neurological emergencies including cauda equina syndrome, aortic aneurysm or systemic inflammatory arthritis (detailed in Appendix S7 ), or deterioration of symptoms. And although mixed, moderate to strong recommendations were also given against the use of paracetamol, anti‐depressants, anticonvulsants and muscle relaxants; spinal injections for non‐specific LBP; traction; orthoses and a range of applications (e.g. electrotherapies, shortwave, laser). RESULTS > Consistency of CPG recommendations for low back pain Recommendations were inconsistent or inconclusive with respect to medication (NSAIDs, opioids; topical); epidural steroid and other injections; acupuncture and manual, postural and thermotherapies."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33064878"
+              ],
+              "source_passage_ids": [
+                "33064878:p28",
+                "33064878:p31",
+                "33064878:p40"
+              ],
+              "reason": "Remain active is Strong FOR for low back pain; bed rest is Strong AGAINST WITH EXCEPTIONS (except a few days in severe/acute cases).",
+              "source_quotes": [
+                {
+                  "source_id": "33064878",
+                  "quote": "guidelines (countries) Recommendations by guideline quality Overall strength of recommendation Comments HIGH quality LOW quality FOR Reassurance 4(4) 1x O+ 1x // ; 2x /* Weak FOR Advice and Education (including individualised) 10(8) 1x // ; 1x / ; 2x O+ For : 1x // ; 4x /* Mixed : 1x O+ & O Strong FOR Remain active 9(6) 1x // & O+; 2x / ; 2x O+ 1x // & O+; 3x /* Strong FOR Encourage physical exercise (unsupervised) 7(6) 2x O+ 1x // ; 1x // & O+ ; 3x /* Weak FOR Continue/return to work 2(2) 1x // & O+ ; 1x /* Weak FOR Manual therapy in combination with other treatment 4(3) 2x / ; 1x O+ 1x /* Moderate FOR Exercise programs/therapy 9(6) For : 3x / Mixed : 1x // & O For: 4x /* Against: 1x XX Strong FOR Group exercise programmes/back schools 3(3) 1x / ; 1x / & O+ 1x /* Moderate FOR Psychological therapies including behavioural and CBT 4(3) 1x // 3x /* Strong FOR SPECIFIC SUBGROUPS For"
+                },
+                {
+                  "source_id": "33064878",
+                  "quote": "AGAINST Bed rest 6(4) 1x XX 1x XX ; 4x X* Strong AGAINST WITH EXCEPTIONS Except: for a few days in severe/acute cases Paracetamol 8(6) Against: 3x X, 1x X* For: 1x // & O+ & O ; 3x /* Moderate AGAINST Antidepressants including SSRIs, SNRIs, Tricyclics 6(5) Against: 1x X* ; 1x XX & X Mixed: 1x O+ & X Against: 1x X* Mixed: 1x /* & X* Open: 1x O Strong AGAINST WITH EXCEPTIONS For specific cases: comorbid depression (BÄK et al., 2017, high quality) or chronic pain [tricyclics only] (Glocker et al., 2018, low quality) Anticonvulsants/Antiepileptics including gabapentin, pregablin, carbamazepine, topiramat 5(5) Against: 1x XX ; 1x X ; 1x X* Against: 1x X* Mixed: 1x XX & O‐ & O Strong AGAINST Muscle relaxants including diazepines/benzodiazepines 5(4) Against : 1x XX Mixed: 1x XX & X & O+ Against : 2x X* Mixed: 1x // & O Strong AGAINST WITH EXCEPTIONS For specific cases: non‐specific LBP where"
+                },
+                {
+                  "source_id": "33064878",
+                  "quote": "guidelines (countries) Overall strength of recommendation Reassurance (advice) 4(4) Weak FOR 3(3) Weak FOR Advice and Education (advice) 10(8) Strong FOR 5(5) Weak FOR Remain active (advice) 9(6) Strong FOR 2(2) Weak FOR Encourage physical exercise (advice) 7(6) Weak FOR 3(3) Weak FOR Continue/return to work (advice) 2(2) Weak FOR 1(1) (For) Bed rest (advice) 6(4) Strong AGAINST WITH EXCEPTIONS 1(1) (Against) Analgesics incl. for neuropathic pain 1(1) (For) 2(2) Weak FOR Paracetamol 8(6) Moderate AGAINST 2(2) Weak FOR NSAIDs 9(7) Inconsistent 4(3) Weak FOR Opioids (including tramadol) +/‐ paracetamol (or NSAIDs) 8(6) Inconsistent 2(1) Weak FOR Antidepressants 6(5) Strong AGAINST WITH EXCEPTIONS Anticonvulsants/Antiepileptics 5(5) Strong AGAINST Muscle relaxants 5(4) Strong AGAINST WITH EXCEPTIONS Topical medications incl."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34580864"
+              ],
+              "source_passage_ids": [
+                "34580864:p1"
+              ],
+              "reason": "The exercise review explicitly enrolled adults with chronic non-specific low back pain of more than 12 weeks' duration, not acute 4-day presentations.",
+              "source_quotes": [
+                {
+                  "source_id": "34580864",
+                  "quote": "All eligible trials have been identified through searches to 7 December 2020, but have not yet been extracted; these trials will be integrated in the next update. We included randomised controlled trials that assessed exercise treatment compared to no treatment, usual care, placebo or other conservative treatment on the outcomes of pain or functional limitations for a population of adult participants with chronic non-specific low back pain of more than 12 weeks' duration. Two authors screened and assessed studies independently, with consensus. We extracted outcome data using electronic databases; pain and functional limitations outcomes were re-scaled to 0 to 100 points for meta-analyses where 0 is no pain or functional limitations. We assessed risk of bias using the Cochrane risk of bias (RoB) tool and used GRADE to evaluate the overall certainty of the evidence."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is on-specialty (family medicine, acute low back pain imaging stewardship) and internally coherent. The patient is a 40s male with 4 days of mechanical low back pain after lifting, with a completely negative red-flag review (no fever, weight loss, cancer, IVDU, immunosuppression, steroids, trauma, saddle anesthesia, bladder/bowel dysfunction, or neurologic deficit) and a normal neuro exam and gait. Working the case independently from the clinical data: no red flags are present, so the supported action is deferring imaging, reassurance/education, and encouraging activity as tolerated with reassessment if deterioration or red flags emerge — Answer A. Answer B (immediate MRI driven by pain severity and paraspinal tenderness, plus advising bed rest) is both unsupported (imaging is Strong AGAINST WITH EXCEPTIONS, only for red flags/deterioration) and unsafe (bed rest is Strong AGAINST). The designated sound answer A omits nothing essential at this decision point; medications are not required and the guideline's pharmacologic recommendations for LBP are mixed/against, so no essential drug class is missing. The intended-flawed candidate B works as designed. Each decisive claim is verified against the actual supplied body excerpts of PMC7839780 (not just the abstract/title): the red-flag list (p37), the Strong AGAINST WITH EXCEPTIONS imaging recommendation (p33, p39), remain-active Strong FOR and bed-rest Strong AGAINST (p28, p31, p40). The exercise review (34580864) is correctly characterized as a chronic (>12 week) population, distinct from this acute case. The visible note does not disclose the intended answer/management plan (it presents exam findings and history without stating the plan), so no key-reveal defect. Distinct decision: this is an imaging-stewardship/red-flag decision, appropriate. No missing decisive imaging is required precisely because red flags are absent. Minor observation cleared: vitals are described qualitatively (afebrile, stable) rather than with numbers, but this is sufficient to exclude systemic red flags for this decision. No blocking defects identified."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The presentation is consistent with acute nonspecific mechanical low back pain after lifting. There are no red flags for fracture, infection, malignancy, cauda equina syndrome, aortic pathology, or a progressive neurologic deficit. The cited guideline review strongly recommends against routine imaging in low back pain except when red flags are present or imaging would change management; it also supports reassurance, education, and remaining active while recommending against bed rest. Localized paraspinal tenderness and pain-limited flexion alone do not justify immediate MRI.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33064878"
+              ],
+              "reason": "The guideline synthesis rates low-back imaging strongly against, with an explicit exception for red flags.",
+              "source_passage_ids": [
+                "33064878:p32",
+                "33064878:p33"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33064878",
+                  "quote": "non‐drug and non‐opioid treatments ineffective (BÄK et al., 2017, high quality); 2 nd line medication for acute non‐specific LBP (Regione Toscana, 2015, Low quality) Spinal injections [for non‐specific LBP] 6(5) Against: 1x XX; 1x X* 2x X* , 2x O Strong AGAINST Traction 6(6) Against: 2x XX ; 1x X* For: 1x /* Against: 1x O‐ Open : 1x O Strong AGAINST Electrotherapy including laser therapies, TENS, PENS, shortwave diathermy, US, ultra‐shortwave, inferential, magnetic field, electromagnetic, light therapy, shockwave, electrostimulation 6(6) Against: 2x XX ; 1x X* Against: 1x O‐ Mixed: 1x /* & X*; 1x XX & O‐ & O Strong AGAINST Orthoses including belts, corsets, foot orthotics, insoles, rocker shoes, pull‐ups, walking stick, elbow crutches and bands 6(6) Against: 2x XX ; 1x X* For: 1x /* Against: 1x X Mixed: 1x XX & O‐ & O Strong AGAINST Imaging 9(6) Against : 3x X Mixed : 1x XX & // Against"
+                },
+                {
+                  "source_id": "33064878",
+                  "quote": ": 1x XX ; 4x X* Strong AGAINST WITH EXCEPTIONS Except: in cases of red flags MIXED NSAIDs 9(7) For: 2x / ; 1x / & O+ Against: 1x X For: 4x /* ; 1x // & O Inconsistent Opioids (including tramadol) +/‐ paracetamol (or NSAIDs) 8(6) Mixed: 1x // & X ; 1x O+ & X ; 1x / & X* Against: 1x X For: 3x /* Mixed: 1x // & O+ & O Inconsistent Generally, ‘Against’ for chronic LBP (unless severe limitations) and ‘For’ where other analgesics ineffective, contraindicated, or not tolerated."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "33064878"
+              ],
+              "reason": "The source explicitly identifies fracture, infection, metastatic cancer, cauda equina syndrome, aortic aneurysm, and systemic inflammatory arthritis as red-flag indications for imaging.",
+              "source_passage_ids": [
+                "33064878:p37"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33064878",
+                  "quote": "Referral for imaging is only supported for those with red flags, such as increased risk of fracture, infection, (metastatic) cancer, neurological emergencies including cauda equina syndrome, aortic aneurysm or systemic inflammatory arthritis (detailed in Appendix S7 ), or deterioration of symptoms. And although mixed, moderate to strong recommendations were also given against the use of paracetamol, anti‐depressants, anticonvulsants and muscle relaxants; spinal injections for non‐specific LBP; traction; orthoses and a range of applications (e.g. electrotherapies, shortwave, laser). RESULTS > Consistency of CPG recommendations for low back pain Recommendations were inconsistent or inconclusive with respect to medication (NSAIDs, opioids; topical); epidural steroid and other injections; acupuncture and manual, postural and thermotherapies."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33064878"
+              ],
+              "reason": "The synthesis rates advice to remain active strongly for and bed rest strongly against, while allowing a short exception in selected severe acute cases.",
+              "source_passage_ids": [
+                "33064878:p28",
+                "33064878:p31",
+                "33064878:p40"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33064878",
+                  "quote": "guidelines (countries) Recommendations by guideline quality Overall strength of recommendation Comments HIGH quality LOW quality FOR Reassurance 4(4) 1x O+ 1x // ; 2x /* Weak FOR Advice and Education (including individualised) 10(8) 1x // ; 1x / ; 2x O+ For : 1x // ; 4x /* Mixed : 1x O+ & O Strong FOR Remain active 9(6) 1x // & O+; 2x / ; 2x O+ 1x // & O+; 3x /* Strong FOR Encourage physical exercise (unsupervised) 7(6) 2x O+ 1x // ; 1x // & O+ ; 3x /* Weak FOR Continue/return to work 2(2) 1x // & O+ ; 1x /* Weak FOR Manual therapy in combination with other treatment 4(3) 2x / ; 1x O+ 1x /* Moderate FOR Exercise programs/therapy 9(6) For : 3x / Mixed : 1x // & O For: 4x /* Against: 1x XX Strong FOR Group exercise programmes/back schools 3(3) 1x / ; 1x / & O+ 1x /* Moderate FOR Psychological therapies including behavioural and CBT 4(3) 1x // 3x /* Strong FOR SPECIFIC SUBGROUPS For"
+                },
+                {
+                  "source_id": "33064878",
+                  "quote": "AGAINST Bed rest 6(4) 1x XX 1x XX ; 4x X* Strong AGAINST WITH EXCEPTIONS Except: for a few days in severe/acute cases Paracetamol 8(6) Against: 3x X, 1x X* For: 1x // & O+ & O ; 3x /* Moderate AGAINST Antidepressants including SSRIs, SNRIs, Tricyclics 6(5) Against: 1x X* ; 1x XX & X Mixed: 1x O+ & X Against: 1x X* Mixed: 1x /* & X* Open: 1x O Strong AGAINST WITH EXCEPTIONS For specific cases: comorbid depression (BÄK et al., 2017, high quality) or chronic pain [tricyclics only] (Glocker et al., 2018, low quality) Anticonvulsants/Antiepileptics including gabapentin, pregablin, carbamazepine, topiramat 5(5) Against: 1x XX ; 1x X ; 1x X* Against: 1x X* Mixed: 1x XX & O‐ & O Strong AGAINST Muscle relaxants including diazepines/benzodiazepines 5(4) Against : 1x XX Mixed: 1x XX & X & O+ Against : 2x X* Mixed: 1x // & O Strong AGAINST WITH EXCEPTIONS For specific cases: non‐specific LBP where"
+                },
+                {
+                  "source_id": "33064878",
+                  "quote": "guidelines (countries) Overall strength of recommendation Reassurance (advice) 4(4) Weak FOR 3(3) Weak FOR Advice and Education (advice) 10(8) Strong FOR 5(5) Weak FOR Remain active (advice) 9(6) Strong FOR 2(2) Weak FOR Encourage physical exercise (advice) 7(6) Weak FOR 3(3) Weak FOR Continue/return to work (advice) 2(2) Weak FOR 1(1) (For) Bed rest (advice) 6(4) Strong AGAINST WITH EXCEPTIONS 1(1) (Against) Analgesics incl. for neuropathic pain 1(1) (For) 2(2) Weak FOR Paracetamol 8(6) Moderate AGAINST 2(2) Weak FOR NSAIDs 9(7) Inconsistent 4(3) Weak FOR Opioids (including tramadol) +/‐ paracetamol (or NSAIDs) 8(6) Inconsistent 2(1) Weak FOR Antidepressants 6(5) Strong AGAINST WITH EXCEPTIONS Anticonvulsants/Antiepileptics 5(5) Strong AGAINST Muscle relaxants 5(4) Strong AGAINST WITH EXCEPTIONS Topical medications incl."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34580864"
+              ],
+              "reason": "The exercise review expressly included adults with chronic nonspecific low-back pain lasting more than 12 weeks, so it does not directly represent this four-day acute presentation.",
+              "source_passage_ids": [
+                "34580864:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34580864",
+                  "quote": "All eligible trials have been identified through searches to 7 December 2020, but have not yet been extracted; these trials will be integrated in the next update. We included randomised controlled trials that assessed exercise treatment compared to no treatment, usual care, placebo or other conservative treatment on the outcomes of pain or functional limitations for a population of adult participants with chronic non-specific low back pain of more than 12 weeks' duration. Two authors screened and assessed studies independently, with consensus. We extracted outcome data using electronic databases; pain and functional limitations outcomes were re-scaled to 0 to 100 points for meta-analyses where 0 is no pain or functional limitations. We assessed risk of bias using the Cochrane risk of bias (RoB) tool and used GRADE to evaluate the overall certainty of the evidence."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The presentation is acute, mechanically triggered, non-radicular low-back pain with an intact neurologic examination and no documented fracture, infection, malignancy, cauda equina, or vascular warning features. The supplied guideline synthesis supports withholding immediate imaging unless red flags, likely management-changing findings, or deterioration are present. It also supports reassurance, education, remaining active, and avoiding routine bed rest. Candidate A includes these essential elements and appropriate worsening/red-flag reassessment advice. Candidate B incorrectly treats painful flexion and localized paraspinal tenderness as MRI indications and recommends bed rest without a supported exception. No prior cases were supplied, so no duplicate clinical decision is evident."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "0cabac9f0565b0b3913bfe6be1db203772881dbb62df1536bc361150b9a0343e"
+  }
+}

@@ -1,0 +1,571 @@
+{
+  "task_id": "onboarding-practice-v1-a06f761693889cca8f11-1",
+  "specialty": "anesthesiology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Abrupt intraoperative physiologic deterioration",
+    "question": "Which interpretation and immediate response are most appropriate for this intraoperative presentation?",
+    "case": {
+      "case_id": "synthetic-anesth-acute-001",
+      "case_source": "synthetic",
+      "specialty": "anesthesiology",
+      "demographics": {
+        "age_band": "40-49",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Rapidly rising end-tidal carbon dioxide despite increased ventilation",
+          "since": "Intraoperative onset",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Unexplained tachycardia with generalized muscle rigidity",
+          "since": "Intraoperative onset",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Rapid increase in core temperature",
+          "since": "Intraoperative onset",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Sevoflurane",
+          "dose": null,
+          "route": "inhaled",
+          "freq": "continuous during general anesthesia",
+          "collected_offset_days": 0
+        },
+        {
+          "drug": "Succinylcholine",
+          "dose": null,
+          "route": "intravenous",
+          "freq": "once during induction",
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "weight_kg": 82,
+        "heart_rate_initial_bpm": 78,
+        "heart_rate_current_bpm": 142,
+        "end_tidal_co2_initial_mmHg": 38,
+        "end_tidal_co2_current_mmHg": 68,
+        "core_temperature_initial_c": 36.8,
+        "core_temperature_after_15_minutes_c": 37.6,
+        "core_temperature_current_c": 38.1,
+        "oxygen_saturation_percent": 98
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Intraoperative event note",
+          "author_role": "anesthesiology",
+          "text": "An adult undergoing elective abdominal surgery received general anesthesia with sevoflurane after succinylcholine-assisted induction. Approximately 50 minutes after induction, end-tidal carbon dioxide rose from 38 to 68 mmHg despite a substantial increase in minute ventilation. Heart rate increased from 78 to 142 beats/min without surgical bleeding or a clear stimulation-related explanation. The patient developed generalized muscle rigidity, and core temperature increased from 36.8°C to 37.6°C over 15 minutes and then to 38.1°C five minutes later. The breathing circuit remains connected, oxygen saturation is 98%, and the procedure is still underway. There is no documented personal or family history of anesthetic complications.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional onboarding assessment case; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete to decision point",
+      "ground_truth": {
+        "answer": "Candidate B",
+        "rationale": "The exposure to two recognized triggering agents followed by otherwise unexplained hypercarbia despite increased ventilation, tachycardia, generalized rigidity, and a rapid core-temperature rise constitutes a clinical malignant hyperthermia emergency. No single feature is specific, but this constellation requires treatment without waiting for extreme hyperthermia or confirmatory testing. Triggering agents should be stopped, a coordinated emergency response initiated, ventilation changed to high-flow 100% oxygen, and intravenous dantrolene administered promptly. Cooling, assessment and treatment of metabolic complications, avoidance of calcium-channel blockers with dantrolene, and monitoring for recurrence are also required. Candidate A dangerously delays definitive treatment and continues a triggering anesthetic, increasing the risk of complications and death.",
+        "evidence": {
+          "decision_basis": "Clinical recognition and immediate crisis management",
+          "population": "Adult exposed to volatile anesthetic and succinylcholine"
+        },
+        "key_data": [
+          "End-tidal carbon dioxide increased to 68 mmHg despite increased minute ventilation.",
+          "Heart rate rose abruptly to 142 beats/min without an alternative explanation.",
+          "Generalized muscle rigidity developed during volatile anesthesia.",
+          "Core temperature increased by 0.8°C within 15 minutes.",
+          "Both sevoflurane and succinylcholine are recognized malignant hyperthermia triggers."
+        ]
+      },
+      "hard_hook": "The current temperature is elevated but not extreme, testing whether treatment is delayed until late hyperthermia appears.",
+      "reasoning_divergence": "Immediate treatment of a clinical malignant hyperthermia syndrome versus continued observation and diagnostic confirmation."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Interpret the changes as inadequate anesthetic depth or carbon dioxide rebreathing. Continue sevoflurane, increase ventilation, and wait for the temperature to exceed 40°C or for laboratory confirmation before administering dantrolene. If the carbon dioxide level falls, complete routine recovery without prolonged monitoring."
+      },
+      {
+        "id": "B",
+        "text": "Treat this immediately as suspected malignant hyperthermia: stop sevoflurane and other triggering agents, switch to intravenous anesthesia with a non-depolarizing relaxant if needed, declare an emergency, summon help, and coordinate prompt completion of surgery. Ventilate with 100% oxygen at at least 10 L/min and approximately double the usual minute ventilation. Give intravenous dantrolene 2.0 mg/kg using actual body weight over about 10 minutes, reassessing every 10 minutes and repeating as needed until end-tidal carbon dioxide, temperature, and rigidity improve. Begin active cooling and stop systemic cooling below 38°C; assess blood gas, electrolytes, creatine kinase, myoglobin, renal function, and coagulation, treat complications, avoid calcium-channel blockers with dantrolene, and monitor for recurrence for at least 24 hours."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "malignant hyperthermia",
+      "dantrolene",
+      "hypercarbia",
+      "muscle rigidity",
+      "hyperthermia",
+      "succinylcholine"
+    ],
+    "evidence_keywords": [
+      "volatile anesthetic trigger",
+      "end-tidal carbon dioxide",
+      "rapid temperature rise",
+      "actual body weight",
+      "treatment delay",
+      "recurrence monitoring"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission",
+      "wrong_diagnosis"
+    ],
+    "claims": [
+      {
+        "statement": "Potent inhalational anesthetics and succinylcholine can trigger malignant hyperthermia in susceptible individuals.",
+        "source_ids": [
+          "33399225",
+          "41504952"
+        ]
+      },
+      {
+        "statement": "Unexplained hypercarbia despite increased ventilation, tachycardia, rapid temperature rise, and muscle rigidity are clinical indicators requiring immediate dantrolene treatment.",
+        "source_ids": [
+          "41504952"
+        ]
+      },
+      {
+        "statement": "Acute management includes stopping triggering agents, using high-flow pure oxygen with increased ventilation, and promptly administering intravenous dantrolene.",
+        "source_ids": [
+          "41504952"
+        ]
+      },
+      {
+        "statement": "The guideline supports dantrolene at 2.0 mg/kg actual body weight over approximately 10 minutes, with reassessment and repeat administration according to clinical response.",
+        "source_ids": [
+          "41504952"
+        ]
+      },
+      {
+        "statement": "Delayed dantrolene treatment increases malignant hyperthermia complications, with complication risk rising as treatment delay lengthens.",
+        "source_ids": [
+          "30550426"
+        ]
+      },
+      {
+        "statement": "After an acute malignant hyperthermia event, recurrence is possible and monitoring should continue for at least 24 hours.",
+        "source_ids": [
+          "41504952"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:53:35.026860+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "33399225",
+        "title": "Malignant hyperthermia 2020: Guideline from the Association of Anaesthetists.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33399225/",
+        "abstract": "Malignant hyperthermia is defined in the International Classification of Diseases as a progressive life-threatening hyperthermic reaction occurring during general anaesthesia. Malignant hyperthermia has an underlying genetic basis, and genetically susceptible individuals are at risk of developing malignant hyperthermia if they are exposed to any of the potent inhalational anaesthetics or suxamethonium. It can also be described as a malignant hypermetabolic syndrome. There are no specific clinical features of malignant hyperthermia and the condition may prove fatal unless it is recognised in its early stages and treatment is promptly and aggressively implemented. The Association of Anaesthetists has previously produced crisis management guidelines intended to be displayed in all anaesthetic rooms as an aide memoire should a malignant hyperthermia reaction occur. The last iteration was produced in 2011 and since then there have been some developments requiring an update. In these guidelines we will provide background information that has been used in updating the crisis management recommendations but will also provide more detailed guidance on the clinical diagnosis of malignant hyperthermia. The scope of these guidelines is extended to include practical guidance for anaesthetists dealing with a case of suspected malignant hyperthermia once the acute reaction has been reversed. This includes information on care and monitoring during and after the event; appropriate equipment and resuscitative measures within the operating theatre and ICU; the importance of communication and teamwork; guidance on counselling of the patient and their family; and how to make a referral of the patient for confirmation of the diagnosis. We also review which patients presenting for surgery may be at increased risk of developing malignant hyperthermia under anaesthesia and what precautions should be taken during the peri-operative management of the patients.",
+        "sha256": "6f74c3c95cf07f6c72e7dc46c2a319287cd407a3836c1b66d6bea81d6b66f02f",
+        "retrieved_at": "2026-09-18T23:51:47.874950+00:00"
+      },
+      {
+        "id": "41478797",
+        "title": "European Malignant Hyperthermia Group 2025 guidelines for the investigation of malignant hyperthermia susceptibility.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41478797/",
+        "abstract": "Since malignant hyperthermia (MH) was first described in 1960, the number of cases of this potentially life-threatening reaction to anaesthesia with fatal or serious outcomes has been markedly reduced thanks to continuous advances in knowledge about triggering, clinical course, and treatment. Another essential and evolving pillar of patient safety remains diagnostics, which serve to confirm or rule out suspected cases of MH and to identify other individuals at risk of MH for prevention. For more than 40 yr, the British Journal of Anaesthesia has published the updated consensus diagnostic protocols of the European Malignant Hyperthermia Group at regular intervals. The presented diagnostic guidelines have been comprehensively revised 10 yr after the last update after substantial advances in DNA-based testing methods. In addition to the previous classification of MH susceptibility by the in vitro halothane/caffeine contracture test, a new diagnostic designation, the MH genotype, has been introduced. The latter is reflected in the revised diagnostic pathways, which also include the adapted European Malignant Hyperthermia Group curation system for the classification of genetic variants with regard to their relevance to MH. In addition to minor changes in the in vitro halothane/caffeine contracture test protocol, the guidelines address updated patient referral criteria and clinical interpretation of diagnostic results. And for the first time, the guidelines provide a consensus definition of a clinical MH event.",
+        "sha256": "6c315052c89a3603ceab4d11dd5bc9903672bd99b9d602cfba4682fe3228aced",
+        "retrieved_at": "2026-09-18T23:51:47.874950+00:00"
+      },
+      {
+        "id": "33131754",
+        "title": "Consensus guidelines on perioperative management of malignant hyperthermia suspected or susceptible patients from the European Malignant Hyperthermia Group.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33131754/",
+        "abstract": "Malignant hyperthermia is a potentially fatal condition, in which genetically predisposed individuals develop a hypermetabolic reaction to potent inhalation anaesthetics or succinylcholine. Because of the rarity of malignant hyperthermia and ethical limitations, there is no evidence from interventional trials to inform the optimal perioperative management of patients known or suspected with malignant hyperthermia who present for surgery. Furthermore, as the concentrations of residual volatile anaesthetics that might trigger a malignant hyperthermia crisis are unknown and manufacturers' instructions differ considerably, there are uncertainties about how individual anaesthetic machines or workstations need to be prepared to avoid inadvertent exposure of susceptible patients to trigger anaesthetic drugs. The present guidelines are intended to bundle the available knowledge about perioperative management of malignant hyperthermia-susceptible patients and the preparation of anaesthesia workstations. The latter aspect includes guidance on the use of activated charcoal filters. The guidelines were developed by members of the European Malignant Hyperthermia Group, and they are based on evaluation of the available literature and a formal consensus process. The most crucial recommendation is that malignant hyperthermia-susceptible patients should receive anaesthesia that is free of triggering agents. Providing that this can be achieved, other key recommendations include avoidance of prophylactic administration of dantrolene; that preoperative management, intraoperative monitoring, and care in the PACU are unaltered by malignant hyperthermia susceptibility; and that malignant hyperthermia patients may be anaesthetised in an outpatient setting.",
+        "sha256": "d417fbcc56e5fe1d7558f5db7dc4b52d229153cc33cfddf99c4643ef2e716b6a",
+        "retrieved_at": "2026-09-18T23:51:47.874950+00:00"
+      },
+      {
+        "id": "30550426",
+        "title": "Succinylcholine Use and Dantrolene Availability for Malignant Hyperthermia Treatment: Database Analyses and Systematic Review.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30550426/",
+        "abstract": "Although dantrolene effectively treats malignant hyperthermia (MH), discrepant recommendations exist concerning dantrolene availability. Whereas Malignant Hyperthermia Association of the United States guidelines state dantrolene must be available within 10 min of the decision to treat MH wherever volatile anesthetics or succinylcholine are administered, a Society for Ambulatory Anesthesia protocol permits Class B ambulatory facilities to stock succinylcholine for airway rescue without dantrolene. The authors investigated (1) succinylcholine use rates, including for airway rescue, in anesthetizing/sedating locations; (2) whether succinylcholine without volatile anesthetics triggers MH warranting dantrolene; and (3) the relationship between dantrolene administration and MH morbidity/mortality.\nThe authors performed focused analyses of the Multicenter Perioperative Outcomes Group (2005 through 2016), North American MH Registry (2013 through 2016), and Anesthesia Closed Claims Project (1970 through 2014) databases, as well as a systematic literature review (1987 through 2017). The authors used difficult mask ventilation (grades III and IV) as a surrogate for airway rescue. MH experts judged dantrolene treatment. For MH morbidity/mortality analyses, the authors included U.S. and Canadian cases that were fulminant or scored 20 or higher on the clinical grading scale and in which volatile anesthetics or succinylcholine were given.\nAmong 6,368,356 queried outcomes cases, 246,904 (3.9%) received succinylcholine without volatile agents. Succinylcholine was used in 46% (n = 710) of grade IV mask ventilation cases (median dose, 100 mg, 1.2 mg/kg). Succinylcholine without volatile anesthetics triggered 24 MH cases, 13 requiring dantrolene. Among 310 anesthetic-triggered MH cases, morbidity was 20 to 37%. Treatment delay increased complications every 10 min, reaching 100% with a 50-min delay. Overall mortality was 1 to 10%; 15 U.S. patients died, including 4 after anesthetics in freestanding facilities.\nProviders use succinylcholine commonly, including during difficult mask ventilation. Succinylcholine administered without volatile anesthetics may trigger MH events requiring dantrolene. Delayed dantrolene treatment increases the likelihood of MH complications. The data reported herein support stocking dantrolene wherever succinylcholine or volatile anesthetics may be used.",
+        "sha256": "952f3e6ad5a67059e06155c6f6d279ba2b7da400082628cc44bb0037749ddd4b",
+        "retrieved_at": "2026-09-18T23:51:48.466802+00:00"
+      },
+      {
+        "id": "32591088",
+        "title": "Availability of dantrolene for the management of malignant hyperthermia crises: European Malignant Hyperthermia Group guidelines.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32591088/",
+        "abstract": "Faced with a malignant hyperthermia crisis, the immediate access to sufficient dantrolene is essential to achieve the best possible outcome for the patient. However, malignant hyperthermia crises are rare, and there may be administrative pressures to limit the amount of dantrolene stocked or, in some countries, not to stock dantrolene at all. There are no published guidelines to support anaesthetic departments in their effort to ensure availability of sufficient dantrolene for the management of malignant hyperthermia crises. After a literature review that confirmed a lack of clinical trials to inform this guideline, we undertook a formal consensus development process, in which 25 members of the European Malignant Hyperthermia Group participated. The consensus process used a modified web-based Delphi exercise, in which participants rated the appropriateness of statements that covered the dosing regimen for dantrolene in a malignant hyperthermia crisis, the types of facility that should stock dantrolene, and the amount of dantrolene that should be stocked. The resulting guidelines are based on available evidence and the opinions of international malignant hyperthermia experts representing a large group of malignant hyperthermia laboratories from around the world. Key recommendations include: the dosing regimen of dantrolene should be based on actual body weight, dantrolene should be available wherever volatile anaesthetics or succinylcholine are used, and 36 vials of dantrolene should be immediately available with a further 24 vials available within 1 h.",
+        "sha256": "b65fbbaf8fcfd2d88010f91114828f87b4efb2fd9fd60702cd0d5a7e4cba8342",
+        "retrieved_at": "2026-09-18T23:51:48.466802+00:00"
+      },
+      {
+        "id": "31166228",
+        "title": "Malignant Hyperthermia-Susceptible Adult Patient and Ambulatory Surgery Center: Society for Ambulatory Anesthesia and Ambulatory Surgical Care Committee of the American Society of Anesthesiologists Position Statement.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31166228/",
+        "abstract": "This document represents a joint effort of the Society for Ambulatory Anesthesia (SAMBA) and the Ambulatory Surgical Care Committee of the American Society of Anesthesiologists (ASA) concerning the safe anesthetic care of adult malignant hyperthermia (MH)-susceptible patients in a free-standing ambulatory surgery center (ASC). Adult MH-susceptible patients can safely undergo a procedure in a free-standing ASC assuming that proper precautions for preventing, identifying, and managing MH are taken. The administration of preoperative prophylaxis with dantrolene is not indicated in MH-susceptible patients scheduled for elective surgery. There is no evidence to recommend an extended stay in the ASC, and the patient may be discharged when the usual discharge criteria for outpatient surgery are met. Survival from an MH crisis in an ASC setting requires early recognition, prompt treatment, and timely transfer to a center with critical care capabilities.",
+        "sha256": "70aa7fbd41170f80c816e5b47bac14dae8d4670bb29842dba16cc88cea7eab41",
+        "retrieved_at": "2026-09-18T23:51:48.466802+00:00"
+      },
+      {
+        "id": "41504952",
+        "title": "JSA guideline for management of malignant hyperthermia in 2025.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41504952/",
+        "abstract": "Malignant hyperthermia (MH) is a rare, life-threatening inherited disorder triggered by volatile inhalational anesthetics and/or the depolarizing muscle relaxant suxamethonium. In susceptible individuals, calcium release from the sarcoplasmic reticulum in the skeletal muscle becomes abnormally accelerated, leading to a hypermetabolic state. Early signs of MH include unexplained hypercarbia (end-tidal carbon dioxide > 55 mm Hg), tachycardia, and muscle rigidity, particularly in the masseter. Rapid increases in core temperature (> 0.5 °C/15 min, with temperatures often exceeding 40 °C) are typical. With progression, respiratory and metabolic acidosis, arrhythmias, cola-colored urine (myoglobinuria), elevated serum potassium, and tented T-waves may develop, potentially leading to cardiac arrest or multiorgan failure. The Japanese Society of Anesthesiologists' guidelines for the management of MH in 2025 (Japanese version) emphasize the importance of early recognition and immediate intervention. The essential steps include discontinuing triggering agents, administering intravenous dantrolene (initially 1-2 mg/kg), aggressive cooling of the body, and managing complications, such as hyperkalemia and acidosis. On the basis of international standards, a higher initial dose of dantrolene is recommended. Preoperative assessment of MH risk should include history taking for anesthetic complications, a family history suggestive of MH susceptibility, signs of congenital myopathies, and careful anesthetic planning using non-triggering agents. Genetic testing and muscle biopsy may aid in the diagnosis but are not definitive in all cases. The Japanese translation of these guidelines has been posted on the following website: https://anesth.or.jp/files/pdf/guideline_akuseikounetsu . pdf.",
+        "sha256": "f7c116d1aa052f18dcc887620d2ea2f155fa21d2a916196d812e0f3cc6bf447d",
+        "retrieved_at": "2026-09-18T23:51:49.005920+00:00",
+        "pmcid": "PMC12860801",
+        "body_excerpts": "The Japanese Society of Anesthesiologists (JSA) guidelines for the management of malignant hyperthermia (MH) in 2025 were published in Japanese in March 2025. Here, we share an English version of these guidelines to improve medical practice and patient outcomes.\n\nObjective and target audience\nThe JSA has issued these guidelines to ensure an understanding of the nature and management of MH. These guidelines describe appropriate anesthesia practices, including testing and treatment, to improve outcomes in patients with MH. This is not intended to outline the medical standards of MH management but to support the care of patients with MH. Therefore, it is recommended that anesthesia care in MH conform to these guidelines and that they be used to promote safe anesthesia care.\n\nDisclaimer\nMany recommendations in this guide are based on expert opinions and case reports in the absence of high-quality evidence because MH is a relatively rare condition. Accordingly, the lack of high-level evidence is a major limitation of this guideline, and its appropriateness and effectiveness need to be scientifically assessed in the future. We aim to assist physicians in decision-making in clinical settings, and the recommendations herein are not intended to be compulsory. The guidelines should be applied with modifications to meet on-site conditions and with limitations according to clinical judgment. In addition, these guidelines do not provide medical care based on their content, nor do they guarantee a positive prognosis.\n\nPoints of revision from the 2016 version\nThese guidelines were revised with reference to the latest literature and international standards. They recommend an increased initial dantrolene dose based on international literature; moreover, details regarding administration frequency have been included. For brevity, unnecessary sections on symptomatic treatment were removed. Information on genetic testing was included, reflecting a recent increase in its use. Moreover, the references have been updated to the most recent sources. These revisions allow for diagnosis and treatment based on the latest information. These guidelines are expected to serve as a valuable reference for clinical practice.\n\nPoints of revision from the 2016 version > Position of the JSA guideline in the context of global MH recommendations\nThese guidelines are generally aligned with major international recommendations regarding the early recognition of MH, prompt administration of dantrolene, and strict use of non-triggering agents in patients with known or suspected MH. With respect to dantrolene administration, the European Malignant Hyperthermia Group (EMHG) recommends an initial dose of 2–2.5 mg/kg [ 1 – 3 ]. While emphasizing the importance of administering an adequate dose from the outset in Japanese clinical practice, these guidelines present a dosing strategy consistent with the package insert approved in Japan (1 mg/kg).\n\nPoints of revision from the 2016 version > Position of the JSA guideline in the context of global MH recommendations\nIn the EMHG guidelines, specific requirements for the immediate availability of dantrolene are provided, such as 36 immediately accessible vials and an additional 24 vials obtainable within 1 h [ 4 ]. By contrast, this guideline adopts a flexible approach and does not specify a particular stock quantity, allowing each institution to determine its preparedness based on local circumstances.\n\nBasis of this guideline\nMost anesthesiologists rarely encounter MH during routine practice. However, the chances of recovery worsen unless appropriate treatment is administered quickly, because progression occurs extremely rapidly. Therefore, we must gain appropriate knowledge of MH and put it into practice to ensure that intensive care is administered rapidly. Rapid treatment should be started by giving a sufficient dose of dantrolene without waiting for a definitive diagnosis, because early decision-making and treatment are essential. These guidelines present the basis for early therapy and further treatment of hyperthermia with hypermetabolic states and a simple algorithm for management.\n\nBasis of this guideline > MH pathophysiology\nAll volatile inhaled anesthetics, including sevoflurane and desflurane, as well as depolarizing muscle relaxants such as suxamethonium, are known to trigger MH (Fig. 1 ). Volatile inhaled anesthetics enhance the rate of Ca 2+ release from the SR into the cytoplasm. In predisposed individuals, the CICR rate is abnormally accelerated, surpassing the rate of Ca 2 ⁺ reuptake into the SR, resulting in an uncontrollable elevation of intracellular Ca 2 ⁺ concentration (Fig. 1 ). This dysregulated Ca 2 ⁺ homeostasis is a fundamental pathophysiology of MH. Sedatives and opioids can be safely used in patients predisposed to MH. Remimazolam is reportedly safe in this population [ 11 ]. Various environmental factors, such as hot and humid environments, physical exertion, and stress, can enhance the Ca 2+ release rate from the SR. Therefore, careful monitoring under such conditions is warranted [ 12 , 13 ]. Fig. 1 Mechanism of Malignant Hyperthermia (MH): Disruption of the Ca. 2+ regulation mechanism in skeletal muscle cells. Adapted from JSA Guideline for Management of Malignant Hyperthermia 2025 (Japanese version) ( https://anesth.or.jp/files/pdf/guideline_akuseikounetsu.pdf )\n\nBasis of this guideline > Managing intraoperative and postoperative MH\nIn patients with symptoms suspected of MH during general anesthesia, implementation of the treatment algorithm outlined in Fig. 2 is recommended. The sequence and frequency of MH symptoms vary by case, making clinical judgment critical in a clinical setting. Fig. 2 Management algorithm for malignant hyperthermia (MH). Adapted from JSA Guideline for Management of Malignant Hyperthermia 2025 (Japanese version) ( https://anesth.or.jp/files/pdf/guideline_akuseikounetsu.pdf )\n\nBasis of this guideline > Managing intraoperative and postoperative MH\nSymptoms suggestive of MH include unexplained elevation or high levels of ETCO 2 , unexplained tachycardia, a temperature increase of ≥ 0.5 °C within 15 min, hyperthermia (≥ 38.8 °C), difficulty in opening the mouth, muscle rigidity, cola-colored urine (myoglobinuria), and metabolic acidosis (base excess [BE] ≤ –8.0) [ 21 – 23 ]. Specifically, dantrolene administration is indicated in the presence of early symptoms (increased ETCO 2 despite increased minute ventilation, unexplained tachycardia, hyperthermia, or muscle rigidity). In such cases, an “Emergency of MH” should be declared, and the measures outlined in Fig. 2 should be promptly implemented.\n\nBasis of this guideline > Managing intraoperative and postoperative MH\nNotably, MH can also occur after anesthesia [ 24 ]. The time to onset of MH symptoms varies widely across cases; however, most cases occur within 40 min of surgery [ 24 ]. Therefore, careful monitoring of the postoperative conditions is important (Fig. 3 ). Fig. 3 Management Algorithm for postoperative malignant hyperthermia (PMH). Adapted from JSA Guideline for Management of Malignant Hyperthermia 2025 (Japanese version) ( https://anesth.or.jp/files/pdf/guideline_akuseikounetsu.pdf )\n\nMH crisis treatment procedure (Fig.  2 )\nDiscontinue the administration of triggering agents, such as volatile inhaled anesthetics or suxamethonium, and switch to intravenous anesthesia and non-depolarizing muscle relaxants. Declare an emergency, call for additional assistance, and request that the surgeon promptly complete the surgery. All members of the surgical team must recognize that the patient’s condition requires a coordinated team response. Use high-flow pure oxygen (≥ 10 L/min) to perform hyperventilation (set minute ventilation to at least double the normal rate) to reduce the anesthetic concentration in the breathing circuit [ 25 ]. Prepare dantrolene via dissolution. Because many facilities and operating rooms may not stock large quantities of dantrolene, securing a sufficient supply for a total dose of up to 7.0 mg/kg is necessary. Administer dantrolene via a dedicated large-gauge peripheral intravenous line. Dissolve each 20-mg dantrolene vial in 60 mL of distilled water for injection, shake until clear, and administer at least 1.0 mg/kg (based on actual body weight) over approximately 10 min. Preferably, administer 2.0 mg/kg over approximately 10 min [ 4 ]. Repeat administration as needed until there is a decrease in ETCO₂ and core body temperature and improvement in muscle rigidity. The evaluation is performed every 10 min until MH symptoms resolve. The Japanese package insert specifies a maximum of 7.0 mg/kg; however, Western guidelines recommend a dose exceeding 10 mg/kg if dantrolene remains effective [ 4 ]. As these guidelines do not set an upper limit for dantrolene dosage, it should be administered in sufficient quantities until clinical symptoms improve. Secure an arterial line for blood gas analysis to determine the degree of metabolic acidosis. Administer chilled normal saline intravenously to reduce the patient’s body temperature (maximum volume: 50–60 mL/kg). Lower the ambient room temperature, and actively cool the patient’s body surface using room-temperature airflow. Discontinue systemic cooling once the patient’s core temperature drops below 38 °C. Treat hyperkalemia as needed. Consider glucose–insulin therapy, calcium gluconate, and sodium bicarbonate administration. Target forced diuresis using furosemide (target urine output: 1.0 mL/kg/h). Treat metabolic acidosis as appropriate and consider the administration of sodium bicarbonate. If the CK levels are elevated or cola-colored urine (myoglobinuria) is present, sodium bicarbonate is administered to promote urinary alkalinization. Manage arrhythmias as clinically indicated. Calcium channel blockers should generally be avoided because their concomitant use with dantrolene may cause cardiac arrest [ 26 ]. Alternative agents such as amiodarone or beta-blockers should be considered. Provide other supportive or symptomatic treatments, as clinically indicated. If possible, remove the vaporizer and replace the anesthesia circuit. However, this is not mandatory, because additional personnel and time are required. To assess the patient’s condition, perform the following blood tests: arterial blood gas analysis; blood glucose, electrolytes, lactic acid, CK, qualitative and quantitative myoglobin (including urine) levels; biochemical tests (renal and liver function); and coagulation tests to diagnose DIC. As recurrence may occur after the onset of MH, appropriate diagnostic tests should be conducted as needed, and the patient should be monitored for at least 24 h [ 27 , 28 ]. Clinical improvement in MH can be assessed by observing trends, such as decreasing or normalized ETCO 2 levels, stabilization of heart rate or fewer arrhythmias, return to normothermia without the need for active cooling, and resolution of muscle rigidity.\n\nMH crisis treatment procedure (Fig.  2 ) > Diagnosing MH > Clinical diagnosis\nIf symptoms and signs of MH are present, a diagnosis should be made clinically and treatment must be initiated immediately. Clinical signs suspicious for MH include unexplained elevations in ETCO 2 , tachycardia of unknown origin, a rapid increase in body temperature (≥ 0.5 °C within 15 min), hyperthermia (≥ 38.8 °C), difficulty in opening the mouth, muscle rigidity, cola-colored urine (myoglobinuria), and metabolic acidosis (BE ≤ –8.0) [ 21 – 23 ]. Persistently elevated ETCO₂ despite increased minute ventilation, an early hallmark of MH, along with unexplained tachycardia, hyperthermia, and generalized muscle rigidity are key indicators of immediate dantrolene administration. In such cases, an emergency due to suspected MH should be declared without delay, and the measures outlined in Fig. 2 must be promptly initiated.\n\nPerioperative risk assessment and management > Preoperative assessment and management for patients suspected of MH > 1. Surgical history\nObtaining the history of intraoperative and postoperative episodes of hyperthermia, muscle rigidity, cola-colored urine (myoglobinuria), and muscle pain is important. If a history of such episodes is apparent, the patient should be treated as potentially susceptible to MH. MH is a genetic disease with a penetration rate of 40.6% [ 37 ]. Even if there is no apparent history of previous anesthesia experience, ruling out MH is inappropriate because it is not necessarily provoked, even if triggering agents are used [ 37 , 38 ].\n\nPerioperative risk assessment and management > Preoperative assessment and management for patients suspected of MH > 4. Congenital myopathies related to MH [ 41 ]\nFindings suggestive of congenital myopathy, such as delayed motor development (e.g., late-to-start walking), proximal muscle weakness, high palate, scoliosis, ptosis, and joint contractures, may be related to MH and should be considered cautiously. Congenital myopathies associated with RYR1 variants and susceptibility to MH include central core disease, multi-minicore disease, and King–Denborough syndrome.\n\nPerioperative risk assessment and management > Caution in planning safe anesthesia\nAntagonists of L-type Ca channels reportedly increase intracellular Ca 2+ levels in skeletal muscle cells [ 26 ]. Ca 2+ blockers such as verapamil should not be used along with dantrolene because hyperkalemia and profound hypotension may occur with this combination [ 42 ].\n\nPerioperative risk assessment and management > Caution in planning safe anesthesia\nThe initial dose of dantrolene at 1.0 mg/kg (based on the patient’s actual body weight) should be prepared along with the necessary amount of distilled water (60 mL per 20-mg vial) and kept readily available.\n\nPerioperative risk assessment and management > Caution in planning safe anesthesia\nThe vaporizer and should be removed and the breathing circuit, bag, and carbon dioxide absorbent should be replaced with new ones. The anesthesia machine should be flushed with high-flow gas (≥ 10 L/min of 100% oxygen, air, or a mixture) to wash out residual volatile inhalational anesthetics. The time required for flushing varies by machine; however, it tends to be longer in newer models, which typically require 60–100 min with 10 L/min pure oxygen [ 3 ]. High-flow gas should be continued until the machine is used and avoid placing it in standby mode. Reducing the flow rate can cause a rebound effect, which increases anesthetic concentration. A ventilator without a volatile anesthetic vaporizer can be used as an alternative to anesthesia machines.\n\nPerioperative risk assessment and management > Caution in planning safe anesthesia\nAdequate monitoring and appropriate postoperative care are essential. Monitor ETCO 2 and core temperature continuously. Caution is necessary because no causative anesthetic drugs were reportedly used in 7 of the 477 cases of MH in a previous study [ 21 ]. If suspicious findings are observed in MH-susceptible patients during anesthesia, dantrolene should be administered intravenously. In the absence of suspicious MH findings, standard postoperative management is considered safe and appropriate [ 3 ].\n\nPerioperative risk assessment and management > Counseling patients and their family members after MH diagnosis > Include the following items concerning future anesthesia\nPrescribing dantrolene before anesthesia is not recommended because it causes muscle weakness [ 3 ]. Local anesthetics and regional anesthesia including subarachnoidal and epidural anesthesia are safe. Intravenous administration of sedatives is preferable to reduce anxiety and stress [ 1 , 3 , 5 , 43 ]. Inhalational anesthetics and depolarizing muscle relaxants should be avoided when receiving medical treatment that requires general anesthesia. Intravenous anesthetics are considered safe. These patients are recommended to receive medical treatment at facilities where dantrolene is available. Genetic testing and muscle biopsy can be used to determine susceptibility to MH, and a definitive diagnosis is recommended. The probability of confirming MH susceptibility through testing is approximately 50%–70%; even when the results of muscle biopsy and genetic testing are negative, this is not sufficient to rule out MH.",
+        "body_excerpts_sha256": "ee9e6a93f3fc0b456d9edffab4cb7be60db97a57ae5639d0ada0e0bee77a4b44",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12860801/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "37487920",
+        "title": "Nanoarchitecture-based photothermal ablation of cancer: A systematic review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37487920/",
+        "abstract": "Photothermal therapy (PTT) is an emerging non-invasive method used in cancer treatment. In PTT, near-infrared laser light is absorbed by a chromophore and converted into heat within the tumor tissue. PTT for cancer usually combines a variety of interactive plasmonic nanomaterials with laser irradiation. PTT enjoys PT agents with high conversion efficiency to convert light into heat to destroy malignant tissue. In this review, published studies concerned with the use of nanoparticles (NPs) in PTT were collected by a systematic and comprehensive search of PubMed, Cochrane, Embase, and Scopus databases. Gold, silver and iron NPs were the most frequent choice in PTT. The use of surface modified NPs allowed selective delivery and led to a precise controlled increase in the local temperature. The presence of NPs during PTT can increase the reactive generation of oxygen species, damage the DNA and mitochondria, leading to cancer cell death mainly via apoptosis. Many studies recently used core-shell metal NPs, and the effects of the polymer coating or ligands targeted to specific cellular receptors in order to increase PTT efficiency were often reported. The effective parameters (NP type, size, concentration, coated polymers or attached ligands, exposure conditions, cell line or type, and cell death mechanisms) were investigated individually. With the advances in chemical synthesis technology, NPs with different shapes, sizes, and coatings can be prepared with desirable properties, to achieve multimodal cancer treatment with precision and specificity.",
+        "sha256": "c9f9521e4d37b789d117b3953ff96d53c21886559c86f1c1df7f7d5152cf3dec",
+        "retrieved_at": "2026-09-18T23:51:50.137796+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The presentation is a classic malignant hyperthermia (MH) crisis: exposure to two known triggers (sevoflurane and succinylcholine), unexplained rising end-tidal CO2 (38 to 68 mmHg) despite increased minute ventilation, unexplained tachycardia (78 to 142 bpm), generalized muscle rigidity, and a rapid temperature rise (>=0.5 C in 15 min: 36.8 to 37.6 C). The JSA 2025 guideline (41504952) explicitly states that these early signs (increased ETCO2 despite increased ventilation, unexplained tachycardia, hyperthermia, or muscle rigidity) indicate immediate dantrolene administration and declaration of an MH emergency without waiting for a definitive diagnosis or laboratory confirmation. Multiple guidelines (33399225, 30550426) emphasize that treatment delay markedly increases morbidity/mortality (complications rise every 10 min, approaching 100% at 50-min delay), and dantrolene must be available/started within ~10 min of the decision to treat. The absence of personal/family history does not exclude MH (penetrance is low; MH can occur on first exposure). Answer B matches the guideline-recommended crisis bundle: stop triggers, switch to TIVA/non-depolarizing relaxant, declare emergency and summon help, hyperventilate with 100% O2 >=10 L/min at ~double minute ventilation, give dantrolene 2.0 mg/kg actual body weight over ~10 min with repeat dosing every 10 min until ETCO2/temperature/rigidity improve, active cooling (stop below 38 C), labs (ABG, electrolytes, CK, myoglobin, renal function, coagulation), avoid calcium-channel blockers with dantrolene, and monitor >=24 h for recurrence. Answer A is dangerous and contradicts the evidence: attributing findings to light anesthesia or rebreathing, continuing the triggering agent (sevoflurane), and delaying dantrolene until temperature exceeds 40 C or labs confirm would cause potentially fatal treatment delay; hyperthermia is a late sign, not a prerequisite for treatment.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.95,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33399225",
+                "41504952"
+              ],
+              "source_passage_ids": [
+                "33399225:p0",
+                "41504952:p0",
+                "41504952:p7"
+              ],
+              "reason": "Both sources state MH is triggered by potent inhalational anaesthetics and succinylcholine/suxamethonium in genetically susceptible individuals; sevoflurane specifically named as a trigger.",
+              "source_quotes": [
+                {
+                  "source_id": "33399225",
+                  "quote": "Malignant hyperthermia is defined in the International Classification of Diseases as a progressive life-threatening hyperthermic reaction occurring during general anaesthesia. Malignant hyperthermia has an underlying genetic basis, and genetically susceptible individuals are at risk of developing malignant hyperthermia if they are exposed to any of the potent inhalational anaesthetics or suxamethonium. It can also be described as a malignant hypermetabolic syndrome. There are no specific clinical features of malignant hyperthermia and the condition may prove fatal unless it is recognised in its early stages and treatment is promptly and aggressively implemented. The Association of Anaesthetists has previously produced crisis management guidelines intended to be displayed in all anaesthetic rooms as an aide memoire should a malignant hyperthermia reaction occur."
+                },
+                {
+                  "source_id": "41504952",
+                  "quote": "Malignant hyperthermia (MH) is a rare, life-threatening inherited disorder triggered by volatile inhalational anesthetics and/or the depolarizing muscle relaxant suxamethonium. In susceptible individuals, calcium release from the sarcoplasmic reticulum in the skeletal muscle becomes abnormally accelerated, leading to a hypermetabolic state. Early signs of MH include unexplained hypercarbia (end-tidal carbon dioxide > 55 mm Hg), tachycardia, and muscle rigidity, particularly in the masseter. Rapid increases in core temperature (> 0.5 °C/15 min, with temperatures often exceeding 40 °C) are typical. With progression, respiratory and metabolic acidosis, arrhythmias, cola-colored urine (myoglobinuria), elevated serum potassium, and tented T-waves may develop, potentially leading to cardiac arrest or multiorgan failure."
+                },
+                {
+                  "source_id": "41504952",
+                  "quote": "Rapid treatment should be started by giving a sufficient dose of dantrolene without waiting for a definitive diagnosis, because early decision-making and treatment are essential. These guidelines present the basis for early therapy and further treatment of hyperthermia with hypermetabolic states and a simple algorithm for management. Basis of this guideline > MH pathophysiology All volatile inhaled anesthetics, including sevoflurane and desflurane, as well as depolarizing muscle relaxants such as suxamethonium, are known to trigger MH (Fig. 1 ). Volatile inhaled anesthetics enhance the rate of Ca 2+ release from the SR into the cytoplasm. In predisposed individuals, the CICR rate is abnormally accelerated, surpassing the rate of Ca 2 ⁺ reuptake into the SR, resulting in an uncontrollable elevation of intracellular Ca 2 ⁺ concentration (Fig. 1 )."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "41504952"
+              ],
+              "source_passage_ids": [
+                "41504952:p10",
+                "41504952:p16"
+              ],
+              "reason": "JSA guideline states persistently elevated ETCO2 despite increased ventilation, unexplained tachycardia, hyperthermia, and generalized muscle rigidity are key indicators of immediate dantrolene administration; rapid temp rise (>=0.5C/15min) is a suspicious sign.",
+              "source_quotes": [
+                {
+                  "source_id": "41504952",
+                  "quote": "Adapted from JSA Guideline for Management of Malignant Hyperthermia 2025 (Japanese version) ( https://anesth.or.jp/files/pdf/guideline_akuseikounetsu.pdf ) Basis of this guideline > Managing intraoperative and postoperative MH Symptoms suggestive of MH include unexplained elevation or high levels of ETCO 2 , unexplained tachycardia, a temperature increase of ≥ 0.5 °C within 15 min, hyperthermia (≥ 38.8 °C), difficulty in opening the mouth, muscle rigidity, cola-colored urine (myoglobinuria), and metabolic acidosis (base excess [BE] ≤ –8.0) [ 21 – 23 ]. Specifically, dantrolene administration is indicated in the presence of early symptoms (increased ETCO 2 despite increased minute ventilation, unexplained tachycardia, hyperthermia, or muscle rigidity). In such cases, an “Emergency of MH” should be declared, and the measures outlined in Fig. 2 should be promptly implemented."
+                },
+                {
+                  "source_id": "41504952",
+                  "quote": "MH crisis treatment procedure (Fig. 2 ) > Diagnosing MH > Clinical diagnosis If symptoms and signs of MH are present, a diagnosis should be made clinically and treatment must be initiated immediately. Clinical signs suspicious for MH include unexplained elevations in ETCO 2 , tachycardia of unknown origin, a rapid increase in body temperature (≥ 0.5 °C within 15 min), hyperthermia (≥ 38.8 °C), difficulty in opening the mouth, muscle rigidity, cola-colored urine (myoglobinuria), and metabolic acidosis (BE ≤ –8.0) [ 21 – 23 ]. Persistently elevated ETCO₂ despite increased minute ventilation, an early hallmark of MH, along with unexplained tachycardia, hyperthermia, and generalized muscle rigidity are key indicators of immediate dantrolene administration. In such cases, an emergency due to suspected MH should be declared without delay, and the measures outlined in Fig."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "41504952"
+              ],
+              "source_passage_ids": [
+                "41504952:p11",
+                "41504952:p12"
+              ],
+              "reason": "Treatment procedure: discontinue triggering agents, switch to IV anesthesia/non-depolarizing relaxant, high-flow pure oxygen >=10 L/min with doubled minute ventilation, and administer IV dantrolene.",
+              "source_quotes": [
+                {
+                  "source_id": "41504952",
+                  "quote": "Basis of this guideline > Managing intraoperative and postoperative MH Notably, MH can also occur after anesthesia [ 24 ]. The time to onset of MH symptoms varies widely across cases; however, most cases occur within 40 min of surgery [ 24 ]. Therefore, careful monitoring of the postoperative conditions is important (Fig. 3 ). Fig. 3 Management Algorithm for postoperative malignant hyperthermia (PMH). Adapted from JSA Guideline for Management of Malignant Hyperthermia 2025 (Japanese version) ( https://anesth.or.jp/files/pdf/guideline_akuseikounetsu.pdf ) MH crisis treatment procedure (Fig. 2 ) Discontinue the administration of triggering agents, such as volatile inhaled anesthetics or suxamethonium, and switch to intravenous anesthesia and non-depolarizing muscle relaxants. Declare an emergency, call for additional assistance, and request that the surgeon promptly complete the surgery."
+                },
+                {
+                  "source_id": "41504952",
+                  "quote": "All members of the surgical team must recognize that the patient’s condition requires a coordinated team response. Use high-flow pure oxygen (≥ 10 L/min) to perform hyperventilation (set minute ventilation to at least double the normal rate) to reduce the anesthetic concentration in the breathing circuit [ 25 ]. Prepare dantrolene via dissolution. Because many facilities and operating rooms may not stock large quantities of dantrolene, securing a sufficient supply for a total dose of up to 7.0 mg/kg is necessary. Administer dantrolene via a dedicated large-gauge peripheral intravenous line. Dissolve each 20-mg dantrolene vial in 60 mL of distilled water for injection, shake until clear, and administer at least 1.0 mg/kg (based on actual body weight) over approximately 10 min. Preferably, administer 2.0 mg/kg over approximately 10 min [ 4 ]."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "41504952"
+              ],
+              "source_passage_ids": [
+                "41504952:p12",
+                "41504952:p13"
+              ],
+              "reason": "Guideline states administer at least 1.0 mg/kg, preferably 2.0 mg/kg actual body weight over ~10 min, with reassessment every 10 min and repeat administration until improvement.",
+              "source_quotes": [
+                {
+                  "source_id": "41504952",
+                  "quote": "All members of the surgical team must recognize that the patient’s condition requires a coordinated team response. Use high-flow pure oxygen (≥ 10 L/min) to perform hyperventilation (set minute ventilation to at least double the normal rate) to reduce the anesthetic concentration in the breathing circuit [ 25 ]. Prepare dantrolene via dissolution. Because many facilities and operating rooms may not stock large quantities of dantrolene, securing a sufficient supply for a total dose of up to 7.0 mg/kg is necessary. Administer dantrolene via a dedicated large-gauge peripheral intravenous line. Dissolve each 20-mg dantrolene vial in 60 mL of distilled water for injection, shake until clear, and administer at least 1.0 mg/kg (based on actual body weight) over approximately 10 min. Preferably, administer 2.0 mg/kg over approximately 10 min [ 4 ]."
+                },
+                {
+                  "source_id": "41504952",
+                  "quote": "Repeat administration as needed until there is a decrease in ETCO₂ and core body temperature and improvement in muscle rigidity. The evaluation is performed every 10 min until MH symptoms resolve. The Japanese package insert specifies a maximum of 7.0 mg/kg; however, Western guidelines recommend a dose exceeding 10 mg/kg if dantrolene remains effective [ 4 ]. As these guidelines do not set an upper limit for dantrolene dosage, it should be administered in sufficient quantities until clinical symptoms improve. Secure an arterial line for blood gas analysis to determine the degree of metabolic acidosis. Administer chilled normal saline intravenously to reduce the patient’s body temperature (maximum volume: 50–60 mL/kg). Lower the ambient room temperature, and actively cool the patient’s body surface using room-temperature airflow."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "30550426"
+              ],
+              "source_passage_ids": [
+                "30550426:p2"
+              ],
+              "reason": "Systematic review shows treatment delay increased complications every 10 min, reaching 100% with a 50-min delay; delayed dantrolene increases MH complications.",
+              "source_quotes": [
+                {
+                  "source_id": "30550426",
+                  "quote": "Succinylcholine without volatile anesthetics triggered 24 MH cases, 13 requiring dantrolene. Among 310 anesthetic-triggered MH cases, morbidity was 20 to 37%. Treatment delay increased complications every 10 min, reaching 100% with a 50-min delay. Overall mortality was 1 to 10%; 15 U.S. patients died, including 4 after anesthetics in freestanding facilities. Providers use succinylcholine commonly, including during difficult mask ventilation. Succinylcholine administered without volatile anesthetics may trigger MH events requiring dantrolene. Delayed dantrolene treatment increases the likelihood of MH complications. The data reported herein support stocking dantrolene wherever succinylcholine or volatile anesthetics may be used."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "41504952"
+              ],
+              "source_passage_ids": [
+                "41504952:p15"
+              ],
+              "reason": "Guideline states recurrence may occur after MH onset and patient should be monitored for at least 24 h.",
+              "source_quotes": [
+                {
+                  "source_id": "41504952",
+                  "quote": "If possible, remove the vaporizer and replace the anesthesia circuit. However, this is not mandatory, because additional personnel and time are required. To assess the patient’s condition, perform the following blood tests: arterial blood gas analysis; blood glucose, electrolytes, lactic acid, CK, qualitative and quantitative myoglobin (including urine) levels; biochemical tests (renal and liver function); and coagulation tests to diagnose DIC. As recurrence may occur after the onset of MH, appropriate diagnostic tests should be conducted as needed, and the patient should be monitored for at least 24 h [ 27 , 28 ]. Clinical improvement in MH can be assessed by observing trends, such as decreasing or normalized ETCO 2 levels, stabilization of heart rate or fewer arrhythmias, return to normothermia without the need for active cooling, and resolution of muscle rigidity."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is an on-specialty (anesthesiology) adult MH case. The chart shows classic early MH: exposure to two recognized triggers (sevoflurane + succinylcholine), rising ETCO2 (38->68 mmHg) despite increased minute ventilation, unexplained tachycardia (78->142), generalized rigidity, and a rapid temperature rise (0.8C in 15 min, then to 38.1C). The JSA 2025 guideline (41504952) explicitly states these constitute early MH signs indicating immediate dantrolene, without waiting for extreme hyperthermia or confirmatory testing. Candidate B faithfully mirrors the guideline crisis algorithm: stop triggers, switch to IV/non-depolarizing agent, declare emergency, 100% oxygen >=10 L/min with doubled ventilation, dantrolene 2.0 mg/kg actual body weight over ~10 min with q10-min reassessment/repeat, active cooling stopping below 38C, lab workup (ABG, electrolytes, CK, myoglobin, renal, coagulation), avoid calcium-channel blockers with dantrolene, and monitor >=24 h for recurrence. Every decisive recommendation in B is supported by the supplied guideline text and the delay-complication data (30550426). Candidate A is the intentionally flawed option: it misdiagnoses as light anesthesia/rebreathing, continues the triggering sevoflurane, and dangerously delays dantrolene until temperature exceeds 40C or labs confirm, plus advises routine recovery without prolonged monitoring — contradicting the guideline's early-treatment mandate and the recurrence-monitoring recommendation. The two candidates diverge on a genuine clinical decision (immediate crisis treatment vs. observation), distinct from any prior case. The visible note does not name MH or disclose the plan; it presents raw physiologic data requiring interpretation, so the answer is not pre-revealed. Note the hyperthermia threshold in the guideline body text is >=38.8C while the abstract mentions temperatures often exceeding 40C; the patient at 38.1C has not reached the hyperthermia threshold, but the guideline is explicit that the rapid temperature rise (>=0.5C/15min) plus the other early signs already indicate treatment — so treating now (B) is correct and waiting for >40C (A) is unsafe. The nanoparticle photothermal source (37487920) is irrelevant/distractor and not relied upon. Dosing (2.0 mg/kg actual body weight) is safe and matches the EMHG-aligned preferred dose. No essential care is omitted from B. Case is acceptable for publication."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The combination of rapidly rising end-tidal CO2 despite increased ventilation, unexplained tachycardia, generalized rigidity, and a rapid core-temperature rise after exposure to sevoflurane and succinylcholine is strongly indicative of an evolving malignant hyperthermia crisis. A negative personal or family history does not exclude susceptibility. Treatment must begin on clinical suspicion without waiting for extreme hyperthermia or laboratory confirmation. Answer B appropriately calls for immediate discontinuation of triggering agents, high-flow 100% oxygen and hyperventilation, emergency team mobilization, prompt actual-body-weight-based IV dantrolene with repeat dosing according to response, cooling, evaluation and treatment of metabolic and organ complications, avoidance of calcium-channel blockers with dantrolene, and at least 24 hours of monitoring for recurrence. These actions align with the supplied MH guidelines; delayed dantrolene is associated with increasing complications. At 82 kg, the stated 2.0 mg/kg initial dose is approximately 164 mg. Answer A would dangerously continue a trigger and delay definitive treatment.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.99,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33399225",
+                "41504952"
+              ],
+              "reason": "Both sources identify potent volatile anesthetics and succinylcholine/suxamethonium as malignant-hyperthermia triggers; the newer guideline specifically includes sevoflurane.",
+              "source_passage_ids": [
+                "33399225:p0",
+                "41504952:p7"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33399225",
+                  "quote": "Malignant hyperthermia is defined in the International Classification of Diseases as a progressive life-threatening hyperthermic reaction occurring during general anaesthesia. Malignant hyperthermia has an underlying genetic basis, and genetically susceptible individuals are at risk of developing malignant hyperthermia if they are exposed to any of the potent inhalational anaesthetics or suxamethonium. It can also be described as a malignant hypermetabolic syndrome. There are no specific clinical features of malignant hyperthermia and the condition may prove fatal unless it is recognised in its early stages and treatment is promptly and aggressively implemented. The Association of Anaesthetists has previously produced crisis management guidelines intended to be displayed in all anaesthetic rooms as an aide memoire should a malignant hyperthermia reaction occur."
+                },
+                {
+                  "source_id": "41504952",
+                  "quote": "Rapid treatment should be started by giving a sufficient dose of dantrolene without waiting for a definitive diagnosis, because early decision-making and treatment are essential. These guidelines present the basis for early therapy and further treatment of hyperthermia with hypermetabolic states and a simple algorithm for management. Basis of this guideline > MH pathophysiology All volatile inhaled anesthetics, including sevoflurane and desflurane, as well as depolarizing muscle relaxants such as suxamethonium, are known to trigger MH (Fig. 1 ). Volatile inhaled anesthetics enhance the rate of Ca 2+ release from the SR into the cytoplasm. In predisposed individuals, the CICR rate is abnormally accelerated, surpassing the rate of Ca 2 ⁺ reuptake into the SR, resulting in an uncontrollable elevation of intracellular Ca 2 ⁺ concentration (Fig. 1 )."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "41504952"
+              ],
+              "reason": "The guideline identifies persistently elevated end-tidal carbon dioxide despite increased ventilation, unexplained tachycardia, rapid temperature increase, and rigidity as suspicious findings warranting immediate dantrolene and emergency activation.",
+              "source_passage_ids": [
+                "41504952:p10",
+                "41504952:p16"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41504952",
+                  "quote": "Adapted from JSA Guideline for Management of Malignant Hyperthermia 2025 (Japanese version) ( https://anesth.or.jp/files/pdf/guideline_akuseikounetsu.pdf ) Basis of this guideline > Managing intraoperative and postoperative MH Symptoms suggestive of MH include unexplained elevation or high levels of ETCO 2 , unexplained tachycardia, a temperature increase of ≥ 0.5 °C within 15 min, hyperthermia (≥ 38.8 °C), difficulty in opening the mouth, muscle rigidity, cola-colored urine (myoglobinuria), and metabolic acidosis (base excess [BE] ≤ –8.0) [ 21 – 23 ]. Specifically, dantrolene administration is indicated in the presence of early symptoms (increased ETCO 2 despite increased minute ventilation, unexplained tachycardia, hyperthermia, or muscle rigidity). In such cases, an “Emergency of MH” should be declared, and the measures outlined in Fig. 2 should be promptly implemented."
+                },
+                {
+                  "source_id": "41504952",
+                  "quote": "MH crisis treatment procedure (Fig. 2 ) > Diagnosing MH > Clinical diagnosis If symptoms and signs of MH are present, a diagnosis should be made clinically and treatment must be initiated immediately. Clinical signs suspicious for MH include unexplained elevations in ETCO 2 , tachycardia of unknown origin, a rapid increase in body temperature (≥ 0.5 °C within 15 min), hyperthermia (≥ 38.8 °C), difficulty in opening the mouth, muscle rigidity, cola-colored urine (myoglobinuria), and metabolic acidosis (BE ≤ –8.0) [ 21 – 23 ]. Persistently elevated ETCO₂ despite increased minute ventilation, an early hallmark of MH, along with unexplained tachycardia, hyperthermia, and generalized muscle rigidity are key indicators of immediate dantrolene administration. In such cases, an emergency due to suspected MH should be declared without delay, and the measures outlined in Fig."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "41504952"
+              ],
+              "reason": "The crisis procedure directs discontinuation of triggering agents, transition to non-triggering intravenous anesthesia, emergency activation, high-flow pure oxygen with hyperventilation, and dantrolene administration.",
+              "source_passage_ids": [
+                "41504952:p11",
+                "41504952:p12"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41504952",
+                  "quote": "Basis of this guideline > Managing intraoperative and postoperative MH Notably, MH can also occur after anesthesia [ 24 ]. The time to onset of MH symptoms varies widely across cases; however, most cases occur within 40 min of surgery [ 24 ]. Therefore, careful monitoring of the postoperative conditions is important (Fig. 3 ). Fig. 3 Management Algorithm for postoperative malignant hyperthermia (PMH). Adapted from JSA Guideline for Management of Malignant Hyperthermia 2025 (Japanese version) ( https://anesth.or.jp/files/pdf/guideline_akuseikounetsu.pdf ) MH crisis treatment procedure (Fig. 2 ) Discontinue the administration of triggering agents, such as volatile inhaled anesthetics or suxamethonium, and switch to intravenous anesthesia and non-depolarizing muscle relaxants. Declare an emergency, call for additional assistance, and request that the surgeon promptly complete the surgery."
+                },
+                {
+                  "source_id": "41504952",
+                  "quote": "All members of the surgical team must recognize that the patient’s condition requires a coordinated team response. Use high-flow pure oxygen (≥ 10 L/min) to perform hyperventilation (set minute ventilation to at least double the normal rate) to reduce the anesthetic concentration in the breathing circuit [ 25 ]. Prepare dantrolene via dissolution. Because many facilities and operating rooms may not stock large quantities of dantrolene, securing a sufficient supply for a total dose of up to 7.0 mg/kg is necessary. Administer dantrolene via a dedicated large-gauge peripheral intravenous line. Dissolve each 20-mg dantrolene vial in 60 mL of distilled water for injection, shake until clear, and administer at least 1.0 mg/kg (based on actual body weight) over approximately 10 min. Preferably, administer 2.0 mg/kg over approximately 10 min [ 4 ]."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "41504952"
+              ],
+              "reason": "The guideline preferably recommends 2.0 mg/kg based on actual body weight over approximately 10 minutes, followed by reassessment every 10 minutes and repeat dosing according to clinical response.",
+              "source_passage_ids": [
+                "41504952:p12",
+                "41504952:p13"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41504952",
+                  "quote": "All members of the surgical team must recognize that the patient’s condition requires a coordinated team response. Use high-flow pure oxygen (≥ 10 L/min) to perform hyperventilation (set minute ventilation to at least double the normal rate) to reduce the anesthetic concentration in the breathing circuit [ 25 ]. Prepare dantrolene via dissolution. Because many facilities and operating rooms may not stock large quantities of dantrolene, securing a sufficient supply for a total dose of up to 7.0 mg/kg is necessary. Administer dantrolene via a dedicated large-gauge peripheral intravenous line. Dissolve each 20-mg dantrolene vial in 60 mL of distilled water for injection, shake until clear, and administer at least 1.0 mg/kg (based on actual body weight) over approximately 10 min. Preferably, administer 2.0 mg/kg over approximately 10 min [ 4 ]."
+                },
+                {
+                  "source_id": "41504952",
+                  "quote": "Repeat administration as needed until there is a decrease in ETCO₂ and core body temperature and improvement in muscle rigidity. The evaluation is performed every 10 min until MH symptoms resolve. The Japanese package insert specifies a maximum of 7.0 mg/kg; however, Western guidelines recommend a dose exceeding 10 mg/kg if dantrolene remains effective [ 4 ]. As these guidelines do not set an upper limit for dantrolene dosage, it should be administered in sufficient quantities until clinical symptoms improve. Secure an arterial line for blood gas analysis to determine the degree of metabolic acidosis. Administer chilled normal saline intravenously to reduce the patient’s body temperature (maximum volume: 50–60 mL/kg). Lower the ambient room temperature, and actively cool the patient’s body surface using room-temperature airflow."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "30550426"
+              ],
+              "reason": "The database analyses found increasing complications with each 10-minute treatment delay and explicitly concluded that delayed dantrolene increases malignant-hyperthermia complications.",
+              "source_passage_ids": [
+                "30550426:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "30550426",
+                  "quote": "Succinylcholine without volatile anesthetics triggered 24 MH cases, 13 requiring dantrolene. Among 310 anesthetic-triggered MH cases, morbidity was 20 to 37%. Treatment delay increased complications every 10 min, reaching 100% with a 50-min delay. Overall mortality was 1 to 10%; 15 U.S. patients died, including 4 after anesthetics in freestanding facilities. Providers use succinylcholine commonly, including during difficult mask ventilation. Succinylcholine administered without volatile anesthetics may trigger MH events requiring dantrolene. Delayed dantrolene treatment increases the likelihood of MH complications. The data reported herein support stocking dantrolene wherever succinylcholine or volatile anesthetics may be used."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "41504952"
+              ],
+              "reason": "The guideline states that recurrence can occur and directs monitoring for at least 24 hours.",
+              "source_passage_ids": [
+                "41504952:p15"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41504952",
+                  "quote": "If possible, remove the vaporizer and replace the anesthesia circuit. However, this is not mandatory, because additional personnel and time are required. To assess the patient’s condition, perform the following blood tests: arterial blood gas analysis; blood glucose, electrolytes, lactic acid, CK, qualitative and quantitative myoglobin (including urine) levels; biochemical tests (renal and liver function); and coagulation tests to diagnose DIC. As recurrence may occur after the onset of MH, appropriate diagnostic tests should be conducted as needed, and the patient should be monitored for at least 24 h [ 27 , 28 ]. Clinical improvement in MH can be assessed by observing trends, such as decreasing or normalized ETCO 2 levels, stabilization of heart rate or fewer arrhythmias, return to normothermia without the need for active cooling, and resolution of muscle rigidity."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The independent clinical interpretation is suspected malignant hyperthermia requiring immediate treatment. The patient received two recognized triggers and then developed a strongly concordant syndrome: end-tidal carbon dioxide of 68 mmHg despite increased ventilation, otherwise unexplained tachycardia, generalized rigidity, and a temperature rise exceeding 0.5°C in 15 minutes. Extreme hyperthermia or confirmatory testing is not required before treatment. Candidate B matches the supplied crisis procedure, including stopping triggers, using non-triggering intravenous anesthesia, activating a coordinated emergency response, high-flow 100% oxygen with increased ventilation, prompt weight-based dantrolene with reassessment and repeat dosing, cooling, laboratory assessment and complication management, avoidance of calcium-channel blockers with dantrolene, and at least 24 hours of monitoring. The supporting passages also establish its cooling threshold, laboratory recommendations, and calcium-channel-blocker warning. Candidate A is intentionally unsafe because it continues sevoflurane and delays dantrolene. The title, question, and visible clinical note do not disclose the diagnosis or management plan. No imaging or pretreatment laboratory confirmation is needed at this decision point, and there are no previous cases against which decision independence could fail."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "8c6fc66a7875bc0cca2c8958af1ff7e4ce02b41956e5115a3ff780f7a207a7c4"
+  }
+}

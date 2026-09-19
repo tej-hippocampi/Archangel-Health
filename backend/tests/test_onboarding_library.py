@@ -17,6 +17,16 @@ from tests._asclepius import app, fresh_store, make_user, headers_for
 from tests.test_onboarding_specialty_cases import fixture_entry, seed_case, SOURCES, approved_review, set_credentials
 
 
+def test_recovery_matrix_targets_only_requested_unique_specialties():
+    from scripts.build_onboarding_library import matrix_specialties
+    assert matrix_specialties('nephrology, pathology,dermatology') == ['pathology', 'dermatology', 'nephrology']
+    all_specialties = matrix_specialties('all')
+    assert len(all_specialties) == 43 and set(all_specialties) == set(SPECIALTIES)
+    for invalid in ('', 'pathology,', 'unrecognized', 'pathology,pathology', 'all,pathology'):
+        with pytest.raises(ValueError):
+            matrix_specialties(invalid)
+
+
 @pytest.mark.parametrize('row', CURRICULUM)
 def test_every_requested_specialty_has_a_distinct_pair_and_routes_confirmed_cv(row):
     name, practice, exam = row
@@ -244,6 +254,21 @@ def test_both_pathology_reviewers_see_same_pixels_without_caption_or_key(monkeyp
     assert calls.count('onboarding_case_solve') == calls.count('onboarding_case_review') == 2
     assert entry['case']['case_provenance']['disclaimers']
     assert report['method'] == 'fake_fixture_only'
+
+
+def test_new_draft_cannot_leak_future_tests_through_modality_metadata(monkeypatch):
+    from ai import llm_client
+    from asclepius import onboarding_evidence
+    async def retrieve(*args, **kwargs): return list(SOURCES)
+    async def llm(**kw):
+        assert kw['purpose'] == 'onboarding_case_author'  # reject before blinded review
+        entry = fixture_entry()
+        entry['case']['required_modalities'] = ['Future diagnostic answer']
+        return SimpleNamespace(content=[SimpleNamespace(type='text', text=json.dumps(entry))]), {'model': 'fixture-author'}
+    monkeypatch.setattr(onboarding_evidence, 'retrieve', retrieve)
+    monkeypatch.setattr(llm_client, 'call_llm', llm)
+    with pytest.raises(ValueError, match='authoring_modality_hint_forbidden'):
+        asyncio.run(bank.build_case(fresh_store(), 'dermatology', 'practice', bank.task_id('dermatology', 'practice')))
 
 
 def test_rejected_review_retains_both_outcomes_without_publishing_or_orphaning(monkeypatch):

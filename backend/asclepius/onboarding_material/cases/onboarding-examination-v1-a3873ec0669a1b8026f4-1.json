@@ -1,0 +1,457 @@
+{
+  "task_id": "onboarding-examination-v1-a3873ec0669a1b8026f4-1",
+  "specialty": "allergy and immunology",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Remote antibiotic-associated rash in an adult outpatient",
+    "question": "Which management approach is most appropriate for addressing this patient's current penicillin allergy label?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "allergy and immunology",
+      "demographics": {
+        "age_band": "40-49",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Remote medication-associated rash history",
+          "since": "More than 20 years ago",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Penicillin allergy label in medical record",
+          "since": "Childhood",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Allergy consultation",
+          "author_role": "allergy and immunology",
+          "text": "The patient presents for evaluation of a penicillin allergy label entered after a childhood course of an unknown penicillin. Family members recall a limited rash without respiratory symptoms, angioedema, hypotension, mucosal lesions, skin peeling, fever, organ injury, or emergency treatment. She has not knowingly received a penicillin since then. There is no current illness, pregnancy, or active rash. Review through the clinic's standardized history-based assessment categorized the reported phenotype as low risk. She has never undergone penicillin skin testing or a supervised drug challenge.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [
+        "clinical history"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for decision",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "This adult has already been classified as having a low-risk penicillin reaction history. Evidence from outpatient adults supports supervised direct oral amoxicillin challenge as a safe delabeling approach in this population, with no critical adverse events reported in the systematic review and most participants tolerating challenge and being delabeled. If the challenge is tolerated, the penicillin allergy label should be removed rather than retained solely because of the remote historical rash. Permanent avoidance would preserve a label that is likely inappropriate and deny the patient an evidence-supported evaluation.",
+        "evidence": null,
+        "key_data": [
+          "The standardized history-based assessment classified the phenotype as low risk.",
+          "The reported rash occurred in childhood more than 20 years ago.",
+          "There was no respiratory compromise, hypotension, angioedema, mucosal disease, skin peeling, fever, or organ injury.",
+          "The patient has never undergone a supervised penicillin or amoxicillin challenge."
+        ]
+      },
+      "hard_hook": "The low-risk classification has already been completed, so the assessed decision is how to evaluate and potentially remove the existing label.",
+      "reasoning_divergence": "The flawed approach treats every historical rash as proof of permanent allergy, whereas the supported approach uses direct challenge to evaluate an already risk-stratified low-risk adult."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Retain the penicillin allergy label permanently and advise avoidance of all penicillins because any childhood rash establishes an enduring allergy and makes a subsequent drug challenge inappropriate."
+      },
+      {
+        "id": "B",
+        "text": "Perform a supervised direct oral amoxicillin challenge in the outpatient setting. If the patient tolerates the challenge without an allergic reaction, remove the penicillin allergy label from the medical record."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "penicillin allergy",
+      "drug challenge",
+      "amoxicillin",
+      "allergic reaction",
+      "delabeling"
+    ],
+    "evidence_keywords": [
+      "low-risk phenotype",
+      "direct oral challenge",
+      "outpatient adults",
+      "risk stratification",
+      "medical record"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "In a systematic review of 1,070 low-risk adults challenged in primary care or other outpatient settings, no critical adverse events occurred during direct drug challenge.",
+        "source_ids": [
+          "38901618"
+        ]
+      },
+      {
+        "statement": "Among those outpatient adults, 97.13% had no reaction during direct challenge and were safely delabeled, while immediate reactions occurred in fewer than 1%.",
+        "source_ids": [
+          "38901618"
+        ]
+      },
+      {
+        "statement": "A systematic review of international guidance found that many penicillin allergy delabeling guidelines support direct delabeling or direct challenge in low-risk patients.",
+        "source_ids": [
+          "41792989"
+        ]
+      },
+      {
+        "statement": "Penicillin skin tests and serum-specific IgE testing have low summary sensitivity despite high specificity when compared with drug challenge outcomes.",
+        "source_ids": [
+          "32446963"
+        ]
+      },
+      {
+        "statement": "In hospitalized adults with negative penicillin allergy evaluations, most patients had the allergy label removed from their electronic health records.",
+        "source_ids": [
+          "40738396"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:44:19.899193+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "38901618",
+        "title": "Safe Penicillin Allergy Delabeling in Primary Care: A Systematic Review and Meta-Analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38901618/",
+        "abstract": "Ten percent of the population is labeled as allergic to penicillin(s), when in fact 90% of these labels are inappropriate. Recent studies have shown that inpatient delabeling by a direct drug challenge (dDC) is safe in low-risk patients. However, there is a need for outpatient and nonallergist delabeling.\nTo assess the safety of delabeling low-risk adults by means of dDC in primary care.\nWe searched the MEDLINE, Embase, and Cochrane Library databases from inception to March 15, 2022 (updated June 5, 2023) for studies performing dDC in adults in primary care or other outpatient settings. Two researchers independently screened studies for eligibility. The data extraction and critical appraisal were performed by 1 reviewer, and we pooled the results in a meta-analysis.\nOf 2138 results, 12 studies (1070 participants) were eligible for inclusion. Three studies evaluated delabeling in primary care and 9 studies in an outpatient hospital setting. There were no critical adverse events during dDC. No reaction occurred in 97.13% of the 1070 patients, who previously labeled as penicillin-allergic, and were safely delabeled. Ten patients (<1%) developed an immediate reaction: 3 had self-limiting reactions and 7 needed antihistaminics, steroids, epinephrine, and/or salbutamol.\nNo serious allergic reactions are observed during direct amoxicillin challenge in adults in an outpatient setting. However, with the exception of 1 recent report, these studies are of low to moderate quality. Nonspecialist delabeling is promising, but further research is required on correct risk stratification and safety assessment in large cohort studies evaluating dDC in primary care.",
+        "sha256": "37d8d17859796d5ac91d2404f7f87e96e0cfe513510506f46bd07816016cb303",
+        "retrieved_at": "2026-09-18T23:42:54.985401+00:00"
+      },
+      {
+        "id": "32446963",
+        "title": "Accuracy of penicillin allergy diagnostic tests: A systematic review and meta-analysis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32446963/",
+        "abstract": "Having a penicillin allergy label associates with a higher risk for antibiotic resistance and increased health care use.\nWe sought to assess the accuracy of skin tests and specific IgE quantification in the diagnostic evaluation of patients reporting a penicillin/β-lactam allergy.\nWe performed a systematic review and diagnostic accuracy meta-analysis, searching on MEDLINE, Scopus, and Web of Science. We included studies conducted in patients reporting a penicillin allergy and in whom skin tests and/or specific IgE quantification were performed and compared with drug challenge results. We quantitatively assessed the accuracy of diagnostic tests with bivariate random-effects meta-analyses. Meta-regression and subgroup analyses were performed to explore causes of heterogeneity. Studies' quality was evaluated using QUADAS-2 criteria.\nWe included 105 primary studies, assessing 31,761 participants. Twenty-seven studies were assessed by bivariate meta-analysis. Skin tests had a summary sensitivity of 30.7% (95% CI, 18.9%-45.9%) and a specificity of 96.8% (95% CI, 94.2%-98.3%), with a partial area under the summary receiver-operating characteristic curve of 0.686 (I2 = 38.2%). Similar results were observed for subanalyses restricted to patients reporting nonimmediate maculopapular exanthema or urticaria/angioedema. Specific IgE had a summary sensitivity of 19.3% (95% CI, 12.0%-29.4%) and a specificity of 97.4% (95% CI, 95.2%-98.6%), with a partial area under the summary receiver-operating characteristic curve of 0.420 (I2 = 8.5%). Projected predictive values mainly reflect the low frequency of true penicillin allergy.\nSkin tests and specific IgE quantification appear to have low sensitivity and high specificity. Because current evidence is insufficient for assessing the role of these tests in stratifying patients for delabeling, we identified key requirements needed for future studies.",
+        "sha256": "95f3a94a34493fe5595cb4073db0a8f54ebf33e8ccbbfe233ab4e96272264dfc",
+        "retrieved_at": "2026-09-18T23:42:54.985401+00:00",
+        "pmcid": "PMC8019189"
+      },
+      {
+        "id": "36879500",
+        "title": "Health outcomes of penicillin allergy testing in children: a systematic review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36879500/",
+        "abstract": "Penicillin allergy labels are commonly acquired in childhood and lead to avoidance of first-line penicillin antibiotics. Understanding the health outcomes of penicillin allergy testing (PAT) can strengthen its place in antimicrobial stewardship efforts.\nTo identify and summarize the health outcomes of PAT in children.\nEmbase, MEDLINE, Web of Science, Cochrane Library, SCOPUS and CINAHL were searched from inception to 11 Oct 2021 (Embase and MEDLINE updated April 2022). Studies that utilized in vivo PAT in children (≤18 years old) and reported outcomes relevant to the study objectives were included.\nThirty-seven studies were included in the review, with a total of 8411 participants. The most commonly reported outcomes were delabelling, subsequent penicillin courses, and tolerability to penicillin courses. Ten studies had patient-reported tolerability to subsequent penicillin use, with a median 93.6% (IQR 90.3%-97.8%) of children tolerating a subsequent course of penicillins. In eight studies, a median 97.3% (IQR 96.4%-99.0%) of children were reported as 'delabelled' after a negative PAT without further definition. Three separate studies verified delabelling by checking electronic or primary care medical records, where 48.0%-68.3% children were delabelled. No studies reported on outcomes relating to disease burden such as antibiotic resistance, mortality, infection rates or cure rates.\nSafety and efficacy of PAT and subsequent penicillin use was the focus of existing literature. Further research is required to determine the long-term impact of delabelling penicillin allergies on disease burden.",
+        "sha256": "fda19d06e444b34db2903edf831bf1680b4d33a92c1fe6d92facf74ba8fa9746",
+        "retrieved_at": "2026-09-18T23:42:55.534412+00:00",
+        "pmcid": "PMC10068421"
+      },
+      {
+        "id": "39874990",
+        "title": "The global prevalence of reported penicillin allergy: A systematic review and meta-analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39874990/",
+        "abstract": "Patients labelled with penicillin allergy (PenA) often receive broader spectrum antibiotics, associated with antimicrobial resistance and poorer outcomes. However, ∼95% of patients are likely mis-labelled. Whilst de-labelling programmes are gaining momentum, they have been restricted to a few countries. Here, we address the global prevalence of PenA, to inform the wider potential impact for de-labelling programmes.\nWe conducted a systematic review and meta-analysis including all studies on adult PenA prevalence between January 2003 and June 2023. Data on PenA prevalence, allergy recording methods, healthcare setting, and country income were extracted. This study is registered on PROSPERO (CRD42023437718).\n174 studies from 28 countries were included (18,352 screened). Global PenA prevalence was 9·4% (95% CI 8·4-10·4%). 92% of peer-reviewed publications were from high-income countries(HICs), with 72% from the UK, USA or Australia. HICs had higher PenA prevalence 9·9% (95% CI 8·8-11·0%), compared to middle-income countries (MICs), 4·4% (95% CI 2·8-6·2%), p<0.0001. Primary care data was seldom reported (16% of studies), and the method of allergy recording significantly influenced reported prevalence.\nStudies reporting PenA prevalence are skewed towards HICs and secondary care, with little data from Africa, most of Asia and South America. This highlights an unmet need to broaden epidemiological analysis in under-represented regions.",
+        "sha256": "0391a827227401670adcc3170fbc29d98b19f90df6eee3ac39005dec41147280",
+        "retrieved_at": "2026-09-18T23:42:55.534412+00:00"
+      },
+      {
+        "id": "40886786",
+        "title": "Safety, effectiveness, and acceptability of antenatal penicillin allergy evaluation: a systematic review.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40886786/",
+        "abstract": "Approximately 8% to 13% of pregnant patients report a penicillin allergy. Penicillins and other beta-lactams are widely used in pregnancy but are often avoided in these patients, resulting in suboptimal therapy, antimicrobial resistance, higher costs, and increased morbidity for patients and neonates. True penicillin allergy is rare, and 95% of unverified penicillin allergies are delabeled upon evaluation. Although penicillin allergy evaluation is safe and recommended for pregnant patients, few patients are assessed. Research concerning antenatal penicillin allergy evaluation is accelerating, and we undertook a systematic review to summarize this growing body of evidence for obstetrical providers. A comprehensive search of Medline, Embase, CINAHL, the Cochrane Central Register of Controlled Trials, PubMed (ahead-of-print and non-Medline records), and ClinicalTrials.gov was conducted in collaboration with a medical information specialist. There were no restrictions on study language, date, or design. All peer-reviewed studies of pregnant people reporting an unverified penicillin allergy and undergoing penicillin allergy evaluation with ≥5 participants were included. Case reports, non-peer-reviewed sources, and studies regarding desensitization of verified penicillin-allergic patients were excluded. Title/abstract review, full-text review, and data extraction were completed independently by 2 authors. Conflicts were resolved by a third author. Studies were evaluated using validated quality assessment tools. Nineteen studies (N=2085) were eligible for inclusion. In total, 1956 (93.81%) participants were delabeled through various approaches: direct oral challenge (18.61%), penicillin skin test and oral challenge (51.12%), penicillin skin test and intravenous challenge (2.97%), penicillin skin test alone (18.00%), history review (1.94%), and unspecified methods (7.41%). Acceptance of penicillin allergy evaluation was 60.88%. Overall, 17 mild and 8 mild delayed allergy-related adverse reactions occurred, requiring minimal intervention. There were 3 severe allergy-related adverse reactions: 2 participants experienced anaphylaxis (managed with intramuscular epinephrine and observation), and 1 patient had mild drug-induced hepatitis (resolved with observation). No hospital transfers were required. No adverse antenatal events were recorded. Penicillin allergy evaluation in pregnancy is safe, effective, and acceptable to patients. The case is strong for expanding access to optimize antimicrobial therapy, reduce antibiotic resistance, and improve outcomes for pregnant people and neonates.",
+        "sha256": "3a5a2364fa3da1349ff28b017184c39e182cabb1a36a05af36f9cfa646f529de",
+        "retrieved_at": "2026-09-18T23:42:55.534412+00:00"
+      },
+      {
+        "id": "40738396",
+        "title": "Prevalence of Positive Penicillin Allergy Testing in Hospitalized Adult Patients: A Systematic Review and Meta-Analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40738396/",
+        "abstract": "Inaccurate penicillin allergy labels in hospitalized patients are linked to antibiotic-related patient harm, emergence of highly resistant strains, and increased patient- and institution-related financial burden.\nThe aim of the study was to calculate the pooled prevalence of positive penicillin allergy evaluation in inpatients through penicillin skin testing (PST) and/or a direct oral challenge (DOC). Secondary outcomes included the rate of adverse reactions after penicillin allergy evaluation, penicillin allergy removal from medical records after allergy assessment, and changes in antibiotic regimen to include penicillin- and/or β-lactam-based antibiotics for patients who tested negative via PST and/or DOC.\nWe searched the PubMed and Embase databases for observational studies reporting the prevalence of penicillin allergy in hospitalized patients undergoing PST and DOC.\nAfter literature review, we included 46 studies in our analysis. Thirty-six studies used PST for allergy evaluation, and of 6897 tested individuals, 444 (6.44%) patients tested positive, leading to a pooled prevalence of positive PST of 3.15% (95% confidence interval [CI]: 1.74-4.86, I2 = 86.92%). Twenty-three studies used DOC for allergy evaluation, and of 2328 individuals, 51 (2.19%) patients tested positive, leading to a pooled prevalence of positive DOC of 1.19% (95% CI: 0.27-2.51, I2 = 61.60%). Of 1310 individuals with negative PST and/or DOC, 1188 patients (90.7%) had their allergy label removed from their electronic health records.\nIn this study, the pooled prevalence of positive inpatient penicillin allergy evaluations with both PST and DOC assessments was estimated to be less than 5%. Majority of hospitalized patients with negative PST and/or DOC assessments had their penicillin allergy labels removed from their medical records.",
+        "sha256": "6664f107141ecccceeeb43976a9bf1cb758e9c5bfca014c693cf045ce3bd1f4d",
+        "retrieved_at": "2026-09-18T23:42:56.100633+00:00"
+      },
+      {
+        "id": "39444148",
+        "title": "Adult penicillin allergy programmes in Australian hospitals: a practical guide from the National Antibiotic Allergy Network.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39444148/",
+        "abstract": "Penicillin allergy is a significant burden on patient, prescribing and hospital outcomes. There has been increasing interest in the incorporation of penicillin allergy testing (i.e. delabelling) into antimicrobial stewardship (AMS) programmes to reduce the burden of penicillin allergy labels and improve prescribing. In particular, there has been a focus on point-of-care penicillin allergy assessment and direct oral challenge for low-risk phenotypes. The National Antibiotic Allergy Network has provided a guide to assist AMS clinicians with the incorporation of penicillin allergy programmes, in particular direct oral challenge, into Australian hospitals.",
+        "sha256": "57ecc064b8f792b15cef30cc24f0b5dab7dfebd7b429e45e8074806019c8ae79",
+        "retrieved_at": "2026-09-18T23:42:56.100633+00:00"
+      },
+      {
+        "id": "41792989",
+        "title": "Quality and Consistency of Penicillin Allergy Delabelling Guidelines: A Systematic Review.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41792989/",
+        "abstract": "This systematic review compared the scope, purpose, and recommendations of internationally published penicillin allergy delabelling guidelines (PADLGs) and assessed their quality using the Appraisal of Guidelines for Research and Evaluation II (AGREE II) instrument.\nA systematic search of MEDLINE, EMBASE, and CINAHL databases, and Google, Google Scholar, websites of professional allergy societies (n = 95), and guideline repositories (n = 16) was conducted to August 2024.\nAny document that reported itself as being an evidence-based guideline, practice guideline, expert recommendation, consensus statement, position paper, or practice parameter for penicillin allergy delabelling ('PADL-G') was eligible for inclusion. Only those developed for use by health care professionals were included. Guidelines for community or patient use and hospital protocols or fact sheets were excluded.\nEighteen guidelines published between 2014 and 2024 were identified, representing 12 countries across four regions. PADLGs varied in scope, target users, and clinical recommendations, both within and across clinical settings. Most provided recommendations for risk stratification, testing, and delabelling methods, with many supporting direct delabelling/direct challenge in low-risk patients. Substantial variation was observed in risk assessment tools, eligibility criteria, and post-test delabelling strategies. Overall, the quality of PADLGs was low, with only two meeting predefined high-quality criteria. Critical gaps included limited methodological rigour, poor stakeholder involvement, and lack of guidance for real-world implementation.\nTo support safe and scalable PADL approaches, clearer, more consistent, and methodologically robust guidelines are needed to address the global burden of inappropriate penicillin allergy labels.\nThe protocol for this review was prospectively registered at Open Science Framework: osf.io/9fvr7.",
+        "sha256": "3294a13104f99d7e9de7b75517b84516ab18026288f3529205f6a478cd27847e",
+        "retrieved_at": "2026-09-18T23:42:56.100633+00:00",
+        "pmcid": "PMC13429338"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient has a childhood penicillin allergy label based on a remote, limited rash without any features of severe or IgE-mediated reaction (no anaphylaxis, angioedema, respiratory involvement, mucosal/skin desquamation, organ injury, or emergency treatment). Standardized history-based assessment categorized this as a low-risk phenotype, which is precisely the population for whom guidelines and evidence support direct oral amoxicillin challenge and delabeling. Multiple sources support this: outpatient/primary care direct drug challenge in low-risk adults is safe with no critical adverse events and ~97% delabeled (38901618); most delabeling guidelines support direct challenge in low-risk patients (41792989); and negative challenges lead to label removal (40738396). Skin testing has low sensitivity and is not required before challenge in low-risk phenotypes (32446963). Answer A is incorrect and contradicted by all evidence—a remote childhood rash does not establish an enduring allergy (~90-95% of labels are inappropriate), and challenge is appropriate. Answer B correctly pairs the supervised challenge with removal of the label upon tolerance.",
+          "confidence": 0.94
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "38901618"
+              ],
+              "reason": "Abstract states 12 studies with 1070 participants in outpatient/primary care settings and no critical adverse events during dDC.",
+              "source_passage_ids": [
+                "38901618:p0",
+                "38901618:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38901618",
+                  "quote": "Ten percent of the population is labeled as allergic to penicillin(s), when in fact 90% of these labels are inappropriate. Recent studies have shown that inpatient delabeling by a direct drug challenge (dDC) is safe in low-risk patients. However, there is a need for outpatient and nonallergist delabeling. To assess the safety of delabeling low-risk adults by means of dDC in primary care. We searched the MEDLINE, Embase, and Cochrane Library databases from inception to March 15, 2022 (updated June 5, 2023) for studies performing dDC in adults in primary care or other outpatient settings. Two researchers independently screened studies for eligibility. The data extraction and critical appraisal were performed by 1 reviewer, and we pooled the results in a meta-analysis. Of 2138 results, 12 studies (1070 participants) were eligible for inclusion."
+                },
+                {
+                  "source_id": "38901618",
+                  "quote": "Three studies evaluated delabeling in primary care and 9 studies in an outpatient hospital setting. There were no critical adverse events during dDC. No reaction occurred in 97.13% of the 1070 patients, who previously labeled as penicillin-allergic, and were safely delabeled. Ten patients (<1%) developed an immediate reaction: 3 had self-limiting reactions and 7 needed antihistaminics, steroids, epinephrine, and/or salbutamol. No serious allergic reactions are observed during direct amoxicillin challenge in adults in an outpatient setting. However, with the exception of 1 recent report, these studies are of low to moderate quality. Nonspecialist delabeling is promising, but further research is required on correct risk stratification and safety assessment in large cohort studies evaluating dDC in primary care."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38901618"
+              ],
+              "reason": "Abstract reports 97.13% no reaction, safely delabeled, and <1% immediate reaction.",
+              "source_passage_ids": [
+                "38901618:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38901618",
+                  "quote": "Three studies evaluated delabeling in primary care and 9 studies in an outpatient hospital setting. There were no critical adverse events during dDC. No reaction occurred in 97.13% of the 1070 patients, who previously labeled as penicillin-allergic, and were safely delabeled. Ten patients (<1%) developed an immediate reaction: 3 had self-limiting reactions and 7 needed antihistaminics, steroids, epinephrine, and/or salbutamol. No serious allergic reactions are observed during direct amoxicillin challenge in adults in an outpatient setting. However, with the exception of 1 recent report, these studies are of low to moderate quality. Nonspecialist delabeling is promising, but further research is required on correct risk stratification and safety assessment in large cohort studies evaluating dDC in primary care."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "41792989"
+              ],
+              "reason": "Guideline systematic review states many guidelines support direct delabelling/direct challenge in low-risk patients.",
+              "source_passage_ids": [
+                "41792989:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41792989",
+                  "quote": "Eighteen guidelines published between 2014 and 2024 were identified, representing 12 countries across four regions. PADLGs varied in scope, target users, and clinical recommendations, both within and across clinical settings. Most provided recommendations for risk stratification, testing, and delabelling methods, with many supporting direct delabelling/direct challenge in low-risk patients. Substantial variation was observed in risk assessment tools, eligibility criteria, and post-test delabelling strategies. Overall, the quality of PADLGs was low, with only two meeting predefined high-quality criteria. Critical gaps included limited methodological rigour, poor stakeholder involvement, and lack of guidance for real-world implementation."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "32446963"
+              ],
+              "reason": "Abstract reports low summary sensitivity (skin 30.7%, IgE 19.3%) with high specificity.",
+              "source_passage_ids": [
+                "32446963:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32446963",
+                  "quote": "We included 105 primary studies, assessing 31,761 participants. Twenty-seven studies were assessed by bivariate meta-analysis. Skin tests had a summary sensitivity of 30.7% (95% CI, 18.9%-45.9%) and a specificity of 96.8% (95% CI, 94.2%-98.3%), with a partial area under the summary receiver-operating characteristic curve of 0.686 (I2 = 38.2%). Similar results were observed for subanalyses restricted to patients reporting nonimmediate maculopapular exanthema or urticaria/angioedema. Specific IgE had a summary sensitivity of 19.3% (95% CI, 12.0%-29.4%) and a specificity of 97.4% (95% CI, 95.2%-98.6%), with a partial area under the summary receiver-operating characteristic curve of 0.420 (I2 = 8.5%). Projected predictive values mainly reflect the low frequency of true penicillin allergy. Skin tests and specific IgE quantification appear to have low sensitivity and high specificity."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "40738396"
+              ],
+              "reason": "Abstract states 90.7% of hospitalized patients with negative testing had labels removed from EHR.",
+              "source_passage_ids": [
+                "40738396:p1",
+                "40738396:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40738396",
+                  "quote": "After literature review, we included 46 studies in our analysis. Thirty-six studies used PST for allergy evaluation, and of 6897 tested individuals, 444 (6.44%) patients tested positive, leading to a pooled prevalence of positive PST of 3.15% (95% confidence interval [CI]: 1.74-4.86, I2 = 86.92%). Twenty-three studies used DOC for allergy evaluation, and of 2328 individuals, 51 (2.19%) patients tested positive, leading to a pooled prevalence of positive DOC of 1.19% (95% CI: 0.27-2.51, I2 = 61.60%). Of 1310 individuals with negative PST and/or DOC, 1188 patients (90.7%) had their allergy label removed from their electronic health records. In this study, the pooled prevalence of positive inpatient penicillin allergy evaluations with both PST and DOC assessments was estimated to be less than 5%."
+                },
+                {
+                  "source_id": "40738396",
+                  "quote": "Majority of hospitalized patients with negative PST and/or DOC assessments had their penicillin allergy labels removed from their medical records."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This adult female with a remote (>20 years, childhood) benign non-severe rash and no features of a severe/IgE-mediated or SCAR reaction has already been risk-stratified as low risk. The supported approach (B) — supervised direct oral amoxicillin challenge with label removal if tolerated — matches current evidence: source 38901618 documents 1070 outpatient low-risk adults undergoing direct amoxicillin challenge with no critical adverse events and 97.13% delabeled; source 41792989 confirms many guidelines endorse direct challenge/delabeling in low-risk patients; source 32446963 shows skin/IgE testing has poor sensitivity so a negative challenge (not skin test) is the meaningful endpoint; source 40738396 supports the label-removal step after negative evaluation. Candidate A (permanent avoidance, refusing any challenge on the basis that any childhood rash is enduring allergy) is the intended flawed answer: it perpetuates an inappropriate label, denies evidence-based evaluation, and reflects the omission/unsafe-management error tag. All five claims are directly entailed by the cited abstracts (verified against passage text, not just titles). The case is on-specialty (allergy/immunology, penicillin delabeling), coherent, and the visible note describes the low-risk classification but does not disclose the management answer (challenge vs. avoidance vs. retain), so the decision is not pre-revealed. The decision (delabeling management) is distinct from the prior anaphylaxis-epinephrine case. Minor caveats not rising to blocking: source 40738396 is an inpatient population while the case is outpatient, but it is cited only for the generic label-removal step, and claim 4 is worded to match its population; the pediatric and pregnancy sources are not relied upon for the adult decision. No essential care is omitted — the sound answer includes both the challenge and the record update. No missing decisive data (no current illness, pregnancy, or severe-reaction features that would exclude direct challenge)."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The remote, limited childhood rash without anaphylaxis, angioedema, respiratory compromise, mucosal involvement, skin peeling, systemic illness, or organ injury is a low-risk phenotype. For appropriately risk-stratified adults, a supervised direct oral amoxicillin challenge is an accepted delabeling strategy and skin testing is generally unnecessary first. A 2024 systematic review of outpatient direct challenges found no critical adverse events and no reaction in 97.13% of participants. If the challenge is tolerated, the inaccurate penicillin allergy label should be removed and the medical record updated. Permanent avoidance based solely on a remote benign rash is not appropriate.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "38901618"
+              ],
+              "reason": "The review included 1,070 adults undergoing direct drug challenge in primary care or other outpatient settings and explicitly reported no critical adverse events.",
+              "source_passage_ids": [
+                "38901618:p0",
+                "38901618:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38901618",
+                  "quote": "Ten percent of the population is labeled as allergic to penicillin(s), when in fact 90% of these labels are inappropriate. Recent studies have shown that inpatient delabeling by a direct drug challenge (dDC) is safe in low-risk patients. However, there is a need for outpatient and nonallergist delabeling. To assess the safety of delabeling low-risk adults by means of dDC in primary care. We searched the MEDLINE, Embase, and Cochrane Library databases from inception to March 15, 2022 (updated June 5, 2023) for studies performing dDC in adults in primary care or other outpatient settings. Two researchers independently screened studies for eligibility. The data extraction and critical appraisal were performed by 1 reviewer, and we pooled the results in a meta-analysis. Of 2138 results, 12 studies (1070 participants) were eligible for inclusion."
+                },
+                {
+                  "source_id": "38901618",
+                  "quote": "Three studies evaluated delabeling in primary care and 9 studies in an outpatient hospital setting. There were no critical adverse events during dDC. No reaction occurred in 97.13% of the 1070 patients, who previously labeled as penicillin-allergic, and were safely delabeled. Ten patients (<1%) developed an immediate reaction: 3 had self-limiting reactions and 7 needed antihistaminics, steroids, epinephrine, and/or salbutamol. No serious allergic reactions are observed during direct amoxicillin challenge in adults in an outpatient setting. However, with the exception of 1 recent report, these studies are of low to moderate quality. Nonspecialist delabeling is promising, but further research is required on correct risk stratification and safety assessment in large cohort studies evaluating dDC in primary care."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38901618"
+              ],
+              "reason": "The source reports that 97.13% had no reaction and were safely delabeled, while ten patients, fewer than 1%, developed immediate reactions.",
+              "source_passage_ids": [
+                "38901618:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38901618",
+                  "quote": "Three studies evaluated delabeling in primary care and 9 studies in an outpatient hospital setting. There were no critical adverse events during dDC. No reaction occurred in 97.13% of the 1070 patients, who previously labeled as penicillin-allergic, and were safely delabeled. Ten patients (<1%) developed an immediate reaction: 3 had self-limiting reactions and 7 needed antihistaminics, steroids, epinephrine, and/or salbutamol. No serious allergic reactions are observed during direct amoxicillin challenge in adults in an outpatient setting. However, with the exception of 1 recent report, these studies are of low to moderate quality. Nonspecialist delabeling is promising, but further research is required on correct risk stratification and safety assessment in large cohort studies evaluating dDC in primary care."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "41792989"
+              ],
+              "reason": "The systematic review identified 18 international guidelines and states that many supported direct delabeling or direct challenge in low-risk patients.",
+              "source_passage_ids": [
+                "41792989:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41792989",
+                  "quote": "Eighteen guidelines published between 2014 and 2024 were identified, representing 12 countries across four regions. PADLGs varied in scope, target users, and clinical recommendations, both within and across clinical settings. Most provided recommendations for risk stratification, testing, and delabelling methods, with many supporting direct delabelling/direct challenge in low-risk patients. Substantial variation was observed in risk assessment tools, eligibility criteria, and post-test delabelling strategies. Overall, the quality of PADLGs was low, with only two meeting predefined high-quality criteria. Critical gaps included limited methodological rigour, poor stakeholder involvement, and lack of guidance for real-world implementation."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "32446963"
+              ],
+              "reason": "The included studies compared skin testing and specific IgE with drug-challenge results; pooled estimates showed low sensitivity and high specificity for both tests.",
+              "source_passage_ids": [
+                "32446963:p0",
+                "32446963:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32446963",
+                  "quote": "Having a penicillin allergy label associates with a higher risk for antibiotic resistance and increased health care use. We sought to assess the accuracy of skin tests and specific IgE quantification in the diagnostic evaluation of patients reporting a penicillin/β-lactam allergy. We performed a systematic review and diagnostic accuracy meta-analysis, searching on MEDLINE, Scopus, and Web of Science. We included studies conducted in patients reporting a penicillin allergy and in whom skin tests and/or specific IgE quantification were performed and compared with drug challenge results. We quantitatively assessed the accuracy of diagnostic tests with bivariate random-effects meta-analyses. Meta-regression and subgroup analyses were performed to explore causes of heterogeneity. Studies' quality was evaluated using QUADAS-2 criteria."
+                },
+                {
+                  "source_id": "32446963",
+                  "quote": "We included 105 primary studies, assessing 31,761 participants. Twenty-seven studies were assessed by bivariate meta-analysis. Skin tests had a summary sensitivity of 30.7% (95% CI, 18.9%-45.9%) and a specificity of 96.8% (95% CI, 94.2%-98.3%), with a partial area under the summary receiver-operating characteristic curve of 0.686 (I2 = 38.2%). Similar results were observed for subanalyses restricted to patients reporting nonimmediate maculopapular exanthema or urticaria/angioedema. Specific IgE had a summary sensitivity of 19.3% (95% CI, 12.0%-29.4%) and a specificity of 97.4% (95% CI, 95.2%-98.6%), with a partial area under the summary receiver-operating characteristic curve of 0.420 (I2 = 8.5%). Projected predictive values mainly reflect the low frequency of true penicillin allergy. Skin tests and specific IgE quantification appear to have low sensitivity and high specificity."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "40738396"
+              ],
+              "reason": "Among hospitalized adults with negative skin testing and/or direct oral challenge, 90.7% had the allergy label removed from the electronic record.",
+              "source_passage_ids": [
+                "40738396:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40738396",
+                  "quote": "After literature review, we included 46 studies in our analysis. Thirty-six studies used PST for allergy evaluation, and of 6897 tested individuals, 444 (6.44%) patients tested positive, leading to a pooled prevalence of positive PST of 3.15% (95% confidence interval [CI]: 1.74-4.86, I2 = 86.92%). Twenty-three studies used DOC for allergy evaluation, and of 2328 individuals, 51 (2.19%) patients tested positive, leading to a pooled prevalence of positive DOC of 1.19% (95% CI: 0.27-2.51, I2 = 61.60%). Of 1310 individuals with negative PST and/or DOC, 1188 patients (90.7%) had their allergy label removed from their electronic health records. In this study, the pooled prevalence of positive inpatient penicillin allergy evaluations with both PST and DOC assessments was estimated to be less than 5%."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is an allergy and immunology decision concerning evaluation and delabeling of a remote penicillin-allergy label. The documented phenotype has already been classified as low risk, with no history suggesting anaphylaxis, severe cutaneous adverse reaction, or organ injury, and there is no current pregnancy, illness, or rash. The supplied outpatient adult evidence supports direct amoxicillin challenge in this population and reports no critical adverse events, with 97.13% tolerating challenge and being delabeled. Thus B is the appropriate answer: conduct the challenge under supervision and remove the label after a negative challenge. A incorrectly treats any childhood rash as proof of permanent allergy. The visible title, question, and consultation note establish risk but do not disclose the intended direct-challenge management plan. The decision is also distinct from the previous case, which tested immediate epinephrine treatment for active anaphylaxis rather than elective penicillin-allergy evaluation."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "94aafd45cf38e135c368b6904fcd7685a9bed4aa21d8ad2797630e25367006c6"
+  }
+}

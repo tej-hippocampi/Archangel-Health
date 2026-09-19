@@ -1,0 +1,450 @@
+{
+  "task_id": "onboarding-examination-v1-35e2a2612a84e34c4349-1",
+  "specialty": "urology",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Recurrent Red Urine After Respiratory Illness",
+    "question": "Which approach is most appropriate at the current point in this patient's assessment?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "urology",
+      "demographics": {
+        "age_band": "40-49",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Recurrent visible blood in urine",
+          "since": "Two episodes during the past month",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "hemodynamic_status": "stable",
+        "temperature_status": "afebrile"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Initial consultation",
+          "author_role": "urology",
+          "text": "An adult man reports two self-limited episodes of uniformly red urine, each beginning shortly after symptoms of an upper respiratory illness. He has no dysuria, flank pain, passage of stones, urinary retention, or visible clots. He is afebrile and hemodynamically stable. He has no known kidney disease or prior urologic evaluation. A focused physical examination, urinalysis, and blood-based serologic assessment have not yet been completed. No urinary-tract imaging or endoscopic evaluation has been performed.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete through the current decision point",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The immediate assessment should include a thorough history and physical examination, urinalysis, and serologic testing before initial urinary-tract imaging is selected. Proceeding directly to imaging would omit prerequisites explicitly identified for all patients with hematuria. The association with respiratory illness raises a possible glomerular differential such as IgA nephropathy, but the cited IgA nephropathy evidence concerns patients with biopsy-proven disease and does not permit diagnosis from timing alone.",
+        "evidence": null,
+        "key_data": [
+          "The patient has recurrent visible hematuria rather than isolated microscopic hematuria.",
+          "No urinalysis has yet been completed.",
+          "No serologic testing or thorough focused examination has yet been completed.",
+          "The episodes followed respiratory symptoms, which can occur in IgA nephropathy but is not diagnostic.",
+          "The patient is stable without clot retention or another documented need for immediate hemorrhage control."
+        ]
+      },
+      "hard_hook": "The respiratory association may prompt premature diagnostic closure on a glomerular cause, while the universal pre-imaging hematuria assessment remains incomplete.",
+      "reasoning_divergence": "The flawed response prioritizes immediate imaging based on visible hematuria; the sound response first completes the explicitly required clinical, urine, and serologic assessment."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Proceed directly to urinary-tract imaging because recurrent visible hematuria warrants prompt anatomic investigation; defer urinalysis, serologic testing, and the remaining focused assessment until after the imaging result is available."
+      },
+      {
+        "id": "B",
+        "text": "First complete a thorough history and physical examination, urinalysis, and serologic testing. Use that completed assessment to inform subsequent initial imaging rather than diagnosing IgA nephropathy from the respiratory association or proceeding directly to imaging."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "visible hematuria",
+      "urinalysis",
+      "serologic testing",
+      "urinary tract imaging",
+      "IgA nephropathy"
+    ],
+    "evidence_keywords": [
+      "gross hematuria",
+      "pre-imaging evaluation",
+      "history and physical examination",
+      "respiratory infection",
+      "biopsy-proven IgAN"
+    ],
+    "error_tags": [
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "All patients diagnosed with hematuria should undergo a thorough history and physical examination before initial imaging.",
+        "source_ids": [
+          "32370958"
+        ]
+      },
+      {
+        "statement": "Urinalysis and serologic testing should be completed before any initial imaging evaluation for hematuria.",
+        "source_ids": [
+          "32370958"
+        ]
+      },
+      {
+        "statement": "Ultrasound, CT, and MRI are common hematuria imaging modalities, but the supplied abstract does not rank them for this individual patient.",
+        "source_ids": [
+          "32370958"
+        ]
+      },
+      {
+        "statement": "IgA nephropathy can feature macroscopic hematuria occurring after an upper respiratory or intestinal infection.",
+        "source_ids": [
+          "33685345"
+        ]
+      },
+      {
+        "statement": "The cited IgA nephropathy outcome studies included biopsy-proven disease, so their findings do not establish that infection-associated visible hematuria alone diagnoses IgA nephropathy.",
+        "source_ids": [
+          "33685345"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:52:10.396737+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "32370958",
+        "title": "ACR Appropriateness Criteria® Hematuria.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32370958/",
+        "abstract": "Hematuria is a common reason for patients to be referred for imaging of the urinary tract. All patients diagnosed with hematuria should undergo a thorough history and physical examination, urinalysis, and serologic testing prior to any initial imaging. Ultrasound, CT, and MRI are the most common imaging modalities used to evaluate hematuria. This document discusses the following clinical scenarios for hematuria: initial imaging of microhematuria without risk factors or history of recent vigorous exercise, or presence of infection, or viral illness, or present or recent menstruation; initial imaging of microhematuria in patients with known risk factors and no history of recent vigorous exercise, or presence of infection, or viral illness, or present or recent menstruation or renal parenchymal disease; initial imaging of microhematuria in the pregnant patient and initial imaging of gross hematuria. Follow-up of normal or abnormal findings is beyond the scope of this review. The American College of Radiology Appropriateness Criteria are evidence-based guidelines for specific clinical conditions that are reviewed annually by a multidisciplinary expert panel. The guideline development and revision include an extensive analysis of current medical literature from peer reviewed journals and the application of well-established methodologies (RAND/UCLA Appropriateness Method and Grading of Recommendations Assessment, Development, and Evaluation or GRADE) to rate the appropriateness of imaging and treatment procedures for specific clinical scenarios. In those instances where evidence is lacking or equivocal, expert opinion may supplement the available evidence to recommend imaging or treatment.",
+        "sha256": "212b795d5666c4e1ae681acf198ef17ee8e529ba6dab62b69257fecc77a080b2",
+        "retrieved_at": "2026-09-18T23:50:41.436690+00:00"
+      },
+      {
+        "id": "35266205",
+        "title": "Systematic review of hematuria and acute renal failure with tranexamic acid.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35266205/",
+        "abstract": "To conduct a systematic review of tranexamic acid (TXA) and the risk of renal failure from urinary clots in adult patients with hematuria.\nA systematic review of Medline, Embase, CENTRAL, www.\ngov, and Google Scholar were searched. Randomized control trials (RCTs) and observational studies that assessed the risk of renal failure with use of TXA among adults with hematuria were included. The primary outcome was renal failure due to urinary tract clots with TXA compared to no TXA (or placebo) or comparator.\nWe identified three RCTs (N = 466 patients) and three retrospective cohort studies (N=220 patients), and a total of 342 patients that had hematuria and received TXA. The patient population of the six studies included medical and surgical patients, with two of the three RCTs comprised patients undergoing percutaneous nephrolithotomy, and the third RCT comprised patients undergoing transurethral resection of the prostate. Documentation of renal function before and after TXA administration was documented in only two studies (N = 28 patients), and neither identified worsening renal function in those exposed to TXA.\nThere are limited studies evaluating the risk of renal failure in patients with hematuria who were exposed to TXA, and the available data does not suggest an increased risk.",
+        "sha256": "6478c323903c41e196bcff037980a87888ddacff9fa96a9887bf4f87980a1fff",
+        "retrieved_at": "2026-09-18T23:50:41.436690+00:00"
+      },
+      {
+        "id": "33625340",
+        "title": "Ureteroscopic evaluation and treatment of benign essential hematuria: a systematic review.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33625340/",
+        "abstract": "INTRODUCTION The advent of ureteroscopy has revolutionized the treatment many urologic diseases, including benign essential hematuria. This systematic review examines the treatment of benign essential hematuria (BEH) with ureteroscopic interventions.\nWe performed a systematic review of the literature from 1977 to May 2020. We included studies that evaluated the use of ureteroscopy to diagnose or treat BEH. Demographics, follow up, findings, treatment method and success rate were extracted from each identified paper. Quality analysis was performed independently by both authors.\nOur search resulted in 587 articles. Fifteen of these studies met inclusion criteria and were included in the final analysis. No randomized controlled trials were found. All 15 studies were case series. Nine studies were graded as good, five as fair, and one as poor. Follow up ranged from 2 to 108 months. A total of 307 patients underwent ureteroscopy for suspected BEH; 223 (73%) were diagnosed with a discrete lesion, 33 (11%) with a diffuse lesion, and 44 (14%) had no lesions seen on ureteroscopy. Of those diagnosed with discrete lesions, the most common was minute venous ruptures (35%), followed by hemangiomas (26%). Ureteroscopic treatment successfully relieved the hematuria and symptoms in most patients, and was more successful in those treated for discrete lesion (115/120, 96%) than diffuse (10/19, 53%).\nUreteroscopic treatment of BEH yields excellent outcomes. In this systematic review, 96% of patients with discrete lesions and 53% of patients with diffuse lesions had resolution of their hematuria after ureteroscopic interventions.",
+        "sha256": "f73c670461450bd08fd2ad2409dcdc96154d2669abab7127c6e4d3326aedb6af",
+        "retrieved_at": "2026-09-18T23:50:41.436690+00:00"
+      },
+      {
+        "id": "30998541",
+        "title": "Microscopic Hematuria as a Screening Tool for Urologic Malignancies in Women.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30998541/",
+        "abstract": "Most causes of microscopic hematuria (MH) are benign but may indicate an underlying malignancy. Current MH evaluation guidelines are reflective of male urologic malignancy risks. The objective of this systematic review was to evaluate whether the finding of MH predicts subsequent urologic malignancy in women.\nMEDLINE was searched between January 1990 and June 8, 2018. The positive predictive value (PPV) of MH as a screening tool for urologic malignancy was calculated for each study individually and collectively. The pooled relative risk of urologic malignancy associated with MH was calculated.\nSeventeen studies were included. Eight studies included only women. In total, 300 urinary tract cancers were identified in 110,179 women with MH. The PPV of MH as a screening tool for cancer ranged from approximately 0.6% to 2.8%; confidence intervals (CIs) suggested this is a relatively unstable performance indicator because of small sample sizes. Average PPV across all studies was 2.13%, but the weighted average PPV was 0.24%. The risk of urologic malignancies among women with relative those without MH was 2.01 (95% CI, 1.61-2.51). Based on these limited data, we estimate that 859 (95% CI, 654-1250) women with MH would require complete evaluation to identify 1 urinary tract malignancy.\nA very small proportion of women with MH are likely to have a urologic malignancy. Approximately 859 women require full screening to identify 1 malignancy. Current evidence is limited, and further studies, specifically in women, are needed.",
+        "sha256": "9948f0ac1f4544e42bffdb7d8a1d5c0b4c98359010c5a0e64d3e084175ad0ff2",
+        "retrieved_at": "2026-09-18T23:50:42.113789+00:00"
+      },
+      {
+        "id": "33685345",
+        "title": "Hematuria was a high risk for renal progression and ESRD in immunoglobulin a nephropathy: a systematic review and meta-analysis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33685345/",
+        "abstract": "Background: The relationship between hematuria, a typical presentation of immunoglobulin A nephropathy (IgAN), and long-term adverse prognosis of these patients is still controversial. This meta-analysis aims to clarify the effect of hematuria on renal outcomes in IgAN.Methods: Observational cohort studies reporting associations between various forms of hematuria and renal outcomes among IgAN patients were identified from the PubMed and Embase databases. The pooled adjusted risk ratios (RRs) were computed with random effects models.Results: Thirteen studies encompassing 5660 patients with IgAN were included. Patients with initial hematuria did not have a significantly increased risk of developing end-stage renal disease (ESRD) compared with those without hematuria (RR, 1.32; 95% CI, 0.87-2.00; p = .19). However, initial microscopic hematuria was associated with an 87% increase in the risk of ESRD (RR, 1.87; 95% CI, 1.40-2.50; p < .001), while macroscopic hematuria was associated with a 32% decrease in the risk of ESRD (RR, 0.68; 95% CI, 0.58-0.79; p < .001). Additionally, persistent hematuria might be an independent risk factor for ESRD or a 50% decline in eGFR.Conclusions: Among IgAN patients, hematuria, including initial microscopic hematuria and even persistent hematuria, was possibly associated with renal progression and ESRD. However, independent of other classical predictors, initial macroscopic hematuria might be a protective factor for IgAN.",
+        "sha256": "eb8f1dcc40b0bfb27a7da83a80bb0cac00a8f010016dab6ea3a2c8da448db333",
+        "retrieved_at": "2026-09-18T23:50:42.113789+00:00",
+        "pmcid": "PMC7946061",
+        "body_excerpts": "Introduction\nImmunoglobulin A nephropathy (IgAN) is the most common primary glomerular disease worldwide, especially in East Asian China, and is a major cause of end-stage renal disease (ESRD) in a substantial proportion of patients within 10 to 20 years from its apparent onset [ 1–3 ]. It is characterized by recurrent episodes of asymptomatic hematuria with or without proteinuria, hypertension or decreased glomerular filtration rate (GFR) at baseline [ 2 , 4–9 ]. Among these symptoms, hematuria is the most typical presentation of IgAN. Approximately 70% to 100% of patients have asymptomatic microscopic hematuria or macroscopic hematuria, which often occurs after upper respiratory tract or intestinal infection [ 10 ].\n\nIntroduction\nThe long-term outcomes of IgAN patients have conclusively been shown to be impacted by decreased renal function at presentation, hypertension and proteinuria. However, evidence regarding the kidney-related prognosis of IgAN patients who present with normal renal function, isolated microscopic hematuria and minimal or no proteinuria is lacking [ 1 , 5 , 6 , 11–13 ]. Hematuria of IgAN not only affects these anxious IgAN patients but also puzzles nephrologists during treatment. Actually, nephrologists devote more attention to the monitoring and therapeutic targeting of another key manifestation of glomerular injury, i.e., proteinuria. It is important to establish whether hematuria of IgAN is a progressive factor and to seek clinical or histologic findings that could predict a worse long-term outcome. Some studies showed that there were no negative effects of hematuria on the outcome of IgAN patients with mild proteinuria or even severe hematuria, so immunosuppressive treatment was not needed. Gutierrez E’s study showed that the long-term prognosis for IgAN patients who present with minor urinary abnormalities and normal renal function is excellent [ 5 ]. Another study showed that, in IgAN patients with mild proteinuria (less than 0.5 g/day), the hematuria was naturally decreased without any intensive therapy and severe hematuria was not related with the progression to increasing proteinuria and ESRD [ 14 ]. However, data from a small sample in China and Japan suggested that IgAN comorbid with hematuria and minimal proteinuria is usually a progressive disease [ 5 , 7 , 15 , 16 ]. More data are needed to identify the renal outcomes and prognosis of hematuria of IgAN.\n\nIntroduction\nThe aim of our meta-analysis was to systematically and quantitatively review original studies published from January 1, 1990, to May 14, 2020, that examined the impact of hematuria on renal outcomes in patients with IgAN.\n\nMethods > Literature search\nThe PubMed and Embase databases were systematically and independently searched by 2 researchers (P.H. and H.M.W.). Original articles published in English from January 1, 1990, to May 14, 2020, were inspected for eligibility. The following terms were used: IgA Glomerulonephritis, IgA Nephropathy, Immunoglobulin A Nephropathy, IgA Type Nephritis, Berger Disease, IgA Nephropathy 1, hematuria, and hematuria ( Appendix 2 ). Any discrepancy was resolved by discussion with a third researcher (L.J.H.). Additional articles were identified from the reference lists of relevant papers and obtained through manual search.\n\nMethods > Study selection\nTwo levels of screening were performed. The first level was performed by screening titles and abstracts. Articles with information about the prognosis of IgAN patients were included. The second level was performed by screening the full texts of articles to identify studies focused on the associations between various forms of hematuria (i.e., hematuria, microscopic hematuria, macroscopic/gross hematuria, and persistent hematuria) and renal outcomes. Mild hematuria, 1–29 RBCs/HPF or 1+/2+ (dipstick), was considered a form of microscopic hematuria. Persistent hematuria was defined as time-average (TA) hematuria > 5 RBCs/high-power field (HPF). The inclusion criteria were as follows: (a) cohort studies with biopsy-proven IgAN patients; (b) studies with an estimate of the association between hematuria and renal outcomes (i.e., relative risk [RR], hazard ratio [HR], odds ratio [OR]) and 95% confidence intervals (CIs), or relevant data to calculate them; (c) studies with end points that included end-stage kidney disease (ESRD), a 50% decline in estimated glomerular filtration rate (eGFR), or doubling of serum creatinine (SCr) concentration. The exclusion criteria were as follows: (a) elderly or childhood studies and (b) other kinds of articles, including cross-sectional studies, reviews, case reports, letters, editorials, comments, supplements, and conference abstracts. For multiple papers using the same cohort or database, the sample with the most comprehensive and recent data was included.\n\nMethods > Data extraction and quality assessment\nTwo researchers (P.H. and H.M.W.) independently extracted relevant information from the eligible articles using a standardized data collection form. The extracted data included the first author, publication year, country, study design, demographics (i.e., patient number, initial age [median or mean], and proportion of male gender), 24-h urine protein excretion and estimated glomerular filtration rate at baseline (median or mean), follow-up duration, number of patients with ESRD, hematuric classification, time point of detection, renal outcome, and effect size. The quality of eligible articles was appraised with the Newcastle Ottawa Scale for cohort studies, and scores ranged from 0 to 9. We considered articles with scores < 5 as having a high risk of bias [ 19 ]. We attempted to extract data to evaluate the associations between the magnitude of baseline hematuria and ESRD and between hematuria and renal progression among IgAN patients. However, since these data were rarely reported in the studies and the definitions of hematuria varied, we only included a simple description in the subsequent analysis.\n\nMethods > Statistical analysis\nOur meta-analysis was conducted using the DerSimonian-Laird random effects model. The effect sizes from the final model that adjusted for the maximum covariates were used from the eligible studies. For studies that reported RRs, the RRs and 95% CIs were extracted directly using participants with outcomes of interest without hematuria as the reference group. HRs were assumed to be numerically the same as the RRs. For studies that did not report HRs, the estimated HRs and 95% CIs were computed by the available Kaplan–Meier curves using the Engauge Digitizer software, version 4.10 and the method of Tierney et al. [ 20 ]. If the effect sizes could not be obtained, the crude RRs were calculated by the chi-square test.\n\nResults > Study characteristics and quality assessment\nThe study and participant characteristics are summarized in Table 1 . Of the included studies encompassing 5660 patients, 4 studies were from Asia, and 9 were from Europe and America. The median follow-up times were between 3.6 and 10.3 years. The median baseline proteinuria was between 0.3 and 2.9 g/d. There were 2 prospective studies, and the other studies were retrospective. The association between initial hematuria (binary variable) and ESRD was investigated in 7 studies [ 9 , 22 , 23 , 27 , 29 , 30 , 32 ]. Among them, 4 studies [ 9 , 27 , 29 , 32 ], focused on micoscopic hematuria. The predictive value of macroscopic hematuria for ESRD was evaluated in 7 studies [ 9 , 14 , 24–26 , 28 , 31 ].\n\nResults > Study characteristics and quality assessment\nTable 1. Primary characteristics of included studies. Reference Country Design Patients, no. Age a , yrs Male, % Protainuria a , g/d EGFR a , ml/min per 1.73 m 2 Follow-up a , yrs ESRD, no. Classification Time point Outcomes De Menezes et al. [ 22 ] Brazil RCS 111 32 30.6 2.0 53 5.3 31 Hematuria Biopsy SCr doubling/ESRD Bobart et al. [ 23 ] USA RCS 72 44.8 67.2 2.5 54.6 3.7 9 Hematuria Biopsy ESRD Heybeli et al. [ 24 ] Turkey RCS 100 42.1 64 1.7 67 6.3 14 Macroscopic hematuria Biopsy SCr doubling/50% decline in eGFR/ESRD Tanaka et al. [ 14 ] Japan RCS 88 33.9 38.6 0.3 89.4 NR NR Macroscopic hematuria Biopsy ESRD Le et al. [ 25 ] China RCS 1155 34 49.7 0.9 89.7 7.9 155 Macroscopic hematuria Before biopsy ESRD Bjørneklett et al. [ 27 ] Norway RCS 633 39 74 NR 67 10.3 146 Microscopic hematuria Biopsy ESRD Lee et al. [ 26 ] Korea RCS 1364 33 50 1.3 67.6 8 277 Macroscopic hematuria Biopsy ESRD Goto et al. [ 9 ] Japan PCS 2283 NR 48.7 NR NR 7 207 Macroscopic and microscopic hematuria Biopsy ESRD Espinosa et al. [ 28 ] Spain RCS 59 31.6 74.6 2.4 68.4 NR 11 Macroscopic hematuria Biopsy ESRD Manno et al. [ 29 ] Italy RCS 437 31 67.7 0.7 NR 9 72 Microscopic hematuria Onset ESRD Daniel et al. [ 30 ] France RCS 194 37.8 75.8 NR NR 3.6 32 Hematuria Biopsy ESRD Haas [ 31 ] USA RCS 109 38.4 73.4 2.9 NR NR NR Macroscopic hematuria Before biopsy ESRD Frimat et al. [ 32 ] France PCS 210 36.2 82.3 1.6 NR 5.6 33 Microscopic hematuria Onset ESRD a Median or mean. eGFR: estimated glomerular filtration rate; ESRD: end-stage renal disease; NR: not reported; PCS: prospective cohort study; RCS: retrospective cohort study; SCr: serum creatine level.\n\nResults > Initial hematuria and ESRD\nSeven studies assessed the association between initial hematuria (binary variable, vs. negative) and ESRD ( n = 3940). The corresponding pooled RR was 1.32 (95% CI, 0.87–2.00; p = .190; I 2 = 72%). The results of the jackknife sensitivity analyses are presented in Appendix 4 . The pooled RRs were not significantly changed with each sequential study exclusion. This suggested that the pooled result was robust and not skewed by any particular study.\n\nResults > Initial hematuria and ESRD\nFour studies assessed the association between microscopic hematuria and ESRD ( n = 3563). The pooled RR was 1.87 (95% CI, 1.40–2.50; p < .001; I 2 = 23.7%) ( Figure 2 ). Moreover, the pooled RRs for hematuria at renal biopsy ( n = 3293) and disease onset ( n = 647) were 1.21 (95% CI, 0.69–2.12; p = .503; I 2 = 97.1%) and 1.63 (95% CI, 0.90–2.93; p = .107; I 2 = 38.5%), respectively. Other subgroup analyses, e.g., European and American studies, studies with proteinuria > 1 g/d, or eGFR < 60 mL/min/1.73m 2 were also conducted. The results were summarized in Table 2 .\n\nResults > Initial hematuria and ESRD\nTable 2. Subgroup analyses with regard to the association between various hematuria and end-stage renal disease. Classification Study no. Patient no. RR (95% CI) p Value I^2 Initial hematuria 7 3940 1.32 (0.87, 2.00) .190 72% hematuria 3 377 0.79 (0.44, 1.42) .434 36.7% Microscopic hematuria 4 3563 1.87 (1.40, 2.50) <.001 23.7% At biopsy 5 3293 1.21 (0.69, 2.12) .503 79.1% Disease onset 2 647 1.63 (0.90, 2.93) .107 38.5% Europe and America 6 1657 1.16 (0.78, 1.74) .468 56.5% Proteinuria > 1 g/d 3 393 1.01 (0.73, 1.39) .962 0% EGFR < 60 ml/min/1.73m 2 2 183 0.99 (0.70, 1.41) .961 0% Initial macroscopic hematuria 7 5158 0.68 (0.58, 0.79) <.001 12.2% At biopsy 5 3894 0.68 (0.57, 0.82) <.001 23.2% Before biopsy 2 1264 0.60 (0.41, 0.87) .008 0% Aisa 4 4890 0.59 (0.46, 0.76) <.001 0% Europe and USA 3 268 0.70 (0.56, 0.89) .003 32.2% Proteinuria > 1 g/d 5 3915 0.64 (0.52, 0.80) <.001 39.5% Proteinuria < 1 g/d 2 1243 0.67 (0.44, 1.00) .052 0% EGFR > 60 ml/min/1.73m 2 5 2766 0.73 (0.64, 0.83) <.001 0% CI: confidence interval; eGFR: estimated glomerular filtration rate; RR: risk ratio.\n\nResults > Initial hematuria and ESRD\nAnother 3 studies focused on the association between the extent of hematuria and ESRD were identified. In the retrospective cohort of Bobart et al. [ 23 ], the degree of hematuria at biopsy was reported as 0, <3, 3–10, 11–20, 21–30, 31–40, 41–50, 51–100 or >100 RBCs/HPF. In the Cox proportional hazard model, the corresponding HR was 0.85 (95% CI, 0.64–1.14; p = .28). Of 2 studies from the same center in Japan [ 14 , 33 ], the magnitude of hematuria at biopsy (per 20 RBCs/HPF increase) was evaluated in IgAN patients with proteinuria (> 1 g/day) and mild proteinuria (< 0.5 g/day). The HRs were 0.75 (95% CI, 0.55–1.00; p = .053) and 1.16 (95% CI, 0.89–1.46; p = .247), respectively.\n\nResults > Initial macroscopic hematuria and ESRD\nThe predictive value of macroscopic hematuria for ESRD was evaluated in 7 studies ( n = 5158). The meta-analysis suggested that macroscopic hematuria was associated with a decreased risk for ESRD among IgAN patients (RR, 0.68; 95% CI, 0.58–0.79; p < .001; I 2 = 12.2%) ( Figure 3 ). In sensitivity analyses ( Appendix 4 ), the point estimates of the pooled RRs ranged from 0.60 to 0.73 and the corresponding 95% CIs remaining < 1 in all analyses.\n\nResults > Initial macroscopic hematuria and ESRD\nSubgroup analyses showed that the pooled RRs for Asian ( n = 4890) and European/American studies ( n = 268) were 0.59 (95% CI, 0.46–0.76; p < .001; I 2 = 0%) and 0.70 (95% CI, 0.56–0.89; p = .003; I 2 = 32.2%), respectively. The median proteinuria of 2 studies was less than 1 g/d ( n = 1243). The pooled RR was 0.67 (95% CI, 0.44–1.00; p = .052; I 2 = 0%). For macroscopic hematuria before biopsy (2 studies, n = 1264), the pooled RR was 0.60 (95% CI, 0.41–0.87; p = .008; I 2 = 0%) ( Table 2 ).\n\nResults > Persistent hematuria and ESRD\nThree studies [ 8 , 34 , 35 ] assessed the association between persistent hematuria (TA-hematuria) and ESRD or a 50% decline in eGFR. However, due to the different definitions and calculation methods of TA-hematuria, the pooled analysis was not applied. The latest retrospective cohort of 1333 IgAN patients [ 33 ] showed that the TA-hematuria (per 1 unit increase after logarithmic transformation) during follow-up was an independent predictor for ESRD or a 50% decline in eGFR (HR, 1.46; 95% CI, 1.13–1.87; p = .003). Similar result was observed in another chinese cohort [ 8 ]. The corresponding HR was 2.1 (95% CI, 1.6–2.7; p < .001) in multivarite Cox model. Additionally, the study of Sevillano et al. [ 35 ] demonstrated that TA-hematuria (per 1 unit increase) was associated with a higher risk of ESRD (HR, 2.84; 95% CI, 1.06–7.30; p = .04).\n\nResults > Initial hematuria and renal progression\nThree studies were identified to explore the association between hematuria and renal progression. A Chinese retrospective cohort [ 36 ] with 82 asymptomatic IgAN patients demonstrated that hematuria at renal biopsy was an independent risk factor for renal prognosis, which was defined as doubling of the SCr level (OR, 2.97; 95% CI, 1.34–5.13). A Japanese study [ 37 ] with 790 IgAN patients aimed to evaluate the magnitude of mild hematuria at biopsy for deterioration of renal function (doubling of SCr level). Multivariable logistic regression showed that the presence of mild hematuria was a significant predictor (OR, 2.3; 95% CI, 1.2–4.3). A Kuwait study [ 38 ] with 69 IgAN patients suggested that deterioration of renal function during the follow-up period (mean follow-up duration, 3.5 years) was more significant in the presence of macroscopic hematuria at the time of biopsy ( p < .05). The crude RR was 1.47 (95% CI, 0.90–2.40).\n\nDiscussion\nPrimary findings of our systematic review were as follows: (a) initial hematuria was not associated with a high risk of ESRD (RR, 1.32; 95% CI, 0.87–2.00; p = .19); (b) initial microscopic hematuria was associated with an 87% increased risk (RR, 1.87; 95% CI, 1.40–2.50; p < .001), while initial macroscopic hematuria was associated with a 32% decreased risk (RR, 0.68; 95% CI, 0.58–0.79; p < .001) for ESRD; (c) persistent hematuria might be an independent risk factor for poor renal outcomes (ESRD or 50% decline in eGFR) of IgAN patients.\n\nDiscussion\nMicroscopic hematuria is defined by the presence of more than 3 RBCs per high-power field in urine sediment in the absence of colored urine. Macroscopic hematuria is always pathologic and is characterized by the massive presence of RBCs in urine. Isolated hematuria at the time of biopsy possibly enhances the sensitivity for the early detection of IgAN and might defines a cohort with a higher risk of disease progression appropriate for recruitment into clinical therapeutic trials within realistic time frames. Although glomerular hematuria has been considered a clinical manifestation of glomerular diseases without real consequences on renal function and long-term prognosis, up to 25% of patients with macroscopic hematuria-associated AKI do not recover baseline renal function for obstruction by red blood cell casts [ 39 ]. Therefore, the association between isolated microscopic hematuria in IgAN and the long-term incidence of end-stage renal disease needs to be explained and described clearly [ 40 ]. However, information about the long-term outcome of IgAN patients presenting with minor or benign clinical presentations is scarce. One reason is that few nephrological departments maintain the policy of renal biopsy performance in patients with minor urinary abnormalities, including persistent microscopic hematuria with or without minimal proteinuria, although a significant proportion of patients in whom a renal biopsy later establishes the diagnosis of IgAN can present with these minor manifestations. According to the data of these centers, less than half of patients with normal renal function, microalbuminuria, and without hypertension at the time of renal biopsy will develop more proteinuria, 26%–38% will develop hypertension, and 7%–24% will develop impaired renal function after a median follow-up of 7–11 years. These results suggest that IgAN is a progressive disease in a relevant fraction of patients, even in those with a more benign clinical presentation [ 5 ]. In conclusion, remission of hematuria may have a significant favorable effect on IgA nephropathy outcomes.\n\nDiscussion\nIn our systematic review and meta-analysis, although IgAN patients with initial hematuria did not show significantly worse renal outcomes than those without, other hallmarks related to hematuria classification are still worthy of attention. Initial microscopic hematuria seems to be an important predictor for worsening renal outcomes. More interestingly, patients with persistent hematuria may more easily reach ESRD or 50% decline in renal function than those with minimal or negative hematuria. But a topic worthy of further study is how to use such a parameter, that dynamically reflects the disease status of IgAN patients over the whole course, to achieve early prediction of long-term prognosis.\n\nDiscussion\nOn the other hand, some studies have further revealed that remission of hematuria may delay the progression of renal function and reduce the occurrence of adverse renal outcomes [ 34 , 35 ]. Unfortunately, spontaneous remission of hematuria and proteinuria are currently uncommon, and worse, there is insufficient data to support that remission of hematuria with a specific (and yet unknown) treatment could lead to a better long-term renal outcome [ 5 , 41 ]. Additionally, we are suprised to observe that IgAN patients with gross hematuria possess a decreased risk and better renal outcomes compared with those without any forms of hematuria or with microscopic hematuria. However, the deeper reasons and mechanisms are still pending. This requires more clinical evidence to confirm this phenomenon and explain its guiding significance for clinical practice.\n\nDiscussion\nTo the best of our knowledge, this was the first meta-analysis that focused on the associations between hematuria and renal outcomes among IgAN patients. Literature screening, data extraction, and quality assessment were conducted in duplicate by 2 independent investigators. The analysis procedure was based on a rigorous, standardized, and previously-defined meta-analytic methodology. More importantly, in most groups, the between-study heterogeneity was not statistically significant, which increased the precision and power of the pooled estimate.\n\nDiscussion\nHowever, there are still several limitations in our work. First, most of the eligible studies were retrospective. The introduction of unblinded explorations might lead to an overestimation of the real result. Second, the nature of acquiring summary estimates and inaccessibility of individual patient data limit methods of controlling for confounding in the course of the meta-analysis. Nevertheless, the overwhelming majority of included publications controlled adequately for confounding during modeling of outcomes, reducing the risk for residual confounding. Third, we noted that the heterogeneity in the initial hematuria group was moderate. In subgroup analyses, we noticed that the classification of hematuria, protenuria quantification, and initial eGFR value could explain a part of the heterogeneity. Unfortunately, owing to the limited number of studies, we were unable to further explore the other sources of heterogeneity. Similarly, the number of qualified studies restricted the use of sensitivity analyses and publication bias tests. Additionally, a few articles could be missed as a result of the language limitation of our literature retrieval.\n\nConclusion\nIn conclusion, initial microscopic hematuria or persistent hematuria was associated with a higher risk of ESRD, while initial macroscopic hematuria was a protective factor for ESRD among patients with IgAN, independent of other traditional predictors. Risk stratification of ESRD could consider various hematuria as significant predictors for long-term renal survival. Ultimately, randomized studies are needed to determine whether hematuria treatments in patients with decreased kidney function can improve the excess ESRD burden associated with the coexistence of these conditions.",
+        "body_excerpts_sha256": "09fc967f40fbe5b6e29baff19437130194fc47866e0dd1b03d43b8fda4ba93a0",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC7946061/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "41485852",
+        "title": "High risk of massive hemorrhage and hysterectomy in patients with placenta previa accreta presenting with macroscopic hematuria.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41485852/",
+        "abstract": "Macroscopic hematuria is a rare but potentially serious perinatal complication. This study aimed to evaluate the relationship between maternal gross hematuria, prenatal ultrasound findings, perinatal outcomes, and histopathologic findings at birth.\nOf note, 3 major electronic databases were searched for articles published between inception and July 2024 using combinations of relevant subject heading terms.\nOnly observational studies that provided data on prenatal macroscopic hematuria in pregnancies complicated with placenta accreta spectrum at birth were included.\nOf note, 2 independent reviewers selected studies and extracted data using a predesigned protocol registered on the International Prospective Register of Systematic Reviews (registration number: CRD42024528300).\nOf the 135 articles reviewed, 17 met our inclusion criteria, describing 18 cases complicated by antenatal macroscopic hematuria. Gestational ages at the first episode of gross hematuria and at delivery ranged from 15 to 30 and 15 and 38 weeks, respectively. Moreover, 12 of 17 patients (70.6%) had an obstetrical history of ≥2 previous cesarean deliveries. Data on prenatal imaging was available in 15 cases and described as placenta percreta with invasion of the bladder. All authors reported on the management, describing cesarean hysterectomy as the main management strategy in 17 cases (94.4%). Massive intraoperative hemorrhage and transfusion were reported by all authors who performed a hysterectomy and provided detailed intraoperative description. There were 2 maternal deaths due to hemorrhagic complications. In 11 cases (61.1%), a partial cystectomy was performed during hysterectomy. In addition, of 175 cases from our prospective database, this study included the data of 3 patients (1.7%) with macroscopic hematuria at 33 to 34 weeks of gestation. All patients who underwent ultrasound examination presented with a major placenta previa, abnormalities of the uterine contour, and abnormalities of uteroplacental and intraplacental circulations. The patients' intraoperative estimated blood loss was >1.5 L requiring a primary hysterectomy for hemostasis, massive transfusion, and postoperative admission to the intensive care unit.\nPatients with prenatal macroscopic hematuria are at high risk of major peripartum hemorrhagic complications and require emergency preterm delivery and hysterectomy. This information should be integrated into the surgical management plan and patient preoperative counseling.",
+        "sha256": "778176a42efd5d858dbb054fe3e3df5e2de8ff4965bd848a552de841e686fff4",
+        "retrieved_at": "2026-09-18T23:50:42.113789+00:00"
+      },
+      {
+        "id": "41456833",
+        "title": "Tranexamic Acid for the Management of Hematuria: A Systematic Review.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41456833/",
+        "abstract": "To evaluate tranexamic acid (TXA)'s efficacy in managing hematuria and synthesize current evidence to guide urological practice.\nThis systematic review followed Preferred Reporting Items for Systematic Reviews and Meta-Analyse 2020 guidelines and was registered in PROSPERO (CRD42022335404). We searched four databases, including PubMed, EMBASE, CINAHL, and Cochrane, for studies on TXA use in adults with hematuria with either interventional or observational designs. Data extraction and quality assessment were performed independently by 2 reviewers, and findings were summarized using a narrative synthesis.\nThe search yielded 227 records, of which seven studies (970 participants) met inclusion criteria. Four trials on postoperative hematuria showed that TXA-particularly intravenous-consistently reduced hemoglobin decline and blood loss. Three studies on non-postoperative hematuria demonstrated reductions in visible hematuria and symptom duration, though effects on transfusion and laboratory outcomes were variable. All administration routes-intravenous, oral, and intravesical irrigation-were effective; however, IV TXA showed superior outcomes in postoperative cases, while oral and irrigation routes appeared more advantageous in non-surgical settings.\nTXA is effective in reducing both postoperative and non-postoperative hematuria, supporting its expanded use in urological practice. However, larger, high-quality studies are needed to confirm these findings and refine treatment protocols.",
+        "sha256": "df732a12997ffbcc04586944a6f12da7846f4e43ef14927aa459ec97f49787d5",
+        "retrieved_at": "2026-09-18T23:50:42.859422+00:00"
+      },
+      {
+        "id": "41134363",
+        "title": "Prostatic artery embolization for palliative control of hematuria in locally advanced or metastatic prostate cancer: a systematic review.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41134363/",
+        "abstract": "Prostatic artery embolization (PAE) has emerged as a minimally invasive option for the palliative control of hematuria in locally advanced or metastatic prostate cancer. This systematic review focuses on the efficacy and safety of PAE for this indication, while also synthesizing available data on secondary outcomes such as urinary retention and pain.\nA comprehensive search of PubMed/MEDLINE, Scopus, and Web of Science identified eight primary studies (four retrospective case series, one prospective cohort, and three case reports). Methodological quality was assessed using Joanna Briggs Institute (JBI) checklists and the Newcastle-Ottawa Scale (NOS).\nPAE demonstrated high technical success (89-100%) and immediate hemostatic control (67-100%), with durable symptom relief in most patients. Functional improvements in urinary retention (50-80% catheter-free rates) and pain (≈ 70% improvement) were observed, though outcomes varied. Major complications were rare (< 3%), supporting PAE's safety over traditional options like TURP (higher bleeding risk) or EBRT (delayed response).\nPAE offers rapid, low-risk palliation for advanced prostate cancer symptoms. While it is a valuable alternative for high-risk patients, comparative trials are needed to define its role in obstruction and pain management.",
+        "sha256": "ff24b6962c9c45fa717080a574e9a5a4ddf4fb323efb98e77f3e3c89d1235154",
+        "retrieved_at": "2026-09-18T23:50:42.859422+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The ACR Appropriateness Criteria (source 32370958) explicitly states that 'All patients diagnosed with hematuria should undergo a thorough history and physical examination, urinalysis, and serologic testing prior to any initial imaging.' Answer B directly reflects this evidence-based sequence: complete the focused assessment first and use its results to guide subsequent initial imaging. This is especially appropriate here because the case is described as visible/gross hematuria but is 'uniformly red urine' without clots occurring after a viral illness—a presentation that can represent glomerular bleeding (e.g., IgA nephropathy, which classically follows upper respiratory infection per source 33685345) rather than a urologic anatomic lesion. Urinalysis (dysmorphic RBCs, casts, proteinuria) and serologic testing are precisely what distinguish glomerular from urologic sources and would change the imaging/workup pathway. Answer A inappropriately defers urinalysis and serologic testing, contradicting the ACR recommendation, and risks anchoring on anatomic imaging when the underlying process may be nephrologic. Answer B also correctly avoids prematurely diagnosing IgA nephropathy solely on the respiratory association, which is not diagnostic. The confidence is high but not maximal because gross hematuria in a 40-49 year-old man still warrants full urologic evaluation including imaging and cystoscopy—B does not neglect this; it simply sequences the assessment correctly per guidelines.",
+          "confidence": 0.9
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "32370958"
+              ],
+              "reason": "The ACR abstract explicitly states all patients with hematuria should undergo history and physical examination prior to any initial imaging.",
+              "source_passage_ids": [
+                "32370958:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32370958",
+                  "quote": "Hematuria is a common reason for patients to be referred for imaging of the urinary tract. All patients diagnosed with hematuria should undergo a thorough history and physical examination, urinalysis, and serologic testing prior to any initial imaging. Ultrasound, CT, and MRI are the most common imaging modalities used to evaluate hematuria."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "32370958"
+              ],
+              "reason": "Same sentence specifies urinalysis and serologic testing prior to any initial imaging.",
+              "source_passage_ids": [
+                "32370958:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32370958",
+                  "quote": "Hematuria is a common reason for patients to be referred for imaging of the urinary tract. All patients diagnosed with hematuria should undergo a thorough history and physical examination, urinalysis, and serologic testing prior to any initial imaging. Ultrasound, CT, and MRI are the most common imaging modalities used to evaluate hematuria."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "32370958"
+              ],
+              "reason": "Abstract lists US, CT, MRI as common modalities but frames imaging by scenario without patient-specific ranking; follow-up beyond scope.",
+              "source_passage_ids": [
+                "32370958:p0",
+                "32370958:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32370958",
+                  "quote": "Hematuria is a common reason for patients to be referred for imaging of the urinary tract. All patients diagnosed with hematuria should undergo a thorough history and physical examination, urinalysis, and serologic testing prior to any initial imaging. Ultrasound, CT, and MRI are the most common imaging modalities used to evaluate hematuria."
+                },
+                {
+                  "source_id": "32370958",
+                  "quote": "This document discusses the following clinical scenarios for hematuria: initial imaging of microhematuria without risk factors or history of recent vigorous exercise, or presence of infection, or viral illness, or present or recent menstruation; initial imaging of microhematuria in patients with known risk factors and no history of recent vigorous exercise, or presence of infection, or viral illness, or present or recent menstruation or renal parenchymal disease; initial imaging of microhematuria in the pregnant patient and initial imaging of gross hematuria. Follow-up of normal or abnormal findings is beyond the scope of this review. The American College of Radiology Appropriateness Criteria are evidence-based guidelines for specific clinical conditions that are reviewed annually by a multidisciplinary expert panel."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "33685345"
+              ],
+              "reason": "Body text states IgAN hematuria often occurs after upper respiratory tract or intestinal infection.",
+              "source_passage_ids": [
+                "33685345:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33685345",
+                  "quote": "Introduction Immunoglobulin A nephropathy (IgAN) is the most common primary glomerular disease worldwide, especially in East Asian China, and is a major cause of end-stage renal disease (ESRD) in a substantial proportion of patients within 10 to 20 years from its apparent onset [ 1–3 ]. It is characterized by recurrent episodes of asymptomatic hematuria with or without proteinuria, hypertension or decreased glomerular filtration rate (GFR) at baseline [ 2 , 4–9 ]. Among these symptoms, hematuria is the most typical presentation of IgAN. Approximately 70% to 100% of patients have asymptomatic microscopic hematuria or macroscopic hematuria, which often occurs after upper respiratory tract or intestinal infection [ 10 ]. Introduction The long-term outcomes of IgAN patients have conclusively been shown to be impacted by decreased renal function at presentation, hypertension and proteinuria."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "33685345"
+              ],
+              "reason": "Inclusion criteria required biopsy-proven IgAN cohorts, so timing/infection association alone does not diagnose IgAN.",
+              "source_passage_ids": [
+                "33685345:p7"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33685345",
+                  "quote": "The inclusion criteria were as follows: (a) cohort studies with biopsy-proven IgAN patients; (b) studies with an estimate of the association between hematuria and renal outcomes (i.e., relative risk [RR], hazard ratio [HR], odds ratio [OR]) and 95% confidence intervals (CIs), or relevant data to calculate them; (c) studies with end points that included end-stage kidney disease (ESRD), a 50% decline in estimated glomerular filtration rate (eGFR), or doubling of serum creatinine (SCr) concentration. The exclusion criteria were as follows: (a) elderly or childhood studies and (b) other kinds of articles, including cross-sectional studies, reviews, case reports, letters, editorials, comments, supplements, and conference abstracts. For multiple papers using the same cohort or database, the sample with the most comprehensive and recent data was included."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Solving independently: a 40-49 year old man with two episodes of recurrent gross hematuria who has not yet had UA, serologic testing, or a completed focused exam is squarely in the pre-imaging phase per the ACR Appropriateness Criteria, which mandate history/physical, urinalysis, and serologic testing prior to any initial imaging. Option A defers these prerequisites and rushes to imaging, which is the intended flaw (omission) and contradicts the guideline. Option B completes the required assessment first, then uses it to guide imaging without prematurely diagnosing IgAN from the respiratory association — this matches the key (B) and the evidence. The respiratory-infection link to IgAN is real (33685345 body excerpt) but the meta-analysis only enrolled biopsy-proven IgAN, so timing alone is not diagnostic; the case correctly avoids that closure. The patient is stable, afebrile, no clots/retention, so no emergent hemorrhage control is indicated (TXA and PAE sources are irrelevant distractors, as are the obstetric/female-screening sources). Specialty is urology and appropriate. The two candidate decisions are genuinely distinct (imaging-first vs assessment-first). No decisive data are missing for the current decision point; the case explicitly states we are at the pre-imaging stage. Visible notes do not disclose the answer — the note simply describes the incomplete workup. All five claims are directly supported by exact source text. Minor observation: claim 2's statement that the abstract does not 'rank' modalities for this individual is a reasonable reading since the abstract organizes recommendations by scenario without disclosing the specific ranking, and this does not affect answer B. Case is acceptable as designed."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The ACR Appropriateness Criteria state that patients with hematuria should undergo a thorough history and physical examination, urinalysis, and serologic testing before initial imaging. Although gross hematuria temporally associated with an upper respiratory illness is compatible with IgA nephropathy, that association is not diagnostic and does not exclude urologic causes. The immediate next step is therefore to characterize the hematuria and assess renal and systemic findings before selecting subsequent imaging and further urologic or nephrologic evaluation.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.95,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "32370958"
+              ],
+              "reason": "The ACR abstract explicitly requires a thorough history and physical examination before initial imaging in all patients diagnosed with hematuria.",
+              "source_passage_ids": [
+                "32370958:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32370958",
+                  "quote": "Hematuria is a common reason for patients to be referred for imaging of the urinary tract. All patients diagnosed with hematuria should undergo a thorough history and physical examination, urinalysis, and serologic testing prior to any initial imaging. Ultrasound, CT, and MRI are the most common imaging modalities used to evaluate hematuria."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "32370958"
+              ],
+              "reason": "The source explicitly places urinalysis and serologic testing before any initial imaging.",
+              "source_passage_ids": [
+                "32370958:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32370958",
+                  "quote": "Hematuria is a common reason for patients to be referred for imaging of the urinary tract. All patients diagnosed with hematuria should undergo a thorough history and physical examination, urinalysis, and serologic testing prior to any initial imaging. Ultrasound, CT, and MRI are the most common imaging modalities used to evaluate hematuria."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "32370958"
+              ],
+              "reason": "The abstract identifies ultrasound, CT, and MRI as common modalities but supplies no patient-specific ranking among them.",
+              "source_passage_ids": [
+                "32370958:p0",
+                "32370958:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32370958",
+                  "quote": "Hematuria is a common reason for patients to be referred for imaging of the urinary tract. All patients diagnosed with hematuria should undergo a thorough history and physical examination, urinalysis, and serologic testing prior to any initial imaging. Ultrasound, CT, and MRI are the most common imaging modalities used to evaluate hematuria."
+                },
+                {
+                  "source_id": "32370958",
+                  "quote": "This document discusses the following clinical scenarios for hematuria: initial imaging of microhematuria without risk factors or history of recent vigorous exercise, or presence of infection, or viral illness, or present or recent menstruation; initial imaging of microhematuria in patients with known risk factors and no history of recent vigorous exercise, or presence of infection, or viral illness, or present or recent menstruation or renal parenchymal disease; initial imaging of microhematuria in the pregnant patient and initial imaging of gross hematuria. Follow-up of normal or abnormal findings is beyond the scope of this review. The American College of Radiology Appropriateness Criteria are evidence-based guidelines for specific clinical conditions that are reviewed annually by a multidisciplinary expert panel."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "33685345"
+              ],
+              "reason": "The IgA nephropathy source states that microscopic or macroscopic hematuria often occurs after upper respiratory or intestinal infection.",
+              "source_passage_ids": [
+                "33685345:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33685345",
+                  "quote": "Introduction Immunoglobulin A nephropathy (IgAN) is the most common primary glomerular disease worldwide, especially in East Asian China, and is a major cause of end-stage renal disease (ESRD) in a substantial proportion of patients within 10 to 20 years from its apparent onset [ 1–3 ]. It is characterized by recurrent episodes of asymptomatic hematuria with or without proteinuria, hypertension or decreased glomerular filtration rate (GFR) at baseline [ 2 , 4–9 ]. Among these symptoms, hematuria is the most typical presentation of IgAN. Approximately 70% to 100% of patients have asymptomatic microscopic hematuria or macroscopic hematuria, which often occurs after upper respiratory tract or intestinal infection [ 10 ]. Introduction The long-term outcomes of IgAN patients have conclusively been shown to be impacted by decreased renal function at presentation, hypertension and proteinuria."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "33685345"
+              ],
+              "reason": "The cited meta-analysis evaluated prognosis in cohorts with biopsy-proven IgA nephropathy, not the diagnostic accuracy of infection-associated visible hematuria. It therefore cannot establish IgA nephropathy from timing alone.",
+              "source_passage_ids": [
+                "33685345:p0",
+                "33685345:p7"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33685345",
+                  "quote": "Background: The relationship between hematuria, a typical presentation of immunoglobulin A nephropathy (IgAN), and long-term adverse prognosis of these patients is still controversial. This meta-analysis aims to clarify the effect of hematuria on renal outcomes in IgAN.Methods: Observational cohort studies reporting associations between various forms of hematuria and renal outcomes among IgAN patients were identified from the PubMed and Embase databases. The pooled adjusted risk ratios (RRs) were computed with random effects models.Results: Thirteen studies encompassing 5660 patients with IgAN were included. Patients with initial hematuria did not have a significantly increased risk of developing end-stage renal disease (ESRD) compared with those without hematuria (RR, 1.32; 95% CI, 0.87-2.00; p = .19)."
+                },
+                {
+                  "source_id": "33685345",
+                  "quote": "The inclusion criteria were as follows: (a) cohort studies with biopsy-proven IgAN patients; (b) studies with an estimate of the association between hematuria and renal outcomes (i.e., relative risk [RR], hazard ratio [HR], odds ratio [OR]) and 95% confidence intervals (CIs), or relevant data to calculate them; (c) studies with end points that included end-stage kidney disease (ESRD), a 50% decline in estimated glomerular filtration rate (eGFR), or doubling of serum creatinine (SCr) concentration. The exclusion criteria were as follows: (a) elderly or childhood studies and (b) other kinds of articles, including cross-sectional studies, reviews, case reports, letters, editorials, comments, supplements, and conference abstracts. For multiple papers using the same cohort or database, the sample with the most comprehensive and recent data was included."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "B is the best immediate approach. The patient has not yet had confirmation and characterization by urinalysis, assessment for proteinuria or other glomerular features, a focused history and examination, or the blood testing explicitly required by the supplied ACR source before initial imaging. The temporal relationship to respiratory illness makes IgA nephropathy a relevant differential diagnosis but is not diagnostic; the cited IgA nephropathy evidence concerns renal outcomes in patients already shown to have biopsy-proven disease. Candidate A is intentionally flawed because it defers these prerequisite assessments until after imaging. B addresses the current sequencing decision and does not state that later upper-tract imaging or endoscopic evaluation should be omitted. The title and visible consultation note provide a diagnostic clue but do not disclose the intended management answer. No previous cases were supplied, so there is no demonstrated duplication of the clinical decision."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "2bad59e0f403d47b415a10333ec63fa6c05fe6266eca1abfe5cf8f6afe0b1ac1"
+  }
+}

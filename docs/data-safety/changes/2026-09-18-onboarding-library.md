@@ -80,3 +80,12 @@ and passage-provenance checks only; no migration or mutation of production data.
 Existing batches, submitted exams and reviewed documents are preserved. New
 rejected draft artifacts are retained outside the release bank. Full clinical
 coverage and production backup/alert verification still block release.
+
+Recovery build: 40/86 independently audited, undeployed artifacts retained. Both
+new geriatrics drafts and a colorectal examination were quarantined with original
+bytes preserved. No existing committed document or production row changed.
+Reference/provenance improvements and an author-only metadata guard address the
+observed defects; source support, independent clinical review and the full 86-case
+gate remain required. The 153 focused software tests include read-only bundle
+inventory and preserved-draw checks; the known completeness failure is tracked
+separately. These checks do not verify live backup or alert coverage.

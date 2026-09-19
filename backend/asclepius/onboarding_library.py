@@ -16,6 +16,16 @@ USE_BUNDLED = ContextVar("onboarding_use_bundled", default=True)
 
 ROOT = Path(__file__).with_name("onboarding_material") / "cases"
 LEGACY_AUDITS = Path(__file__).with_name("onboarding_material") / "legacy_evidence_audits.json"
+AUTHORING_FEEDBACK = Path(__file__).with_name("onboarding_material") / "authoring_feedback.json"
+
+
+def authoring_feedback(ident: str) -> dict | None:
+    """Retain independent audit findings when a rejected CI draft is regenerated.
+
+    This is authoring context only, never evidence or an approval. It contains no
+    applicant data and is not part of the public/blinded case payload.
+    """
+    return json.loads(AUTHORING_FEEDBACK.read_text()).get(ident)
 
 
 def validate(document: dict) -> dict:

@@ -1,0 +1,563 @@
+{
+  "task_id": "onboarding-examination-v1-76e4644baee47eeda234-1",
+  "specialty": "hematology",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Postoperative platelet decline with new leg swelling",
+    "question": "Which candidate most accurately interprets the findings and provides appropriate current management?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "hematology",
+      "demographics": {
+        "age_band": "60-69",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Acute thrombocytopenia",
+          "since": "Hospital day 7",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "New unilateral lower-extremity swelling",
+          "since": "Hospital day 7",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Recent major abdominal surgery",
+          "since": "Hospital day 0",
+          "collected_offset_days": -7
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Unfractionated heparin",
+          "dose": null,
+          "route": "subcutaneous",
+          "freq": null,
+          "collected_offset_days": -7
+        }
+      ],
+      "vitals": {
+        "hemodynamic_status": "stable",
+        "active_bleeding": false
+      },
+      "lab_panels": [
+        {
+          "panel": "Baseline hematology",
+          "collected_offset_days": -7,
+          "results": [
+            {
+              "analyte": "Platelet count",
+              "loinc": null,
+              "value": 228,
+              "unit": "10^9/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Current hematology and HIT testing",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Platelet count",
+              "loinc": null,
+              "value": 84,
+              "unit": "10^9/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "low",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "PF4/heparin IgG immunoassay",
+              "loinc": null,
+              "value": "positive",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "abnormal",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Serotonin release assay",
+              "loinc": null,
+              "value": "positive",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "abnormal",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Hematology consultation",
+          "author_role": "hematology",
+          "text": "An adult in the seventh decade is recovering from major abdominal surgery and has received unfractionated heparin since the operation. The platelet count has fallen from 228 to 84 × 10^9/L. On the current hospital day, the patient developed new swelling and tenderness of the left leg. There is no active bleeding, and the patient is hemodynamically stable. Compression ultrasonography has documented a new proximal deep-vein thrombosis. PF4/heparin IgG immunoassay and serotonin release assay results are both positive.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Compression ultrasonography",
+          "label": "Left lower-extremity venous study",
+          "findings": "The left femoral and popliteal veins are noncompressible, with intraluminal thrombus and absent normal venous flow.",
+          "measurements": [],
+          "impression": "Acute proximal left lower-extremity deep-vein thrombosis.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [
+        "laboratory",
+        "compression ultrasonography"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "Candidate A",
+        "rationale": "The marked platelet decline during unfractionated-heparin exposure, new proximal deep-vein thrombosis, positive PF4/heparin immunoassay, and positive functional activation assay support acute heparin-induced thrombocytopenia with thrombosis. Management should avoid further heparin and use a nonheparin anticoagulant at therapeutic intensity. IVIG is described as adjunctive therapy for persistent thrombocytopenia, autoimmune HIT, or refractory thrombosis rather than as an initial replacement for nonheparin anticoagulation.",
+        "evidence": {
+          "evidence_basis": "Supplied systematic reviews and expert consensus communication"
+        },
+        "key_data": [
+          "Platelet count fell from 228 to 84 × 10^9/L during unfractionated-heparin exposure.",
+          "Compression ultrasonography confirmed a new proximal deep-vein thrombosis.",
+          "PF4/heparin IgG immunoassay was positive.",
+          "Serotonin release assay was positive.",
+          "There is no active bleeding."
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "The findings support acute heparin-induced thrombocytopenia with thrombosis. Discontinue the current heparin as part of heparin avoidance and provide therapeutic-intensity anticoagulation with a nonheparin agent. IVIG should not replace initial nonheparin anticoagulation in this nonrefractory presentation."
+      },
+      {
+        "id": "B",
+        "text": "The thrombosis indicates that anticoagulation is still required, so continue unfractionated heparin while monitoring the platelet count. Withhold nonheparin therapeutic anticoagulation until platelet recovery and use IVIG as the initial treatment for the thrombocytopenia."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "heparin-induced thrombocytopenia",
+      "deep-vein thrombosis",
+      "thrombocytopenia",
+      "nonheparin anticoagulation",
+      "active bleeding"
+    ],
+    "evidence_keywords": [
+      "PF4-heparin antibody",
+      "serotonin release assay",
+      "therapeutic-intensity anticoagulation",
+      "heparin avoidance",
+      "intravenous immunoglobulin"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "misreads_labs"
+    ],
+    "claims": [
+      {
+        "statement": "HIT is an immune-mediated, prothrombotic disorder associated with thrombocytopenia and thromboembolic events.",
+        "source_ids": [
+          "32398463",
+          "38065529"
+        ]
+      },
+      {
+        "statement": "Accurate HIT diagnosis combines clinical assessment with laboratory testing that includes well-characterized functional testing.",
+        "source_ids": [
+          "38065529"
+        ]
+      },
+      {
+        "statement": "Established management approaches for HIT include avoidance of heparin products and use of nonheparin anticoagulants.",
+        "source_ids": [
+          "32398463"
+        ]
+      },
+      {
+        "statement": "For acute HIT, therapeutic-intensity anticoagulation may provide greater benefit than prophylactic-intensity anticoagulation.",
+        "source_ids": [
+          "33095876"
+        ]
+      },
+      {
+        "statement": "IVIG is supported as adjunctive therapy chiefly for persistent thrombocytopenia, autoimmune HIT, or refractory thrombosis despite nonheparin anticoagulation.",
+        "source_ids": [
+          "32398463",
+          "32693627"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:46:33.177227+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "32398463",
+        "title": "Effectiveness of intravenous immunoglobulin use in heparin-induced thrombocytopenia.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32398463/",
+        "abstract": ": Heparin-induced thrombocytopenia (HIT) syndrome is an immune-mediated disorder producing thrombocytopenia and thrombosis, with or without prior exposure to heparin. Although avoidance of heparin products and nonheparin anticoagulants are used, immune-based therapies including intravenous immunoglobulin (IVIg) have been tried when the thrombocytopenia persists or there is breakthrough thrombosis. We sought to systematically review and analyze the published literature on use of IVIg in the treatment of HIT. A systematic search of PubMed, Google Scholar, EMBASE and SCOPUS for all study designs and reports were carried out from inception until April 2019. Statistical analysis was done using Microsoft Excel and Stata version 13. In 34 patients with HIT, the mean age was 60 years. About 70% cases were by unfractionated heparin exposure and 30% by low-molecular weight heparin. The most common precipitant in the patients without heparin exposure was recent surgery. Average nadir platelet count for which IVIg was used was 28 000/μl. Time from resolution of the thrombocytopenia after IVIg treatment was 3 days with average platelet count recovery to 159 000/μl. Mean time from diagnosis to administration of IVIg was day 18. Thrombosis was identified in 32% of patients. About 77% patients improved (platelet count >100 000/μl or cessation of thrombosis) following use of IVIg. Logistic regression did not identify any factors that predicted IVIg response (P > 0.05). No thrombotic events or other adverse events were noted with use of IVIg. IVIg appears to be a safe and effective treatment option for HIT-related thrombocytopenia and for refractory thrombosis.",
+        "sha256": "7ca75d454bf0bf732f994c6dcad4505ca328ef3ebe02dc3cdce05aca3c96b4d2",
+        "retrieved_at": "2026-09-18T23:44:47.088930+00:00"
+      },
+      {
+        "id": "34927287",
+        "title": "Cardiac transplantation after heparin-induced thrombocytopenia: A systematic review.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34927287/",
+        "abstract": "Heparin-induced thrombocytopenia (HIT) presents a unique challenge in patients requiring orthotopic heart transplantation (OHT). We sought to pool the existing evidence in a systematic review.\nElectronic search was performed to identify all relevant studies on OHT in patients with HIT. Patient-level data for 33 patients from 21 studies were extracted for statistical analysis.\nMedian patient age was 51 [IQR 41, 55] years, with 75.8% (25/33) males. All patients had a clinical diagnosis of HIT, and anti-PF4/Heparin antibodies were positive in 87.9% (29/33). Median lowest reported platelet count was 46 × 109 /L [27.2, 73.5]. Intraoperatively, 61% (20/33) of patients were given unfractionated heparin (UFH), while 39% (13/33) were given alternative anticoagulants. The alternative agent subgroup required more antifibrinolytics [54% (7/13) vs 10% (2/20), P = .02] and clotting factors [69.2% (9/13) vs 15.0% (3/20), P < .01]. Perioperative thrombosis occurred more [53.8% (7/13) vs 0% (0/20, P < .01) in alternate agent subgroup. More patients in the alternate agent subgroup required post-operative transfusions [54% (7/13) vs 0% (0/20), P < .01]. Thirty-day mortality of 15.2% (5/33) was comparable between the subgroups.\nHeparin use during OHT may be associated with less adverse effects compared to use of other anticoagulants with no difference in 30-day mortality.",
+        "sha256": "7a09873bb24933e1e903a4117805dea6f594a39298416992c850a3aa80aadce2",
+        "retrieved_at": "2026-09-18T23:44:47.088930+00:00"
+      },
+      {
+        "id": "33095876",
+        "title": "Management of heparin-induced thrombocytopenia: systematic reviews and meta-analyses.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33095876/",
+        "abstract": "Heparin-induced thrombocytopenia (HIT) is a prothrombotic adverse drug reaction occurring in <0.1% to 7% of patients receiving heparin products depending on the patient population and type of heparin. Management of HIT is highly dependent on a sequence of tests for which clinicians may or may not have the results when care decisions need to be made. We conducted systematic reviews of the effects of management strategies in persons with acute HIT, subacute HIT A or B, and remote HIT. We searched Medline, EMBASE, and the Cochrane Database through July 2019 for previously published systematic reviews and primary studies. Two investigators independently screened and extracted data and assessed the certainty of the evidence using the Grading of Recommendations Assessment, Development and Evaluation approach. We found primarily noncomparative studies and case series assessing effects of treatments, which led to low to very low certainty evidence. There may be little to no difference in the effects between nonheparin parenteral anticoagulants and direct oral anticoagulants in acute HIT. The benefits of therapeutic-intensity may be greater than prophylactic-intensity anticoagulation. Using inferior vena cava filters or platelet transfusion may result in greater harm than not using these approaches. Evidence for management in special situations, such as for patients undergoing cardiovascular interventions or renal replacement therapy, was also low to very low certainty. Additional research to evaluate nonheparin anticoagulants is urgently needed, and the development of novel treatments that reduce thrombosis without increasing hemorrhage should be a priority.",
+        "sha256": "a3acc5f13ec8f1d65ce3457b8284ede6e725278e55721bbffb4acedc3122a0f8",
+        "retrieved_at": "2026-09-18T23:44:47.658344+00:00",
+        "pmcid": "PMC7594379"
+      },
+      {
+        "id": "34543382",
+        "title": "Heparin-induced thrombocytopenia in patients with COVID-19: a systematic review and meta-analysis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34543382/",
+        "abstract": "Heparin thromboprophylaxis is routinely administered during hospitalization for COVID-19. Because of the immune stimulation related to COVID-19, there is ongoing concern regarding a heightened incidence of heparin-induced thrombocytopenia (HIT). We performed a literature search using PubMed, EMBASE, Cochrane, and medRxiv database to identify studies that reported clinical and laboratory characteristics and/or the incidence of HIT in patients with COVID-19. The primary aim was to systematically review the clinical features and outcomes of patients with COVID-19 with confirmed HIT. The secondary objective was to perform a meta-analysis to estimate the incidence of HIT in hospitalized patients with COVID-19. A meta-analysis of 7 studies including 5849 patients revealed the pooled incidence of HIT in COVID-19 of 0.8% (95% confidence interval [CI], 0.2%-3.2%; I2 = 89%). The estimated incidences were 1.2% (95% CI, 0.3%-3.9%; I2 = 65%) vs 0.1% (95% CI, 0.0%-0.4%; I2 = 0%) in therapeutic vs prophylactic heparin subgroups, respectively. The pooled incidences of HIT were higher in critically ill patients with COVID-19 (2.2%; 95% CI, 0.6%-8.3%; I2 = 72.5%) compared with noncritically ill patients (0.1%; 95% CI, 0.0%-0.4%: I2 = 0%). There were 19 cases of confirmed HIT and 1 with autoimmune HIT for clinical and laboratory characterization. The median time from heparin initiation to HIT diagnosis was 13.5 days (interquartile range, 10.75-16.25 days). Twelve (63%) developed thromboembolism after heparin therapy. In conclusion, the incidence of HIT in patients with COVID-19 was comparable to patients without COVID-19, with higher incidences with therapeutic anticoagulation and in critically ill patients.",
+        "sha256": "5a4c390f3bcd59ae76d21610c8c1660c163438c69430e0a38affb6d06c169b7e",
+        "retrieved_at": "2026-09-18T23:44:47.658344+00:00",
+        "pmcid": "PMC8455241"
+      },
+      {
+        "id": "32693627",
+        "title": "Intravenous Immune Globulin (IVIG) for Treatment of Autoimmune Heparin-Induced Thrombocytopenia: A Systematic Review.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32693627/",
+        "abstract": "To evaluate intravenous immune globulin (IVIG) for autoimmune heparin-induced thrombocytopenia (aHIT), including platelet recovery, IVIG dose, dosing weight, IVIG product used, and complications reported.\nPubMed and EMBASE were searched from inception through June 21, 2020. Search terms included heparin-induced thrombocytopenia, HIT, intravenous immune globulin, IVIG, autoimmune HIT, aHIT, and immune globulin.\nPatients administered IVIG for HIT and diagnosed by immunoassay (optical density ≥2) or positive activation assay were included.\nTwenty-four cases were reviewed; 92% had persistent aHIT. Time to IVIG administration post-nonheparin anticoagulant initiation was 9 days (median). Most common IVIG cumulative dose was 2 g/kg (dosed as 1 g/kg/d for 2 consecutive days); 75% had a favorable platelet increase (≥50 × 109/L) within 5 days of initial IVIG dosing.\naHIT is characterized by critically low platelets, thrombosis, and a persistent delay in platelet recovery despite treatment with a nonheparin anticoagulant. An immunoassay and subsequent confirmatory activation assay (at low, high, and 0 IU/mL unfractionated heparin levels) is recommended to confirm diagnosis. Patients nonresponsive to nonheparin anticoagulants within 5 days of initiation should be evaluated for IVIG treatment (2 g/kg cumulative dose). More data are needed to clarify appropriate IVIG dosing weight, although based on current published literature, it is recommended to use actual body weight.\nData reported support use of IVIG as adjunctive therapy for patients with aHIT. Judicious IVIG use based on key clinical and laboratory findings is critical.",
+        "sha256": "e42883e28c64d08fc0858730692e7386e13b0f808f8779bca606a82572540d40",
+        "retrieved_at": "2026-09-18T23:44:47.658344+00:00"
+      },
+      {
+        "id": "33044680",
+        "title": "Prognostic factors for patients with heparin-induced thrombocytopenia: a systematic review.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33044680/",
+        "abstract": "Background  Little is known with regards to the prognostic factors for patients with suspected or diagnosed Heparin-Induced Thromobocytopenia (HIT). The role of patient and therapy characteristics may play a role in predicting the outcome. Aim of the review To investigate the role of patient and therapy characteristics as potential prognostic factors for HIT-related complications (haemorrhagic and thromboembolic events), and mortality. Method The present systematic review was conducted according to the PRISMA statement. In September 2020, the main online databases were accessed: Pubmed, EMBASE, Scopus, Google Scholar. All the clinical trials concerning the management of patients with suspected or confirmed HIT were eligible. Studies evaluating the use of oral anticoagulants (e.g. vitamin K antagonists, Apixaban) were not considered, along with those comparing the use of heparin. For pairwise correlation, the Pearson Product-Moment Correlation Coefficient (r) was used. The final effect was evaluated according to the Cauchy-Schwarz inequality.Results Data from 33 clinical studies (4338 patients) were retrieved. The overall mean age was 62.3 ± 6.6 years old. Patients with HIT-related thromboembolism at the moment of diagnosis were associated with greater rate of haemorrhages (P > 0.0001), thromboembolism (P > 0.0001) and mortality (P = 0.001). Patients with more comorbidities at diagnosis were associated with a greater risk of haemorrhages (P = 0.07), thromboembolism (P = 0.002) and mortality (P = 0.002). Patients with longer duration of the therapy were associated with lower rate of mortality (P = 0.04). ConclusionsPatient comorbidities, presence of HIT-related thromboembolism on admission and shorter anticoagulant therapy were found to be negative prognostic factors. Thrombocythemia on admission, patients age and gender did not influence the overall outcome.",
+        "sha256": "95adff323116bcb3a4839ae08e9929b799353819db0fecd8855a79da9e8b3baf",
+        "retrieved_at": "2026-09-18T23:44:48.295662+00:00"
+      },
+      {
+        "id": "33857342",
+        "title": "Comparative effectiveness and safety of anticoagulants for the treatment of heparin-induced thrombocytopenia.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33857342/",
+        "abstract": "The effectiveness and safety of non-heparin anticoagulants for the treatment of heparin-induced thrombocytopenia (HIT) are not fully established, and the optimal treatment strategy is unknown. In a systematic review and meta-analysis, we aimed to determine precise rates of platelet recovery, new or progressive thromboembolism (TE), major bleeding, and death for all non-heparin anticoagulants and to study potential sources of variability.\nFollowing a detailed protocol (PROSPERO: CRD42020219027), EMBASE and Medline were searched for all studies reporting clinical outcomes of patients treated with non-heparin anticoagulants (argatroban, danaparoid, fondaparinux, direct oral anticoagulants [DOAC], bivalirudin, and other hirudins) for acute HIT. Proportions of patients with the outcomes of interest were pooled using a random-effects model for each drug. The influence of the patient population, the diagnostic test used, the study design, and the type of article was assessed.\nOut of 3194 articles screened, 92 studies with 119 treatment groups describing 4698 patients were included. The pooled rates of platelet recovery ranged from 74% (bivalirudin) to 99% (fondaparinux), TE from 1% (fondaparinux) to 7% (danaparoid), major bleeding from 1% (DOAC) to 14% (bivalirudin), and death from 7% (fondaparinux) to 19% (bivalirudin). Confidence intervals were mostly overlapping, and results were not influenced by patient population, diagnostic test used, study design, or type of article.\nEffectiveness and safety outcomes were similar among various anticoagulants, and significant factors affecting these outcomes were not identified. These findings support fondaparinux and DOACs as viable alternatives to conventional anticoagulants for treatment of acute HIT in clinical practice.",
+        "sha256": "51bc159895e546ab5dbb73b981c81a55e8e8ef5d33d937669dffa38bfef04ff4",
+        "retrieved_at": "2026-09-18T23:44:48.295662+00:00",
+        "pmcid": "PMC8252596"
+      },
+      {
+        "id": "38065529",
+        "title": "Diagnostic value of antibody-induced procoagulant platelets in heparin-induced thrombocytopenia: communication from the ISTH SSC Subcommittee on Platelet Immunology.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38065529/",
+        "abstract": "Heparin-induced thrombocytopenia (HIT) is an immune-mediated prothrombotic disorder characterized by a drop in platelet count and an increased risk of thromboembolic events. The accurate diagnosis of HIT involves clinical assessment and laboratory testing with well-characterized functional tests. Recent research has shown the potential of investigating procoagulant platelet formation induced by HIT antibodies. To successfully implement these assays in clinical laboratories, careful consideration of technical and preanalytical factors is crucial. In this communication from the SSC Platelet Immunology, we provide a consensus from experts on the use of flow cytometry in HIT diagnosis, highlighting the importance of standardized protocols.",
+        "sha256": "5d9ed1c3835e67528ba636e959e17c7f30d4241b7b98d909694baa49aa8dbd02",
+        "retrieved_at": "2026-09-18T23:44:48.295662+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "This is classic HIT with thrombosis (HITT): platelet fall >50% from baseline (228 to 84), onset day 7 in the typical 5-10 day window, new proximal DVT, and positive PF4/heparin IgG immunoassay confirmed by positive serotonin release assay (functional confirmatory test). Standard current management (supported by 33095876) is immediate cessation of all heparin and prompt initiation of therapeutic-intensity nonheparin anticoagulation (e.g., argatroban, danaparoid, fondaparinux, or a DOAC; 33857342 supports fondaparinux/DOAC efficacy). Answer B is dangerous and contraindicated: continuing heparin in confirmed HIT perpetuates the prothrombotic immune reaction, and withholding therapeutic nonheparin anticoagulation leaves an active thrombosis untreated. IVIG is an adjunct reserved for refractory/persistent or autoimmune HIT (32398463, 32693627), not first-line replacement for nonheparin anticoagulation in this nonrefractory presentation, which Answer A correctly states.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "32398463",
+                "38065529"
+              ],
+              "source_passage_ids": [
+                "32398463:p0",
+                "38065529:p0"
+              ],
+              "reason": "Both sources describe HIT as an immune-mediated prothrombotic disorder producing thrombocytopenia and thrombosis.",
+              "source_quotes": [
+                {
+                  "source_id": "32398463",
+                  "quote": ": Heparin-induced thrombocytopenia (HIT) syndrome is an immune-mediated disorder producing thrombocytopenia and thrombosis, with or without prior exposure to heparin. Although avoidance of heparin products and nonheparin anticoagulants are used, immune-based therapies including intravenous immunoglobulin (IVIg) have been tried when the thrombocytopenia persists or there is breakthrough thrombosis. We sought to systematically review and analyze the published literature on use of IVIg in the treatment of HIT. A systematic search of PubMed, Google Scholar, EMBASE and SCOPUS for all study designs and reports were carried out from inception until April 2019. Statistical analysis was done using Microsoft Excel and Stata version 13. In 34 patients with HIT, the mean age was 60 years. About 70% cases were by unfractionated heparin exposure and 30% by low-molecular weight heparin."
+                },
+                {
+                  "source_id": "38065529",
+                  "quote": "Heparin-induced thrombocytopenia (HIT) is an immune-mediated prothrombotic disorder characterized by a drop in platelet count and an increased risk of thromboembolic events. The accurate diagnosis of HIT involves clinical assessment and laboratory testing with well-characterized functional tests. Recent research has shown the potential of investigating procoagulant platelet formation induced by HIT antibodies. To successfully implement these assays in clinical laboratories, careful consideration of technical and preanalytical factors is crucial. In this communication from the SSC Platelet Immunology, we provide a consensus from experts on the use of flow cytometry in HIT diagnosis, highlighting the importance of standardized protocols."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38065529"
+              ],
+              "source_passage_ids": [
+                "38065529:p0"
+              ],
+              "reason": "The ISTH communication states accurate HIT diagnosis involves clinical assessment and laboratory testing with well-characterized functional tests.",
+              "source_quotes": [
+                {
+                  "source_id": "38065529",
+                  "quote": "Heparin-induced thrombocytopenia (HIT) is an immune-mediated prothrombotic disorder characterized by a drop in platelet count and an increased risk of thromboembolic events. The accurate diagnosis of HIT involves clinical assessment and laboratory testing with well-characterized functional tests. Recent research has shown the potential of investigating procoagulant platelet formation induced by HIT antibodies. To successfully implement these assays in clinical laboratories, careful consideration of technical and preanalytical factors is crucial. In this communication from the SSC Platelet Immunology, we provide a consensus from experts on the use of flow cytometry in HIT diagnosis, highlighting the importance of standardized protocols."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "32398463"
+              ],
+              "source_passage_ids": [
+                "32398463:p0"
+              ],
+              "reason": "Source explicitly names avoidance of heparin products and nonheparin anticoagulants as used approaches.",
+              "source_quotes": [
+                {
+                  "source_id": "32398463",
+                  "quote": ": Heparin-induced thrombocytopenia (HIT) syndrome is an immune-mediated disorder producing thrombocytopenia and thrombosis, with or without prior exposure to heparin. Although avoidance of heparin products and nonheparin anticoagulants are used, immune-based therapies including intravenous immunoglobulin (IVIg) have been tried when the thrombocytopenia persists or there is breakthrough thrombosis. We sought to systematically review and analyze the published literature on use of IVIg in the treatment of HIT. A systematic search of PubMed, Google Scholar, EMBASE and SCOPUS for all study designs and reports were carried out from inception until April 2019. Statistical analysis was done using Microsoft Excel and Stata version 13. In 34 patients with HIT, the mean age was 60 years. About 70% cases were by unfractionated heparin exposure and 30% by low-molecular weight heparin."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "33095876"
+              ],
+              "source_passage_ids": [
+                "33095876:p1"
+              ],
+              "reason": "Systematic review states benefits of therapeutic-intensity may be greater than prophylactic-intensity anticoagulation.",
+              "source_quotes": [
+                {
+                  "source_id": "33095876",
+                  "quote": "We found primarily noncomparative studies and case series assessing effects of treatments, which led to low to very low certainty evidence. There may be little to no difference in the effects between nonheparin parenteral anticoagulants and direct oral anticoagulants in acute HIT. The benefits of therapeutic-intensity may be greater than prophylactic-intensity anticoagulation. Using inferior vena cava filters or platelet transfusion may result in greater harm than not using these approaches. Evidence for management in special situations, such as for patients undergoing cardiovascular interventions or renal replacement therapy, was also low to very low certainty. Additional research to evaluate nonheparin anticoagulants is urgently needed, and the development of novel treatments that reduce thrombosis without increasing hemorrhage should be a priority."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "32398463",
+                "32693627"
+              ],
+              "source_passage_ids": [
+                "32398463:p0",
+                "32693627:p1"
+              ],
+              "reason": "32398463 states IVIg tried when thrombocytopenia persists or breakthrough thrombosis; 32693627 supports IVIG as adjunctive therapy for aHIT and for patients nonresponsive to nonheparin anticoagulants.",
+              "source_quotes": [
+                {
+                  "source_id": "32398463",
+                  "quote": ": Heparin-induced thrombocytopenia (HIT) syndrome is an immune-mediated disorder producing thrombocytopenia and thrombosis, with or without prior exposure to heparin. Although avoidance of heparin products and nonheparin anticoagulants are used, immune-based therapies including intravenous immunoglobulin (IVIg) have been tried when the thrombocytopenia persists or there is breakthrough thrombosis. We sought to systematically review and analyze the published literature on use of IVIg in the treatment of HIT. A systematic search of PubMed, Google Scholar, EMBASE and SCOPUS for all study designs and reports were carried out from inception until April 2019. Statistical analysis was done using Microsoft Excel and Stata version 13. In 34 patients with HIT, the mean age was 60 years. About 70% cases were by unfractionated heparin exposure and 30% by low-molecular weight heparin."
+                },
+                {
+                  "source_id": "32693627",
+                  "quote": "aHIT is characterized by critically low platelets, thrombosis, and a persistent delay in platelet recovery despite treatment with a nonheparin anticoagulant. An immunoassay and subsequent confirmatory activation assay (at low, high, and 0 IU/mL unfractionated heparin levels) is recommended to confirm diagnosis. Patients nonresponsive to nonheparin anticoagulants within 5 days of initiation should be evaluated for IVIG treatment (2 g/kg cumulative dose). More data are needed to clarify appropriate IVIG dosing weight, although based on current published literature, it is recommended to use actual body weight. Data reported support use of IVIG as adjunctive therapy for patients with aHIT. Judicious IVIG use based on key clinical and laboratory findings is critical."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case presents a classic HITT scenario: platelet fall from 228 to 84 ×10^9/L on hospital day 7 of subcutaneous UFH after major abdominal surgery, new proximal DVT confirmed by compression ultrasonography, and both a positive PF4/heparin IgG immunoassay and positive serotonin release assay (functional confirmatory test). This meets diagnostic criteria for HIT with thrombosis. Standard management is heparin avoidance plus therapeutic-intensity nonheparin anticoagulation, exactly what Candidate A recommends; A also correctly relegates IVIG to non-initial/adjunctive status, consistent with source 32398463 (IVIg tried when thrombocytopenia persists or breakthrough thrombosis) and 32693627 (IVIG adjunctive for aHIT/nonresponders). Candidate B (intended flawed) is unsafe: continuing UFH in confirmed HIT and withholding nonheparin therapeutic anticoagulation would perpetuate the prothrombotic drug reaction and delay needed anticoagulation for an active proximal DVT; using IVIG as initial therapy is unsupported. All claims are traceable to the supplied passages. The visible hematology note describes the data (platelet fall, positive assays, confirmed DVT) but does not disclose the management plan or name the intended answer, so key/coherence are not compromised. The therapeutic-intensity superiority is low-certainty evidence per 33095876 but is stated as 'may provide greater benefit,' matching the source hedging. Specialty (hematology) and required modalities (lab, compression ultrasonography) are present and complete. Decision is distinct (no prior cases). Minor observation: source ranking of specific nonheparin agents (fondaparinux/DOAC) is not needed since A does not claim a specific agent ranking; no contradiction found.",
+          "no_missing_information_reason": ""
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The platelet fall of more than 50% beginning 7 days after unfractionated heparin exposure, new proximal DVT, and positive PF4/heparin IgG immunoassay and serotonin release assay establish acute HIT with thrombosis. All heparin should be stopped immediately, and therapeutic-intensity anticoagulation with a nonheparin agent is indicated despite the platelet count of 84 × 10^9/L and absence of bleeding. Evidence supports nonheparin anticoagulants and favors therapeutic over prophylactic intensity in acute HIT. IVIG is generally an adjunct for autoimmune, persistent, or refractory HIT with delayed platelet recovery or breakthrough thrombosis; it should not replace initial anticoagulation here. Continuing unfractionated heparin, as proposed in B, would perpetuate the antibody-mediated prothrombotic process.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "32398463",
+                "38065529"
+              ],
+              "reason": "Both sources characterize HIT as an immune-mediated, prothrombotic disorder involving platelet-count reduction and thrombotic events.",
+              "source_passage_ids": [
+                "32398463:p0",
+                "38065529:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32398463",
+                  "quote": ": Heparin-induced thrombocytopenia (HIT) syndrome is an immune-mediated disorder producing thrombocytopenia and thrombosis, with or without prior exposure to heparin. Although avoidance of heparin products and nonheparin anticoagulants are used, immune-based therapies including intravenous immunoglobulin (IVIg) have been tried when the thrombocytopenia persists or there is breakthrough thrombosis. We sought to systematically review and analyze the published literature on use of IVIg in the treatment of HIT. A systematic search of PubMed, Google Scholar, EMBASE and SCOPUS for all study designs and reports were carried out from inception until April 2019. Statistical analysis was done using Microsoft Excel and Stata version 13. In 34 patients with HIT, the mean age was 60 years. About 70% cases were by unfractionated heparin exposure and 30% by low-molecular weight heparin."
+                },
+                {
+                  "source_id": "38065529",
+                  "quote": "Heparin-induced thrombocytopenia (HIT) is an immune-mediated prothrombotic disorder characterized by a drop in platelet count and an increased risk of thromboembolic events. The accurate diagnosis of HIT involves clinical assessment and laboratory testing with well-characterized functional tests. Recent research has shown the potential of investigating procoagulant platelet formation induced by HIT antibodies. To successfully implement these assays in clinical laboratories, careful consideration of technical and preanalytical factors is crucial. In this communication from the SSC Platelet Immunology, we provide a consensus from experts on the use of flow cytometry in HIT diagnosis, highlighting the importance of standardized protocols."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38065529"
+              ],
+              "reason": "The consensus communication expressly states that accurate diagnosis combines clinical assessment with laboratory testing using well-characterized functional tests.",
+              "source_passage_ids": [
+                "38065529:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38065529",
+                  "quote": "Heparin-induced thrombocytopenia (HIT) is an immune-mediated prothrombotic disorder characterized by a drop in platelet count and an increased risk of thromboembolic events. The accurate diagnosis of HIT involves clinical assessment and laboratory testing with well-characterized functional tests. Recent research has shown the potential of investigating procoagulant platelet formation induced by HIT antibodies. To successfully implement these assays in clinical laboratories, careful consideration of technical and preanalytical factors is crucial. In this communication from the SSC Platelet Immunology, we provide a consensus from experts on the use of flow cytometry in HIT diagnosis, highlighting the importance of standardized protocols."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "32398463"
+              ],
+              "reason": "The systematic review identifies heparin avoidance and nonheparin anticoagulants as management approaches used for HIT.",
+              "source_passage_ids": [
+                "32398463:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32398463",
+                  "quote": ": Heparin-induced thrombocytopenia (HIT) syndrome is an immune-mediated disorder producing thrombocytopenia and thrombosis, with or without prior exposure to heparin. Although avoidance of heparin products and nonheparin anticoagulants are used, immune-based therapies including intravenous immunoglobulin (IVIg) have been tried when the thrombocytopenia persists or there is breakthrough thrombosis. We sought to systematically review and analyze the published literature on use of IVIg in the treatment of HIT. A systematic search of PubMed, Google Scholar, EMBASE and SCOPUS for all study designs and reports were carried out from inception until April 2019. Statistical analysis was done using Microsoft Excel and Stata version 13. In 34 patients with HIT, the mean age was 60 years. About 70% cases were by unfractionated heparin exposure and 30% by low-molecular weight heparin."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "33095876"
+              ],
+              "reason": "The systematic review directly reports that therapeutic-intensity anticoagulation may have greater benefits than prophylactic-intensity treatment, while acknowledging low to very low certainty.",
+              "source_passage_ids": [
+                "33095876:p0",
+                "33095876:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33095876",
+                  "quote": "Heparin-induced thrombocytopenia (HIT) is a prothrombotic adverse drug reaction occurring in <0.1% to 7% of patients receiving heparin products depending on the patient population and type of heparin. Management of HIT is highly dependent on a sequence of tests for which clinicians may or may not have the results when care decisions need to be made. We conducted systematic reviews of the effects of management strategies in persons with acute HIT, subacute HIT A or B, and remote HIT. We searched Medline, EMBASE, and the Cochrane Database through July 2019 for previously published systematic reviews and primary studies. Two investigators independently screened and extracted data and assessed the certainty of the evidence using the Grading of Recommendations Assessment, Development and Evaluation approach."
+                },
+                {
+                  "source_id": "33095876",
+                  "quote": "We found primarily noncomparative studies and case series assessing effects of treatments, which led to low to very low certainty evidence. There may be little to no difference in the effects between nonheparin parenteral anticoagulants and direct oral anticoagulants in acute HIT. The benefits of therapeutic-intensity may be greater than prophylactic-intensity anticoagulation. Using inferior vena cava filters or platelet transfusion may result in greater harm than not using these approaches. Evidence for management in special situations, such as for patients undergoing cardiovascular interventions or renal replacement therapy, was also low to very low certainty. Additional research to evaluate nonheparin anticoagulants is urgently needed, and the development of novel treatments that reduce thrombosis without increasing hemorrhage should be a priority."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "32398463",
+                "32693627"
+              ],
+              "reason": "The evidence describes IVIG use for persistent thrombocytopenia or breakthrough/refractory thrombosis and specifically supports it as adjunctive therapy in persistent autoimmune HIT after nonheparin anticoagulation, rather than as initial replacement anticoagulation.",
+              "source_passage_ids": [
+                "32398463:p0",
+                "32398463:p1",
+                "32693627:p0",
+                "32693627:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32398463",
+                  "quote": ": Heparin-induced thrombocytopenia (HIT) syndrome is an immune-mediated disorder producing thrombocytopenia and thrombosis, with or without prior exposure to heparin. Although avoidance of heparin products and nonheparin anticoagulants are used, immune-based therapies including intravenous immunoglobulin (IVIg) have been tried when the thrombocytopenia persists or there is breakthrough thrombosis. We sought to systematically review and analyze the published literature on use of IVIg in the treatment of HIT. A systematic search of PubMed, Google Scholar, EMBASE and SCOPUS for all study designs and reports were carried out from inception until April 2019. Statistical analysis was done using Microsoft Excel and Stata version 13. In 34 patients with HIT, the mean age was 60 years. About 70% cases were by unfractionated heparin exposure and 30% by low-molecular weight heparin."
+                },
+                {
+                  "source_id": "32398463",
+                  "quote": "The most common precipitant in the patients without heparin exposure was recent surgery. Average nadir platelet count for which IVIg was used was 28 000/μl. Time from resolution of the thrombocytopenia after IVIg treatment was 3 days with average platelet count recovery to 159 000/μl. Mean time from diagnosis to administration of IVIg was day 18. Thrombosis was identified in 32% of patients. About 77% patients improved (platelet count >100 000/μl or cessation of thrombosis) following use of IVIg. Logistic regression did not identify any factors that predicted IVIg response (P > 0.05). No thrombotic events or other adverse events were noted with use of IVIg. IVIg appears to be a safe and effective treatment option for HIT-related thrombocytopenia and for refractory thrombosis."
+                },
+                {
+                  "source_id": "32693627",
+                  "quote": "To evaluate intravenous immune globulin (IVIG) for autoimmune heparin-induced thrombocytopenia (aHIT), including platelet recovery, IVIG dose, dosing weight, IVIG product used, and complications reported. PubMed and EMBASE were searched from inception through June 21, 2020. Search terms included heparin-induced thrombocytopenia, HIT, intravenous immune globulin, IVIG, autoimmune HIT, aHIT, and immune globulin. Patients administered IVIG for HIT and diagnosed by immunoassay (optical density ≥2) or positive activation assay were included. Twenty-four cases were reviewed; 92% had persistent aHIT. Time to IVIG administration post-nonheparin anticoagulant initiation was 9 days (median). Most common IVIG cumulative dose was 2 g/kg (dosed as 1 g/kg/d for 2 consecutive days); 75% had a favorable platelet increase (≥50 × 109/L) within 5 days of initial IVIG dosing."
+                },
+                {
+                  "source_id": "32693627",
+                  "quote": "aHIT is characterized by critically low platelets, thrombosis, and a persistent delay in platelet recovery despite treatment with a nonheparin anticoagulant. An immunoassay and subsequent confirmatory activation assay (at low, high, and 0 IU/mL unfractionated heparin levels) is recommended to confirm diagnosis. Patients nonresponsive to nonheparin anticoagulants within 5 days of initiation should be evaluated for IVIG treatment (2 g/kg cumulative dose). More data are needed to clarify appropriate IVIG dosing weight, although based on current published literature, it is recommended to use actual body weight. Data reported support use of IVIG as adjunctive therapy for patients with aHIT. Judicious IVIG use based on key clinical and laboratory findings is critical."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Candidate A is the independently correct choice. During postoperative unfractionated-heparin exposure, the platelet count fell by approximately 63%, with compatible day-7 timing, a newly documented proximal DVT, positive PF4/heparin IgG testing, and a positive functional activation assay. These findings support acute HIT with thrombosis. Immediate heparin discontinuation and therapeutic-intensity nonheparin anticoagulation are appropriate; the absence of active bleeding supports therapeutic treatment. The supplied IVIG evidence concerns persistent, autoimmune, or refractory disease and does not support substituting IVIG for initial anticoagulation here. Candidate B is intentionally unsafe because it continues the implicated heparin and delays needed nonheparin anticoagulation. The heart-transplantation source does not contradict this conclusion because it concerns the distinct special circumstance of intraoperative anticoagulation during orthotopic heart transplantation. No previous cases were supplied, so no duplicated clinical decision is identifiable."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "fef1484432f0fa7f469e551b36278da94584c2afb362c036fa2759679b30b9e1"
+  }
+}

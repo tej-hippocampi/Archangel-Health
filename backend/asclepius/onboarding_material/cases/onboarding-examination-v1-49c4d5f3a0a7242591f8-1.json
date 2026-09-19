@@ -1,0 +1,490 @@
+{
+  "task_id": "onboarding-examination-v1-49c4d5f3a0a7242591f8-1",
+  "specialty": "cardiology",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Chronic systolic heart failure medication review",
+    "question": "Which medication strategy is most appropriate at this follow-up visit?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "cardiology",
+      "demographics": {
+        "age_band": "60-69",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Chronic heart failure with reduced ejection fraction",
+          "since": "Established before current visit",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Exertional fatigue and dyspnea",
+          "since": "Persistent",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Angiotensin receptor-neprilysin inhibitor",
+          "dose": null,
+          "route": "oral",
+          "freq": null,
+          "collected_offset_days": 0
+        },
+        {
+          "drug": "Evidence-based beta-blocker",
+          "dose": null,
+          "route": "oral",
+          "freq": null,
+          "collected_offset_days": 0
+        },
+        {
+          "drug": "Mineralocorticoid receptor antagonist",
+          "dose": null,
+          "route": "oral",
+          "freq": null,
+          "collected_offset_days": 0
+        },
+        {
+          "drug": "Loop diuretic",
+          "dose": null,
+          "route": "oral",
+          "freq": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "blood_pressure": "116/72 mmHg",
+        "heart_rate": "68 beats/min",
+        "oxygen_saturation": "97% on room air"
+      },
+      "lab_panels": [
+        {
+          "panel": "Metabolic assessment",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Potassium",
+              "loinc": null,
+              "value": 4.3,
+              "unit": "mmol/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Estimated glomerular filtration rate",
+              "loinc": null,
+              "value": 68,
+              "unit": "mL/min/1.73 m2",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Cardiology follow-up",
+          "author_role": "cardiology",
+          "text": "A man in his sixties returns after several months of stable chronic systolic heart failure therapy. He reports fatigue and shortness of breath with moderate exertion but no dyspnea at rest, orthopnea, chest pain, syncope, or recent heart-failure admission. Examination shows clear lungs, regular rhythm, no elevated jugular venous pressure, and no peripheral edema. Medication reconciliation confirms an angiotensin receptor-neprilysin inhibitor, an evidence-based beta-blocker, a mineralocorticoid receptor antagonist, and a loop diuretic. There is no SGLT2 inhibitor or vericiguat on the current or prior medication lists.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Transthoracic echocardiography",
+          "label": "Most recent echocardiogram",
+          "findings": "The left ventricle is dilated with diffuse systolic dysfunction. No severe valvular lesion is reported.",
+          "measurements": [
+            {
+              "analyte": "Left ventricular ejection fraction",
+              "loinc": null,
+              "value": 30,
+              "unit": "%",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "low",
+              "ref_range_unusable": false
+            }
+          ],
+          "impression": "Persistent reduced left ventricular ejection fraction.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -14
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [
+        "clinical note",
+        "medication list",
+        "echocardiography"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for medication-class selection",
+      "ground_truth": {
+        "answer": "Continue the angiotensin receptor-neprilysin inhibitor, evidence-based beta-blocker, and mineralocorticoid receptor antagonist, and add an SGLT2 inhibitor to complete the established four-class HFrEF regimen. Do not use vericiguat as a substitute for the missing SGLT2 inhibitor.",
+        "rationale": "Network meta-analyses support the combination of an angiotensin receptor-neprilysin inhibitor, beta-blocker, mineralocorticoid receptor antagonist, and SGLT2 inhibitor for substantial mortality and morbidity reduction in HFrEF. Although an updated analysis suggested a possible incremental survival benefit from adding vericiguat to all four classes, that finding was characterized as exploratory because it arose from a secondary endpoint of a single trial. It does not justify omitting the supported SGLT2 inhibitor component.",
+        "evidence": {
+          "population": "Adult with chronic HFrEF and persistent LVEF of 30%",
+          "current_regimen": "ARNI, beta-blocker, and MRA without an SGLT2 inhibitor",
+          "decision": "Complete four-class therapy rather than substituting vericiguat for SGLT2 inhibition"
+        },
+        "key_data": [
+          "Persistent left ventricular ejection fraction of 30%",
+          "Current therapy already includes an ARNI, beta-blocker, and MRA",
+          "No SGLT2 inhibitor is present on the medication list",
+          "The patient is clinically stable and not currently hospitalized",
+          "Vericiguat is also absent from the current regimen"
+        ]
+      },
+      "hard_hook": "Distinguishing established four-class HFrEF therapy from an exploratory fifth-drug network estimate",
+      "reasoning_divergence": "The flawed approach mistakes exploratory quintuple-therapy evidence for a reason to bypass the missing SGLT2 inhibitor."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Continue the ARNI, evidence-based beta-blocker, and mineralocorticoid receptor antagonist, and add an SGLT2 inhibitor to complete the supported four-class HFrEF regimen; do not substitute vericiguat for the missing class."
+      },
+      {
+        "id": "B",
+        "text": "Continue the ARNI, beta-blocker, and mineralocorticoid receptor antagonist, but add vericiguat now and defer an SGLT2 inhibitor because the newer network analysis places five-drug therapy ahead of the traditional four-class regimen."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "heart failure with reduced ejection fraction",
+      "SGLT2 inhibitor",
+      "vericiguat",
+      "left ventricular ejection fraction",
+      "mortality"
+    ],
+    "evidence_keywords": [
+      "quadruple therapy",
+      "network meta-analysis",
+      "ARNI",
+      "beta-blocker",
+      "mineralocorticoid receptor antagonist",
+      "heart failure hospitalization"
+    ],
+    "error_tags": [
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "In HFrEF, ARNI, beta-blocker, MRA, and SGLT2 inhibitor therapy was associated with an all-cause mortality hazard ratio of 0.39 versus no treatment.",
+        "source_ids": [
+          "34895860"
+        ]
+      },
+      {
+        "statement": "The same four-class HFrEF combination reduced the composite of cardiovascular death or first heart-failure hospitalization in the 2022 network analysis.",
+        "source_ids": [
+          "34895860"
+        ]
+      },
+      {
+        "statement": "The updated analysis reinforces substantial mortality and morbidity benefit from the currently recommended ARNI, beta-blocker, MRA, and SGLT2 inhibitor regimen.",
+        "source_ids": [
+          "40892608"
+        ]
+      },
+      {
+        "statement": "The estimated incremental survival benefit from adding vericiguat to four-class therapy was considered exploratory because it derived from a secondary endpoint of a single trial.",
+        "source_ids": [
+          "40892608"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:32:30.862018+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "36914068",
+        "title": "SGLT2 inhibitors and cardiovascular outcomes in heart failure with mildly reduced and preserved ejection fraction: A systematic review and meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36914068/",
+        "abstract": "To provide a pooled effect of sodium-glucose cotransporter-2 inhibitors (SGLT2i) on cardiovascular outcomes in patients with heart failure with preserved ejection fraction (HFpEF: ≥50%) or/and mildly reduced EF (HFmrEF: 41-49%) regardless of baseline diabetes.\nWe systemically searched PubMed/MEDLINE, Embase, Web of Science databases and clinical trial registries using appropriate keywords till August 28, 2022, to identify randomized controlled trials (RCTs) or post-hoc analysis of RCTs, reporting cardiovascular death (CVD) and/or urgent visits/hospitalization for heart failure(HHF) in patients with HFmrEF/HFpEF receiving SGLTi vs. placebo. Hazard ratios (HR) with 95% confidence intervals (CI) for outcomes were pooled together using generic inverse variance method with fixed-effects model.\nWe identified six RCTs, pooling data retrieved from 15,769 patients with HFmrEF/HFpEF. Pooled analysis showed that compared to placebo, SGLT2i use was significantly associated with improved CVD/HHF outcomes in HFmrEF/HFpEF (pooled HR 0.80, 95% CI: 0.74, 0.86, p < 0.001, I2 = 0%). When separately analyzed, benefits of SGLT2i remained significant across HFpEF (N = 8891, HR 0.79, 95% CI: 0.71, 0.87, p < 0.001, I2 = 0%) and HFmrEF (N = 4555, HR 0.77, 95% CI: 0.67, 0.89, p < 0.001, I2 = 40%). Consistent benefits were observed also in HFmrEF/HFpEF subgroup without baseline diabetes (N = 6507, HR 0.80, 95% CI: 0.70, 0.91, p < 0.001, I2 = 0%). Sensitivity analysis including the DELIVER and EMPEROR-Preserved trials found a trend towards significant beneficial effects on CV deaths with no heterogeneity (HR 0.90, 95% CI: 0.79, 1.02, p = 0.08, I2 = 0%).\nThis meta-analysis established the place of SGLT2i as a foundational therapy among patients with HF with preserved and mildly reduced EF regardless of diabetes.",
+        "sha256": "d1277d7e83ed8558490a6b3625ddf14ce233e5c61f0f481fac3026a56b0a8abf",
+        "retrieved_at": "2026-09-18T23:30:52.531790+00:00",
+        "pmcid": "PMC10123444"
+      },
+      {
+        "id": "34895860",
+        "title": "A Systematic Review and Network Meta-Analysis of Pharmacological Treatment of Heart Failure With Reduced Ejection Fraction.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34895860/",
+        "abstract": "This study sought to estimate and compare the aggregate treatment benefit of pharmacological therapy for heart failure (HF) with reduced ejection fraction.\nThe estimated treatment effects of various combinations of contemporary HF medical therapies are not well characterized.\nWe performed a systematic network meta-analysis, using MEDLINE/EMBASE and the Cochrane Central Register of Controlled Trials for randomized controlled trials published between January 1987 and January 2020. We included angiotensin-converting enzyme inhibitors, angiotensin receptor blockers, beta-blockers (BB), mineralocorticoid receptor antagonists (MRAs), digoxin, hydralazine-isosorbide dinitrate, ivabradine, angiotensin receptor-neprilysin inhibitors (ARNi), sodium glucose cotransporter-2 inhibitors (SGLT2i), vericiguat, and omecamtiv-mecarbil. The primary outcome was all-cause death. We estimated the life-years gained in 2 HF populations (BIOSTAT-CHF [BIOlogy Study to TAilored Treatment in Chronic Heart Failure] and ASIAN-HF [Asian Sudden Cardiac Death in Heart Failure Registry]).\nWe identified 75 relevant trials representing 95,444 participants. A combination of ARNi, BB, MRA, and SGLT2i was most effective in reducing all-cause death (HR: 0.39; 95% CI: 0.31-0.49); followed by ARNi, BB, MRA, and vericiguat (HR: 0.41; 95% CI: 0.32-0.53); and ARNi, BB, and MRA (HR: 0.44; 95% CI: 0.36-0.54). Results were similar for the composite outcome of cardiovascular death or first hospitalization for HF (HR: 0.36; 95% CI: 0.29-0.46 for ARNi, BB, MRA, and SGLT2i; HR: 0.44; 95% CI: 0.35-0.56 for ARNi, BB, MRA, and omecamtiv-mecarbil; and HR: 0.43; 95% CI: 0.34-0.55 for ARNi, BB, MRA, and vericiguat). The estimated additional number of life-years gained for a 70-year-old patient on ARNi, BB, MRA, and SGLT2i was 5.0 years (2.5-7.5 years) compared with no treatment in secondary analyses.\nIn patients with HF with reduced ejection fraction, the estimated aggregate benefit is greatest for a combination of ARNi, BB, MRA, and SGLT2i.",
+        "sha256": "332eaaada2c28a6ef956572055182c510f970c599e715353f852fdbe9e04227e",
+        "retrieved_at": "2026-09-18T23:30:52.531790+00:00"
+      },
+      {
+        "id": "40892608",
+        "title": "Pharmacologic Treatment of Heart Failure With Reduced Ejection Fraction: An Updated Systematic Review and Network Meta-Analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40892608/",
+        "abstract": "In 2022, a network meta-analysis showed that a combination of β-blockers, angiotensin receptor-neprilysin inhibitors (ARNi), mineralocorticoid receptor antagonists (MRAs), and sodium-glucose cotransporter 2 inhibitors (SGLT2i) was most effective in reducing all-cause mortality in heart failure with reduced ejection fraction (HFrEF). This study updates the treatment benefit by including additional large randomized controlled trials (RCTs) since 2022, including the VICTOR (Vericiguat Global Study in Participants with Chronic Heart Failure) trial.\nThe goal of this study was to evaluate and compare regimens of pharmacotherapy in patients with HFrEF.\nMEDLINE, Embase, and Cochrane Central Register of Controlled Trials databases were searched for RCTs in patients with HFrEF through April 2025. Using frequentist network meta-analysis, HRs for all-cause mortality (primary outcome), cardiovascular death, and the composite of cardiovascular death or heart failure hospitalization (secondary outcomes) were estimated. Absolute benefits were quantified as life-years gained by using BIOSTAT-CHF (Biology Study to Tailored Treatment in Chronic Heart Failure) and ASIAN-HF (Asian Sudden Cardiac Death in Heart Failure) cohort data.\nThe analysis included 103,754 patients across 89 randomized controlled trials. Relative to placebo, quintuple therapy with ARNi, β-blockers, MRAs, SGLT2i, and vericiguat most effectively reduced all-cause mortality (HR: 0.35; 95% CI: 0.27-0.45), followed by quadruple therapy with ARNi, β-blockers, MRAs, and SGLT2i (HR: 0.39; 95% CI: 0.32-0.49). For a representative 70-year-old patient, quadruple therapy (ARNi/β-blockers/MRAs/SGLT2i) provided 5.3 additional life-years (95% CI: 2.8-7.7) vs no treatment, while quintuple therapy (ARNi/β-blockers/MRA/SGLT2i/vericiguat) provided 6.0 additional life-years (95% CI: 3.7-8.4).\nThis analysis reinforces the substantial mortality and morbidity benefit associated with the currently recommended quadruple therapy regimen (ARNi, β-blockers, MRAs, and SGLT2i) in patients with HFrEF. The addition of vericiguat may provide an incremental survival gain of approximately 0.7 year beyond that achieved with quadruple therapy. However, these results should be regarded as exploratory, as they are derived from a secondary endpoint of a single trial.",
+        "sha256": "5241e5ff7eeb70df44f7126b4938ea71fe57cd5cae92d2754523f700d4e8e116",
+        "retrieved_at": "2026-09-18T23:30:52.531790+00:00"
+      },
+      {
+        "id": "37656079",
+        "title": "Pharmacological Treatments in Heart Failure With Mildly Reduced and Preserved Ejection Fraction: Systematic Review and Network Meta-Analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37656079/",
+        "abstract": "Medical treatment for heart failure with preserved ejection (HFpEF) and heart failure with mildly reduced ejection fraction (HFmrEF) has weaker evidence compared with reduced ejection fraction, despite recent trials with an angiotensin receptor neprilysin inhibitor (ARNI) and sodium glucose co-transporter 2 inhibitors (SGLT2is).\nThe authors aimed to estimate the aggregate therapeutic benefit of drugs for HFmrEF and HFpEF.\nThe authors performed a systematic review of MEDLINE, CENTRAL, and Web of Science for randomized trials including patients with heart failure (HF) and left ventricular ejection fraction (LVEF) >40%, treated with angiotensin-converting enzyme inhibitors or angiotensin receptor blockers (analyzed together as renin-angiotensin system inhibitors [RASi]), beta-blockers (BBs), mineralocorticoid receptor antagonists (MRAs), digoxin, ARNI, and SGLT2i. An additive component network meta-analysis was performed. The primary outcome was a composite of cardiovascular (CV) death and first hospitalization for heart failure (HHF); secondary outcomes were CV death, total HHF, and all-cause mortality.\nThe authors identified 13 studies with a total of 29,875 patients and a mean LVEF of 56.3% ± 8.7%. ARNI, MRA, and SGLT2i separately, but not RASi, BB, or digoxin, reduced the primary composite outcome compared with placebo. The combination of ARNI, BB, MRA, and SGLT2i was the most effective (HR: 0.47 [95% CI: 0.31-0.70]); this was largely explained by the triple combination of ARNI, MRA, and SGLT2i (HR: 0.56 [95% CI 0.43-0.71]). Results were similar for CV death (HR: 0.63 [95% CI 0.43-0.91] for ARNI, MRA, and SGLT2i) or total HHF (HR: 0.49 [95% CI 0.33-0.71] for ARNI, MRA, and SGLT2i) alone. In a subgroup analysis, only SGLT2i had a consistent benefit among all LVEF subgroups, whereas the triple combination had the greatest benefit in HFmrEF, robust benefit in patients with LVEF 50% to 59%, and a statistically marginal benefit in patients with LVEF ≥60%.\nIn patients with HF and LVEF>40%, the quadruple combination of ARNI, BB, MRA, and SGLT2i provides the largest reduction in the risk of CV death and HHF; driven by the robust effect of the triple combination of ARNI, MRA, and SGLT2i. The benefit was more pronounced in HFmrEF patients.",
+        "sha256": "107065edfc62a8ab988e4e76250fc0382eead21390b11b176fc5a8f2dda585a9",
+        "retrieved_at": "2026-09-18T23:30:53.164252+00:00"
+      },
+      {
+        "id": "38656292",
+        "title": "Atrial Fibrillation Ablation in Heart Failure With Reduced vs Preserved Ejection Fraction: A Systematic Review and Meta-Analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38656292/",
+        "abstract": "Catheter ablation is associated with reduced heart failure (HF) hospitalization and death in select patients with atrial fibrillation (AF) and heart failure with reduced ejection fraction (HFrEF). However, the benefit in patients with HF with preserved ejection fraction (HFpEF) is uncertain.\nTo investigate whether catheter ablation for AF is associated with reduced HF-related outcomes according to HF phenotype.\nA systematic search of MEDLINE, Embase, and Cochrane Central was conducted among studies published from inception to September 2023.\nParallel-group randomized clinical trials (RCTs) comparing catheter ablation with conventional rate or rhythm control therapies in patients with HF, New York Heart Association functional class II or greater, and a history of paroxysmal or persistent AF were included. Pairs of independent reviewers screened 7531 titles and abstracts, of which 12 RCTs and 4 substudies met selection criteria.\nData were abstracted in duplicate according to the Preferred Reporting Items for Systematic Reviews and Meta-analyses (PRISMA) reporting guideline. Pooled effect estimates were calculated using random-effects Mantel-Haenszel models. Interaction P values were used to test for subgroup differences.\nThe primary outcome was HF events, defined as HF hospitalization, clinically significant worsening of HF, or unscheduled visits to a clinician for treatment intensification. Secondary outcomes included cardiovascular and all-cause mortality.\nA total of 12 RCTs with 2465 participants (mean [SD] age, 65.3 [9.7] years; 658 females [26.7%]) were included; there were 1552 participants with HFrEF and 913 participants with HFpEF. Compared with conventional rate or rhythm control, catheter ablation was associated with reduced risk of HF events in HFrEF (risk ratio [RR], 0.59; 95% CI, 0.48-0.72), while there was no benefit in patients with HFpEF (RR, 0.93; 95% CI, 0.65-1.32) (P for interaction = .03). Catheter ablation was associated with reduced risk of cardiovascular death compared with conventional therapies in HFrEF (RR, 0.49; 95% CI, 0.34-0.70) but a differential association was not detected in HFpEF (RR, 0.91; 95% CI, 0.46-1.79) (P for interaction = .12). Similarly, no difference in the association of catheter ablation with all-cause mortality was found between HFrEF (RR vs conventional therapies, 0.63; 95% CI, 0.47-0.86) and HFpEF (RR vs conventional therapies, 0.95; 95% CI, 0.39-2.30) groups (P for interaction = .39).\nThis study found that catheter ablation for AF was associated with reduced risk of HF events in patients with HFrEF but had limited or no benefit in HFpEF. Results from ongoing trials may further elucidate the role of catheter ablation for AF in HFpEF.",
+        "sha256": "4f5bac92ed9448c3e58a821c5b80a4a8cd6a16a0177cd8a1f841b61d8f1891fa",
+        "retrieved_at": "2026-09-18T23:30:53.164252+00:00",
+        "pmcid": "PMC11044015"
+      },
+      {
+        "id": "39993464",
+        "title": "Efficacy of GLP-1 Receptor Agonists in Patients With Heart Failure and Mildly Reduced or Preserved Ejection Fraction: A Systematic Review and Meta-Analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39993464/",
+        "abstract": "Heart failure (HF) with mildly reduced or preserved ejection fraction (HFpEF) accounts for over half of cases of HF, with obesity playing a key role. Residual risk remains high despite available therapies. Glucagon-like peptide-1 receptor agonists (GLP-1RAs) have shown potential cardiometabolic benefits, but their role in HFpEF remains unclear.\nA systematic review and meta-analysis of randomized controlled trials evaluating GLP-1RAs in HFpEF were conducted. Studies evaluating GLP-1RA in combination with glucose-dependent insulinotropic polypeptide (GIP) were also included. The analyzed outcomes included cardiovascular (CV) death, worsening HF events and their composite. Hazard ratios (HRs) with 95% confidence intervals (CIs) were pooled by using a random-effects model.\nSix randomized controlled trials involving 8788 patients were included. GLP-1RAs significantly reduced the composite outcome of CV death or worsening HF events (HR: 0.68 [0.51-0.89]; P = 0.006, I² = 47%) as well as worsening HF events alone (HR: 0.56 [0.38-0.82]; P = 0.003, I² = 51%). No significant reduction was observed for CV death alone (HR: 0.86 [0.67-1.12]; P = 0.27, I² = 0%).\nGLP-1RAs reduce worsening HF events and the composite of CV death or worsening HF in HFpEF, particularly in patients with obesity or diabetes. These findings support their role as a promising therapy requiring further HFpEF-focused trials.",
+        "sha256": "423aa63c965b97d010ec77709cae9b1af44ad868551e276efeff7e20007419e5",
+        "retrieved_at": "2026-09-18T23:30:53.658955+00:00"
+      },
+      {
+        "id": "41314931",
+        "title": "Robustness of randomized controlled trial evidence for SGLT2 inhibitors in heart failure with preserved and mildly reduced ejection fraction.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41314931/",
+        "abstract": "Sodium-glucose co-transporter 2 inhibitors (SGLT2i) reduce cardiovascular (CV) death and heart failure hospitalization (HFH) across all heart failure subtypes, but absolute benefits and statistical robustness are modest in patients with mildly reduced (HFmrEF) or preserved ejection fraction (HFpEF). We assess the robustness and consistency of outcomes in major SGLT2i trials in HFpEF and HFmrEF using fragility metrics in addition to traditional effect measures.\nWe systematically searched MEDLINE and Web of Science through June 2025 for phase 3-4 randomized, placebo-controlled trials of SGLT2 inhibitors in HFpEF or HFmrEF (EF ≥ 40 %). Outcomes were assessed using absolute (ARR) and relative risk reductions (RRR), number needed to treat (NNT), and robustness metrics, these last including the Fragility Index (FI), Reverse Fragility Index (RFI), and their ratio. Dichotomous outcomes were pooled using a random-effects model.\nTwo eligible trials, EMPEROR-Preserved and DELIVER, were analyzed. SGLT2i significantly reduced the combined risk of HF hospitalization and CV death (HR 0.79 and 0.82), with high fragility indices (FI 37 and 41) and NNTs of 30 and 32. Reduction in HFH alone was robust (FI 37 and 46), whereas effects on CV and all-cause mortality were modest and fragile (FI/RFI ≤10; NNT ≥100). Subgroup and pooled analyses confirmed consistent HFH benefits across sex, body mass index, type 2 diabetes, and renal function, with greatest robustness in women and those with impaired renal function CONCLUSIONS: SGLT2i consistently reduces HF hospitalization in HFpEF and HFmrEF, but robustness of mortality benefits in these groups remain uncertain.",
+        "sha256": "9947e12c46ef7564c8480d208a096dda7acbc60b52234047cdb3e9fd54306d72",
+        "retrieved_at": "2026-09-18T23:30:53.658955+00:00"
+      },
+      {
+        "id": "38382686",
+        "title": "Conduction system pacing versus biventricular pacing in heart failure with reduced ejection fraction: A systematic review and meta-analysis of randomized controlled trials.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38382686/",
+        "abstract": "Conduction system pacing (CSP) has emerged as a promising alternative to biventricular pacing (BVP) in patients with heart failure with reduced ejection fraction (HFrEF) and ventricular dyssynchrony, but its benefits are uncertain. In this study, we aimed to evaluate clinical outcomes of CSP vs BVP for cardiac resynchronization in patients with HFrEF. PubMed, Scopus, and Cochrane databases were searched for randomized controlled trials comparing CSP to BVP for resynchronization therapy in patients with HFrEF. Heterogeneity was examined with I2 statistics. A random-effects model was used for all outcomes. We included 7 randomized controlled trials with 408 patients, of whom 200 (49%) underwent CSP. Compared to BVP, CSP resulted in a significantly greater reduction in QRS duration (MD -13.34 ms; 95% confidence interval [CI] -24.32 to -2.36, P = .02; I2 = 91%) and New York Heart Association functional class (standardized mean difference [SMD] -0.37; 95% CI -0.69 to -0.05; P = .02; I2 = 41%), and a significant increase in left ventricular ejection fraction (mean difference [MD] 2.06%; 95% CI 0.16 to 3.97; P = .03; I2 = 0%). No statistical difference was noted for left ventricular end-systolic volume (SMD -0.51 mL; 95% CI -1.26 to 0.24; P = .18; I2 = 83%), lead capture threshold (MD -0.08 V; 95% CI -0.42 to 0.27; P = .66; I2 = 66%), and procedure time (MD 5.99 minutes; 95% CI -15.91 to 27.89; P = .59; I2 = 79%). These findings suggest that CSP may have electrocardiographic, echocardiographic, and symptomatic benefits over BVP for patients with HFrEF requiring cardiac resynchronization.",
+        "sha256": "1d55607c29fcdfe5763b4baf1f043d229f4f21f733992c92c03fe7c77da2fd6c",
+        "retrieved_at": "2026-09-18T23:30:53.658955+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The patient has HFrEF (LVEF 30%) on three of four guideline pillars (ARNI, beta-blocker, MRA) plus a loop diuretic, but lacks an SGLT2 inhibitor. Vitals and labs (K 4.3, eGFR 68, BP 116/72) permit adding an SGLT2 inhibitor safely. The strongest and most consistent evidence supports completing the four-class foundational regimen. The 2022 network meta-analysis (PMID 34895860) found ARNI+BB+MRA+SGLT2i most effective for all-cause mortality (HR 0.39). The updated 2025 analysis (PMID 40892608) reinforces quadruple therapy as the recommended regimen and explicitly cautions that the incremental ~0.7 life-year benefit of adding vericiguat is 'exploratory,' derived from a secondary endpoint of a single trial (VICTOR). Therefore the appropriate next step is to add the missing SGLT2 inhibitor rather than skip it in favor of vericiguat. Answer B misrepresents the evidence: the network analyses rank quintuple therapy numerically highest but do not justify substituting vericiguat for the SGLT2 inhibitor, and the vericiguat benefit is uncertain. Guideline logic prioritizes establishing the robust four-class core before considering vericiguat as an add-on.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34895860"
+              ],
+              "reason": "The 2022 network meta-analysis abstract states ARNi/BB/MRA/SGLT2i was most effective in reducing all-cause death with HR 0.39 (0.31-0.49) versus no treatment.",
+              "source_quotes": [
+                {
+                  "source_id": "34895860",
+                  "quote": "We estimated the life-years gained in 2 HF populations (BIOSTAT-CHF [BIOlogy Study to TAilored Treatment in Chronic Heart Failure] and ASIAN-HF [Asian Sudden Cardiac Death in Heart Failure Registry]). We identified 75 relevant trials representing 95,444 participants. A combination of ARNi, BB, MRA, and SGLT2i was most effective in reducing all-cause death (HR: 0.39; 95% CI: 0.31-0.49); followed by ARNi, BB, MRA, and vericiguat (HR: 0.41; 95% CI: 0.32-0.53); and ARNi, BB, and MRA (HR: 0.44; 95% CI: 0.36-0.54). Results were similar for the composite outcome of cardiovascular death or first hospitalization for HF (HR: 0.36; 95% CI: 0.29-0.46 for ARNi, BB, MRA, and SGLT2i; HR: 0.44; 95% CI: 0.35-0.56 for ARNi, BB, MRA, and omecamtiv-mecarbil; and HR: 0.43; 95% CI: 0.34-0.55 for ARNi, BB, MRA, and vericiguat)."
+                },
+                {
+                  "source_id": "34895860",
+                  "quote": "The estimated additional number of life-years gained for a 70-year-old patient on ARNi, BB, MRA, and SGLT2i was 5.0 years (2.5-7.5 years) compared with no treatment in secondary analyses. In patients with HF with reduced ejection fraction, the estimated aggregate benefit is greatest for a combination of ARNi, BB, MRA, and SGLT2i."
+                }
+              ],
+              "source_passage_ids": [
+                "34895860:p1",
+                "34895860:p2"
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34895860"
+              ],
+              "reason": "The abstract reports HR 0.36 (0.29-0.46) for the four-class combination on the composite of CV death or first HF hospitalization.",
+              "source_quotes": [
+                {
+                  "source_id": "34895860",
+                  "quote": "We estimated the life-years gained in 2 HF populations (BIOSTAT-CHF [BIOlogy Study to TAilored Treatment in Chronic Heart Failure] and ASIAN-HF [Asian Sudden Cardiac Death in Heart Failure Registry]). We identified 75 relevant trials representing 95,444 participants. A combination of ARNi, BB, MRA, and SGLT2i was most effective in reducing all-cause death (HR: 0.39; 95% CI: 0.31-0.49); followed by ARNi, BB, MRA, and vericiguat (HR: 0.41; 95% CI: 0.32-0.53); and ARNi, BB, and MRA (HR: 0.44; 95% CI: 0.36-0.54). Results were similar for the composite outcome of cardiovascular death or first hospitalization for HF (HR: 0.36; 95% CI: 0.29-0.46 for ARNi, BB, MRA, and SGLT2i; HR: 0.44; 95% CI: 0.35-0.56 for ARNi, BB, MRA, and omecamtiv-mecarbil; and HR: 0.43; 95% CI: 0.34-0.55 for ARNi, BB, MRA, and vericiguat)."
+                }
+              ],
+              "source_passage_ids": [
+                "34895860:p1"
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "40892608"
+              ],
+              "reason": "The 2025 updated analysis explicitly reinforces the substantial mortality and morbidity benefit of the currently recommended quadruple regimen.",
+              "source_quotes": [
+                {
+                  "source_id": "40892608",
+                  "quote": "For a representative 70-year-old patient, quadruple therapy (ARNi/β-blockers/MRAs/SGLT2i) provided 5.3 additional life-years (95% CI: 2.8-7.7) vs no treatment, while quintuple therapy (ARNi/β-blockers/MRA/SGLT2i/vericiguat) provided 6.0 additional life-years (95% CI: 3.7-8.4). This analysis reinforces the substantial mortality and morbidity benefit associated with the currently recommended quadruple therapy regimen (ARNi, β-blockers, MRAs, and SGLT2i) in patients with HFrEF. The addition of vericiguat may provide an incremental survival gain of approximately 0.7 year beyond that achieved with quadruple therapy. However, these results should be regarded as exploratory, as they are derived from a secondary endpoint of a single trial."
+                }
+              ],
+              "source_passage_ids": [
+                "40892608:p2"
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "40892608"
+              ],
+              "reason": "The abstract states the ~0.7-year vericiguat increment should be regarded as exploratory, being derived from a secondary endpoint of a single trial.",
+              "source_quotes": [
+                {
+                  "source_id": "40892608",
+                  "quote": "For a representative 70-year-old patient, quadruple therapy (ARNi/β-blockers/MRAs/SGLT2i) provided 5.3 additional life-years (95% CI: 2.8-7.7) vs no treatment, while quintuple therapy (ARNi/β-blockers/MRA/SGLT2i/vericiguat) provided 6.0 additional life-years (95% CI: 3.7-8.4). This analysis reinforces the substantial mortality and morbidity benefit associated with the currently recommended quadruple therapy regimen (ARNi, β-blockers, MRAs, and SGLT2i) in patients with HFrEF. The addition of vericiguat may provide an incremental survival gain of approximately 0.7 year beyond that achieved with quadruple therapy. However, these results should be regarded as exploratory, as they are derived from a secondary endpoint of a single trial."
+                }
+              ],
+              "source_passage_ids": [
+                "40892608:p2"
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent solution: A 60s man with chronic HFrEF (LVEF 30%), NYHA II symptoms, clinically euvolemic (clear lungs, no JVD, no edema), stable vitals (BP 116/72, HR 68), normal K+ (4.3) and eGFR (68), already on ARNI + beta-blocker + MRA + loop diuretic but NO SGLT2 inhibitor. The established, guideline-supported four-class HFrEF foundational therapy is ARNI/BB/MRA/SGLT2i. The correct next step is to add an SGLT2 inhibitor to complete the four-class regimen. His hemodynamics and renal function comfortably permit SGLT2i initiation. This matches candidate A and the key.\n\nCandidate B is the intended flawed answer: it adds vericiguat and defers the SGLT2 inhibitor, misusing the exploratory quintuple-therapy estimate. The 2025 network meta-analysis (40892608) explicitly labels the vericiguat increment exploratory and reinforces quadruple therapy as the recommended regimen; substituting an unestablished fifth drug for a proven foundational class is an omission of essential care. B is correctly identified as unsafe/inferior.\n\nEvidence check: All four claims are directly and literally supported by the cited abstract text (34895860 for the 2022 HR figures; 40892608 for the updated analysis reinforcing quadruple therapy and characterizing the vericiguat benefit as exploratory). The 2022 HR 0.39 and composite HR 0.36 match; the 2025 update reaffirms quadruple therapy and the exploratory vericiguat gain. The older and newer sources are consistent, not contradictory. HFpEF/HFmrEF sources (36914068, 37656079, 41314931), AF ablation, GLP-1, and pacing sources are irrelevant to this HFrEF class-selection decision but do not undermine the key.\n\nCoherence/disclosure: The visible note states there is no SGLT2 inhibitor or vericiguat on the list, which is legitimate data framing the decision rather than disclosing the answer; the note does not state that an SGLT2i should be added or reveal the management plan. The title (\"medication review\") and question (\"which medication strategy is most appropriate\") do not name the missing class. Acceptable.\n\nOn-specialty: cardiology, HFrEF pharmacotherapy — correct. Distinct decision: this is a four-class-completion / SGLT2i-vs-vericiguat choice, distinct from the prior ARNI washout-timing case and all other previous cases. No missing decisive data — vitals, K+, eGFR, LVEF and full medication reconciliation are provided, sufficient for safe SGLT2i initiation. Minor observation (non-blocking): doses are listed as null and drugs described generically, but the case is explicitly scoped to class selection, so this does not impair the decision. Case working as designed; no blocking defects."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The patient has symptomatic HFrEF with LVEF 30% and is already receiving three foundational disease-modifying classes: an ARNI, evidence-based beta-blocker, and mineralocorticoid receptor antagonist. Renal function and potassium do not present an evident barrier to adding an SGLT2 inhibitor. The 2022 network meta-analysis found ARNI, beta-blocker, MRA, and SGLT2 inhibitor therapy most effective for reducing all-cause mortality in HFrEF (PMID 34895860). Although the 2025 analysis suggested possible incremental benefit from adding vericiguat to all four foundational classes, it characterized that finding as exploratory and did not support substituting vericiguat for an SGLT2 inhibitor (PMID 40892608). Moreover, this stable patient has no recent worsening-heart-failure event or hospitalization that would particularly favor vericiguat. Therefore, completing foundational quadruple therapy with an SGLT2 inhibitor is most appropriate.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34895860"
+              ],
+              "reason": "The HFrEF network meta-analysis directly reports an all-cause mortality hazard ratio of 0.39 for the ARNI, beta-blocker, MRA, and SGLT2 inhibitor combination.",
+              "source_passage_ids": [
+                "34895860:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34895860",
+                  "quote": "We estimated the life-years gained in 2 HF populations (BIOSTAT-CHF [BIOlogy Study to TAilored Treatment in Chronic Heart Failure] and ASIAN-HF [Asian Sudden Cardiac Death in Heart Failure Registry]). We identified 75 relevant trials representing 95,444 participants. A combination of ARNi, BB, MRA, and SGLT2i was most effective in reducing all-cause death (HR: 0.39; 95% CI: 0.31-0.49); followed by ARNi, BB, MRA, and vericiguat (HR: 0.41; 95% CI: 0.32-0.53); and ARNi, BB, and MRA (HR: 0.44; 95% CI: 0.36-0.54). Results were similar for the composite outcome of cardiovascular death or first hospitalization for HF (HR: 0.36; 95% CI: 0.29-0.46 for ARNi, BB, MRA, and SGLT2i; HR: 0.44; 95% CI: 0.35-0.56 for ARNi, BB, MRA, and omecamtiv-mecarbil; and HR: 0.43; 95% CI: 0.34-0.55 for ARNi, BB, MRA, and vericiguat)."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34895860"
+              ],
+              "reason": "The same analysis directly reports a hazard ratio of 0.36 for cardiovascular death or first heart-failure hospitalization with the four-class combination.",
+              "source_passage_ids": [
+                "34895860:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34895860",
+                  "quote": "We estimated the life-years gained in 2 HF populations (BIOSTAT-CHF [BIOlogy Study to TAilored Treatment in Chronic Heart Failure] and ASIAN-HF [Asian Sudden Cardiac Death in Heart Failure Registry]). We identified 75 relevant trials representing 95,444 participants. A combination of ARNi, BB, MRA, and SGLT2i was most effective in reducing all-cause death (HR: 0.39; 95% CI: 0.31-0.49); followed by ARNi, BB, MRA, and vericiguat (HR: 0.41; 95% CI: 0.32-0.53); and ARNi, BB, and MRA (HR: 0.44; 95% CI: 0.36-0.54). Results were similar for the composite outcome of cardiovascular death or first hospitalization for HF (HR: 0.36; 95% CI: 0.29-0.46 for ARNi, BB, MRA, and SGLT2i; HR: 0.44; 95% CI: 0.35-0.56 for ARNi, BB, MRA, and omecamtiv-mecarbil; and HR: 0.43; 95% CI: 0.34-0.55 for ARNi, BB, MRA, and vericiguat)."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "40892608"
+              ],
+              "reason": "The updated HFrEF analysis explicitly characterizes ARNI, beta-blocker, MRA, and SGLT2 inhibitor therapy as the currently recommended quadruple regimen and states that it has substantial mortality and morbidity benefit.",
+              "source_passage_ids": [
+                "40892608:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40892608",
+                  "quote": "For a representative 70-year-old patient, quadruple therapy (ARNi/β-blockers/MRAs/SGLT2i) provided 5.3 additional life-years (95% CI: 2.8-7.7) vs no treatment, while quintuple therapy (ARNi/β-blockers/MRA/SGLT2i/vericiguat) provided 6.0 additional life-years (95% CI: 3.7-8.4). This analysis reinforces the substantial mortality and morbidity benefit associated with the currently recommended quadruple therapy regimen (ARNi, β-blockers, MRAs, and SGLT2i) in patients with HFrEF. The addition of vericiguat may provide an incremental survival gain of approximately 0.7 year beyond that achieved with quadruple therapy. However, these results should be regarded as exploratory, as they are derived from a secondary endpoint of a single trial."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "40892608"
+              ],
+              "reason": "The updated analysis explicitly states that the estimated incremental benefit from adding vericiguat should be considered exploratory because it came from a secondary endpoint of one trial.",
+              "source_passage_ids": [
+                "40892608:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40892608",
+                  "quote": "For a representative 70-year-old patient, quadruple therapy (ARNi/β-blockers/MRAs/SGLT2i) provided 5.3 additional life-years (95% CI: 2.8-7.7) vs no treatment, while quintuple therapy (ARNi/β-blockers/MRA/SGLT2i/vericiguat) provided 6.0 additional life-years (95% CI: 3.7-8.4). This analysis reinforces the substantial mortality and morbidity benefit associated with the currently recommended quadruple therapy regimen (ARNi, β-blockers, MRAs, and SGLT2i) in patients with HFrEF. The addition of vericiguat may provide an incremental survival gain of approximately 0.7 year beyond that achieved with quadruple therapy. However, these results should be regarded as exploratory, as they are derived from a secondary endpoint of a single trial."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is an on-specialty cardiology medication-selection case. The patient has persistent symptomatic HFrEF with LVEF 30% and is already receiving an ARNI, evidence-based beta-blocker, and MRA, but not an SGLT2 inhibitor. Blood pressure, potassium, renal function, and examination do not reveal a presented contraindication to adding that class. The supplied analyses support the ARNI/beta-blocker/MRA/SGLT2 inhibitor combination as established quadruple therapy. Although the newer analysis estimated greater survival with quintuple therapy, that regimen includes an SGLT2 inhibitor rather than replacing it, and the estimated incremental vericiguat benefit was explicitly exploratory. Candidate B therefore misreads quintuple therapy as support for deferring SGLT2 inhibition. Candidate A and the key are supported and do not require an unsafe dose or sequencing instruction. The visible title, question, and clinical note identify the medication gap and alternatives but do not state which strategy is correct. This decision is distinct from the prior HFrEF case, which tested ACE-inhibitor-to-ARNI washout timing rather than selection of the missing foundational class."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "af72c71ac94af8760826ccd1de5c199e8d6f21290a3c17f9168d1d0118d493a9"
+  }
+}

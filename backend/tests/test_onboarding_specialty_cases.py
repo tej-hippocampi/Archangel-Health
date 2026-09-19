@@ -336,6 +336,9 @@ def test_smoke_retries_a_rejected_case_and_counts_attempts(monkeypatch):
 
 def test_author_key_is_withheld_from_both_independent_solvers(monkeypatch):
     from ai import llm_client
+    from asclepius import onboarding_library
+    feedback = {'issues': ['PRIVATE AUTHORING AUDIT FINDING']}
+    monkeypatch.setattr(onboarding_library, 'authoring_feedback', lambda _: feedback)
     store = fresh_store()
     calls = []
     async def retrieve(_, **kwargs): return list(SOURCES)
@@ -344,13 +347,16 @@ def test_author_key_is_withheld_from_both_independent_solvers(monkeypatch):
         purpose = kwargs['purpose']
         payload = json.loads(kwargs['messages'][0]['content'])
         if purpose == 'onboarding_case_author':
+            assert payload['previous_rejection_to_avoid']['independent_audit'] == feedback
             result = fixture_entry()
         elif purpose == 'onboarding_case_solve':
+            assert 'PRIVATE AUTHORING AUDIT FINDING' not in json.dumps(payload)
             assert 'ground_truth' not in payload['case']['case']
             assert 'intended_flawed_id' not in payload['case']
             assert 'claims' not in payload['case']
             result = {'best_answer_id': 'A', 'confidence': .97, 'rationale': 'Independent test assessment.'}
         else:
+            assert 'PRIVATE AUTHORING AUDIT FINDING' not in json.dumps(payload)
             result = approved_review(payload['case_to_review'])
         return SimpleNamespace(content=[SimpleNamespace(type='text', text=json.dumps(result))]), {'model': kwargs.get('model', 'author-model')}
     monkeypatch.setattr(evidence, 'retrieve', retrieve)
@@ -359,6 +365,7 @@ def test_author_key_is_withheld_from_both_independent_solvers(monkeypatch):
     assert len(calls) == 5
     assert {r['provider'] for r in validation['reviews']} == {'anthropic', 'openai'}
     assert validation['physician_ratified'] is False
+    assert 'PRIVATE AUTHORING AUDIT FINDING' not in json.dumps([entry, validation])
 
 
 def test_generation_leases_retry_and_never_publish_failed_work(monkeypatch):
@@ -436,7 +443,7 @@ def test_reference_retrieval_pages_large_results_and_keeps_eight_eligible_abstra
 
     monkeypatch.setattr(evidence, '_request', request)
     rows = asyncio.run(evidence.retrieve('cardiology'))
-    assert 'cardiology[Title]' in calls[0][1]['term']
+    assert 'cardiology*[Title]' in calls[0][1]['term']
     assert [row['id'] for row in rows] == [str(i) for i in range(1, 9)]
     assert [params['id'] for endpoint, params in calls if endpoint == 'efetch.fcgi'] == ['1,2,3', '4,5,6', '7,8,9']
 

@@ -1,0 +1,563 @@
+{
+  "task_id": "onboarding-examination-v1-f9bdbf3cfce2a57bc57b-1",
+  "specialty": "rheumatology",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Older Adult With New Headache and Transient Visual Symptoms",
+    "question": "Which response most appropriately addresses the immediate clinical risk and diagnostic uncertainty in this presentation?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "rheumatology",
+      "demographics": {
+        "age_band": "70-79",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "New persistent temporal headache",
+          "since": "10 days",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Jaw pain while chewing",
+          "since": "6 days",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Transient monocular visual obscuration",
+          "since": "1 day",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "temperature_c": 37.2,
+        "heart_rate_bpm": 84,
+        "blood_pressure_mmHg": "146/82",
+        "respiratory_rate_bpm": 16
+      },
+      "lab_panels": [
+        {
+          "panel": "Inflammatory markers and blood count",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Erythrocyte sedimentation rate",
+              "loinc": null,
+              "value": 108,
+              "unit": "mm/h",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "C-reactive protein",
+              "loinc": null,
+              "value": 6.2,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Platelet count",
+              "loinc": null,
+              "value": 486,
+              "unit": "x10^3/uL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Urgent assessment",
+          "author_role": "rheumatology",
+          "text": "A woman in her seventies reports a new, persistent right temporal headache that differs from prior occasional tension headaches. She has scalp discomfort when brushing her hair and reproducible jaw fatigue and pain after several minutes of chewing. On the previous day, vision in the right eye became dim for approximately three minutes and then returned to baseline. She currently denies persistent visual loss, diplopia, focal weakness, cough, or recent febrile illness. Examination shows right temporal tenderness with a reduced temporal artery pulse. Visual fields are grossly full by confrontation at this assessment, and no focal neurologic deficit is observed. Blood testing demonstrates marked inflammatory-marker elevation and thrombocytosis.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [
+        "clinical history",
+        "physical examination",
+        "laboratory results"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete_to_decision_point",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "This presentation creates a high clinical suspicion for giant cell arteritis with possible ocular ischemia. High-dose glucocorticoids should begin immediately rather than being withheld until diagnostic confirmation. The recent monocular visual symptom warrants emergency ophthalmologic referral. A confirmatory investigation should still be obtained, with temporal-artery duplex ultrasound appropriate where readily available, ideally through a rapid-access specialist pathway. Waiting for an elective biopsy before treatment risks irreversible ischemic visual loss.",
+        "evidence": null,
+        "key_data": [
+          "The patient is older than 70 years and has a new persistent temporal headache.",
+          "Jaw claudication, temporal tenderness, and reduced temporal artery pulse substantially increase clinical suspicion.",
+          "A transient monocular visual obscuration raises concern for ocular ischemia and requires emergency ophthalmologic assessment.",
+          "ESR is 108 mm/h, CRP is elevated, and platelet count is 486 x10^3/uL.",
+          "Clinical and laboratory findings support high suspicion but do not remove the need for confirmatory investigation."
+        ]
+      },
+      "hard_hook": "The candidate must act on ischemic risk immediately while still securing diagnostic confirmation.",
+      "reasoning_divergence": "The flawed response treats confirmation as a prerequisite for therapy, whereas the sound response separates immediate risk reduction from subsequent diagnostic confirmation."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Arrange an elective temporal-artery biopsy and withhold glucocorticoids until histology confirms the diagnosis, because the current vision examination is normal and empiric treatment could obscure diagnostic findings."
+      },
+      {
+        "id": "B",
+        "text": "Start high-dose glucocorticoid treatment immediately, obtain emergency ophthalmologic assessment for the recent visual symptom, and arrange prompt confirmatory testing—using temporal-artery duplex ultrasound where readily available—through a rapid-access specialist pathway."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "giant cell arteritis",
+      "ocular ischemia",
+      "transient visual loss",
+      "glucocorticoids",
+      "irreversible sight loss"
+    ],
+    "evidence_keywords": [
+      "jaw claudication",
+      "temporal artery tenderness",
+      "erythrocyte sedimentation rate",
+      "thrombocytosis",
+      "duplex ultrasound",
+      "confirmatory testing"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Jaw claudication, temporal artery abnormalities, thrombocytosis, and an ESR above 100 mm/h increase the likelihood of giant cell arteritis.",
+        "source_ids": [
+          "32804186"
+        ]
+      },
+      {
+        "statement": "No single symptom, physical sign, or laboratory result is sufficient by itself to confirm or exclude giant cell arteritis.",
+        "source_ids": [
+          "32804186"
+        ]
+      },
+      {
+        "statement": "Giant cell arteritis requires urgent treatment to prevent tissue ischemia and other ischemic complications.",
+        "source_ids": [
+          "36828585",
+          "32183689"
+        ]
+      },
+      {
+        "statement": "High-dose glucocorticoids should be started immediately when clinical suspicion for giant cell arteritis is high.",
+        "source_ids": [
+          "32183689"
+        ]
+      },
+      {
+        "statement": "Ophthalmic symptoms in suspected giant cell arteritis warrant emergency referral to an ophthalmologist.",
+        "source_ids": [
+          "32183689"
+        ]
+      },
+      {
+        "statement": "Confirmatory investigation remains appropriate, and temporal-artery duplex ultrasound can confirm the clinical diagnosis where it is readily available.",
+        "source_ids": [
+          "32183689"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:38:29.396983+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "34235884",
+        "title": "2021 American College of Rheumatology/Vasculitis Foundation Guideline for the Management of Giant Cell Arteritis and Takayasu Arteritis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34235884/",
+        "abstract": "To provide evidence-based recommendations and expert guidance for the management of giant cell arteritis (GCA) and Takayasu arteritis (TAK) as exemplars of large vessel vasculitis.\nClinical questions regarding diagnostic testing, treatment, and management were developed in the population, intervention, comparator, and outcome (PICO) format for GCA and TAK (27 for GCA, 27 for TAK). Systematic literature reviews were conducted for each PICO question. The Grading of Recommendations Assessment, Development and Evaluation methodology was used to rate the quality of the evidence. Recommendations were developed by the Voting Panel, comprising adult and pediatric rheumatologists and patients. Each recommendation required ≥70% consensus among the Voting Panel.\nWe present 22 recommendations and 2 ungraded position statements for GCA, and 20 recommendations and 1 ungraded position statement for TAK. These recommendations and statements address clinical questions relating to the use of diagnostic testing, including imaging, treatments, and surgical interventions in GCA and TAK. Recommendations for GCA include support for the use of glucocorticoid-sparing immunosuppressive agents and the use of imaging to identify large vessel involvement. Recommendations for TAK include the use of nonglucocorticoid immunosuppressive agents with glucocorticoids as initial therapy. There were only 2 strong recommendations; the remaining recommendations were conditional due to the low quality of evidence available for most PICO questions.\nThese recommendations provide guidance regarding the evaluation and management of patients with GCA and TAK, including diagnostic strategies, use of pharmacologic agents, and surgical interventions.",
+        "sha256": "a2ade1397a53aa92c319ab961624a3f873e9e6647a9d08af125779565c7e9428",
+        "retrieved_at": "2026-09-18T23:37:16.941629+00:00",
+        "pmcid": "PMC12344528"
+      },
+      {
+        "id": "36828585",
+        "title": "Treat-to-target recommendations in giant cell arteritis and polymyalgia rheumatica.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36828585/",
+        "abstract": "To develop treat-to-target (T2T) recommendations in giant cell arteritis (GCA) and polymyalgia rheumatica (PMR).\nA systematic literature review was conducted to retrieve data on treatment targets and outcomes in GCA/PMR as well as to identify the evidence for the effectiveness of a T2T-based management approach in these diseases. Based on evidence and expert opinion, the task force (29 participants from 10 countries consisting of physicians, a healthcare professional and a patient) developed recommendations, with consensus obtained through voting. The final level of agreement was provided anonymously.\nFive overarching principles and six-specific recommendations were formulated. Management of GCA and PMR should be based on shared decisions between patient and physician recognising the need for urgent treatment of GCA to avoid ischaemic complications, and it should aim at maximising health-related quality of life in both diseases. The treatment targets are achievement and maintenance of remission, as well as prevention of tissue ischaemia and vascular damage. Comorbidities need to be considered when assessing disease activity and selecting treatment.\nThese are the first T2T recommendations for GCA and PMR. Treatment targets, as well as strategies to assess, achieve and maintain these targets have been defined. The research agenda highlights the gaps in evidence and the need for future research.",
+        "sha256": "69cbcb9cd0574f8d4c7eac78984b472b1a3139c971e28be54a50c932efeae4cc",
+        "retrieved_at": "2026-09-18T23:37:16.941629+00:00",
+        "pmcid": "PMC10803996"
+      },
+      {
+        "id": "32804186",
+        "title": "Diagnostic Accuracy of Symptoms, Physical Signs, and Laboratory Tests for Giant Cell Arteritis: A Systematic Review and Meta-analysis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32804186/",
+        "abstract": "Current clinical guidelines recommend selecting diagnostic tests for giant cell arteritis (GCA) based on pretest probability that the disease is present, but how pretest probability should be estimated remains unclear.\nTo evaluate the diagnostic accuracy of symptoms, physical signs, and laboratory tests for suspected GCA.\nPubMed, EMBASE, and the Cochrane Database of Systematic Reviews were searched from November 1940 through April 5, 2020.\nTrials and observational studies describing patients with suspected GCA, using an appropriate reference standard for GCA (temporal artery biopsy, imaging test, or clinical diagnosis), and with available data for at least 1 symptom, physical sign, or laboratory test.\nScreening, full text review, quality assessment, and data extraction by 2 investigators. Diagnostic test meta-analysis used a bivariate model.\nDiagnostic accuracy parameters, including positive and negative likelihood ratios (LRs).\nIn 68 unique studies (14 037 unique patients with suspected GCA; of 7798 patients with sex reported, 5193 were women [66.6%]), findings associated with a diagnosis of GCA included limb claudication (positive LR, 6.01; 95% CI, 1.38-26.16), jaw claudication (positive LR, 4.90; 95% CI, 3.74-6.41), temporal artery thickening (positive LR, 4.70; 95% CI, 2.65-8.33), temporal artery loss of pulse (positive LR, 3.25; 95% CI, 2.49-4.23), platelet count of greater than 400 × 103/μL (positive LR, 3.75; 95% CI, 2.12-6.64), temporal tenderness (positive LR, 3.14; 95% CI, 1.14-8.65), and erythrocyte sedimentation rate greater than 100 mm/h (positive LR, 3.11; 95% CI, 1.43-6.78). Findings that were associated with absence of GCA included the absence of erythrocyte sedimentation rate of greater than 40 mm/h (negative LR, 0.18; 95% CI, 0.08-0.44), absence of C-reactive protein level of 2.5 mg/dL or more (negative LR, 0.38; 95% CI, 0.25-0.59), and absence of age over 70 years (negative LR, 0.48; 95% CI, 0.27-0.86).\nThis study identifies the clinical and laboratory features that are most informative for a diagnosis of GCA, although no single feature was strong enough to confirm or refute the diagnosis if taken alone. Combinations of these symptoms might help direct further investigation, such as vascular imaging, temporal artery biopsy, or seeking evaluation for alternative diagnoses.",
+        "sha256": "7d47407f1ff770e79d176bb55369d46c82743f32e24dcb6758fb625f325d573e",
+        "retrieved_at": "2026-09-18T23:37:16.941629+00:00",
+        "pmcid": "PMC7432275"
+      },
+      {
+        "id": "34420204",
+        "title": "Tocilizumab for giant cell arteritis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34420204/",
+        "abstract": "Giant cell arteritis (GCA) is the most common form of systemic vasculitis in people older than 50 years of age. It causes granulomatous inflammation of medium- to large-sized vessels. Tocilizumab is a recombinant monoclonal antibody directed against interleukin-6 receptors (IL-6R).\nTo assess the effectiveness and safety of tocilizumab, given alone or with corticosteroids, compared with therapy without tocilizumab for treatment of GCA.\nWe searched the Cochrane Central Register of Controlled Trials (CENTRAL) (which contains the Cochrane Eyes and Vision Trials Register) (2020, Issue 1); Ovid MEDLINE; Embase.com; PubMed; Latin American and Caribbean Health Science Information database (LILACS); ClinicalTrials.gov; and the World Health Organization (WHO) International Clinical Trials Registry Platform (ICTRP). There were no date or language restrictions in the electronic search for trials. We last searched the electronic databases on 3 January 2020.\nWe included only randomized controlled trials (RCTs) that compared tocilizumab of any dosage regimen (alone or with corticosteroids) with therapy without tocilizumab that had a minimum follow-up of six months. Participants were at least 50 years of age, with biopsy-proven GCA or by large-vessel vasculitis by angiography, and met the American College of Rheumatology 1990 guidelines for GCA.\nWe used standard Cochrane methodology.\nMain results We included two RCTs in the review. The studies were conducted in the USA, Canada, and Europe and enrolled a total of 281 participants with GCA, of whom 74% were women. The mean age of participants was 70 years, with new-onset or relapsing GCA, and fulfilled the 1990 American College of Rheumatology criteria with no uncontrolled comorbidities. Both studies were funded by F. Hoffmann-La Roche AG, the manufacturer of tocilizumab. Findings One RCT (30 participants) compared tocilizumab administered every four weeks versus placebo. Point estimates at 12 months and beyond favored tocilizumab over placebo in terms of sustained remission (risk ratio (RR) 4.25, 95% confidence interval (CI) 1.21 to 14.88; moderate-certainty evidence). Point estimates suggest no evidence of a difference for all-cause mortality at 12 months or more (RR 0.17, 95% CI 0.01 to 3.94; moderate-certainty evidence). At 12 months, mean time to first relapse after induction of remission was 25 weeks in favor of participants receiving tocilizumab compared to placebo (mean difference (MD) 25, 95% CI 11.4 to 38.6; moderate-certainty evidence). The second RCT (251 participants) randomized participants into two intervention and two comparator groups to receive tocilizumab weekly (100 participants), bi-weekly (49 participants), weekly placebo + 26-week taper (50 participants), or weekly placebo + 52-week taper (51 participants). At 12 months, point estimates from this study on proportion of participants with sustained remission favored participants who received tocilizumab weekly versus placebo + 52-week taper (RR 3.17, 95% CI 1.71 to 5.89; 151 participants); tocilizumab weekly versus placebo + 26-week taper (RR 4.00, 95% CI 1.97 to 8.12; 150 participants); tocilizumab every other week versus placebo + 52-week taper (RR 3.01, 95% CI 1.57 to 5.75; 100 participants); tocilizumab every other week versus placebo + 26-week taper (RR 3.79, 95% CI 1.82 to 7.91; 99 participants) (moderate-certainty evidence). Point estimates on proportion of participants who did not need escape therapy (defined by the study as the inability to keep to the protocol-defined prednisone taper) favored participants who received tocilizumab weekly versus placebo + 52-week taper (RR 1.71, 95% CI 1.24 to 2.35; 151 participants); tocilizumab weekly versus placebo + 26-week taper (RR 2.96, 95% CI 1.83 to 4.78; 150 participants); tocilizumab every other week versus placebo + 52-week taper (RR 1.49, 95% CI 1.04 to 2.14; 100 participants); tocilizumab every other week versus placebo + 26-week taper (RR 0.65, 95% CI 0.27 to 1.54; 99 participants) (moderate-certainty evidence). This study did not report mean time to first relapse after induction of remission or all-cause mortality. The same study found no evidence of a difference between groups with regard to vision changes and quality of life, except for the assessment of quality of life with the physical component score of the 36-Item Short Form Health Survey (SF-36), which favored weekly tocilizumab versus placebo + 52-week taper (MD 8.17, 95% CI 4.44 to 11.90; moderate-certainty evidence). Adverse events One RCT reported a lower percentage of participants who experienced serious adverse events when receiving tocilizumab every four weeks versus placebo. The second RCT reported no evidence of a difference among groups with regard to adverse events; however, fewer participants reported serious adverse events in the tocilizumab weekly and tocilizumab biweekly interventions compared with the placebo + 26-week taper and placebo + 52-week taper comparators. Investigators in both studies reported that infection was the most frequently reported adverse event.\nThis review indicates that tocilizumab therapy may be beneficial in terms of proportion of participants with sustained remission, relapse-free survival, and the need for escape therapy. While the evidence was of moderate certainty, only two studies were included in the review, suggesting that further research is required to corroborate these findings. Future trials should address issues related to the required duration of therapy, patient-reported outcomes such as quality of life and economic outcomes, as well as the clinical outcomes evaluated in this review.",
+        "sha256": "46d5b73351ce79578fca16bca49422d6ad1873aee2b17adc8981a6e20edbe474",
+        "retrieved_at": "2026-09-18T23:37:17.497282+00:00",
+        "pmcid": "PMC8406620"
+      },
+      {
+        "id": "35560150",
+        "title": "Tocilizumab for giant cell arteritis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35560150/",
+        "abstract": "Giant cell arteritis (GCA) is the most common form of systemic vasculitis in people older than 50 years of age. It causes granulomatous inflammation of medium- to large-sized vessels. Tocilizumab is a recombinant monoclonal antibody directed against interleukin-6 receptors (IL-6R).\nTo assess the effectiveness and safety of tocilizumab, given alone or with corticosteroids, compared with therapy without tocilizumab for treatment of GCA.\nWe searched the Cochrane Central Register of Controlled Trials (CENTRAL) (which contains the Cochrane Eyes and Vision Trials Register) (2020, Issue 1); Ovid MEDLINE; Embase.com; PubMed; Latin American and Caribbean Health Science Information database (LILACS); ClinicalTrials.gov; and the World Health Organization (WHO) International Clinical Trials Registry Platform (ICTRP). There were no date or language restrictions in the electronic search for trials. We last searched the electronic databases on 3 January 2020.\nWe included only randomized controlled trials (RCTs) that compared tocilizumab of any dosage regimen (alone or with corticosteroids) with therapy without tocilizumab that had a minimum follow-up of six months. Participants were at least 50 years of age, with biopsy-proven GCA or by large-vessel vasculitis by angiography, and met the American College of Rheumatology 1990 guidelines for GCA.\nWe used standard Cochrane methodology.\nMain results We included two RCTs in the review. The studies were conducted in the USA, Canada, and Europe and enrolled a total of 281 participants with GCA, of whom 74% were women. The mean age of participants was 70 years, with new-onset or relapsing GCA, and fulfilled the 1990 American College of Rheumatology criteria with no uncontrolled comorbidities. Both studies were funded by F. Hoffmann-La Roche AG, the manufacturer of tocilizumab. Findings One RCT (30 participants) compared tocilizumab administered every four weeks versus placebo. Point estimates at 12 months and beyond favored tocilizumab over placebo in terms of sustained remission (risk ratio (RR) 4.25, 95% confidence interval (CI) 1.21 to 14.88; moderate-certainty evidence). Point estimates suggest no evidence of a difference for all-cause mortality at 12 months or more (RR 0.17, 95% CI 0.01 to 3.94; moderate-certainty evidence). At 12 months, mean time to first relapse after induction of remission was 25 weeks in favor of participants receiving tocilizumab compared to placebo (mean difference (MD) 25, 95% CI 11.4 to 38.6; moderate-certainty evidence). The second RCT (250 participants) randomized participants into two intervention and two comparator groups to receive tocilizumab weekly (100 participants), bi-weekly (49 participants), weekly placebo + 26-week taper (50 participants), or weekly placebo + 52-week taper (51 participants). At 12 months, point estimates from this study on proportion of participants with sustained remission favored participants who received tocilizumab weekly versus placebo + 52-week taper (RR 3.17, 95% CI 1.71 to 5.89; 151 participants); tocilizumab weekly versus placebo + 26-week taper (RR 4.00, 95% CI 1.97 to 8.12; 150 participants); tocilizumab every other week versus placebo + 52-week taper (RR 3.01, 95% CI 1.57 to 5.75; 100 participants); tocilizumab every other week versus placebo + 26-week taper (RR 3.79, 95% CI 1.82 to 7.91; 99 participants) (moderate-certainty evidence). Point estimates on proportion of participants who did not need escape therapy (defined by the study as the inability to keep to the protocol-defined prednisone taper) favored participants who received tocilizumab weekly versus placebo + 52-week taper (RR 1.71, 95% CI 1.24 to 2.35; 151 participants); tocilizumab weekly versus placebo + 26-week taper (RR 2.96, 95% CI 1.83 to 4.78; 150 participants); tocilizumab every other week versus placebo + 52-week taper (RR 1.49, 95% CI 1.04 to 2.14; 100 participants) but not tocilizumab every other week versus placebo + 26-week taper (RR 0.65, 95% CI 0.27 to 1.54; 99 participants) (moderate-certainty evidence). This study did not report mean time to first relapse after induction of remission or all-cause mortality.  Across comparison groups, the same study found no evidence of a difference  in vision changes and inconsistent evidence with regard to quality of life. Evidence on quality of life as assessed by the physical (MD 8.17, 95% CI 4.44 to 11.90) and mental (MD 5.61, 95% CI 0.06 to 11.16) component score of the 36-Item Short Form Health Survey (SF-36) favored weekly tocilizumab versus placebo + 52-week taper but not bi-weekly tocillizumab versus placebo + 26-week taper (moderate-certainty evidence). Adverse events One RCT reported a lower percentage of participants who experienced serious adverse events when receiving tocilizumab every four weeks versus placebo. The second RCT reported no evidence of a difference among groups with regard to adverse events; however, fewer participants reported serious adverse events in the tocilizumab weekly and tocilizumab biweekly interventions compared with the placebo + 26-week taper and placebo + 52-week taper comparators. Investigators in both studies reported that infection was the most frequently reported adverse event.\nThis review indicates that tocilizumab therapy may be beneficial in terms of proportion of participants with sustained remission, relapse-free survival, and the need for escape therapy. While the evidence was of moderate certainty, only two studies were included in the review, suggesting that further research is required to corroborate these findings. Future trials should address issues related to the required duration of therapy, patient-reported outcomes such as quality of life and economic outcomes, as well as the clinical outcomes evaluated in this review.",
+        "sha256": "9cf070f610e96721bb819878e23f9dc1a094ea691f765666379096b97271e5a7",
+        "retrieved_at": "2026-09-18T23:37:17.497282+00:00",
+        "pmcid": "PMC9105486"
+      },
+      {
+        "id": "33060304",
+        "title": "Giant Cell Arteritis and COVID-19: Similarities and Discriminators. A Systematic Literature Review.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33060304/",
+        "abstract": "To identify shared and distinct features of giant cell arteritis (GCA) and coronavirus disease 2019(COVID-19) to reduce diagnostic errors that could cause delays in correct treatment.\nTwo systematic literature reviews determined the frequency of clinical features of GCA and COVID-19 in published reports. Frequencies in each disease were summarized using medians and ranges.\nHeadache was common in GCA but was also observed in COVID-19 (GCA 66%, COVID-19 10%). Jaw claudication or visual loss (43% and 26% in GCA, respectively) generally were not reported in COVID-19. Both diseases featured fatigue (GCA 38%, COVID-19 43%) and elevated inflammatory markers (C-reactive protein [CRP] elevated in 100% of GCA, 66% of COVID-19), but platelet count was elevated in 47% of GCA but only 4% of COVID-19 cases. Cough and fever were commonly reported in COVID-19 and less frequently in GCA (cough, 63% for COVID-19 vs 12% for GCA; fever, 83% for COVID-19 vs 27% for GCA). Gastrointestinal upset was occasionally reported in COVID-19 (8%), rarely in GCA (4%). Lymphopenia was more common in COVID-19 than GCA (53% in COVID-19, 2% in GCA). Alteration of smell and taste have been described in GCA but their frequency is unclear.\nOverlapping features of GCA and COVID-19 include headache, fever, elevated CRP and cough. Jaw claudication, visual loss, platelet count and lymphocyte count may be more discriminatory. Physicians should be aware of the possibility of diagnostic confusion. We have designed a simple checklist to aid evidence-based evaluation of patients with suspected GCA.",
+        "sha256": "94c3dc9e6a9b0bedb11422f5dbcd38151174ee64ae57ad63f59bde8c4241cbb5",
+        "retrieved_at": "2026-09-18T23:37:17.497282+00:00"
+      },
+      {
+        "id": "34112594",
+        "title": "[Giant Cell Arteritis. Recommendations in Primary Care].",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34112594/",
+        "abstract": "Giant cell arteritis is a systemic vasculitis with significant intra and extracranial involvement that, with early diagnosis and treatment in primary care, can improve its prognosis as it is a medical emergency. Our working group on vascular diseases of the Spanish Society of Primary Care Physicians (SEMERGEN) proposes a series of recommendations based on current scientific evidence for a multidisciplinary approach and follow-up in primary care.",
+        "sha256": "aac25b3c43469efc5d47e96469522ee7fdbe6f9ecb08b6f24b068a7260417269",
+        "retrieved_at": "2026-09-18T23:37:18.062298+00:00"
+      },
+      {
+        "id": "32183689",
+        "title": "European Headache Federation recommendations for neurologists managing giant cell arteritis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32183689/",
+        "abstract": "Giant cell arteritis (GCA) remains a medical emergency because of the risk of sudden irreversible sight loss and rarely stroke along with other complications. Because headache is one of the cardinal symptoms of cranial GCA, neurologists need to be up to date with the advances in investigation and management of this condition. The aim of this document by the European Headache Federation (EHF) is to provide an evidence-based and expert-based recommendations on GCA.\nThe working group identified relevant questions, performed systematic literature review and assessed the quality of available evidence, and wrote recommendations. Where there was not a high level of evidence, the multidisciplinary (neurology, ophthalmology and rheumatology) group recommended best practice based on their clinical experience.\nAcross Europe, fast track pathways and the utility of advanced imaging techniques are helping to reduce diagnostic delay and uncertainty, with improved clinical outcomes for patients. GCA is treated with high dose glucocorticoids (GC) as a first line agent however long-term GC toxicity is one of the key concerns for clinicians and patients. The first phase 2 and phase 3 randomised controlled trials of Tocilizumab, an IL-6 receptor antagonist, have been published. It is now been approved as the first ever licensed drug to be used in GCA.\nThe present article will outline recent advances made in the diagnosis and management of GCA.",
+        "sha256": "5c71ba60c7e7beb792dce4c70f8814f9ad8d97ffe6b79b3022deaf5c895ed950",
+        "retrieved_at": "2026-09-18T23:37:18.062298+00:00",
+        "pmcid": "PMC7079499",
+        "body_excerpts": "Objective\nTo systematically review the literature for advances in the diagnosis and management of Giant cell arteritis (GCA), in order to provide practical guidance statements for the neurologist (which concords with and complements guidelines from other specialties).\n\nMethods\nThe European Headache Federation (EHF) board identified GCA as a disease area where new evidence has emerged. The working group was put together to include neurologists with a specialist interest in headache and an ophthalmologist. The group identified relevant questions then performed a systematic literature review. The literature search included all English papers on PubMed between inception of the database until July 1st, 2019, a further search was performed on January 17th, 2020 to ensure all relevant papers could be included. The papers were assessed for their quality and the recommendations drafted. The draft recommendations were critically reviewed by a rheumatologist, who became part of the EHF GCA panel. The final document was reviewed and approved by all members of the panel. Where there was not a high level of evidence, the multidisciplinary EHF GCA panel recommended best practice based on their clinical experience and that of other specialty guideline groups.\n\nBackground\nDue to the risk of sudden permanent sight loss in between 8 and 30% [ 10 , 11 ], and stroke in between 3 and 10% [ 12 ], GCA is a medical emergency. GCA is classified as a large vessel vasculitis (LVV) as defined by the Chapel Hill Consensus Definitions because it affects the aorta and its major branches; however, any size artery may be affected, such as small ocular and periocular arteries that lead to visual loss [ 2 ]. It is now known to be a spectrum of phenotypically overlapping conditions including cranial GCA (previously known as temporal arteritis), and extra-cranial GCA otherwise termed large vessel-GCA (LV-GCA), usually involving the aorta and its larger supra-aortic branches, and polymyalgia rheumatica (PMR) [ 13 ]. However, any individual patient may have an overlap of more than one subtype (case vignette 1, Fig. 1 ). The most commonly affected cranial arteries are the temporal, ophthalmic, and posterior ciliary arteries causing visual loss, and rarely the vertebral or carotid territories that can lead to stroke [ 14 ].\n\nWhat are the characteristics of headache in GCA?\nThe IHS comment that the variability in the headache and other symptoms of GCA are such that any recent persisting headache in a patient over 60 years of age should suggest GCA and lead to appropriate investigations [ 22 ]. The IHS classification criteria are informed by the literature, and will likely evolve as more is known about headache in GCA. Caution should be applied not to use criterion 2b in isolation, for example many different types of headaches can improve with initiation of high dose GC treatment.\n\nWhat are the characteristics of headache in GCA? > Recommendation\nThe GCA headache phenotype is yet to be fully characterized in terms of frequency, severity and other associated characteristics. Vigilance is warranted in patients with new onset headache over the age of 50 years.\n\nWhat are the presenting features of GCA, apart from new onset headache? > Recommendation\nA comprehensive history and examination in all those suspected with GCA will help guide investigations.\n\nWhat is the best way to diagnose GCA?\nDiagnosing GCA can be challenging and requires a full history for clinical features, thorough examination and a combination of investigations. There are classification criteria, but no universally accepted diagnostic criteria [ 30 ]. Choosing the optimal investigations depends on which area of the body the disease is suspected to be present because one third of LV-GCA patients have no ultrasonographic evidence of cranial/temporal arteritis [ 19 ], and more than half of LV-GCA patients have a normal temporal artery biopsy [ 31 ].\n\nWhat is the best way to diagnose GCA? > Laboratory markers > Recommendation\nA combination of full blood count, ESR (or plasma viscosity) and CRP should be performed in those with suspected GCA which may support the clinical diagnosis.\n\nWhat is the best way to diagnose GCA? > Confirmatory investigational tests\nBoth standard treatment with GC [ 40 ] and indeed licensed targeted treatment [ 41 ] for GCA confers significant risk of morbidity, therefore a confirmatory investigational test should be performed to secure the diagnosis.\n\nWhat is the best way to diagnose GCA? > Confirmatory investigational tests > Recommendation\nA confirmatory investigational test should be performed where possible in all those with suspected GCA.\n\nWhat is the best way to diagnose GCA? > Imaging – cranial GCA\nMajor advantages of CDUS are that it is non-invasive and can sample the majority of main arterial territories which can be affected such as the common superficial temporal artery, frontal and parietal branches as well as axillary, carotid, subclavian and vertebral arteries [ 45 , 46 ]. The Temporal Artery Biopsy vs Ultrasound in Diagnosis of Giant Cell Arteritis (TABUL) study, a cross-sectional prospective study of 381 patients investigated for GCA, has given the most comprehensive analysis of use of CDUS in GCA [ 45 ]; with this evidence CDUS has allowed for a significant reduction in the requirement for temporal artery biopsy [ 47 ].\n\nWhat is the best way to diagnose GCA? > Imaging – cranial GCA > Recommendation\nWhere CDUS is readily available, it should be used to confirm the clinical diagnosis of GCA.\n\nWhat is the best way to diagnose GCA? > Temporal artery biopsy\nTemporal artery biopsy (TAB) allows for a histological diagnosis, but in some centres may be difficult to access readily and for the patient, it is an invasive procedure. When a TAB is positive it provides justification for treatments used in GCA, however when negative can create diagnostic uncertainty. The sensitivity of TAB ranges in the literature between 80 and 90% probably due to publication bias, however in a comparative trial, it was shown to have a poor sensitivity of 39% [ 45 ]. Negative biopsies can be a concern for the clinician, and a number of factors may contribute including the nature of the tissue obtained (i.e vein instead of artery biopsied), length of biopsy (preferably greater than 1 cm), histological interpretation and length of time on GC treatment resulting in a false negative biopsy [ 45 , 49 ]. However, given the morbidity of treatment, some would still consider performing a biopsy at any point during the disease [ 50 ]. The utility of TAB has been recommended by some international bodies to be superseded by non-invasive imaging modalities such as CDUS [ 20 ]. Some centres have chosen to use TAB when the results of CDUS are either equivocal or not in keeping with the clinical presentation [ 51 ].\n\nWhat is the best way to diagnose GCA? > Temporal artery biopsy > Recommendation\nTemporal artery biopsy remains a useful and specific investigation for a definitive diagnosis of GCA.\n\nWhat is the best way to diagnose GCA? > Imaging – large vessel GCA (LV-GCA) > Recommendation\nWhere extra-cranial disease is suspected 18 F-FDG-PET/CT should be performed.\n\nWhat are the benefits of rapid access GCA diagnostic pathways? > Recommendation\nTo reduce diagnostic delay, improve likelihood for securing diagnosis and improve patient outcomes, patients with suspected GCA should be referred to a rapid access specialist GCA service where available.\n\nWhat are the benefits of rapid access GCA diagnostic pathways? > Recommendation\nWhere ophthalmic symptoms are present, emergency referral to an ophthalmologist should be sought to confirm the nature of the visual symptoms.\n\nWhat is the treatment of GCA? > What is the immediate treatment for GCA?\nWhere there is a high clinical suspicion of GCA immediate high dose GC should be started [ 59 ]. The standard initial GC dose for GCA is between 40 and 60 mg oral prednisolone equivalent per day, depending on the patient characteristics, including pre-existing comorbidities and body weight.\n\nRecommendation\nHigh dose GC should be started immediately for those with a high index of clinical suspicion for GCA.\n\nRecommendation > What is the long-term GCA treatment?\nData from the GiACTA trial [ 64 ] reported that only 14% of patients on a short 6 month oral GC taper (without additional tocilizumab) achieved remission at 12 months, and 18% achieved remission at 12 months, if given a 12 month GC tapering regimen. The EULAR guidelines have recommended maintaining induction levels of 40-60 mg per day until there is clear resolution of symptoms and normalization of inflammatory markers. GC should be tapered to a target of 15–20 mg/day within 2–3 months and then to ≤5 mg/day after 1 year, with an aim to stop within 1–2 years if there is no relapse; this strategy would result in a projected cumulative dose of just over 6 g [ 59 ].\n\nRecommendation\nGC are used for 6–24 months and should be tapered according to response.\n\nRecommendation > How are the side-effects of glucocorticoids mitigated?\nThe prolonged use of GC is well documented and can exacerbate conditions such as hypertension, diabetes mellitus, heart failure, and osteoporosis. It can also cause depression [ 65 ]. In patients with GCA there is a high morbidity with 86% developing at least one side effect and 68% developing more than two [ 40 ]. Real world cumulative dose of GC can far exceed guideline recommendations, and one study showed a mean cumulative dose of 8.4 g, with more than one third accumulating a dose greater than 10 g [ 66 ]. This is likely because disease relapses are common, reported to occur in half of all patients, necessitating an increase in GC, or a delay in tapering the dose [ 67 ]. For those with a history of relapse there is an increased prevalence of osteoporosis [ 68 ]. The adverse event hazard ratio is increased by approximately 3% for every 1000 mg increase in the cumulative GC dose [ 69 ].\n\nRecommendation\nConsider prescribing a proton pump inhibitor for gastrointestinal protection in people at risk of gastrointestinal bleeding or dyspepsia.\n\nRecommendation\nConsider prescribing bone-sparing treatment, such as bisphosphonates, to people who are taking high doses of GC.\n\nRecommendation > Are conventional second line steroid sparing therapies effective in GCA?\nThere have been three randomised, placebo-controlled trials investigating Methotrexate (MTX), between doses of 7.5–15 mg per week, as an adjunctive steroid-sparing agent [ 70 – 72 ] Despite methodological limitations of each individual study, a meta-analysis using pooled individual patient data from these trials demonstrated a reduced risk of first relapse (HR 0.65, 95% CI 0.44 to 0.98, p = 0.04) and second relapse (HR 0.49, 95% CI 0.27 to 0.89, p = 0.02), a higher probability of glucocorticoid-free remission for at least 24 weeks (HR 2.84, 95% CI 1.52 to 5.28, p < 0.001) and a lower cumulative glucocorticoid dose (0.84 g less glucocorticoid use after 48 weeks in patients treated with MTX versus placebo). There was no significant difference in side effects between the intervention and placebo groups. On further review of the included studies a low dose of MTX had been used, compared with current practice and the patient selection included those in whom steroid titration from low doses had failed on several occasions [ 73 ]. Dumont et al. [ 67 ] recently reported a significant reduction in the duration of glucocorticoid treatment in half of their cohort with glucocorticoid-dependent disease who had received a steroid sparing agent (mainly but not exclusively methotrexate) of 36 [15—115] versus 61 [14—212] months ( p = 0.008).\n\nRecommendation > Are conventional second line steroid sparing therapies effective in GCA?\nOther conventionally used steroid sparing therapies such as Azathioprine [ 74 ] [De Silva 1986], Cyclophosphamide [ 75 ] and Mycophenolate [ 76 ] have not been shown to be superior to GC alone. Ciclosporin was been deemed ineffective [ 77 ]. Use of anti-tumour necrosis factor (TNF) alpha therapy in GCA was disappointing [ 78 ]. Leflunomide has been investigated in an open-label prospective single centre study of 76 patients and shown some benefit in controlling disease, reducing the use of GC [ 79 ].\n\nRecommendation\nSecond line therapy with MTX should be considered in patients with GCA in order to maintain disease control and achieve glucocorticoid reduction, but the effectiveness of MTX is modest.\n\nRecommendation > What is the evidence for antiplatelet therapy in GCA?\nAspirin is widely used to prevent ischaemic complications such as stroke and myocardial infarction in those with cardiovascular disease. The literature has conflicting reports of the protective use of aspirin in GCA, with some supporting its beneficial effects [ 80 , 81 ] and others refuting it [ 82 , 83 ]. Currently overwhelming clinical evidence of a reduction in ischaemic events is lacking [ 84 ]. The use of low-dose aspirin as an adjunctive treatment in GCA must acknowledge the recognised haemorrhagic risks associated with aspirin and concurrent GC use.\n\nRecommendation\nClinician discretion and patient preference on initiating aspirin therapy in GCA may be applied, unless patients have associated pre-existing comorbid conditions which justify its use.\n\nRecommendation > What is the evidence for use of biologics in GCA?\nTocilizumab (TCZ), a humanised monoclonal antibody to the IL-6 receptor, has been investigated in phase II [ 85 ] and phase III [ 64 ] RCTs. In the phase II study 30 patients with new-onset or relapsing disease were randomised to receive either weekly TCZ infusions or placebo, both with a tapering GC regimen. At week 12, 85% of the TCZ group had achieved clinical and biochemical remission as compared with only 40% of those in the placebo group ( p = 0.03). At 1 year, 85% of the TCZ group had remained relapse-free versus a mere 20% of the placebo group ( p = 0.001) Use of TCZ resulted in a significant reduction in steroid requirement [ 86 ].\n\nRecommendation > What is the evidence for use of biologics in GCA?\nThe Giant Cell Arteritis Actemra (GiACTA) trial was a large phase III, multi-centre, double-blind, placebo-controlled study examining the efficacy of subcutaneously administered TCZ to induce and sustain remission to 12 months. GiACTA included newly diagnosed patients with GCA and those with refractory disease. Patients were enrolled and randomised to one of four arms; weekly or fortnightly TCZ (162 mg) combined with a 26-week prednisolone taper or; placebo plus a 26-week or 52-week prednisolone taper. At 12 months, those receiving TCZ were significantly more likely to have achieved sustained remission as compared with both the 26-week and 52-week steroid taper groups. This confirmed a significant steroid-sparing effect of TCZ (patients receiving TCZ had required half the cumulative glucocorticoid dose used in the placebo groups) [ 64 ].\n\nRecommendation > What is the evidence for use of biologics in GCA?\nThe side effect profile of TCZ (Table 1 ) is well documented in the rheumatoid arthritis literature [ 40 ]. Within the older GCA population concern has been raised regarding the risk of concurrent diverticular disease, transient neutropenias, and elevations of triglycerides and deranged liver function tests [ 87 ].\n\nRecommendation > What is the evidence for use of biologics in GCA?\nTable 1 Side effect profile for Tocilizumab [ 41 ] Frequency Side effect Common • abdominal pain • conjunctivitis • cough • dizziness • dyslipidaemia • dyspnea • gastrointestinal disorders • headache • hypersensitivity • hypertension • increased risk of infection • leucopenia • neutropenia • oral ulcers • peripheral oedema • skin reactions • weight increases Rare • hypothyroidism • nephrolithiasis Very rare • infusion related reaction • interstitial lung disease • pancytopenia • Stevens-Johnson syndrome\n\nRecommendation > What is the evidence for use of biologics in GCA?\nThe cost, side effect profile and inability to serially monitor the serum CRP for evidence of relapse means that there is a reluctance to prescribe TCZ for new onset patients, despite the trial evidence. However, when patients are deemed refractory i.e. those people with GCA who never achieve remission, this is typically a more accepted use of TCZ. Likewise, for those patients with glucocorticoid-induced side effects or patients with significant pre-existing comorbidities such as psychiatric disturbances, pancreatitis, or uncontrolled diabetes or hypertension, tocilizumab could be effective as a first line treatment [ 21 , 59 ].\n\nRecommendation > What is the evidence for use of biologics in GCA?\nThe 2-year open-label extension study from GiACTA analysed 215 of the original 251 randomised patients. Participants in clinical remission received no further treatment and those not in clinical remission received weekly TCZ (162 mg) and/or GC and/or MTX. Higher proportions of those originally assigned to weekly TCZ were treatment-free compared with those originally assigned to placebo. Importantly, the cumulative dose of GC was substantially lower (almost half) in patients assigned to weekly TCZ (2604 mg) versus patients given either 26 weeks of GC plus placebo (5006 mg) or 52 weeks of GC plus placebo (5322.5 mg). Interestingly, patients assigned to placebo plus only 26 weeks of GC required almost as much GC therapy as those assigned to 52 weeks of GC plus placebo, reflecting the poor control of disease when using 26 weeks of GC monotherapy [ 86 ].\n\nRecommendation > Recommendation\nUse of TCZ should be considered for patients with a confirmed diagnosis of GCA (based on imaging or TAB) who have either refractory disease, or those with co-morbid disease that could be significantly exacerbated by GC use.\n\nConclusions\nThere have been significant advances occurring to routine clinical GCA care. Guideline bodies from Europe have updated their recommendations to rheumatologists [ 20 , 59 , 88 ] and neurologists need to be up to date to ensure optimal evidence-based practice for their patients.\n\nConclusions\nThis EHF guidance serves to inform neurologists who may be consulted regarding a patient with a new onset headache over the age of 50 years old, and who indeed may manage patients with GCA long-term. With advances in imaging and treatment it is no longer recommended to diagnose GCA on clinical grounds alone. A confirmatory investigational test such as CDUS or TAB is required, because the disease course of an individual currently cannot be readily predicted at diagnosis and escalation in therapy may be needed, but eligibility for escalation therapy is likely to require prior evidence of a definitive diagnosis.\n\nConclusions\nTable 2 Drugs currently being investigated for treatment of GCA Drug name Mechanism of action Abatacept Humanized fusion protein that modifies co-stimulation in antigen presentation, inhibiting T-cell activity Anakinra Monoclonal antibody to the IL-1β receptor Baricitinib Synthetic DMARD, which targets the intracellular pro-inflammatory Janus kinase (JAK) family of enzymes Gevokizumab Recombinant monoclonal antibody to IL-1β, a pro-inflammatory cytokine Rituximab Chimeric monoclonal antibody against the protein CD20, which is primarily found on the surface of immune system B cells",
+        "body_excerpts_sha256": "ddca457320c86491de7a48d572368ac5edf5b39f23957ccf98b2412243c6c616",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC7079499/fullTextXML",
+        "body_license_url": "http://creativecommons.org/licenses/by/4.0/"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This is a classic high-probability giant cell arteritis presentation: age 70-79, new persistent temporal headache, scalp tenderness, jaw claudication, transient monocular visual obscuration (amaurosis fugax), temporal artery tenderness with reduced pulse, and markedly elevated inflammatory markers (ESR 108 mm/h, CRP 6.2 mg/dL) plus thrombocytosis. GCA is a medical emergency because of the risk of sudden, irreversible sight loss (8-30%). The EHF guideline (32183689) explicitly recommends that high-dose glucocorticoids be started immediately when there is high clinical suspicion, that ophthalmic symptoms warrant emergency ophthalmology referral, and that a confirmatory test (color duplex ultrasound where readily available, or temporal artery biopsy) be obtained through a rapid-access pathway. Answer B matches all three imperatives. Answer A is dangerous: withholding steroids pending elective biopsy risks permanent blindness, and biopsy sensitivity remains adequate for several days to ~2 weeks after starting glucocorticoids, so treatment should never be delayed for histology. The 2020 diagnostic meta-analysis (32804186) confirms the cumulative predictive weight of jaw claudication, temporal artery abnormalities, thrombocytosis, and very high ESR, supporting a high pretest probability that justifies immediate empiric therapy.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "32804186"
+              ],
+              "reason": "The meta-analysis reports positive likelihood ratios for jaw claudication (4.90), temporal artery loss of pulse (3.25), temporal tenderness (3.14), platelet count >400 (3.75), and ESR >100 (3.11), all supporting increased likelihood of GCA.",
+              "source_passage_ids": [
+                "32804186:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32804186",
+                  "quote": "Diagnostic accuracy parameters, including positive and negative likelihood ratios (LRs). In 68 unique studies (14 037 unique patients with suspected GCA; of 7798 patients with sex reported, 5193 were women [66.6%]), findings associated with a diagnosis of GCA included limb claudication (positive LR, 6.01; 95% CI, 1.38-26.16), jaw claudication (positive LR, 4.90; 95% CI, 3.74-6.41), temporal artery thickening (positive LR, 4.70; 95% CI, 2.65-8.33), temporal artery loss of pulse (positive LR, 3.25; 95% CI, 2.49-4.23), platelet count of greater than 400 × 103/μL (positive LR, 3.75; 95% CI, 2.12-6.64), temporal tenderness (positive LR, 3.14; 95% CI, 1.14-8.65), and erythrocyte sedimentation rate greater than 100 mm/h (positive LR, 3.11; 95% CI, 1.43-6.78)."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "32804186"
+              ],
+              "reason": "Source explicitly states no single feature was strong enough to confirm or refute the diagnosis if taken alone.",
+              "source_passage_ids": [
+                "32804186:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32804186",
+                  "quote": "Findings that were associated with absence of GCA included the absence of erythrocyte sedimentation rate of greater than 40 mm/h (negative LR, 0.18; 95% CI, 0.08-0.44), absence of C-reactive protein level of 2.5 mg/dL or more (negative LR, 0.38; 95% CI, 0.25-0.59), and absence of age over 70 years (negative LR, 0.48; 95% CI, 0.27-0.86). This study identifies the clinical and laboratory features that are most informative for a diagnosis of GCA, although no single feature was strong enough to confirm or refute the diagnosis if taken alone. Combinations of these symptoms might help direct further investigation, such as vascular imaging, temporal artery biopsy, or seeking evaluation for alternative diagnoses."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "36828585",
+                "32183689"
+              ],
+              "reason": "T2T recommendations recognise the need for urgent treatment of GCA to avoid ischaemic complications; EHF describes GCA as a medical emergency due to risk of sudden irreversible sight loss.",
+              "source_passage_ids": [
+                "36828585:p1",
+                "32183689:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36828585",
+                  "quote": "Management of GCA and PMR should be based on shared decisions between patient and physician recognising the need for urgent treatment of GCA to avoid ischaemic complications, and it should aim at maximising health-related quality of life in both diseases. The treatment targets are achievement and maintenance of remission, as well as prevention of tissue ischaemia and vascular damage. Comorbidities need to be considered when assessing disease activity and selecting treatment. These are the first T2T recommendations for GCA and PMR. Treatment targets, as well as strategies to assess, achieve and maintain these targets have been defined. The research agenda highlights the gaps in evidence and the need for future research."
+                },
+                {
+                  "source_id": "32183689",
+                  "quote": "Giant cell arteritis (GCA) remains a medical emergency because of the risk of sudden irreversible sight loss and rarely stroke along with other complications. Because headache is one of the cardinal symptoms of cranial GCA, neurologists need to be up to date with the advances in investigation and management of this condition. The aim of this document by the European Headache Federation (EHF) is to provide an evidence-based and expert-based recommendations on GCA. The working group identified relevant questions, performed systematic literature review and assessed the quality of available evidence, and wrote recommendations. Where there was not a high level of evidence, the multidisciplinary (neurology, ophthalmology and rheumatology) group recommended best practice based on their clinical experience."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "32183689"
+              ],
+              "reason": "EHF recommendation: High dose GC should be started immediately for those with a high index of clinical suspicion for GCA.",
+              "source_passage_ids": [
+                "32183689:p11"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32183689",
+                  "quote": "What are the benefits of rapid access GCA diagnostic pathways? > Recommendation Where ophthalmic symptoms are present, emergency referral to an ophthalmologist should be sought to confirm the nature of the visual symptoms. What is the treatment of GCA? > What is the immediate treatment for GCA? Where there is a high clinical suspicion of GCA immediate high dose GC should be started [ 59 ]. The standard initial GC dose for GCA is between 40 and 60 mg oral prednisolone equivalent per day, depending on the patient characteristics, including pre-existing comorbidities and body weight. Recommendation High dose GC should be started immediately for those with a high index of clinical suspicion for GCA."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "32183689"
+              ],
+              "reason": "EHF recommendation: Where ophthalmic symptoms are present, emergency referral to an ophthalmologist should be sought.",
+              "source_passage_ids": [
+                "32183689:p11"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32183689",
+                  "quote": "What are the benefits of rapid access GCA diagnostic pathways? > Recommendation Where ophthalmic symptoms are present, emergency referral to an ophthalmologist should be sought to confirm the nature of the visual symptoms. What is the treatment of GCA? > What is the immediate treatment for GCA? Where there is a high clinical suspicion of GCA immediate high dose GC should be started [ 59 ]. The standard initial GC dose for GCA is between 40 and 60 mg oral prednisolone equivalent per day, depending on the patient characteristics, including pre-existing comorbidities and body weight. Recommendation High dose GC should be started immediately for those with a high index of clinical suspicion for GCA."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "32183689"
+              ],
+              "reason": "EHF recommends a confirmatory investigational test in all suspected GCA and that where CDUS is readily available it should be used to confirm the clinical diagnosis.",
+              "source_passage_ids": [
+                "32183689:p7",
+                "32183689:p8"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32183689",
+                  "quote": "What is the best way to diagnose GCA? > Confirmatory investigational tests Both standard treatment with GC [ 40 ] and indeed licensed targeted treatment [ 41 ] for GCA confers significant risk of morbidity, therefore a confirmatory investigational test should be performed to secure the diagnosis. What is the best way to diagnose GCA? > Confirmatory investigational tests > Recommendation A confirmatory investigational test should be performed where possible in all those with suspected GCA. What is the best way to diagnose GCA? > Imaging – cranial GCA Major advantages of CDUS are that it is non-invasive and can sample the majority of main arterial territories which can be affected such as the common superficial temporal artery, frontal and parietal branches as well as axillary, carotid, subclavian and vertebral arteries [ 45 , 46 ]."
+                },
+                {
+                  "source_id": "32183689",
+                  "quote": "The Temporal Artery Biopsy vs Ultrasound in Diagnosis of Giant Cell Arteritis (TABUL) study, a cross-sectional prospective study of 381 patients investigated for GCA, has given the most comprehensive analysis of use of CDUS in GCA [ 45 ]; with this evidence CDUS has allowed for a significant reduction in the requirement for temporal artery biopsy [ 47 ]. What is the best way to diagnose GCA? > Imaging – cranial GCA > Recommendation Where CDUS is readily available, it should be used to confirm the clinical diagnosis of GCA. What is the best way to diagnose GCA? > Temporal artery biopsy Temporal artery biopsy (TAB) allows for a histological diagnosis, but in some centres may be difficult to access readily and for the patient, it is an invasive procedure. When a TAB is positive it provides justification for treatments used in GCA, however when negative can create diagnostic uncertainty."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is an on-specialty (rheumatology) urgent GCA assessment. Independent analysis of the chart: woman in her 70s with new persistent temporal headache, jaw claudication, scalp tenderness, transient monocular visual obscuration, temporal tenderness with reduced pulse, ESR 108, elevated CRP, platelets 486. This constellation gives very high pretest probability of GCA with impending ocular ischemia. The correct urgent action is immediate high-dose glucocorticoids without waiting for biopsy, emergency ophthalmology referral for the visual symptom, and prompt confirmatory testing (CDUS where available / rapid-access pathway). Answer B captures exactly this and is fully supported by the EHF guideline body_excerpts (immediate high-dose GC for high suspicion, emergency ophthalmology referral for ophthalmic symptoms, CDUS confirmation where readily available, rapid-access pathway). Answer A (elective biopsy, withhold steroids until histology) is dangerous — it risks irreversible sight loss and contradicts the guideline stating high-dose GC should be started immediately; it is the intentionally flawed option working as designed. The key designates B, which is correct and safe. All six claims are established by exact source text: claim 0 by the diagnostic-accuracy LRs in 32804186; claim 1 by the 'no single feature' statement; claim 2 by both the T2T urgency statement and the EHF medical-emergency framing; claims 3-5 by the specific EHF recommendation statements. Independence from the prior RA/DMARD case is clear — different disease, different clinical decision (emergency ischemia management vs csDMARD initiation). The title/question do not disclose the answer or plan; the notes describe findings but do not state the management decision. Sound candidate B does not omit essential care: it includes immediate steroids, emergency ophthalmology, and confirmatory imaging. Minor observations (not blocking): the case does not specify exact glucocorticoid dose, but the guideline gives 40-60 mg prednisolone equivalent and B's 'high-dose glucocorticoid treatment' is appropriately non-specific and safe; tocilizumab sources are peripheral and not decisive here. No missing decisive data — clinical history, exam, and labs suffice to reach the decision point, and the transient visual symptom is the trigger for emergency referral. Case is acceptable for publication."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This presentation has a very high pretest probability of cranial giant cell arteritis: new temporal headache, scalp tenderness, jaw claudication, reduced temporal-artery pulse, transient monocular visual loss, ESR 108 mm/h, elevated CRP, and thrombocytosis. Transient visual obscuration may represent ocular ischemia and signals an immediate risk of irreversible blindness despite a currently normal bedside visual examination. Guidance characterizes suspected GCA as a medical emergency and recommends immediate high-dose glucocorticoids when clinical suspicion is high, emergency ophthalmologic assessment for ophthalmic symptoms, and prompt confirmatory testing through a rapid-access pathway. Temporal-artery duplex ultrasound is appropriate where expertise is readily available; biopsy remains an alternative or complementary test. Treatment should not be withheld pending confirmation, so A creates an unacceptable risk of preventable permanent visual loss. Sources: PMID 32183689, PMID 34235884, PMID 36828585, and PMID 32804186.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "32804186"
+              ],
+              "reason": "The systematic review reports positive likelihood ratios for jaw claudication, loss of temporal-artery pulse, temporal tenderness, platelet count above 400 × 10^3/µL, and ESR above 100 mm/h in patients with suspected GCA.",
+              "source_passage_ids": [
+                "32804186:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32804186",
+                  "quote": "Diagnostic accuracy parameters, including positive and negative likelihood ratios (LRs). In 68 unique studies (14 037 unique patients with suspected GCA; of 7798 patients with sex reported, 5193 were women [66.6%]), findings associated with a diagnosis of GCA included limb claudication (positive LR, 6.01; 95% CI, 1.38-26.16), jaw claudication (positive LR, 4.90; 95% CI, 3.74-6.41), temporal artery thickening (positive LR, 4.70; 95% CI, 2.65-8.33), temporal artery loss of pulse (positive LR, 3.25; 95% CI, 2.49-4.23), platelet count of greater than 400 × 103/μL (positive LR, 3.75; 95% CI, 2.12-6.64), temporal tenderness (positive LR, 3.14; 95% CI, 1.14-8.65), and erythrocyte sedimentation rate greater than 100 mm/h (positive LR, 3.11; 95% CI, 1.43-6.78)."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "32804186"
+              ],
+              "reason": "The review expressly states that no single clinical or laboratory feature was strong enough to confirm or refute GCA by itself.",
+              "source_passage_ids": [
+                "32804186:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32804186",
+                  "quote": "Findings that were associated with absence of GCA included the absence of erythrocyte sedimentation rate of greater than 40 mm/h (negative LR, 0.18; 95% CI, 0.08-0.44), absence of C-reactive protein level of 2.5 mg/dL or more (negative LR, 0.38; 95% CI, 0.25-0.59), and absence of age over 70 years (negative LR, 0.48; 95% CI, 0.27-0.86). This study identifies the clinical and laboratory features that are most informative for a diagnosis of GCA, although no single feature was strong enough to confirm or refute the diagnosis if taken alone. Combinations of these symptoms might help direct further investigation, such as vascular imaging, temporal artery biopsy, or seeking evaluation for alternative diagnoses."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "36828585",
+                "32183689"
+              ],
+              "reason": "The treat-to-target recommendations identify urgent treatment as necessary to avoid ischemic complications, while the EHF guidance describes GCA as a medical emergency because of permanent sight loss and stroke risk.",
+              "source_passage_ids": [
+                "36828585:p1",
+                "32183689:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36828585",
+                  "quote": "Management of GCA and PMR should be based on shared decisions between patient and physician recognising the need for urgent treatment of GCA to avoid ischaemic complications, and it should aim at maximising health-related quality of life in both diseases. The treatment targets are achievement and maintenance of remission, as well as prevention of tissue ischaemia and vascular damage. Comorbidities need to be considered when assessing disease activity and selecting treatment. These are the first T2T recommendations for GCA and PMR. Treatment targets, as well as strategies to assess, achieve and maintain these targets have been defined. The research agenda highlights the gaps in evidence and the need for future research."
+                },
+                {
+                  "source_id": "32183689",
+                  "quote": "The draft recommendations were critically reviewed by a rheumatologist, who became part of the EHF GCA panel. The final document was reviewed and approved by all members of the panel. Where there was not a high level of evidence, the multidisciplinary EHF GCA panel recommended best practice based on their clinical experience and that of other specialty guideline groups. Background Due to the risk of sudden permanent sight loss in between 8 and 30% [ 10 , 11 ], and stroke in between 3 and 10% [ 12 ], GCA is a medical emergency. GCA is classified as a large vessel vasculitis (LVV) as defined by the Chapel Hill Consensus Definitions because it affects the aorta and its major branches; however, any size artery may be affected, such as small ocular and periocular arteries that lead to visual loss [ 2 ]."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "32183689"
+              ],
+              "reason": "The guidance directly recommends immediate high-dose glucocorticoids when clinical suspicion for GCA is high and gives a standard initial oral prednisolone-equivalent range of 40–60 mg/day.",
+              "source_passage_ids": [
+                "32183689:p11"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32183689",
+                  "quote": "What are the benefits of rapid access GCA diagnostic pathways? > Recommendation Where ophthalmic symptoms are present, emergency referral to an ophthalmologist should be sought to confirm the nature of the visual symptoms. What is the treatment of GCA? > What is the immediate treatment for GCA? Where there is a high clinical suspicion of GCA immediate high dose GC should be started [ 59 ]. The standard initial GC dose for GCA is between 40 and 60 mg oral prednisolone equivalent per day, depending on the patient characteristics, including pre-existing comorbidities and body weight. Recommendation High dose GC should be started immediately for those with a high index of clinical suspicion for GCA."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "32183689"
+              ],
+              "reason": "The guidance expressly recommends emergency ophthalmology referral when ophthalmic symptoms are present.",
+              "source_passage_ids": [
+                "32183689:p11"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32183689",
+                  "quote": "What are the benefits of rapid access GCA diagnostic pathways? > Recommendation Where ophthalmic symptoms are present, emergency referral to an ophthalmologist should be sought to confirm the nature of the visual symptoms. What is the treatment of GCA? > What is the immediate treatment for GCA? Where there is a high clinical suspicion of GCA immediate high dose GC should be started [ 59 ]. The standard initial GC dose for GCA is between 40 and 60 mg oral prednisolone equivalent per day, depending on the patient characteristics, including pre-existing comorbidities and body weight. Recommendation High dose GC should be started immediately for those with a high index of clinical suspicion for GCA."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "32183689"
+              ],
+              "reason": "The guidance recommends confirmatory investigation in suspected GCA, supports cranial duplex ultrasound where readily available, and recommends rapid-access specialist referral where available.",
+              "source_passage_ids": [
+                "32183689:p7",
+                "32183689:p8",
+                "32183689:p10"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32183689",
+                  "quote": "What is the best way to diagnose GCA? > Confirmatory investigational tests Both standard treatment with GC [ 40 ] and indeed licensed targeted treatment [ 41 ] for GCA confers significant risk of morbidity, therefore a confirmatory investigational test should be performed to secure the diagnosis. What is the best way to diagnose GCA? > Confirmatory investigational tests > Recommendation A confirmatory investigational test should be performed where possible in all those with suspected GCA. What is the best way to diagnose GCA? > Imaging – cranial GCA Major advantages of CDUS are that it is non-invasive and can sample the majority of main arterial territories which can be affected such as the common superficial temporal artery, frontal and parietal branches as well as axillary, carotid, subclavian and vertebral arteries [ 45 , 46 ]."
+                },
+                {
+                  "source_id": "32183689",
+                  "quote": "The Temporal Artery Biopsy vs Ultrasound in Diagnosis of Giant Cell Arteritis (TABUL) study, a cross-sectional prospective study of 381 patients investigated for GCA, has given the most comprehensive analysis of use of CDUS in GCA [ 45 ]; with this evidence CDUS has allowed for a significant reduction in the requirement for temporal artery biopsy [ 47 ]. What is the best way to diagnose GCA? > Imaging – cranial GCA > Recommendation Where CDUS is readily available, it should be used to confirm the clinical diagnosis of GCA. What is the best way to diagnose GCA? > Temporal artery biopsy Temporal artery biopsy (TAB) allows for a histological diagnosis, but in some centres may be difficult to access readily and for the patient, it is an invasive procedure. When a TAB is positive it provides justification for treatments used in GCA, however when negative can create diagnostic uncertainty."
+                },
+                {
+                  "source_id": "32183689",
+                  "quote": "Some centres have chosen to use TAB when the results of CDUS are either equivocal or not in keeping with the clinical presentation [ 51 ]. What is the best way to diagnose GCA? > Temporal artery biopsy > Recommendation Temporal artery biopsy remains a useful and specific investigation for a definitive diagnosis of GCA. What is the best way to diagnose GCA? > Imaging – large vessel GCA (LV-GCA) > Recommendation Where extra-cranial disease is suspected 18 F-FDG-PET/CT should be performed. What are the benefits of rapid access GCA diagnostic pathways? > Recommendation To reduce diagnostic delay, improve likelihood for securing diagnosis and improve patient outcomes, patients with suspected GCA should be referred to a rapid access specialist GCA service where available."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The presentation has a high pretest probability of cranial giant cell arteritis: new temporal headache, scalp tenderness, jaw claudication, reduced temporal-artery pulse, ESR 108 mm/h, thrombocytosis, and recent transient monocular visual obscuration. Candidate B appropriately separates immediate ischemic-risk treatment from diagnostic confirmation by starting high-dose glucocorticoids immediately, obtaining emergency ophthalmologic assessment, and arranging prompt confirmatory testing. Its ultrasound and rapid-access pathway recommendations are supported where those services are available. Candidate A is intentionally unsafe because a currently normal gross visual examination does not negate the preceding transient monocular symptom, and treatment should not be withheld pending elective biopsy. The decision is distinct from the previous rheumatoid-arthritis case because it concerns emergency prevention of ocular ischemia in suspected GCA rather than initial disease-modifying therapy for RA."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "8b36b8b741dd25c9668c56ee3d03f72194e5091711c86b60d107ff91fea2d9ed"
+  }
+}

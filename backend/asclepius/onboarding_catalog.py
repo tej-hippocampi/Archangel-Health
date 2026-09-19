@@ -24,7 +24,7 @@ CURRICULUM = (
     ("Infectious Disease", "asymptomatic bacteriuria antibiotic stewardship", "Staphylococcus aureus bacteremia diagnostic evaluation"),
     ("Allergy & Immunology", "anaphylaxis first line treatment", "penicillin allergy evaluation and delabeling"),
     ("Neurology", "Guillain Barre syndrome initial treatment", "myasthenia gravis impending crisis assessment"),
-    ("Dermatology", "atopic dermatitis topical treatment", "drug induced Stevens Johnson syndrome recognition and escalation"),
+    ("Dermatology", "atopic dermatitis topical treatment", "acne vulgaris systemic antibiotic stewardship"),
     ("General Surgery", "acute calculous cholecystitis management", "adhesive small bowel obstruction strangulation assessment"),
     ("Neurosurgery", "aneurysmal subarachnoid hemorrhage initial management", "cauda equina syndrome urgent evaluation"),
     ("Orthopedic Surgery", "open fracture initial management", "acute compartment syndrome recognition"),
@@ -60,14 +60,14 @@ assert len(SPECIALTIES) == len(set(SPECIALTIES)) == 43
 # PubMed searches use concise disease terms, not the whole teaching instruction
 # (which would AND words like "supplied" and "assessment" and return no papers).
 _SEARCH_PAIRS = """
-hypertension|low back pain
+hypertension screening|low back pain
 iron deficiency anemia|venous thromboembolism
 bronchiolitis|febrile infant
 delirium|falls older adults
 atrial fibrillation|heart failure reduced ejection fraction
 asthma|COPD exacerbation
 celiac disease|upper gastrointestinal bleeding
-chronic kidney disease|acute kidney injury
+chronic kidney disease albuminuria|acute kidney injury
 hypothyroidism|primary hyperparathyroidism
 rheumatoid arthritis|giant cell arteritis
 immune thrombocytopenia|heparin induced thrombocytopenia
@@ -75,7 +75,7 @@ febrile neutropenia|immune checkpoint inhibitor colitis
 asymptomatic bacteriuria|Staphylococcus aureus bacteremia
 anaphylaxis|penicillin allergy
 Guillain Barre syndrome|myasthenia gravis
-atopic dermatitis|Stevens Johnson syndrome
+atopic dermatitis|acne vulgaris
 acute cholecystitis|adhesive small bowel obstruction
 aneurysmal subarachnoid hemorrhage|cauda equina syndrome
 open fracture|acute compartment syndrome

@@ -1,0 +1,495 @@
+{
+  "task_id": "onboarding-practice-v1-49c4d5f3a0a7242591f8-1",
+  "specialty": "cardiology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Antithrombotic review in atrial fibrillation with chronic coronary disease",
+    "question": "Which long-term antithrombotic strategy is most appropriate for this patient?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "cardiology",
+      "demographics": {
+        "age_band": "70-79",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Persistent atrial fibrillation",
+          "since": "2 years",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Prior transient ischemic attack",
+          "since": "3 years",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Stable coronary artery disease with remote coronary stent",
+          "since": "4 years",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Child-Pugh B cirrhosis",
+          "since": "2 years",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Hypertension",
+          "since": "longstanding",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Aspirin",
+          "dose": null,
+          "route": "oral",
+          "freq": "daily",
+          "collected_offset_days": 0
+        },
+        {
+          "drug": "Carvedilol",
+          "dose": null,
+          "route": "oral",
+          "freq": "twice daily",
+          "collected_offset_days": 0
+        },
+        {
+          "drug": "Atorvastatin",
+          "dose": null,
+          "route": "oral",
+          "freq": "daily",
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "heart_rate_bpm": 76,
+        "blood_pressure_mmHg": "128/74",
+        "oxygen_saturation_percent": 98
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Cardiology follow-up",
+          "author_role": "cardiology",
+          "text": "The patient has persistent atrial fibrillation and a prior transient ischemic attack but has never received long-term oral anticoagulation because of concern about cirrhosis. Hepatology has documented Child-Pugh B disease. She has had no recent gastrointestinal bleeding or other major bleeding. A coronary stent was placed four years ago, with no subsequent acute coronary syndrome, recurrent angina, or revascularization. She remains on aspirin. Renal function has been stable, and there is no mechanical valve or known significant mitral stenosis.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "ECG",
+          "label": "Recent 12-lead electrocardiogram",
+          "findings": "Atrial fibrillation with a controlled ventricular response. No acute ischemic changes.",
+          "measurements": [
+            {
+              "analyte": "Ventricular rate",
+              "loinc": null,
+              "value": 76,
+              "unit": "beats/min",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": true
+            }
+          ],
+          "impression": "Atrial fibrillation with controlled ventricular response.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -5
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional onboarding case; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the antithrombotic decision",
+      "ground_truth": {
+        "answer": "Replace aspirin with standard-dose direct oral anticoagulant monotherapy. Child-Pugh B cirrhosis does not by itself require withholding anticoagulation, and routinely combining aspirin with oral anticoagulation is not supported for her stable, remote coronary disease.",
+        "rationale": "Guidance for adults with Child-Pugh A or B cirrhosis and atrial fibrillation recommends anticoagulation with standard-dose direct oral anticoagulants. In atrial fibrillation with stable coronary disease, randomized-trial meta-analysis found no statistically significant increase in ischemic outcomes with oral anticoagulant monotherapy compared with oral anticoagulation plus single antiplatelet therapy, while monotherapy significantly reduced major bleeding. Her prior transient ischemic attack strengthens the clinical importance of effective stroke prevention, whereas her stent is remote and her coronary disease is clinically stable.",
+        "evidence": {
+          "population": "Adult with atrial fibrillation, Child-Pugh B cirrhosis, and stable coronary artery disease",
+          "comparison": "Oral anticoagulant monotherapy versus oral anticoagulant plus aspirin"
+        },
+        "key_data": [
+          "Persistent atrial fibrillation with a prior transient ischemic attack",
+          "Cirrhosis is documented as Child-Pugh B rather than Child-Pugh C",
+          "Coronary stent was placed four years ago",
+          "No subsequent acute coronary syndrome, angina, or revascularization",
+          "Current therapy is aspirin without oral anticoagulation",
+          "No recent major or gastrointestinal bleeding"
+        ]
+      },
+      "hard_hook": "Cirrhosis and a remote coronary stent may prompt inappropriate avoidance of anticoagulation or unnecessary combination therapy.",
+      "reasoning_divergence": "The sound response prioritizes anticoagulation for atrial-fibrillation stroke prevention and recognizes stable coronary disease as compatible with oral anticoagulant monotherapy."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Replace aspirin with standard-dose direct oral anticoagulant monotherapy. Child-Pugh B cirrhosis permits this approach, and the remote, clinically stable coronary disease does not justify routinely retaining aspirin alongside anticoagulation."
+      },
+      {
+        "id": "B",
+        "text": "Continue aspirin and add a standard-dose direct oral anticoagulant because the prior coronary stent requires indefinite antiplatelet therapy in addition to anticoagulation, even though the coronary disease has remained stable for four years."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "atrial fibrillation",
+      "ischemic stroke",
+      "major bleeding",
+      "cirrhosis",
+      "anticoagulation",
+      "coronary artery disease"
+    ],
+    "evidence_keywords": [
+      "Child-Pugh B",
+      "direct oral anticoagulant",
+      "oral anticoagulant monotherapy",
+      "single antiplatelet therapy",
+      "stable coronary disease",
+      "prior transient ischemic attack"
+    ],
+    "error_tags": [
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "Atrial fibrillation is a clinically significant arrhythmia that increases the risk of stroke.",
+        "source_ids": [
+          "34583808"
+        ]
+      },
+      {
+        "statement": "For adults with Child-Pugh A or B cirrhosis and atrial fibrillation, the guidance recommends anticoagulation with standard-dose direct oral anticoagulants.",
+        "source_ids": [
+          "38823454"
+        ]
+      },
+      {
+        "statement": "In atrial fibrillation with stable coronary disease, oral anticoagulant monotherapy did not significantly increase the pooled primary ischemic effectiveness outcome compared with anticoagulation plus single antiplatelet therapy.",
+        "source_ids": [
+          "39918465"
+        ]
+      },
+      {
+        "statement": "Oral anticoagulant monotherapy reduced major bleeding compared with oral anticoagulation plus single antiplatelet therapy in patients with atrial fibrillation and stable coronary disease.",
+        "source_ids": [
+          "39918465"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:30:50.396810+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "39288159",
+        "title": "Diet and risk of atrial fibrillation: a systematic review.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39288159/",
+        "abstract": "Atrial fibrillation (AF) is the most prevalent sustained cardiac arrhythmia. Comprehensive modification of established AF risk factors combined with dietary interventions and breaking deleterious habits has been shown to reduce AF burden and recurrence. Numerous AF risk factors, such as diabetes, obesity or hypertension can be partially related to dietary and lifestyle choices. Therefore, dietary interventions may have potential as a therapeutic approach in AF. Based on available data, current guidelines recommend alcohol abstinence or reduction to decrease AF symptoms, burden, and progression, and do not indicate the need for caffeine abstention to prevent AF episodes (unless it is a trigger for AF symptoms). Uncertainty persists regarding harms or benefits of other dietary factors including chocolate, fish, salt, polyunsaturated and monounsaturated fatty acids, vitamins, and micronutrients. This article provides a systematic review of the association between AF and both dietary patterns and components. Additionally, it discusses potentially related mechanisms and introduces different strategies to assess patients' nutrition patterns, including mobile health solutions and diet indices. Finally, it highlights the gaps in knowledge requiring future investigation.",
+        "sha256": "fb104757234e1a69f9c0b273fde3c9df18c9bf1d8999d5be3754bd75f720853f",
+        "retrieved_at": "2026-09-18T23:28:54.549106+00:00"
+      },
+      {
+        "id": "37225362",
+        "title": "Procedure-Related Complications of Catheter Ablation for Atrial Fibrillation.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37225362/",
+        "abstract": "Catheter ablation of atrial fibrillation (AF) is a commonly performed procedure. However, it is associated with potentially significant complications. Reported procedure-related complication rates are highly variable, depending in part on study design.\nThe purpose of this systematic review and pooled analysis was to determine the rate of procedure-related complications associated with catheter ablation of AF using data from randomized control trials and to assess temporal trends.\nMEDLINE and EMBASE databases were searched from January 2013 to September 2022 for randomized control trials that included patients undergoing a first ablation procedure of AF using either radiofrequency or cryoballoon (PROSPERO, CRD42022370273).\nA total of 1,468 references were retrieved, of which 89 studies met inclusion criteria. A total of 15,701 patients were included in the current analysis. Overall and severe procedure-related complication rates were 4.51% (95% CI: 3.76%-5.32%) and 2.44% (95% CI: 1.98%-2.93%), respectively. Vascular complications were the most frequent type of complication (1.31%). The next most common complications were pericardial effusion/tamponade (0.78%) and stroke/transient ischemic attack (0.17%). The procedure-related complication rate during the most recent 5-year period of publication was significantly lower than during the earlier 5-year period (3.77% vs 5.31%; P = 0.043). The pooled mortality rate was stable over the 2 time periods (0.06% vs 0.05%; P = 0.892). There was no significant difference in complication rate according to pattern of AF, ablation modality, or ablation strategies beyond pulmonary vein isolation.\nProcedure-related complications and mortality rates associated with catheter ablation of AF are low and have declined in the past decade.",
+        "sha256": "3358a1a4a7e3b5b82f26d46a436609bc0eae62244b3fbbdb9073577d033c43cd",
+        "retrieved_at": "2026-09-18T23:28:54.549106+00:00"
+      },
+      {
+        "id": "38727662",
+        "title": "Rhythm vs Rate Control Strategy for Atrial Fibrillation: A Meta-Analysis of Randomized Controlled Trials.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38727662/",
+        "abstract": "Rhythm control, either with antiarrhythmic drugs or catheter ablation, and rate control strategies are the cornerstones of atrial fibrillation (AF) management. Despite the increasing role of rhythm control over the past few years, it remains inconclusive which strategy is superior in improving clinical outcomes.\nThis study summarizes the total and time-varying evidence regarding the efficacy of rhythm- vs rate-control strategies in the management of AF.\nWe systematically perused the MEDLINE, CENTRAL (Cochrane Central Register of Controlled Trials), and Web of Science databases for randomized controlled trials from inception to November 2023. We included studies that compared the efficacy of rhythm control (ie, antiarrhythmic drugs classes Ia, Ic, or III, AF catheter ablation, and electrical cardioversion) and rate control (ie, beta-blocker, digitalis, or calcium antagonist) strategies among patients with nonvalvular AF. The primary outcome was cardiovascular (CV) death, whereas secondary outcomes included all-cause death, stroke, hospitalization for heart failure (HF), sinus rhythm at the end of the follow-up, and rhythm control-related adverse events. A cumulative meta-analysis to assess temporal trends and a meta-regression analysis using the percentage of ablation use was performed.\nWe identified 18 studies with a total of 17,536 patients (mean age: 68.6 ± 9.7 years, 37.9% females) and a mean follow-up of 28.5 months. Of those, 31.9% had paroxysmal AF. A rhythm control strategy reduced CV death (HR: 0.78; 95% CI: 0.62-0.96), stroke (HR: 0.801; 95% CI: 0.643-0.998), and hospitalization for HF (HR: 0.80; 95% CI: 0.69-0.94) but not all-cause death (HR: 0.86; 95% CI: 0.73-1.02) compared with a rate control strategy. This benefit was driven by contemporary studies, whereas more ablation use within the rhythm control arm was associated with improved outcomes, except stroke.\nIn patients with AF, a contemporary rhythm control strategy leads to reduced CV mortality, HF events, and stroke compared with a rate control strategy.",
+        "sha256": "a17c9dc1191936989834a2648ff4a5eefa4cf6b2d9874d23a61b72ac0ce3f597",
+        "retrieved_at": "2026-09-18T23:28:54.549106+00:00"
+      },
+      {
+        "id": "33952399",
+        "title": "Atrial fibrillation after cardiac surgery: A systematic review and meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33952399/",
+        "abstract": "New-onset postoperative atrial fibrillation (POAF) after cardiac surgery is common, with rates up to 60%. POAF has been associated with early and late stroke, but its association with other cardiovascular outcomes is less known. The objective was to perform a meta-analysis of the studies reporting the association of POAF with perioperative and long-term outcomes in patients with cardiac surgery.\nWe performed a systematic review and a meta-analysis of studies that presented outcomes for cardiac surgery on the basis of the presence or absence of POAF. MEDLINE, EMBASE, and the Cochrane Library were assessed; 57 studies (246,340 patients) were selected. Perioperative mortality was the primary outcome. Inverse variance method and random model were performed. Leave-one-out analysis, subgroup analyses, and metaregression were conducted.\nPOAF was associated with perioperative mortality (odds ratio [OR], 1.92; 95% confidence interval [CI], 1.58-2.33), perioperative stroke (OR, 2.17; 95% CI, 1.90-2.49), perioperative myocardial infarction (OR, 1.28; 95% CI, 1.06-1.54), perioperative acute renal failure (OR, 2.74; 95% CI, 2.42-3.11), hospital (standardized mean difference, 0.80; 95% CI, 0.53-1.07) and intensive care unit stay (standardized mean difference, 0.55; 95% CI, 0.24-0.86), long-term mortality (incidence rate ratio [IRR], 1.54; 95% CI, 1.40-1.69), long-term stroke (IRR, 1.33; 95% CI, 1.21-1.46), and longstanding persistent atrial fibrillation (IRR, 4.73; 95% CI, 3.36-6.66).\nThe results suggest that POAF after cardiac surgery is associated with an increased occurrence of most short- and long-term cardiovascular adverse events. However, the causality of this association remains to be established.",
+        "sha256": "9c909bd8527c65b471eec7f637ab1dcc345022e6caebef1a6110e269754bd9b0",
+        "retrieved_at": "2026-09-18T23:28:55.105971+00:00"
+      },
+      {
+        "id": "38823454",
+        "title": "Anticoagulation for stroke prevention in atrial fibrillation and treatment of venous thromboembolism and portal vein thrombosis in cirrhosis: guidance from the SSC of the ISTH.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38823454/",
+        "abstract": "While advanced liver disease was previously considered to be an acquired bleeding disorder, there is increasing recognition of an associated prothrombotic state with patients being at higher risk of atrial fibrillation (AF) and stroke and venous thromboembolism (VTE) including portal vein thrombosis (PVT). We review the available literature on epidemiology, pathophysiology, and risk factors and provide guidance on anticoagulant management of these conditions in adults with cirrhosis. In patients with Child-Pugh A or B cirrhosis and AF, we recommend anticoagulation with standard-dose direct oral anticoagulants (DOACs) in accordance with cardiology guideline recommendations for patients without liver disease. In those with Child-Pugh C cirrhosis, there is inadequate evidence with respect to the benefit and risk of anticoagulation for stroke prevention in AF. In patients with cirrhosis and acute deep vein thrombosis or pulmonary embolism, we recommend anticoagulation and suggest use of either a DOAC or low-molecular-weight heparin (LMWH)/vitamin K antagonist (VKA) in Child-Pugh A or B cirrhosis and LMWH alone (or as a bridge to VKA in patients with a normal baseline international normalized ratio) in Child-Pugh C cirrhosis. We recommend anticoagulation for patients with cirrhosis and symptomatic PVT. We suggest anticoagulation for those with asymptomatic, progressing PVT and recommend continuing extended anticoagulation for liver transplant candidates with PVT.",
+        "sha256": "1b889af10ad4e6896aef17a06b5a714fe69ee42a17c8bcde5a06b168beb49588",
+        "retrieved_at": "2026-09-18T23:28:55.105971+00:00"
+      },
+      {
+        "id": "34583808",
+        "title": "Prevention and Treatment of Atrial Fibrillation via Risk Factor Modification.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34583808/",
+        "abstract": "Atrial fibrillation (AF) is the most common clinically significant arrhythmia, and it increases stroke risk. A preventive approach to AF is needed because virtually all treatments such as cardioversion, antiarrhythmic drugs, ablation, and anticoagulation are associated with high cost and carry significant risk. A systematic review was performed to identify effective lifestyle-based strategies for reducing primary and secondary AF. A PubMed search was performed using articles up to March 1, 2021. Search terms included atrial fibrillation, atrial flutter, exercise, diet, metabolic syndrome, type 2 diabetes mellitus, obesity, hypertension, stress, tobacco smoking, alcohol, Mediterranean diet, sodium, and omega-3 fatty acids. Additional articles were identified from the bibliographies of retrieved articles. The control of hypertension, ideally with a renin-angiotensin-aldosterone system inhibitor, is effective for preventing primary AF and recurrence. Obstructive sleep apnea is a common cause of AF, and treating it effectively reduces AF episodes. Alcohol increases the risk of AF in a dose-dependent manner, and abstinence reduces risk of recurrence. Sedentary behavior and chronic high-intensity endurance exercise are both risk factors for AF; however, moderate physical activity is associated with lower risk of AF. Recently, sodium-glucose cotransporter-2 inhibitors and glucagon-like peptide-1 agonists have been associated with reduced risk of AF. Among overweight/obese patients, weight loss of ≥10% is associated with reduced AF risk. Lifestyle changes and risk factor modification are highly effective for preventing AF.",
+        "sha256": "9421d21f37e6f05f36355840a2f6e1897e5a70a1dcd6b3e9b86a98ad8e5a16ed",
+        "retrieved_at": "2026-09-18T23:28:55.105971+00:00"
+      },
+      {
+        "id": "39918465",
+        "title": "Anticoagulation and Antiplatelet Therapy for Atrial Fibrillation and Stable Coronary Disease: Meta-Analysis of Randomized Trials.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39918465/",
+        "abstract": "The optimal long-term antithrombotic strategy in patients with atrial fibrillation (AF) and stable coronary artery disease (CAD) remains uncertain. Individual randomized controlled trials (RCTs) had variations in their reported results and were not powered for effectiveness outcomes.\nThis study aimed to pool the results of RCTs comparing the effectiveness and safety of oral anticoagulation (OAC) monotherapy vs OAC plus single antiplatelet therapy (SAPT) in patients with AF and stable CAD.\nWe systematically searched PubMed, Embase, and ClinicalTrials.gov until September 09, 2024. The primary effectiveness outcome was a composite of myocardial infarction, ischemic stroke, systemic embolism, or death. The primary safety outcome was major bleeding. We obtained unpublished results from principal investigators of the included RCTs, as needed, to calculate pooled HRs and 95% CIs and to perform prespecified subgroup analyses.\nAmong 690 screened records, 4 RCTs with 4,092 randomized patients were included (2 using edoxaban, 1 using rivaroxaban, and 1 using any oral anticoagulant; mean age 73.9 years, 20.1% women). The median follow-up durations ranged from 12 to 30 months (overall estimated weighted mean follow-up of 21.9 months). There were no statistically significant differences between OAC monotherapy vs OAC plus SAPT in the primary effectiveness outcome (7.3% vs 8.2%; HR: 0.90; 95% CI: 0.72-1.12), myocardial infarction (1.0% vs 0.7%; HR: 1.51; 95% CI: 0.75-3.04), ischemic stroke (1.9% vs 2.1%; HR: 0.89; 95% CI: 0.57-1.37), all-cause death (4.2% vs 5.3%; HR: 0.94; 95% CI: 0.49-1.80), or cardiovascular death (2.4% vs 3.0%; HR: 0.79; 95% CI: 0.54-1.15). OAC monotherapy was associated with a lower risk of major bleeding than OAC plus SAPT (3.3% vs 5.7%; HR: 0.59; 95% CI: 0.44-0.79). Subgroup analyses did not show significant interactions for effectiveness but suggested that the magnitude of bleeding reduction may be greater among men (Pinteraction = 0.03) and among patients with diabetes mellitus (Pinteraction = 0.04).\nIn patients with AF and stable CAD, OAC monotherapy, compared with OAC plus SAPT, was not associated with a statistically significant increased risk of ischemic events but resulted in a significantly reduced risk of bleeding.",
+        "sha256": "7dfa77f23ebd6906b8153d9082f54b4a23738748ba77fae604aac76ab9dd7434",
+        "retrieved_at": "2026-09-18T23:28:55.672511+00:00"
+      },
+      {
+        "id": "34162502",
+        "title": "Intravenous magnesium in the management of rapid atrial fibrillation: A systematic review and meta-analysis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34162502/",
+        "abstract": "The aim of this meta-analysis is to investigate the effectiveness of intravenous magnesium (IV Mg2+) in rate and rhythm control of rapid atrial fibrillation (AF) when administered in addition to standard-of-care for non-post-operative patients. Previous meta-analyses on this topic have demonstrated the efficacy of IV Mg2+ in achieving rate control, but not rhythm control.\nSix randomized controlled trials comparing IV Mg2+ to placebo in the treatment of rapid AF were obtained from electronic databases totaling 745 patients. Outcomes were analyzed using a Mantel-Haenszel random-effects model and expressed as odds ratios (OR) for dichotomous outcomes with their 95% confidence intervals (CIs).\nOur pooled analysis showed that IV Mg2+ given in addition to standard-of-care was superior in achieving rate control (63% vs 40%; OR 2.49, 95% CI 1.80-3.45) and rhythm conversion to sinus (21% vs. 14%, OR 1.75, 95% CI 1.08-2.84) compared to standard-of-care alone. Flushing was more frequently observed in patients receiving IV Mg2+ compared to placebo (9% vs. 0.4%, OR 19.79, 95% CI 4.30-91.21). Subgroup analysis showed the superiority of a lower dose of IV Mg2+, which we designated as 5 g or lower (24% vs 13%, OR 2.10, 95% CI 1.22-3.61) compared to the higher dose (>5 g) (16% vs 13%, OR 1.23, 95% CI 0.65-2.32) in rhythm control when compared to placebo.\nIV Mg2+ administered in conjunction with standard-of-care is effective for rate control and modestly effective for restoration of sinus rhythm in rapid AF without clinically significant adverse effects.",
+        "sha256": "0342c8fc564e4e85ab789099cb0b865bc6146a5b9163aadeb1e89f849f72563c",
+        "retrieved_at": "2026-09-18T23:28:55.672511+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "Two retrieved sources directly support DOAC monotherapy for this patient. (1) The ISTH SSC guidance (PMID 38823454) states that in Child-Pugh A or B cirrhosis with AF, standard-dose DOACs are recommended per usual cardiology guidelines; this patient has Child-Pugh B disease and a strong stroke-prevention indication (persistent AF, prior TIA, hypertension, age/sex—high CHA2DS2-VASc), yet has never been anticoagulated. (2) The meta-analysis of AF with stable CAD (PMID 39918465) shows OAC monotherapy versus OAC plus single antiplatelet therapy had no significant difference in ischemic/effectiveness outcomes but significantly less major bleeding (HR 0.59). Her coronary stent is remote (4 years) with no ACS or revascularization, so she qualifies as stable CAD and does not require indefinite added aspirin. Answer B contradicts this evidence by retaining aspirin unnecessarily, increasing bleeding risk—especially concerning in cirrhosis. Answer A correctly stops aspirin and starts standard-dose DOAC monotherapy.",
+          "confidence": 0.9
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34583808"
+              ],
+              "reason": "Source directly states AF is the most common clinically significant arrhythmia and increases stroke risk.",
+              "source_quotes": [
+                {
+                  "source_id": "34583808",
+                  "quote": "Atrial fibrillation (AF) is the most common clinically significant arrhythmia, and it increases stroke risk. A preventive approach to AF is needed because virtually all treatments such as cardioversion, antiarrhythmic drugs, ablation, and anticoagulation are associated with high cost and carry significant risk. A systematic review was performed to identify effective lifestyle-based strategies for reducing primary and secondary AF. A PubMed search was performed using articles up to March 1, 2021. Search terms included atrial fibrillation, atrial flutter, exercise, diet, metabolic syndrome, type 2 diabetes mellitus, obesity, hypertension, stress, tobacco smoking, alcohol, Mediterranean diet, sodium, and omega-3 fatty acids. Additional articles were identified from the bibliographies of retrieved articles."
+                }
+              ],
+              "source_passage_ids": [
+                "34583808:p0"
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38823454"
+              ],
+              "reason": "The ISTH SSC guidance explicitly recommends standard-dose DOACs for Child-Pugh A or B cirrhosis and AF.",
+              "source_quotes": [
+                {
+                  "source_id": "38823454",
+                  "quote": "While advanced liver disease was previously considered to be an acquired bleeding disorder, there is increasing recognition of an associated prothrombotic state with patients being at higher risk of atrial fibrillation (AF) and stroke and venous thromboembolism (VTE) including portal vein thrombosis (PVT). We review the available literature on epidemiology, pathophysiology, and risk factors and provide guidance on anticoagulant management of these conditions in adults with cirrhosis. In patients with Child-Pugh A or B cirrhosis and AF, we recommend anticoagulation with standard-dose direct oral anticoagulants (DOACs) in accordance with cardiology guideline recommendations for patients without liver disease. In those with Child-Pugh C cirrhosis, there is inadequate evidence with respect to the benefit and risk of anticoagulation for stroke prevention in AF."
+                }
+              ],
+              "source_passage_ids": [
+                "38823454:p0"
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "39918465"
+              ],
+              "reason": "Meta-analysis found no statistically significant difference in the primary effectiveness composite between OAC monotherapy and OAC+SAPT.",
+              "source_quotes": [
+                {
+                  "source_id": "39918465",
+                  "quote": "There were no statistically significant differences between OAC monotherapy vs OAC plus SAPT in the primary effectiveness outcome (7.3% vs 8.2%; HR: 0.90; 95% CI: 0.72-1.12), myocardial infarction (1.0% vs 0.7%; HR: 1.51; 95% CI: 0.75-3.04), ischemic stroke (1.9% vs 2.1%; HR: 0.89; 95% CI: 0.57-1.37), all-cause death (4.2% vs 5.3%; HR: 0.94; 95% CI: 0.49-1.80), or cardiovascular death (2.4% vs 3.0%; HR: 0.79; 95% CI: 0.54-1.15). OAC monotherapy was associated with a lower risk of major bleeding than OAC plus SAPT (3.3% vs 5.7%; HR: 0.59; 95% CI: 0.44-0.79). Subgroup analyses did not show significant interactions for effectiveness but suggested that the magnitude of bleeding reduction may be greater among men (Pinteraction = 0.03) and among patients with diabetes mellitus (Pinteraction = 0.04)."
+                },
+                {
+                  "source_id": "39918465",
+                  "quote": "In patients with AF and stable CAD, OAC monotherapy, compared with OAC plus SAPT, was not associated with a statistically significant increased risk of ischemic events but resulted in a significantly reduced risk of bleeding."
+                }
+              ],
+              "source_passage_ids": [
+                "39918465:p2",
+                "39918465:p3"
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "39918465"
+              ],
+              "reason": "Meta-analysis found OAC monotherapy associated with significantly lower major bleeding.",
+              "source_quotes": [
+                {
+                  "source_id": "39918465",
+                  "quote": "There were no statistically significant differences between OAC monotherapy vs OAC plus SAPT in the primary effectiveness outcome (7.3% vs 8.2%; HR: 0.90; 95% CI: 0.72-1.12), myocardial infarction (1.0% vs 0.7%; HR: 1.51; 95% CI: 0.75-3.04), ischemic stroke (1.9% vs 2.1%; HR: 0.89; 95% CI: 0.57-1.37), all-cause death (4.2% vs 5.3%; HR: 0.94; 95% CI: 0.49-1.80), or cardiovascular death (2.4% vs 3.0%; HR: 0.79; 95% CI: 0.54-1.15). OAC monotherapy was associated with a lower risk of major bleeding than OAC plus SAPT (3.3% vs 5.7%; HR: 0.59; 95% CI: 0.44-0.79). Subgroup analyses did not show significant interactions for effectiveness but suggested that the magnitude of bleeding reduction may be greater among men (Pinteraction = 0.03) and among patients with diabetes mellitus (Pinteraction = 0.04)."
+                },
+                {
+                  "source_id": "39918465",
+                  "quote": "In patients with AF and stable CAD, OAC monotherapy, compared with OAC plus SAPT, was not associated with a statistically significant increased risk of ischemic events but resulted in a significantly reduced risk of bleeding."
+                }
+              ],
+              "source_passage_ids": [
+                "39918465:p2",
+                "39918465:p3"
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is on-specialty (cardiology, AF stroke prevention). The patient has persistent AF, prior TIA (strong stroke-prevention indication), remote/stable coronary stent (4 years, no ACS/angina/revascularization), and Child-Pugh B cirrhosis but no recent bleeding. Candidate A (replace aspirin with standard-dose DOAC monotherapy) is directly supported: source 38823454 recommends standard-dose DOACs for Child-Pugh A/B cirrhosis with AF, and source 39918465 shows OAC monotherapy in AF with stable CAD gives no significant increase in ischemic events and significantly less major bleeding versus OAC+SAPT. Candidate B (continue aspirin + add DOAC indefinitely, claiming stents require lifelong antiplatelet with anticoagulation) is the intended flawed option—it is contradicted by 39918465 (no ischemic benefit, more bleeding) and is unsafe in a cirrhotic patient at heightened bleeding risk. The two candidates present a genuinely distinct clinical decision (monotherapy vs combination), and A is clearly the sound and safe choice. Chart data (Child-Pugh B, remote stable stent, no recent bleeding, no mechanical valve/mitral stenosis) are consistent with the key. The visible note and title do not disclose the intended answer. Decision differs from prior cases (this is antithrombotic strategy choice, distinct from the prior ICH-timing case). Minor observation: age band and 20.1% women population in 39918465 (mean 73.9y) aligns reasonably with this 70-79 female. All four claims are evidence-supported. No blocking defects identified."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "She has a strong indication for long-term anticoagulation because of persistent atrial fibrillation and prior TIA. The ISTH guidance specifically recommends standard-dose DOAC therapy for atrial fibrillation in Child-Pugh A or B cirrhosis. Her coronary stent was placed four years ago and the CAD has remained clinically stable; randomized-trial meta-analysis shows that oral-anticoagulant monotherapy in AF with stable CAD reduces major bleeding compared with anticoagulant plus single antiplatelet therapy, without a significant increase in ischemic events. Therefore, aspirin should generally be discontinued and a standard-dose DOAC used alone, subject to agent-specific hepatic contraindications, drug interactions, and clinical assessment.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.96,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34583808"
+              ],
+              "reason": "The cited review directly characterizes atrial fibrillation as a clinically significant arrhythmia and states that it increases stroke risk.",
+              "source_passage_ids": [
+                "34583808:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34583808",
+                  "quote": "Atrial fibrillation (AF) is the most common clinically significant arrhythmia, and it increases stroke risk. A preventive approach to AF is needed because virtually all treatments such as cardioversion, antiarrhythmic drugs, ablation, and anticoagulation are associated with high cost and carry significant risk. A systematic review was performed to identify effective lifestyle-based strategies for reducing primary and secondary AF. A PubMed search was performed using articles up to March 1, 2021. Search terms included atrial fibrillation, atrial flutter, exercise, diet, metabolic syndrome, type 2 diabetes mellitus, obesity, hypertension, stress, tobacco smoking, alcohol, Mediterranean diet, sodium, and omega-3 fatty acids. Additional articles were identified from the bibliographies of retrieved articles."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38823454"
+              ],
+              "reason": "The guidance explicitly recommends anticoagulation with standard-dose DOACs for adults with atrial fibrillation and Child-Pugh A or B cirrhosis.",
+              "source_passage_ids": [
+                "38823454:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38823454",
+                  "quote": "While advanced liver disease was previously considered to be an acquired bleeding disorder, there is increasing recognition of an associated prothrombotic state with patients being at higher risk of atrial fibrillation (AF) and stroke and venous thromboembolism (VTE) including portal vein thrombosis (PVT). We review the available literature on epidemiology, pathophysiology, and risk factors and provide guidance on anticoagulant management of these conditions in adults with cirrhosis. In patients with Child-Pugh A or B cirrhosis and AF, we recommend anticoagulation with standard-dose direct oral anticoagulants (DOACs) in accordance with cardiology guideline recommendations for patients without liver disease. In those with Child-Pugh C cirrhosis, there is inadequate evidence with respect to the benefit and risk of anticoagulation for stroke prevention in AF."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "39918465"
+              ],
+              "reason": "The randomized-trial meta-analysis directly compared OAC monotherapy with OAC plus single antiplatelet therapy in stable coronary disease and found no statistically significant difference in its composite ischemic effectiveness outcome.",
+              "source_passage_ids": [
+                "39918465:p0",
+                "39918465:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39918465",
+                  "quote": "The optimal long-term antithrombotic strategy in patients with atrial fibrillation (AF) and stable coronary artery disease (CAD) remains uncertain. Individual randomized controlled trials (RCTs) had variations in their reported results and were not powered for effectiveness outcomes. This study aimed to pool the results of RCTs comparing the effectiveness and safety of oral anticoagulation (OAC) monotherapy vs OAC plus single antiplatelet therapy (SAPT) in patients with AF and stable CAD. We systematically searched PubMed, Embase, and ClinicalTrials.gov until September 09, 2024. The primary effectiveness outcome was a composite of myocardial infarction, ischemic stroke, systemic embolism, or death. The primary safety outcome was major bleeding."
+                },
+                {
+                  "source_id": "39918465",
+                  "quote": "There were no statistically significant differences between OAC monotherapy vs OAC plus SAPT in the primary effectiveness outcome (7.3% vs 8.2%; HR: 0.90; 95% CI: 0.72-1.12), myocardial infarction (1.0% vs 0.7%; HR: 1.51; 95% CI: 0.75-3.04), ischemic stroke (1.9% vs 2.1%; HR: 0.89; 95% CI: 0.57-1.37), all-cause death (4.2% vs 5.3%; HR: 0.94; 95% CI: 0.49-1.80), or cardiovascular death (2.4% vs 3.0%; HR: 0.79; 95% CI: 0.54-1.15). OAC monotherapy was associated with a lower risk of major bleeding than OAC plus SAPT (3.3% vs 5.7%; HR: 0.59; 95% CI: 0.44-0.79). Subgroup analyses did not show significant interactions for effectiveness but suggested that the magnitude of bleeding reduction may be greater among men (Pinteraction = 0.03) and among patients with diabetes mellitus (Pinteraction = 0.04)."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "39918465"
+              ],
+              "reason": "The same meta-analysis found significantly less major bleeding with OAC monotherapy than with OAC plus single antiplatelet therapy.",
+              "source_passage_ids": [
+                "39918465:p0",
+                "39918465:p2",
+                "39918465:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39918465",
+                  "quote": "The optimal long-term antithrombotic strategy in patients with atrial fibrillation (AF) and stable coronary artery disease (CAD) remains uncertain. Individual randomized controlled trials (RCTs) had variations in their reported results and were not powered for effectiveness outcomes. This study aimed to pool the results of RCTs comparing the effectiveness and safety of oral anticoagulation (OAC) monotherapy vs OAC plus single antiplatelet therapy (SAPT) in patients with AF and stable CAD. We systematically searched PubMed, Embase, and ClinicalTrials.gov until September 09, 2024. The primary effectiveness outcome was a composite of myocardial infarction, ischemic stroke, systemic embolism, or death. The primary safety outcome was major bleeding."
+                },
+                {
+                  "source_id": "39918465",
+                  "quote": "There were no statistically significant differences between OAC monotherapy vs OAC plus SAPT in the primary effectiveness outcome (7.3% vs 8.2%; HR: 0.90; 95% CI: 0.72-1.12), myocardial infarction (1.0% vs 0.7%; HR: 1.51; 95% CI: 0.75-3.04), ischemic stroke (1.9% vs 2.1%; HR: 0.89; 95% CI: 0.57-1.37), all-cause death (4.2% vs 5.3%; HR: 0.94; 95% CI: 0.49-1.80), or cardiovascular death (2.4% vs 3.0%; HR: 0.79; 95% CI: 0.54-1.15). OAC monotherapy was associated with a lower risk of major bleeding than OAC plus SAPT (3.3% vs 5.7%; HR: 0.59; 95% CI: 0.44-0.79). Subgroup analyses did not show significant interactions for effectiveness but suggested that the magnitude of bleeding reduction may be greater among men (Pinteraction = 0.03) and among patients with diabetes mellitus (Pinteraction = 0.04)."
+                },
+                {
+                  "source_id": "39918465",
+                  "quote": "In patients with AF and stable CAD, OAC monotherapy, compared with OAC plus SAPT, was not associated with a statistically significant increased risk of ischemic events but resulted in a significantly reduced risk of bleeding."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Answer A and the key match the supplied evidence. The patient has persistent atrial fibrillation with a prior TIA and no mechanical valve or significant mitral stenosis. The cirrhosis guidance expressly supports standard-dose DOAC anticoagulation in Child-Pugh B disease. Her coronary stent is four years old and the chart documents no subsequent acute coronary syndrome, angina, or revascularization, making the stable-CAD evidence applicable. The randomized-trial meta-analysis supports OAC monotherapy over routine addition of aspirin because ischemic outcomes were not significantly worse and major bleeding was reduced. Answer B incorrectly treats a remote stent as requiring indefinite aspirin despite stable disease. The question asks for the long-term antithrombotic strategy rather than a product-specific prescription; selection of the individual DOAC would still require routine verification of current renal function, hepatic labeling, interactions, and dose-reduction criteria. The decision is distinct from the prior acute-lobar-ICH case, where immediate anticoagulation was deferred because of a recent intracranial bleed."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "e6cd78530fc294a94b89bb625c2630d617db0e7cf377631d1c74a62253c36eef"
+  }
+}

@@ -1,0 +1,563 @@
+{
+  "task_id": "onboarding-practice-v1-33ab997763c8ffce91de-1",
+  "specialty": "endocrinology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Persistent thyroid test abnormalities in an adult with mild symptoms",
+    "question": "How should the repeated laboratory pattern be classified, and what management is appropriate at this stage?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "endocrinology",
+      "demographics": {
+        "age_band": "40-49",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Mild persistent fatigue",
+          "since": "Several months",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Intermittent low mood without severe depressive symptoms",
+          "since": "Several months",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [
+        {
+          "panel": "Thyroid function tests",
+          "collected_offset_days": -42,
+          "results": [
+            {
+              "analyte": "Thyroid-stimulating hormone",
+              "loinc": null,
+              "value": 7.1,
+              "unit": "mIU/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Free thyroxine",
+              "loinc": null,
+              "value": "within laboratory reference interval",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Repeat thyroid function tests",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Thyroid-stimulating hormone",
+              "loinc": null,
+              "value": 6.8,
+              "unit": "mIU/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Free thyroxine",
+              "loinc": null,
+              "value": "within laboratory reference interval",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Endocrinology consultation",
+          "author_role": "endocrinology",
+          "text": "An adult woman was referred after two thyroid panels obtained six weeks apart showed thyroid-stimulating hormone above the reporting laboratory's reference interval while free thyroxine remained within range. She describes mild fatigue and intermittent low mood but continues usual work and daily activities. She has no severe symptoms, is not pregnant or trying to conceive, and has no history of thyroid hormone use. Examination shows normal mentation and no acute illness.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "introductory",
+      "required_modalities": [
+        "clinical_note",
+        "laboratory"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "Repeated elevation of TSH with free T4 remaining within the laboratory reference interval meets the supplied definition of subclinical hypothyroidism rather than overt hypothyroidism. For an adult without pregnancy intentions, TSH above 20 mIU/L, severe symptoms, or very young age, the cited guideline recommends against initiating thyroid hormone because trials found no clinically relevant improvement in thyroid-related symptoms, fatigue, depressive symptoms, quality of life, or body mass index. Thyroid function should instead be monitored for progression or resolution. Mild low mood does not establish overt disease, and the reported association between depression and hypothyroidism is modest and stronger for overt than subclinical disease.",
+        "evidence": null,
+        "key_data": [
+          "TSH is elevated on two measurements obtained six weeks apart.",
+          "Free thyroxine remains within the laboratory reference interval on both measurements.",
+          "The patient is an adult older than 30 years with only mild symptoms.",
+          "She is neither pregnant nor trying to conceive, and her TSH is below 20 mIU/L.",
+          "She has not previously received thyroid hormone therapy."
+        ]
+      },
+      "hard_hook": "Distinguishing subclinical from overt hypothyroidism despite nonspecific symptoms",
+      "reasoning_divergence": "One response classifies disease from the TSH and free T4 pattern; the other overweights symptoms and initiates treatment for overt disease."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Classify this as subclinical hypothyroidism because TSH is repeatedly elevated while free T4 remains normal. Do not initiate thyroid hormone now; arrange monitoring of thyroid function for progression or resolution."
+      },
+      {
+        "id": "B",
+        "text": "Classify this as overt primary hypothyroidism because the repeated TSH elevation and fatigue indicate clinically significant hormone deficiency. Begin levothyroxine monotherapy now to address the thyroid abnormality and mood symptoms."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "subclinical hypothyroidism",
+      "overt hypothyroidism",
+      "levothyroxine",
+      "thyrotropin",
+      "free thyroxine"
+    ],
+    "evidence_keywords": [
+      "elevated TSH",
+      "normal free T4",
+      "thyroid hormone treatment",
+      "laboratory monitoring",
+      "depressive symptoms"
+    ],
+    "error_tags": [
+      "wrong_diagnosis",
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "Elevated TSH with normal free T4 is the laboratory definition of subclinical hypothyroidism.",
+        "source_ids": [
+          "31088853"
+        ]
+      },
+      {
+        "statement": "The guideline strongly recommends against thyroid hormone treatment for almost all adults with subclinical hypothyroidism.",
+        "source_ids": [
+          "31088853"
+        ]
+      },
+      {
+        "statement": "Adults with untreated subclinical hypothyroidism should be monitored for progression or resolution of thyroid dysfunction.",
+        "source_ids": [
+          "31088853"
+        ]
+      },
+      {
+        "statement": "Trials found no clinically relevant thyroid-hormone benefit for fatigue, depressive symptoms, or thyroid-related quality of life in adults with subclinical hypothyroidism.",
+        "source_ids": [
+          "31088853"
+        ]
+      },
+      {
+        "statement": "The association with clinical depression is modest and is stronger for overt hypothyroidism than for subclinical hypothyroidism.",
+        "source_ids": [
+          "34524390"
+        ]
+      },
+      {
+        "statement": "Levothyroxine monotherapy is a mainstay treatment for hypothyroidism, but that fact does not establish an indication in this subclinical presentation.",
+        "source_ids": [
+          "40622204",
+          "31088853"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:34:43.237503+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "33272083",
+        "title": "Congenital Hypothyroidism: A 2020-2021 Consensus Guidelines Update-An ENDO-European Reference Network Initiative Endorsed by the European Society for Pediatric Endocrinology and the European Society for Endocrinology.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33272083/",
+        "abstract": "Background: An ENDO-European Reference Network (ERN) initiative was launched that was endorsed by the European Society for Pediatric Endocrinology and the European Society for Endocrinology with 22 participants from the ENDO-ERN and the two societies. The aim was to update the practice guidelines for the diagnosis and management of congenital hypothyroidism (CH). A systematic literature search was conducted to identify key articles on neonatal screening, diagnosis, and management of primary and central CH. The evidence-based guidelines were graded with the Grading of Recommendations, Assessment, Development and Evaluation system, describing both the strength of recommendations and the quality of evidence. In the absence of sufficient evidence, conclusions were based on expert opinion. Summary: The recommendations include the various neonatal screening approaches for CH as well as the etiology (also genetics), diagnostics, treatment, and prognosis of both primary and central CH. When CH is diagnosed, the expert panel recommends the immediate start of correctly dosed levothyroxine treatment and frequent follow-up including laboratory testing to keep thyroid hormone levels in their target ranges, timely assessment of the need to continue treatment, attention for neurodevelopment and neurosensory functions, and, if necessary, consulting other health professionals, and education of the child and family about CH. Harmonization of diagnostics, treatment, and follow-up will optimize patient outcomes. Lastly, all individuals with CH are entitled to a well-planned transition of care from pediatrics to adult medicine. Conclusions: This consensus guidelines update should be used to further optimize detection, diagnosis, treatment, and follow-up of children with all forms of CH in the light of the most recent evidence. It should be helpful in convincing health authorities of the benefits of neonatal screening for CH. Further epidemiological and experimental studies are needed to understand the increased incidence of this condition.",
+        "sha256": "a10e61255c8555a2cd65f2f19c0a64ce85b252d52ad7d37c50283e93f94d2bc5",
+        "retrieved_at": "2026-09-18T23:33:01.603920+00:00",
+        "pmcid": "PMC8001676"
+      },
+      {
+        "id": "34524390",
+        "title": "Association of Hypothyroidism and Clinical Depression: A Systematic Review and Meta-analysis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34524390/",
+        "abstract": "Hypothyroidism is considered a cause of or a strong risk factor for depression, but recent studies provide conflicting evidence regarding the existence and the extent of the association. It is also unclear whether the link is largely due to subsyndromal depression or holds true for clinical depression.\nTo estimate the association of hypothyroidism and clinical depression in the general population.\nPubMed, PsycINFO, and Embase databases were searched from inception until May 2020 for studies on the association of hypothyroidism and clinical depression.\nTwo reviewers independently selected epidemiologic and population-based studies that provided laboratory or International Statistical Classification of Diseases and Related Health Problems diagnoses of hypothyroidism and diagnoses of depression according to operationalized criteria (eg, Diagnostic and Statistical Manual of Mental Disorders or International Statistical Classification of Diseases and Related Health Problems) or cutoffs in established rating scales.\nTwo reviewers independently extracted data and evaluated studies based on the Newcastle-Ottawa Scale. Summary odds ratios (OR) were calculated in random-effects meta-analyses.\nPrespecified coprimary outcomes were the association of clinical depression with either hypothyroidism or autoimmunity.\nOf 4350 articles screened, 25 studies were selected for meta-analysis, including 348 014 participants. Hypothyroidism and clinical depression were associated (OR, 1.30 [95% CI, 1.08-1.57]), while the OR for autoimmunity was inconclusive (1.24 [95% CI, 0.89-1.74]). Subgroup analyses revealed a stronger association with overt than with subclinical hypothyroidism, with ORs of 1.77 (95% CI, 1.13-2.77) and 1.13 (95% CI, 1.01-1.28), respectively. Sensitivity analyses resulted in more conservative estimates. In a post hoc analysis, the association was confirmed in female individuals (OR, 1.48 [95% CI, 1.18-1.85]) but not in male individuals (OR, 0.71 [95% CI, 0.40-1.25]).\nIn this systematic review and meta-analysis, the effect size for the association between hypothyroidism and clinical depression was considerably lower than previously assumed, and the modest association was possibly restricted to overt hypothyroidism and female individuals. Autoimmunity alone may not be the driving factor in this comorbidity.",
+        "sha256": "45f4d5ce3800d0e27fde5c13574fa8fdda265e9a4ef200d58e5ba9e37afdb44c",
+        "retrieved_at": "2026-09-18T23:33:01.603920+00:00",
+        "pmcid": "PMC8444067"
+      },
+      {
+        "id": "37999992",
+        "title": "Effect of physical exercise in people with hypothyroidism: systematic review and meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37999992/",
+        "abstract": "This study aimed to systematically revise the available evidence on the effects of physical exercise training programmes on people with hypothyroidism. Comparative studies were searched in six electronic databases until April 2023. The Physiotherapy Evidence Database and the Methodological Index for Non-Randomized Studies were used to determine the methodological quality of the randomized controlled trials and comparative studies respectively. A total of 10 studies were found showing a low to moderate methodological quality. Most of them were performed in women with subclinical hypothyroidism. Exercise seemed to be safe, with aerobic and resistance training leading to improvements in outcomes related to physical and mental health. The performed meta-analysis with data from 120 participants indicated that exercise showed a non-significant trend towards reducing thyroid-stimulating hormone levels (Hedges'g -0.96; 95% CI -2.71; 0.79, p = 0.160; I2 = 92%). When the analysis was performed by comparing the experimental, and control groups with data from 180 participants the results remained non-significant (SMD -1.09; CI 95% -2.88; 0.70, p = 0.23; I2 = 95%). Similar findings were obtained when pooling data for FT3 and FT4 levels. Exercise does not have a significant impact on thyroid function, although its practice can lead to secondary outcomes related to physical and mental health.",
+        "sha256": "1edff1895b6d9ad90d84f140d64ffb877d4df0025e60ad465ba86df52c4366ba",
+        "retrieved_at": "2026-09-18T23:33:01.603920+00:00"
+      },
+      {
+        "id": "40622204",
+        "title": "ETA guidelines for the use of levothyroxine sodium preparations in monotherapy to optimize the treatment of hypothyroidism.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40622204/",
+        "abstract": "Sodium levothyroxine (LT4) as a monotherapy represents the mainstay of treatment of hypothyroidism, and its use has increased over time. Nevertheless, it faces several potential barriers in its 'real life' utilization, and hence its clinical effectiveness may be marred. This is suggested by the frequent situation of patients failing to reach the therapeutic goals of symptom relief and serum TSH control. Thus, an expert task force was approved by the Guidelines Board of the European Thyroid Association to examine the available data and to formulate recommendations based on the available evidence and the experts' deduction. The task force provides a body of suggestions to optimize the levothyroxine treatment in monotherapy, considering the key point in the individualization of treatment. Furthermore, the nutritional, pharmacological and pathological factors, potentially leading to the increased need for levothyroxine, are discussed, with a specific focus on the use of liquid and softgel formulations of the hormone.",
+        "sha256": "9871386f6088c070b07e57bab7c98ad6813ab59dde9aa2131e00cb6bbef111e7",
+        "retrieved_at": "2026-09-18T23:33:02.227900+00:00",
+        "pmcid": "PMC12323320"
+      },
+      {
+        "id": "31088853",
+        "title": "Thyroid hormones treatment for subclinical hypothyroidism: a clinical practice guideline.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31088853/",
+        "abstract": "What are the benefits and harms of thyroid hormones for adults with subclinical hypothyroidism (SCH)? This guideline was triggered by a recent systematic review of randomised controlled trials, which could alter practice.\nCurrent guidelines tend to recommend thyroid hormones for adults with thyroid stimulating hormone (TSH) levels >10 mIU/L and for people with lower TSH values who are young, symptomatic, or have specific indications for prescribing.\nThe guideline panel issues a strong recommendation against thyroid hormones in adults with SCH (elevated TSH levels and normal free T4 (thyroxine) levels). It does not apply to women who are trying to become pregnant or patients with TSH >20 mIU/L. It may not apply to patients with severe symptoms or young adults (such as those ≤30 years old).\nA guideline panel including patients, clinicians, and methodologists produced this recommendation in adherence with standards for trustworthy guidelines using the GRADE approach.\nThe systematic review included 21 trials with 2192 participants. For adults with SCH, thyroid hormones consistently demonstrate no clinically relevant benefits for quality of life or thyroid related symptoms, including depressive symptoms, fatigue, and body mass index (moderate to high quality evidence). Thyroid hormones may have little or no effect on cardiovascular events or mortality (low quality evidence), but harms were measured in only one trial with few events at two years' follow-up.\nThe panel concluded that almost all adults with SCH would not benefit from treatment with thyroid hormones. Other factors in the strong recommendation include the burden of lifelong management and uncertainty on potential harms. Instead, clinicians should monitor the progression or resolution of the thyroid dysfunction in these adults. Recommendations are made actionable for clinicians and their patients through visual overviews. These provide the relative and absolute benefits and harms of thyroid hormones in multilayered evidence summaries and decision aids available in MAGIC (https://app.magicapp.org/) to support shared decisions and adaptation of this guideline.",
+        "sha256": "9cf986602cbb9142d88996451dbb1a0c816445c9002338d05b064bbcb19d3ac2",
+        "retrieved_at": "2026-09-18T23:33:02.227900+00:00"
+      },
+      {
+        "id": "39290156",
+        "title": "Treatment Preferences in Patients With Hypothyroidism.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39290156/",
+        "abstract": "Levothyroxine (L-T4) monotherapy is the standard of care for the treatment of hypothyroidism. A minority of L-T4-treated patients remain symptomatic and report better outcomes with combination therapy that contains liothyronine (L-T3) or with desiccated thyroid extract (DTE).\nThis work aimed to assess patient preferences in the treatment of hypothyroidism.\nA systematic review, meta-analysis, meta-regression, and network meta-analysis of randomized controlled trials (RCTs) comparing treatments for adults with hypothyroidism (L-T4 vs L-T4 + L-T3 or DTE). Searches were conducted in PubMed, Embase, and Cochrane databases up to April 10, 2024. Data extraction and quality assessment were independently performed by 4 researchers.\nEleven RCTs (8 cross-over studies) with a total of 1135 patients were considered. Overall, 24% of patients preferred L-T4 vs 52% who preferred L-T4 + L-T3 or DTE; 24% had no preference. The meta-analysis confirmed the preference for combination therapy over L-T4 monotherapy (relative risk [RR]: 2.20; 95% CI, 1.38-3.52; P = .0009). Excluding 4 studies reduced the high heterogeneity (I2 = 81%) without affecting the results (RR: 1.97; 95% CI, 1.52-2.54; P < .00001; I2 = 24%). This preference profile remained when only crossover studies were considered (RR: 2.84; 95% CI, 1.50-5.39; P < .00001). Network meta-analysis confirmed the preference for DTE and L-T3 + L-T4 vs L-T4 alone.\nPatients with hypothyroidism prefer combination therapy (L-T3 + L-T4 or DTE) over L-T4 monotherapy. The strength of these findings justifies considering patient preferences in the setting of shared decision-making in the treatment of hypothyroidism.",
+        "sha256": "5c973831b11bd233737684f8dd2a64fc48d19740898d79fb210e08b1d258c424",
+        "retrieved_at": "2026-09-18T23:33:02.227900+00:00",
+        "pmcid": "PMC11834714"
+      },
+      {
+        "id": "38368537",
+        "title": "Effects of Levothyroxine Treatment on Fertility and Pregnancy Outcomes in Subclinical Hypothyroidism: A Systematic Review and Meta-Analysis of Randomized Controlled Trials.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38368537/",
+        "abstract": "Background: Subclinical hypothyroidism, defined by elevated thyrotropin (TSH) and normal free thyroxine levels, is associated with adverse pregnancy outcomes, including preterm birth, pre-eclampsia, and small for gestational age. Despite the uncertainty regarding the effectiveness of levothyroxine (LT4) treatment on pregnancy outcomes in subclinical hypothyroidism, LT4 is widely administered with a pre-treatment threshold TSH level of 2.5 mU/L. The aim of this study is to investigate the efficacy of periconceptional LT4 treatment for subclinical hypothyroidism, including TSH levels >2.5 mU/L, and identify the characteristics of subclinical hypothyroidism that can benefit from LT4 treatment. Methods: We conducted a systematic review and meta-analysis of randomized controlled trials from inception to February 2023. We analyzed the pooled effects of LT4 on subclinical hypothyroidism before and during pregnancy. The main outcomes before pregnancy were live birth, pregnancy, and miscarriage. The main outcomes during pregnancy were live birth, miscarriage, and preterm birth. We conducted subgroup analyses to compare the effects of LT4 on subclinical hypothyroidism with TSH levels of 2.5-4.0 and >4.0 mU/L. Results: Of the 888 studies identified, 27 full-text articles were screened for eligibility. Five studies on pre-conception treatment with 768 participants and eight studies on treatment during early pregnancy with 2622 participants were analyzed. One of the two studies on pre-conception treatment in subclinical hypothyroidism with TSH >4.0 mU/L had high risk of bias and the other was composed of 64 participants. Pre-conception LT4 treatment had no significant effect in improving rates of live births and pregnancies, or reducing miscarriages (risk ratio [RR], 95% confidence interval): 1.41 (0.84-2.36), 1.73 (0.88-3.39), and 0.46 (0.11-2.00), respectively. LT4 treatment during pregnancy was not significantly associated with higher rates of live births (RR 1.03, 0.98-1.09) nor decreased miscarriage rates (RR 1.01, 0.66-1.53). The effect of LT4 treatment on preterm birth during pregnancy was significantly different depending on the TSH values (p = 0.04); a positive effect was shown in the subclinical hypothyroidism subgroup with TSH >4.0 mU/L (RR 0.47, 0.20-1.10), while no significant effect was observed in the subgroup with TSH 2.5-4.0 mU/L (RR 1.35, 0.79-2.31). Conclusions: Pre-conceptional LT4 treatment for subclinical hypothyroidism does not improve fertility or decrease the incidence of miscarriages. However, further well-designed studies are needed for pre-conceptional treatment, especially in TSH >4.0 mU/L. LT4 treatment during pregnancy had a positive effect on preterm birth; nevertheless, this was only applicable to subclinical hypothyroidism with TSH >4.0 mU/L.",
+        "sha256": "0a84882b28fb8556aaeb06ee554037a92b72906c8646517b91c9f381c834b332",
+        "retrieved_at": "2026-09-18T23:33:02.841785+00:00"
+      },
+      {
+        "id": "33276704",
+        "title": "Evidence-Based Use of Levothyroxine/Liothyronine Combinations in Treating Hypothyroidism: A Consensus Document.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33276704/",
+        "abstract": "Background: Fourteen clinical trials have not shown a consistent benefit of combination therapy with levothyroxine (LT4) and liothyronine (LT3). Despite the publication of these trials, combination therapy is widely used and patients reporting benefit continue to generate patient and physician interest in this area. Recent scientific developments may provide insight into this inconsistency and guide future studies. Methods: The American Thyroid Association (ATA), British Thyroid Association (BTA), and European Thyroid Association (ETA) held a joint conference on November 3, 2019 (live-streamed between Chicago and London) to review new basic science and clinical evidence regarding combination therapy with presentations and input from 12 content experts. After the presentations, the material was synthesized and used to develop Summary Statements of the current state of knowledge. After review and revision of the material and Summary Statements, there was agreement that there was equipoise for a new clinical trial of combination therapy. Consensus Statements encapsulating the implications of the material discussed with respect to the design of future clinical trials of LT4/LT3 combination therapy were generated. Authors voted upon the Consensus Statements. Iterative changes were made in several rounds of voting and after comments from ATA/BTA/ETA members. Results: Of 34 Consensus Statements available for voting, 28 received at least 75% agreement, with 13 receiving 100% agreement. Those with 100% agreement included studies being powered to study the effect of deiodinase and thyroid hormone transporter polymorphisms on study outcomes, inclusion of patients dissatisfied with their current therapy and requiring at least 1.2 μg/kg of LT4 daily, use of twice daily LT3 or preferably a slow-release preparation if available, use of patient-reported outcomes as a primary outcome (measured by a tool with both relevant content validity and responsiveness) and patient preference as a secondary outcome, and utilization of a randomized placebo-controlled adequately powered double-blinded parallel design. The remaining statements are presented as potential additional considerations. Discussion: This article summarizes the areas discussed and presents Consensus Statements to guide development of future clinical trials of LT4/LT3 combination therapy. The results of such redesigned trials are expected to be of benefit to patients and of value to inform future thyroid hormone replacement clinical practice guidelines treatment recommendations.",
+        "sha256": "2e16a31690b90d5304699f7d67367778980d9afb88cb4cb3277f683bd225b502",
+        "retrieved_at": "2026-09-18T23:33:02.841785+00:00",
+        "pmcid": "PMC8035928"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The pattern is repeatedly elevated TSH (7.1 then 6.8 mIU/L) with free T4 within the reference interval on two panels six weeks apart. By definition (elevated TSH + normal free T4), this is subclinical hypothyroidism, not overt hypothyroidism, which would require a low free T4. This directly excludes answer B, which misclassifies the biochemistry. Regarding management, the 2019 clinical practice guideline (PMID 31088853) issues a strong recommendation against thyroid hormone therapy in adults with subclinical hypothyroidism, noting no clinically relevant benefit for quality of life, fatigue, or depressive symptoms, and recommends monitoring for progression or resolution. The guideline exceptions do not apply here: TSH is well below 20 mIU/L, the patient is not pregnant or trying to conceive, has no severe symptoms, and is not a young adult (she is 40-49). The association between subclinical hypothyroidism and clinical depression is weak (PMID 34524390), and treatment is not indicated to address her mild mood symptoms. Answer A correctly classifies and manages the case with monitoring rather than initiating levothyroxine.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.92,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31088853"
+              ],
+              "reason": "The guideline explicitly defines SCH as elevated TSH with normal free T4.",
+              "source_quotes": [
+                {
+                  "source_id": "31088853",
+                  "quote": "What are the benefits and harms of thyroid hormones for adults with subclinical hypothyroidism (SCH)? This guideline was triggered by a recent systematic review of randomised controlled trials, which could alter practice. Current guidelines tend to recommend thyroid hormones for adults with thyroid stimulating hormone (TSH) levels >10 mIU/L and for people with lower TSH values who are young, symptomatic, or have specific indications for prescribing. The guideline panel issues a strong recommendation against thyroid hormones in adults with SCH (elevated TSH levels and normal free T4 (thyroxine) levels). It does not apply to women who are trying to become pregnant or patients with TSH >20 mIU/L. It may not apply to patients with severe symptoms or young adults (such as those ≤30 years old)."
+                }
+              ],
+              "source_passage_ids": [
+                "31088853:p0"
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "31088853"
+              ],
+              "reason": "The guideline issues a strong recommendation against thyroid hormones and concludes almost all adults would not benefit.",
+              "source_quotes": [
+                {
+                  "source_id": "31088853",
+                  "quote": "What are the benefits and harms of thyroid hormones for adults with subclinical hypothyroidism (SCH)? This guideline was triggered by a recent systematic review of randomised controlled trials, which could alter practice. Current guidelines tend to recommend thyroid hormones for adults with thyroid stimulating hormone (TSH) levels >10 mIU/L and for people with lower TSH values who are young, symptomatic, or have specific indications for prescribing. The guideline panel issues a strong recommendation against thyroid hormones in adults with SCH (elevated TSH levels and normal free T4 (thyroxine) levels). It does not apply to women who are trying to become pregnant or patients with TSH >20 mIU/L. It may not apply to patients with severe symptoms or young adults (such as those ≤30 years old)."
+                },
+                {
+                  "source_id": "31088853",
+                  "quote": "A guideline panel including patients, clinicians, and methodologists produced this recommendation in adherence with standards for trustworthy guidelines using the GRADE approach. The systematic review included 21 trials with 2192 participants. For adults with SCH, thyroid hormones consistently demonstrate no clinically relevant benefits for quality of life or thyroid related symptoms, including depressive symptoms, fatigue, and body mass index (moderate to high quality evidence). Thyroid hormones may have little or no effect on cardiovascular events or mortality (low quality evidence), but harms were measured in only one trial with few events at two years' follow-up. The panel concluded that almost all adults with SCH would not benefit from treatment with thyroid hormones."
+                }
+              ],
+              "source_passage_ids": [
+                "31088853:p0",
+                "31088853:p1"
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "31088853"
+              ],
+              "reason": "The guideline directs clinicians to monitor progression or resolution instead of treating.",
+              "source_quotes": [
+                {
+                  "source_id": "31088853",
+                  "quote": "Other factors in the strong recommendation include the burden of lifelong management and uncertainty on potential harms. Instead, clinicians should monitor the progression or resolution of the thyroid dysfunction in these adults. Recommendations are made actionable for clinicians and their patients through visual overviews. These provide the relative and absolute benefits and harms of thyroid hormones in multilayered evidence summaries and decision aids available in MAGIC (https://app.magicapp.org/) to support shared decisions and adaptation of this guideline."
+                }
+              ],
+              "source_passage_ids": [
+                "31088853:p2"
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "31088853"
+              ],
+              "reason": "The systematic review found no clinically relevant benefit for QoL, depressive symptoms, fatigue, or BMI.",
+              "source_quotes": [
+                {
+                  "source_id": "31088853",
+                  "quote": "A guideline panel including patients, clinicians, and methodologists produced this recommendation in adherence with standards for trustworthy guidelines using the GRADE approach. The systematic review included 21 trials with 2192 participants. For adults with SCH, thyroid hormones consistently demonstrate no clinically relevant benefits for quality of life or thyroid related symptoms, including depressive symptoms, fatigue, and body mass index (moderate to high quality evidence). Thyroid hormones may have little or no effect on cardiovascular events or mortality (low quality evidence), but harms were measured in only one trial with few events at two years' follow-up. The panel concluded that almost all adults with SCH would not benefit from treatment with thyroid hormones."
+                }
+              ],
+              "source_passage_ids": [
+                "31088853:p1"
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "34524390"
+              ],
+              "reason": "The meta-analysis found a modest association (OR 1.30) that is stronger for overt (OR 1.77) than subclinical (OR 1.13) hypothyroidism.",
+              "source_quotes": [
+                {
+                  "source_id": "34524390",
+                  "quote": "Hypothyroidism and clinical depression were associated (OR, 1.30 [95% CI, 1.08-1.57]), while the OR for autoimmunity was inconclusive (1.24 [95% CI, 0.89-1.74]). Subgroup analyses revealed a stronger association with overt than with subclinical hypothyroidism, with ORs of 1.77 (95% CI, 1.13-2.77) and 1.13 (95% CI, 1.01-1.28), respectively. Sensitivity analyses resulted in more conservative estimates. In a post hoc analysis, the association was confirmed in female individuals (OR, 1.48 [95% CI, 1.18-1.85]) but not in male individuals (OR, 0.71 [95% CI, 0.40-1.25]). In this systematic review and meta-analysis, the effect size for the association between hypothyroidism and clinical depression was considerably lower than previously assumed, and the modest association was possibly restricted to overt hypothyroidism and female individuals."
+                }
+              ],
+              "source_passage_ids": [
+                "34524390:p2"
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "40622204",
+                "31088853"
+              ],
+              "reason": "ETA describes LT4 monotherapy as the mainstay for hypothyroidism, but the SCH guideline recommends against treatment here, so this fact does not establish an indication in a subclinical presentation.",
+              "source_quotes": [
+                {
+                  "source_id": "40622204",
+                  "quote": "Sodium levothyroxine (LT4) as a monotherapy represents the mainstay of treatment of hypothyroidism, and its use has increased over time. Nevertheless, it faces several potential barriers in its 'real life' utilization, and hence its clinical effectiveness may be marred. This is suggested by the frequent situation of patients failing to reach the therapeutic goals of symptom relief and serum TSH control. Thus, an expert task force was approved by the Guidelines Board of the European Thyroid Association to examine the available data and to formulate recommendations based on the available evidence and the experts' deduction. The task force provides a body of suggestions to optimize the levothyroxine treatment in monotherapy, considering the key point in the individualization of treatment."
+                },
+                {
+                  "source_id": "31088853",
+                  "quote": "What are the benefits and harms of thyroid hormones for adults with subclinical hypothyroidism (SCH)? This guideline was triggered by a recent systematic review of randomised controlled trials, which could alter practice. Current guidelines tend to recommend thyroid hormones for adults with thyroid stimulating hormone (TSH) levels >10 mIU/L and for people with lower TSH values who are young, symptomatic, or have specific indications for prescribing. The guideline panel issues a strong recommendation against thyroid hormones in adults with SCH (elevated TSH levels and normal free T4 (thyroxine) levels). It does not apply to women who are trying to become pregnant or patients with TSH >20 mIU/L. It may not apply to patients with severe symptoms or young adults (such as those ≤30 years old)."
+                }
+              ],
+              "source_passage_ids": [
+                "40622204:p0",
+                "31088853:p0"
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is a straightforward adult endocrinology SCH scenario. Two panels six weeks apart show TSH 7.1 then 6.8 mIU/L with normal free T4, meeting the guideline's definition of subclinical hypothyroidism (31088853). The patient is >30 years old, has only mild non-severe symptoms, is not pregnant/planning pregnancy, TSH <20 mIU/L, and no prior thyroid hormone use — placing her squarely within the population for whom the 2019 BMJ Rapid Recommendation issues a strong recommendation against thyroid hormones, favoring monitoring for progression/resolution. Candidate A correctly classifies SCH and defers treatment with monitoring; Candidate B misclassifies as overt disease (contradicted by normal free T4) and initiates unnecessary/potentially harmful levothyroxine, which is the intended flaw. The sound answer omits no essential care: monitoring is the recommended action, and no urgent intervention is indicated. All six claims are directly supported by the cited passages: the SCH definition, the strong recommendation against treatment, the monitoring directive, the absence of benefit for fatigue/depression/QoL, the modest and overt-predominant depression association (34524390), and the LT4-mainstay-but-not-indicated point (40622204/31088853). The depression meta-analysis appropriately shows a female OR of 1.48 but the case notes the patient has only mild low mood without meeting clinical depression criteria, consistent with SCH management. Population/comparator/outcome match the claimed recommendations. The title and question do not disclose the answer — they pose the classification and management as an open question without revealing SCH vs overt or the treat/monitor decision. The decision (classification + treat-vs-monitor in SCH) is distinct from the previous case (hyperparathyroidism imaging/localization). Congenital hypothyroidism and pregnancy/combination-therapy sources are present in the pool but not relied upon for the sound answer, and are correctly not applied to this non-pregnant adult. No missing decisive data: labs, symptom severity, pregnancy status, and prior treatment history are all provided. Case is acceptable as designed.",
+          "distinct_decision_note": "Different clinical decision than prior hyperparathyroidism case."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "Repeatedly elevated TSH (6.8–7.1 mIU/L) with free T4 remaining within the reference interval defines subclinical hypothyroidism, not overt primary hypothyroidism. She is not pregnant or trying to conceive, has only mild nonspecific symptoms, and her TSH is below 10 mIU/L. The cited 2019 clinical practice guideline recommends against routine thyroid hormone therapy for most adults with this pattern because trials show no clinically meaningful improvement in fatigue, depressive symptoms, or quality of life; monitoring for progression or resolution is appropriate. Thus B incorrectly labels normal-free-T4 disease as overt hypothyroidism and overstates the indication for immediate levothyroxine.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31088853"
+              ],
+              "reason": "The guideline explicitly identifies elevated TSH with normal free T4 as subclinical hypothyroidism.",
+              "source_passage_ids": [
+                "31088853:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31088853",
+                  "quote": "What are the benefits and harms of thyroid hormones for adults with subclinical hypothyroidism (SCH)? This guideline was triggered by a recent systematic review of randomised controlled trials, which could alter practice. Current guidelines tend to recommend thyroid hormones for adults with thyroid stimulating hormone (TSH) levels >10 mIU/L and for people with lower TSH values who are young, symptomatic, or have specific indications for prescribing. The guideline panel issues a strong recommendation against thyroid hormones in adults with SCH (elevated TSH levels and normal free T4 (thyroxine) levels). It does not apply to women who are trying to become pregnant or patients with TSH >20 mIU/L. It may not apply to patients with severe symptoms or young adults (such as those ≤30 years old)."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "31088853"
+              ],
+              "reason": "The guideline gives a strong recommendation against thyroid hormones in adults with subclinical hypothyroidism and concludes that almost all such adults would not benefit, while identifying exclusions that do not apply here.",
+              "source_passage_ids": [
+                "31088853:p0",
+                "31088853:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31088853",
+                  "quote": "What are the benefits and harms of thyroid hormones for adults with subclinical hypothyroidism (SCH)? This guideline was triggered by a recent systematic review of randomised controlled trials, which could alter practice. Current guidelines tend to recommend thyroid hormones for adults with thyroid stimulating hormone (TSH) levels >10 mIU/L and for people with lower TSH values who are young, symptomatic, or have specific indications for prescribing. The guideline panel issues a strong recommendation against thyroid hormones in adults with SCH (elevated TSH levels and normal free T4 (thyroxine) levels). It does not apply to women who are trying to become pregnant or patients with TSH >20 mIU/L. It may not apply to patients with severe symptoms or young adults (such as those ≤30 years old)."
+                },
+                {
+                  "source_id": "31088853",
+                  "quote": "A guideline panel including patients, clinicians, and methodologists produced this recommendation in adherence with standards for trustworthy guidelines using the GRADE approach. The systematic review included 21 trials with 2192 participants. For adults with SCH, thyroid hormones consistently demonstrate no clinically relevant benefits for quality of life or thyroid related symptoms, including depressive symptoms, fatigue, and body mass index (moderate to high quality evidence). Thyroid hormones may have little or no effect on cardiovascular events or mortality (low quality evidence), but harms were measured in only one trial with few events at two years' follow-up. The panel concluded that almost all adults with SCH would not benefit from treatment with thyroid hormones."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "31088853"
+              ],
+              "reason": "The guideline directly recommends monitoring for progression or resolution instead of treatment.",
+              "source_passage_ids": [
+                "31088853:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31088853",
+                  "quote": "Other factors in the strong recommendation include the burden of lifelong management and uncertainty on potential harms. Instead, clinicians should monitor the progression or resolution of the thyroid dysfunction in these adults. Recommendations are made actionable for clinicians and their patients through visual overviews. These provide the relative and absolute benefits and harms of thyroid hormones in multilayered evidence summaries and decision aids available in MAGIC (https://app.magicapp.org/) to support shared decisions and adaptation of this guideline."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "31088853"
+              ],
+              "reason": "The cited systematic review found no clinically relevant benefit for depressive symptoms, fatigue, thyroid-related symptoms, or quality of life.",
+              "source_passage_ids": [
+                "31088853:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31088853",
+                  "quote": "A guideline panel including patients, clinicians, and methodologists produced this recommendation in adherence with standards for trustworthy guidelines using the GRADE approach. The systematic review included 21 trials with 2192 participants. For adults with SCH, thyroid hormones consistently demonstrate no clinically relevant benefits for quality of life or thyroid related symptoms, including depressive symptoms, fatigue, and body mass index (moderate to high quality evidence). Thyroid hormones may have little or no effect on cardiovascular events or mortality (low quality evidence), but harms were measured in only one trial with few events at two years' follow-up. The panel concluded that almost all adults with SCH would not benefit from treatment with thyroid hormones."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "34524390"
+              ],
+              "reason": "The meta-analysis reports a modest overall association with depression and a stronger association for overt than subclinical hypothyroidism.",
+              "source_passage_ids": [
+                "34524390:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34524390",
+                  "quote": "Hypothyroidism and clinical depression were associated (OR, 1.30 [95% CI, 1.08-1.57]), while the OR for autoimmunity was inconclusive (1.24 [95% CI, 0.89-1.74]). Subgroup analyses revealed a stronger association with overt than with subclinical hypothyroidism, with ORs of 1.77 (95% CI, 1.13-2.77) and 1.13 (95% CI, 1.01-1.28), respectively. Sensitivity analyses resulted in more conservative estimates. In a post hoc analysis, the association was confirmed in female individuals (OR, 1.48 [95% CI, 1.18-1.85]) but not in male individuals (OR, 0.71 [95% CI, 0.40-1.25]). In this systematic review and meta-analysis, the effect size for the association between hypothyroidism and clinical depression was considerably lower than previously assumed, and the modest association was possibly restricted to overt hypothyroidism and female individuals."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "40622204",
+                "31088853"
+              ],
+              "reason": "The newer ETA source establishes levothyroxine monotherapy as a mainstay for hypothyroidism generally, while the subclinical-hypothyroidism guideline establishes that this general fact does not create an indication in this patient's presentation.",
+              "source_passage_ids": [
+                "40622204:p0",
+                "31088853:p0",
+                "31088853:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40622204",
+                  "quote": "Sodium levothyroxine (LT4) as a monotherapy represents the mainstay of treatment of hypothyroidism, and its use has increased over time. Nevertheless, it faces several potential barriers in its 'real life' utilization, and hence its clinical effectiveness may be marred. This is suggested by the frequent situation of patients failing to reach the therapeutic goals of symptom relief and serum TSH control. Thus, an expert task force was approved by the Guidelines Board of the European Thyroid Association to examine the available data and to formulate recommendations based on the available evidence and the experts' deduction. The task force provides a body of suggestions to optimize the levothyroxine treatment in monotherapy, considering the key point in the individualization of treatment."
+                },
+                {
+                  "source_id": "31088853",
+                  "quote": "What are the benefits and harms of thyroid hormones for adults with subclinical hypothyroidism (SCH)? This guideline was triggered by a recent systematic review of randomised controlled trials, which could alter practice. Current guidelines tend to recommend thyroid hormones for adults with thyroid stimulating hormone (TSH) levels >10 mIU/L and for people with lower TSH values who are young, symptomatic, or have specific indications for prescribing. The guideline panel issues a strong recommendation against thyroid hormones in adults with SCH (elevated TSH levels and normal free T4 (thyroxine) levels). It does not apply to women who are trying to become pregnant or patients with TSH >20 mIU/L. It may not apply to patients with severe symptoms or young adults (such as those ≤30 years old)."
+                },
+                {
+                  "source_id": "31088853",
+                  "quote": "A guideline panel including patients, clinicians, and methodologists produced this recommendation in adherence with standards for trustworthy guidelines using the GRADE approach. The systematic review included 21 trials with 2192 participants. For adults with SCH, thyroid hormones consistently demonstrate no clinically relevant benefits for quality of life or thyroid related symptoms, including depressive symptoms, fatigue, and body mass index (moderate to high quality evidence). Thyroid hormones may have little or no effect on cardiovascular events or mortality (low quality evidence), but harms were measured in only one trial with few events at two years' follow-up. The panel concluded that almost all adults with SCH would not benefit from treatment with thyroid hormones."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The repeated pattern of elevated TSH with free T4 within the laboratory reference interval is subclinical, not overt, hypothyroidism. The patient is 40–49 years old, has only mild symptoms, is neither pregnant nor trying to conceive, and has TSH well below 20 mIU/L, so the cited guideline's stated exclusions do not apply. Answer A appropriately recommends no thyroid hormone now and monitoring for progression or resolution. Answer B incorrectly reclassifies the condition based on nonspecific fatigue and would initiate unsupported treatment. The title and visible note provide the clinical findings but do not state the diagnosis or management. This decision is distinct from the previous case, which concerned whether to obtain localization imaging in suspected primary hyperparathyroidism."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "e1302f6b8bc6666817a81f6220f4d5ca13074b0edcc903582e4f45a203b32a5a"
+  }
+}
