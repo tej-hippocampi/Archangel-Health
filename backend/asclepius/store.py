@@ -4065,7 +4065,7 @@ class AsclepiusStore:
         if password_hash is None and password is not None:
             password_hash = hash_password(password)
         creds_json = json.dumps(credentials or {})
-        atts_json = json.dumps(attestations or {})
+        atts_json = json.dumps(attestations) if attestations is not None else None
         with self._conn() as conn:
             # Serialize the existence check with the write: two open invitations
             # for one address must not race to replace each other's password.
@@ -4081,6 +4081,13 @@ class AsclepiusStore:
                     and not password_is_unset(existing):
                 password_hash = None
             if existing:
+                if attestations is not None:
+                    # Re-onboarding may supply a partial form. Retain evidence
+                    # fields it omitted, while honoring explicit changes.
+                    stored_atts = json.loads(existing.get("attestations_json") or "{}")
+                    if not isinstance(stored_atts, dict):
+                        raise ValueError("Stored attestations must be an object")
+                    atts_json = json.dumps({**stored_atts, **attestations})
                 # password_hash is set in its own clause, and only when supplied,
                 # so a re-onboard that carries no password cannot blank or
                 # replace the one the physician is signing in with today.
@@ -4109,7 +4116,8 @@ class AsclepiusStore:
                         -- health-system name, but never wipe a previously-set org
                         -- if a re-onboard omits it (COALESCE keeps the old value).
                         organization = COALESCE(?, organization), clinical_role = ?,
-                        npi = ?, credentials_json = ?, attestations_json = ?,
+                        npi = ?, credentials_json = ?,
+                        attestations_json = COALESCE(?, attestations_json),
                         -- COALESCE for the same reason organization uses it: a
                         -- re-onboard that omits the kind must not silently
                         -- promote a referral-only account into a physician.
@@ -4141,7 +4149,7 @@ class AsclepiusStore:
                 (
                     uid, email, password_hash or NO_PASSWORD_HASH, role, specialty, specialty_niche,
                     board_cert, years_experience, org_name, id_hashed, full_name, org_name,
-                    clinical_role, npi, creds_json, atts_json, account_kind,
+                    clinical_role, npi, creds_json, atts_json or "{}", account_kind,
                     "pending" if account_kind == "advisor" else None, _utcnow_iso(),
                 ),
             )

@@ -2177,23 +2177,33 @@ class TeamStore:
     def save_asclepius_attestations(
         self, hs_id: str, email: str, attestations: Dict[str, Any]
     ) -> None:
-        """Persist the signed attestations blob.
+        """Merge a draft without dropping omitted consent or evidence fields.
 
-        ``signedInitials`` is upper-cased here as well as in the form: this is
-        a signature, it is rendered back as one, and the wizard can resume from
-        a draft saved before the form normalized it.
+        Serialize read + write so concurrent partial saves cannot erase each
+        other. Explicit False still withdraws consent; omission changes nothing.
         """
-        attestations = dict(attestations or {})
-        signed = attestations.get("signedInitials")
+        incoming = dict(attestations or {})
+        signed = incoming.get("signedInitials")
         if isinstance(signed, str):
-            attestations["signedInitials"] = signed.strip().upper()
+            incoming["signedInitials"] = signed.strip().upper()
+        email = email.lower().strip()
         with self._conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT attestations_json FROM asclepius_people "
+                "WHERE health_system_id = ? AND email = ?", (hs_id, email),
+            ).fetchone()
+            # Corrupt evidence must fail visibly, never be silently replaced.
+            stored = json.loads(row["attestations_json"] or "{}") if row else {}
+            if not isinstance(stored, dict):
+                raise ValueError("Stored attestations must be an object")
+            merged = {**stored, **incoming}
             conn.execute(
                 """
                 UPDATE asclepius_people SET attestations_json = ?, updated_at = ?
                 WHERE health_system_id = ? AND email = ?
                 """,
-                (json.dumps(attestations or {}), _utcnow_iso(), hs_id, email.lower().strip()),
+                (json.dumps(merged), _utcnow_iso(), hs_id, email),
             )
 
     def mark_asclepius_member_verified(self, hs_id: str, email: str) -> None:

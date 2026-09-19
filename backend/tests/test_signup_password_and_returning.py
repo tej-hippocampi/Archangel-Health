@@ -55,8 +55,12 @@ CREDS = {
     "residencyCompleted": True,
     "practiceStatus": "active",
 }
-ATTS = {"accurate": True, "noPhi": True, "ip": True, "independent": True,
-        "confidential": True, "noDiscipline": True, "initials": "AO"}
+ATTS = {
+    "consentCredentialShare": True, "attestIndependentJudgment": True,
+    "ipAssignment": True, "noPhi": True, "attestConfidentiality": True,
+    "attestNoDisciplinaryAction": True, "attestWorkQuality": True,
+    "signedInitials": "AO",
+}
 
 
 @pytest.fixture()
