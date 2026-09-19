@@ -27,6 +27,7 @@ from asclepius import label_view as asc_label_view
 from asclepius import review as asc_review
 from asclepius import routing as asc_routing
 from asclepius.store import get_store
+from routers.asclepius import require_current_agreement
 
 log = logging.getLogger("asclepius.review")
 
@@ -237,7 +238,7 @@ async def review_stats(_reviewer: Dict[str, Any] = Depends(require_reviewer)):
 
 
 # ─── Draw a PAIR (PRD R §2.1) ─────────────────────────────────────────────────
-@router.get("/api/asclepius/review/pair/next")
+@router.get("/api/asclepius/review/pair/next", dependencies=[Depends(require_current_agreement)])
 async def next_review_pair(
     background: BackgroundTasks = None,
     preview: bool = Query(
@@ -381,7 +382,7 @@ async def next_review_pair(
 
 
 # ─── Draw ─────────────────────────────────────────────────────────────────────
-@router.get("/api/asclepius/review/next")
+@router.get("/api/asclepius/review/next", dependencies=[Depends(require_current_agreement)])
 async def next_review(
     background: BackgroundTasks = None,
     preview: bool = Query(False),
@@ -485,7 +486,7 @@ class ReviewSubmitBody(BaseModel):
     draw_token: Optional[str] = None
 
 
-@router.post("/api/asclepius/review/{submission_id}")
+@router.post("/api/asclepius/review/{submission_id}", dependencies=[Depends(require_current_agreement)])
 async def submit_review(
     submission_id: str,
     body: ReviewSubmitBody,
@@ -626,7 +627,7 @@ class PairReviewSubmitBody(BaseModel):
     draw_token: Optional[str] = None
 
 
-@router.post("/api/asclepius/review/pair/{task_id}")
+@router.post("/api/asclepius/review/pair/{task_id}", dependencies=[Depends(require_current_agreement)])
 async def submit_pair_review(
     task_id: str,
     body: PairReviewSubmitBody,
@@ -796,7 +797,7 @@ async def submit_pair_review(
 
 # ─── Double-label pointer (the real-κ slice) ──────────────────────────────────
 @router.get("/api/asclepius/review/double-label/next")
-async def next_double_label(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+async def next_double_label(user: Dict[str, Any] = Depends(require_current_agreement)):
     """The next task flagged for a second INDEPENDENT label that THIS user may
     take. Any evaluator can serve as the second labeler — it is labeling work,
     not review work. The store query excludes the first labeler and anyone who

@@ -32,6 +32,7 @@ from asclepius.constants import (
 )
 from asclepius.environments import service
 from asclepius.store import get_store
+from routers.asclepius import require_current_agreement
 
 router = APIRouter(prefix="/api/asclepius/environments", tags=["asclepius-env"])
 
@@ -160,7 +161,7 @@ async def train_reward_model(
 async def annotation_queue(
     portal_version: str = Query(ENV_PORTAL_VERSION),
     specialty: Optional[str] = None,
-    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+    user: Dict[str, Any] = Depends(require_current_agreement),
 ):
     """The ENV annotation queue (PRD §7.2). Gated on ``portal_version == 'env'``.
 
@@ -184,7 +185,7 @@ async def annotation_queue(
 
 @router.get("/runs/{run_id}")
 async def get_run_for_annotation(
-    run_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+    run_id: str, user: Dict[str, Any] = Depends(require_current_agreement),
 ):
     """Fetch ONE trajectory's annotation view by run_id (regardless of whether it
     is already annotated) so a physician can open/re-open a specific run — the
@@ -200,7 +201,7 @@ async def get_run_for_annotation(
 @router.post("/{task_id}/annotate")
 async def annotate_environment(
     task_id: str, body: AnnotateRequest,
-    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+    user: Dict[str, Any] = Depends(require_current_agreement),
 ):
     """A board-certified physician submits the §7 annotation for one trajectory
     (run). Gated on ``portal_version == 'env'`` (PRD §12.9).

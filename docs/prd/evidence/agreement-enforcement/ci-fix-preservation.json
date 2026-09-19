@@ -1,0 +1,20 @@
+{
+  "base": "3338963",
+  "previous_pr_head": "2623812",
+  "existing_case_files_preserved": 41,
+  "added_case_files": 45,
+  "changed_or_missing_case_files": [],
+  "agreement_production_files_unchanged": [
+    "backend/routers/asclepius.py",
+    "backend/routers/asclepius_review.py",
+    "backend/routers/asclepius_env.py",
+    "backend/routers/onboarding.py",
+    "backend/asclepius/store.py",
+    "backend/team_store.py",
+    "frontend/asclepius/agreement_gate.js",
+    "frontend/asclepius/asclepius.js",
+    "frontend/asclepius/review.js",
+    "frontend/asclepius/env/annotate.js",
+    "frontend/asclepius/admin_shell.js"
+  ]
+}
