@@ -173,7 +173,34 @@ async def _request(client: httpx.AsyncClient, endpoint: str, params: dict) -> by
                 return b"".join(chunks)
 
 
-def parse_articles(raw: bytes, *, now: datetime | None = None, pathology_teaching: bool = False) -> list[dict]:
+def population_matches(title: str, mesh_terms: set[str], age_scope: str | None) -> bool:
+    """Exclude explicit population mismatches without discarding unindexed papers.
+
+    This is a retrieval filter, not a substitute for reviewer population checks.
+    Mixed human/animal and adult/pediatric material still needs clinical review.
+    """
+    if 'Animals' in mesh_terms and 'Humans' not in mesh_terms:
+        return False
+    if 'Humans' not in mesh_terms and re.search(r'\b(veterinary|dogs|cats|canine|feline|equine|murine|mice|rats)\b', title, re.I):
+        return False
+    child_mesh = bool(mesh_terms & {'Child', 'Child, Preschool', 'Adolescent', 'Infant', 'Infant, Newborn'})
+    adult_mesh = bool(mesh_terms & {'Adult', 'Young Adult', 'Middle Aged', 'Aged', 'Aged, 80 and over'})
+    # Society names and childhood-onset diseases do not identify the study
+    # population. Prefer age indexing, preserve explicitly mixed/maternal work,
+    # and use only clear population wording when age indexing is unavailable.
+    pediatric = child_mesh or bool(re.search(
+        r'\b(children|infants|neonates|adolescents|(?:pediatric|paediatric) (?:patients|population|patients? with))\b'
+        r'|^\W*(?:pediatric|paediatric|neonatal|adolescent)\b', title, re.I))
+    adult = adult_mesh or bool(re.search(r'\b(adults?|elderly|maternal|pregnant women|older (?:adults|people|persons))\b', title, re.I))
+    if age_scope in {'adult', 'older_adult'} and pediatric and not adult:
+        return False
+    if age_scope == 'pediatric' and adult and not pediatric:
+        return False
+    return True
+
+
+def parse_articles(raw: bytes, *, now: datetime | None = None, pathology_teaching: bool = False,
+                   age_scope: str | None = None) -> list[dict]:
     if b"<!ENTITY" in raw.upper():
         raise ValueError("Unexpected XML entity")
     root = ElementTree.fromstring(raw)
@@ -182,6 +209,9 @@ def parse_articles(raw: bytes, *, now: datetime | None = None, pathology_teachin
     for article in root.findall(".//PubmedArticle"):
         pmid = article.findtext("./MedlineCitation/PMID", "")
         title = "".join(article.find(".//ArticleTitle").itertext()) if article.find(".//ArticleTitle") is not None else ""
+        mesh = {node.text or '' for node in article.findall('.//MeshHeading/DescriptorName')}
+        if not population_matches(title, mesh, age_scope):
+            continue
         abstract = "\n".join("".join(p.itertext()) for p in article.findall(".//Abstract/AbstractText"))
         types = {p.text or "" for p in article.findall(".//PublicationType")}
         relations = {p.get("RefType") for p in article.findall(".//CommentsCorrections")}
@@ -222,7 +252,8 @@ async def retrieve(specialty: str, *, topic: str | None = None) -> list[dict]:
     term = re.sub(r"[^\w\s]", " ", specialty)[:100]
     year = datetime.now(timezone.utc).year
     # Curriculum topics are maintained in code; never supplied by a physician.
-    from asclepius.onboarding_catalog import SEARCH_TERMS
+    from asclepius.onboarding_catalog import SEARCH_TERMS, age_scope_for
+    age_scope = age_scope_for(specialty)
     clinical_term = re.sub(r"[^\w\s]", " ", SEARCH_TERMS.get(topic, term))[:240]
     # Untagged PubMed terms also match society/author affiliations. Searching
     # "asthma" previously returned urticaria guidelines merely authored by an
@@ -266,7 +297,7 @@ async def retrieve(specialty: str, *, topic: str | None = None) -> list[dict]:
             # Guidelines can carry huge reference lists; keep response pages small.
             for start in range(0, len(ids), 3):
                 rows.extend(parse_articles(await _request(client, "efetch.fcgi",
-                    {"id": ",".join(ids[start:start + 3]), "retmode": "xml"})))
+                    {"id": ",".join(ids[start:start + 3]), "retmode": "xml"}), age_scope=age_scope))
                 if len(rows) >= 8:
                     break
             if len(rows) >= 8:

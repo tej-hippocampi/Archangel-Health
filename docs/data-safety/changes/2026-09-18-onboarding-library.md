@@ -89,3 +89,12 @@ observed defects; source support, independent clinical review and the full 86-ca
 gate remain required. The 153 focused software tests include read-only bundle
 inventory and preserved-draw checks; the known completeness failure is tracked
 separately. These checks do not verify live backup or alert coverage.
+
+Final retained inventory for this recovery is 41/86 after independent approval of
+emergency-medicine practice. Anthropic credit exhaustion blocked later reviews;
+the affected active and queued builds were stopped with passing companions and
+diagnostics preserved. The CI-only availability probe now stops authoring when
+the reviewer is unavailable. Population filtering and authoring feedback changes
+do not alter any existing reviewed case, production store, draw or paid batch.
+The latest 176 focused tests pass; full coverage and operational release evidence
+remain incomplete, so this is still a draft update.

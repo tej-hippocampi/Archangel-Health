@@ -25,6 +25,26 @@ def source():
     return {'id': '123', 'pmcid': 'PMC456', 'abstract': 'An abstract defining the guideline scope, without recommendations.'}
 
 
+@pytest.mark.parametrize('title,mesh,scope,expected', [
+    ('Sepsis in Dogs and Cats', set(), 'adult', False),
+    ('Experimental treatment guidance', {'Animals'}, 'adult', False),
+    ('Human and animal treatment evidence', {'Animals', 'Humans'}, 'adult', True),
+    ('Unindexed clinical guidance', set(), 'adult', True),
+    ('Sepsis in pediatric patients', {'Humans'}, 'adult', False),
+    ('Adult and pediatric sepsis', {'Humans'}, 'adult', True),
+    ('Guidance for infants and children', set(), 'pediatric', True),
+    ('Guidance for older adults', {'Humans'}, 'pediatric', False),
+    ('Anticoagulation in Child-Pugh A cirrhosis', {'Humans'}, 'adult', True),
+    ('Childhood-onset disease outcomes', {'Humans', 'Child', 'Adult'}, 'adult', True),
+    ('Maternal and neonatal outcomes after cesarean delivery', {'Humans', 'Adult', 'Infant, Newborn'}, 'adult', True),
+    ('Guideline endorsed by the Society of Pediatric Nutrition', {'Humans'}, 'adult', True),
+    ('Treatment guidance', {'Humans', 'Child'}, 'adult', False),
+    ('Treatment guidance', {'Humans', 'Adult', 'Child'}, 'pediatric', True),
+])
+def test_retrieval_excludes_only_explicit_population_mismatches(title, mesh, scope, expected):
+    assert evidence.population_matches(title, mesh, scope) is expected
+
+
 def test_open_text_requires_matching_ids_and_reusable_license():
     for damage in ({'pmid': '999'}, {'pmcid': '999'}, {'license': 'https://creativecommons.org/licenses/by-nc/4.0/'},
                    {'license': 'https://creativecommons.org.evil.test/licenses/by/4.0/'}, {'license': ''}):

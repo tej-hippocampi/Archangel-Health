@@ -40,6 +40,12 @@ The library workflow uses OpenAI (`OPENAI_MODEL`, CI default
 still independently solve and review each new case. This override is confined to
 the batch build; it does not change production or paid-case generation defaults.
 Both provider keys are still required, and provider failures never bypass review.
+Before starting the specialty matrix, CI sends a fixed 64-token availability
+probe to the configured Anthropic reviewer. It repeats that small check before
+each new authoring attempt so exhausted credits stop the job without spending
+another OpenAI generation. The probe is not clinical approval or a balance
+guarantee. Raw provider errors are not retained by it. Passing companions already
+written remain available for artifact upload when later reviewer access fails.
 
 The CI-only diagnostic directory retains structurally valid, identifier-screened
 rejected attempts with both providers' outcomes, request IDs, exact blinded input,
@@ -72,6 +78,9 @@ Reference searches preserve singular/plural matches and omit unindexed stopwords
 temporary NCBI throttles receive at most three bounded attempts. License URLs may
 be linked or plain text in the article's permissions section. CC BY-NC/ND/SA and
 licenses mentioned elsewhere in an article remain ineligible.
+Clearly animal-only or wrong-age-only publications are excluded before filling
+the source limit. Explicit mixed-age populations and unindexed human guidance
+remain eligible; independent clinical review still checks the precise population.
 
 Pathology additionally retrieves one explicitly pinned, peer-reviewed teaching
 paper, [Scholl et al., 2025](https://pmc.ncbi.nlm.nih.gov/articles/PMC12271062/)

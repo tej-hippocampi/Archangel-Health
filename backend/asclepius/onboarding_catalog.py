@@ -94,7 +94,7 @@ septic shock|acute respiratory distress syndrome
 iodinated contrast kidney|pulmonary nodule
 basal cell carcinoma histology|cutaneous squamous cell carcinoma histopathology
 thyroid scintigraphy|FDG PET hyperglycemia
-bipolar depression|suicide prevention
+bipolar depression|suicide safety planning
 stroke spasticity|autonomic dysreflexia
 bone metastases radiotherapy|spinal cord compression radiotherapy
 sports concussion|ankle sprain

@@ -1,0 +1,509 @@
+{
+  "task_id": "onboarding-practice-v1-b71cdb20a2f872d6b152-1",
+  "specialty": "emergency medicine",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Adult with acute dyspnea and persistent circulatory instability",
+    "question": "Which treatment approach is most appropriate at this decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "emergency medicine",
+      "demographics": {
+        "age_band": "50-59",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Acute dyspnea",
+          "since": "Several hours",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Syncope",
+          "since": "Index presentation",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Persistent hypotension",
+          "since": "Index presentation",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Hypoxemia",
+          "since": "Index presentation",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "blood_pressure": "78/48 mmHg",
+        "repeat_blood_pressure": "80/50 mmHg",
+        "heart_rate": "128 beats/min",
+        "respiratory_rate": "30 breaths/min",
+        "oxygen_saturation": "88% on room air",
+        "temperature": "36.7 C"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Emergency Department",
+          "author_role": "emergency medicine",
+          "text": "A woman in her 50s presented after abrupt pleuritic chest discomfort, severe shortness of breath, and a witnessed brief syncopal episode. She remains awake but anxious, with cool extremities, weak peripheral pulses, and persistent hypotension on repeated measurements. She has no reported active bleeding, prior intracranial hemorrhage, recent major surgery, or recent significant trauma. CT pulmonary angiography has confirmed acute pulmonary emboli, and bedside echocardiography demonstrates marked right-ventricular strain.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "CT pulmonary angiography",
+          "label": "Index chest vascular study",
+          "findings": "Acute filling defects involve both main pulmonary arteries and extend into multiple lobar branches. The right ventricle is enlarged relative to the left ventricle.",
+          "measurements": [],
+          "impression": "Acute bilateral pulmonary emboli with imaging evidence of right-heart strain.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        },
+        {
+          "modality": "Bedside transthoracic echocardiography",
+          "label": "Focused cardiac study",
+          "findings": "Marked right-ventricular dilation and reduced right-ventricular systolic function are present. The left ventricle appears underfilled. No pericardial effusion is identified.",
+          "measurements": [],
+          "impression": "Acute right-ventricular pressure overload with right-ventricular systolic dysfunction.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional onboarding assessment case; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [
+        "clinical assessment",
+        "CT pulmonary angiography",
+        "bedside echocardiography"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for decision",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The patient has confirmed acute pulmonary embolism with overt hemodynamic compromise, shown by syncope, persistent severe hypotension, cool extremities, and weak pulses. The supplied ASH guideline identifies thrombolytic therapy as a strong recommendation for PE with hemodynamic compromise, while the supplied review describes high-risk PE as requiring immediate reperfusion and systemic thrombolysis. Systemic anticoagulation remains part of PE treatment, but anticoagulation alone is incomplete in this unstable presentation. Although thrombolysis increases major hemorrhage risk, withholding reperfusion solely because bleeding is possible is not justified when no relevant bleeding contraindication is reported.",
+        "evidence": null,
+        "key_data": [
+          "CT pulmonary angiography confirms acute bilateral pulmonary emboli.",
+          "Blood pressure remains approximately 80/50 mmHg on repeated measurements.",
+          "Syncope, cool extremities, and weak pulses indicate circulatory compromise.",
+          "Echocardiography shows marked right-ventricular dilation and systolic dysfunction.",
+          "No active bleeding or reported major intracranial, surgical, or traumatic bleeding risk is present."
+        ]
+      },
+      "hard_hook": "Persistent hypotension distinguishes hemodynamically compromised PE from a stable intermediate-risk presentation.",
+      "reasoning_divergence": "The flawed choice overweights thrombolytic bleeding risk and omits urgently indicated reperfusion despite overt hemodynamic compromise."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Begin systemic anticoagulation alone and observe for clinical deterioration, withholding thrombolytic therapy because the associated major-bleeding risk outweighs any potential benefit."
+      },
+      {
+        "id": "B",
+        "text": "Treat immediately with systemic thrombolytic therapy, with systemic anticoagulation as part of pulmonary embolism treatment, rather than relying on anticoagulation alone."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "pulmonary embolism",
+      "hemodynamic compromise",
+      "persistent hypotension",
+      "systemic thrombolysis",
+      "major hemorrhage",
+      "right ventricular dysfunction"
+    ],
+    "evidence_keywords": [
+      "acute pulmonary embolism",
+      "reperfusion therapy",
+      "systemic anticoagulation",
+      "thrombolytic therapy",
+      "high-risk pulmonary embolism"
+    ],
+    "error_tags": [
+      "omission",
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "ASH gives a strong recommendation for thrombolytic therapy in patients with pulmonary embolism and hemodynamic compromise.",
+        "source_ids": [
+          "33007077"
+        ]
+      },
+      {
+        "statement": "High-risk acute pulmonary embolism is a life-threatening emergency requiring immediate reperfusion treatment.",
+        "source_ids": [
+          "35938605"
+        ]
+      },
+      {
+        "statement": "Systemic thrombolysis is the recommended reperfusion treatment for high-risk acute pulmonary embolism.",
+        "source_ids": [
+          "35938605"
+        ]
+      },
+      {
+        "statement": "Systemic anticoagulation is a first-line component of treatment for acute pulmonary embolism.",
+        "source_ids": [
+          "35938605"
+        ]
+      },
+      {
+        "statement": "Thrombolytic therapy may improve mortality and hemodynamic outcomes but increases major hemorrhagic events compared with heparin-based control treatment.",
+        "source_ids": [
+          "33857326"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:59:19.644597+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "41712898",
+        "title": "2026 AHA/ACC/ACCP/ACEP/CHEST/SCAI/SHM/SIR/SVM/SVN Guideline for the Evaluation and Management of Acute Pulmonary Embolism in Adults: A Report of the American College of Cardiology/American Heart Association Joint Committee on Clinical Practice Guidelines.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41712898/",
+        "abstract": "The \"2026 AHA/ACC/ACCP/ACEP/CHEST/SCAI/SHM/SIR/SVM/SVN Guideline for the Evaluation and Management of Acute Pulmonary Embolism in Adults\" is a de novo guideline that provides comprehensive recommendations for the evaluation, management, and follow-up of adult patients (≥18 years of age) with acute pulmonary embolism (acute PE). A key feature of this guideline is the introduction of the AHA/ACC Acute Pulmonary Embolism Clinical Categories, which enhance the precision of severity classification, prognosis assessment, and evidence-based therapeutic decision-making.\nA comprehensive literature search was conducted from February 2024 to October 2024 to identify clinical studies, reviews, and other evidence conducted on human subjects that were published in English from MEDLINE (through PubMed), EMBASE, the Cochrane Library, Agency for Healthcare Research and Quality, and other selected databases relevant to this guideline. Select key studies published until April 2025 were added by the guideline writing committee as appropriate.\nThe focus of this clinical practice guideline is an evidence-based and patient-centered approach for acute PE evaluation and management of the adult patient. This guideline encompasses the period from the onset of symptoms through clinical follow-up, focusing on risk outcomes assessment, clinical diagnosis of acute PE, appropriate use of adjunctive cardiovascular testing, and management in both the acute and early post-acute phases of PE. It addresses evidence-based diagnostic and management strategies (including pharmacological therapies, advanced interventional therapies, and in-hospital support) for acute PE and associated outcomes.",
+        "sha256": "e054795fa1be16aaf6ac8a7da1154056dd27f0105c6d57083fcf9d39366ad6c3",
+        "retrieved_at": "2026-09-18T23:57:45.688141+00:00"
+      },
+      {
+        "id": "33007077",
+        "title": "American Society of Hematology 2020 guidelines for management of venous thromboembolism: treatment of deep vein thrombosis and pulmonary embolism.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33007077/",
+        "abstract": "Venous thromboembolism (VTE), which includes deep vein thrombosis (DVT) and pulmonary embolism (PE), occurs in ∼1 to 2 individuals per 1000 each year, corresponding to ∼300 000 to 600 000 events in the United States annually.\nThese evidence-based guidelines from the American Society of Hematology (ASH) intend to support patients, clinicians, and others in decisions about treatment of VTE.\nASH formed a multidisciplinary guideline panel balanced to minimize potential bias from conflicts of interest. The McMaster University GRADE Centre supported the guideline development process, including updating or performing systematic evidence reviews. The panel prioritized clinical questions and outcomes according to their importance for clinicians and adult patients. The Grading of Recommendations Assessment, Development and Evaluation (GRADE) approach was used to assess evidence and make recommendations, which were subject to public comment.\nThe panel agreed on 28 recommendations for the initial management of VTE, primary treatment, secondary prevention, and treatment of recurrent VTE events.\nStrong recommendations include the use of thrombolytic therapy for patients with PE and hemodynamic compromise, use of an international normalized ratio (INR) range of 2.0 to 3.0 over a lower INR range for patients with VTE who use a vitamin K antagonist (VKA) for secondary prevention, and use of indefinite anticoagulation for patients with recurrent unprovoked VTE. Conditional recommendations include the preference for home treatment over hospital-based treatment for uncomplicated DVT and PE at low risk for complications and a preference for direct oral anticoagulants over VKA for primary treatment of VTE.",
+        "sha256": "81920b9ad8ad9fe120b61685f88838797b7894620c434ac7c846d0a46e887ee3",
+        "retrieved_at": "2026-09-18T23:57:45.688141+00:00",
+        "pmcid": "PMC7556153"
+      },
+      {
+        "id": "41712677",
+        "title": "2026 AHA/ACC/ACCP/ACEP/CHEST/SCAI/SHM/SIR/SVM/SVN Guideline for the Evaluation and Management of Acute Pulmonary Embolism in Adults: A Report of the American College of Cardiology/American Heart Association Joint Committee on Clinical Practice Guidelines.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41712677/",
+        "abstract": "The \"2026 AHA/ACC/ACCP/ACEP/CHEST/SCAI/SHM/SIR/SVM/SVN Guideline for the Evaluation and Management of Acute Pulmonary Embolism in Adults\" is a de novo guideline that provides comprehensive recommendations for the evaluation, management, and follow-up of adult patients (≥18 years of age) with acute pulmonary embolism (PE). A key feature of this guideline is the introduction of the AHA/ACC Acute Pulmonary Embolism Clinical Categories, which enhance the precision of severity classification, prognosis assessment, and evidence-based therapeutic decision-making.\nA comprehensive literature search was conducted from February 2024 to October 2024 to identify clinical studies, reviews, and other evidence conducted on human subjects that were published in English from MEDLINE (through PubMed), EMBASE, the Cochrane Library, Agency for Healthcare Research and Quality, and other selected databases relevant to this guideline. Select key studies published until April 2025 were added by the guideline writing committee as appropriate.\nThe focus of this clinical practice guideline is an evidence-based and patient-centered approach for acute PE evaluation and management of the adult patient. This guideline encompasses the period from the onset of symptoms through clinical follow-up, focusing on risk outcomes assessment, clinical diagnosis of acute PE, appropriate use of adjunctive cardiovascular testing, and management in both the acute and early post-acute phases of PE. It addresses evidence-based diagnostic and management strategies (including pharmacological therapies, advanced interventional therapies, and in-hospital support) for acute PE and associated outcomes.",
+        "sha256": "32bf79c29e6fc57082e8d79478eb75246870f6918fb0812ea21c4206ae7c97ef",
+        "retrieved_at": "2026-09-18T23:57:46.507401+00:00"
+      },
+      {
+        "id": "33857326",
+        "title": "Thrombolytic therapy for pulmonary embolism.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33857326/",
+        "abstract": "Thrombolytic therapy is usually reserved for people with clinically serious or massive pulmonary embolism (PE). Evidence suggests that thrombolytic agents may dissolve blood clots more rapidly than heparin and may reduce the death rate associated with PE. However, there are still concerns about the possible risk of adverse effects of thrombolytic therapy, such as major or minor haemorrhage. This is the fourth update of the Cochrane review first published in 2006.\nTo assess the effects of thrombolytic therapy for acute pulmonary embolism.\nThe Cochrane Vascular Information Specialist searched the Cochrane Vascular Specialised Register, CENTRAL, MEDLINE, Embase, and CINAHL databases and the World Health Organization International Clinical Trials Registry Platform and ClinicalTrials.gov trials registers to 17 August 2020. We undertook reference checking to identify additional studies.\nWe included randomised controlled trials (RCTs) that compared thrombolytic therapy followed by heparin versus heparin alone, heparin plus placebo, or surgical intervention for people with acute PE (massive/submassive). We did not include trials comparing two different thrombolytic agents or different doses of the same thrombolytic drug.\nTwo review authors (ZZ, QH) assessed the eligibility and risk of bias of trials and extracted data. We calculated effect estimates using the odds ratio (OR) with a 95% confidence interval (CI) or the mean difference (MD) with a 95% CI. The primary outcomes of interest were death, recurrence of PE and haemorrhagic events. We assessed the certainty of the evidence using GRADE criteria.\nWe identified three new studies for inclusion in this update. We included 21 trials in the review, with a total of 2401 participants. No studies compared thrombolytics versus surgical intervention. We were not able to include one study in the meta-analysis because it provided no extractable data. Most studies carried a high or unclear risk of bias related to randomisation and blinding. Meta-analysis showed that, compared to control (heparin alone or heparin plus placebo), thrombolytics plus heparin probably reduce both the odds of death (OR 0.58, 95% CI 0.38 to 0.88; 19 studies, 2319 participants; low-certainty evidence), and recurrence of PE (OR 0.54, 95% CI 0.32 to 0.91; 12 studies, 2050 participants; low-certainty evidence). Effects on mortality weakened when six studies at high risk of bias were excluded from analysis (OR 0.71, 95% CI 0.45 to 1.13; 13 studies, 2046 participants) and in the analysis of submassive PE participants (OR 0.61, 95% CI 0.37 to 1.02; 1993 participants). Effects on recurrence of PE also weakened after removing one study at high risk of bias for sensitivity analysis (OR 0.60, 95% CI 0.35 to 1.04; 11 studies, 1949 participants). We downgraded the certainty of evidence to low because of 'Risk of bias' concerns. Major haemorrhagic events were probably more common in the thrombolytics group than in the control group (OR 2.84, 95% CI 1.92 to 4.20; 15 studies, 2101 participants; moderate-certainty evidence), as were minor haemorrhagic events (OR 2.97, 95% CI 1.66 to 5.30; 13 studies,1757 participants; low-certainty evidence). We downgraded the certainty of the evidence to moderate or low because of 'Risk of bias' concerns and inconsistency. Haemorrhagic stroke may occur more often in the thrombolytics group than in the control group (OR 7.59, 95% CI 1.38 to 41.72; 2 studies, 1091 participants). Limited data indicated that thrombolytics may benefit haemodynamic outcomes, perfusion lung scanning, pulmonary angiogram assessment, echocardiograms, pulmonary hypertension, coagulation parameters, composite clinical outcomes, need for escalation and survival time to a greater extent than heparin alone. However, the heterogeneity of the studies and the small number of participants involved warrant caution when interpreting results. The length of hospital stay was shorter in the thrombolytics group than in the control group (mean difference (MD) -1.40 days, 95% CI -2.69 to -0.11; 5 studies, 368 participants). Haemodynamic decompensation may occur less in the thrombolytics group than in the control group (OR 0.36, 95% CI 0.20 to 0.66; 3 studies, 1157 participants). Quality of life was similar between the two treatment groups. None of the included studies provided data on post-thrombotic syndrome or on cost comparison.\nLow-certainty evidence suggests that thrombolytics may reduce death following acute pulmonary embolism compared with heparin (the effectiveness was mainly driven by one trial with massive PE). Thrombolytic therapy may be helpful in reducing the recurrence of pulmonary emboli but may cause more major and minor haemorrhagic events, including haemorrhagic stroke. More studies of high methodological quality are needed to assess safety and cost effectiveness of thrombolytic therapy for people with pulmonary embolism.",
+        "sha256": "a07ffb4e44276eb91d2527f0a91428874378b7bc5d118eaae70078327f3588b8",
+        "retrieved_at": "2026-09-18T23:57:46.507401+00:00",
+        "pmcid": "PMC8092433"
+      },
+      {
+        "id": "38037310",
+        "title": "Thrombolytics in Cardiac Arrest from Pulmonary Embolism: A Systematic Review and Meta Analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38037310/",
+        "abstract": "During cardiopulmonary resuscitation, intravenous thrombolytics are commonly used for patients whose underlying etiology of cardiac arrest is presumed to be related to pulmonary embolism (PE).\nWe performed a systematic review and meta-analysis of the existing literature that focused on the use of thrombolytics for cardiac arrest due to presumed or confirmed PE. Outcomes of interest were return of spontaneous circulation (ROSC), survival to hospital discharge, neurologically-intact survival, and bleeding complications.\nThirteen studies with a total of 803 patients were included in this review. Most studies included were single-armed and retrospective. Thrombolytic agent and dose were heterogeneous between studies. Among those with control groups, intravenous thrombolysis was associated with higher rates of ROSC (OR 2.55, 95% CI = 1.50-4.34), but without a significant difference in survival to hospital discharge (OR 1.41, 95% CI = 0.79-2.41) or bleeding complications (OR 2.21, 0.95-5.17).\nUse of intravenous thrombolytics in cardiac arrest due to confirmed or presumed PE is associated with increased ROSC but not survival to hospital discharge or change in bleeding complications. Larger randomized studies are needed. Currently, we recommend continuing to follow existing consensus guidelines which support use of thrombolytics for this indication.",
+        "sha256": "fd42762cb8251edef3d7f9681cb9d83dc7e23867539c3af7186b1a4073b8874d",
+        "retrieved_at": "2026-09-18T23:57:47.267314+00:00"
+      },
+      {
+        "id": "31585051",
+        "title": "Interventional Therapies for Acute Pulmonary Embolism: Current Status and Principles for the Development of Novel Evidence: A Scientific Statement From the American Heart Association.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31585051/",
+        "abstract": "Pulmonary embolism (PE) represents the third leading cause of cardiovascular mortality. The technological landscape for management of acute intermediate- and high-risk PE is rapidly evolving. Two interventional devices using pharmacomechanical means to recanalize the pulmonary arteries have recently been cleared by the US Food and Drug Administration for marketing, and several others are in various stages of development. The purpose of this document is to clarify the current state of endovascular interventional therapy for acute PE and to provide considerations for evidence development for new devices that will define which patients with PE would derive the greatest net benefit from their use in various clinical settings. First, definitions and limitations of commonly used risk stratification tools for PE are reviewed. An adjudication of risks and benefits of available interventional therapies for PE follows. Next, considerations for optimal future evidence development in this field are presented in the context of the current US regulatory framework. Finally, the document concludes with a discussion of the pros and cons of the rapidly expanding PE response team model of care delivery.",
+        "sha256": "ffde357be0406039021c0b2a0ea6348dc648107059f7c445d8064519aa0c53ba",
+        "retrieved_at": "2026-09-18T23:57:47.267314+00:00"
+      },
+      {
+        "id": "37336568",
+        "title": "Catheter-directed thrombolysis compared with systemic thrombolysis and anticoagulation in patients with intermediate- or high-risk pulmonary embolism: systematic review and network meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37336568/",
+        "abstract": "Therapeutic options for intermediate- or high-risk pulmonary embolism (PE) include anticoagulation, systemic thrombolysis and catheter-directed thrombolysis (CDT); however, the role of CDT remains controversial. We sought to compare the efficacy and safety of CDT with other therapeutic options using network meta-analysis.\nWe searched PubMed (MEDLINE), Embase, ClinicalTrials.gov and Cochrane Library from inception to Oct. 18, 2022. We included randomized controlled trials and observational studies that compared therapeutic options for PE, including anticoagulation, systemic thrombolysis and CDT among patients with intermediate- or high-risk PE. The efficacy outcome was in-hospital death. Safety outcomes included major bleeding, intracerebral hemorrhage and minor bleeding.\nWe included data from 44 studies, representing 20 006 patients. Compared with systemic thrombolysis, CDT was associated with a decreased risk of death (odd ratio [OR] 0.43, 95% confidence interval [CI] 0.32-0.57), intracerebral hemorrhage (OR 0.44, 95% CI 0.29-0.64), major bleeding (OR 0.61, 95% CI 0.53-0.70) and blood transfusion (OR 0.46, 95% CI 0.28-0.77). However, no difference in minor bleeding was observed between the 2 therapeutic options (OR 1.11, 95% CI 0.66-1.87). Compared with anticoagulation, CDT was also associated with decreased risk of death (OR 0.36, 95% CI 0.25-0.52), with no increased risk of intracerebral hemorrhage (OR 1.33, 95% CI 0.63-2.79) or major bleeding (OR 1.24, 95% CI 0.88-1.75).\nWith moderate certainty of evidence, the risk of death and major bleeding complications was lower with CDT than with systemic thrombolysis. Compared with anticoagulation, CDT was associated with a probable lower risk of death and a similar risk of intracerebral hemorrhage, with moderate certainty of evidence. Although these findings are largely based on observational data, CDT may be considered as a first-line therapy in patients with intermediate- or high-risk PE.\nPROSPERO - CRD42020182163.",
+        "sha256": "9594b9179ade6487b0847e1f77c3d65ca82efc86b4912f361f277ac225ad4a7f",
+        "retrieved_at": "2026-09-18T23:57:47.940370+00:00",
+        "pmcid": "PMC10281204"
+      },
+      {
+        "id": "35938605",
+        "title": "Catheter-directed therapies for the treatment of high risk (massive) and intermediate risk (submassive) acute pulmonary embolism.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35938605/",
+        "abstract": "Acute pulmonary embolism (APE) is a major cause of acute morbidity and mortality. APE results in long-term morbidity in up to 50% of survivors, known as post-pulmonary embolism (post-PE) syndrome.  APE can be classified according to the short-term (30-day) risk of mortality, based on a variety of clinical, imaging and laboratory findings. Most mortality and morbidity is concentrated in high-risk (massive) and intermediate-risk (submassive) APE. The first-line treatment for APE is systemic anticoagulation.  High-risk (massive) APE accounts for less than 10% of APE cases and is a life-threatening medical emergency, requiring immediate reperfusion treatment to prevent death. Systemic thrombolysis is the recommended treatment for high-risk (massive) APE. However, only a minority of the people affected receive systemic thrombolysis, due to comorbidities or the 10% risk of major haemorrhagic side effects. Of those who do receive systemic thrombolysis, 8% do not respond in a timely manner. Surgical pulmonary embolectomy is an alternative reperfusion treatment, but is not widely available.  Intermediate-risk (submassive) APE represents 45% to 65% of APE cases, with a short-term mortality rate of around 3%. Systemic thrombolysis is not recommended for this group, as major haemorrhagic complications outweigh the benefit. However, the people at higher risk within this group have a short-term mortality of around 12%, suggesting that anticoagulation alone is not an adequate treatment. Identification and more aggressive treatment of people at intermediate to high risk, who have a more favourable risk profile for reperfusion treatments, could reduce short-term mortality and potentially reduce post-PE syndrome. Catheter-directed treatments (catheter-directed thrombolysis and catheter embolectomy) are minimally invasive reperfusion treatments for high- and intermediate-risk APE. Catheter-directed treatments can be used either as the primary treatment or as salvage treatment after failure of systemic thrombolysis. Catheter-directed thrombolysis administers 10% to 20% of the systemic thrombolysis dose directly into the thrombus in the lungs, potentially reducing the risks of haemorrhagic side effects. Catheter embolectomy mechanically removes the thrombus without the need for thrombolysis, and may be useful for people with contraindications for thrombolysis.  Currently, the benefits of catheter-based APE treatments compared with existing medical and surgical treatment are unclear despite increasing adoption of catheter treatments by PE response teams. This review examines the evidence for the use of catheter-directed treatments in high- and intermediate-risk APE. This evidence could help guide the optimal treatment strategy for people affected by this common and life-threatening condition.\nTo assess the effects of catheter-directed therapies versus alternative treatments for high-risk (massive) and intermediate-risk (submassive) APE.\nWe used standard, extensive Cochrane search methods. The latest search was 15 March 2022.\nWe included randomised controlled trials (RCTs) of catheter-directed therapies for the treatment of high-risk (massive) and intermediate-risk (submassive) APE. We excluded catheter-directed treatments for non-PE. We applied no restrictions on participant age or on the date, language or publication status of RCTs.\nWe used standard Cochrane methods. The main outcomes were all-cause mortality, treatment-associated major and minor haemorrhage rates based on two established clinical definitions, recurrent APE requiring retreatment or change to a different APE treatment, length of hospital stay, and quality of life. We used GRADE to assess certainty of evidence for each outcome.\nWe identified one RCT (59 participants) of (ultrasound-augmented) catheter-directed thrombolysis for intermediate-risk (submassive) APE. We found no trials of any catheter-directed treatments (thrombectomy or thrombolysis) in people with high-risk (massive) APE or of catheter-based embolectomy in people with intermediate-risk (submassive) APE. The included trial compared ultrasound-augmented catheter-directed thrombolysis with alteplase and systemic heparinisation versus systemic heparinisation alone. In the treatment group, each participant received an infusion of alteplase 10 mg or 20 mg over 15 hours. We identified a high risk of selection and performance bias, low risk of detection and reporting bias, and unclear risk of attrition and other bias. Certainty of evidence was very low because of risk of bias and imprecision.  By 90 days, there was no clear difference in all-cause mortality between the treatment group and control group. A single death occurred in the control group at 20 days after randomisation, but it was unrelated to the treatment or to APE (odds ratio (OR) 0.31, 95% confidence interval (CI) 0.01 to 7.96; 59 participants). By 90 days, there were no episodes of treatment-associated major haemorrhage in either the treatment or control group. There was no clear difference in treatment-associated minor haemorrhage between the treatment and control group by 90 days (OR 3.11, 95% CI 0.30 to 31.79; 59 participants). By 90 days, there were no episodes of recurrent APE requiring retreatment or change to a different APE treatment in the treatment or control group. There was no clear difference in the length of mean total hospital stay between the treatment and control groups. Mean stay was 8.9 (standard deviation (SD) 3.4) days in the treatment group versus 8.6 (SD 3.9) days in the control group (mean difference 0.30, 95% CI -1.57 to 2.17; 59 participants). The included trial did not investigate quality of life measures.  AUTHORS' CONCLUSIONS: There is a lack of evidence to support widespread adoption of catheter-based interventional therapies for APE. We identified one small trial showing no clear differences between ultrasound-augmented catheter-directed thrombolysis with alteplase plus systemic heparinisation versus systemic heparinisation alone in all-cause mortality, major and minor haemorrhage rates, recurrent APE and length of hospital stay. Quality of life was not assessed.  Multiple small retrospective case series, prospective patient registries and single-arm studies suggest potential benefits of catheter-based treatments, but they provide insufficient evidence to recommend this approach over other evidence-based treatments. Researchers should consider clinically relevant primary outcomes (e.g. mortality and exercise tolerance), rather than surrogate markers (e.g. right ventricular to left ventricular (RV:LV) ratio or thrombus burden), which have limited clinical utility. Trials must include a control group to determine if the effects are specific to the treatment.",
+        "sha256": "2659720618e43b331a4af25d9e0fa5bc011ae5c12facf0b8deca2223a352dc4e",
+        "retrieved_at": "2026-09-18T23:57:47.940370+00:00",
+        "pmcid": "PMC9358724"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This patient has high-risk (massive) acute pulmonary embolism: confirmed bilateral PE on CTPA with persistent hemodynamic instability (BP 78/48 and 80/50 mmHg, HR 128), syncope, hypoxemia, and echocardiographic RV strain/dysfunction with an underfilled LV. This constitutes hemodynamic compromise/obstructive shock. Guidelines strongly support systemic thrombolysis in this setting: ASH 2020 (33007077) gives a strong recommendation for thrombolytic therapy in PE with hemodynamic compromise, and the Cochrane review (33857326) shows thrombolytics reduce mortality (effect mainly driven by massive PE) and hemodynamic decompensation, despite increased bleeding. Cochrane 35938605 explicitly states systemic thrombolysis is the recommended treatment for high-risk (massive) PE. Critically, the case documents no absolute contraindications (no active bleeding, no prior intracranial hemorrhage, no recent major surgery or trauma), so the major-bleeding risk does not outweigh the benefit here. Option A (anticoagulation alone with watchful waiting) is inappropriate for a patient already in shock, since anticoagulation alone does not rapidly relieve obstruction and this patient is actively unstable. While catheter-directed therapy is an emerging alternative (37336568), it is not offered as a candidate answer, and immediate reperfusion via systemic thrombolysis is the guideline-concordant, universally available choice for high-risk PE with contraindications absent.",
+          "confidence": 0.9
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33007077"
+              ],
+              "source_passage_ids": [
+                "33007077:p1"
+              ],
+              "reason": "The ASH 2020 guideline abstract explicitly lists thrombolytic therapy for PE with hemodynamic compromise among its strong recommendations.",
+              "source_quotes": [
+                {
+                  "source_id": "33007077",
+                  "quote": "The Grading of Recommendations Assessment, Development and Evaluation (GRADE) approach was used to assess evidence and make recommendations, which were subject to public comment. The panel agreed on 28 recommendations for the initial management of VTE, primary treatment, secondary prevention, and treatment of recurrent VTE events. Strong recommendations include the use of thrombolytic therapy for patients with PE and hemodynamic compromise, use of an international normalized ratio (INR) range of 2.0 to 3.0 over a lower INR range for patients with VTE who use a vitamin K antagonist (VKA) for secondary prevention, and use of indefinite anticoagulation for patients with recurrent unprovoked VTE."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "35938605"
+              ],
+              "source_passage_ids": [
+                "35938605:p0"
+              ],
+              "reason": "Source states high-risk (massive) APE is a life-threatening emergency requiring immediate reperfusion.",
+              "source_quotes": [
+                {
+                  "source_id": "35938605",
+                  "quote": "Acute pulmonary embolism (APE) is a major cause of acute morbidity and mortality. APE results in long-term morbidity in up to 50% of survivors, known as post-pulmonary embolism (post-PE) syndrome. APE can be classified according to the short-term (30-day) risk of mortality, based on a variety of clinical, imaging and laboratory findings. Most mortality and morbidity is concentrated in high-risk (massive) and intermediate-risk (submassive) APE. The first-line treatment for APE is systemic anticoagulation. High-risk (massive) APE accounts for less than 10% of APE cases and is a life-threatening medical emergency, requiring immediate reperfusion treatment to prevent death. Systemic thrombolysis is the recommended treatment for high-risk (massive) APE."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "35938605"
+              ],
+              "source_passage_ids": [
+                "35938605:p0"
+              ],
+              "reason": "Source explicitly states systemic thrombolysis is the recommended treatment for high-risk APE.",
+              "source_quotes": [
+                {
+                  "source_id": "35938605",
+                  "quote": "Acute pulmonary embolism (APE) is a major cause of acute morbidity and mortality. APE results in long-term morbidity in up to 50% of survivors, known as post-pulmonary embolism (post-PE) syndrome. APE can be classified according to the short-term (30-day) risk of mortality, based on a variety of clinical, imaging and laboratory findings. Most mortality and morbidity is concentrated in high-risk (massive) and intermediate-risk (submassive) APE. The first-line treatment for APE is systemic anticoagulation. High-risk (massive) APE accounts for less than 10% of APE cases and is a life-threatening medical emergency, requiring immediate reperfusion treatment to prevent death. Systemic thrombolysis is the recommended treatment for high-risk (massive) APE."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "35938605"
+              ],
+              "source_passage_ids": [
+                "35938605:p0"
+              ],
+              "reason": "Source states the first-line treatment for APE is systemic anticoagulation.",
+              "source_quotes": [
+                {
+                  "source_id": "35938605",
+                  "quote": "Acute pulmonary embolism (APE) is a major cause of acute morbidity and mortality. APE results in long-term morbidity in up to 50% of survivors, known as post-pulmonary embolism (post-PE) syndrome. APE can be classified according to the short-term (30-day) risk of mortality, based on a variety of clinical, imaging and laboratory findings. Most mortality and morbidity is concentrated in high-risk (massive) and intermediate-risk (submassive) APE. The first-line treatment for APE is systemic anticoagulation. High-risk (massive) APE accounts for less than 10% of APE cases and is a life-threatening medical emergency, requiring immediate reperfusion treatment to prevent death. Systemic thrombolysis is the recommended treatment for high-risk (massive) APE."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "33857326"
+              ],
+              "source_passage_ids": [
+                "33857326:p2",
+                "33857326:p3",
+                "33857326:p4"
+              ],
+              "reason": "Cochrane review shows thrombolytics reduce death and benefit hemodynamic outcomes but increase major hemorrhagic events vs heparin control.",
+              "source_quotes": [
+                {
+                  "source_id": "33857326",
+                  "quote": "No studies compared thrombolytics versus surgical intervention. We were not able to include one study in the meta-analysis because it provided no extractable data. Most studies carried a high or unclear risk of bias related to randomisation and blinding. Meta-analysis showed that, compared to control (heparin alone or heparin plus placebo), thrombolytics plus heparin probably reduce both the odds of death (OR 0.58, 95% CI 0.38 to 0.88; 19 studies, 2319 participants; low-certainty evidence), and recurrence of PE (OR 0.54, 95% CI 0.32 to 0.91; 12 studies, 2050 participants; low-certainty evidence). Effects on mortality weakened when six studies at high risk of bias were excluded from analysis (OR 0.71, 95% CI 0.45 to 1.13; 13 studies, 2046 participants) and in the analysis of submassive PE participants (OR 0.61, 95% CI 0.37 to 1.02; 1993 participants)."
+                },
+                {
+                  "source_id": "33857326",
+                  "quote": "Effects on recurrence of PE also weakened after removing one study at high risk of bias for sensitivity analysis (OR 0.60, 95% CI 0.35 to 1.04; 11 studies, 1949 participants). We downgraded the certainty of evidence to low because of 'Risk of bias' concerns. Major haemorrhagic events were probably more common in the thrombolytics group than in the control group (OR 2.84, 95% CI 1.92 to 4.20; 15 studies, 2101 participants; moderate-certainty evidence), as were minor haemorrhagic events (OR 2.97, 95% CI 1.66 to 5.30; 13 studies,1757 participants; low-certainty evidence). We downgraded the certainty of the evidence to moderate or low because of 'Risk of bias' concerns and inconsistency. Haemorrhagic stroke may occur more often in the thrombolytics group than in the control group (OR 7.59, 95% CI 1.38 to 41.72; 2 studies, 1091 participants)."
+                },
+                {
+                  "source_id": "33857326",
+                  "quote": "Limited data indicated that thrombolytics may benefit haemodynamic outcomes, perfusion lung scanning, pulmonary angiogram assessment, echocardiograms, pulmonary hypertension, coagulation parameters, composite clinical outcomes, need for escalation and survival time to a greater extent than heparin alone. However, the heterogeneity of the studies and the small number of participants involved warrant caution when interpreting results. The length of hospital stay was shorter in the thrombolytics group than in the control group (mean difference (MD) -1.40 days, 95% CI -2.69 to -0.11; 5 studies, 368 participants). Haemodynamic decompensation may occur less in the thrombolytics group than in the control group (OR 0.36, 95% CI 0.20 to 0.66; 3 studies, 1157 participants). Quality of life was similar between the two treatment groups."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is a clear high-risk (massive) PE case: CTPA-confirmed bilateral PE, RV strain on echo, syncope, and persistent hypotension (78/48 then 80/50), hypoxemia, and shock signs (cool extremities, weak pulses). The chart explicitly documents no active bleeding, no prior ICH, no recent surgery or major trauma. All decisive data are present. The correct decision is immediate systemic thrombolysis (with anticoagulation), which candidate B recommends. Candidate A (anticoagulation alone, withholding thrombolysis) is the intended flawed choice and is unsafe because it omits urgently indicated reperfusion in overt hemodynamic compromise. Evidence support: ASH 2020 (33007077) gives a strong recommendation for thrombolysis in PE with hemodynamic compromise; the Cochrane review 35938605 states high-risk APE requires immediate reperfusion and systemic thrombolysis is the recommended treatment, and that systemic anticoagulation is first-line; the thrombolytic Cochrane review 33857326 documents mortality/hemodynamic benefit at the cost of increased major hemorrhage (driven largely by the massive-PE trial), which fits this population. Newer sources considered: 37336568 suggests catheter-directed thrombolysis may be preferable to systemic thrombolysis for reduced death/major bleeding, and 35938605 notes surgical embolectomy/catheter options; however catheter-directed therapy is not offered as a candidate here, and both those sources still confirm systemic anticoagulation is first-line and reperfusion is required for high-risk PE, so no ranking in the supplied evidence contradicts choosing B over A (anticoagulation alone). The 2026 AHA/ACC guideline entries are only scope abstracts and were not relied upon for any specific claim. The question stem and visible note do not disclose the answer (no mention of thrombolysis/reperfusion in the stem or note). Decision is clinically distinct (thrombolysis vs anticoagulation alone). No missing decisive information; dosing is not specified but the decision-level recommendation is safe and supported. Minor caveat: none of the sources give thrombolytic dosing, but the case asks for the treatment approach at the decision point, not a dose, so this is not a blocking gap."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient has confirmed high-risk (massive) pulmonary embolism with persistent hypotension, shock findings, hypoxemia, syncope, and severe right-ventricular dysfunction. In the absence of stated major contraindications, immediate reperfusion with systemic thrombolytic therapy is indicated rather than anticoagulation and observation alone. The ASH 2020 guideline strongly recommends thrombolysis for PE with hemodynamic compromise, and the supplied Cochrane evidence supports thrombolysis as recommended treatment for high-risk PE despite its increased bleeding risk. Systemic anticoagulation remains part of PE treatment, coordinated appropriately with thrombolysis.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.96,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33007077"
+              ],
+              "reason": "The ASH guideline abstract explicitly identifies thrombolysis for PE with hemodynamic compromise as a strong recommendation.",
+              "source_passage_ids": [
+                "33007077:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33007077",
+                  "quote": "The Grading of Recommendations Assessment, Development and Evaluation (GRADE) approach was used to assess evidence and make recommendations, which were subject to public comment. The panel agreed on 28 recommendations for the initial management of VTE, primary treatment, secondary prevention, and treatment of recurrent VTE events. Strong recommendations include the use of thrombolytic therapy for patients with PE and hemodynamic compromise, use of an international normalized ratio (INR) range of 2.0 to 3.0 over a lower INR range for patients with VTE who use a vitamin K antagonist (VKA) for secondary prevention, and use of indefinite anticoagulation for patients with recurrent unprovoked VTE."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "35938605"
+              ],
+              "reason": "The review explicitly characterizes high-risk acute PE as life-threatening and requiring immediate reperfusion to prevent death.",
+              "source_passage_ids": [
+                "35938605:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35938605",
+                  "quote": "Acute pulmonary embolism (APE) is a major cause of acute morbidity and mortality. APE results in long-term morbidity in up to 50% of survivors, known as post-pulmonary embolism (post-PE) syndrome. APE can be classified according to the short-term (30-day) risk of mortality, based on a variety of clinical, imaging and laboratory findings. Most mortality and morbidity is concentrated in high-risk (massive) and intermediate-risk (submassive) APE. The first-line treatment for APE is systemic anticoagulation. High-risk (massive) APE accounts for less than 10% of APE cases and is a life-threatening medical emergency, requiring immediate reperfusion treatment to prevent death. Systemic thrombolysis is the recommended treatment for high-risk (massive) APE."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "35938605"
+              ],
+              "reason": "The source explicitly states that systemic thrombolysis is the recommended treatment for high-risk acute PE.",
+              "source_passage_ids": [
+                "35938605:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35938605",
+                  "quote": "Acute pulmonary embolism (APE) is a major cause of acute morbidity and mortality. APE results in long-term morbidity in up to 50% of survivors, known as post-pulmonary embolism (post-PE) syndrome. APE can be classified according to the short-term (30-day) risk of mortality, based on a variety of clinical, imaging and laboratory findings. Most mortality and morbidity is concentrated in high-risk (massive) and intermediate-risk (submassive) APE. The first-line treatment for APE is systemic anticoagulation. High-risk (massive) APE accounts for less than 10% of APE cases and is a life-threatening medical emergency, requiring immediate reperfusion treatment to prevent death. Systemic thrombolysis is the recommended treatment for high-risk (massive) APE."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "35938605"
+              ],
+              "reason": "The source explicitly identifies systemic anticoagulation as first-line treatment for acute PE.",
+              "source_passage_ids": [
+                "35938605:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35938605",
+                  "quote": "Acute pulmonary embolism (APE) is a major cause of acute morbidity and mortality. APE results in long-term morbidity in up to 50% of survivors, known as post-pulmonary embolism (post-PE) syndrome. APE can be classified according to the short-term (30-day) risk of mortality, based on a variety of clinical, imaging and laboratory findings. Most mortality and morbidity is concentrated in high-risk (massive) and intermediate-risk (submassive) APE. The first-line treatment for APE is systemic anticoagulation. High-risk (massive) APE accounts for less than 10% of APE cases and is a life-threatening medical emergency, requiring immediate reperfusion treatment to prevent death. Systemic thrombolysis is the recommended treatment for high-risk (massive) APE."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "33857326"
+              ],
+              "reason": "The review reports a possible mortality and hemodynamic benefit from thrombolysis plus heparin versus heparin-based control, alongside a significantly higher rate of major hemorrhage.",
+              "source_passage_ids": [
+                "33857326:p2",
+                "33857326:p3",
+                "33857326:p4"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33857326",
+                  "quote": "No studies compared thrombolytics versus surgical intervention. We were not able to include one study in the meta-analysis because it provided no extractable data. Most studies carried a high or unclear risk of bias related to randomisation and blinding. Meta-analysis showed that, compared to control (heparin alone or heparin plus placebo), thrombolytics plus heparin probably reduce both the odds of death (OR 0.58, 95% CI 0.38 to 0.88; 19 studies, 2319 participants; low-certainty evidence), and recurrence of PE (OR 0.54, 95% CI 0.32 to 0.91; 12 studies, 2050 participants; low-certainty evidence). Effects on mortality weakened when six studies at high risk of bias were excluded from analysis (OR 0.71, 95% CI 0.45 to 1.13; 13 studies, 2046 participants) and in the analysis of submassive PE participants (OR 0.61, 95% CI 0.37 to 1.02; 1993 participants)."
+                },
+                {
+                  "source_id": "33857326",
+                  "quote": "Effects on recurrence of PE also weakened after removing one study at high risk of bias for sensitivity analysis (OR 0.60, 95% CI 0.35 to 1.04; 11 studies, 1949 participants). We downgraded the certainty of evidence to low because of 'Risk of bias' concerns. Major haemorrhagic events were probably more common in the thrombolytics group than in the control group (OR 2.84, 95% CI 1.92 to 4.20; 15 studies, 2101 participants; moderate-certainty evidence), as were minor haemorrhagic events (OR 2.97, 95% CI 1.66 to 5.30; 13 studies,1757 participants; low-certainty evidence). We downgraded the certainty of the evidence to moderate or low because of 'Risk of bias' concerns and inconsistency. Haemorrhagic stroke may occur more often in the thrombolytics group than in the control group (OR 7.59, 95% CI 1.38 to 41.72; 2 studies, 1091 participants)."
+                },
+                {
+                  "source_id": "33857326",
+                  "quote": "Limited data indicated that thrombolytics may benefit haemodynamic outcomes, perfusion lung scanning, pulmonary angiogram assessment, echocardiograms, pulmonary hypertension, coagulation parameters, composite clinical outcomes, need for escalation and survival time to a greater extent than heparin alone. However, the heterogeneity of the studies and the small number of participants involved warrant caution when interpreting results. The length of hospital stay was shorter in the thrombolytics group than in the control group (mean difference (MD) -1.40 days, 95% CI -2.69 to -0.11; 5 studies, 368 participants). Haemodynamic decompensation may occur less in the thrombolytics group than in the control group (OR 0.36, 95% CI 0.20 to 0.66; 3 studies, 1157 participants). Quality of life was similar between the two treatment groups."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The patient has imaging-confirmed acute PE with persistent severe hypotension and clinical shock, directly fitting PE with hemodynamic compromise. Therefore, immediate reperfusion with systemic thrombolysis is supported, assuming the documented absence of major bleeding contraindications, and anticoagulation alone would be inadequate. Candidate B states the decisive treatment without implying unsafe simultaneous administration timing for anticoagulation. Candidate A dangerously delays reperfusion. The newer catheter-directed therapy evidence was considered: the 2023 network meta-analysis reports favorable associations for catheter-directed therapy but is largely observational and says it may be considered first-line, whereas the supplied 2022 Cochrane review found no high-risk randomized trials and insufficient evidence to recommend catheter intervention over established treatments. This does not overturn B relative to anticoagulation alone. The 2026 guideline excerpts describe scope but contain no actionable recommendation, so they were not used as support. The title and visible clinical note disclose instability and diagnostic findings but do not reveal the intended treatment plan."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "cbba9841afc9b0a58f8a85b53388046e58f4ee69fce4311aa2d1a2e603b414bf"
+  }
+}

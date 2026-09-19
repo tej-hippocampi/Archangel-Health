@@ -49,6 +49,7 @@ async def _build(specialty: str, output: Path):
     from asclepius import onboarding_cases as bank, onboarding_library as library
     from asclepius.store import get_store
     from scripts.smoke_onboarding_cases import prepare
+    from scripts.check_onboarding_reviewer import check_reviewer, ReviewerUnavailable
     store = get_store()
     output.mkdir(parents=True, exist_ok=True)
     failures = []
@@ -60,7 +61,8 @@ async def _build(specialty: str, output: Path):
             if reused:
                 attempts, rejected = 0, []
             else:
-                ident, row, attempts, rejected = await prepare(store, bank, specialty, kind, use_library=True)
+                ident, row, attempts, rejected = await prepare(store, bank, specialty, kind, use_library=True,
+                                                               before_attempt=check_reviewer)
             document = {"task_id": ident, "specialty": specialty, "kind": kind, "slot": 1,
                         "entry": json.loads(row["entry_json"]), "validation": json.loads(row["validation_json"])}
             library.validate(document)
@@ -71,6 +73,10 @@ async def _build(specialty: str, output: Path):
             path.write_text(content)
             print(json.dumps({"specialty": specialty, "kind": kind, "ready": True,
                               "attempts": attempts, "reused_release_case": reused, "rejections": rejected}), flush=True)
+        except ReviewerUnavailable:
+            # Already written passing companions remain uploadable. Repeating
+            # authorship or moving on to the exam cannot repair missing credits.
+            raise
         except Exception as exc:
             failures.append({"specialty": specialty, "kind": kind, "error": str(exc)})
             print(json.dumps(failures[-1]), flush=True)

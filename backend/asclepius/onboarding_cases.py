@@ -74,6 +74,11 @@ Before writing, reconcile contradictory sources, populations and comparison
 groups. Do not call a treatment the best or highest ranked unless every supplied
 comparison supports that exact claim; prefer the directly supported clinical
 decision without unnecessary superlatives or peripheral recommendations.
+If current guidelines disagree, either choose a decision on which they agree or
+explicitly name the governing guideline framework in the neutral question. Never
+mark an answer wrong merely because it follows a different supplied guideline.
+Calculate any clinical score from the supplied findings and check its arithmetic;
+do not label a score low or high when its actual components contradict that label.
 A guideline's scope summary or mention of an algorithm is not its recommendations.
 Do not fill omitted recommendations from memory or extrapolate between hospital
 and community populations, pregnancy and nonpregnancy, or adult and pediatric care.

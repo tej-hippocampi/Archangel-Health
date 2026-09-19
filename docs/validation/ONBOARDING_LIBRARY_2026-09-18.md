@@ -241,3 +241,34 @@ assertion explicitly excluded from this diagnostic run. Independent code audit:
 152 focused tests and 23 post-fix tests passed; all clinical confidence, source,
 image and 86-case release gates remain unchanged. Merge readiness is clear,
 0 commits behind main. Data preservation and production release holds above remain.
+
+## Reviewer credit failure and retained progress
+
+The independently audited emergency-medicine practice case brings retained
+coverage to **41/86; 45 remain missing**. Entry SHA-256:
+`cbba9841afc9b0a58f8a85b53388046e58f4ee69fce4311aa2d1a2e603b414bf`.
+Retained sources explicitly support thrombolysis for the presented high-risk,
+hemodynamically compromised PE; the case has no future-test metadata cue.
+
+Anthropic began returning HTTP 400 with an insufficient-credit message around
+00:01 UTC on September 19. Job `105795264425` confirms the billing failure; it is
+distinct from clinical rejection. OpenAI continued responding. The active full
+build and queued recovery `35408562185` were cancelled once this was identified,
+and all downloadable passing artifacts and rejection diagnostics were preserved.
+No case was admitted without its required independent reviewer.
+
+CI now probes reviewer availability before matrix fanout and each new authorship
+attempt, with a small fixed greeting and bounded request. Missing access stops
+further authorship and preserves already written companions. It neither checks a
+balance amount nor replaces clinical review. The reference filter now excludes
+clear animal-only and wrong-age-only papers before the eight-source cap, honors
+explicit mixed-age MeSH metadata, and retains unindexed human guidance. Tests
+cover incidental pediatric society names, childhood-onset diseases, maternal
+studies and Child-Pugh classifications. Adult psychiatry retrieval is narrowed
+to safety planning. Audited regeneration feedback also records score arithmetic,
+conflicting guideline frameworks, unsupported combinations and population errors.
+
+On `77ad95a`, all CI checks passed except the same completeness assertion in
+backend/keyless shard 4: **1689 passed, 3 skipped, 1 failed each**. The new follow-up
+has **176 focused tests passing**, with only the known completeness assertion
+excluded. Both provider review and the all-86 gate remain required before merge.
