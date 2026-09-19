@@ -1,49 +1,57 @@
 # Specialty onboarding revision and completion
 
-## Scope and preservation
+## Scope and immutable material
 
-PR #167 repairs rejected synthetic onboarding drafts using their retained evidence
-and specific review findings. Author-only revision inputs contain synthetic cases,
-public references and review diagnostics. They contain no applicant/CV data or
-health-system partner records. All real-model calls run in isolated CI using
-GitHub Secrets. No database migration, deployed-store write, email or payment is
-part of this change. Existing 41 committed bundles are frozen byte-for-byte;
-original trial/rejected artifacts remain retained outside the release bank.
+PR #167 completes the synthetic onboarding library with 45 additions, for 86
+cases across 43 specialties. The 41 original bundled files remain byte-for-byte
+unchanged. No database migration, deployed-store write, email, payment or change
+to existing batches is part of this release. Runtime lookup preserves existing
+ready database cases, draws and submitted examinations.
 
-The revision runner skips independently audited trial passes to bound spending,
-but these inputs confer no publication authority. Both fresh reviewers independently
-solve revised cases, see the actual public payload, and recheck safety, source
-entailment, contraindications and independence. Prior feedback is author-only.
-Rejection preserves diagnostics; provider failure aborts paid work; no trial
-writes tasks, submissions, records or the onboarding bank.
+Authoring inputs contain synthetic cases, public references and retained review
+diagnostics. They contain no applicant/CV data or health-system partner records.
+Pathology reference images are public-domain and de-identified, with provenance
+and single-field limits. No object buckets, encryption keys, upload sessions or
+external customer records are modified.
 
-## Verification and release
+## Before/after preservation and rollback
 
-Before inventory: `output/specialty-onboarding/revision-before-bundles.json`
-contains SHA-256 hashes for all 41 existing bundles. Compare this frozen inventory
-after additions; no existing file may disappear or change. The previous
-same-dataset read-only bundle and SQLite backup/restore regressions remain
-applicable. No production restore is attempted. Production backup/alert coverage
-has not been newly verified; this work does not claim it has.
+The frozen before inventory is
+`output/specialty-onboarding/revision-before-bundles.json`: SHA-256 values for all
+41 original case files. The release inventory verifies the same original file
+identities and hashes, adds only reviewed bundles, and validates all 86 release
+records. All accepted originals and prior trial/rejection artifacts are retained.
+No rejected verdict is overwritten; each revised entry has a new checksum and
+fresh review evidence.
 
-Independent content audits of the first 18 trial passes cleared 16 and held two
-(palliative answer cue and unrelated ENT evidence). Held cases require fresh
-revision and review. Publication remains blocked until clinical, artifact-audit,
-coverage and software checks pass. No trial marker may be relabelled to imply
-cross-provider or physician review that did not happen. Exact release evidence
-and final audits will be appended before merge.
+The prior same-dataset bundle and SQLite backup/restore regressions remain
+applicable. This change opens no production stores and attempts no production
+restore. Ongoing production backup and alert coverage have not been newly
+verified; these local fixture/file checks do not claim live operational coverage.
 
-Rollback: revert application changes without removing stored draws, submissions,
-ready database cases or paid batches. Keep accepted material and artifact history;
-do not overwrite submitted assessment identities.
+Rollback reverts application changes while preserving stored draws, submissions,
+ready database cases, paid batches and original artifact history. Do not overwrite
+submitted assessment identities or remove accepted source records.
 
-## Prepared draft safeguard verification
+## Validation and independent review
 
-The CI-only prepared-review path pins the exact complete draft before any paid
-probe; prior review feedback never reaches fresh reviewers. It skips authoring
-only and cannot resume or approve an old verdict. Four new blinded/clinical calls
-are required, with unchanged release gates. Independent code review confirmed
-canonical schema comparison and pre-probe input validation; 271 focused tests
-passed with the complete-library assertion held pending five final reviews.
-The eight latest approved additions cleared separate artifact audits. Frozen
-original inventory still matches all 41 files; prepared coverage is 81/86.
+The CI-only prepared path checks complete immutable input before paid probes,
+skips authoring only, and requires four new blinded/clinical calls. Source hashes,
+literal citations, clinical safety, >=0.90 confidence, public-answer boundaries,
+image review and provider provenance remain enforced. Provider failures stop paid
+work; failures retain safe diagnostics without publishing or writing store data.
+
+Separate fresh-context artifact audits cleared all 45 additions. Source audits
+verified exact evidence identities and licensed excerpts. Independent code review
+confirmed fixes for stale/relabelled audit authority, third-party retention,
+canonical schema coercion and pre-probe validation. The release registry binds
+whole-document hashes to immutable reports and exact task/entry identities.
+
+Final focused tests: **272 passed**, including the unchanged complete-library
+assertion. All 86 release records validate; the frozen inventory preserves all
+41 original file identities and hashes, with 45 additions. The committed result
+is `onboarding_material/source_audits/release-file-inventory.json`. The PR records
+final CI; merge requires all required checks to pass.
+`data_change_guard.py --base origin/main` reports no newly added destructive SQL.
+Detailed run links, audit paths and clinical-review limits are recorded in
+`docs/validation/ONBOARDING_REVISIONS_2026-09-18.md`.

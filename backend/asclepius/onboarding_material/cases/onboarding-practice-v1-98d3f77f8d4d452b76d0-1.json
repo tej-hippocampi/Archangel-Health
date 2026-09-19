@@ -1,0 +1,503 @@
+{
+  "task_id": "onboarding-practice-v1-98d3f77f8d4d452b76d0-1",
+  "specialty": "vascular surgery",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Abrupt unilateral foot pain with pulse deficit",
+    "question": "Which immediate management approach is most appropriate at this decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "vascular surgery",
+      "demographics": {
+        "age_band": "60-69",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Abrupt right foot and calf pain",
+          "since": "6 hours",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Right toe numbness and coolness",
+          "since": "3 hours",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Absent right pedal arterial Doppler signals",
+          "since": "Current examination",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "heart_rate_bpm": 92,
+        "blood_pressure_mmHg": "146/84",
+        "respiratory_rate_per_min": 17,
+        "oxygen_saturation_percent": 98,
+        "temperature_celsius": 36.7
+      },
+      "lab_panels": [
+        {
+          "panel": "Initial hematology and coagulation",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Hemoglobin",
+              "loinc": null,
+              "value": 13.6,
+              "unit": "g/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Platelet count",
+              "loinc": null,
+              "value": 236,
+              "unit": "x10^9/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "INR",
+              "loinc": null,
+              "value": 1.0,
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "aPTT",
+              "loinc": null,
+              "value": 29,
+              "unit": "seconds",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Initial kidney function",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Creatinine",
+              "loinc": null,
+              "value": 0.9,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Emergency consultation",
+          "author_role": "emergency medicine",
+          "text": "Six hours before assessment, the patient developed abrupt right calf and foot pain while seated. The foot later became cool, and numbness developed across the toes. Examination shows a pale, cool right foot with delayed capillary refill. Femoral pulses are palpable bilaterally, but no right dorsalis pedis or posterior tibial arterial signal is detected with a handheld Doppler; a venous Doppler signal remains present. Light-touch sensation is reduced at the toes, while ankle and toe movement remain full. The opposite foot is warm with audible pedal signals. There is no active or recent major bleeding, recent intracranial event, known prior heparin-induced thrombocytopenia, or current anticoagulant use. The patient is hemodynamically stable.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The abrupt pain, cool pale foot, absent pedal arterial signals, and toe sensory deficit indicate acute limb ischemia. Preserved motor function and a detectable venous signal indicate that the limb remains salvageable, but the sensory deficit makes delay unsafe. Urgent unfractionated heparin should be started in the absence of a contraindication to limit thrombus propagation, while an emergency vascular team is activated. Urgent duplex ultrasound or CT angiography should define the obstruction and guide prompt, patient-tailored revascularization with the strategy selected by the treating vascular team. Candidate A is consequentially flawed because it withholds both anticoagulation and vascular-team activation until after imaging, allowing potential thrombus propagation and deterioration of a threatened limb.",
+        "evidence": null,
+        "key_data": [
+          "Symptoms began abruptly six hours before assessment.",
+          "The right foot is pale and cool with delayed capillary refill.",
+          "Right pedal arterial Doppler signals are absent while a venous signal remains present.",
+          "Sensation is reduced at the toes, but ankle and toe motor function is preserved.",
+          "There is no active major bleeding, recent intracranial event, or known prior heparin-induced thrombocytopenia.",
+          "No definitive vascular imaging or revascularization has yet been completed."
+        ]
+      },
+      "hard_hook": "Preserved motor function does not make delayed evaluation safe when acute ischemic sensory changes and absent arterial signals are already present.",
+      "reasoning_divergence": "The candidates differ on whether anticoagulation and emergency vascular-team involvement begin immediately or are deferred until definitive imaging confirms the obstruction."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Obtain definitive vascular imaging first and withhold anticoagulation and vascular-team activation until the result confirms the lesion, because preserved motor function permits observation during the diagnostic workup."
+      },
+      {
+        "id": "B",
+        "text": "Start urgent unfractionated heparin now unless a contraindication emerges, activate the emergency vascular team, and obtain urgent duplex ultrasound or CT angiography to guide prompt, individualized revascularization."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "acute limb ischemia",
+      "unfractionated heparin",
+      "sensory deficit",
+      "arterial occlusion",
+      "limb viability",
+      "urgent revascularization"
+    ],
+    "evidence_keywords": [
+      "thrombus propagation",
+      "vascular team",
+      "duplex ultrasound",
+      "CT angiography",
+      "individualized revascularization"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Urgent unfractionated heparin in suspected acute limb ischemia limits thrombus propagation and helps preserve the microcirculation.",
+        "source_ids": [
+          "31416204"
+        ]
+      },
+      {
+        "statement": "Patients with suspected acute limb ischemia should receive emergency evaluation where an immediately available vascular team can direct management.",
+        "source_ids": [
+          "31416204"
+        ]
+      },
+      {
+        "statement": "For a viable or marginally threatened limb, urgent duplex ultrasound or CT angiography can define the obstruction and help plan intervention.",
+        "source_ids": [
+          "31416204"
+        ]
+      },
+      {
+        "statement": "In a salvageable acutely ischemic limb, prompt revascularization should be tailored by a multidisciplinary vascular team.",
+        "source_ids": [
+          "42097877"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T03:40:15.332047+00:00",
+    "author_model": null,
+    "sources": [
+      {
+        "id": "40428785",
+        "title": "Treatment Strategies and Prognostic Outcomes in Acute Limb Ischemia: A Systematic Review and Meta-Analysis Comparing Thrombolytic Therapy and Open Surgical Interventions.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40428785/",
+        "abstract": "Background and Objectives: Acute limb ischemia (ALI) is a life-threatening vascular emergency that requires immediate intervention to restore perfusion and prevent limb loss or mortality. Management strategies primarily include thrombolysis and surgical revascularization, each with distinct risks and benefits. This review evaluates and compares the outcomes of thrombolysis and surgical revascularization in ALI management, emphasizing their efficacy, safety, and patient selection criteria. Materials and Methods: A systematic review was conducted in adherence to PRISMA guidelines, analyzing data from 15 studies, including randomized controlled trials and large retrospective analyses, encompassing over 3500 patients with varying demographics and clinical presentations. Study quality was assessed using the Cochrane risk of bias tool and the Newcastle-Ottawa Scale. Results: Thrombolysis, utilizing agents such as urokinase or recombinant tissue plasminogen activator (rt-PA), demonstrated limb salvage rates up to 90% in acute cases, with 30-day mortality rates of 4-6%. It was particularly effective in patients with embolic occlusions or short symptom durations. However, bleeding complications associated with thrombolysis were reported in up to 47% of cases. Conversely, surgical revascularization remains crucial for those with advanced ischemia or contraindications to thrombolysis, offering reliable perfusion restoration but with higher perioperative morbidity, especially in older patients with significant comorbidities. Recent advancements, including hybrid approaches combining catheter-directed thrombolysis with percutaneous mechanical thrombectomy, have shown promise in improving outcomes by reducing procedure times and enhancing clot resolution. Conclusions: While thrombolysis and surgical revascularization are effective, optimizing patient selection remains a key challenge. Future research should focus on refining treatment algorithms, investigating novel thrombolytic agents, and expanding the role of minimally invasive techniques to improve long-term outcomes while mitigating complications such as bleeding and reperfusion injuries.",
+        "sha256": "b35b1e9e4cb35e3e6291b0e9dc6cacebdd252d0bfe68438c0703c2f40dcfe514",
+        "retrieved_at": "2026-09-19T03:39:42.498761+00:00",
+        "source_type": "systematic_review_meta_analysis",
+        "pmcid": "PMC12113467",
+        "body_excerpts": "1. Introduction\nAcute limb ischemia (ALI) is a critical vascular emergency defined by a rapid drop in arterial blood flow, which can lead to limb loss or death without immediate intervention [ 1 ]. Embolism, thrombosis, or trauma typically causes this condition, manifesting with the classic \u201c6 Ps\u201d: pain, pallor, pulselessness, paresthesia, paralysis, and poikilothermia [ 1 , 2 ]. It necessitates immediate intervention to restore blood flow and reduce ischemic damage [ 3 ]. ALI often results from peripheral artery disease (PAD), a chronic condition marked by progressive atherosclerotic narrowing of the peripheral arteries. This condition presents a considerable challenge for vascular surgeons as the management of patients becomes increasingly intricate [ 1 , 3 ].\n\n1. Introduction\nHistorically, surgical revascularization procedures, encompassing thrombectomy, embolectomy, and bypass grafting, have constituted the foundation of ALI management [ 4 , 5 ]. Although these surgical techniques demonstrate effectiveness, they frequently present considerable perioperative risks, including wound complications, infection, and a heightened mortality rate, particularly among older individuals or those with comorbidities [ 6 ].\n\n1. Introduction\nOver the past few decades, thrombolysis or endovascular treatment has emerged as a less invasive alternative to surgery [ 7 , 8 , 9 , 10 ]. These techniques provide numerous advantages, including the potential for clot dissolution in distal arterial beds and the identification and treatment of underlying lesions, while contributing to a reduced prevalence of long-term mortality and morbidity [ 9 ]. Several studies, such as the crucial TOPAS (Thrombolysis or Peripheral Arterial Surgery) trials [ 11 ], have demonstrated that thrombolysis effectively enhances limb salvage and decreases mortality rates in specific patient groups.\n\n1. Introduction\nRecent advancements in endovascular techniques have significantly enhanced the management of ALI [ 15 , 16 , 17 , 18 ]. Hybrid approaches, which combine thrombolysis with mechanical thrombectomy or surgical revascularization, demonstrate considerable potential for improving clinical outcomes by decreasing procedure duration and optimizing clot removal [ 16 ]. Incorporating these techniques into clinical practice has transitioned the paradigm of ALI management towards more personalized and minimally invasive strategies [ 16 , 17 , 18 ].\n\n1. Introduction\nGiven the ongoing debate and developing therapeutic options, there is an urgent need to consolidate new research on the comparative efficacy and safety of thrombolysis vs. surgical revascularization in ALI. This systematic review and pairwise meta-analysis primarily aims to evaluate the comparative effectiveness of thrombolysis versus surgical revascularization in treating ALI, focusing on outcomes such as limb salvage, mortality, and complications. By reviewing data from fifteen crucial studies, this research intends to gain a comprehensive understanding of the changing treatment landscape and to offer insights into enhancing care for ALI patients.\n\n2. Materials and Methods\nThis systematic review evaluates the efficacy and safety of thrombolysis versus surgical revascularization in the management of ALI. The study adheres to the Preferred Reporting Items for Systematic Reviews and Meta-Analyses (PRISMA) guidelines [ 18 ]. We registered our study in the PROSPERO database with the CRD420251019298 number.\n\n2. Materials and Methods > 2.1. Search Strategy\nA comprehensive literature search was conducted in PubMed, Scopus, and Web of Science for studies published from 1990 to 2024 ( Figure 1 ). Keywords included \u201cacute limb ischemia\u201d, \u201cthrombolysis\u201d, \u201csurgical revascularization\u201d, \u201climb salvage\u201d, and \u201cmortality\u201d. The reference lists of the included studies were also reviewed to identify additional relevant articles.\n\n2. Materials and Methods > 2.2. Inclusion and Exclusion Criteria\nInclusion criteria: - Studies comparing thrombolysis and surgical revascularization in ALI. - Reported outcomes: limb salvage, mortality, complication rates. - Randomized controlled trials (RCTs), observational studies, and meta-analyses. - English language publications.\n\n2. Materials and Methods > 2.4. Statistical Analysis\nDescriptive statistics summarized study characteristics and outcomes. Results are presented as narrative syntheses with tabulated summaries. A quantitative meta-analysis was undertaken to evaluate the pooled effect of thrombolysis in contrast to surgical revascularization for managing ALI. For each study, odds ratios (ORs) and 95% confidence intervals (CIs) were extracted or computed for significant outcomes, such as limb salvage, mortality, and complication rates. Data were analyzed using a random-effects model, owing to the anticipated clinical and methodological heterogeneity among the included studies. Forest plots were generated to illustrate the distribution and precision of effect estimates. Supplementary Material Table S1 offers a comprehensive statistical summary, encompassing study-level effect sizes, standard errors, confidence intervals, and weight distribution.\n\n3. Results\nThe table highlights various treatment approaches, including thrombolysis, surgical revascularization, and hybrid procedures. Thrombolytic therapy utilizing agents such as rt-PA, urokinase, and alteplase was prevalent among the studies, with success rates in thrombus dissolution varying from 70% to 86%. Notably, Swischuk et al. [ 24 ] reported a 30-day amputation-free survival rate of 93%, whereas Conrad et al. [ 26 ] achieved successful lysis in 71% of treated patients. Mortality rates varied significantly, with some studies like Falkowski et al. [ 31 ] reporting a low mortality of 2.1%, while others such as Plate et al. [ 33 ] observed 21% mortality within one year.\n\n3. Results\nComplication rates, including major bleeding and amputation, were consistently noted across studies. Swischuk et al. [ 24 ] reported major bleeding in 47% of patients, emphasizing the risks associated with thrombolytic therapy. The duration of hospital stays varied between 11 and 14 days in the studies that provided this metric, which underscores the intensive care necessary for these critical cases. Additionally, the research recorded comorbidities, indicating that hypertension (up to 88%) and diabetes (up to 49.2%) were common, emphasizing the intricate clinical profiles of these patients.\n\n3. Results\nTable 3 summarizes the key findings from the 15 studies. Overall, thrombolytic therapy showed high success rates, with thrombus dissolution ranging from 70% to 86%, as reported in studies like Ouriel et al. [ 22 ] and Swischuk et al. [ 24 ]. Amputation-free survival rates were also notable, reaching up to 93.8% at 30 days in Falkowski et al. [ 31 ]. However, complications such as major bleeding were significant in some studies, with rates up to 47% in Swischuk et al. [ 24 ]. Surgical interventions were often more effective in chronic ischemic cases, as seen in STILE [ 8 ], where they outperformed thrombolysis for ischemia lasting more than 14 days. Mortality rates varied, with Weaver et al. [ 34 ] reporting 10.7% mortality in the thrombolysis group compared to 14.9% in the surgical group, highlighting comparable long-term outcomes between the two approaches.\n\n4. Discussion\nThe comparative analysis of thrombolysis and surgical revascularization for acute limb ischemia highlights distinct outcomes critical in guiding clinical decision-making. This study evaluated over 3500 patients from 15 studies, revealing significant differences in limb salvage, mortality, and complication rates. The findings align with previous reports emphasizing the efficacy of thrombolysis in achieving superior limb salvage, particularly in patients presenting with embolic occlusions or symptoms of short duration [ 35 , 36 ].\n\n4. Discussion\nThrombolysis demonstrated remarkable success, with limb salvage rates exceeding 90% in several studies, as highlighted in Swischuk et al. [ 24 ], where the amputation-free survival at 30 days reached 93%. Similarly, Falkowski et al. [ 31 ] reported a thrombolytic success rate of 83.5% and a low mortality of 2.1%. This corroborates findings from previous meta-analyses showing that CDT significantly reduces the need for major amputations [ 37 , 38 ]. However, the risk of bleeding complications remains a concern, as evidenced by a 47% rate of major bleeding as reported by Swischuk et al. [ 24 ], consistent with literature citing bleeding as a major drawback of thrombolytic therapy [ 39 , 40 ].\n\n4. Discussion\nOn the other hand, surgical revascularization displayed higher perioperative risks but remained the treatment of choice for patients with advanced ischemia or contraindications to thrombolysis. For instance, the STILE trial [ 8 ] demonstrated that surgical intervention was more effective for patients with ischemia duration exceeding 14 days, achieving superior long-term outcomes in this setting. Mortality rates in surgical cohorts were generally higher, ranging from 10.7% in Weaver et al. [ 34 ] to 21% in Plate et al. [ 33 ]. This reflects the risks of open vascular procedures, particularly in comorbid and elderly patients.\n\n4. Discussion\nFurthermore, beyond acute clinical results, it is critical to examine long-term quality of life and functional recovery after revascularization. Kahn et al. [ 47 ] found that patients with catheter-directed thrombolysis had superior walking distances and health-related quality of life scores than those undergoing surgical bypass. Furthermore, sex-based and age-related outcome discrepancies have been noted in recent investigations, with older females having lower limb salvage and survival rates, indicating the necessity for individualized therapy regimens [ 48 , 49 ].\n\n4. Discussion\nManaging ALI presents a complex clinical challenge, influenced by the variety of patient presentations and comorbidities. Although the aforementioned studies thoroughly evaluated thrombolysis against open surgery, recent findings indicate that a personalized approach, tailored to each patient\u2019s unique characteristics, might yield better results. For instance, improvements in pharmacomechanical devices and the use of lower-dose thrombolytic therapies administered directly to lesions have allowed for more focused clot extraction, potentially minimizing bleeding risks while maintaining limb viability [ 51 , 52 ]. Emerging technologies like ultrasound-accelerated thrombolysis and microcatheter-guided delivery systems are promising in shortening reperfusion times while minimizing systemic complications [ 53 , 54 , 55 ]. Clinical insights from Schanzer et al. suggest that combining swift imaging protocols with prompt catheter-directed therapy enhances outcomes for patients with embolic ALI, emphasizing the importance of timely treatment [ 56 ]. Surgical revascularization is still critical, especially when thrombotic involvement coincides with severe pre-existing PAD featuring advanced stenotic lesions. Notably, hybrid approaches enable vascular surgeons to switch between endovascular and open techniques within the same session, proving especially advantageous in anatomically challenging or limb-threatening situations [ 57 , 58 , 59 , 60 ].\n\n4. Discussion > Strenghts and Limitations and Perspectives for Practical Application\nThis study provides a comprehensive review of thrombolysis and surgical revascularization in the management of acute limb ischemia, drawing from 15 diverse studies. One of its key strengths lies in its systematic approach, adhering to PRISMA guidelines to ensure robust study selection and data synthesis. The inclusion of a wide range of studies, from small cohorts to large-scale analyses, enables a detailed comparison of outcomes across different treatment modalities, including thrombolysis, surgical interventions, and hybrid approaches.\n\n4. Discussion > Strenghts and Limitations and Perspectives for Practical Application\nThe detailed analysis of limb salvage, mortality, and complication rates strengthens the validity of the findings. Furthermore, the exploration of hybrid strategies reflects the evolving clinical landscape, emphasizing the need for personalized treatment approaches.\n\n4. Discussion > Strenghts and Limitations and Perspectives for Practical Application\nHowever, several limitations must be acknowledged. The included studies show heterogeneity in design, sample size, and outcome measures, which may introduce bias and limit direct comparability. Additionally, the lack of standardized reporting across studies complicates data synthesis, particularly for long-term outcomes such as re-intervention rates and functional recovery.\n\n4. Discussion > Strenghts and Limitations and Perspectives for Practical Application\nDespite these limitations, this study provides valuable insights into ALI management, highlighting the strengths and weaknesses of current treatment strategies and laying the groundwork for future research. Perspectives for practical application include the development of clinical algorithms for patient stratification, the incorporation of hybrid strategies into standard practice, and the further exploration of minimally invasive techniques. Tailoring treatment protocols based on ischemia duration, etiology (thrombotic vs. embolic), and comorbid conditions may enhance clinical outcomes and resource allocation.\n\n5. Conclusions\nThis study points out the critical role of both thrombolysis and surgical revascularization in managing ALI. Thrombolysis demonstrated superior outcomes in terms of limb salvage, with success rates up to 90% in acute settings, as observed in multiple studies. Moreover, thrombolysis was associated with lower short-term mortality rates, ranging from 1% to 6%, highlighting its potential for minimizing systemic risks, particularly in patients with embolic occlusions or short ischemia duration. Conversely, surgical revascularization remains essential for patients with complex or chronic ischemic conditions. Although it presented higher perioperative mortality, ranging from 11% to 21%, it offered durable outcomes in specific patient cohorts, especially when ischemia extended beyond 14 days. These findings align with the existing literature and reaffirm the need for personalized therapeutic strategies. Future research should focus on refining patient selection criteria and leveraging advanced techniques to improve outcomes further.",
+        "body_excerpts_sha256": "859575764d296a8b48df3bf8e6b1a5aeab7f4aee35c8350a31e7c2eeb1d3dbb8",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12113467/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "41232816",
+        "title": "Endovascular versus open surgical approach in patients with acute limb ischemia: A systematic review and meta-analysis.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41232816/",
+        "abstract": "This meta-analysis compares clinical outcomes and procedural complications of endovascular vs open surgical techniques for the treatment of acute limb ischemia.\nPubMed, Embase, Cochrane Library, Scopus, and ClinicalTrials.gov were searched from inception to March 1, 2025. Studies comparing endovascular interventions with open surgical techniques for acute limb ischemia were included. Primary outcomes were amputation and mortality rates (early and long term). Secondary outcomes included reintervention, 30-day technical success, hospital stay, and procedural complications. Risk ratios (RRs) and mean differences were calculated using a random-effects model. Certainty of evidence was assessed using the Grading of Recommendations Assessment, Development, and Evaluation (GRADE) framework. A P value of <.05 was considered statistically significant.\nTwenty-six studies (4 randomized controlled trials and 22 cohort studies) involving 214,683 patients were included. No significant differences were observed in early amputation rates (RR, 0.93; 95% CI, 0.80-1.09; P = .39; GRADE, very low) or long-term amputation rates. Early mortality (RR, 0.75; 95% CI, 0.56-0.99; P = .05; GRADE, very low) and 6-month mortality (RR, 1.37; 95% CI, 0.70-2.70; P = .45; GRADE, very low) were also similar. However, long-term mortality was significantly lower with the endovascular group at 1, 2, 3, 4, and 5 years. Technical success and 30-day reintervention rates were comparable. Hospital stay was shorter with endovascular treatment (mean difference, -2.43 days; 95% CI, -3.84 to -1.02; GRADE, low). Myocardial infarction, stroke, fasciotomy, and nonintracranial bleeding were similar between groups. However, endovascular therapy was associated with higher intracranial hemorrhage (RR, 1.89; 95% confidence interval, 1.13-3.15; GRADE, low) and lower infection rates (RR, 0.33; 95% CI, 0.15-0.73; GRADE, moderate).\nEndovascular and open revascularization yielded comparable early outcomes. Endovascular treatment offered modest improvements in long-term survival, shorter hospital stays, and fewer infections, but with an increased risk of intracranial hemorrhage. Given the heterogeneity and limited number of randomized trials, further high-quality evidence is needed.",
+        "sha256": "3596f0e9f9cda0e797ed68a9242e77e49219cf1a287293bbe78a3f4e6a63963e",
+        "retrieved_at": "2026-09-19T03:39:42.498761+00:00",
+        "source_type": "systematic_review_meta_analysis"
+      },
+      {
+        "id": "42097877",
+        "title": "Comparative Safety and Effectiveness of Endovascular Versus Surgical Treatment for Acute Limb Ischemia: A Systematic Review and Meta-Analysis.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/42097877/",
+        "abstract": "Acute limb ischemia (ALI) is a limb- and life-threatening vascular emergency that necessitates prompt revascularization. While both surgical and endovascular interventions are established treatment modalities, contemporary comparative data remain limited. The study aims to evaluate and compare outcomes between these revascularization strategies.\nA Preferred Reporting Items for Systematic Reviews and Meta-Analyses (PRISMA)-guided systematic review and meta-analysis were performed. Three databases were searched through January 2026. All studies comparing endovascular versus surgical treatment for ALI were identified. Outcomes of interest included periprocedural and mid-term mortality, major amputation, and reintervention rates. Mid-term outcomes were defined as events occurring at any point during the reported follow-up period. Risk ratios (RRs) or hazard ratios (HRs) with 95% confidence intervals (CIs) were extracted and analyzed using a random-effects model.\nTwenty-four studies (5 randomized controlled trials, 2 prospective, and 17 retrospective observational studies) comprising 382\u2009465 patients (endovascular: 172\u2009308; surgical: 210\u2009157) were analyzed. In these studies, there was no difference in periprocedural mortality between endovascular and surgical treatment (RR 0.84, 95% CI 0.62-1.14). Endovascular treatment was associated with lower mid-term mortality compared with surgical revascularization (HR 0.84, 95% CI 0.76-0.94). Major amputation showed a similar trend, with comparable periprocedural risk (RR 0.93, 95% CI 0.51-1.71) and reduced mid-term risk with endovascular therapy (HR 0.84, 95% CI 0.77-0.91). Periprocedural reintervention rates were significantly higher in the endovascular group (RR 1.94, 95% CI 1.80-2.08), while mid-term reintervention rates were comparable (HR 1.79, 95% CI 0.79-4.06).\nIn this contemporary meta-analysis of patients treated for ALI, endovascular revascularization was associated with lower mid-term mortality and major amputation rates, whereas surgical intervention was linked to a lower risk of periprocedural reintervention. These findings underscore the importance of a multidisciplinary approach involving a dedicated vascular team to ensure optimal, patient-tailored management.\nProspective Register of Systematic Reviews, ID=1042195.Clinical ImpactAcute limb ischemia (ALI) carries high morbidity and mortality, yet comparative data on endovascular versus surgical revascularization are limited. In this meta-analysis of 24 studies including 382\u2009465 patients, periprocedural mortality was similar between approaches, but endovascular therapy reduced mid-term mortality and major amputation risk, despite higher periprocedural reintervention rates. These findings suggest that endovascular-first strategies may be a safe and effective alternative to surgical revascularization. Optimal care requires a multidisciplinary vascular team to tailor interventions, balancing immediate procedural risks with long-term outcomes for each patient.",
+        "sha256": "3dc51fcd079b262dcab5a7d0b42ba02f5050ffb92cb5bf70a40b62c45bc50068",
+        "retrieved_at": "2026-09-19T03:39:42.498761+00:00",
+        "source_type": "systematic_review_meta_analysis"
+      },
+      {
+        "id": "31416204",
+        "title": "Acute Limb Ischemia: An Update on Diagnosis and Management.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31416204/",
+        "abstract": "This review presents an update on the diagnosis and management of acute limb ischemia (ALI), a severe condition associated with high mortality and amputation rates. A comprehensive spectrum of ALI etiology is presented, with highlights on embolism and in situ thrombosis. The steps for emergency diagnosis are described, emphasizing the role of clinical data and imaging, mainly duplex ultrasound, CT angiography and digital substraction angiography. The different therapeutic techniques are presented, ranging from pharmacological (thrombolysis) to interventional (thromboaspiration, mechanical thrombectomy, and stent implantation) techniques to established surgical revascularization (Fogarty thrombembolectomy, by-pass, endarterectomy, patch angioplasty or combinations) and minor or major amputation of necessity. Postprocedural management, reperfusion injury, compartment syndrome and long-term treatment are also updated.",
+        "sha256": "0a2c234a577752632b8ee1276e104d8ac11d72d7b91df92d7b82b72637d0afce",
+        "retrieved_at": "2026-09-19T03:39:42.498761+00:00",
+        "source_type": "secondary_clinical_review",
+        "pmcid": "PMC6723825",
+        "body_excerpts": "1. Introduction\nPeripheral artery disease (PAD) is responsible for 12 to 15% of deaths in Europe [ 1 ] and is a major burden for the health system. The spectrum ranges from asymptomatic or intermittent claudication to necrosis and limb loss.\n\n1. Introduction\nA sudden decrease in limb perfusion that threatens limb viability defines acute limb ischemia (ALI) and represents a major vascular emergency. The clinical presentation is considered to be acute if it occurs within 14 days after symptom onset [ 2 , 3 ]. In contrast to critical limb ischemia (CLI), also called chronic limb-threatening ischemia (CLTI) [ 4 ], in which collateral blood supply is often present, ALI threatens limb viability in a very short interval, because there is insufficient time for new blood vessel growth to compensate for the loss of perfusion. The sudden ischemia affects all the metabolically active tissues of the limb: skin, muscles, and nerves. Thus, urgent recognition with prompt revascularization is required to preserve limb viability [ 2 , 3 ].\n\n1. Introduction\nThe incidence of ALI is approximately 1.5 cases out of 10,000 people per year [ 5 ]. Complications among ALI patients are high and despite early revascularization, 30-day mortality and amputation rates are between 10 and 15% [ 3 , 6 ]. Also, ALI patients experience increased in-hospital major adverse events including myocardial infarction, congestive heart failure exacerbation, deterioration in renal function and respiratory complications [ 7 ].\n\n2. Etiology\nThere are different causes which can lead to ALI, like arterial embolism (30%), arterial thrombosis due to plaque progression and complication (40%), thrombosis of a popliteal aneurysm (5%), trauma (5%) or graft thrombosis (20%) [ 8 ]. In another study [ 9 ], the incidence of etiologies for ALI is 46% for arterial embolism, 24% for in situ thrombosis, 20% for complex factors and 10% for stent- or graft-related thrombosis. Potential embolic causes related to an acute decrease in limb perfusion are the following: cardiac embolization, aortic embolization (eventually from a thrombosed aneurysm), thrombosed graft, ergotism, hypercoagulable states, paradoxical venous-to-arterial embolism and iatrogenic complications related to endovascular procedures [ 2 ].\n\n3. Diagnosis > 3.1. Symptoms and Signs\nHistory taking and physical examination are very important in ALI management. It is often difficult to distinguish an embolic etiology from in situ thrombosis, but it is important because of the different acute phase and long-term treatment options.\n\n3. Diagnosis > 3.1. Symptoms and Signs\nIn native arterial thrombosis, patients may have prior intermittent claudication or a history of limb revascularization. Also, they have significant comorbidities such as coronary artery disease, history of stroke, diabetes and chronic renal failure. Such patients are aged, frail and vulnerable to bleeding [ 12 ]. Nonetheless, the presence of atherosclerotic risk factors (smoking, diabetes, hypertension, high cholesterol, family history) may suggest in situ thrombosis.\n\n3. Diagnosis > 3.1. Symptoms and Signs\nThrombotic complication of an atherosclerotic plaque will make the onset unclear and complaints ambivalent. The gradual progression of atherosclerosis is frequently accompanied by the growth of collateral vessels to distal regions. Acute occlusion in a preconditioned limb may not produce overt ischemia. However, the propagation of the thrombus may induce extensive ischemia.\n\n3. Diagnosis > 3.1. Symptoms and Signs\nEmbolic occlusions should be suspected in patients with the following features: sudden and severe onset (due to the absence of collateral vessels, the patient is often able to accurately time the moment of the event), prior history of embolism, arrhythmia suggesting atrial fibrillation, known embolic source (cardiac, aneurysm) and no history of intermittent claudication [ 2 ].\n\n3. Diagnosis > 3.1. Symptoms and Signs\nAcute arterial occlusion leads to intense vascular spasm and the limb will appear \u201cmarble\u201d white. Over the next hours, the vessels relax, and the skin fills with deoxygenated blood, leading to a mottled aspect that blanches on pressure [ 13 ].\n\n3. Diagnosis > 3.1. Symptoms and Signs\nBy careful and systematic vascular examination, many causes of ALI can be discovered in a timely manner. The bilateral palpation of the groin, knee and ankle pulses can reveal the site of the occlusion and rhythm disorders, like atrial fibrillation. A unilateral pulse deficit with normal contralateral pulse examination suggests embolism. A bilateral pulse deficit suggests atherosclerotic complication. The vascular examination should include the palpation of the brachial, radial and ulnar arteries in search for possible access sites and multi-site embolism. If there is a doubtful pulse status, the Doppler probe should be used to look for arterial signals. Sensorial capabilities and motor deficit should be assessed at first medical contact and re-evaluated on a regular basis.\n\n3. Diagnosis > 3.1. Symptoms and Signs\nThe severity of ALI is graded according to the Rutherford classification ( Table 1 ) [ 14 ] that plays a major role in decision making. A viable limb mandates urgent imaging as well as the assessment of significant co-morbidities.\n\n3. Diagnosis > 3.1. Symptoms and Signs\nThe Rutherford classification highlights the prognosis of the affected limb, based on physical examination: skin color, venous filling, motor and sensory function. Also, it includes the presence of Doppler flow signals in pedal arteries and popliteal veins.\n\n3. Diagnosis > 3.2. Differential Diagnosis\nALI should be distinguished from CLI, in which the duration of symptoms exceeds 2 weeks and is usually much longer. Other conditions include connective-tissue diseases, thromboangiitis obliterans, and vasculitides. Diseases which can mimic ALI or can cause secondary ischemia are aortic dissection involving the iliac vessels, phlegmasia coerulea dolens (deep-vein thrombosis with severe leg swelling compromising arterial flow), compartment syndrome, trauma, systemic shock and the use of vasopressor drugs. Non-ischemic causes of limb pain are acute gout, neuropathy, spontaneous venous hemorrhage and traumatic soft-tissue injury.\n\n3. Diagnosis > 3.3. Imaging > 3.3.1. Duplex Ultrasound\nDuplex ultrasound (DUS) is the first imaging choice to assess ALI. It is widely available, has a low cost, is non-invasive, non-irradiant and it takes a relative short time to perform. DUS is useful to assess the anatomic location and the degree of obstruction (complete vs. incomplete). Also, DUS provides important information on hemodynamics (proximal and distal to the obstruction) and is highly useful for the follow up of revascularization procedures [ 15 ]. However, in emergency situations without DUS availability, alternative imaging techniques are required.\n\n3. Diagnosis > 3.3. Imaging > 3.3.1. Duplex Ultrasound\nA complete DUS examination should be performed, including the evaluation of arteries proximal and distal to the occlusion, as well as of contralateral arteries. Venous DUS may also be useful for the differential diagnosis and appropriate staging of ALI. Structured imaging databases may be implemented, including the various imaging techniques (cardiac and vascular ultrasound, CT, and digital substraction angiography), in order to provide comprehensive diagnosis tools and facilities for rapid retrieval [ 16 ].\n\n3. Diagnosis > 3.3. Imaging > 3.3.2. Computed Tomography Angiography (CTA) and Magnetic Resonance Angiography (MRA)\nPatients with ALI may, however, have a limited ability to attend long imaging sessions associated with non-invasive angiography. CTA and MRA are reserved for patients with a non-immediately threatened limb. The use of CTA and MRA for ALI remain very limited.\n\n3. Diagnosis > 3.3. Imaging > 3.3.3. Invasive Angiogram\nDSA was considered for many years the \u201cgold standard\u201d for diagnosis. Because it is an invasive procedure, with a potential risk of complications, DSA should not be used as a first diagnostic tool and should not replace DUS for positive diagnosis of ALI [ 2 , 20 ].\n\n3. Diagnosis > 3.3. Imaging > 3.3.3. Invasive Angiogram\nDSA is complementary to DUS and plays an essential role in the therapeutic strategy. Many ALI patients undergo emergency catheter-based interventions following DSA. Surgery or hybrid techniques also rely on DSA. Invasive angiography shows the site of occlusion and the distal arterial tree. It is also useful to distinguish an embolic occlusion from in situ thrombosis. Intravascular imaging, like intravascular ultrasound or optical coherence tomography, are used only in experimental settings [ 21 , 22 ].\n\n4. Management > 4.1. Evaluation of Limb Viability\nPatients with clinical suspicion of ALI should be addressed to emergency centers which have a 24-h/365-day vascular team available for diagnosis and management. Because of the high amputation and mortality rates in ALI, there is a need for a 24-h availability of vascular surgery, vascular medicine and/or interventional therapy.\n\n4. Management > 4.1. Evaluation of Limb Viability\nUrgent anticoagulation with unfractionated heparin (UFH) prevents thrombus propagation and preserves microcirculation [ 23 ]. Analgesic treatment is often necessary. Routine blood and coagulation tests should be performed. In patients with critically threatened limbs, local venous acidosis should be assessed to predict adverse outcomes and reperfusion injury. If present, acid-base and electrolyte imbalances should be corrected as soon as possible. A careful observation of kidney function before and after revascularization is recommended, especially in older patients or in patients with prior kidney disease.\n\n4. Management > 4.1. Evaluation of Limb Viability\nAuscultation of the heart, chest X-ray and electrocardiography are mandatory in every patient. Cardiac embolism is of particular concern in patients with atrial fibrillation, myocardial infarction, impaired left ventricular function or mechanical heart valves. Echocardiography is useful to evaluate cardiac function, as well as the existence of an embolic source (thrombus, myxoma, vegetation).\n\n4. Management > 4.1. Evaluation of Limb Viability\nIn patients with viable (stage I) or marginally threatened (stage IIa) limbs, it is indicated to perform non-invasive imaging (DUS or CTA) to determine the nature and extent of the obstruction and to plan intervention, given the mild-to-moderate risk. In centers where DUS is rapidly available, it should be performed in patients with an immediately threatened limb (stage IIb) in order to guide management and aid prompt revascularization. The availability and duration of imaging techniques must be balanced against the urgency for revascularization.\n\n4. Management > 4.2. Treatment\nThe therapeutic strategy will depend on type of occlusion (thrombus or embolus), location, type of conduit (artery of graft), Rutherford class, duration of ischemia, co-morbidities and therapy-related risks and outcomes.\n\n4. Management > 4.2. Treatment\nDifferent revascularization strategies can be applied, either endovascular or surgical (thrombectomy, bypass and arterial repair). An overview of existing therapeutic options and their scientific result is presented.\n\n4. Management > 4.2. Treatment > 4.2.1. Endovascular Techniques\nThe goal of the catheter-based approach is to restore blood, as quickly as possible, to the threatened limb, with the use of drugs, mechanical devices, or both, using several options for reperfusion: endovascular procedures such as percutaneous catheter-directed thrombolysis (CDT), percutaneous thromboaspiration (PAT), with or without thrombolytic therapy, or percutaneous mechanical thrombectomy (PMT).\n\n4. Management > 4.2. Treatment > 4.2.1. Endovascular Techniques > Catheter-Directed Thrombolysis\nIn the mid-1990s, three major trials (Rochester study [ 24 ], STILE [ 25 ], TOPAS [ 26 ]) analyzed over 1000 patients with ALI, randomly assigned to CDT or surgical revascularization. Clinical outcomes were similar in the two groups and amputation-free survival rates at 6 months and one year were not significantly different. Patients with symptoms of longer duration (>14 days) had better outcomes after surgery. In the thrombolytic treated group, patients with graft thrombosis benefited more than patients with native artery occlusion. Patients assigned to CDT had lower rates of procedure-related morbidity and mortality compared to the surgery group, at a cost of higher bleeding complications.\n\n4. Management > 4.2. Treatment > 4.2.1. Endovascular Techniques > Catheter-Directed Thrombolysis\nBecause of the long time to reperfusion, CDT it is generally not indicated in Rutherford stage IIb. Patients with suspected graft infection, symptom duration >14 days, contraindications to thrombolysis ( Table 2 ) and failure to position the catheter across the thrombus should not undergo CDT. Up to 20% of patients can have a contraindication to thrombolytic therapy [ 25 ].\n\n4. Management > 4.2. Treatment > 4.2.1. Endovascular Techniques > Catheter-Directed Thrombolysis\nDuring infusion through a multi-hole catheter, patients should be admitted to an intensive care unit, blood count and coagulation profile are mandatory to be periodically measured. Clinical and angiographic examinations should be performed to determine progress. It is very important to conserve limb temperature (e.g., Rooke boot) for optimal thrombolytic action [ 27 ]. Distal thrombus embolization commonly occurs as the thrombus is lysed, but the embolized thrombus typically clears during thrombolytic infusion [ 28 ].\n\n4. Management > 4.2. Treatment > 4.2.1. Endovascular Techniques > Catheter-Directed Thrombolysis\nA recent, multicenter, randomized trial compared standard CDT vs. USAT (EKOS Corporation, Bothell, WA, USA) in ALI treatment. The results showed that patients treated with USAT achieved revascularization 12 h sooner than CDT, with no increase in major adverse effects. Also, USAT required significantly fewer units of thrombolytic agent [ 31 ].\n\n4. Management > 4.2. Treatment > 4.2.1. Endovascular Techniques > Catheter-Directed Thrombolysis\nBleeding, related to CDT, occurs most commonly at the catheter-insertion site. Clinically significant hemorrhage occurs in 6 to 9% of patients and intracranial hemorrhage in less than 3% [ 32 ]. Factors associated with an increased risk of bleeding include the intensity and duration of CDT, the presence of uncontrolled hypertension, age over 80 years and a low platelet count [ 33 ].\n\n4. Management > 4.2. Treatment > 4.2.1. Endovascular Techniques > Catheter-Directed Thrombolysis\nAlthough thrombolysis is effective, 25% of patients require an open procedure, suggesting that patient selection for thrombolysis first strategy instead of open surgery continues to be a clinical challenge [ 34 ].\n\n4. Management > 4.2. Treatment > 4.2.1. Endovascular Techniques > Percutaneous Thromboaspiration\nIt is a low-cost, rapid technique which uses large lumen catheters (6\u20138F) connected to a syringe. It is used in combination with thrombolysis to reduce procedural time in advanced ischemia. Thromboaspiration alone has been reported to have modest procedural success rates of approximately 30%, but combined with thrombolysis, the primary success rate reached 90%, with a limb salvage rate of 86% [ 35 ]. Thromboaspiration is highly effective in treating acute iatrogenic distal embolization during endovascular procedures.\n\n4. Management > 4.2. Treatment > 4.2.1. Endovascular Techniques > Percutaneous Mechanical Thrombectomy\nThe percutaneous removal of a thrombus is often used as first-line therapy for ALI patients. PMT is defined as endovascular thrombus maceration and removal with the use of dedicated percutaneous thrombectomy devices (PTDs). It is mainly indicated in Rutherford stage IIb because the time to reperfusion is significantly shorter than with CDT. Patients with contraindications to thrombolysis and high surgical risk can also benefit from PMT.\n\n4. Management > 4.2. Treatment > 4.2.1. Endovascular Techniques > Percutaneous Mechanical Thrombectomy\nIn patients at high risk of bleeding, PMT can be used to debulk the thrombus mass before local lysis to shorten the treatment period, thereby limiting the dose of thrombolytic agent needed [ 37 ]. PMT may also be used as an adjunctive procedure for incomplete thrombolysis or to treat distal embolic complications following CDT. However, well organized thrombi are still problematic for most PTDs. Distal micro-embolization with subsequent limb loss is the main concern when using PTDs. For this reason, devices with additional fragment aspiration are preferred: Rotarex (Straub Medical AG, Wangs, Switzerland), AngioJet (Boston Scientific, Marlborough, MA, USA) and Trellis (Bacchus Vascular, Santa Clara, CA, USA) [ 38 , 39 , 40 ]. Vessel perforation and dissection may appear with PMT. The risk of perforation is especially high in calcified arteries.\n\n4. Management > 4.2. Treatment > 4.2.1. Endovascular Techniques > Percutaneous Mechanical Thrombectomy\nUnlike conventional vacuum-based automatic aspiration devices, the Clearlumen-II system (Walk Vascular, Irvine, CA, USA) simultaneously aspirates the thrombus and performs pulse spray thrombolysis with a high-pressure jet of saline [ 47 ].\n\n4. Management > 4.2. Treatment > 4.2.2. Open Surgery\nPatients with an immediately threatened or nonviable limb, bypass graft with suspected infection, or contraindication to thrombolysis should undergo open revascularization. Also, the surgical approach is preferred in patients with ischemic symptoms for over 2 weeks [ 48 ].\n\n4. Management > 4.2. Treatment > 4.2.2. Open Surgery\nPatients with suspected embolism and an absent femoral pulse ipsilateral to the ischemic limb are best treated by exposure of the common femoral artery bifurcation and balloon-catheter thrombectomy. A recent refinement for thrombectomy is the use of over-the-wire catheters, allowing for selective guidance into distal vessels.\n\n4. Management > 4.2. Treatment > 4.2.2. Open Surgery\nA meta-analysis of six clinical trials (five randomized prospective, one retrospective, including a total of 1773 patients) showed that, in patients presenting with ALI, endovascular and surgical approaches have similar rates of short-term and 12-month mortality, limb amputation and recurrent ischemia [ 49 ].\n\n4. Management > 4.2. Treatment > 4.2.2. Open Surgery\nHowever, open surgery is recommended as the best option for thromboembolism and for patients with Rutherford class IIb. In contrast, endovascular treatment should be the preferred choice of treatment for patients presenting with Rutherford class I and IIa [ 50 ].\n\n4. Management > 4.2. Treatment > 4.2.3. Reperfusion Injury\nReperfusion injury may result after target vessel re-opening, especially in advanced stages of ischemia. Profound limb swelling, with a dramatic increase in compartmental pressures, is the trademark of this phenomenon [ 52 ]. Patients experience severe pain and hyperesthesia of the affected limb. The anterior compartment of the leg is the most susceptible to this phenomenon, leading to peroneal nerve dysfunction. The diagnosis is based on clinical findings but can be confirmed if the compartment pressure is over 30 mmHg [ 52 ]. The presence or development of compartment syndrome is an absolute contraindication to thrombolysis, so other revascularization techniques should be applied. If the compartment syndrome occurs, surgical fasciotomy is indicated to prevent irreversible neurologic and soft-tissue damage.\n\n4. Management > 4.2. Treatment > 4.2.4. Postprocedural and Follow-Up Care\nThe restoration of a palpable pulse, audible arterial Doppler signals and visible improvement of perfusion suggest treatment success. Dorsiflexion of the foot and sensory function should be assessed after the revascularization procedure to screen for compartment syndrome.\n\n4. Management > 4.2. Treatment > 4.2.4. Postprocedural and Follow-Up Care\nIn some cases, perfusion may be incomplete and close postoperative observation is required to monitor the limb status and prepare for amputation. Vasodilators (e.g., nitroglycerin and papaverine) may be useful if there is evidence of vasospasm. In the case of atherosclerotic in situ thrombosis, after clot removal, correction of the underlying arterial abnormality is critical for long-term patency.\n\n4. Management > 4.2. Treatment > 4.2.4. Postprocedural and Follow-Up Care\nPatients with thromboembolism or thrombophilia will need long-term anticoagulation with vitamin K antagonists to prevent future events. Novel oral anticoagulants (dabigatran, apixaban, rivaroxaban, edoxaban) should be considered in patients with non-valvular atrial fibrillation and a cardioembolic etiology for ALI.\n\n5. Limitations of Available Data and Need for Future Studies\nCurrently available data have limitations regarding the number of randomized studies using the different management techniques. While surgery is widely used and provides major clinical benefit, the new endovascular techniques are promising but still limited to use in highly specialized centers. Recommendations for ALI registries have been recently published to improve the situation [ 56 ].",
+        "body_excerpts_sha256": "9ba6d1907f75038629ca824dc9d15f96d24701d7b9255071eddcb3370033271c",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC6723825/fullTextXML",
+        "body_license_url": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "38743805",
+        "title": "2024 ACC/AHA/AACVPR/APMA/ABC/SCAI/SVM/SVN/SVS/SIR/VESS Guideline for the Management of Lower Extremity Peripheral Artery Disease: A Report of the American College of Cardiology/American Heart Association Joint Committee on Clinical Practice Guidelines.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38743805/",
+        "abstract": "The \"2024 ACC/AHA/AACVPR/APMA/ABC/SCAI/SVM/SVN/SVS/SIR/VESS Guideline for the Management of Lower Extremity Peripheral Artery Disease\" provides recommendations to guide clinicians in the treatment of patients with lower extremity peripheral artery disease across its multiple clinical presentation subsets (ie, asymptomatic, chronic symptomatic, chronic limb-threatening ischemia, and acute limb ischemia).\nA comprehensive literature search was conducted from October 2020 to June 2022, encompassing studies, reviews, and other evidence conducted on human subjects that was published in English from PubMed, EMBASE, the Cochrane Library, CINHL Complete, and other selected databases relevant to this guideline. Additional relevant studies, published through May 2023 during the peer review process, were also considered by the writing committee and added to the evidence tables where appropriate.\nRecommendations from the \"2016 AHA/ACC Guideline on the Management of Patients With Lower Extremity Peripheral Artery Disease\" have been updated with new evidence to guide clinicians. In addition, new recommendations addressing comprehensive care for patients with peripheral artery disease have been developed.",
+        "sha256": "85a4ce426de97adf57c3cee4f16e42a3cf9e58b3463f853f55c8131da42e0c63",
+        "retrieved_at": "2026-09-19T03:39:46.868406+00:00",
+        "pmcid": "PMC12782132"
+      },
+      {
+        "id": "38752899",
+        "title": "2024 ACC/AHA/AACVPR/APMA/ABC/SCAI/SVM/SVN/SVS/SIR/VESS Guideline for the Management of Lower Extremity Peripheral Artery Disease: A Report of the American College of Cardiology/American Heart Association Joint Committee on Clinical Practice Guidelines.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38752899/",
+        "abstract": "The \"2024 ACC/AHA/AACVPR/APMA/ABC/SCAI/SVM/SVN/SVS/SIR/VESS Guideline for the Management of Lower Extremity Peripheral Artery Disease\" provides recommendations to guide clinicians in the treatment of patients with lower extremity peripheral artery disease across its multiple clinical presentation subsets (ie, asymptomatic, chronic symptomatic, chronic limb-threatening ischemia, and acute limb ischemia).\nA comprehensive literature search was conducted from October 2020 to June 2022, encompassing studies, reviews, and other evidence conducted on human subjects that was published in English from PubMed, EMBASE, the Cochrane Library, CINHL Complete, and other selected databases relevant to this guideline. Additional relevant studies, published through May 2023 during the peer review process, were also considered by the writing committee and added to the evidence tables where appropriate.\nRecommendations from the \"2016 AHA/ACC Guideline on the Management of Patients With Lower Extremity Peripheral Artery Disease\" have been updated with new evidence to guide clinicians. In addition, new recommendations addressing comprehensive care for patients with peripheral artery disease have been developed.",
+        "sha256": "85a4ce426de97adf57c3cee4f16e42a3cf9e58b3463f853f55c8131da42e0c63",
+        "retrieved_at": "2026-09-19T03:39:46.868406+00:00",
+        "pmcid": "PMC12728805"
+      },
+      {
+        "id": "34023430",
+        "title": "The Society for Vascular Surgery clinical practice guidelines on popliteal artery aneurysms.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34023430/",
+        "abstract": "The Society for Vascular Surgery clinical practice guidelines on popliteal artery aneurysms (PAAs) leverage the work of a panel of experts chosen by the Society for Vascular Surgery to review the current world literature as it applies to PAAs to extract the most salient, evidence-based recommendations for the treatment of these patients. These guidelines focus on PAA screening, indications for intervention, choice of repair strategy, management of asymptomatic and symptomatic PAAs (including those presenting with acute limb ischemia), and follow-up of both untreated and treated PAAs. They offer long-awaited evidence-based recommendations for physicians taking care of these patients.",
+        "sha256": "64e090be4bdd0ca051998afba400c0fa6977fb154a37e66d7fcf72c15ae31856",
+        "retrieved_at": "2026-09-19T03:39:46.868406+00:00"
+      },
+      {
+        "id": "40409886",
+        "title": "ACR Appropriateness Criteria\u00ae Management of Iliac Artery Occlusive Disease: 2024 Update.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40409886/",
+        "abstract": "Management of iliac artery occlusive disease encompasses a review of peripheral arterial disease (PAD) diagnosis and treatment as a whole. There are several consensus documents that provide a comprehensive review of the topic. Differentiating optimal medical, surgical, and/or endovascular approaches to treat aortoiliac occlusive disease requires recognition of the likely etiology most responsible for the clinical symptomatology. Prompt diagnosis of acute limb ischemia versus chronic limb threatening ischemia is imperative to selecting the correct treatment pathway for individual patients. This document will attempt to summarize the data and most recent clinical trials to support clinical decision-making in the treatment of aortoiliac occlusive disease. The American College of Radiology Appropriateness Criteria are evidence-based guidelines for specific clinical conditions that are reviewed annually by a multidisciplinary expert panel. The guideline development and revision process support the systematic analysis of the medical literature from peer reviewed journals. Established methodology principles such as Grading of Recommendations Assessment, Development, and Evaluation or GRADE are adapted to evaluate the evidence. The RAND/UCLA Appropriateness Method User Manual provides the methodology to determine the appropriateness of imaging and treatment procedures for specific clinical scenarios. In those instances where peer reviewed literature is lacking or equivocal, experts may be the primary evidentiary source available to formulate a recommendation.",
+        "sha256": "a616186eb0616d4c7892b7eb324d5b14bad5b20aa95f8c00735eb9b024a52790",
+        "retrieved_at": "2026-09-19T03:39:47.467947+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The abrupt pain, pallor, coolness, absent pedal arterial Doppler signals, and toe sensory loss indicate acute limb ischemia. Preserved motor function with limited sensory deficit is most consistent with a marginally threatened Rutherford IIa limb, not a limb suitable for observation. In the absence of bleeding, prior HIT, or another contraindication, urgent unfractionated heparin is indicated to prevent thrombus propagation while an emergency vascular team is activated. Urgent duplex ultrasound or CT angiography can then define the lesion and guide prompt surgical, endovascular, or hybrid revascularization without delaying care. The cited clinical review specifically recommends urgent UFH and vascular-team management, with noninvasive imaging for stage IIa ischemia; contemporary evidence also supports prompt, individualized multidisciplinary revascularization (PMID 31416204; PMID 38743805; PMID 42097877).",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31416204"
+              ],
+              "reason": "The cited review explicitly recommends urgent UFH and states that it prevents thrombus propagation and preserves microcirculation.",
+              "source_passage_ids": [
+                "31416204:p12"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31416204",
+                  "quote": "Surgery or hybrid techniques also rely on DSA. Invasive angiography shows the site of occlusion and the distal arterial tree. It is also useful to distinguish an embolic occlusion from in situ thrombosis. Intravascular imaging, like intravascular ultrasound or optical coherence tomography, are used only in experimental settings [ 21 , 22 ]. 4. Management > 4.1. Evaluation of Limb Viability Patients with clinical suspicion of ALI should be addressed to emergency centers which have a 24-h/365-day vascular team available for diagnosis and management. Because of the high amputation and mortality rates in ALI, there is a need for a 24-h availability of vascular surgery, vascular medicine and/or interventional therapy. 4. Management > 4.1. Evaluation of Limb Viability Urgent anticoagulation with unfractionated heparin (UFH) prevents thrombus propagation and preserves microcirculation [ 23 ]."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "31416204"
+              ],
+              "reason": "The cited review explicitly directs patients with suspected acute limb ischemia to emergency centers with continuously available vascular expertise.",
+              "source_passage_ids": [
+                "31416204:p12"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31416204",
+                  "quote": "Surgery or hybrid techniques also rely on DSA. Invasive angiography shows the site of occlusion and the distal arterial tree. It is also useful to distinguish an embolic occlusion from in situ thrombosis. Intravascular imaging, like intravascular ultrasound or optical coherence tomography, are used only in experimental settings [ 21 , 22 ]. 4. Management > 4.1. Evaluation of Limb Viability Patients with clinical suspicion of ALI should be addressed to emergency centers which have a 24-h/365-day vascular team available for diagnosis and management. Because of the high amputation and mortality rates in ALI, there is a need for a 24-h availability of vascular surgery, vascular medicine and/or interventional therapy. 4. Management > 4.1. Evaluation of Limb Viability Urgent anticoagulation with unfractionated heparin (UFH) prevents thrombus propagation and preserves microcirculation [ 23 ]."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "31416204"
+              ],
+              "reason": "The cited review recommends DUS or CTA for viable or marginally threatened limbs to determine the obstruction's nature and extent and plan intervention.",
+              "source_passage_ids": [
+                "31416204:p14"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31416204",
+                  "quote": "Echocardiography is useful to evaluate cardiac function, as well as the existence of an embolic source (thrombus, myxoma, vegetation). 4. Management > 4.1. Evaluation of Limb Viability In patients with viable (stage I) or marginally threatened (stage IIa) limbs, it is indicated to perform non-invasive imaging (DUS or CTA) to determine the nature and extent of the obstruction and to plan intervention, given the mild-to-moderate risk. In centers where DUS is rapidly available, it should be performed in patients with an immediately threatened limb (stage IIb) in order to guide management and aid prompt revascularization. The availability and duration of imaging techniques must be balanced against the urgency for revascularization. 4. Management > 4.2."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "42097877"
+              ],
+              "reason": "The cited meta-analysis describes acute limb ischemia as requiring prompt revascularization and supports management tailored by a dedicated multidisciplinary vascular team.",
+              "source_passage_ids": [
+                "42097877:p0",
+                "42097877:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "42097877",
+                  "quote": "Acute limb ischemia (ALI) is a limb- and life-threatening vascular emergency that necessitates prompt revascularization. While both surgical and endovascular interventions are established treatment modalities, contemporary comparative data remain limited. The study aims to evaluate and compare outcomes between these revascularization strategies. A Preferred Reporting Items for Systematic Reviews and Meta-Analyses (PRISMA)-guided systematic review and meta-analysis were performed. Three databases were searched through January 2026. All studies comparing endovascular versus surgical treatment for ALI were identified. Outcomes of interest included periprocedural and mid-term mortality, major amputation, and reintervention rates. Mid-term outcomes were defined as events occurring at any point during the reported follow-up period."
+                },
+                {
+                  "source_id": "42097877",
+                  "quote": "In this meta-analysis of 24 studies including 382 465 patients, periprocedural mortality was similar between approaches, but endovascular therapy reduced mid-term mortality and major amputation risk, despite higher periprocedural reintervention rates. These findings suggest that endovascular-first strategies may be a safe and effective alternative to surgical revascularization. Optimal care requires a multidisciplinary vascular team to tailor interventions, balancing immediate procedural risks with long-term outcomes for each patient."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The abrupt pain, pallor, coolness, absent pedal arterial Doppler signals, and toe sensory loss strongly indicate acute limb ischemia. Preserved motor function with limited distal sensory loss is most consistent with a salvageable, marginally threatened limb rather than a limb suitable for observation. Candidate B correctly combines immediate UFH in the documented absence of an apparent contraindication, emergency vascular-team involvement, urgent anatomic imaging, and prompt revascularization planning. Candidate A is intentionally unsafe because it delays both anticoagulation and specialist activation pending imaging. The supplied evidence substantively supports the decision through two sources: source 31416204 establishes urgent UFH, vascular-team availability, and DUS/CTA planning, while source 42097877 supports prompt revascularization and multidisciplinary tailoring. The visible title and question do not reveal the intended management. This decision is distinct from the previous case, which concerned carotid endarterectomy for symptomatic carotid stenosis rather than initial treatment of acute limb ischemia."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The presentation is classic acute limb ischemia: abrupt unilateral calf/foot pain, pallor/coolness, delayed capillary refill, absent pedal arterial Doppler signals, and sensory loss with preserved motor function. This is most consistent with a threatened but still salvageable limb, likely Rutherford IIa given toe sensory deficit without motor deficit and preserved venous Doppler signal. The cited ALI review states that ALI is a vascular emergency requiring urgent recognition and prompt revascularization, that patients should be managed in centers with a 24/7 vascular team, and that urgent unfractionated heparin prevents thrombus propagation and preserves microcirculation. It also states that viable or marginally threatened limbs should undergo urgent noninvasive imaging such as duplex ultrasound or CTA to define the obstruction and plan intervention, while balancing imaging time against the urgency of revascularization. The systematic reviews further support ALI as limb- and life-threatening and requiring prompt individualized revascularization. Because this patient has no listed contraindication to heparin and already has objective arterial signal loss with neurologic symptoms, waiting for definitive imaging while withholding anticoagulation and vascular activation is inappropriate. Therefore, immediate UFH, emergency vascular-team activation, and urgent imaging to guide revascularization is the best option.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.95,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31416204"
+              ],
+              "reason": "The cited source explicitly states that urgent UFH prevents thrombus propagation and preserves microcirculation in acute limb ischemia management.",
+              "source_passage_ids": [
+                "31416204:p12"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31416204",
+                  "quote": "Surgery or hybrid techniques also rely on DSA. Invasive angiography shows the site of occlusion and the distal arterial tree. It is also useful to distinguish an embolic occlusion from in situ thrombosis. Intravascular imaging, like intravascular ultrasound or optical coherence tomography, are used only in experimental settings [ 21 , 22 ]. 4. Management > 4.1. Evaluation of Limb Viability Patients with clinical suspicion of ALI should be addressed to emergency centers which have a 24-h/365-day vascular team available for diagnosis and management. Because of the high amputation and mortality rates in ALI, there is a need for a 24-h availability of vascular surgery, vascular medicine and/or interventional therapy. 4. Management > 4.1. Evaluation of Limb Viability Urgent anticoagulation with unfractionated heparin (UFH) prevents thrombus propagation and preserves microcirculation [ 23 ]."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "31416204"
+              ],
+              "reason": "The cited source explicitly recommends that patients with clinical suspicion of ALI be managed in emergency centers with 24/365 vascular team availability for diagnosis and management.",
+              "source_passage_ids": [
+                "31416204:p12"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31416204",
+                  "quote": "Surgery or hybrid techniques also rely on DSA. Invasive angiography shows the site of occlusion and the distal arterial tree. It is also useful to distinguish an embolic occlusion from in situ thrombosis. Intravascular imaging, like intravascular ultrasound or optical coherence tomography, are used only in experimental settings [ 21 , 22 ]. 4. Management > 4.1. Evaluation of Limb Viability Patients with clinical suspicion of ALI should be addressed to emergency centers which have a 24-h/365-day vascular team available for diagnosis and management. Because of the high amputation and mortality rates in ALI, there is a need for a 24-h availability of vascular surgery, vascular medicine and/or interventional therapy. 4. Management > 4.1. Evaluation of Limb Viability Urgent anticoagulation with unfractionated heparin (UFH) prevents thrombus propagation and preserves microcirculation [ 23 ]."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "31416204"
+              ],
+              "reason": "The cited source supports urgent imaging in viable limbs and noninvasive imaging with DUS or CTA for viable or marginally threatened limbs to determine obstruction extent and plan intervention.",
+              "source_passage_ids": [
+                "31416204:p8",
+                "31416204:p14"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31416204",
+                  "quote": "A viable limb mandates urgent imaging as well as the assessment of significant co-morbidities. 3. Diagnosis > 3.1. Symptoms and Signs The Rutherford classification highlights the prognosis of the affected limb, based on physical examination: skin color, venous filling, motor and sensory function. Also, it includes the presence of Doppler flow signals in pedal arteries and popliteal veins. 3. Diagnosis > 3.2. Differential Diagnosis ALI should be distinguished from CLI, in which the duration of symptoms exceeds 2 weeks and is usually much longer. Other conditions include connective-tissue diseases, thromboangiitis obliterans, and vasculitides."
+                },
+                {
+                  "source_id": "31416204",
+                  "quote": "Echocardiography is useful to evaluate cardiac function, as well as the existence of an embolic source (thrombus, myxoma, vegetation). 4. Management > 4.1. Evaluation of Limb Viability In patients with viable (stage I) or marginally threatened (stage IIa) limbs, it is indicated to perform non-invasive imaging (DUS or CTA) to determine the nature and extent of the obstruction and to plan intervention, given the mild-to-moderate risk. In centers where DUS is rapidly available, it should be performed in patients with an immediately threatened limb (stage IIb) in order to guide management and aid prompt revascularization. The availability and duration of imaging techniques must be balanced against the urgency for revascularization. 4. Management > 4.2."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "42097877"
+              ],
+              "reason": "The cited source states that ALI requires prompt revascularization and that optimal care requires a multidisciplinary vascular team to tailor interventions to the patient.",
+              "source_passage_ids": [
+                "42097877:p0",
+                "42097877:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "42097877",
+                  "quote": "Acute limb ischemia (ALI) is a limb- and life-threatening vascular emergency that necessitates prompt revascularization. While both surgical and endovascular interventions are established treatment modalities, contemporary comparative data remain limited. The study aims to evaluate and compare outcomes between these revascularization strategies. A Preferred Reporting Items for Systematic Reviews and Meta-Analyses (PRISMA)-guided systematic review and meta-analysis were performed. Three databases were searched through January 2026. All studies comparing endovascular versus surgical treatment for ALI were identified. Outcomes of interest included periprocedural and mid-term mortality, major amputation, and reintervention rates. Mid-term outcomes were defined as events occurring at any point during the reported follow-up period."
+                },
+                {
+                  "source_id": "42097877",
+                  "quote": "In this meta-analysis of 24 studies including 382 465 patients, periprocedural mortality was similar between approaches, but endovascular therapy reduced mid-term mortality and major amputation risk, despite higher periprocedural reintervention rates. These findings suggest that endovascular-first strategies may be a safe and effective alternative to surgical revascularization. Optimal care requires a multidisciplinary vascular team to tailor interventions, balancing immediate procedural risks with long-term outcomes for each patient."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The clinical presentation is most consistent with acute limb ischemia: abrupt unilateral calf/foot pain, cool pale foot, delayed capillary refill, absent pedal arterial Doppler signals with preserved venous signal, and sensory loss without motor deficit. This is a salvageable but threatened limb, so preserved motor function does not justify observation or delaying anticoagulation and vascular involvement until after imaging. Candidate B appropriately recommends immediate UFH in the absence of contraindications, emergency vascular-team activation, and urgent vascular imaging to guide prompt individualized revascularization. The chart includes enough information for this decision, including absence of major bleeding, recent intracranial event, known HIT, current anticoagulation, and normal baseline coagulation/platelets/renal function. Candidate A is unsafe because it defers anticoagulation and vascular-team activation. The visible title/question do not disclose the management plan, and the decision is distinct from the prior carotid stenosis case."
+        },
+        "image_sha256": null
+      }
+    ],
+    "authoring_method": "prepared_revision",
+    "entry_sha256": "6f4065514102eb405a6630efb04c239b45fbf822a8b460e33e9eb343cd2d8d55"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

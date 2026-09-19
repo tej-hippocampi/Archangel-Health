@@ -1,0 +1,470 @@
+{
+  "task_id": "onboarding-practice-v1-3e19e5ff97ee3c9c1348-1",
+  "specialty": "pain medicine",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Persistent axial low back pain with functional decline",
+    "question": "Which management approach is most appropriate at this decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "pain medicine",
+      "demographics": {
+        "age_band": "40-49",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Persistent axial low back pain",
+          "since": "approximately 5 months",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Reduced work and recreational activity",
+          "since": "approximately 3 months",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Pain-related sleep disruption and fear of movement",
+          "since": "approximately 2 months",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Pain medicine consultation",
+          "author_role": "pain medicine",
+          "text": "This is his first pain-medicine consultation following a primary-care visit and lumbar MRI. A man in his forties reports predominantly midline and bilateral low lumbar aching for approximately five months without a specific injury. Pain increases with prolonged sitting, lifting, and repeated bending but does not extend below the buttocks. He denies weakness, numbness, bowel or bladder dysfunction, fever, or recent trauma. He has reduced his work duties and stopped recreational exercise because he fears worsening structural damage. His exercise activity has consisted of two self-directed sessions at home. Examination shows guarded lumbar motion and diffuse paraspinal tenderness. Lower-extremity strength, sensation, reflexes, and gait are intact. He requests an intradiscal biologic injection after reading promotional material and understands that insurance may not cover it.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "MRI",
+          "label": "Lumbar spine MRI",
+          "findings": "Mild disc desiccation and shallow broad-based bulging at two lower lumbar levels. No high-grade central canal narrowing, focal nerve-root compression, fracture, or destructive osseous lesion is reported.",
+          "measurements": [],
+          "impression": "Mild multilevel degenerative changes without a compressive lesion.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -21
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the management decision",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "Immediate intradiscal platelet-rich plasma treatment should be deferred because the reported clinical and imaging findings do not establish clinical necessity for the requested procedure; a thorough diagnostic assessment is needed before deciding whether to offer it. The moderate consensus recommendation for intradiscal platelet-rich plasma does not eliminate that prerequisite, and the supporting evidence remains fair and limited by scarce high-quality studies. The patient's functional decline and fear of movement also warrant assessment of chronicity risk and intensive multidisciplinary management if necessary, but completing such care is not an absolute prerequisite to later biologic treatment. If clinical necessity is subsequently established, a biologic may be considered either alone or with other evidence-based modalities after preference-sensitive discussion of its emerging evidence, potential benefits, risks, expectations, and costs.",
+        "evidence": null,
+        "key_data": [
+          "The first pain-clinic assessment describes diffuse axial pain and mild MRI changes without a finding establishing a specific intradiscal treatment target.",
+          "MRI demonstrates only mild degenerative changes without focal nerve-root compression or a destructive lesion.",
+          "The neurologic examination is intact, and no red-flag symptoms are reported.",
+          "Functional decline, fear of movement, and activity withdrawal indicate a need to assess risk of chronicity.",
+          "Intradiscal platelet-rich plasma has fair Level III evidence, with limited high-quality research."
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Proceed directly with a standalone intradiscal platelet-rich plasma injection because mild disc degeneration is visible on MRI and the procedure carries a moderate consensus recommendation; no further diagnostic confirmation of clinical necessity or a specific pain target is needed."
+      },
+      {
+        "id": "B",
+        "text": "Defer the immediate intradiscal biologic procedure and first complete a thorough diagnostic evaluation to determine whether clinical necessity and an appropriate target can be established. Separately assess chronicity risk and arrange intensive multidisciplinary management if necessary. If a biologic is later considered, use shared decision-making about the emerging evidence, benefits, risks, expectations, and costs; it may be used alone or with other evidence-based modalities."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "chronic low back pain",
+      "intradiscal injection",
+      "neurologic examination",
+      "functional impairment",
+      "regenerative therapy"
+    ],
+    "evidence_keywords": [
+      "diagnostic evaluation",
+      "clinical necessity",
+      "platelet-rich plasma",
+      "chronicity risk",
+      "multidisciplinary management",
+      "shared decision-making"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Regenerative lumbar therapies should be considered only after a thorough diagnostic evaluation confirms clinical necessity.",
+        "source_ids": [
+          "41481869"
+        ]
+      },
+      {
+        "statement": "Intradiscal platelet-rich plasma has fair Level III evidence, while the regenerative literature remains limited by scarce high-quality studies.",
+        "source_ids": [
+          "41481869"
+        ]
+      },
+      {
+        "statement": "Regenerative therapies may be used alone or with structured exercise, physical therapy, behavioral therapy, or conventional medical management.",
+        "source_ids": [
+          "41481869"
+        ]
+      },
+      {
+        "statement": "Regenerative treatment decisions should address the patient's condition, preferences, expectations, potential benefits, risks, and costs.",
+        "source_ids": [
+          "41481869"
+        ]
+      },
+      {
+        "statement": "Early identification of low back pain at risk of chronicity can support quicker intensive and multidisciplinary management when necessary.",
+        "source_ids": [
+          "34051387"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T03:40:25.072661+00:00",
+    "author_model": null,
+    "sources": [
+      {
+        "id": "41481869",
+        "title": "Comprehensive Evidence-Based Guidelines for Regenerative Therapies in the Management of Chronic Low Back Pain: 2025 Update from the American Society Of Interventional Pain Physicians (ASIPP).",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41481869/",
+        "abstract": "Regenerative medicine is an evolving medical subspecialty dedicated to enhancing the body's natural healing mechanisms to repair or replace damaged tissues. By using autologous or allogeneic biologics, it offers the potential to restore function where conventional therapies have shown limited success. While this field holds great promise and continues to generate enthusiasm among both patients and clinicians, it remains in early stages of clinical validation. Therefore, it must be approached with careful optimism and responsible application, ensuring that its presentation, promotion, and use in clinical settings are grounded in evidence and ethical standards.\nTo provide updated, evidence-based recommendations for the role of regenerative therapies in managing moderate to severe chronic low back pain.\nA multidisciplinary panel of experts, convened by the American Society of Interventional Pain Physicians (ASIPP), systematically reviewed the current evidence and incorporated patient perspectives to develop practical, evidence-informed recommendations. The process included defining key clinical questions, reviewing the literature, formulating evidence-based statements, and reaching consensus through structured discussions and formal voting.\nA total of 35 authors contributed to the development of these guidelines, with 33 experts participating in the formal consensus process. Altogether, 19 recommendations were generated, with all of them achieving 100% agreement. These recommendations were informed by a comprehensive review of systematic reviews, randomized controlled trials (RCTs), and observational studies encompassing a broad range of regenerative therapies.Evidence was appraised using the Grading of Recommendations Assessment, Development, and Evaluation (GRADE) methodology to determine certainty levels. Both qualitative and quantitative analyses were applied to synthesize the best available data, resulting in evidence-based recommendations summarized below.Intradiscal Injections (PRP):\u00a0Evidence Level: III, Fair; Consensus-Based Clinical Recommendation: ModerateIntradiscal Injections (BMAC):\u00a0Evidence Level: III, Fair; Consensus-Based Clinical Recommendation: ModerateEpidural Injections (PRP):\u00a0Evidence Level: III, Fair; Consensus-Based Clinical Recommendation: ModerateFacet Joint Injections (PRP and MSCs):\u00a0Evidence Level: IV, Limited; Consensus-Based Clinical Recommendation: Moderate\u00a0Sacroiliac Joint Injections (PRP):\u00a0Evidence Level: IV, Limited; Consensus-Based Clinical Recommendation:\u00a0 Low Functional Spine Unit Injections Evidence Level: Very Low; Consensus-Based Clinical Recommendation:Low.\nThe primary limitation of these guidelines is the scarcity of high-quality studies, with much of the available evidence derived from small or heterogeneous trials.\nRegenerative therapies should be considered only after a thorough diagnostic evaluation confirming clinical necessity. Treatment decisions must account for the patient's medical condition, preferences, and expectations. Patients should be fully informed about the nature, potential benefits, risks, and costs of regenerative treatments, most of which are not covered by commercial insurance.These therapies may be used alone or in conjunction with other evidence-based modalities, such as structured exercise, physical therapy, behavioral therapy, or conventional medical management. Clinicians must follow all applicable U.S. Food and Drug Administration (FDA) regulations and adhere to safety and ethical standards outlined in these guidelines.\nBased on current evidence, lumbar intradiscal injections of platelet-rich plasma (PRP) and mesenchymal stem cells (MSCs) are supported by Level III evidence. Lumbar epidural PRP injections are also supported by Level III evidence, while PRP injections for lumbar facet joints and sacroiliac joints are supported by Level IV evidence. Given the emerging status of biologic therapies and the limited quality of existing studies, the panel provides moderate, consensus-based recommendations for the use of all biologics in the lumbar spine.",
+        "sha256": "4f988fe4e824bac79b4b8ffe7a186275c76ad1a48a28d63b609ac9cdb20bd152",
+        "retrieved_at": "2026-09-19T03:39:43.434270+00:00"
+      },
+      {
+        "id": "40665902",
+        "title": "Clinical Practice Guideline: Nonspecific Neck Pain.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40665902/",
+        "abstract": "Nearly half of the adults in Germany have neck pain at least once a year. Neck pain is distressing to those who suffer from it and costly to society at large. Its treatment requires a coordinated approach with the participation of general practitioners, physician specialists, and other health care professionals, such as physical therapists. The German Society for General Medicine and Family Medicine has now issued an upgraded (S1 to S3 level) set of recommendations for rational diagnosis and treatment.\nThe new recommendations were developed in an interdisciplinary and interprofessional collaboration as specified by the rules of the Association of the Scientific Medical Societies in Germany (AWMF). Systematic searches for scientific evidence were conducted in Medline (latest update, 11/2024), and the recommendations were formulated in a structured consensus process. The guideline was practically tested in physiotherapeutic and general medical practice settings.\nThe diagnostic evaluation begins with meticulous medical history-taking and physical examination. In cases of acute neck pain (0-3 weeks) without any evidence of a structural cause (e.g., motor deficit, night pain, precipitating trauma), diagnostic imaging should generally not be per - formed. Activating therapeutic measures with a focus on self-management have shown high effect sizes (up to d >1.0). The success of such measures may depend on patient education (moderate effect size, d = 0.73). For chronic neck pain (longer than 12 weeks), exercise therapy is recommended as well. Analgesic drugs may yield short-term relief (low effect size).\nIn patients with neck pain for which the medical history and physical examination do not point to a structural cause, activation is recommended as the central element of treatment.",
+        "sha256": "b87bf05676c353e6233605577682fc90263c6fea0ed6b2d695b1bca615b84dea",
+        "retrieved_at": "2026-09-19T03:39:45.059111+00:00",
+        "pmcid": "PMC12620902"
+      },
+      {
+        "id": "38101929",
+        "title": "Management of chronic pain associated with temporomandibular disorders: a clinical practice guideline.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38101929/",
+        "abstract": "What is the comparative effectiveness of available therapies for chronic pain associated with temporomandibular disorders (TMD)?\nTMD are the second most common musculoskeletal chronic pain disorder after low back pain, affecting 6-9% of adults globally. TMD are associated with pain affecting the jaw and associated structures and may present with headaches, earache, clicking, popping, or crackling sounds in the temporomandibular joint, and impaired mandibular function. Current clinical practice guidelines are largely consensus-based and provide inconsistent recommendations.\nFor patients living with chronic pain (\u22653 months) associated with TMD, and compared with placebo or sham procedures, the guideline panel issued: (1) strong recommendations in favour of cognitive behavioural therapy (CBT) with or without biofeedback or relaxation therapy, therapist-assisted mobilisation, manual trigger point therapy, supervised postural exercise, supervised jaw exercise and stretching with or without manual trigger point therapy, and usual care (such as home exercises, stretching, reassurance, and education); (2) conditional recommendations in favour of manipulation, supervised jaw exercise with mobilisation, CBT with non-steroidal anti-inflammatory drugs (NSAIDS), manipulation with postural exercise, and acupuncture; (3) conditional recommendations against reversible occlusal splints (alone or in combination with other interventions), arthrocentesis (alone or in combination with other interventions), cartilage supplement with or without hyaluronic acid injection, low level laser therapy (alone or in combination with other interventions), transcutaneous electrical nerve stimulation, gabapentin, botulinum toxin injection, hyaluronic acid injection, relaxation therapy, trigger point injection, acetaminophen (with or without muscle relaxants or NSAIDS), topical capsaicin, biofeedback, corticosteroid injection (with or without NSAIDS), benzodiazepines, and \u03b2 blockers; and (4) strong recommendations against irreversible oral splints, discectomy, and NSAIDS with opioids.\nAn international guideline development panel including patients, clinicians with content expertise, and methodologists produced these recommendations in adherence with standards for trustworthy guidelines using the GRADE approach. The MAGIC Evidence Ecosystem Foundation (MAGIC) provided methodological support. The panel approached the formulation of recommendations from the perspective of patients, rather than a population or health system perspective.\nRecommendations are informed by a linked systematic review and network meta-analysis summarising the current body of evidence for benefits and harms of conservative, pharmacologic, and invasive interventions for chronic pain secondary to TMD.\nThese recommendations apply to patients living with chronic pain (\u22653 months duration) associated with TMD as a group of conditions, and do not apply to the management of acute TMD pain. When considering management options, clinicians and patients should first consider strongly recommended interventions, then those conditionally recommended in favour, then conditionally against. In doing so, shared decision making is essential to ensure patients make choices that reflect their values and preference, availability of interventions, and what they may have already tried. Further research is warranted and may alter recommendations in the future.",
+        "sha256": "c07fadf69ee504f2bb9d1e4a973ddfbb8341c6cee147ddad919b9c4f178aa79d",
+        "retrieved_at": "2026-09-19T03:39:45.059111+00:00"
+      },
+      {
+        "id": "39133736",
+        "title": "Perioperative Management of Antiplatelet and Anticoagulant Therapy in Patients Undergoing Interventional Techniques: 2024 Updated Guidelines from the American Society of Interventional Pain Physicians (ASIPP).",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39133736/",
+        "abstract": "The frequency of performance of interventional techniques in chronic pain patients receiving anticoagulant and antiplatelet therapy continues to increase. Understanding the importance of continuing chronic anticoagulant therapy, the need for interventional techniques, and determining the duration and discontinuation or temporary suspension of anticoagulation is crucial to avoiding devastating complications, primarily when neuraxial procedures are performed. Anticoagulants and antiplatelets target the clotting system, increasing the bleeding risk. However, discontinuation of anticoagulant or antiplatelet drugs exposes patients to thrombosis risk, which can lead to significant morbidity and mortality, especially in those with coronary artery or cerebrovascular disease. These guidelines summarize the current peer reviewed literature and develop consensus-based guidelines based on the best evidence synthesis for patients receiving anticoagulant and antiplatelet therapy during interventional procedures.\nReview of the literature and development of guidelines based on best evidence synthesis.\nTo provide a current and concise appraisal of the literature regarding the assessment of bleeding and thrombosis risk during interventional techniques for patients taking anticoagulant and/or antiplatelet medications.\nDevelopment of consensus guidelines based on best evidence synthesis included review of the literature on bleeding risks during interventional pain procedures, practice patterns, and perioperative management of anticoagulant and antiplatelet therapy. A multidisciplinary panel of experts developed methodology, risk stratification based on best evidence synthesis, and management of anticoagulant and antiplatelet therapy. It also included risk of cessation of anticoagulant and antiplatelet therapy based on a multitude of factors. Multiple data sources on bleeding risk, practice patterns, risk of thrombosis, and perioperative management of anticoagulant and antiplatelet therapy were identified. The relevant literature was identified through searches of multiple databases from 1966 through 2023. In the development of consensus statements and guidelines, we used a modified Delphi technique, which has been described to minimize bias related to group interactions. Panelists without a primary conflict of interest voted on approving specific guideline statements. Each panelist could suggest edits to the guideline statement wording and could suggest additional qualifying remarks or comments as to the implementation of the guideline in clinical practice to achieve consensus and for inclusion in the final guidelines, each guideline statement required at least 80% agreement among eligible panel members without primary conflict of interest.\nA total of 34 authors participated in the development of these guidelines. Of these, 29 participated in the voting process. A total of 20 recommendations were developed. Overall, 100% acceptance was obtained for 16 of 20 items. Total items were reduced to 18 with second and third round voting. The final results were 100% acceptance for 16 items (89%). There was disagreement for 2 statements (statements 6 and 7) and recommendations by 3 authors. These remaining 2 items had an acceptance of 94% and 89%. The disagreement and dissent were by Byron J. Schneider, MD, with recommendation that all transforaminals be classified into low risk, whereas Sanjeeva Gupta, MD, desired all transforaminals to be in intermediate risk. The second disagreement was related to Vivekanand A. Manocha, MD, recommending that cervical and thoracic transforaminal to be high risk procedures.Thus, with appropriate literature review, consensus-based statements were developed for the perioperative management of patients receiving anticoagulants and antiplatelets These included the following: estimation of the thromboembolic risk, estimation of bleeding risk, and determination of the timing of restarting of anticoagulant or antiplatelet therapy.Risk stratification was provided classifying the interventional techniques into three categories of low risk, moderate or intermediate risk, and high risk. Further, on multiple occasions in low risk and moderate or intermediate risk categories, recommendations were provided against cessation of anticoagulant or antiplatelet therapy.\nThe continued paucity of literature with discordant recommendations.\nBased on the review of available literature, published clinical guidelines, and recommendations, a multidisciplinary panel of experts presented guidelines in managing interventional techniques in patients on anticoagulant or antiplatelet therapy in the perioperative period. These guidelines provide a comprehensive assessment of classification of risk, appropriate recommendations, and recommendations based on the best available evidence.",
+        "sha256": "17cdc3bdca9289e4bd979c5432987d9a490b71953eac55df6e50bead090f33fd",
+        "retrieved_at": "2026-09-19T03:39:45.059111+00:00"
+      },
+      {
+        "id": "34051387",
+        "title": "Clinical guidelines and care pathway for management of low back pain with or without radicular pain.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34051387/",
+        "abstract": "To develop guidelines for low back pain management according to previous international guidelines and the updated literature.\nA report was compiled from a review of systematic reviews of guidelines published between 2013 and 2018 and meta-analysis of the management of low back pain published between 2015 and 2018. This report summarized the state-of-the-art scientific knowledge for each predefined area of the guidelines from a critical review of selected literature. A multidisciplinary panel of experts including 17 health professionals involved in low back pain management and 2 patient representatives formulated preliminary guidelines based on the compilation report and a care pathway. The compilation report and preliminary guidelines were submitted to 25 academic institutions and stakeholders for the consultation phase. From responses of academic institutions and stakeholders, the final guidelines were developed. For each area of the guidelines, agreement between experts was assessed by the RAND/UCLA method.\nThe expert panel drafted 32 preliminary recommendations including a care pathway, which was amended after academic institution and stakeholder consultation. The consensus of the multidisciplinary expert panel was assessed for each final guideline: 32 recommendations were assessed as appropriate; none was assessed as uncertain or inappropriate. Strong approval was obtained for 27 recommendations and weak for 5.\nThese new guidelines introduce several concepts, including the need to early identify low back pain at risk of chronicity to provide quicker intensive and multidisciplinary management if necessary.",
+        "sha256": "25b0b8ef9953748bad0bbe839dd4a64167beee137fb6d8bddd56444dd21c938b",
+        "retrieved_at": "2026-09-19T03:39:45.877219+00:00"
+      },
+      {
+        "id": "32503359",
+        "title": "Comprehensive Evidence-Based Guidelines for Facet Joint Interventions in the Management of Chronic Spinal Pain: American Society of Interventional Pain Physicians (ASIPP) Guidelines Facet Joint Interventions 2020 Guidelines.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32503359/",
+        "abstract": "Chronic axial spinal pain is one of the major causes of significant disability and health care costs, with facet joints as one of the proven causes of pain.\nTo provide evidence-based guidance in performing diagnostic and therapeutic facet joint interventions.\nThe methodology utilized included the development of objectives and key questions with utilization of trustworthy standards. The literature pertaining to all aspects of facet joint interventions, was reviewed, with a best evidence synthesis of available literature and utilizing grading for recommendations.Summary of Evidence and Recommendations:Non-interventional diagnosis: \u2022 The level of evidence is II in selecting patients for facet joint nerve blocks at least 3 months after onset and failure of conservative management, with strong strength of recommendation for physical examination and clinical assessment. \u2022 The level of evidence is IV for accurate diagnosis of facet joint pain with physical examination based on symptoms and signs, with weak strength of recommendation. Imaging: \u2022 The level of evidence is I with strong strength of recommendation, for mandatory fluoroscopic or computed tomography (CT) guidance for all facet joint interventions. \u2022 The level of evidence is III with weak strength of recommendation for single photon emission computed tomography (SPECT) . \u2022 The level of evidence is V with weak strength of recommendation for scintography, magnetic resonance imaging (MRI), and computed tomography (CT) .Interventional Diagnosis:Lumbar Spine: \u2022 The level of evidence is I to II with moderate to strong strength of recommendation for lumbar diagnostic facet joint nerve blocks. \u2022 Ten relevant diagnostic accuracy studies with 4 of 10 studies utilizing controlled comparative local anesthetics with concordant pain relief criterion standard of \u226580% were included. \u2022 The prevalence rates ranged from 27% to 40% with false-positive rates of 27% to 47%, with \u226580% pain relief.Cervical Spine: \u2022 The level of evidence is II with moderate strength of recommendation. \u2022 Ten relevant diagnostic accuracy studies, 9 of the 10 studies with either controlled comparative local anesthetic blocks or placebo controls with concordant pain relief with a criterion standard of \u226580% were included. \u2022 The prevalence and false-positive rates ranged from 29% to 60% and of 27% to 63%, with high variability. Thoracic Spine: \u2022 The level of evidence is II with moderate strength of recommendation. \u2022 Three relevant diagnostic accuracy studies, with controlled comparative local anesthetic blocks, with concordant pain relief, with a criterion standard of \u226580% were included. \u2022 The prevalence varied from 34% to 48%, whereas false-positive rates varied from 42% to 58%.Therapeutic Facet Joint Interventions: Lumbar Spine: \u2022 The level of evidence is II with moderate strength of recommendation for lumbar radiofrequency ablation with inclusion of 11 relevant randomized controlled trials (RCTs) with 2 negative studies and 4 studies with long-term improvement. \u2022 The level of evidence is II with moderate strength of recommendation for therapeutic lumbar facet joint nerve blocks with inclusion of 3 relevant randomized controlled trials, with long-term improvement. \u2022 The level of evidence is IV with weak strength of recommendation for lumbar facet joint intraarticular injections with inclusion of 9 relevant randomized controlled trials, with majority of them showing lack of effectiveness without the use of local anesthetic. Cervical Spine: \u2022 The level of evidence is II with moderate strength of recommendation for cervical radiofrequency ablation with inclusion of one randomized controlled trial with positive results and 2 observational studies with long-term improvement. \u2022 The level of evidence is II with moderate strength of recommendation for therapeutic cervical facet joint nerve blocks with inclusion of one relevant randomized controlled trial and 3 observational studies, with long-term improvement. \u2022 The level of evidence is V with weak strength of recommendation for cervical intraarticular facet joint injections with inclusion of 3 relevant randomized controlled trials, with 2 observational studies, the majority showing lack of effectiveness, whereas one study with 6-month follow-up, showed lack of long-term improvement. Thoracic Spine: \u2022 The level of evidence is III with weak to moderate strength of recommendation with emerging evidence for thoracic radiofrequency ablation with inclusion of one relevant randomized controlled trial and 3 observational studies. \u2022 The level of evidence is II with moderate strength of recommendation for thoracic therapeutic facet joint nerve blocks with inclusion of 2 randomized controlled trials and one observational study with long-term improvement. \u2022 The level of evidence is III with weak to moderate strength of recommendation for thoracic intraarticular facet joint injections with inclusion of one randomized controlled trial with 6 month follow-up, with emerging evidence. Antithrombotic Therapy: \u2022 Facet joint interventions are considered as moderate to low risk procedures; consequently, antithrombotic therapy may be continued based on overall general status. Sedation: \u2022 The level of evidence is II with moderate strength of recommendation to avoid opioid analgesics during the diagnosis with interventional techniques. \u2022 The level of evidence is II with moderate strength of recommendation that moderate sedation may be utilized for patient comfort and to control anxiety for therapeutic facet joint interventions.\nThe limitations of these guidelines include a paucity of high-quality studies in the majority of aspects of diagnosis and therapy.\nThese facet joint intervention guidelines were prepared with a comprehensive review of the literature with methodologic quality assessment with determination of level of evidence and strength of recommendations.\nChronic spinal pain, interventional techniques, diagnostic blocks, therapeutic interventions, facet joint nerve blocks, intraarticular injections, radiofrequency neurolysis.",
+        "sha256": "7525cbb246e850011b9990e6aa74f0cfda2f5bfc5bee51f72660e852f729d8d5",
+        "retrieved_at": "2026-09-19T03:39:45.877219+00:00"
+      },
+      {
+        "id": "41318933",
+        "title": "Consensus practice guidelines on sacroiliac joint complex pain from a multispecialty, international working group.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41318933/",
+        "abstract": "The past two decades have witnessed tremendous growth in the appreciation and treatment of sacroiliac joint (SIJ) complex pain, including anatomical dissections that shed light on innervation, an appreciation for the contribution of extra-articular components to SIJ complex pain, the advent of radiofrequency ablation (RFA) and a host of minimally invasive surgical techniques. Yet, there is no standardization on diagnosis and treatment paradigms.\nIn February 2023, the Boards of Directors for the American Academy of Pain Medicine (AAPM) and American Society of Regional Anesthesia & Pain Medicine (ASRA-PM) approved the development of multispecialty guidelines on SIJ complex pain. Thirty partner organizations with clinical and scientific interests in SIJ complex pain were identified, and formal letters of request-for-participation were sent to each, along with a request for nominees to serve on the committee. Twenty five organizations agreed to participate in addition to the Departments of Defense and Veterans Affairs. A steering committee developed 21 questions, which spanned criteria for diagnosis, non-interventional and interventional treatments including surgery, technical parameters on how to optimize results, and what constitutes positive outcomes. Questions were methodically assigned to specialized modules comprising 4-5 members with complementary expertise, who collaborated with the Subcommittee Lead and one of three Committee Chairs to develop preliminary drafts. Following thorough revisions, these drafts were subsequently submitted to the full committee for comprehensive review. A modified Delphi method was used in which the answers to questions were sent to the committee en bloc and comments were returned in a non-blinded fashion to the Chairs, who incorporated the comments and sent out revised versions until consensus was achieved. During a committee meeting before commencement, it was agreed that recommendations would be noted when there was >50% agreement among committee members, but that a formal recommendation would require \u226575% consensus.\nTwenty-one organizations formally endorsed the guidelines. The American Society of Anesthesiologists, and American Academy of Physical Medicine & Rehabilitation, and the North American Spine Society affirmed the benefit of the guidelines but did not officially endorse them. The American Academy of Neurology declined to affirm the benefit of the guidelines citing \"lack of relevance to their membership.\" Per policies, while the Departments of Defense and Veterans Affairs did not formally review the guidelines for endorsement, their representatives approved them. In addition to being endorsed or the benefit affirmed by all voting organizations, complete consensus from committee members was obtained on all 21 questions. On 2 recommendations, there were dissensions from 3 societies who thought that selecting patients for sacral lateral branch RFA and minimally invasive fusion should be based on \u226575% relief from 2 blocks instead of at least 50% relief from a single block before RFA, and greater than 50% pain relief with documented functional improvement after a single block before fusion. One additional society (Latin American Society of Regional Anesthesia) abstained on the statement that the evidence is stronger for extra-articular than intra-articular injections. The committee found that a battery of physical exam tests has reasonable sensitivity, but lower specificity, for identifying intra-articular but not extra-articular pathology, with negative tests having greater predictive value than positive ones. Intra-articular injections have diagnostic validity for SIJ intra-articular, but not extra-articular pain. There is unclear or negative evidence for imaging. The prevalence rates of intra-articular and extra-articular pathology are comparable, with both intra- and extra-articular steroid injections providing at least 4\u2009weeks of relief in well-selected patients. However, the evidence is slightly stronger for extra-articular corticosteroid injections to provide short-term relief. The evidence base for non-interventional therapies is indirect, extrapolated mostly from low back pain studies. There is weak evidence supporting dextrose-based prolotherapy and platelet-rich plasma to provide at least 3\u2009months of pain relief. There is strong evidence for sacral lateral branch RFA to provide relief for at least 6\u2009months in individuals with extra-articular pathology, with face validity and indirect evidence from randomized trials supporting sacral lateral branch blocks as a prognostic tool. There is stronger evidence for larger lesions or more aggressive lesioning strategies than for less stringent techniques. There is weak evidence to support non-steroidal anti-inflammatory drugs to prevent neuritis after RFA, and in most cases anticoagulation does not require cessation in the periprocedural perioid. With an aggressive lesioning strategy, sensory stimulation provides minimal therapeutic benefit, with weak, extrapolated evidence that motor stimulation can provide safety benefit. The cutoff to designate diagnostic or prognostic blocks as positive is most commonly set at 50%, with higher values not shown to improve outcomes for more definitive procedures; for therapeutic treatment outcomes, the evidence supports a lower threshold of \u226530% pain relief or meaningful benefit on non-pain outcomes (eg, opioid cessation) for designation of a positive response. For carefully selected patients with intra-articular SIJ complex pain based on controlled blocks who have failed conservative therapies, there is weak or very weak evidence that minimally invasive SIJ fusion can provide benefit for at least one year.\nSIJ complex pain remains an underappreciated source of chronic low back pain, affecting between 15% and 30% of patients with axial pain predominantly below L5. Answers to many questions were limited by low-quality evidence, indicating the need for better research. SIJ complex pain is a multifarious condition (ie, pain can be from different portions of both the intra- and extra-articular components of the joint) for which an interdisciplinary, multimodal treatment plan can optimize treatment outcomes.",
+        "sha256": "9485dd3750c7f82e9e975c18d63a80d82e7274ec75a1c7d241842831b4349a62",
+        "retrieved_at": "2026-09-19T03:39:45.877219+00:00",
+        "pmcid": "PMC12681192"
+      },
+      {
+        "id": "38117465",
+        "title": "Comprehensive, Evidence-Based, Consensus Guidelines for Prescription of Opioids for Chronic Non-Cancer Pain from the American Society of Interventional Pain Physicians (ASIPP).",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38117465/",
+        "abstract": "Opioid prescribing in the United States is decreasing, however, the opioid epidemic is continuing at an uncontrollable rate. Available data show a significant number of opioid deaths, primarily associated with illicit fentanyl use. It is interesting to also note that the data show no clear correlation between opioid prescribing (either number of prescriptions or morphine milligram equivalent [MME] per capita), opioid hospitalizations, and deaths. Furthermore, the data suggest that the 2016 guidelines from the Centers for Disease Control and Prevention (CDC) have resulted in notable problems including increased hospitalizations and mental health disorders due to the lack of appropriate opioid prescribing as well as inaptly rapid tapering or weaning processes. Consequently, when examined in light of other policies and complications caused by COVID-19, a fourth wave of the opioid epidemic has been emerging.\nIn light of this, we herein seek to provide guidance for the prescription of opioids for the management of chronic non-cancer pain. These clinical practice guidelines are based upon a systematic review of both clinical and epidemiological evidence and have been developed by a panel of multidisciplinary experts assessing the quality of the evidence and the strength of recommendations and offer a clear explanation of logical relationships between various care options and health outcomes.\nThe methods utilized included the development of objectives and key questions for the various facets of opioid prescribing practice. Also utilized were employment of trustworthy standards, and appropriate disclosures of conflicts of interest(s). The literature pertaining to opioid use, abuse, effectiveness, and adverse consequences was reviewed. The recommendations were developed after the appropriate review of text and questions by a panel of multidisciplinary subject matter experts, who tabulated comments, incorporated changes, and developed focal responses to questions posed. The multidisciplinary panel finalized 20 guideline recommendations for prescription of opioids for chronic non-cancer pain. Summary of the results showed over 90% agreement for the final 20 recommendations with strong consensus. The consensus guidelines included 4 sections specific to opioid therapy with 1) ten recommendations particular to initial steps of opioid therapy; 2) five recommendations for assessment of effectiveness of opioid therapy; 3) three recommendations regarding monitoring adherence and side effects; and 4) two general, final phase recommendations.\nThere is a continued paucity of literature of long-term opioid therapy addressing chronic non-cancer pain. Further, significant biases exist in the preparation of guidelines, which has led to highly variable rules and regulations across various states.\nThese guidelines were developed based upon a comprehensive review of the literature, consensus among expert panelists, and in alignment with patient preferences, and shared decision-making so as to improve the long-term pain relief and function in patients with chronic non-cancer pain. Consequently, it was concluded - and herein recommended - that chronic opioid therapy should be provided in low doses with appropriate adherence monitoring and understanding of adverse events only to those patients with a proven medical necessity, and who exhibit stable improvement in both pain relief and activities of daily function, either independently or in conjunction with other modalities of treatments.",
+        "sha256": "313320ea2be6ba8e31fafb195c9b97137423e422066c3e85aac69451d0d6b56b",
+        "retrieved_at": "2026-09-19T03:39:46.593380+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient has nonradicular axial low-back pain, a normal neurologic examination, no red flags, and only mild nonspecific degenerative MRI findings. These findings do not by themselves establish the disc as the pain generator or justify immediate intradiscal treatment, especially after only two self-directed exercise sessions. The 2025 ASIPP regenerative-therapy guideline characterizes intradiscal PRP evidence as Level III/fair and explicitly recommends regenerative therapies only after thorough diagnostic evaluation confirms clinical necessity, with disclosure of the emerging evidence, risks, expectations, and often-uncovered costs (source 41481869). His fear of movement, activity withdrawal, sleep disruption, and work decline also warrant assessment for chronicity risk and structured, potentially multidisciplinary care; low-back-pain guidance supports early identification of patients at risk of chronicity for intensive multidisciplinary management when necessary (source 34051387). Thus, evaluation and evidence-based rehabilitation should precede any elective biologic procedure.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.94,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "41481869"
+              ],
+              "reason": "The guideline expressly requires a thorough diagnostic evaluation confirming clinical necessity before regenerative therapy is considered.",
+              "source_passage_ids": [
+                "41481869:p4"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41481869",
+                  "quote": "The primary limitation of these guidelines is the scarcity of high-quality studies, with much of the available evidence derived from small or heterogeneous trials. Regenerative therapies should be considered only after a thorough diagnostic evaluation confirming clinical necessity. Treatment decisions must account for the patient's medical condition, preferences, and expectations. Patients should be fully informed about the nature, potential benefits, risks, and costs of regenerative treatments, most of which are not covered by commercial insurance.These therapies may be used alone or in conjunction with other evidence-based modalities, such as structured exercise, physical therapy, behavioral therapy, or conventional medical management. Clinicians must follow all applicable U.S."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "41481869"
+              ],
+              "reason": "The source assigns intradiscal PRP Level III, fair evidence and separately identifies scarcity of high-quality, often small or heterogeneous studies.",
+              "source_passage_ids": [
+                "41481869:p3",
+                "41481869:p4"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41481869",
+                  "quote": "Both qualitative and quantitative analyses were applied to synthesize the best available data, resulting in evidence-based recommendations summarized below.Intradiscal Injections (PRP): Evidence Level: III, Fair; Consensus-Based Clinical Recommendation: ModerateIntradiscal Injections (BMAC): Evidence Level: III, Fair; Consensus-Based Clinical Recommendation: ModerateEpidural Injections (PRP): Evidence Level: III, Fair; Consensus-Based Clinical Recommendation: ModerateFacet Joint Injections (PRP and MSCs): Evidence Level: IV, Limited; Consensus-Based Clinical Recommendation: Moderate Sacroiliac Joint Injections (PRP): Evidence Level: IV, Limited; Consensus-Based Clinical Recommendation: Low Functional Spine Unit Injections Evidence Level: Very Low; Consensus-Based Clinical Recommendation:Low."
+                },
+                {
+                  "source_id": "41481869",
+                  "quote": "The primary limitation of these guidelines is the scarcity of high-quality studies, with much of the available evidence derived from small or heterogeneous trials. Regenerative therapies should be considered only after a thorough diagnostic evaluation confirming clinical necessity. Treatment decisions must account for the patient's medical condition, preferences, and expectations. Patients should be fully informed about the nature, potential benefits, risks, and costs of regenerative treatments, most of which are not covered by commercial insurance.These therapies may be used alone or in conjunction with other evidence-based modalities, such as structured exercise, physical therapy, behavioral therapy, or conventional medical management. Clinicians must follow all applicable U.S."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "41481869"
+              ],
+              "reason": "The guideline explicitly permits regenerative therapy alone or alongside structured exercise, physical therapy, behavioral therapy, or conventional medical management.",
+              "source_passage_ids": [
+                "41481869:p4"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41481869",
+                  "quote": "The primary limitation of these guidelines is the scarcity of high-quality studies, with much of the available evidence derived from small or heterogeneous trials. Regenerative therapies should be considered only after a thorough diagnostic evaluation confirming clinical necessity. Treatment decisions must account for the patient's medical condition, preferences, and expectations. Patients should be fully informed about the nature, potential benefits, risks, and costs of regenerative treatments, most of which are not covered by commercial insurance.These therapies may be used alone or in conjunction with other evidence-based modalities, such as structured exercise, physical therapy, behavioral therapy, or conventional medical management. Clinicians must follow all applicable U.S."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "41481869"
+              ],
+              "reason": "The source requires consideration of medical condition, preferences, and expectations and disclosure of treatment nature, potential benefits, risks, and costs.",
+              "source_passage_ids": [
+                "41481869:p4"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41481869",
+                  "quote": "The primary limitation of these guidelines is the scarcity of high-quality studies, with much of the available evidence derived from small or heterogeneous trials. Regenerative therapies should be considered only after a thorough diagnostic evaluation confirming clinical necessity. Treatment decisions must account for the patient's medical condition, preferences, and expectations. Patients should be fully informed about the nature, potential benefits, risks, and costs of regenerative treatments, most of which are not covered by commercial insurance.These therapies may be used alone or in conjunction with other evidence-based modalities, such as structured exercise, physical therapy, behavioral therapy, or conventional medical management. Clinicians must follow all applicable U.S."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "34051387"
+              ],
+              "reason": "The low-back-pain guideline expressly recommends early identification of chronicity risk to enable quicker intensive and multidisciplinary management when necessary.",
+              "source_passage_ids": [
+                "34051387:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34051387",
+                  "quote": "From responses of academic institutions and stakeholders, the final guidelines were developed. For each area of the guidelines, agreement between experts was assessed by the RAND/UCLA method. The expert panel drafted 32 preliminary recommendations including a care pathway, which was amended after academic institution and stakeholder consultation. The consensus of the multidisciplinary expert panel was assessed for each final guideline: 32 recommendations were assessed as appropriate; none was assessed as uncertain or inappropriate. Strong approval was obtained for 27 recommendations and weak for 5. These new guidelines introduce several concepts, including the need to early identify low back pain at risk of chronicity to provide quicker intensive and multidisciplinary management if necessary."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "B is the safer and evidence-aligned choice. The patient has diffuse axial symptoms, intact neurologic findings, no reported red flags, and only mild multilevel MRI changes without a compressive or destructive lesion. These findings do not by themselves establish a specific intradiscal treatment target or clinical necessity for immediate PRP. The regenerative-therapy guideline directly requires diagnostic confirmation of necessity, characterizes intradiscal PRP evidence as Level III/fair with limited high-quality research, and supports informed preference-sensitive discussion if treatment is later considered. A second low-back-pain guideline supports assessment for chronicity risk and escalation to intensive multidisciplinary care when necessary. Candidate A incorrectly treats mild nonspecific MRI degeneration and a moderate consensus recommendation as sufficient to bypass diagnostic confirmation. The visible title, question, notes, and imaging do not disclose the intended answer. This decision is distinct from the prior medication-overuse headache cases, which concerned opioid tapering rather than selection for a lumbar biologic procedure."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The most appropriate approach is to defer an immediate standalone intradiscal PRP/biologic injection. The ASIPP 2025 regenerative therapy guideline describes intradiscal PRP as supported only by Level III/fair evidence with a moderate consensus recommendation, and explicitly states that regenerative therapies should be considered only after a thorough diagnostic evaluation confirming clinical necessity, with shared decision-making about emerging evidence, risks, expectations, and out-of-pocket costs. In this case, mild disc desiccation/bulging on MRI does not by itself establish that the disc is the pain generator, and there is no radiculopathy, neurologic deficit, compressive lesion, fracture, infection, or malignancy. Other axial pain sources such as facet, sacroiliac, myofascial, or nonspecific/mechanically mediated pain remain possible. The patient also has fear of movement, sleep disruption, functional decline, and minimal prior structured rehabilitation, which are risk factors for chronicity. Low back pain guidelines emphasize early identification of patients at risk of chronicity and escalation to intensive multidisciplinary management when needed. Therefore, B better matches the evidence: establish diagnosis and clinical necessity first, address psychosocial and functional contributors, initiate/coordinate evidence-based conservative multidisciplinary care, and only later consider biologics through informed shared decision-making if an appropriate target and indication are established.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "41481869"
+              ],
+              "reason": "The cited ASIPP regenerative therapy guideline explicitly states regenerative therapies should be considered only after a thorough diagnostic evaluation confirming clinical necessity.",
+              "source_passage_ids": [
+                "41481869:p4"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41481869",
+                  "quote": "The primary limitation of these guidelines is the scarcity of high-quality studies, with much of the available evidence derived from small or heterogeneous trials. Regenerative therapies should be considered only after a thorough diagnostic evaluation confirming clinical necessity. Treatment decisions must account for the patient's medical condition, preferences, and expectations. Patients should be fully informed about the nature, potential benefits, risks, and costs of regenerative treatments, most of which are not covered by commercial insurance.These therapies may be used alone or in conjunction with other evidence-based modalities, such as structured exercise, physical therapy, behavioral therapy, or conventional medical management. Clinicians must follow all applicable U.S."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "41481869"
+              ],
+              "reason": "The source states intradiscal PRP has Level III/Fair evidence and also notes scarcity of high-quality studies with small or heterogeneous trials.",
+              "source_passage_ids": [
+                "41481869:p3",
+                "41481869:p4",
+                "41481869:p5"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41481869",
+                  "quote": "Both qualitative and quantitative analyses were applied to synthesize the best available data, resulting in evidence-based recommendations summarized below.Intradiscal Injections (PRP): Evidence Level: III, Fair; Consensus-Based Clinical Recommendation: ModerateIntradiscal Injections (BMAC): Evidence Level: III, Fair; Consensus-Based Clinical Recommendation: ModerateEpidural Injections (PRP): Evidence Level: III, Fair; Consensus-Based Clinical Recommendation: ModerateFacet Joint Injections (PRP and MSCs): Evidence Level: IV, Limited; Consensus-Based Clinical Recommendation: Moderate Sacroiliac Joint Injections (PRP): Evidence Level: IV, Limited; Consensus-Based Clinical Recommendation: Low Functional Spine Unit Injections Evidence Level: Very Low; Consensus-Based Clinical Recommendation:Low."
+                },
+                {
+                  "source_id": "41481869",
+                  "quote": "The primary limitation of these guidelines is the scarcity of high-quality studies, with much of the available evidence derived from small or heterogeneous trials. Regenerative therapies should be considered only after a thorough diagnostic evaluation confirming clinical necessity. Treatment decisions must account for the patient's medical condition, preferences, and expectations. Patients should be fully informed about the nature, potential benefits, risks, and costs of regenerative treatments, most of which are not covered by commercial insurance.These therapies may be used alone or in conjunction with other evidence-based modalities, such as structured exercise, physical therapy, behavioral therapy, or conventional medical management. Clinicians must follow all applicable U.S."
+                },
+                {
+                  "source_id": "41481869",
+                  "quote": "Food and Drug Administration (FDA) regulations and adhere to safety and ethical standards outlined in these guidelines. Based on current evidence, lumbar intradiscal injections of platelet-rich plasma (PRP) and mesenchymal stem cells (MSCs) are supported by Level III evidence. Lumbar epidural PRP injections are also supported by Level III evidence, while PRP injections for lumbar facet joints and sacroiliac joints are supported by Level IV evidence. Given the emerging status of biologic therapies and the limited quality of existing studies, the panel provides moderate, consensus-based recommendations for the use of all biologics in the lumbar spine."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "41481869"
+              ],
+              "reason": "The source states regenerative therapies may be used alone or with structured exercise, physical therapy, behavioral therapy, or conventional medical management.",
+              "source_passage_ids": [
+                "41481869:p4"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41481869",
+                  "quote": "The primary limitation of these guidelines is the scarcity of high-quality studies, with much of the available evidence derived from small or heterogeneous trials. Regenerative therapies should be considered only after a thorough diagnostic evaluation confirming clinical necessity. Treatment decisions must account for the patient's medical condition, preferences, and expectations. Patients should be fully informed about the nature, potential benefits, risks, and costs of regenerative treatments, most of which are not covered by commercial insurance.These therapies may be used alone or in conjunction with other evidence-based modalities, such as structured exercise, physical therapy, behavioral therapy, or conventional medical management. Clinicians must follow all applicable U.S."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "41481869"
+              ],
+              "reason": "The source states treatment decisions must account for medical condition, preferences, expectations, and that patients should be informed about benefits, risks, and costs.",
+              "source_passage_ids": [
+                "41481869:p4"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41481869",
+                  "quote": "The primary limitation of these guidelines is the scarcity of high-quality studies, with much of the available evidence derived from small or heterogeneous trials. Regenerative therapies should be considered only after a thorough diagnostic evaluation confirming clinical necessity. Treatment decisions must account for the patient's medical condition, preferences, and expectations. Patients should be fully informed about the nature, potential benefits, risks, and costs of regenerative treatments, most of which are not covered by commercial insurance.These therapies may be used alone or in conjunction with other evidence-based modalities, such as structured exercise, physical therapy, behavioral therapy, or conventional medical management. Clinicians must follow all applicable U.S."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "34051387"
+              ],
+              "reason": "The low-back-pain guideline abstract explicitly states the need to identify low back pain at risk of chronicity to provide quicker intensive and multidisciplinary management if necessary.",
+              "source_passage_ids": [
+                "34051387:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34051387",
+                  "quote": "From responses of academic institutions and stakeholders, the final guidelines were developed. For each area of the guidelines, agreement between experts was assessed by the RAND/UCLA method. The expert panel drafted 32 preliminary recommendations including a care pathway, which was amended after academic institution and stakeholder consultation. The consensus of the multidisciplinary expert panel was assessed for each final guideline: 32 recommendations were assessed as appropriate; none was assessed as uncertain or inappropriate. Strong approval was obtained for 27 recommendations and weak for 5. These new guidelines introduce several concepts, including the need to early identify low back pain at risk of chronicity to provide quicker intensive and multidisciplinary management if necessary."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is a pain-medicine chronic low-back-pain management decision. The visible case does not leak the intended answer; it describes the patient request for an intradiscal biologic injection but does not state that the procedure should be deferred or performed. The best answer is B. The patient has persistent axial low back pain, mild nonspecific degenerative MRI findings without compressive lesion, intact neurologic examination, no red flags, functional decline, and fear of movement. Proceeding directly to standalone intradiscal PRP solely because mild degeneration is visible would bypass the cited requirement for diagnostic evaluation and clinical necessity, so A is unsafe. B appropriately defers immediate biologic intervention, calls for diagnostic evaluation before deciding whether a regenerative procedure is clinically necessary, incorporates shared decision-making about uncertain/emerging evidence and costs, and addresses chronicity risk/multidisciplinary care. The key matches the chart and the cited evidence. The decision is distinct from the previous cases, which concerned opioid overuse in medication-overuse headache rather than regenerative/interventional management of chronic axial low back pain."
+        },
+        "image_sha256": null
+      }
+    ],
+    "authoring_method": "prepared_revision",
+    "entry_sha256": "cafcae353ee92f2c7fcbdb9b1cebad8f6d4a57ff3e23bd4e42c037ea59604624"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}
