@@ -36,3 +36,14 @@ and final audits will be appended before merge.
 Rollback: revert application changes without removing stored draws, submissions,
 ready database cases or paid batches. Keep accepted material and artifact history;
 do not overwrite submitted assessment identities.
+
+## Prepared draft safeguard verification
+
+The CI-only prepared-review path pins the exact complete draft before any paid
+probe; prior review feedback never reaches fresh reviewers. It skips authoring
+only and cannot resume or approve an old verdict. Four new blinded/clinical calls
+are required, with unchanged release gates. Independent code review confirmed
+canonical schema comparison and pre-probe input validation; 271 focused tests
+passed with the complete-library assertion held pending five final reviews.
+The eight latest approved additions cleared separate artifact audits. Frozen
+original inventory still matches all 41 files; prepared coverage is 81/86.

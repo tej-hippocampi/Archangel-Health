@@ -1,0 +1,130 @@
+{
+  "audit_version": 1,
+  "audited_at": "2026-09-19T03:16:13.060038+00:00",
+  "auditor": "Independent artifact auditor /root/audit_round2_passes",
+  "scope": "Priority independent audit of exact PM&R practice artifact only.",
+  "manifest_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/audit-revision-round2-passes.json",
+  "manifest_sha256": "b7cba1f10bf16fa8d56ab593aae68410e45f0b1616b4a4969c212dc080803c29",
+  "overall_disposition": "clear",
+  "physician_ratification": false,
+  "method": [
+    "Read full authored entry, ground truth, blind public payload and both solve/review traces.",
+    "Assess clinical population and decisive recommendation support independently of model pass.",
+    "Recompute exact entry/source hashes, validate entry/reviews, verify every literal quote instance, compare retained sources to preflight originals."
+  ],
+  "blocking_findings": [],
+  "cases": [
+    {
+      "task_id": "onboarding-practice-v1-0e0315b9abae6616594d-1",
+      "specialty": "physical medicine and rehabilitation",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35417109660/10576052764/trial-onboarding-practice-v1-0e0315b9abae6616594d-1.json",
+      "artifact_sha256": "3958957c5eab6e4463abcd82c70e5ffa7a36ba781276789134f0a64b7e98bbee",
+      "entry_sha256": "f450a73954b6b11820c4217d1f86d4c32e026a427fa630f841ce83c31a4a037f",
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "both_blind_solutions_and_reviews_choose": "A",
+        "retained_source_hashes_verified": [
+          {
+            "source_id": "36254447",
+            "abstract_sha256": "aef461e1fd8e24435e91dd7e9a1ed2d07430147f0330503356e221a822e028ae"
+          },
+          {
+            "source_id": "33675603",
+            "abstract_sha256": "033a1196734112cfe4f2432cc69b1448dd92178aec03dde69c434a2c8c1df259"
+          },
+          {
+            "source_id": "39832369",
+            "abstract_sha256": "b0b226bb3a7877380b9a6a1171a0a57fad5558107fe8c2e20cb0ef6164fac20f"
+          },
+          {
+            "source_id": "41257457",
+            "abstract_sha256": "09edc88e39063e8a5c1743460f05d663502c875c0d6728acdb765ff6340e3572"
+          },
+          {
+            "source_id": "38907596",
+            "abstract_sha256": "4b9b3d5d81a9a68a536047675bf9cbb356446b5f5f47cd2c0c7fb99c4ed9b7bd"
+          },
+          {
+            "source_id": "33551975",
+            "abstract_sha256": "68cd664fc972196126282624c92fc6342620adcdcb16d8fc719f8a0bcadbaaf1",
+            "body_excerpts_sha256": "a77987c366606043301c52c4eebc66c4fac2a641f4383452ca3876d55f7d6476",
+            "body_license_url": "http://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "30582986",
+            "abstract_sha256": "e6a4cf9c2ff431038d4df3c99a1a51ff1c7c35d1dc4f371b93a5c1f3a047ee16"
+          },
+          {
+            "source_id": "30452892",
+            "abstract_sha256": "d570b21b6a38f40eb225e7dc5a5326d8e624c6ee8b6d393125b9c7e9a62416b3"
+          }
+        ],
+        "literal_source_quote_instances_verified": 11,
+        "public_boundary_verified": true
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "issues": []
+        }
+      ],
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_population",
+          "result": "clear",
+          "finding": "Adult eight weeks after hemorrhagic stroke has functionally problematic dynamic plantarflexor overactivity: fast-stretch catch, MAS 2, clonus, toe drag, preserved slow dorsiflexion to neutral. This supports the focal PM&R impairment decision and lies within the early-intervention population; fixed contracture is not asserted.",
+          "source_ids": [
+            "38907596"
+          ]
+        },
+        {
+          "check": "decisive_recommendation_and_limits",
+          "result": "clear",
+          "finding": "Candidate A offers focal botulinum toxin for measured tone reduction without promising walking benefit. The early-intervention systematic review supports spasticity reduction within three months but cannot establish activity benefit; the VA/DoD synopsis includes botulinum toxin for spasticity. AFO is separately offered for mobility; its guideline explicitly advises against using it to decrease plantarflexor spasticity, making B substantively wrong. No unsupported dose, guaranteed functional improvement, or treatment ranking is introduced.",
+          "source_ids": [
+            "38907596",
+            "39832369",
+            "33675603"
+          ]
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "Actual blind_entry output examined. Neutral title and question, descriptive impairment findings, and no treatment recommendation in the chart. Private key, claims, keywords, hard hook, reasoning divergence and error tags are absent."
+        },
+        {
+          "check": "source_identity_and_retention",
+          "result": "clear",
+          "finding": "All eight retained source identities, abstracts and hashes and the sole retained licensed body (33551975, CC BY 4.0) exactly match the original reference-preflight artifact. Current primary PubMed pages independently confirm the two decisive early-BoNT and AFO source identities and conclusions.",
+          "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/physical-medicine-and-rehabilitation-practice.json",
+          "original_sha256": "86ec1d83fabd74bde523b5b6b56c69ec3a26b4f02f2e88a1b921d572cb61d3b0",
+          "primary_urls": [
+            "https://pubmed.ncbi.nlm.nih.gov/38907596/",
+            "https://pubmed.ncbi.nlm.nih.gov/33675603/"
+          ]
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "not_applicable_to_current_release",
+          "finding": "No final PM&R examination is currently bundled. This clearance applies solely to this exact practice artifact; final examination approval must independently compare against this practice case."
+        }
+      ],
+      "corrective_authoring_suggestion": null
+    }
+  ],
+  "limits": [
+    "Synthetic educational case; no health-system data, physician ratification, real-model calls, repository edits, reviewer-verdict changes or publication performed.",
+    "No final PM&R exam companion is available; its later audit must verify pair independence."
+  ]
+}

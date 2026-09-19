@@ -88,10 +88,12 @@ def isolated_paths(output: Path):
 def revision_inputs():
     """Immutable CI preparation only; these records never authorize publication."""
     import hashlib
+    from asclepius.onboarding_cases import prepared_revision_entry
     if not REVISION_INPUTS.is_file():
         return {}
     rows = json.loads(REVISION_INPUTS.read_text())["cases"]
     for ident, row in rows.items():
+        prepared_revision_entry(row)
         if row.get("entry") and hashlib.sha256(json.dumps(row["entry"], sort_keys=True).encode()).hexdigest() != row.get("entry_sha256"):
             raise ValueError("Revision input checksum mismatch: " + ident)
         if row.get("resume") and (not row.get("entry") or not row.get("audit_disposition") == "clear"):
@@ -116,10 +118,11 @@ async def run(specialty: str, output: Path):
         print(json.dumps({'specialty': specialty, 'skipped': 'both cases covered by release library or audited trial inputs'}))
         return
     output = isolated_paths(output)
+    # Freeze validated inputs before the access probe or any case-model call.
+    inputs = revision_inputs()
     await check_access()
     store = get_store()
     output.mkdir(parents=True, exist_ok=True)
-    inputs = revision_inputs()
     results = []
     previous = [{"question": row["entry"]["question"], "answer_key": row["entry"]["case"]["ground_truth"]}
                 for ident, row in inputs.items() if row.get("resume") and
@@ -193,6 +196,7 @@ def main():
     if args.matrix:
         print(json.dumps(matrix(args.specialty)))
     elif args.check_access:
+        revision_inputs()  # Reject malformed prepared inputs before the paid probe.
         asyncio.run(check_access())
     elif args.output:
         from asclepius.onboarding_specialties import canonical

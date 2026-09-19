@@ -1,0 +1,507 @@
+{
+  "task_id": "onboarding-practice-v1-a804935ada9d87b2997e-1",
+  "specialty": "palliative medicine",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Persistent breathlessness in an adult with advanced lung cancer",
+    "question": "Which symptom-directed management choice is most appropriate at this decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "palliative medicine",
+      "demographics": {
+        "age_band": "60-69",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Metastatic non-small cell lung cancer",
+          "since": "Several months",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Persistent breathlessness at rest and with minimal activity",
+          "since": "Two weeks",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "respiratory_rate_per_min": 24,
+        "oxygen_saturation_percent_room_air": 95,
+        "heart_rate_per_min": 92,
+        "temperature_celsius": 36.8
+      },
+      "lab_panels": [
+        {
+          "panel": "Complete blood count",
+          "collected_offset_days": -2,
+          "results": [
+            {
+              "analyte": "Hemoglobin",
+              "loinc": null,
+              "value": 12.1,
+              "unit": "g/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Palliative medicine assessment",
+          "author_role": "palliative medicine",
+          "text": "A woman in her late 60s with metastatic lung cancer reports persistent air hunger at rest and marked breathlessness while speaking or walking to the bathroom. Symptoms remain distressing despite use of a handheld fan, upright positioning, paced activity, breathing techniques, and caregiver coaching. Recent assessment found no abrupt deterioration, fever, purulent sputum, wheeze, chest pain, clinically significant anemia, or impaired alertness. Imaging excluded pulmonary embolism, focal pneumonia, and a drainable pleural effusion. She is comfortable with room air saturation of 95% but rates breathlessness as 7 of 10. She has not been receiving an opioid or benzodiazepine. The interdisciplinary palliative care team has completed symptom assessment and review of potentially reversible contributors.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "CT pulmonary angiography",
+          "label": "Recent thoracic assessment",
+          "findings": "Metastatic thoracic malignancy is present. No pulmonary arterial filling defect, focal air-space consolidation, or drainable pleural effusion is identified.",
+          "measurements": [],
+          "impression": "No pulmonary embolism, focal pneumonia, or drainable pleural effusion.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -2
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "The patient has advanced-cancer breathlessness after assessment and management of potentially reversible contributors, with inadequate relief from nonpharmacologic interventions. ASCO recommends offering a systemic opioid at this point. A cancer-specific systematic review found systemic opioids more effective than placebo for dyspnea, while emphasizing that the evidence remains limited. Standard supplemental oxygen is supported for patients with hypoxemia, which is not present here. Candidate B therefore both substitutes an unsupported intervention for this nonhypoxemic patient and omits the indicated opioid option.",
+        "evidence": null,
+        "key_data": [
+          "Advanced lung cancer with persistent distressing breathlessness",
+          "Potentially reversible contributors have been assessed without an actionable finding",
+          "Handheld fan and other nonpharmacologic measures have provided inadequate relief",
+          "Room-air oxygen saturation is 95%",
+          "The patient is not currently receiving an opioid"
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Offer a carefully individualized systemic opioid for persistent advanced-cancer breathlessness after inadequate nonpharmacologic relief, while explaining that the supporting evidence shows benefit over placebo but remains limited."
+      },
+      {
+        "id": "B",
+        "text": "Begin standard supplemental oxygen despite the normal room-air saturation and defer systemic opioids, because oxygen should replace pharmacologic palliation whenever airflow measures have failed."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "advanced cancer",
+      "refractory breathlessness",
+      "systemic opioids",
+      "hypoxemia",
+      "supplemental oxygen"
+    ],
+    "evidence_keywords": [
+      "nonpharmacologic interventions",
+      "systemic opioid",
+      "advanced-cancer dyspnea",
+      "airflow intervention",
+      "placebo comparison"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Advanced-cancer dyspnea management should begin with symptom assessment and management of potentially reversible causes.",
+        "source_ids": [
+          "33617290"
+        ]
+      },
+      {
+        "statement": "A fan directed toward the cheek may be offered as a nonpharmacologic intervention for advanced-cancer breathlessness.",
+        "source_ids": [
+          "33617290"
+        ]
+      },
+      {
+        "statement": "Systemic opioids should be offered when nonpharmacologic interventions provide inadequate relief of advanced-cancer dyspnea.",
+        "source_ids": [
+          "33617290"
+        ]
+      },
+      {
+        "statement": "In adult cancer patients, systemic opioids were more effective than placebo for relieving dyspnea in the pooled analysis.",
+        "source_ids": [
+          "37338727"
+        ]
+      },
+      {
+        "statement": "Evidence supporting opioids for cancer dyspnea remains limited, so the magnitude and safety of benefit should not be overstated.",
+        "source_ids": [
+          "33617290",
+          "37338727"
+        ]
+      },
+      {
+        "statement": "The ASCO guideline supports standard supplemental oxygen for patients with hypoxemia rather than as a universal treatment for dyspnea.",
+        "source_ids": [
+          "33617290"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T03:02:41.489007+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "33617290",
+        "title": "Management of Dyspnea in Advanced Cancer: ASCO Guideline.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33617290/",
+        "abstract": "To provide guidance on the clinical management of dyspnea in adult patients with advanced cancer.\nASCO convened an Expert Panel to review the evidence and formulate recommendations. An Agency for Healthcare Research and Quality (AHRQ) systematic review provided the evidence base for nonpharmacologic and pharmacologic interventions to alleviate dyspnea. The review included randomized controlled trials (RCTs) and observational studies with a concurrent comparison group published through early May 2020. The ASCO Expert Panel also wished to address dyspnea assessment, management of underlying conditions, and palliative care referrals, and for these questions, an additional systematic review identified RCTs, systematic reviews, and guidelines published through July 2020.\nThe AHRQ systematic review included 48 RCTs and two retrospective cohort studies. Lung cancer and mesothelioma were the most commonly addressed types of cancer. Nonpharmacologic interventions such as fans provided some relief from breathlessness. Support for pharmacologic interventions was limited. A meta-analysis of specialty breathlessness services reported improvements in distress because of dyspnea.\nA hierarchical approach to dyspnea management is recommended, beginning with dyspnea assessment, ascertainment and management of potentially reversible causes, and referral to an interdisciplinary palliative care team. Nonpharmacologic interventions that may be offered to relieve dyspnea include airflow interventions (eg, a fan directed at the cheek), standard supplemental oxygen for patients with hypoxemia, and other psychoeducational, self-management, or complementary approaches. For patients who derive inadequate relief from nonpharmacologic interventions, systemic opioids should be offered. Other pharmacologic interventions, such as corticosteroids and benzodiazepines, are also discussed.Additional information is available at www.asco.org/supportive-care-guidelines.",
+        "sha256": "94fb29a8ad85290af424a57c3d065313728e4e3a766ae350254fcb0f8be05c34",
+        "retrieved_at": "2026-09-19T03:01:23.028088+00:00",
+        "source_type": "primary_society_guideline"
+      },
+      {
+        "id": "37338727",
+        "title": "Opioids for the management of dyspnea in cancer patients: a systematic review and meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37338727/",
+        "abstract": "Dyspnea is a prevalent symptom that significantly reduces quality of life of cancer patients. Palliative treatment is necessary when the symptoms do not respond to treatment for their cause. Opioids are widely used as pharmacological therapy, but evidence for individual agents is inconsistent. The purpose of this study was to evaluate the efficacy and safety of opioids for dyspnea in cancer patients. We searched the CENTRAL, MEDLINE, EMBASE, and ICHUSHI for studies using opioids for dyspnea in adult cancer patients reported by September 2019. Screening of the retrieved literature and assessment of risk of bias and outcomes were performed by two independent authors. A meta-analysis was performed on the primary endpoint, relief of dyspnea, and secondary endpoints including quality of life, somnolence as a side effect, and serious adverse events. Twelve randomized controlled trials were evaluated regarding relief of dyspnea. Somnolence and serious adverse events were evaluated in seven and four randomized controlled trials, respectively, but no randomized controlled trials were evaluable for quality of life. Overall, opioids were more effective than placebo for dyspnea (standardized mean difference -\u00a00.43, 95% confidence interval [CI] -\u00a00.75 to -\u00a00.12). Although significant difference was found between systemic morphine and placebo in the drug-specific analysis, no significant difference could be detected in the other analyses. Systemic administration of opioids is more effective than placebo in relieving dyspnea in cancer patients. Robust evidence on the efficacy and safety of opioids on dyspnea in cancer patients is lacking, and further studies are needed.",
+        "sha256": "1a8e40b6f25b14da55c707323af7fb68ec1d811a8805de8974352366f198faf4",
+        "retrieved_at": "2026-09-19T03:01:23.028088+00:00",
+        "source_type": "systematic_review",
+        "pmcid": "PMC10390357",
+        "body_excerpts": "Introduction\nDyspnea is a symptom that significantly reduces the quality of life of cancer patients [ 1 ], and 46\u201359% of cancer patients experience moderate to severe dyspnea [ 2 ]. Dyspnea is an independent adverse prognostic factor in cancer patients [ 3 ], and the frequency and severity of dyspnea increases in patients with deteriorating general condition and at the end of life [ 4 , 5 ]. Shortness of breath on exertion is a physiological phenomenon that happens naturally in anyone, but dyspnea at rest or severe dyspnea on exertion restricts daily life and social functioning, deprives patients of independence, and causes frustration, anger, and depression [ 6 ]. Therefore, treatment for dyspnea is needed to maintain the patient's quality of life.\n\nIntroduction\nIt is known that dyspnea in cancer patients is more likely to occur in patients with lung lesions (including metastatic tumors). To alleviate dyspnea in cancer patients, assessment of the causative pathology of dyspnea and treatment of the cause is a prerequisite. It is also important to consider adjustments in activities of daily living and the environment. When treatment for the cause is difficult or no more effective, pharmacological and non-pharmacological palliative therapies are used to alleviate symptoms [ 7 , 8 ].\n\nIntroduction\nOpioids are widely used as pharmacological therapy to relieve dyspnea in cancer patients and are recommended as first-line pharmacological therapy by several guidelines [ 7 , 9 , 10 ]. Among them, the usefulness of systemic morphine for dyspnea in cancer patients has been widely reported, and in recent years, the usefulness of other opioids such as fentanyl and oxycodone has also been reported in some non-randomized studies [ 8 ]. However, currently available studies employ multiple rating scales, and their sample sizes are small and follow-up periods are relatively short. Therefore, guidelines and systematic reviews have not resulted in strong recommendations [ 7 , 9 , 10 ].\n\nIntroduction\nRecently, a number of studies in this area have been conducted and could improve clinical practice for dyspnea in cancer patients. In addition, existing systematic reviews have not adequately evaluated opioids by type [ 11 , 12 ], and a detailed evaluation could provide insights to improve clinical practice for cancer patients with dyspnea. Therefore, we conducted this study to evaluate the efficacy and safety of each opioid for dyspnea in cancer patients.\n\nPatients and methods > Eligibility criteria and endpoints\nWe searched for studies of adult cancer patients treated with opioids for refractory dyspnea despite appropriate treatment for potentially reversible factors. Efficacy endpoints included relief of dyspnea as the primary endpoint, quality of life as a secondary endpoint, and somnolence and serious adverse events due to opioids as secondary safety endpoints. The degree of dyspnea was required to be measured by patients reported outcomes. Serious adverse events were defined as Common Terminology Criteria for Adverse Events (CTCAE) Grade 3 or higher or adverse events described as serious by the study authors. We included systemic administration of morphine, oxycodone, hydromorphone, and fentanyl, or morphine inhalation in the analysis. The study inclusion criteria for the primary outcome were as following: (1) If there were at least two randomized controlled trial (RCT)s, inclusion was completed. (2) If there were less than 2 RCTs, we included non-RCTs or observational studies with control groups. (3) If there were no RCTs/non-RCTs/observational studies with control groups, single-arm observational studies were considered for inclusion. Case reports or case series were excluded. Secondary outcomes were analyzed for studies that met the criteria for the primary outcome. At the time this meta-analysis was designed, there was insufficient evidence that the drugs used in the control arms (opioids and benzodiazepines) in the active control RCTs were literally \"active,\" meaning more effective than placebo. Therefore, the primary analysis was conducted without distinguishing between placebo control and active control RCTs, and additional subgroup analyses were conducted to examine these differences. We selected literature in English and Japanese.\n\nPatients and methods > Information source, search strategy\nWe searched the CENTRAL, MEDLINE, EMBASE, and ICHUSHI of the Japan Medical Abstract Society databases for literature reported up to September 23, 2019, using \u201copioid\u201d, \u201cdyspnea\u201d, and \u201ccancer\u201d as the main keywords. Details of the search formula are shown in Supplementary Table 1. In addition, an up-date search using PubMed was conducted on November 15, 2020.\n\nPatients and methods > Selection process\nAll abstracts and titles of the literature obtained from the search were independently screened as the primary screening by two authors (YT and YY for morphine, oxycodone, and fentanyl and RM and JS for hydromorphone and morphine inhalation). Full text was reviewed and assessed for eligibility in the secondary screening. In cases of disagreement regarding inclusion, a third author (HW for morphine, oxycodone, and fentanyl; MM for hydromorphone and morphine inhalation) was included to discuss and reach consensus, if necessary.\n\nPatients and methods > Additional analyses\nBecause the effect of the drug of interest itself may not be adequately assessed in an integrated analysis in which placebo-controlled and active control studies were mixed, additional analyses were conducted for the placebo-controlled and active control study groups, respectively. Furthermore, we performed sensitivity analyses according to the way the outcome was expressed (absolute value vs. change from baseline) and the type of dyspnea (at rest or on exertion).\n\nResults > Study selection\nTwelve RCTs [ 15 \u2013 26 ] evaluating relief of dyspnea were selected after a full-text review as a secondary screening (Fig. 1 , Table 1 ). There was one RCT that evaluated quality of life [ 27 ], but it did not meet our eligibility criteria for RCTs because its control group employed non-pharmacologic interventions. We therefore handled this study as an observational study. There were seven RCTs [ 16 \u2013 19 , 21 , 25 , 26 ] that reported somnolence, and serious adverse events were reported in four RCTs [ 17 \u2013 19 , 23 ]. Fig. 1 PRISMA 2020 flow diagram of the study Table 1 List of selected randomized controlled trials Author (pub date) Interventions Numver of patients Dominant cancer type (N of patients) Outcomes Summary Dyspnea QOL Somnolence SAE Bruera (1993) [ 15 ] Mor (sc) vs. Placebo 10 (crossover) Terminal cancer (lung 3) \u25cf VAS in Mor was significantly lower at 30, 45, and 60 min after the administration than Placebo Mazzocato (1999) [ 16 ] Mor (sc) vs. Placebo 9 (crossover) Lung (7), breast (1), bladder (1) \u25cf \u25cf VAS change from baseline at 45 min was significantly larger in Mor than Placebo Bruera (2005) [ 17 ] Mor (sc) vs. Mor (inhalation) 12 (crossover) Lung (7), gastro-intestinal (2) \u25cf \u25cf \u25cf Found no significant difference in NRS at 60 min after administration between the two groups Navigante (2006) [ 18 ] Mor (sc) vs. midazolam (sc) vs. Mor + midazolam 101 Lung (30), breast (19), gynecological (14), sarcoma (12) \u25cf \u25cf \u25cf Showed no significant differences in modified Borg scale among subcutaneous morphine, midazolam and morphine plus midazolam groups at 24 and 48 h of administration Charles (2008) [ 22 ] HM (po/sc) vs. HM (inhalation) vs. Placebo 20 (crossover) Lung (14), breast (2), renal (2), methotheli-oma (1), prostate (1) \u25cf Improvement from baseline in NRS 10 min after the end of intervention was not significantly different between the groups Navigante (2010) [ 19 ] Mor (po) vs. midazolam (po) 63 Lung (16), breast (15), head and neck (6) \u25cf \u25cf \u25cf NRS on the following day of administration was significantly better in the midazolam group Hui (2014) [ 23 ] Fen (sc) vs. Placebo 20 Breast (5), sarcoma (5), lung (4), urologic (3), gynecological (2) \u25cf Trend toward improvement from baseline walk in NRS at the walk after subcutaneous fentanyl, although no group comparison was made Pinna (2015) [ 24 ] Fen (tm) vs. Placebo 13 (crossover) Lung (10), gastric (1), Breast (1), renal (1) \u25cf \u25cf Showed no significant difference in the NRS between fentanyl and placebo at any time points Simon (2016) [ 20 ] Mor (po) vs. Fen (tm) 10 (crossover) Lung (4), hematologic (2) \u25cf Found no significant difference in NRS change from baseline at 10 and 30 min post-dose between the two groups Hui (2016) [ 25 ] Fen (tm) vs. Placebo 20 Gastrointestinal (6), breast (5), lung (3) \u25cf \u25cf Trend toward improvement from baseline in NRS 20 min after administration in the intranasal fentanyl group, although no between-group comparison was made Hui (2017) [ 26 ] Fen (tm) vs. Placebo 20 Lung (8), gastro- intestinal (3), urologic (3), breast (3) \u25cf \u25cf NRS after a 6-min walk was not significantly different between the sublingual fentanyl and placebo Yamaguchi (2018) [ 21 ] Mor (po) vs. Oxy (po) 17 Lung (9), colorectal (2) \u25cf \u25cf NRS change from baseline at 60 and 120 min post-dose was not significantly different between the two groups Fen fentanyl, HM hydromorphone, Mor Morphine, NRS numerical rating scale, Oxy oxycodone, po oral administration, QOL quality of life, SAE severe adverse events, sc subcutaneous injection, tm transmucosal administration, VAS visual analog scale\n\nResults > Study characteristics\nA total of 326 patients were evaluated from 12 RCTs, with a median number of patients in each study of 18.5 (minimum 9, maximum 101). Approximately 40% of the patients had lung tumors (primary lung cancer or lung metastases). The route of systemic administration of opioids was oral or subcutaneous injection, and transmucosal for fentanyl studies. Placebo control was employed in seven studies, while active control was used in the others. Comparisons between opioids were three, and comparisons with benzodiazepines were performed in two studies. The timing of the efficacy assessment was 30\u201360 min after the drug administration in most studies. Four (80%) of the five studies using fentanyl evaluated outcomes before and after the 6-min walk test.\n\nResults > Study characteristics\nOverall, lung cancer was relatively common among the patients included, with some patients having concomitant pleural effusions and lymphangitis carcinomatosa. Some studies also reported patients with COPD, interstitial lung disease, heart failure, and bronchial asthma, but these non-malignant complications were generally limited in a minority of patients up to about 20%, except in Navigante's study [ 19 ] (57% with interstitial lung disease and 37% with pulmonary micro-embolism).\n\nResults > Risk of bias in studies\nThree studies were assessed to have a low risk of bias [ 23 , 25 , 26 ], all of which were studies of systemic fentanyl administration with 6-min walk tests by the same investigator. Six studies were classified to have a moderate and three to have a high risk of bias [ 18 , 20 , 21 ] (Fig. 2 ). Fig. 2 Bias risks of selected randomized controlled studies. ITT, intention-to-treat. The left side shows the distribution of the studies by bias, and the right side details the risk of bias for each individual study\n\nResults > Primary outcome: relief of dyspnea\nSeven RCTs evaluated relief of dyspnea with morphine [ 15 \u2013 21 ], one with oxycodone [ 21 ], one with hydromorphone [ 22 ], five with fentanyl [ 20 , 23 \u2013 26 ], and one with morphine inhalation [ 17 ] (with overlap). Of these, studies in which the degree of dyspnea was assessed as a continuous variable and for which a CI could be estimated were included in the integrated analysis. Four trials [ 15 , 16 , 20 , 21 ] with systemic morphine, one trial [ 21 ] with oxycodone, one trial [ 22 ] with hydromorphone, and five trials [ 20 , 23 \u2013 26 ] with fentanyl met these criteria. Trials comparing opioids with other opioids [ 20 , 21 ] were excluded from the integrated analysis of opioids overall.\n\nResults > Primary outcome: relief of dyspnea\nThe integrated analysis of opioids included seven trials, all of which were placebo-controlled. The effect on dyspnea was significant with a standardized mean difference of \u2212 0.43 (95% CI \u2212 0.75 to \u2212 0.12) (Fig. 3 ). Fig. 3 Forest plots for palliation of dyspnea. CI confidence interval, IV inverse variance, SD standard deviation, Std standard. Mean and SD represent the dyspnea measures; Total represents the number of patients; Experimental and Control represent the opioid intervention and placebo, respectively\n\nResults > Primary outcome: relief of dyspnea\nWhen the four studies of systemic morphine administration were combined, the effect of morphine on dyspnea compared to placebo or other interventions was not significant with a standardized mean difference of \u2212 0.18 (95% CI \u2212 0.94 to 0.59) (Fig. 4 ). When the two placebo-controlled trials [ 15 , 16 ] were combined, the standardized mean difference was significant at \u2212 0.78 (95% CI \u2212 1.45 to \u2212 0.10). For the two active control trials [ 20 , 21 ], the standardized mean difference was 0.48 (95% CI \u2212 0.23 to 1.19). The difference in effect between the two subgroups was significant ( I 2 = 84.3%, p = 0.01). Fig. 4 Forest plots for palliation of dyspnea for the morphine subgroup. CI confidence interval; IV inverse variance, SD standard deviation, Std standard. Mean and SD represent the dyspnea measures; Total represents the number of patients; Experimental corresponds to morphine and Control represents placebo or active control\n\nResults > Primary outcome: relief of dyspnea\nThe combined results of the five studies examining the effect of fentanyl on dyspnea showed a standardized mean difference of \u2212 0.38 (95% CI \u2212 0.78 to 0.02) compared to the other interventions, which was not significant (Fig. 5 ). The standardized mean difference remained insignificant at \u2212 0.38 (95% CI \u2212 0.86 to 0.09) when four placebo-controlled trials [ 23 \u2013 26 ] were combined, and the difference in effects between the two subgroups was not significant ( I 2 = 0, p = 0.96). Fig. 5 Forest plots for palliation of dyspnea for the fentanyl subgroup. CI confidence interval, IV inverse variance, SD standard deviation, Std standard. Mean and SD represent the dyspnea measures; Total represents the number of patients; Experimental corresponds to fentanyl and Control represents placebo or active control\n\nResults > Primary outcome: relief of dyspnea\nThe heterogeneity among the seven trials in the integrated analysis of opioids overall was low ( I 2 = 0%, p = 0.43), and no significant publication bias was found in the funnel plot (Supplementary Fig. 1). Extracting the four trials that evaluated the efficacy of systemic morphine, we found modest heterogeneity between the placebo-controlled trials and the actual drug-controlled trials. Although the heterogeneity of the five trials that examined the efficacy of fentanyl was low, the majority of trials evaluated dyspnea associated with 6-min walks, considered a high degree of non-directness for problems with dyspnea in real-world cancer care.\n\nResults > Secondary outcomes > Quality of life\nOne RCT evaluated the improvement in quality of life with opioids administered for dyspnea [ 27 ], but it was a three-arm comparison of systemic morphine, acupuncture, and a combination of morphine and acupuncture, and did not meet the eligibility criteria for this meta-analysis. The European Organization for Research and Treatment of Cancer Quality of Life Questionnaire Core 30 (EORTC QLQ-C30) score for the morphine systemic arm of the study did not change significantly before or after morphine administration.\n\nResults > Somnolence\nThere were five RCTs evaluating somnolence with morphine [ 16 \u2013 19 , 21 ], one with oxycodone [ 21 ], zero with hydromorphone, two with fentanyl [ 25 , 26 ], and one with morphine inhalation [ 17 ]. There were no nonrandomized studies for hydromorphone or morphine inhalation. Of these, studies with identified number of patients with somnolence were included in the integrated analysis. Four trials [ 16 , 18 , 19 , 21 ] with systemic morphine, one trial [ 21 ] with oxycodone, and two trials [ 25 , 26 ] with fentanyl met this criterion.\n\nResults > Somnolence\nIn an integrated analysis of five trials, excluding a RCT comparing opioids among themselves [ 21 ], there was no significant increase in opioid-induced somnolence compared with placebo or other agents (Fig. 6 ). Subgroup analyses such as systemic morphine versus other interventions (risk ratio: 1.23; 95% CI 0.64\u20132.37) (Fig. 7 ), systemic morphine versus placebo or active control (Fig. 7 ), and fentanyl versus other interventions (risk ratio: 0.21; 95% CI 0.04\u20131.10) did not show significant difference (Fig. 8 ). Fig. 6 Forest plots for somnolence. CI confidence interval, M-H Mantel\u2013Haenszel. Events and Total represents the number of patients; Experimental corresponds to opioids and Control represents placebo or active control Fig. 7 Forest plots for somnolence for the morphine subgroup. CI confidence interval, M-H Mantel\u2013Haenszel. Events and Total represents the number of patients; Experimental corresponds to morphine and Control represents placebo or active control Fig. 8 Forest plots for somnolence for the fentanyl subgroup. CI confidence interval, M-H Mantel\u2013Haenszel. Events and Total represents the number of patients; Experimental corresponds to fentanyl and Control represents placebo\n\nResults > Somnolence\nThe heterogeneity among the five trials in the integrated analysis of opioids overall was low ( I 2 = 21%, p = 0.28), and no significant publication bias was found in the funnel plot (Supplementary Fig. 2). Extracting the four studies that evaluated the efficacy of systemic morphine, we found modest heterogeneity in the active-control studies, possibly due to the effect of Yamaguchi\u2019s study [ 21 ], in which a particularly high proportion of somnolent patients were observed in the morphine group. The two fentanyl trials included in the integrated analysis had low potential for inconsistency.\n\nResults > Severe adverse events\nAmong RCTs evaluating serious adverse events due to opioids administered for dyspnea, 3 [ 17 \u2013 19 ] evaluated morphine, 0 oxycodone, 0 hydromorphone, 1 fentanyl [ 24 ], and 1 morphine inhalation [ 17 ]. Trials with a control group in which the number of serious adverse events was specified were included in the synthesis analysis. Two trials for systemic morphine [ 18 , 19 ] and one for fentanyl [ 24 ] met this criterion. No trials were included in the integrated analysis for oxycodone, hydromorphone, or morphine inhalation.\n\nResults > Severe adverse events\nIn the integrated analysis of the above three trials, there was no significant increase in serious adverse events with opioids compared to placebo or other drugs (Fig. 9 ). The combined analysis of the two trials examining serious adverse events with systemic morphine showed a risk ratio of 1.28 (95% CI 0.66\u20132.47) compared to other interventions, which was not significant. Fig. 9 Forest plot for severe adverse events. CI confidence interval, M-H Mantel\u2013Haenszel. Events and Total represents the number of patients; Experimental corresponds to opioids and Control represents placebo or active control\n\nResults > Severe adverse events\nHeterogeneity among the three trials in the integrated analysis of opioids overall was low ( I 2 = 0%, p = 0.57), and there were not enough studies to allow an assessment regarding publication bias. The two trials included in the integrated analysis for systemic morphine administration were less inconsistent.\n\nResults > Additional analyses\nIn the main analysis, the post-intervention value of dyspnea intensity was used as the outcome measure, and the results were consistent in a sensitivity analysis in which that was replaced by the change from baseline (Supplementary Fig. 3). Sensitivity analyses of studies that assessed improvement in dyspnea at multiple time points showed a consistent trend in results (Data not shown). Because many of the RCTs with fentanyl also addressed dyspnea on exertion, a sensitivity analysis was performed for trials that assessed improvement in dyspnea on exertion [ 23 \u2013 26 ], but the results were not different (Supplementary Fig. 4). Sensitivity analyses with fixed-effects models were also performed for study groups with similar interventions, but no change in trend or significance of results was found (Data not shown).\n\nDiscussion\nTwelve RCTs with more than 300 patients were included in this integrated analysis. The number of trials, especially for systemic morphine and fentanyl, was large compared to other opioids. However, the individual trials were mainly small, with around 10\u201320 cases per arm, and more than half of the trials included in this study had a risk of bias related to blinding. Dyspnea is a strong poor prognostic factor in cancer patients, making them extremely vulnerable and prone to irreversible deterioration. Given the high barriers to conducting a large double-blind trial in this context, the current evidence seems to meet the acceptable level of evidence needed to conduct a meta-analysis.\n\nDiscussion\nRegarding efficacy on dyspnea, an integrated analysis of opioids as a whole showed superiority of opioid over placebo. In examining individual agents, morphine was shown to be effective in comparison with placebo. Despite some risk of bias, the two studies provide evidence for the clinical questions of interest, especially in that they target dyspnea at rest. The efficacy of fentanyl was marginal, and oxycodone and hydromorphone could not be adequately studied due to the small number of cases.\n\nDiscussion\nWhile placebo-controlled studies supported the efficacy of morphine, our result showed no clear difference between morphine and active control. While this result leaves open the possibility that other agents might also have effectiveness for dyspnea, it is likely to be essentially influenced by the small sample size. In particular, there was not enough evidence for oxycodone and hydromorphone to conclude their efficacy against dyspnea. For fentanyl, despite placebo-controlled studies conducted in a larger number of cases than for morphine, the results of the integrated analysis slightly failed to reach the level of significance. Most studies examining the effects of fentanyl have focused on exertion-related dyspnea, and this difference in target setting may have contributed to the results of the current analysis. Dyspnea at rest and exertional dyspnea in cancer patients may differ in mechanism, and the latter can be caused by relatively minor impairments such as decreased lung diffusion capacity or muscle weakness, even if they do not have significant respiratory failure that leads to dyspnea at rest. Most studies examining fentanyl have applied a temporary load to patients with relatively higher respiratory function by walking for 6 min, which may result in less benefit than in other studies. Although a sensitivity analysis comparing the effects of opioids on resting dyspnea and exertion-related dyspnea showed no clear difference, further evidence is needed to clarify which patients are more effective with opioids in real-world clinical practice. It should be noted that the results of this analysis do not immediately prohibit the use of opioids other than morphine for dyspnea, but the rationale is much weaker than that for morphine.\n\nDiscussion\nThere was no clear evidence that opioids significantly increase somnolence or severe adverse events. Typical side effects of opioids are known to include somnolence, nausea and vomiting, constipation, and delirium. Although dyspnea is a strong poor prognostic factor in cancer patients and early death has been observed in many studies, there is no evidence that opioid use increases early death, and it appears feasible to use opioids in poor prognosis patients with caution about the general risks associated with their use. On the other hand, the use of opioids (rescue or regular administration) and patient backgrounds in the included studies were diverse, so the utmost caution should be paid to the patient's physical condition and the dose of opioids that may increase the adverse events.\n\nDiscussion\nAs in previous reported meta-analyses, there was not enough evidence to draw definitive conclusions for each outcome other than improvement in dyspnea. In particular, very few studies included improvement in quality of life as an outcome, making it impossible to conduct a clinically meaningful analysis. Although some studies examined patient preferences [ 24 ], there was no robust evidence that such measures were surrogates for quality of life, and it was unclear whether they represented the overall balance of benefits and side effects that we were aiming for, so the authors discussed and decided not to include them in this analysis. Conducting RCTs in palliative care field is often more difficult than in other fields due to various issues such as patient vulnerability, irreversibility, obtaining consent, and psychological issues [ 28 ]. In addition to developing new methods for conducting RCTs, there is a need to accumulate reliable evidence for alternatives to RCTs, such as large prospective cohort studies that are appropriately adjusted for confounding.\n\nDiscussion\nLimitations other than sample size and the heterogeneity of the studies include the lack of inquiries to the authors of each study regarding the details of conducting the trial and individual patient data, which are necessary for a detailed assessment of the risk of bias. Although these were due to practical limitations, some studies were excluded because they reported only a median NRS for dyspnea [ 17 ], and obtaining further data from the authors could have yielded more reliable analyses than were obtained here.\n\nDiscussion\nIn conclusion, although evidence for the use of opioids to improve dyspnea remains insufficient, systemic administration of opioids appears to be more effective than placebo in relieving dyspnea in cancer patients. Further accumulation of evidence for various conditions manifesting dyspnea is needed to provide direct evidence of patient benefits, including quality of life.",
+        "body_excerpts_sha256": "f4bb99b23b35fc890bf4a9690ee41ee19b1cf39feb68f12629b832bc2cb082f1",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10390357/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "35441562",
+        "title": "Systematic Review of Common Refractory Symptoms in the End-Of-Life Situation and Its Relation With Euthanasia.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35441562/",
+        "abstract": "To analyse the available evidence regarding refractory symptoms to treatment in patients receiving palliative/terminal healthcare.\nA systematic review of various databases between September and December 2020; Pubmed; Cochrane; Scopus and ScienceDirect. Study eligibility criteria: Studies published between 1st January 2015 and 31st of March 2020, in Spanish, English or Catalan conducted in elderly people or terminal patients. The study included systematic reviews, clinical trials and interventions.\nThe search returned 782 articles, of which 22 articles were finally reviewed. Of the selected articles, 16 were systematic reviews and three were clinical trials. Three refractory symptoms are notable; breathlessness, delirium and existential suffering. There are various therapeutic approaches for the first two symptoms, but palliative sedation seems to be most effective for existential suffering.\nAlthough palliative care enables controlling these symptoms effectively, and following a multidisciplinary approach, there remains a group of patients for whom euthanasia could save foreseeable suffering that is difficult to manage.",
+        "sha256": "b161642533eb41d287ff58b897c3d99dc882f7e791b25af04205b05ba7262d2a",
+        "retrieved_at": "2026-09-19T03:01:28.337918+00:00"
+      },
+      {
+        "id": "37710987",
+        "title": "Effectiveness and safety of opioids on breathlessness and exercise endurance in patients with chronic obstructive pulmonary disease: A systematic review and meta-analysis of randomised controlled trials.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37710987/",
+        "abstract": "Opioids are recommended to treat advanced refractory dyspnoea despite optimal therapy by the American Thoracic Society clinical practice guidelines, while newly published randomised controlled trials of opioids in chronic obstructive pulmonary disease yield conflicting results.\nThis study aimed to evaluate the effectiveness and safety of opioids for patients with chronic obstructive pulmonary disease.\nSystematic review and meta-analysis (PROSPERO CRD42021272556).\nDatabases of PubMed, EMBASE and CENTRAL were searched from inception to 2022 for eligible randomised controlled trials.\nTwenty-four studies including 975 patients, were included. In cross-over studies, opioids improved breathlessness (standardised mean difference, -0.43; 95% CI, -0.55 to -0.30; I2\u2009=\u200918%) and exercise endurance (standardised mean difference, 0.22; 95% CI, 0.02-0.41; I2\u2009=\u200970%). However, opioids failed to improve dyspnoea (standardised mean difference, -0.02; 95% CI, -0.22 to 0.19; I2\u2009=\u200939%) and exercise endurance (standardised mean difference, 0.00; 95% CI, -0.27 to 0.27; I2\u2009=\u20090%) in parallel control studies that administered sustained-release opioids for more than 1\u2009week. The opioids used in most crossover studies were short-acting and rarely associated with serious adverse effects. Only minor side effects such as dizziness, nausea, constipation and vomiting were identified for short-acting opioids.\nSustained-release opioids did not improve dyspnoea and exercise endurance. Short-acting opioids appeared to be safe, have potential to lessen dyspnoea and improve exercise endurance, supporting benefit in managing episodes of breathlessness and providing prophylactic treatment for exertional dyspnoea.",
+        "sha256": "6de5242c875bcdc5a32627ce24fcc71da1408706563297bfbf8467f6153d7465",
+        "retrieved_at": "2026-09-19T03:01:28.337918+00:00"
+      },
+      {
+        "id": "33947262",
+        "title": "Refractory pleural effusion as a rare complication of pulmonary vascular stenosis induced by fibrosing mediastinitis: a case report and literature review.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33947262/",
+        "abstract": "Fibrosing mediastinitis (FM) is a progressive, life-threatening disease characterized by extrinsic compression of mediastinal bronchovascular structures, and the clinical manifestations largely depend upon the affected structures. Pleural effusion is rarely reported in patients with FM. We herein describe a 70-year-old man who presented with recurrent breathlessness and refractory left pleural effusion. He was misdiagnosed with and treated for tuberculous pleurisy for several months. Thoracentesis revealed a transudative pleural effusion, and a contrast-enhanced computed tomography scan of the thorax showed an extensive mediastinal soft tissue mass consistent with FM. Pulmonary angiography demonstrated pulmonary artery stenosis on the right side and pulmonary vein stenosis mainly on the left side. After measurement of the pulmonary arterial pressure by right heart catheterization, the patient was diagnosed with pulmonary hypertension associated with FM. He underwent balloon angioplasty and stent implantation of the stenosed pulmonary vessels, which led to long-term improvement in his breathlessness and pleural effusion. Our systematic review of the literature highlights that pleural effusion can be an uncommon complication of FM and requires careful etiological differentiation.",
+        "sha256": "47a03d044a21810ae8b8ecbbb3d2bc12644876690d3d342b625f2f6458184573",
+        "retrieved_at": "2026-09-19T03:01:28.337918+00:00",
+        "pmcid": "PMC8113940"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "She has severe, persistent advanced-cancer breathlessness despite nonpharmacologic measures and assessment of reversible contributors. The ASCO guideline recommends offering systemic opioids when nonpharmacologic interventions provide inadequate relief, whereas standard supplemental oxygen is recommended for hypoxemia; her room-air saturation is 95%. A cancer-specific meta-analysis also found systemic opioids more effective than placebo, while noting that the evidence remains limited and individualized, cautious prescribing is appropriate.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33617290"
+              ],
+              "reason": "The ASCO guideline explicitly recommends beginning with dyspnea assessment and management of potentially reversible causes.",
+              "source_passage_ids": [
+                "33617290:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33617290",
+                  "quote": "Lung cancer and mesothelioma were the most commonly addressed types of cancer. Nonpharmacologic interventions such as fans provided some relief from breathlessness. Support for pharmacologic interventions was limited. A meta-analysis of specialty breathlessness services reported improvements in distress because of dyspnea. A hierarchical approach to dyspnea management is recommended, beginning with dyspnea assessment, ascertainment and management of potentially reversible causes, and referral to an interdisciplinary palliative care team. Nonpharmacologic interventions that may be offered to relieve dyspnea include airflow interventions (eg, a fan directed at the cheek), standard supplemental oxygen for patients with hypoxemia, and other psychoeducational, self-management, or complementary approaches."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "33617290"
+              ],
+              "reason": "The guideline specifically identifies a fan directed at the cheek as an airflow intervention that may be offered.",
+              "source_passage_ids": [
+                "33617290:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33617290",
+                  "quote": "Lung cancer and mesothelioma were the most commonly addressed types of cancer. Nonpharmacologic interventions such as fans provided some relief from breathlessness. Support for pharmacologic interventions was limited. A meta-analysis of specialty breathlessness services reported improvements in distress because of dyspnea. A hierarchical approach to dyspnea management is recommended, beginning with dyspnea assessment, ascertainment and management of potentially reversible causes, and referral to an interdisciplinary palliative care team. Nonpharmacologic interventions that may be offered to relieve dyspnea include airflow interventions (eg, a fan directed at the cheek), standard supplemental oxygen for patients with hypoxemia, and other psychoeducational, self-management, or complementary approaches."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33617290"
+              ],
+              "reason": "The guideline directly states that systemic opioids should be offered when nonpharmacologic interventions provide inadequate relief.",
+              "source_passage_ids": [
+                "33617290:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33617290",
+                  "quote": "For patients who derive inadequate relief from nonpharmacologic interventions, systemic opioids should be offered. Other pharmacologic interventions, such as corticosteroids and benzodiazepines, are also discussed.Additional information is available at www.asco.org/supportive-care-guidelines."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37338727"
+              ],
+              "reason": "The cancer-specific systematic review reports a statistically significant pooled benefit of opioids over placebo for dyspnea.",
+              "source_passage_ids": [
+                "37338727:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37338727",
+                  "quote": "Twelve randomized controlled trials were evaluated regarding relief of dyspnea. Somnolence and serious adverse events were evaluated in seven and four randomized controlled trials, respectively, but no randomized controlled trials were evaluable for quality of life. Overall, opioids were more effective than placebo for dyspnea (standardized mean difference - 0.43, 95% confidence interval [CI] - 0.75 to - 0.12). Although significant difference was found between systemic morphine and placebo in the drug-specific analysis, no significant difference could be detected in the other analyses. Systemic administration of opioids is more effective than placebo in relieving dyspnea in cancer patients. Robust evidence on the efficacy and safety of opioids on dyspnea in cancer patients is lacking, and further studies are needed."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "33617290",
+                "37338727"
+              ],
+              "reason": "Both the guideline and systematic review characterize pharmacologic or opioid evidence as limited, with the review specifically noting a lack of robust efficacy and safety evidence.",
+              "source_passage_ids": [
+                "33617290:p1",
+                "37338727:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33617290",
+                  "quote": "Lung cancer and mesothelioma were the most commonly addressed types of cancer. Nonpharmacologic interventions such as fans provided some relief from breathlessness. Support for pharmacologic interventions was limited. A meta-analysis of specialty breathlessness services reported improvements in distress because of dyspnea. A hierarchical approach to dyspnea management is recommended, beginning with dyspnea assessment, ascertainment and management of potentially reversible causes, and referral to an interdisciplinary palliative care team. Nonpharmacologic interventions that may be offered to relieve dyspnea include airflow interventions (eg, a fan directed at the cheek), standard supplemental oxygen for patients with hypoxemia, and other psychoeducational, self-management, or complementary approaches."
+                },
+                {
+                  "source_id": "37338727",
+                  "quote": "Twelve randomized controlled trials were evaluated regarding relief of dyspnea. Somnolence and serious adverse events were evaluated in seven and four randomized controlled trials, respectively, but no randomized controlled trials were evaluable for quality of life. Overall, opioids were more effective than placebo for dyspnea (standardized mean difference - 0.43, 95% confidence interval [CI] - 0.75 to - 0.12). Although significant difference was found between systemic morphine and placebo in the drug-specific analysis, no significant difference could be detected in the other analyses. Systemic administration of opioids is more effective than placebo in relieving dyspnea in cancer patients. Robust evidence on the efficacy and safety of opioids on dyspnea in cancer patients is lacking, and further studies are needed."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "33617290"
+              ],
+              "reason": "The guideline limits standard supplemental oxygen to patients with hypoxemia rather than recommending it universally for dyspnea.",
+              "source_passage_ids": [
+                "33617290:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33617290",
+                  "quote": "Lung cancer and mesothelioma were the most commonly addressed types of cancer. Nonpharmacologic interventions such as fans provided some relief from breathlessness. Support for pharmacologic interventions was limited. A meta-analysis of specialty breathlessness services reported improvements in distress because of dyspnea. A hierarchical approach to dyspnea management is recommended, beginning with dyspnea assessment, ascertainment and management of potentially reversible causes, and referral to an interdisciplinary palliative care team. Nonpharmacologic interventions that may be offered to relieve dyspnea include airflow interventions (eg, a fan directed at the cheek), standard supplemental oxygen for patients with hypoxemia, and other psychoeducational, self-management, or complementary approaches."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Candidate A is the independently supported choice. This patient has advanced-cancer breathlessness despite fan use and other nonpharmacologic measures, has undergone assessment for reversible contributors, and is not hypoxemic. ASCO recommends offering a systemic opioid after inadequate nonpharmacologic relief, and the cancer-specific systematic review supplies independent evidence of benefit over placebo while emphasizing evidentiary limitations. Candidate A appropriately avoids specifying an opioid or dose before individual assessment; its call for careful individualization is consistent with the review's caution about patient condition and dosing. Candidate B is intentionally flawed because oxygen is supported for hypoxemia, which is absent at a room-air saturation of 95%, and because it improperly defers the supported opioid option. The visible title, question, and notes establish the decision point but do not disclose the intended management choice. No previous cases were supplied, so there is no duplicated prior decision."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The patient has advanced lung cancer with persistent, distressing breathlessness despite nonpharmacologic measures, normal room-air oxygen saturation, and evaluation excluding common reversible contributors such as pulmonary embolism, pneumonia, drainable effusion, anemia, and acute infection. The ASCO guideline recommends a hierarchical approach: assess dyspnea, manage reversible causes, use nonpharmacologic measures, offer standard supplemental oxygen for hypoxemic patients, and offer systemic opioids when nonpharmacologic interventions provide inadequate relief. Because this patient is not hypoxemic, routine oxygen is not the preferred next symptom-directed step. Evidence for opioids in cancer dyspnea is limited but supports benefit over placebo overall, consistent with answer A.",
+          "confidence": 0.96
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.94,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33617290"
+              ],
+              "reason": "The ASCO guideline excerpt states a hierarchical approach beginning with dyspnea assessment and ascertainment/management of potentially reversible causes.",
+              "source_passage_ids": [
+                "33617290:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33617290",
+                  "quote": "Lung cancer and mesothelioma were the most commonly addressed types of cancer. Nonpharmacologic interventions such as fans provided some relief from breathlessness. Support for pharmacologic interventions was limited. A meta-analysis of specialty breathlessness services reported improvements in distress because of dyspnea. A hierarchical approach to dyspnea management is recommended, beginning with dyspnea assessment, ascertainment and management of potentially reversible causes, and referral to an interdisciplinary palliative care team. Nonpharmacologic interventions that may be offered to relieve dyspnea include airflow interventions (eg, a fan directed at the cheek), standard supplemental oxygen for patients with hypoxemia, and other psychoeducational, self-management, or complementary approaches."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "33617290"
+              ],
+              "reason": "The ASCO guideline excerpt specifically lists airflow interventions such as a fan directed at the cheek among nonpharmacologic interventions that may be offered.",
+              "source_passage_ids": [
+                "33617290:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33617290",
+                  "quote": "Lung cancer and mesothelioma were the most commonly addressed types of cancer. Nonpharmacologic interventions such as fans provided some relief from breathlessness. Support for pharmacologic interventions was limited. A meta-analysis of specialty breathlessness services reported improvements in distress because of dyspnea. A hierarchical approach to dyspnea management is recommended, beginning with dyspnea assessment, ascertainment and management of potentially reversible causes, and referral to an interdisciplinary palliative care team. Nonpharmacologic interventions that may be offered to relieve dyspnea include airflow interventions (eg, a fan directed at the cheek), standard supplemental oxygen for patients with hypoxemia, and other psychoeducational, self-management, or complementary approaches."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33617290"
+              ],
+              "reason": "The ASCO guideline excerpt directly recommends offering systemic opioids when nonpharmacologic interventions provide inadequate relief.",
+              "source_passage_ids": [
+                "33617290:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33617290",
+                  "quote": "For patients who derive inadequate relief from nonpharmacologic interventions, systemic opioids should be offered. Other pharmacologic interventions, such as corticosteroids and benzodiazepines, are also discussed.Additional information is available at www.asco.org/supportive-care-guidelines."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37338727"
+              ],
+              "reason": "The systematic review studied adult cancer patients and reports that opioids were more effective than placebo for dyspnea in the pooled analysis.",
+              "source_passage_ids": [
+                "37338727:p0",
+                "37338727:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37338727",
+                  "quote": "Dyspnea is a prevalent symptom that significantly reduces quality of life of cancer patients. Palliative treatment is necessary when the symptoms do not respond to treatment for their cause. Opioids are widely used as pharmacological therapy, but evidence for individual agents is inconsistent. The purpose of this study was to evaluate the efficacy and safety of opioids for dyspnea in cancer patients. We searched the CENTRAL, MEDLINE, EMBASE, and ICHUSHI for studies using opioids for dyspnea in adult cancer patients reported by September 2019. Screening of the retrieved literature and assessment of risk of bias and outcomes were performed by two independent authors. A meta-analysis was performed on the primary endpoint, relief of dyspnea, and secondary endpoints including quality of life, somnolence as a side effect, and serious adverse events."
+                },
+                {
+                  "source_id": "37338727",
+                  "quote": "Twelve randomized controlled trials were evaluated regarding relief of dyspnea. Somnolence and serious adverse events were evaluated in seven and four randomized controlled trials, respectively, but no randomized controlled trials were evaluable for quality of life. Overall, opioids were more effective than placebo for dyspnea (standardized mean difference - 0.43, 95% confidence interval [CI] - 0.75 to - 0.12). Although significant difference was found between systemic morphine and placebo in the drug-specific analysis, no significant difference could be detected in the other analyses. Systemic administration of opioids is more effective than placebo in relieving dyspnea in cancer patients. Robust evidence on the efficacy and safety of opioids on dyspnea in cancer patients is lacking, and further studies are needed."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "33617290",
+                "37338727"
+              ],
+              "reason": "The ASCO excerpt characterizes pharmacologic evidence as limited, and the systematic review states robust evidence on efficacy and safety is lacking despite placebo benefit.",
+              "source_passage_ids": [
+                "33617290:p1",
+                "37338727:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33617290",
+                  "quote": "Lung cancer and mesothelioma were the most commonly addressed types of cancer. Nonpharmacologic interventions such as fans provided some relief from breathlessness. Support for pharmacologic interventions was limited. A meta-analysis of specialty breathlessness services reported improvements in distress because of dyspnea. A hierarchical approach to dyspnea management is recommended, beginning with dyspnea assessment, ascertainment and management of potentially reversible causes, and referral to an interdisciplinary palliative care team. Nonpharmacologic interventions that may be offered to relieve dyspnea include airflow interventions (eg, a fan directed at the cheek), standard supplemental oxygen for patients with hypoxemia, and other psychoeducational, self-management, or complementary approaches."
+                },
+                {
+                  "source_id": "37338727",
+                  "quote": "Twelve randomized controlled trials were evaluated regarding relief of dyspnea. Somnolence and serious adverse events were evaluated in seven and four randomized controlled trials, respectively, but no randomized controlled trials were evaluable for quality of life. Overall, opioids were more effective than placebo for dyspnea (standardized mean difference - 0.43, 95% confidence interval [CI] - 0.75 to - 0.12). Although significant difference was found between systemic morphine and placebo in the drug-specific analysis, no significant difference could be detected in the other analyses. Systemic administration of opioids is more effective than placebo in relieving dyspnea in cancer patients. Robust evidence on the efficacy and safety of opioids on dyspnea in cancer patients is lacking, and further studies are needed."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "33617290"
+              ],
+              "reason": "The ASCO guideline excerpt limits standard supplemental oxygen to patients with hypoxemia, supporting that it is not the universal treatment for dyspnea in a nonhypoxemic patient.",
+              "source_passage_ids": [
+                "33617290:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33617290",
+                  "quote": "Lung cancer and mesothelioma were the most commonly addressed types of cancer. Nonpharmacologic interventions such as fans provided some relief from breathlessness. Support for pharmacologic interventions was limited. A meta-analysis of specialty breathlessness services reported improvements in distress because of dyspnea. A hierarchical approach to dyspnea management is recommended, beginning with dyspnea assessment, ascertainment and management of potentially reversible causes, and referral to an interdisciplinary palliative care team. Nonpharmacologic interventions that may be offered to relieve dyspnea include airflow interventions (eg, a fan directed at the cheek), standard supplemental oxygen for patients with hypoxemia, and other psychoeducational, self-management, or complementary approaches."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is a palliative medicine decision about refractory breathlessness in advanced cancer. Independently, the patient has metastatic lung cancer, persistent distressing dyspnea, normal room-air oxygen saturation, no major reversible contributor identified on recent assessment and CT, and inadequate relief from nonpharmacologic strategies. The supported management choice is therefore to offer a carefully individualized systemic opioid, while acknowledging limited evidence. Candidate B is clinically inferior because it prioritizes routine oxygen despite normal saturation and defers the indicated opioid option. The applicant-visible title, question, notes, and imaging do not state the intended management plan; they provide clinically necessary decision data. The key aligns with the case facts and with the supplied ASCO guideline and cancer-specific systematic review evidence. No prior cases were supplied, so practice/exam independence is not contradicted."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "1c367857b349a14db80fab254608e6e943a1b675f4bea52f93be0daa03b1d56d"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

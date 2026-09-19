@@ -93,3 +93,30 @@ all 13 input hashes, unchanged resume rows, fresh source bodies/abstracts, exact
 pins and original bundle hashes. Removed unrelated ENT fallback sources and
 aligned the radiology curriculum with the evidence-backed initial CT decision.
 This input audit does not clear any future generated artifact for release.
+
+## Exact-draft reviews and final five revisions
+
+[Second revision run 35417109660](https://github.com/tej-hippocampi/Archangel-Health/actions/runs/35417109660)
+completed 13 attempts: eight passed both model reviews and independently cleared
+artifact audits, bringing the library to 81/86. The two failing software shards
+failed only the unchanged 86-case completeness assertion. Other software checks
+passed; clinical rejections are retained for the five remaining drafts.
+
+The last five drafts are revised explicitly: vascular and rehabilitation claims
+are scoped to their actual supporting evidence; pain-medicine public answer cues
+are removed; oncology assesses risk-score interpretation rather than an
+underspecified discharge instruction; infectious-disease clinical details clarify
+the ongoing source evaluation decision. These are inputs, not approved cases.
+
+CI can now review a checksum-pinned prepared draft without a model reauthoring it.
+It requires a complete, unchanged schema and validates all inputs before paid
+access probes. Four fresh calls remain: independent blinded solve and clinical
+review by each of the two OpenAI models. Source, privacy, confidence, safety,
+public-answer-boundary and image checks remain unchanged. The prepared path
+records a null API author and truthful authoring method; trial output remains
+ineligible for release without a separate checksum-bound artifact audit.
+
+Independent code review confirmed fixes for Python-equal numeric/boolean schema
+coercions and paid CLI probes preceding input checks. Current focused validation:
+**271 passed**, with only full-library completeness deliberately held while the
+last five cases await review. Original 41 bundle bytes remain unchanged.
