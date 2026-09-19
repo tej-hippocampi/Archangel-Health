@@ -1,0 +1,443 @@
+{
+  "task_id": "onboarding-examination-v1-536d65a07b5d16bb9bde-1",
+  "specialty": "geriatrics",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Mobility concerns after recurrent household falls",
+    "question": "Which exercise strategy is most appropriate at this clinical decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "geriatrics",
+      "demographics": {
+        "age_band": "80-89",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Two household falls without major injury",
+          "since": "4 months",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Difficulty rising from a chair",
+          "since": "current assessment",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Instability during standing and turning",
+          "since": "current assessment",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Acetaminophen",
+          "dose": null,
+          "route": "oral",
+          "freq": "as needed",
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "sitting_blood_pressure": "134/76 mm Hg",
+        "standing_blood_pressure_after_3_minutes": "130/74 mm Hg",
+        "pulse": "74 beats/min",
+        "oxygen_saturation": "97% on room air"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Geriatric assessment",
+          "author_role": "geriatrician",
+          "text": "A community-dwelling woman in her eighties reports two falls over four months while turning around furniture and stepping over a doorway threshold. Neither event involved loss of consciousness, vertigo, chest discomfort, focal weakness, or major injury. She remains independent in basic activities but has curtailed outdoor activity because of concern about falling. Her usual activity is limited to occasional slow walking, without structured exercise. Examination shows arm use during chair rise, cautious turns, and corrective steps during tandem stance. Gait is otherwise symmetric, and she follows multistep instructions. Complete medication reconciliation identifies only intermittent acetaminophen use; she denies prescription or nonprescription sedatives, antidepressants, anxiolytics, and sleep aids.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Functional performance assessment",
+          "label": "Observed mobility measures",
+          "findings": "The patient uses both arms to rise from a standard chair and completes repeated chair rises slowly. During tandem stance she takes corrective steps. Walking is cautious, with shortened steps while turning, and she participates consistently throughout testing.",
+          "measurements": [],
+          "impression": "Slow chair-rise performance, corrective stepping during tandem stance, and cautious turning were observed.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the assessed decision",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "This community-dwelling older adult has recurrent falls and observed deficits in chair-rise performance, standing balance, and turning, placing her at increased fall risk. Exercise intervention is supported for this population. The exercise should be individualized and should address the demonstrated deficits through resistance, balance, and gait components. Walking as the sole modality does not adequately improve strength or balance and is inferior to programs combining strength and balance exercises for fall prevention.",
+        "evidence": {
+          "decision": "Select individualized resistance, balance, and gait training rather than walking alone."
+        },
+        "key_data": [
+          "She is a community-dwelling adult older than 65 years with two recent falls.",
+          "Observed chair-rise difficulty indicates impaired lower-extremity function.",
+          "Corrective steps during tandem stance and cautious turning demonstrate balance and gait deficits.",
+          "Her current physical activity is limited to occasional slow walking without structured training.",
+          "Medication reconciliation did not identify sedative, antidepressant, anxiolytic, or sleep-aid exposure."
+        ]
+      },
+      "hard_hook": "Walking is familiar and feasible but does not target all of the functional deficits demonstrated during assessment.",
+      "reasoning_divergence": "The flawed response uses walking as the sole intervention, whereas the sound response targets strength, balance, and gait deficits with an individualized multicomponent program."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Recommend increasing unsupervised walking as the sole fall-prevention exercise, without adding resistance, balance, or gait-specific training, because she remains independent and her prior falls caused no major injury."
+      },
+      {
+        "id": "B",
+        "text": "Offer an individualized exercise program incorporating resistance, balance, and gait training, adapted to her functional ability and preferences, rather than relying on walking as the sole fall-prevention modality."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "recurrent falls",
+      "balance impairment",
+      "lower-extremity weakness",
+      "gait instability",
+      "fracture risk"
+    ],
+    "evidence_keywords": [
+      "exercise intervention",
+      "resistance training",
+      "balance training",
+      "gait retraining",
+      "multicomponent exercise"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Exercise interventions are recommended for community-dwelling adults aged 65 years or older who are at increased risk of falls.",
+        "source_ids": [
+          "38833246"
+        ]
+      },
+      {
+        "statement": "Exercise prescription in older adults should be individualized according to functional ability, medical history, limitations, tolerance, and preferences.",
+        "source_ids": [
+          "34409961"
+        ]
+      },
+      {
+        "statement": "Multicomponent programs incorporating resistance, balance, and gait retraining have been shown to reduce falls in older adults.",
+        "source_ids": [
+          "34409961"
+        ]
+      },
+      {
+        "statement": "Walking or aerobic exercise alone does not adequately improve strength or balance and is inferior to combined strength and balance exercise for fall prevention.",
+        "source_ids": [
+          "34409961"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T02:19:02.016058+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "38833246",
+        "title": "Interventions to Prevent Falls in Community-Dwelling Older Adults: US Preventive Services Task Force Recommendation Statement.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38833246/",
+        "abstract": "Falls are the leading cause of injury-related morbidity and mortality among older adults in the US. In 2018, 27.5% of community-dwelling adults 65 years or older reported at least 1 fall in the past year and 10.2% reported a fall-related injury. In 2021, an estimated 38\u202f742 deaths resulted from fall-related injuries.\nThe US Preventive Services Task Force (USPSTF) commissioned a systematic review to evaluate the effectiveness and harms of primary care-relevant interventions to prevent falls and fall-related morbidity and mortality in community-dwelling adults 65 years or older.\nCommunity-dwelling adults 65 years or older at increased risk of falls.\nThe USPSTF concludes with moderate certainty that exercise interventions provide a moderate net benefit in preventing falls and fall-related morbidity in older adults at increased risk for falls. The USPSTF concludes with moderate certainty that multifactorial interventions provide a small net benefit in preventing falls and fall-related morbidity in older adults at increased risk for falls.\nThe USPSTF recommends exercise interventions to prevent falls in community-dwelling adults 65 years or older who are at increased risk for falls. (B recommendation) The USPSTF recommends that clinicians individualize the decision to offer multifactorial interventions to prevent falls to community-dwelling adults 65 years or older who are at increased risk for falls. Existing evidence indicates that the overall net benefit of routinely offering multifactorial interventions to prevent falls is small. When determining whether this service is appropriate for an individual, patients and clinicians should consider the balance of benefits and harms based on the circumstances of prior falls, presence of comorbid medical conditions, and the patient's values and preferences. (C recommendation).",
+        "sha256": "3b3eaf6c16483b892d13e6b83800faee99e1f834963e40403a2a036d82ebe063",
+        "retrieved_at": "2026-09-19T02:17:50.455860+00:00"
+      },
+      {
+        "id": "34409961",
+        "title": "International Exercise Recommendations in Older Adults (ICFSR): Expert Consensus Guidelines.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34409961/",
+        "abstract": "The human ageing process is universal, ubiquitous and inevitable. Every physiological function is being continuously diminished. There is a range between two distinct phenotypes of ageing, shaped by patterns of living - experiences and behaviours, and in particular by the presence or absence of physical activity (PA) and structured exercise (i.e., a sedentary lifestyle). Ageing and a sedentary lifestyle are associated with declines in muscle function and cardiorespiratory fitness, resulting in an impaired capacity to perform daily activities and maintain independent functioning. However, in the presence of adequate exercise/PA these changes in muscular and aerobic capacity with age are substantially attenuated. Additionally, both structured exercise and overall PA play important roles as preventive strategies for many chronic diseases, including cardiovascular disease, stroke, diabetes, osteoporosis, and obesity; improvement of mobility, mental health, and quality of life; and reduction in mortality, among other benefits. Notably, exercise intervention programmes improve the hallmarks of frailty (low body mass, strength, mobility, PA level, energy) and cognition, thus optimising functional capacity during ageing. In these pathological conditions exercise is used as a therapeutic agent and follows the precepts of identifying the cause of a disease and then using an agent in an evidence-based dose to eliminate or moderate the disease. Prescription of PA/structured exercise should therefore be based on the intended outcome (e.g., primary prevention, improvement in fitness or functional status or disease treatment), and individualised, adjusted and controlled like any other medical treatment. In addition, in line with other therapeutic agents, exercise shows a dose-response effect and can be individualised using different modalities, volumes and/or intensities as appropriate to the health state or medical condition. Importantly, exercise therapy is often directed at several physiological systems simultaneously, rather than targeted to a single outcome as is generally the case with pharmacological approaches to disease management. There are diseases for which exercise is an alternative to pharmacological treatment (such as depression), thus contributing to the goal of deprescribing of potentially inappropriate medications (PIMS). There are other conditions where no effective drug therapy is currently available (such as sarcopenia or dementia), where it may serve a primary role in prevention and treatment. Therefore, this consensus statement provides an evidence-based rationale for using exercise and PA for health promotion and disease prevention and treatment in older adults. Exercise prescription is discussed in terms of the specific modalities and doses that have been studied in randomised controlled trials for their effectiveness in attenuating physiological changes of ageing, disease prevention, and/or improvement of older adults with chronic disease and disability. Recommendations are proposed to bridge gaps in the current literature and to optimise the use of exercise/PA both as a preventative medicine and as a therapeutic agent.",
+        "sha256": "7735d29ddb65438005c5b175b077f39823dfffa594815365894b5261fe24e618",
+        "retrieved_at": "2026-09-19T02:17:51.702167+00:00",
+        "pmcid": "PMC12369211",
+        "body_excerpts": "Physical activity and exercise: Global recommendations for health\nStrategies aimed at increasing population-level PA and optimising its adherence have focused on promoting exercise via \u201clifestyle integration\u201d by incorporating it into activities of daily life. For example, taking the stairs instead of the elevator, standing on one leg while doing the dishes, or slowly standing and sitting without using of the arms represent ways of incorporating aerobic, balance, and strengthening exercises, respectively, into everyday activities. Current investigations explore whether such prescriptive techniques can achieve better exercise adherence compared to standard approaches for promoting behavioural change and targeting clinical outcomes such as falls in older adults ( 31 , 32 ).\n\nPhysical activity and exercise: Global recommendations for health\nThe role of exercise in the prevention of disease and the management of several age-related diseases and conditions is increasingly evident, including syndromes for which the benefit of pharmacological treatment is controversial. There is strong evidence for PA and exercise as both a preventive and therapeutic strategy for cardiovascular disease, diabetes, and obesity; improvement of muscular function, mental health, and quality of life; and reduction in mortality ( 42 , 43 ). Similarly, the combination of balance and resistance training is the most effective intervention for reducing falls, for which pharmacological therapy is unavailable ( 3 , 44 , 45 , 46 ) and resistance training is the core treatment for sarcopenia ( 14 , 47 ), whereas drugs have not shown clear benefits ( 48 , 49 ). There seems little logic in using a pharmaceutical chemical directed to a specific muscle target in a diminished muscle when the pathology lies not only in the muscle but also in all the pathways from the central nervous system to the periphery. Similarly, there is no effective pharmacological treatment to slow down ageing and associated frailty, disability, cognitive decline. Importantly, even when we have medications at our disposal for the treatment of common psychological problems such as depression, insomnia, and anxiety (antidepressants, insomniacs, and anxiolytics, respectively), these potentially inappropriate medications (PIMs) may be associated with adverse drug events (ADEs) such as falls, hip fractures, delirium, and worsening of cognitive impairment, which is far less desirable than the use of evidence-based exercise prescriptions to treat these conditions [ 50 ]. Thus, the actual utility of exercise as medicine is four-fold: 1) to exploit its potential to prevent diseases for which we have available treatments; 2) to serve as an adjunct to effective medical/ surgical interventions where they do exist; 3) to substitute for hazardous treatments for which exercise represents a better and safer alternative; and 4) to become mainstream in the management of conditions for which there is no other effective treatment. The latter category represents the most pervasive and morbid conditions of older adults globally: sarcopenia, frailty, disability, and dementia.\n\nPhysical activity and exercise: Global recommendations for health > Preserving exercise capacity with age via habitual engagement in physical activity/exercise\nMany studies suggest that habitual engagement in PA/ exercise can markedly attenuate most decrements in exercise capacity that are typically attributed to ageing. A notable exception is the decline of maximal heart rate due to decreased sensitivity to \u03b2-adrenergic stimulation in the ageing heart ( 55 ). Although aged individuals achieve lower peak exercise workloads, cardiovascular and musculoskeletal adaptations to chronic aerobic exercise enable trained individuals to sustain higher submaximal workloads with both lower cardiorespiratory responses (heart rate, blood pressure, and dyspnoea) and overall musculoskeletal fatigue. Although there is with some overlap, exercise adaptations are specific to the selected modality chosen. Benefits in aerobic capacity are best achieved with moderate- to- vigorous-intensity aerobic exercise (MICT), with the greatest effects seen with high-intensity interval training (HIIT, 85\u201395% peak heart rate for 1\u20134 minutes intervals) ( 56 ). Higher load resistance or strength training represents the optimal prescription to treat sarcopenia and may also improve balance ( 57 ). Less well-known is that there is evidence that high-intensity progressive resistance training in older adults also improves aerobic capacity to a similar extent as moderate-intensity aerobic training ( 58 , 59 ). Thus, when initiating exercise in stages it may be easier behaviourally to provide a single exercise prescription consisting of a resistance exercise, which would target two major age-related changes in exercise capacity, before adding other modalities. By contrast, aerobic exercise alone does not improve strength nor balance and thus is insufficient as a single modality for older adults. Systematic reviews clearly indicate that falls-prevention programmes that include walking as a single modality are inferior to those combining strength and balance exercise and such interventions have been linked to higher falls and osteoporotic fracture rates in individuals at risk ( 45 ).\n\nEvidence for specific modalities of exercise in older adults\nThere are sufficient data from both epidemiological studies and experimental trials to support the training of all physicians, including geriatricians ( 51 ), in the basics of exercise prescription for health-related quality of life (Tables 1 ). As mentioned earlier, there is strong evidence that exercise training is effective in the management of most of the major non-communicable chronic diseases and associated co-morbidities, such as cognitive impairment frailty, sarcopenia, falls, and mobility impairment ( 18 , 39 ).\n\nEvidence for specific modalities of exercise in older adults\nScreening for sedentary behaviour and insufficient PA should occur during most encounters with healthcare professionals, given their roles as potent risk factors for all-cause and cardiovascular mortality, obesity, sarcopenia, hypertension, insulin resistance, cardiovascular disease, diabetes, stroke, colon cancer, depression, dementia, osteoarthritis, osteoporosis, recurrent falls, frailty, and disability, among other conditions. An appropriate exercise prescription should be included in all healthcare recommendations ( 13 , 32 ).\n\nEvidence for specific modalities of exercise in older adults\nCurrent position statements and consensus guidelines for PA in older adults generally recommend a multi-modal exercise prescription that includes aerobic, strengthening, balance, and flexibility training, via a combination of structured and incidental (lifestyle-integrated) activities ( 5 , 47 , 51 , 64 ). However, to achieve optimal levels of adherence and minimise attrition, it would be wise to start with a single exercise modality to allow the sedentary older adult to gradually adapt to the new exercise routine before adding other components ( 65 ). It has also been recognized that amounts of exercise below general guidelines can also lead to some health benefits ( 66 ). Given the well-known curvilinear relationship between mortality risk and exercise volume ( 12 , 67 ), even a small amount of exercise is better than no exercise. The exercise prescription should be individualised considering risk factors, medical history, musculoskeletal limitations, functional ability, tolerance, and personal preferences. If significant deficits in muscle strength or balance are identified, these should ideally be addressed before the initiation of aerobic training. Prescribing aerobic training alone will not provide optimal benefits for the musculoskeletal system. Rather, the training programme should be multicomponent involving strength, gait and balance exercises to reduce health outcomes associated with frailty and sarcopenia such as falls and fractures.\n\nEvidence for specific modalities of exercise in older adults\nA few generalisations can be made, as follows:\n\nEvidence for specific modalities of exercise in older adults\nSequencing: Sequence exercise in people living with severe frailty the same way as the physical requirements underpinning mobility: standing up requires strength and power, staying upright involves balance, and walking any distance requires endurance. This sequence then follows a logic progression. Attempting to ambulate those who cannot lift their body weight out of a chair or maintain standing balance is likely to fail and increase risk of falls ( 51 ).\n\nEvidence for specific modalities of exercise in older adults\nIn some cases, a chronic health condition may benefit equally from resistance or aerobic training (e.g., as in the treatment of depression). Still, the decision made is based on the ability to tolerate one form of exercise over another, or the presence of a second disease which requires a specific prescription. Severe osteoarthritis of the knee, recurrent falls, and a low threshold for ischaemia may make resistance training safer and more tolerable than aerobic training as an antidepressant treatment, for example.\n\nEvidence for specific modalities of exercise in older adults > Power training recommendations\nPower training is a specific type of muscle training in which both components of muscle power (force production and velocity) are targeted. It is considered a sub-category of resistance training. The main difference between power training and high-resistance strength training is, that strength refers to the ability to overcome resistance (involving high forces), while power refers to the ability to overcome resistance in the shortest period of time. Preserving muscle power output is critical to counteract the age-related decline of functional capacity and the earlier and more precipitous decline in muscle power compared to muscle strength (due to the preferential atrophy of type II fast twitch fibres with age) ( 82 ) underlies the emphasis on this modality. Deficits in muscle power are associated with disability in older men and even more so in women. Muscle power output and rate of force development are strongly associated with older persons' capacity to perform activities of daily living ( 83 , 84 , 85 ). In fact, research in healthy older adults has shown strong associations between performance in tests of functional capacity and muscle power output ( 83 , 84 , 85 ). More recently, investigators have found that training for muscle power and explosiveness are also associated with improved functional capacity and a reduction in the incidence of falls in oldest-old populations such as those who are frail and/or institutionalised ( 84 , 85 , 86 ). Muscle power training should be prescribed where possible to both healthy and older individuals with sarcopenia, frailty and other co-morbidities. The combination of power training with slow concentric velocity resistance training optimises functional ability, reduces the incidence of falls, improves muscle strength and power output, and stimulates muscle hypertrophy ( 27 ).\n\nEvidence for specific modalities of exercise in older adults > Power training recommendations\nOptimal training regimens for maximising muscle power should be performed with the concentric (shortening) phase as fast as possible, followed by a controlled, slower eccentric (lengthening) phase, focused on the lower limbs ( 27 , 87 ). Sets of explosive muscle actions can be performed alone ( 69 , 88 ) or combined with traditional resistance training during the same session, but always avoiding concentric failure ( 87 , 89 , 90 ). Power is maximised at 30\u201345% loads for the upper extremities and at 60\u201370% of peak force capacity (one repetition maximum or 1 RM) for the lower extremity extensors ( 63 , 91 ). In a dose-response study ( 63 ), peak muscle power improved similarly using light (20%), moderate (50%), or heavy (80%) resistances. There was a dose-response relationship between training intensity, muscle strength and endurance changes favouring high-intensity training ( 92 ). Therefore, using heavy loads during explosive resistance training may be a feasible strategy to achieve simultaneous improvements in muscle strength, power, and endurance in older adults. Nevertheless, it has also been shown that power training performed at low to moderate intensities (i.e., 40 \u2013 60% of 1RM) induced marked increases in maximal strength, and power gains, functional capacity gains, muscle mass and quality, as well as reduce risk of falls in frail oldest old ( 27 , 69 , 87 ). Indeed, several of studies investigating the adaptations induced by the power training performed at moderate intensities (i.e., 60% of 1RM) ( 93 ) and high-speed muscle contraction ( 94 ) have observed superior adaptations in the functional capacity comparing traditional resistance training at higher loads. It should also be considered, that power training at low loads (during which velocity is much faster) poses a risk of meniscus or tendon injuries if undiagnosed degenerative changes are present, as is common in older adults ( 95 , 96 ), and this is not recommended therefore.\n\nEvidence for specific modalities of exercise in older adults > Multicomponent Training in Dementia\nThe VIVIFRAIL Multicomponent Physical Exercise Program to Prevent Frailty and the Risk of Falls represents an excellent example of an evidence-based program. The Vivifrail physical exercise guide, ( http://vivifrail.com/ resources/) consists of lower-limb (squats rising from a chair, leg press, and bilateral knee extension), upper body (seated bench press), balance and gait re-training (e.g., semi-tandem line walking, single-leg standing, stepping practice, walking with small obstacles, proprioceptive exercises on unstable surfaces such as foam pads sequence, weight transfer from 1 leg to the other) exercises. Vivifrail has individual prescription passports for older adults which can be implemented during unsupervised sessions. The exercise recommendations are tailored to the older person's functional capacity level (severe limitation, moderate limitation and slight limitation as evaluated by the Short Physical Performance Battery (SPPB) and a walking speed test) and risk of falling ( http://www.vivifrail.com ) ( 114 , 124 , 125 ). Recent evidence shows that intermittent strategies such as 4 weeks of supervised VIVIFRAIL exercise 3 times yearly with no more than 14 weeks of inactivity between exercise periods appears as an efficient solution to the global challenge of maintaining functional capacity and can even improve frailty in vulnerable institutionalized older adults ( 114 , 126 ).\n\nSafety of long-term physical activity and exercise interventions in Older Adults\nSystematic reviews have reported that long-term (>1 year) physical exercise interventions in older adults do not increase the risk of dropouts due to health issues, mortality, hospitalisation or fracture compared with a usual care group ( 127 , 128 ). In contrast, these types of interventions are associated with a lower risk of falls and fall-induced injuries, while improving muscle strength, balance, physical function and cognition ( 128 ). This evidence suggests that long-term physical exercise is less harmful for older adults than maintaining low usual activity levels. Similarly, epidemiological data show that although the risk of myocardial infarction (MI) is greater during exercise than at rest, the overall risk of an MI is 50% lower in those who are regularly active, and is 50-fold lower during an acute bout of exercise in active adults compared to those who do not engage in regular exercise ( 129 ). Therefore, long-term physical exercise is safe and effective in older adults, and its benefits appear to be independent of the participants' age, physical function or cognitive status at baseline ( 128 ). Sedentariness is the lethal condition.\n\nRole of physical activity and exercise on bone health, adipose tissue, muscle mass, and maximal strength and power > Bone health, physical activity, exercise, and fracture risk > Optimal exercise modality and intensity for bone health\nKohrt et al. ( 150 ) found that aerobic activities with high ground-reaction forces (walking, jogging, stair climbing) and exercises with high joint-reaction forces (weightlifting, rowing) in older women significantly increased the bone mineral density (BMD) of the whole body, lumbar spine, and Ward's triangle. In contrast, only the ground-reaction group increased BMD at the femoral neck ( 150 ). The femoral-neck BMD increased only in the ground-reaction forces group while the lean mass and muscle strength increased only in the weight-lifting group necessary for gait improvement and fall reduction. These studies suggest that both types of exercises are equally important in falls and fracture prevention. In another study, progressive strength training in postmenopausal women resulted in significant increases in total and intertrochanteric BMD after two years ( 151 ). In general, as compared with aerobic training, resistance training in older adults is more favourable due to its broader benefits on muscle, bone, balance, and fall risk. If aerobic training is used, however, activities that are weight-bearing and higher impact have greater efficacy for bone health than non-weight-bearing or low-impact aerobics activities ( 152 ).\n\nRole of physical activity and exercise on bone health, adipose tissue, muscle mass, and maximal strength and power > Role of physical activity and exercise in preserving muscle mass with age\nIn contrast to changes in fat and bone, an increase in muscle mass is achievable to a significant degree only with progressive resistance training or weight gain from extra energy and protein consumption. Accretion of lean tissue with exercise has a potentially beneficial effect in preventing diabetes and metabolic syndrome ( 171 ), functional dependency, falls, and fractures, treatment of chronic diseases, disabilities, which are often accompanied by disuse, catabolism, and sarcopenia. For patients with type 2 diabetes mellitus, there are potential advantages to both minimising fat and maximising muscle tissue since these compartments have opposite and likely independent effects on insulin resistance in older adults. Resistance exercise coupled with leucine-enriched essential amino acid supplements or whey protein food supplements (when the diet is inadequate in energy and/or protein) are recommended to treat sarcopenia ( 172 ), although recent reviews have not found additional benefit for protein above resistance training alone in older adults who are not malnourished ( 173 ). There is evidence from various epidemiological and experimental studies that muscle weakness, decreased muscle mass, reduced activation of glycogen synthase, and alterations in numbers of glycolytic skeletal muscle fibres are related to, and may precede, insulin resistance, glucose intolerance, and type 2 diabetes expression ( 174 , 175 ).\n\nRole of physical activity and exercise on bone health, adipose tissue, muscle mass, and maximal strength and power > Exercise in type 2 diabetes\nType 2 diabetes substantively increases the risk of frailty and disability, with two to three times increased odds of disability across all functional groups reported from the NHANES cohort [ 204 ], and many others. In older adults with coexisting frailty, diabetes, and functional decline, evidence from a large RCT shows functional benefits with a combined approach of progressive resistance training, nutritional education, and readaptation of the clinical targets for glycosylated haemoglobin and blood pressure. In this study the benefits were evident early (8 weeks after starting the physical exercise program) and persisted over 12\u201324 months [ 205 , 206 ]. There is also evidence about the benefit a multicomponent exercise programme consisting of resistance, endurance, balance, and gait retraining should be employed to increase functional capacity, quality of life, and avoid falls, institutionalisation, and disability ( 207 ). Furthermore, because muscle power is an important predictor of functional capacity, strategies to develop skeletal muscle power in this population must be included in any program to prevent or postpone functional limitations and subsequent disability ( 69 , 206 , 208 ).\n\nRole of physical activity and exercise on bone health, adipose tissue, muscle mass, and maximal strength and power > Role of physical activity and exercise in mental health\nHowever, evidence for exercise as an isolated intervention for treating clinical depression in both younger and older cohorts is robust and consistent. Both aerobic and resistance training exercises have produced clinically meaningful improvements in depression in such patients, with response rates ranging from 25 to 88% ( 214 , 215 ). In the studies addressing exercise modalities, resistance training was equivalent to aerobic training in young adults with depression, and yoga was as effective as aerobic exercise. Blumenthal et al. ( 211 ) directly compared moderate-intensity aerobic exercise with antidepressant medications in older adults with major depression and found the two approaches to be equipotent, with no added benefit of the combination of exercise and medication, and better long-term remission rates in exercise alone compared to the combined intervention or medications ( 211 ). In another study by Singh et al. ( 210 ), which compared high-intensity progressive resistance training with low-intensity progressive resistance training in individuals with major depression, a clinical response (50% reduction in Hamilton Rating Scale for depression) was achieved in 61% with high-intensity training, 29% with low-intensity training and 21% in a control group receiving usual General Practitioner care. Low-intensity PRT was not different to the control condition, with these two groups exhibiting a response rate slightly less than that reported with placebo administration in drug trials of depression ( 210 ). Similarly, low-intensity aerobic training in older adults with depression is similar in efficacy to social contact controls, reducing depression scores by only 30% ( 214 ). Depression has also been shown to require adequate doses of exercise, with lower volumes ineffective. Aerobic exercise at a dose consistent with public health recommendations (not in a group setting) was an effective treatment for major depressive disorder of mild to moderate severity, with a lower dose comparable to placebo effect ( 216 ). Thus, the literature on exercise and depression suggests that it is effective in younger and older adults, it has clear dose-response effects, is effective without group classes, and it is at least as effective as antidepressants in clinical cohorts, with lower relapse rate. Both aerobic and resistance modalities appear equally beneficial, and optimal responses are seen with higher training intensities (PRT) or volumes (aerobic).\n\nRole of physical activity and exercise on bone health, adipose tissue, muscle mass, and maximal strength and power > Effects of physical activity and exercise interventions on geriatric syndromes > Falls\nMulticomponent exercise programmes including combinations of resistance training, balance and/or gait retraining ( 69 , 105 , 111 ); less commonly, resistance exercise alone ( 74 ) or an alternative exercise intervention such as Tai Chi ( 157 , 226 , 227 ) or dance programs ( 228 , 229 , 230 ) have been shown to reduce falls in older adults. Aerobic training alone, by contrast, has been shown to increase falls and fracture risk ( 45 ).\n\nRole of physical activity and exercise on bone health, adipose tissue, muscle mass, and maximal strength and power > Effects of physical activity and exercise interventions on geriatric syndromes > Falls\nBased on the evidence that such multicomponent exercise interventions are more effective in improving most, if not all, of the frailty syndrome hallmarks (i.e., poor balance, reduced muscle strength, poor gait ability, and increased incidence of falls), it is the recommended strategy for this condition. Current evidence, however, on reducing falls with physical training among community-dwelling older adults with cognitive impairment (i.e., any stage of Alzheimer's disease and related dementias, or mild cognitive impairment) is insufficient at this time to inform evidence-based recommendations or treatment decisions for clinical practice ( 231 ).\n\nRole of physical activity and exercise on bone health, adipose tissue, muscle mass, and maximal strength and power > Effects of physical activity and exercise interventions on geriatric syndromes > Falls\nIn addition, because of the strong associations between functional capacity test performance, muscle power output, and rate of force development in the healthy older adult ( 83 , 86 , 208 , 234 ), explosive resistance training (power training) has emerged as an essential intervention to improve functional capacity in older adults, including those who are frail ( 25 , 27 ). Indeed, in a 12-week multicomponent exercise programme enrolling institutionalised frail nonagenarians and including a moderate-intensity power training (e.g., or at least the intention of moving fast) using a leg-press machine improved muscle cross-sectional area, muscle fat-infiltration, maximal strength and power, balance, gait, sit-to-stand ability, along with a reduction in the incidence of falls ( 44 , 69 ). Therefore, explosive resistance training should always be included, if possible, in exercise interventions to improve older adults with frailty and reduced functional capacity.\n\nRole of physical activity and exercise on bone health, adipose tissue, muscle mass, and maximal strength and power > Effects of physical activity and exercise interventions on geriatric syndromes > Falls\nOne potential adverse event related to muscle power training is the potential for injury to tendons/cartilage, particularly of the rotator cuff and knee, where degenerative tears are commonplace ( 96 ), and exacerbations of abdominal/inguinal hernias ( 92 ). Interestingly, a systematic review of the effects of resistance training in frail older adults reported only one case of shoulder pain related to resistance training interventions out of 20 studies and 2544 subjects ( 105 ). Notwithstanding, to prevent injuries that could interrupt the exercise programme and its benefits, screening for such problems is critical. Care must be taken regarding the workload, volume progression, heavy and repetitive workloads, and unfavourable positioning (such as an overhead or military press or lat pulldown in rotator cuff disease). The use of moderate to high loads during power training may minimise this risk without compromising the desired outcomes of strength and power. This is because the external achieved peak velocity is lower, although it is well known ( 235 ) that if the cognitive intent to move at maximal speed remains even during isometric contractions, this optimises neural recruitment of fast twitch fibres. This submaximal external velocity when power training with moderate-high loads attenuates the ballistic nature of the movement at end range, due to the higher resistance. This is particularly important for exercises such as chest/bench press or knee extension in older adults with underlying degenerative arthritis.\n\nRole of physical activity and exercise on bone health, adipose tissue, muscle mass, and maximal strength and power > Effects of physical activity and exercise interventions on geriatric syndromes > Cognitive Impairment\nExercise slows the decline or improves cognitive function of people with Alzheimer's disease ( 247 ). Exercise has also been shown to reduce the behavioural and psychological symptoms of dementia ( 248 ). Due to significant heterogeneity in older adults with dementia, as well as very heterogeneous intervention paradigms, many studies have highlighted an improvement in physical function but not cognition in these cohorts. The optimal exercise prescription for dementia prevention or treatment is not currently defined. Critically, however, low intensity, minimally supervised, minimally progressive exercise such as that published from the DAPA trial ( 249 )., which did not conform to well-known principles of resistance training or aerobic training in terms of intensity, volume or progression, does not improve cognition. Therefore, the exercise prescriptive elements that best address the underlying contributors to dementia (sarcopenia, low aerobic capacity, hypertension, diabetes, depression, anorexia cerebrovascular pathology, inflammation, etc.) offer the best basis on which to prescribe exercise at this point in time for dementia itself. Reduction of intensity is not necessary if supervision is provided, even when dementia is present [ 44 , 70 , 210 ]. Evidence-based exercise modalities that holistically address falls, frailty and sarcopenia, polypharmacy, malnutrition, depression, osteoporosis, or cardiometabolic disease, should be recommended in aged care settings or cohorts of patients with established dementia.\n\nInter-individual variability and dose-response heterogeneity to physical activity and exercise\nHypothesized reasons for nonresponse include insufficient training stimulus (i.e., intensity or specificity of intervention), sex-related differences in response to exercise, and baseline fitness levels. Additionally, the individual interaction of physiological, molecular (i.e., genetics, epigenetics, transcriptomics, and metabolic factors), and environmental factors are being investigated as potential mediators of the lack of a response to exercise in some participants ( 288 ). For example, the heritability estimates for general muscle strength have been reported to range from 30% to 60%, and overall heritability of strength-related phenotypes has been estimated to be around 50% ( 289 ). Similarly, the seminal HERITAGE Family Study reported a maximal heritability estimate of 47% (and maternal heritability of 28%) of the individual cardiorespiratory fitness responses following 20 weeks of supervised and standardised aerobic exercise training ( 290 ). More than 200 polymorphisms have been associated with strength/power phenotypes, especially concerning athletic performance ( 291 ). For example, individuals with PPARGC1A gene codes for the peroxisome proliferator-activated receptor-gamma coactivator-1\u03b1 (PGC-1\u03b1) Gly482Ser (rs8192678) CC genotype had lower one-repetition maximum at baseline compared to both CT genotype counterparts and T-allele carriers ( 292 ), but demonstrated that regardless of gender, baseline strength and age, 8 weeks maximal strength training intervention is effective in improving maximal strength in most healthy people. A systematic review of genetic influences on functional adaptations to aerobic or resistance training in older adults identified 7 studies measuring 10 single-nucleotide polymorphisms and 9 different functional performance test outcomes. The ACE (D) allele, ACTN3 (RR) genotype, UCP2 (GG) genotype, IL-6-174 (GG) genotype, TNF-\u03b1-308 (GG) genotype, and IL-10-1082 (GG) genotype all predicted significantly superior adaptations in at least one functional outcome in older men and women after prescribed exercise or in those with higher levels of PA ( 188 ). Much more research is needed to explain the role of these potential genetic influences on the myriad of factors related to peak functional performance. Identifying genetic predictors of blunted adaptations to exercise could potentially improve our ability to target individuals at risk for poor outcomes by recommending advanced training techniques, better behavioural strategies, or physiological augmentation via nutritional or pharmacological co-interventions.",
+        "body_excerpts_sha256": "d89bc1368b24c23ad453def6eb20960dae3b6d1b07700df221f9cd9bc0d045d9",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12369211/fullTextXML",
+        "body_license_url": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "35262271",
+        "title": "Fall prevention in hospitals and nursing homes: Clinical practice guideline.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35262271/",
+        "abstract": "Falls and their consequences are particularly common in older adults in hospitals and long-term care (LTC) facilities.\nTo avoid falls and their consequences, and provide nurses with an overview of all relevant research literature on fall prevention, and a practice guideline on fall prevention in older adults was developed.\nThe development process included a systematic literature review to identify systematic reviews and primary studies on the topic of fall prevention, an assessment of the study quality, the preparation of meta-analyses to summarize the results, and the application of the GRADE (Grading of Recommendations Assessment, Development and Evaluation) approach to grade the scientific literature. The guideline panel and an external multidisciplinary team graded the recommendations using the Delphi method. In addition, the panel and team formulated expert opinions.\nA total of 79 randomized controlled trials on fall prevention were identified, which formed the basis of the recommendations. Strongly recommended measures for both settings included multifactorial interventions, professionally supported body exercise interventions, and education and counselling interventions. The panel and team did not recommend the use of a specific assessment tool for fall risk assessment, low-floor beds in hospitals, or body exercise interventions in frail residents.\nDuring the development of this guideline, particular attention was paid to collecting evidence-based knowledge relevant to practice. By applying the recommendations, the outlined nursing care is justified, enabling healthcare personnel to achieve the overriding goal of providing optimal care to persons at risk of falling. Evidence for several fall prevention interventions was graded as very low. Sound intervention studies are necessary to strengthen the confidence in the evidence for low-floor beds, alarm sensor systems, medication review, and staff education in hospitals.",
+        "sha256": "65670621082779ab6aac78b846d39912b2db5472b404cb8f45142b376e490797",
+        "retrieved_at": "2026-09-19T02:17:51.702167+00:00",
+        "pmcid": "PMC9310602"
+      },
+      {
+        "id": "40819291",
+        "title": "Best practice assessment and management of benign paroxysmal positional vertigo in older adults.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40819291/",
+        "abstract": "Benign paroxysmal positional vertigo (BPPV) is a common and disabling condition, with prevalence increasing with advancing age. It typically causes positional dizziness but is also common in those with balance abnormalities and falls without the typical dizziness. It is an underdiagnosed problem, which can lead to reduced quality of life, depression and increased falls risk. Whilst the diagnosis and treatment of the commonest form of BPPV (posterior canal) is straightforward in robust and younger populations, this is frequently not the case in people with multiple long-term conditions or frailty. Barriers to diagnosis and treatment of BPPV in each of the three canals can be overcome with simple practical measures, which are presented here. Given the lack of good quality evidence in this area, this best practise article presents evidence, where it exists, alongside expert clinical experience.",
+        "sha256": "616b24a03c6f88582cf469ff6832813b937ade6452ba63737d580fc8629331a7",
+        "retrieved_at": "2026-09-19T02:17:51.702167+00:00",
+        "pmcid": "PMC12358047"
+      },
+      {
+        "id": "41918148",
+        "title": "Guidelines for Rehabilitation Interventions in Older Adults With Sarcopenia (2025 Edition).",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41918148/",
+        "abstract": "Sarcopenia is a progressive, generalized skeletal muscle disease closely associated with increased risks of falls, disability, and mortality. It imposes a substantial disease burden on the elderly population in China. Current clinical practice lacks systematic, standardized protocols for the screening, assessment, and rehabilitation of sarcopenia grounded in high\u2011quality evidence. To address this gap, this guideline was developed through the joint efforts of the Rehabilitation Medicine Center of West China Hospital, Sichuan University, the Chinese Society of Physical Medicine and Rehabilitation, and a multidisciplinary panel of experts. Following evidence\u2011based guideline development methodology, it focused on 23 clinical questions\u200b covering rehabilitation assessment, prevention, exercise, nutrition, rehabilitation techniques, and implementation strategies for sarcopenia. A total of 58 recommendations were formulated through systematic evidence retrieval, evidence grading, and multiple rounds of expert consensus. This guideline provides rehabilitation physicians, physiotherapists and relevant personnel with systematic, evidence\u2011based guidance to improve standardized rehabilitation assessment and comprehensive intervention. It identifies future research needs to advance sarcopenia management in older adults in China.",
+        "sha256": "8fe4c63bdd93187b0ee86555d11071dfdbefee40837ea8210de626509192b7fb",
+        "retrieved_at": "2026-09-19T02:17:52.399077+00:00"
+      },
+      {
+        "id": "35608838",
+        "title": "Screening for Impaired Visual Acuity in Older Adults: US Preventive Services Task Force Recommendation Statement.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35608838/",
+        "abstract": "Impairment of visual acuity is a serious public health problem in older adults. The number of persons 60 years or older with impaired visual acuity (defined as best corrected visual acuity worse than 20/40 but better than 20/200) was estimated at 2.91 million in 2015, and the number who are blind (defined as best corrected visual acuity of 20/200 or worse) was estimated at 760\u202f000. Impaired visual acuity is consistently associated with decreased quality of life in older persons, including reduced ability to perform activities of daily living, work, and drive safely, as well as increased risk of falls and other unintentional injuries.\nTo update its 2016 recommendation, the US Preventive Services Task Force (USPSTF) commissioned a systematic review to evaluate the benefits and harms of screening for impaired visual acuity in older adults.\nAsymptomatic adults 65 years or older who present in primary care without known impaired visual acuity and are not seeking care for vision problems.\nThe USPSTF concludes that the evidence is insufficient to assess the balance of benefits and harms of screening for impaired visual acuity in asymptomatic older adults. The evidence is lacking, and the balance of benefits and harms cannot be determined. More research is needed.\nThe USPSTF concludes that the current evidence is insufficient to assess the balance of benefits and harms of screening for impaired visual acuity in older adults. (I statement).",
+        "sha256": "788e81b12f76065548b5f51dd97d81794092762fafdbef86f505a3a7114a7e46",
+        "retrieved_at": "2026-09-19T02:17:52.399077+00:00"
+      },
+      {
+        "id": "33169468",
+        "title": "Management guideline for Werner syndrome 2020. 2. Sarcopenia associated with Werner syndrome.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33169468/",
+        "abstract": "Sarcopenia is defined as a condition that combines decreased skeletal muscle mass with weakness or decreased physical function. It is well known that in older adults, the presence of sarcopenia is a risk of frailty, falls and physical dysfunction. Patients with Werner syndrome are characterized by visceral fat accumulation and thin limbs, but the prevalence of sarcopenia in patients with Werner syndrome has not been investigated.\nA literature search was conducted using Werner syndrome and skeletal muscle as keywords. We also analyzed data from our 7 Werner syndrome patients.\nA literature search on the relationship between Werner syndrome and skeletal muscle yielded only one article reported from Japan. According to this paper, a decrease in skeletal muscle mass (appendicular skeletal muscle index) was observed in all 9 Werner syndromes investigated. On the other hand, in our 7 Werner syndrome patients, their appendicular skeletal muscle indexes were below the standard value except for one male patient who had continued resistance exercise.\nThe decrease in skeletal muscle mass frequently occurs in patients with Werner syndrome. However, resistance exercise may prevent the appearance of sarcopenia and requires early intervention in patients with Werner syndrome. Geriatr Gerontol Int 2021; 21: 139-141.",
+        "sha256": "84b86c0f862733daeb9bd4e194530a272d07372a6f47b92b2e129749e2fd8f69",
+        "retrieved_at": "2026-09-19T02:17:52.399077+00:00"
+      },
+      {
+        "id": "33755083",
+        "title": "Screening for Hearing Loss in Older Adults: US Preventive Services Task Force Recommendation Statement.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33755083/",
+        "abstract": "Age-related sensorineural hearing loss is a common health problem among adults. Nearly 16% of US adults 18 years or older report difficulty hearing. The prevalence of perceived hearing loss increases with age. Hearing loss can adversely affect an individual's quality of life and ability to function independently and has been associated with increased risk of falls, hospitalizations, social isolation, and cognitive decline.\nTo update its 2012 recommendation, the US Preventive Services Task Force (USPSTF) commissioned a systematic review on screening for hearing loss in adults 50 years or older.\nAsymptomatic adults 50 years or older with age-related hearing loss.\nBecause of a lack of evidence, the USPSTF concludes that the benefits and harms of screening for hearing loss in asymptomatic older adults are uncertain and that the balance of benefits and harms cannot be determined. More research is needed.\nThe USPSTF concludes that the current evidence is insufficient to assess the balance of benefits and harms of screening for hearing loss in older adults. (I statement).",
+        "sha256": "260fe33d9208563c5fca7770799d2437b736a5e8c7d1d03a415d35a4e0eabb8f",
+        "retrieved_at": "2026-09-19T02:17:53.008281+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "She is a community-dwelling older adult at increased fall risk, with recurrent falls plus objective deficits in chair-rise strength, tandem balance, and turning/gait. The 2024 USPSTF recommends exercise interventions for such patients. Expert consensus further supports an individualized multicomponent program incorporating resistance, balance, and gait training; walking or aerobic exercise alone does not adequately improve strength or balance and is inferior for fall prevention. The program should be adapted to her functional capacity and preferences, with appropriate support and progression.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "38833246"
+              ],
+              "reason": "The USPSTF explicitly recommends exercise interventions for community-dwelling adults aged 65 years or older who are at increased risk of falls, matching this patient with recurrent falls and observed mobility deficits.",
+              "source_passage_ids": [
+                "38833246:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38833246",
+                  "quote": "The USPSTF concludes with moderate certainty that multifactorial interventions provide a small net benefit in preventing falls and fall-related morbidity in older adults at increased risk for falls. The USPSTF recommends exercise interventions to prevent falls in community-dwelling adults 65 years or older who are at increased risk for falls. (B recommendation) The USPSTF recommends that clinicians individualize the decision to offer multifactorial interventions to prevent falls to community-dwelling adults 65 years or older who are at increased risk for falls. Existing evidence indicates that the overall net benefit of routinely offering multifactorial interventions to prevent falls is small."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34409961"
+              ],
+              "reason": "The consensus guideline explicitly states that exercise prescriptions should be individualized according to risk factors, medical history, musculoskeletal limitations, functional ability, tolerance, and personal preferences.",
+              "source_passage_ids": [
+                "34409961:p14"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34409961",
+                  "quote": "Given the well-known curvilinear relationship between mortality risk and exercise volume ( 12 , 67 ), even a small amount of exercise is better than no exercise. The exercise prescription should be individualised considering risk factors, medical history, musculoskeletal limitations, functional ability, tolerance, and personal preferences. If significant deficits in muscle strength or balance are identified, these should ideally be addressed before the initiation of aerobic training. Prescribing aerobic training alone will not provide optimal benefits for the musculoskeletal system. Rather, the training programme should be multicomponent involving strength, gait and balance exercises to reduce health outcomes associated with frailty and sarcopenia such as falls and fractures."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34409961"
+              ],
+              "reason": "The source states that multicomponent programs incorporating resistance, balance, and/or gait retraining reduce falls in older adults and recommends strength, gait, and balance components when relevant deficits are present.",
+              "source_passage_ids": [
+                "34409961:p14",
+                "34409961:p35"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34409961",
+                  "quote": "Given the well-known curvilinear relationship between mortality risk and exercise volume ( 12 , 67 ), even a small amount of exercise is better than no exercise. The exercise prescription should be individualised considering risk factors, medical history, musculoskeletal limitations, functional ability, tolerance, and personal preferences. If significant deficits in muscle strength or balance are identified, these should ideally be addressed before the initiation of aerobic training. Prescribing aerobic training alone will not provide optimal benefits for the musculoskeletal system. Rather, the training programme should be multicomponent involving strength, gait and balance exercises to reduce health outcomes associated with frailty and sarcopenia such as falls and fractures."
+                },
+                {
+                  "source_id": "34409961",
+                  "quote": "Role of physical activity and exercise on bone health, adipose tissue, muscle mass, and maximal strength and power > Effects of physical activity and exercise interventions on geriatric syndromes > Falls Multicomponent exercise programmes including combinations of resistance training, balance and/or gait retraining ( 69 , 105 , 111 ); less commonly, resistance exercise alone ( 74 ) or an alternative exercise intervention such as Tai Chi ( 157 , 226 , 227 ) or dance programs ( 228 , 229 , 230 ) have been shown to reduce falls in older adults. Aerobic training alone, by contrast, has been shown to increase falls and fracture risk ( 45 )."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34409961"
+              ],
+              "reason": "The source directly states that aerobic exercise alone does not improve strength or balance and that walking-only fall-prevention programs are inferior to programs combining strength and balance exercise.",
+              "source_passage_ids": [
+                "34409961:p11"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34409961",
+                  "quote": "By contrast, aerobic exercise alone does not improve strength nor balance and thus is insufficient as a single modality for older adults. Systematic reviews clearly indicate that falls-prevention programmes that include walking as a single modality are inferior to those combining strength and balance exercise and such interventions have been linked to higher falls and osteoporotic fracture rates in individuals at risk ( 45 ). Evidence for specific modalities of exercise in older adults There are sufficient data from both epidemiological studies and experimental trials to support the training of all physicians, including geriatricians ( 51 ), in the basics of exercise prescription for health-related quality of life (Tables 1 )."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Candidate B is the appropriate and safe choice. The patient is a community-dwelling older adult with recurrent falls plus demonstrated chair-rise, balance, and turning deficits, so a tailored multicomponent program addresses the clinically observed impairments. Candidate A inappropriately relies on unsupervised walking alone despite evidence that this does not adequately address strength and balance and is inferior for fall prevention. The decision is supported substantively by both the 2024 USPSTF recommendation for exercise in at-risk community-dwelling older adults and the exercise consensus guidance specifying individualized resistance, balance, and gait training. The visible title, question, notes, and study findings do not disclose the intended answer or management plan. No imaging or additional laboratory data are required to choose between these exercise strategies. This decision is distinct from the previous delirium-management case."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This community-dwelling woman in her 80s is at increased fall risk due to recurrent falls plus observed impairments in chair rise strength, tandem stance balance, and turning/gait stability. The 2024 USPSTF recommends exercise interventions for community-dwelling adults aged 65 years or older who are at increased risk for falls. The ICFSR consensus specifically notes that fall-prevention programs should be individualized and multicomponent, addressing strength/resistance, balance, and gait; it also states that aerobic exercise or walking alone is insufficient for older adults with strength or balance deficits and that walking-only programs are inferior to combined strength and balance programs and may be associated with increased falls/fractures in at-risk individuals. Therefore, an individualized program incorporating resistance, balance, and gait training matched to her functional ability and preferences is more appropriate than simply increasing unsupervised walking as the sole intervention.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "38833246"
+              ],
+              "reason": "The USPSTF passage directly recommends exercise interventions for community-dwelling adults aged 65 years or older at increased fall risk.",
+              "source_passage_ids": [
+                "38833246:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38833246",
+                  "quote": "The USPSTF concludes with moderate certainty that multifactorial interventions provide a small net benefit in preventing falls and fall-related morbidity in older adults at increased risk for falls. The USPSTF recommends exercise interventions to prevent falls in community-dwelling adults 65 years or older who are at increased risk for falls. (B recommendation) The USPSTF recommends that clinicians individualize the decision to offer multifactorial interventions to prevent falls to community-dwelling adults 65 years or older who are at increased risk for falls. Existing evidence indicates that the overall net benefit of routinely offering multifactorial interventions to prevent falls is small."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34409961"
+              ],
+              "reason": "The exercise consensus guideline states that exercise prescriptions should be individualized and specifically lists risk factors, medical history, limitations, functional ability, tolerance, and personal preferences.",
+              "source_passage_ids": [
+                "34409961:p14"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34409961",
+                  "quote": "Given the well-known curvilinear relationship between mortality risk and exercise volume ( 12 , 67 ), even a small amount of exercise is better than no exercise. The exercise prescription should be individualised considering risk factors, medical history, musculoskeletal limitations, functional ability, tolerance, and personal preferences. If significant deficits in muscle strength or balance are identified, these should ideally be addressed before the initiation of aerobic training. Prescribing aerobic training alone will not provide optimal benefits for the musculoskeletal system. Rather, the training programme should be multicomponent involving strength, gait and balance exercises to reduce health outcomes associated with frailty and sarcopenia such as falls and fractures."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34409961"
+              ],
+              "reason": "The supplied passages support multicomponent exercise involving strength/resistance, gait, and balance exercises to reduce fall-related outcomes, and state that such programs have been shown to reduce falls in older adults.",
+              "source_passage_ids": [
+                "34409961:p14",
+                "34409961:p35"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34409961",
+                  "quote": "Given the well-known curvilinear relationship between mortality risk and exercise volume ( 12 , 67 ), even a small amount of exercise is better than no exercise. The exercise prescription should be individualised considering risk factors, medical history, musculoskeletal limitations, functional ability, tolerance, and personal preferences. If significant deficits in muscle strength or balance are identified, these should ideally be addressed before the initiation of aerobic training. Prescribing aerobic training alone will not provide optimal benefits for the musculoskeletal system. Rather, the training programme should be multicomponent involving strength, gait and balance exercises to reduce health outcomes associated with frailty and sarcopenia such as falls and fractures."
+                },
+                {
+                  "source_id": "34409961",
+                  "quote": "Role of physical activity and exercise on bone health, adipose tissue, muscle mass, and maximal strength and power > Effects of physical activity and exercise interventions on geriatric syndromes > Falls Multicomponent exercise programmes including combinations of resistance training, balance and/or gait retraining ( 69 , 105 , 111 ); less commonly, resistance exercise alone ( 74 ) or an alternative exercise intervention such as Tai Chi ( 157 , 226 , 227 ) or dance programs ( 228 , 229 , 230 ) have been shown to reduce falls in older adults. Aerobic training alone, by contrast, has been shown to increase falls and fracture risk ( 45 )."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34409961"
+              ],
+              "reason": "The passage directly states that aerobic exercise alone does not improve strength or balance and that falls-prevention programs using walking as a single modality are inferior to combined strength and balance exercise.",
+              "source_passage_ids": [
+                "34409961:p11"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34409961",
+                  "quote": "By contrast, aerobic exercise alone does not improve strength nor balance and thus is insufficient as a single modality for older adults. Systematic reviews clearly indicate that falls-prevention programmes that include walking as a single modality are inferior to those combining strength and balance exercise and such interventions have been linked to higher falls and osteoporotic fracture rates in individuals at risk ( 45 ). Evidence for specific modalities of exercise in older adults There are sufficient data from both epidemiological studies and experimental trials to support the training of all physicians, including geriatricians ( 51 ), in the basics of exercise prescription for health-related quality of life (Tables 1 )."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The visible case describes a community-dwelling woman in her eighties with recurrent household falls, curtailed activity due to fear of falling, difficulty rising from a chair, impaired tandem stance, and cautious turning. There are no red flags in the provided history suggesting syncope, vertigo, focal neurologic deficit, acute cardiopulmonary instability, or sedative medication exposure that would change this specific exercise-strategy decision. The best answer is B: an individualized program incorporating resistance, balance, and gait training adapted to ability and preferences. This matches the patient\u2019s demonstrated lower-extremity functional, balance, and turning/gait deficits. Answer A is the intentionally flawed option because unsupervised walking alone does not address strength and balance deficits and is specifically inferior to combined strength and balance approaches in the supplied evidence. The key is consistent with the chart and with the supplied sources. The applicant-visible title and question do not disclose the intended management plan; they frame a general exercise-strategy choice. The decision is within geriatrics, and it is distinct from the prior delirium/medication-management case."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "4701ebd7d68697424cf022c00238c7784b207faa90f050c9420eafc45c09a41a"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

@@ -1,0 +1,549 @@
+{
+  "task_id": "onboarding-examination-v1-ca25a37ef4cffb536a33-1",
+  "specialty": "pediatrics",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Well-Appearing Young Infant With Fever and Urinary Findings",
+    "question": "Which cerebrospinal fluid evaluation approach is most appropriate at this decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "pediatrics",
+      "demographics": {
+        "age_band": "0-1",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Fever in a young infant",
+          "since": "index presentation",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Escherichia coli urinary tract infection",
+          "since": "index presentation",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Culture-directed antibacterial therapy",
+          "dose": null,
+          "route": "oral",
+          "freq": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "temperature_c": 38.2,
+        "heart_rate_per_min": 146,
+        "respiratory_rate_per_min": 36,
+        "oxygen_saturation_percent_room_air": 99
+      },
+      "lab_panels": [
+        {
+          "panel": "Inflammatory markers",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Procalcitonin",
+              "loinc": null,
+              "value": 0.18,
+              "unit": "ng/mL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "C-reactive protein",
+              "loinc": null,
+              "value": 8,
+              "unit": "mg/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Catheterized urine testing",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Leukocyte esterase",
+              "loinc": null,
+              "value": "positive",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Urine culture",
+              "loinc": null,
+              "value": "Escherichia coli, greater than 100000 CFU/mL",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Emergency reassessment",
+          "author_role": "pediatric clinician",
+          "text": "A 45-day-old infant born at term and previously healthy was evaluated after a rectal temperature of 38.2\u00b0C. She remains alert, feeds normally, and has normal urine output. Examination shows normal perfusion, a flat anterior fontanelle, no respiratory distress, no focal neurologic abnormality, and no other apparent infection source. A catheterized specimen obtained before treatment demonstrated pyuria and subsequently grew E. coli. Procalcitonin and C-reactive protein were collected at presentation. She remains well appearing after receiving the first dose of culture-directed oral antibacterial therapy.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the stated decision",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "Do not routinely perform a lumbar puncture solely because this well-appearing 45-day-old infant has a positive urinalysis and confirmed urinary tract infection. In infants aged 29 to 60 days, a meta-analysis found that bacterial meningitis prevalence was not higher with a positive urinalysis and concluded that urinalysis results alone should not guide the lumbar-puncture decision. This infant also meets the reported low-risk criteria of age over 21 days, well appearance, procalcitonin no greater than 0.5 ng/mL, and C-reactive protein no greater than 20 mg/L; a separate systematic review concluded that lumbar puncture may not be indicated in such infants, while acknowledging limited evidence. Candidate A incorrectly treats urinary infection as an automatic indication for an invasive procedure regardless of the remaining risk assessment.",
+        "evidence": {
+          "decision_scope": "Cerebrospinal fluid evaluation in a well-appearing febrile infant aged 29 to 60 days with urinary tract infection"
+        },
+        "key_data": [
+          "The infant is 45 days old, placing her in the 29-to-60-day age group.",
+          "She was born at term, was previously healthy, and remains well appearing without neurologic abnormalities.",
+          "Procalcitonin is 0.18 ng/mL, below the cited low-risk threshold of 0.5 ng/mL.",
+          "C-reactive protein is 8 mg/L, below the cited low-risk threshold of 20 mg/L.",
+          "The positive urinalysis and catheterized E. coli culture establish a urinary infection but do not independently determine the need for lumbar puncture."
+        ]
+      },
+      "hard_hook": "A positive urinalysis or confirmed urinary infection does not independently determine the need for cerebrospinal fluid testing in a well-appearing infant aged 29 to 60 days.",
+      "reasoning_divergence": "The alternatives differ on whether urinary infection automatically mandates lumbar puncture or must be interpreted alongside age, appearance, and inflammatory markers."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Perform a lumbar puncture now because every febrile infant younger than 60 days with a positive urinalysis or confirmed bacterial urinary tract infection requires cerebrospinal fluid testing, regardless of appearance or inflammatory-marker results."
+      },
+      {
+        "id": "B",
+        "text": "Do not routinely perform a lumbar puncture solely because the urinalysis and urine culture are positive. This 45-day-old infant remains well appearing and meets the reported low-risk procalcitonin and C-reactive protein criteria."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "febrile infant",
+      "bacterial meningitis",
+      "urinary tract infection",
+      "lumbar puncture",
+      "invasive bacterial infection"
+    ],
+    "evidence_keywords": [
+      "positive urinalysis",
+      "procalcitonin",
+      "C-reactive protein",
+      "low-risk criteria",
+      "29 to 60 days"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "other"
+    ],
+    "claims": [
+      {
+        "statement": "The febrile-infant guideline applies to well-appearing, term infants aged 8 to 60 days with a temperature of at least 38.0\u00b0C.",
+        "source_ids": [
+          "34281996"
+        ]
+      },
+      {
+        "statement": "Among well-appearing febrile infants aged 29 to 60 days, bacterial meningitis prevalence was not higher in those with positive urinalysis results than in those with negative results.",
+        "source_ids": [
+          "33978724"
+        ]
+      },
+      {
+        "statement": "For well-appearing febrile infants aged 29 to 60 days, the lumbar-puncture decision should not be guided by urinalysis results alone.",
+        "source_ids": [
+          "33978724"
+        ]
+      },
+      {
+        "statement": "Reported low-risk criteria for meningitis with urinary infection include well appearance, age over 21 days, procalcitonin no greater than 0.5 ng/mL, and C-reactive protein no greater than 20 mg/L.",
+        "source_ids": [
+          "31473824"
+        ]
+      },
+      {
+        "statement": "A systematic review concluded that lumbar puncture may not be indicated in young febrile infants with urinary infection who meet the specified low-risk criteria.",
+        "source_ids": [
+          "31473824"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T02:16:15.658044+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "34281996",
+        "title": "Evaluation and Management of Well-Appearing Febrile Infants 8 to 60 Days Old.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34281996/",
+        "abstract": "This guideline addresses the evaluation and management of well-appearing, term infants, 8 to 60 days of age, with fever \u226538.0\u00b0C. Exclusions are noted. After a commissioned evidence-based review by the Agency for Healthcare Research and Quality, an additional extensive and ongoing review of the literature, and supplemental data from published, peer-reviewed studies provided by active investigators, 21 key action statements were derived. For each key action statement, the quality of evidence and benefit-harm relationship were assessed and graded to determine the strength of recommendations. When appropriate, parents' values and preferences should be incorporated as part of shared decision-making. For diagnostic testing, the committee has attempted to develop numbers needed to test, and for antimicrobial administration, the committee provided numbers needed to treat. Three algorithms summarize the recommendations for infants 8 to 21 days of age, 22 to 28 days of age, and 29 to 60 days of age. The recommendations in this guideline do not indicate an exclusive course of treatment or serve as a standard of medical care. Variations, taking into account individual circumstances, may be appropriate.",
+        "sha256": "1e64673b407c72a39641bd6cb8f8996af0d786cdae356b0e6c86d588d15b229e",
+        "retrieved_at": "2026-09-19T02:14:57.438213+00:00"
+      },
+      {
+        "id": "37897526",
+        "title": "Evidence-based clinical practice guideline for management of urinary tract infection and primary vesicoureteric reflux.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37897526/",
+        "abstract": "We present updated, evidence-based clinical practice guidelines from the Indian Society of Pediatric Nephrology (ISPN) for the management of urinary tract infection (UTI) and primary vesicoureteric reflux (VUR) in children. These guidelines conform to international standards; Institute of Medicine and AGREE checklists were used to ensure transparency, rigor, and thoroughness in the guideline development. In view of the robust methodology, these guidelines are applicable globally for the management of UTI and VUR. Seventeen recommendations and 18 clinical practice points have been formulated. Some of the key recommendations and practice points are as follows. Urine culture with\u2009>\u2009104 colony forming units/mL is considered significant for the diagnosis of UTI in an infant if the clinical suspicion is strong. Urine leukocyte esterase and nitrite can be used as an alternative screening test to urine microscopy in a child with suspected UTI. Acute pyelonephritis can be treated with oral antibiotics in a non-toxic infant for 7-10\u00a0days. An acute-phase DMSA scan is not recommended in the evaluation of UTI. Micturating cystourethrography (MCU) is indicated in children with recurrent UTI, abnormal kidney ultrasound, and in patients below 2\u00a0years of age with non-E. coli UTI. Dimercaptosuccinic acid scan (DMSA scan) is indicated only in children with recurrent UTI and high-grade (3-5) VUR. Antibiotic prophylaxis is not indicated in children with a normal urinary tract after UTI. Prophylaxis is recommended to prevent UTI in children with bladder bowel dysfunction (BBD) and those with high-grade VUR. In children with VUR, prophylaxis should be stopped if the child is toilet trained, free of BBD, and has not had a UTI in the last 1\u00a0year. Surgical intervention in high-grade VUR can be considered for parental preference over antibiotic prophylaxis or in children developing recurrent breakthrough febrile UTIs on antibiotic prophylaxis.",
+        "sha256": "b577e77e7486fe6c10c6bfcb23819cf998813363e3fb8b677d755ff3ce0ca064",
+        "retrieved_at": "2026-09-19T02:14:58.746206+00:00"
+      },
+      {
+        "id": "40409880",
+        "title": "ACR Appropriateness Criteria\u00ae Fever Without Source or Unknown Origin-Child: 2024 Update.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40409880/",
+        "abstract": "Fever is the most common reason for the evaluation of pediatric patients in acute care settings. Patients for whom no source of infection is identified after a thorough history, physical examination, and laboratory evaluation are classified as having fever without source. Special considerations should be taken in the evaluation of neonates and neutropenic patients as they are at higher risk of serious bacterial infection. Patients with prolonged fever lasting >3 weeks who have no identifiable source of fever are classified with fever of unknown origin and represent an additional subset of febrile pediatric patients that also require special consideration. This document summarizes the relevant literature and provides expert recommendations for the selection of the initial imaging in four common clinical scenarios in pediatric patients with fever without source or unknown origin. The American College of Radiology Appropriateness Criteria are evidence-based guidelines for specific clinical conditions that are reviewed annually by a multidisciplinary expert panel. The guideline development and revision process support the systematic analysis of the medical literature from peer reviewed journals. Established methodology principles such as Grading of Recommendations Assessment, Development, and Evaluation or GRADE are adapted to evaluate the evidence. The RAND/UCLA Appropriateness Method User Manual provides the methodology to determine the appropriateness of imaging and treatment procedures for specific clinical scenarios. In those instances where peer reviewed literature is lacking or equivocal, experts may be the primary evidentiary source available to formulate a recommendation.",
+        "sha256": "aa691fd258ac0953d2828931983ade7c1be554a5c87c683940cbee596aff863f",
+        "retrieved_at": "2026-09-19T02:14:58.746206+00:00"
+      },
+      {
+        "id": "39240349",
+        "title": "ESR Essentials: advanced MR safety in vulnerable patients-practice recommendations by the European Society for Magnetic Resonance in Medicine and Biology.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39240349/",
+        "abstract": "For every patient, the MR safety evaluation should include the assessment of risks in three key areas, each corresponding to a specific hazard posed by the electromagnetic fields generated by the MR scanner: ferromagnetic attraction and displacement by the static field; stimulation, acoustic noise, and device interaction by the gradient fields; and bulk and focal heating by the radiofrequency field. MR safety guidelines and procedures are typically designed around the \"average\" patient: adult, responsive, and of typical habitus. For this type of patient, we can safely expect that a detailed history can identify metallic objects inside and outside the body, verbal contact during the scan can detect signs of discomfort from heating or acoustic noise, and safety calculations performed by the scanner can prevent hyperthermia. However, for some less common patient categories, these assumptions do not hold. For instance, patients with larger habitus, febrile patients, or pregnant people are more subject to bulk heating and require more conservative MR protocols, while at the same time presenting challenges during positioning and preparation. Other vulnerable categories are infants, children, and patients unable to communicate, who might require screening for ferromagnetic objects with other imaging modalities or dedicated equipment. This paper will provide guidance to implement appropriate safety margins in the workflow and scanning protocols in various vulnerable patient categories that are sometimes overlooked in basic MR safety guidance documents. CLINICAL RELEVANCE STATEMENT: Special care in the implementation of MR safety procedures is of paramount importance in the handling of patients. While most institutions have streamlined operations in place, some vulnerable patient categories require specific considerations to obtain images of optimal quality while minimizing the risks derived by exposure to the MR environment. KEY POINTS: Patients unable to effectively communicate need to be carefully screened for foreign objects. Core temperature management is important in specific patient categories. There are no hard quantitative criteria that make a patient fall into a specific vulnerable category. Protocols and procedures need to be adaptable.",
+        "sha256": "340a9098c1eb6f3ea0a7c459a92bd718c7cfbb9398263eb904217ee04ac7e8a1",
+        "retrieved_at": "2026-09-19T02:14:58.746206+00:00",
+        "pmcid": "PMC11913975",
+        "body_excerpts": "Key recommendations\nAttraction of ferromagnetic objects is the highest risk posed by an MR scanner, and it can be mitigated with an accurate patient history. However, this is either impossible or unreliable in some patient groups, such as unconscious or cognitively impaired individuals or infants and children. Resort to the use of other imaging modalities to assess presence of metal, and possibly the usage of ferromagnetic detectors, is recommended when there is the suspicion of an unreliable history. (Evidence level: Low/Moderate\u2014recommendations exist, but no systematic analysis has been done of the specific efficacy of these methods) Various patient categories (individuals under sedation or anesthesia, infants) have thermoregulatory issues and need to be monitored with appropriate equipment for hypo- and hyperthermia during MRI. Other categories, such as febrile, obese, or pregnant patients, have lower resistance to hyperthermia (without significantly risking hypothermia). In either case, radiofrequency power deposition should be reduced during an MR examination, by reducing the scanning time and preferring low-specific absorption rate sequences. (Evidence level: Moderate. Effects of radiofrequency (RF) power deposition are well demonstrated through simulations, in vitro, and in vivo) These general recommendations do not provide cutoff limits (such as body mass index thresholds) for the execution of specific procedures or scanning protocols. The information provided here offers guidance in the estimation of the risk for the patient classes presented, but the correct diagnostic procedure (i.e., MRI vs an alternative modality, or the scanning protocol) needs to be identified through a case-by-case risk/benefit assessment by the responsible medical professional.\n\nIntroduction\nMagnetic Resonance (MR) safety guidelines are a fundamental component of the management and operation of an MR imaging facility. They need to provide a general workflow that ensures the minimization of the risk of MRI examinations for every patient and to streamline operations so that routine can proceed efficiently. However, general guidelines are modeled after an idealized \u201caverage\u201d patient, whose characteristics depend on the considered population. Statistical variability in the population makes it inevitable that, occasionally, an individual whose characteristics do not fall within the usual distribution of traits captured in the guidelines needs to be safely scanned. In these cases, a patient-specific evaluation must be performed, and an optimized scanning protocol must be chosen.\n\nA brief overview of general MR safety concepts\nFor every patient or individual that receives an MR scan, or even enters the MR scanner room, the safety risks are posed by the three electromagnetic fields (static B 0 field, gradient fields, and radiofrequency field) generated by the scanner. These fields directly interact with the body of the person and with all other objects in their vicinity. It is therefore important to understand what these three fields are and how they potentially interact to be able to correctly assess the risk factors for every individual.\n\nFebrile patients\nScanning, even in normal mode, can cause a temperature rise of up to 0.5 \u00b0C, which can be relevant in febrile patients. Allowing heat dissipation and using low-SAR sequences are important measures to avoid hyperthermia.\n\nFebrile patients\nFever is a heightened body temperature [ 9 ] as a response to various potential causes. It is a common sign in hospitalized patients [ 10 ], but a patient with a fever needs to follow stricter MR safety standards, depending on the temperature. If the patient\u2019s core temperature is above 38.5 \u00b0C at the start of the scan (possibly even following treatment with antipyretics, or when such treatment is unavailable), even scanning in \u201cnormal operating mode\u201d can result in the threshold defined by the IEC norm to be exceeded, and therefore \u201cfirst-level controlled\u201d care, including potential medical supervision, is required. If the patient\u2019s temperature is above 39 \u00b0C, the scanner must be used in normal mode, to avoid exceeding the threshold of 40 \u00b0C. Above 39.5 \u00b0C, safe scanning cannot be guaranteed by the hardware safeguards, because even normal operating mode might cause the temperature to rise above 40 \u00b0C. Scanning above these limits falls directly under the responsibility of the medical professional and might be qualified as \u201coff-label\u201d usage, requiring appropriate risk-benefit assessment which involves estimating the actual patient exposure (based on body part examined, power deposition of the sequences used, hardware setup) and, potentially, management according to local regulations. Apart from the temperature thresholds, efforts should be made to choose protocols with minimal SAR in any febrile patient and to avoid using insulation blankets to allow heat dissipation.\n\nAnesthetized and unconscious patients\nAnother category of patients that require special care in regulating their body temperature are anesthetized patients. Anesthesia interferes with the natural body\u2019s ability to correctly thermoregulate. While the most common risk is hypothermia, malignant hyperthermia can also rarely occur [ 11 ]. In this scenario, and considering the impossibility to communicate with the patient, accurate and responsive temperature monitoring is required to respond to physiological temperature changes and to changes induced by power deposition. Thermocouple temperature monitoring is affected by the MR electromagnetic fields and fiber-optic-based probes, which do not contain metallic parts and are therefore MR safe, should be used instead [ 12 ]. The choice of monitoring site is also important and needs to be decided as a tradeoff between accuracy and practicality, accounting for potential delays in the temperature change between core and peripheral locations [ 13 ]. Similar considerations might apply to unconscious or otherwise unresponsive patients, if impaired thermoregulation is clinically suspected (e.g., in cases of impaired vasodilation).\n\nAnesthetized and unconscious patients\nAnesthesia equipment is also an obvious concern for ferromagnetic attraction by the scanner, and appropriate MR-conditional equipment must be used inside the scanner room, with all unsafe equipment located outside the attraction area. Proper MR safety training of all personnel involved, including anesthesiologists and nurses, is required to avoid accidents.\n\nPatients with larger habitus\nHeat dissipation is impaired in patients with larger habitus, and low-SAR scan protocols are preferred. Implants in patients with larger habitus might be exposed to higher values of spatial gradient, time-varying gradient intensity and slew rate, and their conditions should be checked against the actual exposure.\n\nPatients with larger habitus\nPatients with obesity have a reduced capacity to dissipate heat from RF deposition [ 15 ]. Special care must therefore be taken to minimize the SAR, and first-level controlled scanning is not recommended. However, no hard limit in terms of weight or body mass index (BMI) is indicated in the literature as a cutoff for excluding higher-SAR acquisitions, and a risk-benefit evaluation must be performed on a case-by-case basis, maintaining verbal contact with the patient to react to discomfort. Because of the anatomical characteristics of larger habitus, avoiding skin-to-skin or skin-to-bore contact might be more difficult, and this might result in local RF burns (Fig. 1 ) [ 8 , 16 ]. Use of appropriate padding to avoid such contact is required. Fig. 1 A second-degree burn at the point of skin-to-skin contact of the thighs. Reproduced with permission from Tagell et al [ 8 ]\n\nPatients with larger habitus\nA larger body diameter brings the skin of the patient also closer to the bore surface, where absolute values of gradient fields are higher, and thus, the patient has a higher probability of experiencing peripheral nerve stimulation. This is also relevant when the patient has MR-conditional implants that define exposure limits to spatial gradient or time-varying gradient strengths and slew rates. As the locations of maximum strength for these quantities are located close to the scanner bore, patients with larger habitus might have implants that, when positioned inside the scanner, might be exposed to higher effective values when compared to patients with smaller habitus [ 17 ] (Fig. 2 ). Fig. 2 A schematic of a patient with a large habitus in an MR scanner (section of the bore represented in gray). The colored area represents a typical spatial gradient intensity, with red signifying a stronger spatial gradient. An implanted device such as a pacemaker (blue arrow) might find itself in an area of higher spatial gradient with respect to the same device implanted in a person with a smaller habitus. The exact scan conditions need to be checked on a patient-by-patient basis. Contact between the bore and the skin of the patient is also possible (red arrow), and appropriate measures to avoid focal burns must be taken (e.g., insulating pads)\n\nPregnant patients\nMR scanning is safe in any trimester of pregnancy. Heat dissipation in the fetus is impaired, and low-SAR procedures need to be selected, well within the limits of normal scanning. Contrast agents should be used sparingly due to their prolonged presence in the amniotic fluid.\n\nPregnant patients\nThere is now sufficient evidence supporting that exposure to static magnetic field intensities used in clinical MR is reasonably safe during any trimester of pregnancy [ 18 ]. However, RF power deposition can have a heating effect on the fetus, whose only pathway for heat dissipation is via the body of the gestational parent [ 19 ]. Simulations show that even by scanning in normal mode, fetal temperature can rise above 38 \u00b0C [ 20 ]. Contrast agents must also be used sparingly, as there is evidence that they can cross the placental barrier into the fetal circulation, where they are then excreted through the fetal kidney pathway into the amniotic fluid, in which they can remain for a long time [ 19 , 21 ]. The fetus is generally not considered to be particularly exposed to acoustic noise propagated through the air due to the attenuation provided by the parent\u2019s body [ 22 ], but, to prevent transmission of acoustic noise to the ear through direct mechanical coupling with the bed, it should be shielded from vibrations through cushions placed under the patient [ 19 ].\n\nInfants\nProper fitting of ear protection is necessary. Extremely accurate screening for ferromagnetic and conductive material in anything in contact with the infant (clothes, monitoring devices, etc.) is required, as the infant cannot communicate discomfort, and accidents can have particularly severe consequences.\n\nInfants\nIssues related to the safe scanning of infants and children deserve their own separate treatise [ 23 ]. However, we will summarize the main points that need to be taken into consideration for this population. Neonates and infants are unable to communicate and, generally, lie still in the scanner. In order to successfully perform the scan, they usually require sedation and, therefore, correct temperature monitoring, as in the case of anesthetized patients. Considering that preterm and sick babies might naturally have difficulties in thermoregulation, they risk both hypothermia and hyperthermia [ 24 ]. However, Malik [ 25 ] found that conventional SAR estimations are conservative in neonates, thus providing a safety margin towards hyperthermia. To avoid sedation, immobilization through specialized holding devices is also possible, ideally after feeding (\u201cfeed and wrap\u201d, Fig. 3 ) [ 26 ]. However, extreme care must be taken that appropriate ear protection equipment can be worn by the baby, as they are unable to express their specific discomfort. Similarly, all equipment, clothes, and objects in contact with the infant need to be accurately screened for MR safety, as RF burns from the usage of incompatible devices can have vastly more serious consequences when compared to responsive adult patients who are able to request an interruption of the procedure (Fig. 4 ) [ 27 ]. Fig. 3 Immobilized infant for MRI. Note how the ear protection equipment is tightly secured on the ears by the wrap. Figure adapted from Korom et al [ 32 ], released under a CC-BY license Fig. 4 A fourth-degree burn in the forearm of an infant due to contact with a non-MR-conditional pulse oximeter, requiring subsequent amputation. Reproduced with permission from Haik et al [ 27 ]\n\nInfants > Children\nIf allowed by local regulations, children should be screened both together and separately from their parents, as they might not be willing to disclose personal information in front of the parent or caregiver (e.g., tattoos or piercings).\n\nClaustrophobic and autistic patients\nApproximately 1.2% of all patients undergoing an MR investigation suffer from claustrophobia [ 29 ]. While this does not pose a direct safety risk in itself, the discomfort of the patients can lead to impaired image quality and make it impossible to perform the scan, with direct consequences on the management of the patient. Verbal communication prior to and during the scan has been shown to mitigate the effects of claustrophobia and improve scan outcomes [ 30 ]. In some cases, sedation is required. If sedation is necessary, patient monitoring appropriate to the level of sedation and the possibility of interaction between the patient and the personnel must be implemented. This includes a particularly accurate screening for potential sources of RF burns (skin-to-skin and skin-to-metal contact), ear protection, and temperature monitoring if deemed appropriate. Similar considerations apply to autistic individuals, for whom psychological discomfort can be a primary cause for a failed exam. As with claustrophobic patients, communication with autistic patients, familiarization with the scanner environment, reduction of scanner noise, and distraction techniques can avoid sedation. A comprehensive review of the management of autistic patients is given by Stogiannos et al [ 31 ].\n\nSummary statement\nEvery patient has a unique set of risk factors associated with an MR scan, and the evaluation of the appropriate course of action needs to be performed by weighing them against the potential benefits. The risks associated with every patient are always arising from the interaction of the patient\u2019s body, and of foreign objects, with the three electromagnetic fields generated by the scanner: the static field, the gradient fields, and the RF field.\n\nSummary statement\nAs a broad classification, patients for whom a reliable history cannot be obtained, such as children, unconscious, or cognitively impaired patients, are at a heightened risk of having foreign objects that could be displaced or heated during the scan and need to be carefully screened. Patients with difficulties in thermoregulation, such as unconscious, febrile, obese, or pregnant patients, need to be exposed to more conservative levels of RF power to avoid hyperthermia and monitored if appropriate. Patients who cannot communicate during the scan, such as infants or unconscious individuals, need to be additionally protected against acoustic noise.\n\nPatient summary\nMagnetic resonance imaging is a safe procedure when performed within the appropriate safety boundaries, however it is not free of potential risks. In some patient categories, which are less commonly encountered in daily practices, these risk factors are heightened, and special care needs to be taken when evaluating the correct procedure to perform, to minimize the risks and maximize the benefit to the patient.",
+        "body_excerpts_sha256": "c167f49fab2c141b502030f95edf2acc94d4a3992272219a31186a5884230621",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11913975/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "38499017",
+        "title": "Diagnostic test accuracy of procalcitonin and C-reactive protein for predicting invasive and serious bacterial infections in young febrile infants: a systematic review and meta-analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38499017/",
+        "abstract": "Febrile infants presenting in the first 90 days of life are at higher risk of invasive and serious bacterial infections than older children. Modern clinical practice guidelines, mostly using procalcitonin as a diagnostic biomarker, can identify infants who are at low risk and therefore suitable for tailored management. C-reactive protein, by comparison, is widely available, but whether C-reactive protein and procalcitonin have similar diagnostic accuracy is unclear. We aimed to compare the test accuracy of procalcitonin and C-reactive protein in the prediction of invasive or serious bacterial infections in febrile infants.\nFor this systematic review and meta-analysis, we searched MEDLINE, EMBASE, Web of Science, and The Cochrane Library for diagnostic test accuracy studies up to June 19, 2023, using MeSH terms \"procalcitonin\", and \"bacterial infection\" or \"fever\" and keywords \"invasive bacterial infection*\" and \"serious bacterial infection*\", without language or date restrictions. Studies were selected by independent authors against eligibility criteria. Eligible studies included participants aged 90 days or younger presenting to hospital with a fever (\u226538\u00b0C) or history of fever within the preceding 48 h. The primary index test was procalcitonin, and the secondary index test was C-reactive protein. Test kits had to be commercially available, and test samples had to be collected upon presentation to hospital. Invasive bacterial infection was defined as the presence of a bacterial pathogen in blood or cerebrospinal fluid, as detected by culture or quantitative PCR; authors' definitions of serious bacterial infection were used. Data were extracted from selected studies, and the detection of invasive or serious bacterial infections was analysed with two models for each biomarker. Diagnostic accuracy was determined against internationally recognised cutoff values (0\u00b75 ng/mL for procalcitonin, 20 mg/L for C-reactive protein) and pooled to calculate partial area under the curve (pAUC) values for each biomarker. Optimum cutoff values were identified for each biomarker. This study is registered with PROSPERO, CRD42022293284.\nOf 734 studies derived from the literature search, 14 studies (n=7755) were included in the meta-analysis. For the detection of invasive bacterial infections, pAUC values were greater for procalcitonin (0\u00b772, 95% CI 0\u00b756-0\u00b779) than C-reactive protein (0\u00b728, 0\u00b717-0\u00b761; p=0\u00b7016). Optimal cutoffs for detecting invasive bacterial infections were 0\u00b749 ng/mL for procalcitonin and 13\u00b712 mg/L for C-reactive protein. For the detection of serious bacterial infections, procalcitonin and C-reactive protein had similar pAUC values (0\u00b755, 0\u00b744-0\u00b769 vs 0\u00b754, 0\u00b740-0\u00b761; p=0\u00b792). For serious bacterial infections, the optimal cutoffs for procalcitonin and C-reactive protein were 0\u00b717 ng/mL and 16\u00b718 mg/L, respectively. Heterogeneity was low for studies investigating the test accuracy of procalcitonin in detecting invasive bacterial infection (I2=23\u00b75%), high for studies investigating procalcitonin for serious bacterial infection (I2=75\u00b75%), and moderate for studies investigating C-reactive protein for invasive bacterial infection (I2=49\u00b75%) and serious bacterial infection (I2=28\u00b73%). The absence of a single definition of serious bacterial infection across studies was the greatest source of interstudy variability and potential bias.\nWithin a large cohort of febrile infants, a procalcitonin cutoff of 0\u00b75 ng/mL had a superior pAUC value to a C-reactive protein cutoff of 20 mg/L for identifying invasive bacterial infections. In settings without access to procalcitonin, C-reactive protein should therefore be used cautiously for the identification of invasive bacterial infections, and a cutoff value below 20 mg/L should be considered. C-reactive protein and procalcitonin showed similar test accuracy for the identification of serious bacterial infection with internationally recognised cutoff values. This might reflect the challenges involved in confirming serious bacterial infection and the absence of a universally accepted definition of serious bacterial infection.\nNone.",
+        "sha256": "c868c12e0bab272e35a344aa1120554c7198a81441855c0647fae6c6002581b5",
+        "retrieved_at": "2026-09-19T02:14:59.952862+00:00"
+      },
+      {
+        "id": "42189531",
+        "title": "Prevalence of Invasive Bacterial Infections Among Febrile Infants Aged 60 to 90 Days: A Systematic Review and Meta-Analysis.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/42189531/",
+        "abstract": "The prevalence of invasive bacterial infections (IBIs), specifically bacteremia and bacterial meningitis, is not well established among febrile infants in the third month of life. International guidelines exclude or vary in management recommendations for this age group.\nTo assess the prevalence of IBIs among febrile infants aged 60 to 90 days.\nMEDLINE, Embase, the Cochrane Central Register of Controlled Trials, and Scopus were searched with deliberate limitation to studies between January 1, 2000, to October 2, 2025, and analyzed in December 2025.\nStudies were included that reported on previously healthy, well-appearing febrile infants 60 to 90 days old evaluated in emergency department or outpatient settings and for whom patient-level IBI status could be ascertained.\nData were extracted in accordance with Preferred Reporting Items for Systematic Reviews and Meta-Analyses (PRISMA) reporting guidelines, and risk of bias was assessed using the Joanna Briggs Institute critical appraisal Checklist for Prevalence Studies. Pooled prevalences were calculated using random-effects generalized linear mixed models of logit-transformed single proportions of cases.\nThe primary outcome was the prevalence of IBI. Secondary outcomes included the prevalence of bacteremia and bacterial meningitis separately.\nThe search yielded 13\u202f130 records; 59 studies were included (20 distinct datasets of 34\u202f835 infants). The pooled prevalence of IBI was 1.11% (95% CI, 0.84%-1.47%), bacteremia was 1.01% (95% CI, 0.76%-1.34%), and bacterial meningitis was 0.11% (95% CI, 0.08%-0.16%). Results were consistent across multiple sensitivity analyses excluding (1) retrospective cohorts; (2) cohorts of only infants with fever without source; (3) cohorts with shorter clinical follow-up of less than 7 days; and (4) the largest study (66% of all included patients).\nIn this systematic review and meta-analysis, the pooled prevalence of IBI among well-appearing febrile infants in the third month of life was 1.11%; bacteremia accounted for most cases, whereas bacterial meningitis was rare. These contemporary prevalence estimates should inform guideline development and shared parent and clinician decision-making for the management of these infants.",
+        "sha256": "fb5396062949dc7ed5b4c89c2a0bcecccb99a139b42a987b90233f16ea5c0754",
+        "retrieved_at": "2026-09-19T02:14:59.952862+00:00",
+        "pmcid": "PMC13213604"
+      },
+      {
+        "id": "31473824",
+        "title": "Bacterial meningitis in febrile young infants acutely assessed for presumed urinary tract infection: a systematic review.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31473824/",
+        "abstract": "Urinary tract infections, the most common severe bacterial infections in young infants, may be associated with co-existing meningitis. There is no consensus on when to perform a lumbar puncture in these infants. Our aim was to quantify the frequency of co-existing bacterial meningitis in febrile young infants acutely assessed for presumed urinary tract infections. We systematically reviewed PubMed, EMBASE, and the Cochrane Library for studies including infants \u2264\u20093\u00a0months with suspected/confirmed urinary tract infections, who underwent a lumbar puncture. Two investigators independently reviewed articles for inclusion and extracted relevant data. Our outcomes were culture-confirmed meningitis and identification of low-/high-risk criteria of meningitis. Overall 20/2079 studies, including 4191 infants, met inclusion criteria. A total of 11 infants had bacterial meningitis (frequency between 0 and 2.1% across studies) and were mostly neonates. Of 253 infants meeting the low-risk criteria (well-appearing, age\u2009>\u200921\u00a0days, procalcitonin \u2264\u20090.5\u00a0ng/ml, and C reactive protein \u2264\u200920\u00a0mg/L) none developed meningitis, but only 15 underwent lumbar puncture.Conclusion: Co-existing bacterial meningitis in febrile young infants with urinary tract infection is rare. In those meeting low-risk criteria, a lumbar puncture may not be indicated. A case by case assessment should be made in infants not meeting low-risk criteria.Trial registration: CRD42018105339 What is known: \u2022 When caring for febrile infants \u2264\u20093\u00a0months with urinary tract infections, clinicians may have uncertainty on whether to perform a lumbar puncture (LP) for possible co-existing meningitis What is new: \u2022 An up-to-date systematic review of 20 studies found the frequency of co-existing meningitis in this population to be between 0 and 2.1% \u2022 Despite limited data, an LP may not be indicated in infants meeting low-risk criteria (being well-appearing, age\u2009>\u200921\u00a0days, procalcitonin \u2264\u20090.5\u00a0ng/ml, C reactive protein \u2264 20 mg/L). Ill-appearance and neonatal age appear to be significant risk factors of co-existing meningitis.",
+        "sha256": "afe788e9efda253b65cb0fa0b1750db11034c06a4289358383cd20b3fa323644",
+        "retrieved_at": "2026-09-19T02:14:59.952862+00:00"
+      },
+      {
+        "id": "33978724",
+        "title": "Prevalence of Bacterial Meningitis Among Febrile Infants Aged 29-60 Days With Positive Urinalysis Results: A Systematic Review and Meta-analysis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33978724/",
+        "abstract": "Fever in the first months of life remains one of the most common pediatric problems. Urinary tract infections are the most frequent serious bacterial infections in this population. All published guidelines and quality initiatives for febrile young infants recommend lumbar puncture (LP) and cerebrospinal fluid (CSF) testing on the basis of a positive urinalysis result to exclude bacterial meningitis as a cause. For well infants older than 28 days with an abnormal urinalysis result, LP remains controversial.\nTo assess the prevalence of bacterial meningitis among febrile infants 29 to 60 days of age with a positive urinalysis result to evaluate whether LP is routinely required.\nMEDLINE and Embase were searched for articles published from January 1, 2000, to July 25, 2018, with deliberate limitation to recent studies. Before analysis, the search was repeated (October 6, 2019) to ensure that new studies were included.\nStudies that reported on healthy, full-term, well-appearing febrile infants 29 to 60 days of age for whom patient-level data could be ascertained for urinalysis results and meningitis status were included.\nData were extracted in accordance with Preferred Reporting Items for Systematic Reviews and Meta-analyses (PRISMA) guidelines and used the Newcastle-Ottawa Scale to assess bias. Pooled prevalences and odds ratios (ORs) were estimated using random-effect models.\nThe primary outcome was the prevalence of culture-proven bacterial meningitis among infants with positive urinalysis results. The secondary outcome was the prevalence of bacterial meningitis, defined by CSF testing or suggestive history at clinical follow-up.\nThe parent search yielded 3227 records; 48 studies were included (17 distinct data sets of 25\u202f374 infants). The prevalence of culture-proven meningitis was 0.44% (95% CI, 0.25%-0.78%) among 2703 infants with positive urinalysis results compared with 0.50% (95% CI, 0.33%-0.76%) among 10 032 infants with negative urinalysis results (OR, 0.74; 95% CI, 0.39-1.38). The prevalence of bacterial meningitis was 0.25% (95% CI, 0.14%-0.45%) among 4737 infants with meningitis status ascertained by CSF testing or clinical follow-up and 0.28% (95% CI, 0.21%-0.36%) among 20 637 infants with positive and negative urinalysis results (OR, 0.89; 95% CI, 0.48-1.68).\nIn this systematic review and meta-analysis, the prevalence of bacterial meningitis in well-appearing febrile infants 29 to 60 days of age with positive urinalysis results ranged from 0.25% to 0.44% and was not higher than that in infants with negative urinalysis results. These results suggest that for these infants, the decision to use LP should not be guided by urinalysis results alone.",
+        "sha256": "6bfa3838845f58e0a3378a8b2cf405fbc6d8fbaf841fabaad1cd0160e85ae565",
+        "retrieved_at": "2026-09-19T02:15:00.583835+00:00",
+        "pmcid": "PMC8116985"
+      },
+      {
+        "id": "42419745",
+        "title": "Machine Learning to Identify Bacteremia and Meningitis in Febrile Infants: A Systematic Review.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/42419745/",
+        "abstract": "The accurate identification of febrile infants who are at risk for invasive bacterial infections (IBIs), ie, bacteremia and meningitis, is essential to reduce morbidity and avoid unnecessary procedures. The role of machine learning (ML) in improving their diagnostic accuracy remains under evaluation.\nTo systematically review the diagnostic performance of ML-based models for identifying febrile infants aged up to 90\u00a0days with IBIs.\nComprehensive searches of MEDLINE, Scopus, Embase, CINAHL, CENTRAL, ClinicalTrials.gov, and World Health Organization International Clinical Trial Registry Platform databases through December 2024.\nEligible studies applied ML models to febrile infants aged up to 90\u00a0days to identify IBIs and reported diagnostic metrics and used culture-confirmed infections as the reference standard. Of 4756 screened records, 6 met inclusion criteria.\nTwo reviewers independently extracted study characteristics, model types, outcomes, and accuracy measures. Risk of bias was assessed using a modified Quality Assessment of Diagnostic Accuracy Studies 2 tool. Marked methodological heterogeneity precluded meta-analysis.\nSix studies evaluated various ML models, including logistic regression, random forests, neural networks, support vector machines, and ensemble. Sensitivity ranged from 57% to 100%, specificity ranged from 30% to 94%, and ROC-AUC ranged from 0.57 to 0.9. Several models outperformed traditional tools (eg, PECARN, Step-by-Step), particularly in specificity, for IBI prediction.\nLimitations included the predominance of retrospective data collection, limited reporting on data handling, and lack of external validation.\nML models show promising performance for identifying infants at risk for IBIs, improving specificity over traditional tools. Future work should systematically incorporate and transparently report explainability analyses to support clinical interpretability. Broader validation, methodological standardization, and careful clinical integration are essential before adoption.",
+        "sha256": "074cdec074c66b711f88d54a2a02bbc0f81d15d820b4c385f31dccd0b7253b51",
+        "retrieved_at": "2026-09-19T01:19:47.217151+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This 45-day-old term infant is well appearing and has low-risk inflammatory markers: procalcitonin 0.18 ng/mL and C-reactive protein 8 mg/L, both below the reported thresholds of 0.5 ng/mL and 20 mg/L. Evidence in well-appearing febrile infants aged 29 to 60 days shows that a positive urinalysis does not independently increase the prevalence of bacterial meningitis and therefore should not, by itself, determine the need for lumbar puncture. A systematic review specifically addressing infants with UTI also found no meningitis among those meeting these low-risk criteria, although the data were limited. Thus CSF testing need not be performed routinely solely because of the confirmed E. coli UTI; continued clinical assessment and individualized/shared decision-making remain appropriate.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34281996"
+              ],
+              "reason": "The guideline abstract explicitly defines its population as well-appearing, term infants aged 8 to 60 days with fever of at least 38.0\u00b0C; this patient fits that stated scope.",
+              "source_passage_ids": [
+                "34281996:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34281996",
+                  "quote": "This guideline addresses the evaluation and management of well-appearing, term infants, 8 to 60 days of age, with fever \u226538.0\u00b0C. Exclusions are noted. After a commissioned evidence-based review by the Agency for Healthcare Research and Quality, an additional extensive and ongoing review of the literature, and supplemental data from published, peer-reviewed studies provided by active investigators, 21 key action statements were derived. For each key action statement, the quality of evidence and benefit-harm relationship were assessed and graded to determine the strength of recommendations. When appropriate, parents' values and preferences should be incorporated as part of shared decision-making. For diagnostic testing, the committee has attempted to develop numbers needed to test, and for antimicrobial administration, the committee provided numbers needed to treat."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "33978724"
+              ],
+              "reason": "The meta-analysis directly reports that meningitis prevalence in well-appearing febrile infants aged 29 to 60 days was not higher with a positive urinalysis than with a negative urinalysis.",
+              "source_passage_ids": [
+                "33978724:p2",
+                "33978724:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33978724",
+                  "quote": "The parent search yielded 3227 records; 48 studies were included (17 distinct data sets of 25 374 infants). The prevalence of culture-proven meningitis was 0.44% (95% CI, 0.25%-0.78%) among 2703 infants with positive urinalysis results compared with 0.50% (95% CI, 0.33%-0.76%) among 10 032 infants with negative urinalysis results (OR, 0.74; 95% CI, 0.39-1.38). The prevalence of bacterial meningitis was 0.25% (95% CI, 0.14%-0.45%) among 4737 infants with meningitis status ascertained by CSF testing or clinical follow-up and 0.28% (95% CI, 0.21%-0.36%) among 20 637 infants with positive and negative urinalysis results (OR, 0.89; 95% CI, 0.48-1.68)."
+                },
+                {
+                  "source_id": "33978724",
+                  "quote": "In this systematic review and meta-analysis, the prevalence of bacterial meningitis in well-appearing febrile infants 29 to 60 days of age with positive urinalysis results ranged from 0.25% to 0.44% and was not higher than that in infants with negative urinalysis results. These results suggest that for these infants, the decision to use LP should not be guided by urinalysis results alone."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33978724"
+              ],
+              "reason": "The study's conclusion explicitly states that the lumbar-puncture decision should not be guided by urinalysis results alone in this population.",
+              "source_passage_ids": [
+                "33978724:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33978724",
+                  "quote": "In this systematic review and meta-analysis, the prevalence of bacterial meningitis in well-appearing febrile infants 29 to 60 days of age with positive urinalysis results ranged from 0.25% to 0.44% and was not higher than that in infants with negative urinalysis results. These results suggest that for these infants, the decision to use LP should not be guided by urinalysis results alone."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "31473824"
+              ],
+              "reason": "The systematic review explicitly lists well appearance, age over 21 days, procalcitonin at or below 0.5 ng/mL, and CRP at or below 20 mg/L as its low-risk criteria.",
+              "source_passage_ids": [
+                "31473824:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31473824",
+                  "quote": "A total of 11 infants had bacterial meningitis (frequency between 0 and 2.1% across studies) and were mostly neonates. Of 253 infants meeting the low-risk criteria (well-appearing, age > 21 days, procalcitonin \u2264 0.5 ng/ml, and C reactive protein \u2264 20 mg/L) none developed meningitis, but only 15 underwent lumbar puncture.Conclusion: Co-existing bacterial meningitis in febrile young infants with urinary tract infection is rare. In those meeting low-risk criteria, a lumbar puncture may not be indicated."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "31473824"
+              ],
+              "reason": "The review concludes, while acknowledging limited data, that lumbar puncture may not be indicated in infants with urinary infection who meet the specified low-risk criteria.",
+              "source_passage_ids": [
+                "31473824:p1",
+                "31473824:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31473824",
+                  "quote": "A total of 11 infants had bacterial meningitis (frequency between 0 and 2.1% across studies) and were mostly neonates. Of 253 infants meeting the low-risk criteria (well-appearing, age > 21 days, procalcitonin \u2264 0.5 ng/ml, and C reactive protein \u2264 20 mg/L) none developed meningitis, but only 15 underwent lumbar puncture.Conclusion: Co-existing bacterial meningitis in febrile young infants with urinary tract infection is rare. In those meeting low-risk criteria, a lumbar puncture may not be indicated."
+                },
+                {
+                  "source_id": "31473824",
+                  "quote": "A case by case assessment should be made in infants not meeting low-risk criteria.Trial registration: CRD42018105339 What is known: \u2022 When caring for febrile infants \u2264 3 months with urinary tract infections, clinicians may have uncertainty on whether to perform a lumbar puncture (LP) for possible co-existing meningitis What is new: \u2022 An up-to-date systematic review of 20 studies found the frequency of co-existing meningitis in this population to be between 0 and 2.1% \u2022 Despite limited data, an LP may not be indicated in infants meeting low-risk criteria (being well-appearing, age > 21 days, procalcitonin \u2264 0.5 ng/ml, C reactive protein \u2264 20 mg/L). Ill-appearance and neonatal age appear to be significant risk factors of co-existing meningitis."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Answer B is the independently supported choice. The infant is 45 days old, term, previously healthy, well appearing, and neurologically normal, with procalcitonin 0.18 ng/mL and CRP 8 mg/L. Two directly relevant systematic reviews support not treating a positive urinalysis or urinary infection as an automatic indication for lumbar puncture: one found no higher meningitis prevalence with positive versus negative urinalysis in well-appearing infants aged 29 to 60 days, and the other concluded that lumbar puncture may not be indicated when the stated low-risk criteria are met. B is appropriately qualified as a non-routine approach based on the urinary findings alone rather than an absolute prohibition on lumbar puncture. Candidate A's universal requirement is contradicted by this evidence. The visible title, question, and note do not reveal the intended answer. This decision is distinct from the prior bronchiolitis respiratory-support case."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The infant is 45 days old, term, previously healthy, well appearing, and has low inflammatory markers: procalcitonin 0.18 ng/mL and CRP 8 mg/L. Evidence in febrile infants with UTI/positive urinalysis shows that coexisting bacterial meningitis is rare, and lumbar puncture decisions should not be based on a positive urinalysis alone. A systematic review of infants with suspected/confirmed UTI found that low-risk infants\u2014well appearing, older than 21 days, procalcitonin \u22640.5 ng/mL, and CRP \u226420 mg/L\u2014had no meningitis cases in the reported low-risk group and concluded that LP may not be indicated in such infants. A meta-analysis of well-appearing febrile infants 29-60 days old found bacterial meningitis prevalence was not higher with positive urinalysis and stated that LP should not be guided by urinalysis results alone. Therefore, option B is more appropriate than a routine mandatory LP solely because of E. coli UTI.",
+          "confidence": 0.93
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34281996"
+              ],
+              "reason": "The supplied abstract supports the scope of the febrile-infant guideline as applying to well-appearing, term infants 8 to 60 days old with fever at least 38.0\u00b0C.",
+              "source_passage_ids": [
+                "34281996:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34281996",
+                  "quote": "This guideline addresses the evaluation and management of well-appearing, term infants, 8 to 60 days of age, with fever \u226538.0\u00b0C. Exclusions are noted. After a commissioned evidence-based review by the Agency for Healthcare Research and Quality, an additional extensive and ongoing review of the literature, and supplemental data from published, peer-reviewed studies provided by active investigators, 21 key action statements were derived. For each key action statement, the quality of evidence and benefit-harm relationship were assessed and graded to determine the strength of recommendations. When appropriate, parents' values and preferences should be incorporated as part of shared decision-making. For diagnostic testing, the committee has attempted to develop numbers needed to test, and for antimicrobial administration, the committee provided numbers needed to treat."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "33978724"
+              ],
+              "reason": "The meta-analysis included healthy, full-term, well-appearing febrile infants aged 29 to 60 days and found similar bacterial meningitis prevalence in positive versus negative urinalysis groups, with the conclusion that prevalence was not higher with positive urinalysis results.",
+              "source_passage_ids": [
+                "33978724:p1",
+                "33978724:p2",
+                "33978724:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33978724",
+                  "quote": "Before analysis, the search was repeated (October 6, 2019) to ensure that new studies were included. Studies that reported on healthy, full-term, well-appearing febrile infants 29 to 60 days of age for whom patient-level data could be ascertained for urinalysis results and meningitis status were included. Data were extracted in accordance with Preferred Reporting Items for Systematic Reviews and Meta-analyses (PRISMA) guidelines and used the Newcastle-Ottawa Scale to assess bias. Pooled prevalences and odds ratios (ORs) were estimated using random-effect models. The primary outcome was the prevalence of culture-proven bacterial meningitis among infants with positive urinalysis results. The secondary outcome was the prevalence of bacterial meningitis, defined by CSF testing or suggestive history at clinical follow-up."
+                },
+                {
+                  "source_id": "33978724",
+                  "quote": "The parent search yielded 3227 records; 48 studies were included (17 distinct data sets of 25 374 infants). The prevalence of culture-proven meningitis was 0.44% (95% CI, 0.25%-0.78%) among 2703 infants with positive urinalysis results compared with 0.50% (95% CI, 0.33%-0.76%) among 10 032 infants with negative urinalysis results (OR, 0.74; 95% CI, 0.39-1.38). The prevalence of bacterial meningitis was 0.25% (95% CI, 0.14%-0.45%) among 4737 infants with meningitis status ascertained by CSF testing or clinical follow-up and 0.28% (95% CI, 0.21%-0.36%) among 20 637 infants with positive and negative urinalysis results (OR, 0.89; 95% CI, 0.48-1.68)."
+                },
+                {
+                  "source_id": "33978724",
+                  "quote": "In this systematic review and meta-analysis, the prevalence of bacterial meningitis in well-appearing febrile infants 29 to 60 days of age with positive urinalysis results ranged from 0.25% to 0.44% and was not higher than that in infants with negative urinalysis results. These results suggest that for these infants, the decision to use LP should not be guided by urinalysis results alone."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33978724"
+              ],
+              "reason": "The source directly concludes that, for well-appearing febrile infants aged 29 to 60 days, LP decisions should not be guided by urinalysis results alone.",
+              "source_passage_ids": [
+                "33978724:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33978724",
+                  "quote": "In this systematic review and meta-analysis, the prevalence of bacterial meningitis in well-appearing febrile infants 29 to 60 days of age with positive urinalysis results ranged from 0.25% to 0.44% and was not higher than that in infants with negative urinalysis results. These results suggest that for these infants, the decision to use LP should not be guided by urinalysis results alone."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "31473824"
+              ],
+              "reason": "The systematic review explicitly lists the low-risk criteria as well appearance, age greater than 21 days, procalcitonin \u22640.5 ng/mL, and CRP \u226420 mg/L.",
+              "source_passage_ids": [
+                "31473824:p1",
+                "31473824:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31473824",
+                  "quote": "A total of 11 infants had bacterial meningitis (frequency between 0 and 2.1% across studies) and were mostly neonates. Of 253 infants meeting the low-risk criteria (well-appearing, age > 21 days, procalcitonin \u2264 0.5 ng/ml, and C reactive protein \u2264 20 mg/L) none developed meningitis, but only 15 underwent lumbar puncture.Conclusion: Co-existing bacterial meningitis in febrile young infants with urinary tract infection is rare. In those meeting low-risk criteria, a lumbar puncture may not be indicated."
+                },
+                {
+                  "source_id": "31473824",
+                  "quote": "A case by case assessment should be made in infants not meeting low-risk criteria.Trial registration: CRD42018105339 What is known: \u2022 When caring for febrile infants \u2264 3 months with urinary tract infections, clinicians may have uncertainty on whether to perform a lumbar puncture (LP) for possible co-existing meningitis What is new: \u2022 An up-to-date systematic review of 20 studies found the frequency of co-existing meningitis in this population to be between 0 and 2.1% \u2022 Despite limited data, an LP may not be indicated in infants meeting low-risk criteria (being well-appearing, age > 21 days, procalcitonin \u2264 0.5 ng/ml, C reactive protein \u2264 20 mg/L). Ill-appearance and neonatal age appear to be significant risk factors of co-existing meningitis."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "31473824"
+              ],
+              "reason": "The systematic review concludes that co-existing meningitis is rare in this population and that LP may not be indicated in infants meeting the specified low-risk criteria, while acknowledging limited data and recommending case-by-case assessment outside the low-risk group.",
+              "source_passage_ids": [
+                "31473824:p1",
+                "31473824:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31473824",
+                  "quote": "A total of 11 infants had bacterial meningitis (frequency between 0 and 2.1% across studies) and were mostly neonates. Of 253 infants meeting the low-risk criteria (well-appearing, age > 21 days, procalcitonin \u2264 0.5 ng/ml, and C reactive protein \u2264 20 mg/L) none developed meningitis, but only 15 underwent lumbar puncture.Conclusion: Co-existing bacterial meningitis in febrile young infants with urinary tract infection is rare. In those meeting low-risk criteria, a lumbar puncture may not be indicated."
+                },
+                {
+                  "source_id": "31473824",
+                  "quote": "A case by case assessment should be made in infants not meeting low-risk criteria.Trial registration: CRD42018105339 What is known: \u2022 When caring for febrile infants \u2264 3 months with urinary tract infections, clinicians may have uncertainty on whether to perform a lumbar puncture (LP) for possible co-existing meningitis What is new: \u2022 An up-to-date systematic review of 20 studies found the frequency of co-existing meningitis in this population to be between 0 and 2.1% \u2022 Despite limited data, an LP may not be indicated in infants meeting low-risk criteria (being well-appearing, age > 21 days, procalcitonin \u2264 0.5 ng/ml, C reactive protein \u2264 20 mg/L). Ill-appearance and neonatal age appear to be significant risk factors of co-existing meningitis."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The clinical decision is pediatric febrile-infant risk stratification. The infant is 45 days old, term, previously healthy, well appearing, febrile to 38.2\u00b0C, with E. coli UTI, procalcitonin 0.18 ng/mL, and CRP 8 mg/L. The supplied evidence supports that, among well-appearing febrile infants aged 29 to 60 days, a positive urinalysis does not by itself confer higher bacterial meningitis prevalence and should not alone determine the LP decision. A separate systematic review supports the stated low-risk criteria and concludes that LP may not be indicated for infants with UTI who meet them. Candidate B is therefore the better and safe answer because it avoids an automatic LP solely due to urinary findings while tying the decision to age, appearance, and inflammatory-marker risk. Candidate A overstates the need for CSF testing and conflicts with the cited meta-analysis. The visible title, question, and note do not disclose the intended answer or management plan; they only set up the clinical decision. The AAP guideline abstract supplied here establishes the relevant age/appearance/fever scope but does not itself provide the LP algorithm, so the decisive support comes from the two substantive systematic reviews/meta-analyses rather than from an unsupported guideline algorithm claim. The prior case involved bronchiolitis oxygen support, so this is a distinct clinical decision."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "e913d3af714a4e8af40c87624ab27d68ce44f4d1156e0053500d78810fa3d3e7"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

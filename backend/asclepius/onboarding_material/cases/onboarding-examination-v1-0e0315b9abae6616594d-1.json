@@ -1,0 +1,562 @@
+{
+  "task_id": "onboarding-examination-v1-0e0315b9abae6616594d-1",
+  "specialty": "physical medicine and rehabilitation",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Recurrent bladder-associated episodes after cervical spinal cord injury",
+    "question": "Which candidate offers the more appropriate approach to reducing future episodes in this patient?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "physical medicine and rehabilitation",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Chronic traumatic C5 spinal cord injury",
+          "since": "5 years",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Neurogenic lower urinary tract dysfunction",
+          "since": "5 years",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Recurrent symptomatic hypertension during bladder filling",
+          "since": "6 months",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Oxybutynin extended release, previous trial discontinued",
+          "dose": null,
+          "route": "oral",
+          "freq": null,
+          "collected_offset_days": -120
+        }
+      ],
+      "vitals": {
+        "current_blood_pressure": "104/64 mmHg",
+        "current_heart_rate": "66 beats/min",
+        "current_respiratory_rate": "16 breaths/min",
+        "current_oxygen_saturation": "98% on room air"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Spinal cord injury clinic follow-up",
+          "author_role": "physical medicine and rehabilitation",
+          "text": "The patient has a chronic C5 spinal cord injury and uses caregiver-assisted intermittent catheterization on a consistent schedule. Over six months, bladder filling has repeatedly been accompanied by pounding headache, facial flushing, sweating above the injury level, and marked blood-pressure elevation; bladder drainage promptly ends the symptoms. Catheterization has not recently been delayed. There is no current catheter obstruction, constipation, pressure injury, fever, dysuria, or other urinary infection symptom. A prior oral oxybutynin trial was stopped after intolerable dry mouth and worsening constipation, and the episodes continued during that trial. He is asymptomatic today, and his bladder was emptied before arrival.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Multichannel urodynamic study",
+          "label": "Bladder filling assessment",
+          "findings": "Bladder filling produced involuntary detrusor contractions. During one contraction, blood pressure increased from 102/62 mmHg to 188/104 mmHg, accompanied by headache, facial flushing, and sweating. The study was stopped, the bladder was drained, and the symptoms and blood pressure returned toward baseline.",
+          "measurements": [
+            {
+              "analyte": "Baseline systolic blood pressure",
+              "loinc": null,
+              "value": 102,
+              "unit": "mmHg",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": true
+            },
+            {
+              "analyte": "Peak systolic blood pressure during detrusor contraction",
+              "loinc": null,
+              "value": 188,
+              "unit": "mmHg",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": true
+            }
+          ],
+          "impression": "Neurogenic detrusor overactivity accompanied by a symptomatic hypertensive episode during bladder filling.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -7
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional examination case for onboarding; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the assessed decision",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "Candidate A addresses elective prevention while retaining the dependable bladder-emptying routine in this currently stable patient. The patient also has objectively documented neurogenic detrusor overactivity with associated autonomic dysreflexia despite reliable intermittent catheterization and an intolerable oral antimuscarinic trial. Intradetrusor botulinum toxin is therefore an appropriate treatment to discuss with neuro-urology rather than a universally preferred first-line intervention. Evidence indicates that treating neurogenic detrusor overactivity with botulinum toxin can reduce the frequency or severity of associated episodes, but benefit is not guaranteed. Individualized procedural planning is necessary because detrusor suppression can increase urinary retention and injections may themselves provoke autonomic dysreflexia. Candidate B is flawed because evidence for peri-catheterization lidocaine is small and conflicting, and lidocaine would not adequately replace treatment of the documented bladder-filling trigger.",
+        "evidence": {
+          "decision_scope": "Elective prevention of recurrent bladder-triggered autonomic dysreflexia after oral antimuscarinic intolerance",
+          "clinical_context": "The patient is currently stable and is not experiencing an active hypertensive emergency."
+        },
+        "key_data": [
+          "The chronic C5 spinal cord injury places the patient within the lesion group at substantial risk for autonomic dysreflexia.",
+          "Symptoms arise during bladder filling and resolve promptly after bladder drainage.",
+          "Urodynamic testing documented involuntary detrusor contractions with symptomatic blood-pressure elevation from 102/62 to 188/104 mmHg.",
+          "Episodes persist despite consistent caregiver-assisted intermittent catheterization and absence of a current obstructed catheter or other apparent trigger.",
+          "An oral antimuscarinic trial was discontinued because of intolerable adverse effects.",
+          "Botulinum toxin requires individualized planning because urinary retention and procedure-associated autonomic dysreflexia are recognized concerns."
+        ]
+      },
+      "hard_hook": "The patient is stable now, so the assessed decision concerns prevention rather than management of an active hypertensive emergency.",
+      "reasoning_divergence": "The flawed response substitutes an inadequately supported procedural analgesic strategy for treatment directed at objectively documented neurogenic detrusor overactivity."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Maintain reliable scheduled catheterization. For elective prevention after oral antimuscarinic intolerance, discuss intradetrusor botulinum toxin with neuro-urology using individualized planning for retention and procedure-associated dysreflexia; reduction of future episodes is possible but not guaranteed."
+      },
+      {
+        "id": "B",
+        "text": "Use topical urethral lidocaine before every catheterization as the primary long-term preventive measure and defer treatment directed at neurogenic detrusor overactivity because each episode resolves after the bladder is drained."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "autonomic dysreflexia",
+      "cervical spinal cord injury",
+      "hypertensive episode",
+      "bladder distension",
+      "urinary retention"
+    ],
+    "evidence_keywords": [
+      "neurogenic detrusor overactivity",
+      "intradetrusor botulinum toxin",
+      "intermittent catheterization",
+      "antimuscarinic intolerance",
+      "lidocaine evidence"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Autonomic dysreflexia is a severe and potentially life-threatening complication, particularly after spinal cord injury at or above T6.",
+        "source_ids": [
+          "42430939"
+        ]
+      },
+      {
+        "statement": "Bladder distension, neurogenic detrusor overactivity, urinary infection, and urological procedures are recognized lower urinary tract triggers of autonomic dysreflexia.",
+        "source_ids": [
+          "38393175"
+        ]
+      },
+      {
+        "statement": "Botulinum toxin is recommended for neurogenic lower urinary tract dysfunction in adults with spinal cord injury who are refractory to oral anticholinergic treatment.",
+        "source_ids": [
+          "38393175"
+        ]
+      },
+      {
+        "statement": "Studies of botulinum toxin treatment for neurogenic detrusor overactivity reported improved urodynamic findings and reduced autonomic dysreflexia severity during testing and daily life.",
+        "source_ids": [
+          "42430939"
+        ]
+      },
+      {
+        "statement": "Detrusor botulinum toxin treatment can increase urinary retention, and repeated bladder injections have sometimes provoked autonomic dysreflexia in people with spinal cord injury.",
+        "source_ids": [
+          "38393175"
+        ]
+      },
+      {
+        "statement": "Small studies of lidocaine for reducing autonomic dysreflexia have conflicting results and do not provide enough evidence to support or refute its use.",
+        "source_ids": [
+          "35962043"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T03:41:47.891895+00:00",
+    "author_model": null,
+    "sources": [
+      {
+        "id": "42430939",
+        "title": "Treating neurogenic detrusor overactivity in order to manage autonomic dysreflexia - A systematic review.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/42430939/",
+        "abstract": "Autonomic dysreflexia (AD) is a severe and potentially life-threatening complication of a spinal cord injury (SCI), particularly in patients with lesions at or above the sixth thoracic level. Neurogenic detrusor overactivity (NDO) is one of the main triggering factors. The impact of NDO treatment on AD remains insufficiently clarified.\nWe conducted a systematic review of the literature in PubMed and Cochrane Database between January 1990 and May 2025. Eligible studies included patients with SCI and AD undergoing treatment for NDO, including antimuscarinics, botulinum toxin (BTX) or augmentation cystoplasty. The primary outcome was the assessment of systolic blood pressure (SBP) parameters in patients undergoing cystomanometry.\nOf the thirteen eligible studies, only five were included. No study evaluated augmentation cystoplasty. One study (12 patients) evaluating fesoterodine and four studies (95 patients) evaluating BTX injection demonstrated improved urodynamic parameters and a decrease in severity of AD during urodynamic studies and in daily life. Improvements in AD-HR-QoL and I-QoL scores were also demonstrated.\nControlling NDO with fesoterodine or BTX injection reduces the prevalence and severity of AD, likely by limiting abnormal C-fiber recruitment and reducing neurogenic inflammation. BTX additionally modulates TRPV1-expressing afferents, which further reduces AD risk. Although hypertensive peaks improve, submaximal parameters remain unchanged, highlighting the need for additional complementary strategies.\nThe use of BTX and fesoterodine for NDO treatment effectively reduces AD episodes in patients with SCI. Further long-term studies are needed to confirm the cardiovascular benefits and inform future therapeutic strategies.",
+        "sha256": "fcdbab5904d6fb5b90b15a7d60e6954e3d682decb9ac75397a5b58c740c20ffd",
+        "retrieved_at": "2026-09-19T03:40:45.831189+00:00",
+        "source_type": "systematic_review"
+      },
+      {
+        "id": "38393175",
+        "title": "From Toxin to Treatment: A Narrative Review on the Use of Botulinum Toxin for Autonomic Dysfunction.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38393175/",
+        "abstract": "Since its regulatory approval over a half-century ago, botulinum toxin has evolved from one of the most potent neurotoxins known to becoming routinely adopted in clinical practice. Botulinum toxin, a highly potent neurotoxin produced by Clostridium botulinum, can cause botulism illness, characterized by widespread muscle weakness due to inhibition of acetylcholine transmission at neuromuscular junctions. The observation of botulinum toxin's anticholinergic properties led to the investigation of its potential benefits for conditions with an underlying etiology of cholinergic transmission, including autonomic nervous system dysfunction. These conditions range from disorders of the integument to gastrointestinal and urinary systems. Several formulations of botulinum toxin have been developed and tested over time, significantly increasing the availability of this treatment for appropriate clinical use. Despite the accelerated and expanded use of botulinum toxin, there lacks an updated comprehensive review on its therapeutic use, particularly to treat autonomic dysfunction. This narrative review provides an overview of the effect of botulinum toxin in the treatment of autonomic dysfunction and summarizes the different formulations and dosages most widely studied, while highlighting reported outcomes and the occurrence of any adverse events.",
+        "sha256": "881df5d496b7cf9e4f80ce10c72296a78e73cfa41a57eecfebe48f47b259908c",
+        "retrieved_at": "2026-09-19T03:40:45.831189+00:00",
+        "source_type": "secondary_clinical_review",
+        "pmcid": "PMC10892370",
+        "body_excerpts": "1. Introduction\nBotulinum toxin (BoNT) injections are among the most commonly performed procedures in the world [ 1 ]. The rapid development of BoNT can partially be attributed to its publicized role in cosmetics, but its clinical application for various motor and autonomic dysfunctions have made it an appealing treatment option since the 1970s. The first classical accounts of BoNT were reported in 1817 when Justinus Kerner discovered sausage-borne BoNT and Emile Pierre van Ermengem described a BoNT outbreak in a Belgian village in 1897 [ 2 , 3 ]. It was not until the 1970s that BoNT was used for clinical use by Dr. Alan Scott for the treatment of strabismus [ 4 ]. In 1989, botulinum-A toxin (BoNT-A) was approved by the United States Food and Drug Administration (FDA) for treating strabismus, blepharospasm, and facial nerve disorders, and in 2000, the FDA-approved botulinum-B toxin (BoNT-B) for cervical dystonia [ 5 ]. The initial approved uses for BoNT were to target somatic cholinergic transmission at the skeletal neuromuscular junction. By the turn of the 21st century, new applications of BoNT were emerging, focused on treating autonomic dysfunctions [ 6 ]. The wide range of medical applications can be attributed to the multiple formulations of BoNT, each designed for specific clinical indications.\n\n3. Targeting Autonomic Dysfunction with Botulinum Toxin\nThe autonomic nervous system (ANS) facilitates involuntary neural control over a diverse array of physiological functions. The ANS is compartmentalized into three major divisions: the sympathetic nervous system, parasympathetic nervous system, and enteric nervous system [ 22 , 23 , 24 ]. The sympathetic and parasympathetic nervous systems consist of efferent components with distinct anatomical organizations, where each is responsible for communicating with effector organs within the viscera, vasculature, and skin [ 22 , 25 ]. These efferent pathways are comprised of a preganglionic neuron with a cell body in the central nervous system (CNS) and a postganglionic neuron with a cell body within autonomic ganglia located outside the CNS that innervates target tissues. Specifically, sympathetic preganglionic neurons arise from spinal cord levels T1-L2 and synapse with ganglionic neurons in prevertebral or paravertebral ganglia. Parasympathetic preganglionic neurons arise from the brainstem (within nuclei of the cranial nerves II, VII, IX, X) and spinal cord levels S2\u2013S4, synapsing in ganglia close to their effector organ [ 23 , 24 ].\n\n3. Targeting Autonomic Dysfunction with Botulinum Toxin\nTransmission within both sympathetic and parasympathetic ganglia occurs via the transmission of acetylcholine (ACh) [ 24 ]. Postganglionic transmission by the majority of sympathetic postganglionic fibers occurs via the release of norepinephrine [ 22 , 24 , 26 ]. A small portion of postganglionic sympathetic neurons are cholinergic and release ACh at eccrine sweat glands and piloerector smooth muscles [ 27 ]. Sympathetic activation leads to responses including, but not limited to, increased blood pressure and heart rate, bronchodilation, decreased gastrointestinal motility and secretion, urinary retention, and sweating [ 23 ]. Postganglionic parasympathetic responses are determined by the transmission of ACh [ 28 , 29 , 30 ]. Parasympathetic activation leads to responses including, but not limited to, decreased heart rate, bronchoconstriction, increased gastrointestinal motility and secretion, and micturition [ 23 ].\n\n3. Targeting Autonomic Dysfunction with Botulinum Toxin\nIn general, autonomic dysfunction arises from perturbations to ANS signaling of idiopathic origin or associated with a known cause [ 31 , 32 , 33 , 34 ]. The usage of BoNT to treat autonomic dysfunctions lies in its ability to interfere with presynaptic cholinergic transmission within the sympathetic and parasympathetic postganglionic nerve fibers [ 10 ]. Figure 2 illustrates the potential sites of actions of BoNT to treat various autonomic dysfunctions.\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction\nThe following section discusses clinical evidence on the effects of different formulations and serotypes of BoNT on various autonomic dysfunctions. We implemented a narrative review protocol using prior published methodology [ 35 , 36 , 37 ]. A literature search was conducted using MEDLINE and PubMed electronic databases for studies published up until December 2022. Manual study searches were also performed using the reference list of articles during the search process. Included studies were clinical trials, case series, or case reports published in the English language before December 2022. Selected studies investigated the effects of botulinum toxin administered by injection to treat or manage autonomic dysfunction. Our search included the following keywords used in different combinations: \u201cbotulinum toxin\u201d, \u201caxillary hyperhidrosis\u201d, \u201cpalmar hyperhidrosis\u201d, \u201ccraniofacial hyperhidrosis\u201d, \u201csialorrhea\u201d, \u201cachalasia\u201d, \u201canal fissure\u201d, \u201cneurogenic detrusor overactivity\u201d, \u201cautonomic dysreflexia\u201d, \u201catrial fibrillation\u201d, \u201ccomplex regional pain syndrome\u201d. The selected literature is limited to the consensus of the authors. Table 2 summarizes the studies described.\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.1. Management of Hyperhidrosis\nHyperhidrosis is defined as excessive sweating as a result of increased sympathetic cholinergic activity on eccrine sweat glands, lasting six or more months [ 38 ]. It affects approximately 1\u20133% of the global population [ 38 ]. Hyperhidrosis can be classified based on distribution pattern into generalized and focal hyperhidrosis [ 38 , 39 ]. Generalized hyperhidrosis occurs over the entire body and can be primary (idiopathic) or secondary from a known cause, including infections, steroid use, menopause, hyperthyroidism, diabetes, obesity, and cancer [ 39 , 40 ]. Focal hyperhidrosis is localized to a specific areas of the body such as the axillae, face, palms, and soles. Similarly, focal hyperhidrosis can also be primary or secondary [ 39 , 40 ]. The major negative impact of hyperhidrosis involves the persistent softening of the skin from excess moisture, which can lead to skin maceration [ 40 ]. This increases the risk of cutaneous bacterial and fungal infections, particularly on the soles [ 40 ]. Other significant complications include psychosocial, as this condition can impact self-esteem, social interactions, relationships, and occupational choices [ 40 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.1. Management of Hyperhidrosis\nBoNT is used in the treatment of hyperhidrosis by blocking sympathetic cholinergic input to eccrine sweat glands [ 38 ]. Currently, Botox \u00ae is the only FDA-indicated treatment for severe primary axillary hyperhidrosis unmanageable with topical therapy [ 15 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.1. Management of Hyperhidrosis > 4.1.1. Management of Axillary Hyperhidrosis\nBotox \u00ae was demonstrated to be an effective treatment for axillary hyperhidrosis in two landmark clinical trials [ 41 , 42 ]. 50 U of Botox \u00ae injected per axilla resulted in a \u226550% reduction in sweating from baseline [ 41 ]. The effect of a single treatment of Botox \u00ae lasted up to 16 weeks, with repeated treatments resulting in a prolonged mean duration of effect of over 30 weeks [ 41 , 42 ]. Doses of 75 U of Botox \u00ae , demonstrated similar efficacy to 50 U [ 43 ]. Other formulations of BoNT, including 100\u2013200 U Dysport \u00ae , 50\u2013100 U Xeomin \u00ae , or 2000\u20134000 U of Myobloc TM per axilla, have been demonstrated to all lead to sweat reduction \u2265 50% from baseline between 16\u201348 weeks [ 43 , 44 , 45 , 46 , 47 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.1. Management of Hyperhidrosis > 4.1.2. Management of Palmar Hyperhidrosis\nAlthough there are no BoNT formulations that are FDA-approved to treat palmar hyperhidrosis, off-label injection of BoNT into the palmar surface has proved to be effective. Schnider and colleagues were the first to demonstrate this in an open-label clinical trial investigating palmar hyperhidrosis present from early childhood [ 48 ]. 120 U of Dysport \u00ae significantly reduced palmar hyperhidrosis at follow-up tests 3-, 8-, and 13-weeks post-injection [ 48 ]. In addition, total doses of 25\u2013150 U of Botox \u00ae , 120\u2013284 U Dysport \u00ae , 25\u2013150 U Xeomin \u00ae , or 5000 U Myobloc TM have all been reported to decrease palmar sweating for ranges from 28 days to 24 weeks [ 48 , 49 , 50 , 51 , 52 , 53 , 54 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.1. Management of Hyperhidrosis > 4.1.3. Management of Craniofacial Hyperhidrosis\nCraniofacial hyperhidrosis is defined as excessive sweating typically around the forehead, and less often around the upper lip, cheeks, and chin [ 55 ]. Currently, there are no FDA-approved BoNT formulations to treat craniofacial hyperhidrosis. Few studies have reported that craniofacial hyperhidrosis can be treated with off-label Botox \u00ae in ranging doses from 10 U at the chin or upper lip, and up to 300 U for the scalp and forehead [ 55 , 56 , 57 , 58 ]. Secondary postmenopausal craniofacial hyperhidrosis, common in 10% of women 10 years after menopause, was also reported to be controlled with 100 U BoNT-A as well as a total of 2250 U Myobloc TM [ 59 , 60 , 61 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.1. Management of Hyperhidrosis > 4.1.3. Management of Craniofacial Hyperhidrosis\nAdverse systemic effects of BoNT for the treatment of hyperhidrosis are rare. Some studies reported no adverse events [ 45 ], whereas others reported local adverse events, including pain related to injection, temporary numbness, and weakness at the injection site [ 48 , 49 , 51 , 62 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.2. Management of Sialorrhea\nSialorrhea is a condition characterized by excess saliva within the oral cavity pushing past the lip margin [ 63 ]. This can occur from an excessive production of saliva by the salivary glands or an inability to clear saliva from the oral cavity [ 63 , 64 , 65 ]. Salivation is primarily regulated by the parasympathetic branch of the ANS, involving the presynaptic release of acetylcholine at the glands [ 63 , 65 ]. The majority of saliva is produced by three pairs of major salivary glands: the parotid, submandibular, and sublingual glands [ 63 , 64 , 65 ]. Excess saliva production can be idiopathic, drug-induced, or condition-induced, whereas the inability to clear saliva from the oral cavity is commonly observed in neurological disorders such as amyotrophic lateral sclerosis (ALS), Parkinson\u2019s disease (PD), cerebral palsy (CP), or stroke [ 63 , 64 , 66 ]. Sialorrhea can lead to physical complications, including an increased risk of perioral infection, dehydration, and choking [ 67 ]. Social stigmatization is a possibility, as those with sialorrhea may be unable to control their salivation and have to wear a bib towel to soak up excess saliva [ 67 ]. Currently, anticholinergic medications such as oral glycopyrrolate and sublingual ipratropium bromide are recommended to control sialorrhea in conditions like ALS [ 68 , 69 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.2. Management of Sialorrhea\nBoNT injected at the salivary glands can mitigate presynaptic cholinergic signaling and limit saliva production in conditions like sialorrhea [ 64 ]. Currently, both Xeomin \u00ae and Myobloc TM are FDA-approved treatments for chronic sialorrhea [ 16 , 17 ]. The FDA-recommended total dose of Xeomin \u00ae is 100 U (30 U per parotid gland and 20 U per submandibular gland) at most every 16 weeks [ 17 ]. The FDA-recommended total dose of Myobloc TM is 1500\u20133500 U (500\u20131500 U per parotid gland and 250 U per submandibular gland) at most every 12 weeks [ 18 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.2. Management of Sialorrhea\nThe efficacy of BoNT as a treatment for sialorrhea was first demonstrated by Bhatia and colleagues in 1999 [ 70 ]. A 20 U injection of Dysport \u00ae subcutaneously near the parotid gland reduced salivation to the point where patients no longer had to use a towel to collect saliva; this effect lasted for over six weeks. Dosage ranges of 50\u2013200 U of Dysport \u00ae per parotid gland have been studied in clinical trials, all resulting in similar improvements in reducing salivation. Doses of 200 U show the greatest effects, lasting for up to 24 weeks [ 71 , 72 ]. Greater immediate reductions in sialorrhea are also observed when a greater number of glands are injected in patients with sialorrhea from PD, stroke, or ALS [ 73 ]. In a comparative study of Botox \u00ae and Xeomin \u00ae , Restivo and colleagues showed that while different injections of both BoNT-A toxins significantly reduced salivation to similar degrees, Botox \u00ae was effective when four glands were injected versus three. Xeomin \u00ae was effective when three glands were injected versus two [ 73 ]. Long-term BoNT injections of Xeomin \u00ae are also effective at treating persistent chronic sialorrhea in PD without increasing the risk of adverse events over time [ 74 , 75 ]. Jost and colleagues administered either 75 U or 100 U of Xeomin \u00ae at four visits over a period of 48 weeks. They found that Xeomin \u00ae was capable of reducing salivation in both a dose- and time-dependent manner, lasting up to 16 weeks post-injection, without precipitating any adverse events from reinjection. BoNT-B toxins such as Neurobloc TM /Myobloc TM can also mitigate sialorrhea in patients with bulbar-onset ALS. Total doses of 1250\u20133500 U of Myobloc TM reduced excessive salivation as soon as one week after injection, lasting up to 12\u201313 weeks across two studies [ 76 , 77 ]. A direct comparison of BoNT-A and BoNT-B in a randomized, double-blind pilot study by Guidubaldi and colleagues demonstrated that 250 U of Dysport \u00ae or 2500 U of Neurobloc TM were similarly safe and effective in mitigating sialorrhea associated with ALS and PD [ 78 ]. In summary, both BoNT-A and -B toxins are similarly well tolerated and effective in the treatment of sialorrhea. Adverse events from either formulation are limited to symptoms including change in saliva viscosity, minor dysphagia, chewing difficulties, and dry mouth [ 64 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.3. Management of Achalasia\nThe lower esophageal sphincter (LES) consists of a ring of smooth muscle under sympathetic and parasympathetic regulation to control its relaxation and contraction, respectively [ 79 ]. Achalasia is a rare neurodegenerative disorder characterized by increased LES tone, failure of LES relaxation, and impaired esophageal peristalsis [ 80 , 81 ]. Primary achalasia is characterized by the degeneration of the myenteric plexus and disruption of autonomic supply to control sphincter tone [ 80 , 81 ]. Secondary achalasia is caused by esophageal malignancy, infection (Chagas disease), and iatrogenic gastrointestinal surgical complications [ 82 , 83 ]. Complications of achalasia include regurgitation, reflux, and malnutrition [ 84 ]. Psychosocially, achalasia can force changes in eating habits such as slower eating and avoidance of social situations involving meals [ 84 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.3. Management of Achalasia\nBoNT can be injected with endoscopic guidance at the LES to limit persistent contractions, such as in conditions like achalasia [ 85 ]. Currently, formulations of BoNT are reserved for off-label use to treat achalasia, as none are FDA-approved [ 86 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.3. Management of Achalasia\nIn a placebo-controlled trial, Pasricha and colleagues were the first to demonstrate that 80 U of Botox \u00ae injected endoscopically at the LES decreased mean LES pressure by 33% and increased LES width by 204% after one week compared to saline injection, as assessed by esophageal manometry [ 87 ]. This effect lasted for up to six months in 14/21 patients with achalasia [ 87 ]. These findings were supported by future studies demonstrating that 80\u2013100 U of Botox \u00ae , 250 U of Dysport \u00ae , and 100 U of Xeomin \u00ae can treat achalasia symptoms and keep patients in remission for 6\u201312 months [ 88 , 89 , 90 , 91 ]. Studies have also compared the effectiveness of BoNT against pneumatic balloon dilation for the treatment of achalasia. While both treatments are effective, BoNT injections have a shorter lasting effect than pneumatic balloon dilation [ 92 , 93 , 94 ]. However, there are minimal reported adverse events associated with BoNT injection at the LES compared to pneumatic balloon dilation, which can lead to esophageal perforation in 3% of procedures [ 87 , 88 , 89 , 90 , 91 , 93 , 94 ]. In addition, combined therapy consisting of balloon dilation with 100 U of a Chinese BoNT formulation, lanbotulinumtoxinA (Hengli \u00ae , Lanzhou Biological Products), was shown to be more effective than BoNT or balloon dilation alone for the treatment of esophageal achalasia [ 95 ]. Combined therapy resulted in significantly lower LES pressure and improved symptom scores two years after intervention compared to either monotherapy alone, which were comparable in efficacy but were not significantly different prior to intervention at the two-year follow-up [ 95 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.4. Management of Anal Fissures\nAnal fissures are tears within the epithelial lining of the anal canal distal to the dentate line. Anal fissures can be acute or chronic if fissures persist for longer than six weeks [ 96 , 97 ]. The etiology of the development of anal fissures is unclear but is believed to be due to multiple factors, including anal trauma, underlying infection, or disease [ 97 ]. Anal fissures may extend into the internal anal sphincter, exposing the smooth muscle and triggering spasms [ 97 ]. Indeed, anal fissures are typically associated with increased anal sphincter tone pressure, which can lead to ischemia, poor healing, and longstanding nocturnal and defecatory pain with or without bleeding [ 96 , 97 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.4. Management of Anal Fissures\nBoNT aims to relieve pain and promote the healing of anal fissures [ 98 ]. This is achieved by relieving spasms of the internal anal sphincter, which surrounds the anal canal and is under autonomic control to regulate the passage and continence of feces [ 98 ]. Currently, formulations of BoNT are reserved for off-label use to treat anal fissures, as none are FDA-approved [ 99 ]. Current management guidelines for chronic anal fissures recommend topical nitrates or calcium channel blockers as first-line therapy; BoNT or internal anal sphincterotomy is reserved for patients failing pharmacologic therapy [ 100 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.4. Management of Anal Fissures\nBoNT was first investigated as a treatment for chronic anal fissures in 1994. Gui and colleagues found that a total of 15 U of Botox \u00ae injected intramuscularly into the internal anal sphincter of patients with chronic anal fissures resulted in weakened tone of the internal sphincter, as assessed by anorectal manometry, and fissure healing in 70% of patients at two months of follow-up inspection [ 101 ]. Higher doses of Botox \u00ae (25\u201350 U) have a stronger, dose-dependent healing effect on chronic anal fissures (67\u201396%) and reduced post-defecatory pain [ 102 , 103 , 104 ]. Changes in resting anal sphincter pressures are typically observed within the first two months; however, maximal voluntary squeeze pressures are unchanged compared to control groups. Botox \u00ae is more effective than nitrate therapy for the treatment of chronic anal fissures, demonstrated by reduced resting anal pressures and improved fissure healing in 96% compared to 60% of patients [ 105 ]. Dysport \u00ae produces comparable effects to Botox \u00ae at slightly higher doses, ranging from 60\u2013150 U [ 106 , 107 ]. Commonly reported adverse events of BoNT injection at the internal anal sphincter are limited to mild flatus incontinence, making it a desirable alternative to nitrites, which can cause headache and topical anal burning. Notably, BoNT produces a comparable, albeit temporary, effect to surgical lateral internal sphincterotomy; a procedure that is successful in 90% of patients but has a greater risk of permanent fecal incontinence [ 107 , 108 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.5. Management of Neurogenic Detrusor Overactivity\nThe detrusor muscle is smooth muscle within the bladder wall that controls the micturition and storage of urine by contracting and relaxing, respectively [ 109 , 110 ]. Neurogenic lower urinary tract dysfunction (NLUTD) comprises a series of dysfunctions of the bladder or urethral sphincters following neurological diseases or injury. Common causes of NLUTD include stroke, spinal cord injury (SCI), central nervous system tumors, Parkinson\u2019s Disease, and demyelinating diseases such as multiple sclerosis or transverse myelitis [ 111 ]. A primary manifestation of NLUTD is neurogenic detrusor overactivity (NDO). NDO is characterized by dysfunctional autonomic control over the detrusor smooth muscle due to impaired signaling between the CNS and the bladder [ 112 , 113 ]. NDO results in a decreased quality of life from urinary incontinence, pelvic pain, and increased urinary tract infections [ 114 ]. Chronic increased bladder pressures can lead to urinary tract damage, vesicoureteral reflux, and hydronephrosis [ 114 ]. Oral antimuscarinics are the most widely used treatment for NDO; however, their effectiveness may be limited by lack of adherence and increased adverse events with higher doses [ 114 , 115 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.5. Management of Neurogenic Detrusor Overactivity\nIntravesical BoNT can mitigate neurogenic detrusor overactivity (NDO) by blocking presynaptic ACh release at the neuromuscular junction of the detrusor [ 110 , 113 , 116 ]. Currently, only Botox \u00ae is FDA-approved for the treatment of NDO [ 15 ]. European Union countries can approve the use of Dysport \u00ae after promising results from a 2022 clinical trial [ 21 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.5. Management of Neurogenic Detrusor Overactivity\nEarly reports of the application of Botox \u00ae as a treatment for NDO in patients emerged in 2000 [ 117 ]. It was reported that 200\u2013300 U of intravesical Botox \u00ae improves urinary incontinence quality of life, significantly increases cystometric bladder capacity, and decreases maximum voiding detrusor pressure in patients with SCI or multiple sclerosis from six weeks after the first injection up until nine months of follow-up [ 117 , 118 , 119 ]. Recent studies have investigated the efficacy of other formulations of BoNT-A to treat NDO in cohorts made up of patients with neurological disorders such as SCI, multiple sclerosis, and stroke [ 120 , 121 ]. Dysport \u00ae was shown to produce similar effects to Botox \u00ae at doses ranging from 500 to 800 U [ 21 , 120 ]. Xeomin \u00ae has not been widely studied in the treatment of NDO; however, a recent study reported 200\u2013300 U intravesical Xeomin \u00ae injections in participants with NDO-reduced incontinence episodes and increased intermittent catheterization volumes and time between catheterizations [ 121 ]. Currently, only Botox \u00ae is recommended by the American Urological Association specifically for the treatment of NLUTD in patients with SCI or multiple sclerosis refractory to oral anticholinergics [ 122 ]. While BoNT is beneficial in the management of urinary incontinence in people with NLUTD, its suppression of the detrusor can result in increased urinary retention, increased cystometric capacities, and post-void residuals [ 115 , 123 ]. In addition, multiple BoNT injections can result in irritation of the detrusor wall and have been shown to provoke AD in people with SCI [ 124 ], although some studies reported no injection-related adverse events [ 117 , 121 ]. Other reported adverse events include hematuria, pyrexia, dysuria, and urinary tract infections [ 119 , 125 ]. The use of Botox \u00ae for treating NDO is well-established, however, practitioners must be cognizant of correct dosing and timing of administration. In addition, further investigations may be required for alternative formulations of BoNT prior to their use in practice.\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.6. Management of Autonomic Dysreflexia\nAD is a life-threatening complication commonly observed in individuals with SCI at or above the sixth thoracic spinal cord level. In AD, a noxious stimulus below the level of injury can trigger a disproportionate sympathetic response, defined as an elevation in systolic blood pressure greater than 20 mmHg from baseline [ 126 , 127 , 128 ]. Chronic AD is a risk factor for severe complications including ischemic and hemorrhagic stroke, seizures, myocardial infarction, and death [ 129 ]. LUT triggers, such as bladder distension, NDO, urinary tract infection, and urological procedures, are common provoking factors for AD [ 130 , 131 ]. The use of BoNT to mitigate the occurrence of AD is a relatively new area of research with promising implications.\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.6. Management of Autonomic Dysreflexia\nIntravesical injections of BoNT are hypothesized to limit bladder-related AD by preventing NDO, a common trigger for the reflexive sympathetic spinal response that distinguishes AD [ 132 , 133 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.6. Management of Autonomic Dysreflexia\nCurrently, only off-label use of Botox \u00ae has been evaluated in the treatment of AD [ 113 , 116 , 133 , 134 , 135 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.6. Management of Autonomic Dysreflexia\nUrodynamic studies (UDS) are the gold standard for assessing LUT function [ 136 ]. UDS involves filling the bladder via catheter while LUT functional parameters are recorded. Catheterization and bladder distension during the procedure can potentially provoke AD [ 130 ]. Intravesical injections of 200 U of Botox \u00ae diminished bladder-related AD events during UDS [ 113 , 116 ]. This was reported by reduced systolic blood pressure elevations and reduced incidence of self-reported AD symptoms, both during filling and at cystometric capacity, one month after injection [ 113 , 133 , 134 , 135 ]. Furthermore, Botox \u00ae minimizes the reflexive vagal responses associated with bladder filling during UDS, as evidenced by changes in heart rate variability (HRV) [ 133 ]. Parasympathetic HRV parameters were significantly diminished during UDS after BoNT injection, which is associated with the severity of AD [ 133 ]. Intravesical Botox \u00ae BoNT injections also improved daily bladder-related AD events outside of UDS during 24 h blood pressure monitoring [ 113 , 116 ]. A reduction in the number of AD events and severity was observed over 24 h at the one-month follow-up after BoNT injection ( Figure 3 ) [ 113 , 116 ]. In addition, participants reported improved urinary incontinence-related quality of life after BoNT injection [ 113 , 116 ]. Other formulations of BoNT have yet to be tested for the management of AD. The use of BoNT to treat AD is still in its infancy, yet a number of published clinical trials highlight the potential dual benefit of intravesical BoNT to ameliorate the occurrence of NDO and AD in the SCI population.\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.7. Management of Atrial Fibrillation\nThe rate and rhythm of the heart is modulated by the autonomic nervous system, which can manifest as electrical abnormalities, termed arrhythmias [ 137 ]. Atrial fibrillation (AF) is the most common arrhythmia [ 137 , 138 ]. AF can originate and terminate spontaneously (paroxysmal AF) or be persistent and even long-standing when sustained for over 12 months [ 137 ]. The incidence of AF after cardiac surgery is estimated to range from 10 to 50% [ 139 ]. The complications of postoperative AF are numerous, including hemodynamic instability, cardiac failure, stroke, and kidney injury [ 140 , 141 ]. The current standard treatment for postoperative AF is beta-blockers, which have varying efficacy and may additionally precipitate hemodynamic stability [ 139 , 142 , 143 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.7. Management of Atrial Fibrillation\nRecently, off-label injection of BoNT into the epicardial fat pad has received interest for being able to suppress AF after cardiac surgery by modulating the autonomic ganglia contained within [ 139 , 143 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.7. Management of Atrial Fibrillation\nIn a clinical trial by Romanov and colleagues, a total of 200 U of Xeomin \u00ae versus saline was injected across the four cardiac fat pads of patients with a history of paroxysmal AF undergoing coronary artery bypass graft surgery (CABG) [ 139 ]. These patients were followed for three years, with the cumulative incidence of any atrial tachyarrhythmia significantly decreased in the BoNT group versus the placebo group [ 139 ]. A separate trial by Waldron and colleagues opted to use 250 U of Botox \u00ae in a cohort of patients without a prior history of long-standing AF undergoing CABG or valve surgery [ 143 ]. They observed a reduction in postoperative AF, although it was not statistically significant [ 143 ]. Overall, the number of adverse events from epicardial fat pad injection of BoNT was low [ 139 , 143 ]. In the trial by Romanov and colleagues, events included hospitalization due to recurrent atrial fibrillation, which occurred in 19 patients from the placebo group compared to only two patients who received BoNT [ 139 ]. The incidence of adverse events in the trial by Waldron and colleagues did not differ between the BoNT and placebo groups [ 143 ]. The discrepancy in results from these studies could be due to BoNT formulation used or the study population, including the history of AF and the type of surgery received [ 143 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.8. Management of Complex Regional Pain Syndrome\nThe etiology of complex regional pain syndrome (CRPS) is poorly understood but hypothesized to involve a disruption in coupling between the sympathetic nervous system and peripheral nociceptive fibers [ 144 , 145 ]. The diagnosis of CRPS requires both self-reported symptoms and signs that are evident during clinical examination, including sensory, motor, and autonomic symptoms [ 144 , 146 ]. Type I CRPS presents with symptoms in the absence of a confirmed nerve injury, whereas Type II CRPS requires a known nerve injury, with symptoms typically distal to the site of injury [ 147 ]. Long-standing CRPS can result in a plethora of complications, including impaired cognitive function, constitutional symptoms, impaired hemodynamic regulation, urological and gastrointestinal dysfunction [ 144 ]. In addition, many patients with CRPS have widespread endocrine dysfunction, in part due to pain management with chronic glucocorticoid and opioid use [ 144 ].\n\n4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.8. Management of Complex Regional Pain Syndrome\nBoNT is currently a novel experimental treatment to manage the symptoms of CRPS via blocking of sympathetic cholinergic preganglionic fibers following lumber sympathetic ganglion block (LSB) [ 145 , 148 , 149 ].",
+        "body_excerpts_sha256": "77ddb2a378bed312f6efd0a9eb496dade784a0f319130649fc37953270cfbb6e",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10892370/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "34495688",
+        "title": "The AUA/SUFU Guideline on Adult Neurogenic Lower Urinary Tract Dysfunction: Treatment and Follow-up.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34495688/",
+        "abstract": "The clinician treating patients with neurogenic lower urinary tract dysfunction (NLUTD) needs to balance a variety of factors when making treatment decisions. In addition to the patient's urologic symptoms and urodynamic findings, other issues that may influence management options of the lower urinary tract include cognition, hand function, type of neurologic disease, mobility, bowel function/management, and social and caregiver support. This Guideline allows the clinician to understand the options available to treat patients, understand the findings that can be seen in NLUTD, and appreciate which options are best for each individual patient. This allows for decisions to be made with the patient, in a shared decision-making manner, such that the patient's quality of life can be optimized with respect to their bladder management.\nA comprehensive search for studies assessing patients undergoing evaluation, surveillance, management, or follow-up for NLUTD was conducted from January 2001 through October 2017 and was rerun in February 2021 to capture newer literature. The primary search returned 20,496 unique citations. Following a title and abstract screen, full texts were obtained for 3,036 studies. During full-text review, studies were primarily excluded for not meeting the PICO criteria. One hundred eight-four primary literature studies met the inclusion criteria and were included in the evidence base.\nThis guideline was developed to inform clinicians on the proper evaluation, diagnosis, and risk stratification of adult patients with NLUTD and the non-surgical and surgical treatment options available. Additional statements on urinary tract infection and autonomic dysreflexia were developed to guide the clinician.\nNLUTD patients may undergo non-surgical and surgical treatment options depending on their level of risk, symptoms, and urodynamic findings. Appropriate follow-up, primarily based on their risk stratification, must be maintained after treatment.",
+        "sha256": "26e8ede993b9caad2f46ff81d57e85bb7cabbc482cd5ff071bde7c9659ff5ce8",
+        "retrieved_at": "2026-09-19T03:40:48.546140+00:00"
+      },
+      {
+        "id": "34495687",
+        "title": "The AUA/SUFU Guideline on Adult Neurogenic Lower Urinary Tract Dysfunction: Diagnosis and Evaluation.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34495687/",
+        "abstract": "The clinician treating patients with neurogenic lower urinary tract dysfunction (NLUTD) needs to balance a variety of factors when making treatment decisions. In addition to the patient's urologic symptoms and urodynamic findings, other issues that may influence management options of the lower urinary tract include cognition, hand function, type of neurologic disease, mobility, bowel function/management, and social and caregiver support. This Guideline allows the clinician to understand the options available to treat patients, understand the findings that can be seen in NLUTD, and appreciate which options are best for each individual patient. This allows for decisions to be made with the patient, in a shared decision-making manner, such that the patient's quality of life can be optimized with respect to their bladder management.\nA comprehensive search for studies assessing patients undergoing evaluation, surveillance, management, or follow-up for NLUTD was conducted from January 2001 through October 2017 and was rerun in February 2021 to capture newer literature. The primary search returned 20,496 unique citations. Following a title and abstract screen, full texts were obtained for 3,036 studies. During full-text review, studies were primarily excluded for not meeting the PICO criteria. One hundred eight-four primary literature studies met the inclusion criteria and were included in the evidence base.\nThis guideline was developed to inform clinicians on the proper evaluation, diagnosis, and risk stratification of patients with NLUTD and the non-surgical and surgical treatment options available. Additional statements on urinary tract infection and autonomic dysreflexia were developed to guide the clinician. This Guideline is for adult patients with NLUTD and pediatric NLUTD will not be discussed.\nNLUTD patients should be risk-stratified as either low-, moderate-, high-, or unknown-risk. After diagnosis and stratification, patients should be monitored according to their level of risk at regular intervals. Patients who experience new or worsening signs and symptoms should be reevaluated and risk stratification should be repeated.",
+        "sha256": "2977cdcd9b9344a77f6ee02777a2c78f1c79d26daa2fa6aef08109dab65bb3c8",
+        "retrieved_at": "2026-09-19T03:40:48.546140+00:00"
+      },
+      {
+        "id": "35962043",
+        "title": "Are local analgesics effective in reducing autonomic dysreflexia in individuals with spinal cord injury? A systematic review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35962043/",
+        "abstract": "Systematic review.\nTo systematically review the evidence on the use of local analgesics, specifically lidocaine or bupivacaine, to prevent autonomic dysreflexia (AD) during iatrogenic procedures or bowel and bladder care routines in individuals with spinal cord injury (SCI).\nA keyword search of MEDLINE, CINAHL, CENTRAL, Cochrane Reviews, PsycInfo, Embase, and Web of Science databases identified all English-language studies evaluating the efficacy of local analgesics in reducing AD. Included studies were either randomized controlled trials (RCTs) or quasi-experimental studies. Participants were adults with chronic SCI who received local analgesics prior to AD-triggering procedures or routines. Additionally, studies were required to report blood pressure values as an outcome. The methodology of this review followed the PRISMA checklist and was registered with PROSPERO (CRD42021219506).\nFour RCTs and two quasi-experimental studies met inclusion criteria. Results were narratively synthesized as meta-analysis was not possible due to heterogeneity across studies included in the review. All six studies administered lidocaine. Lidocaine was found to have a beneficial effect on AD in three studies, no effect in two studies and a detrimental effect in one study.\nPresently, RCTs and quasi-experimental studies on the use of lidocaine for reducing AD in individuals with SCI had small sample sizes and opposing findings. There is a strong need for definitive, well-monitored clinical trials with adequate sample sizes. Presently there is not enough compelling evidence to support or refute recommendations for the use of lidocaine from the AD management clinical practice guidelines.",
+        "sha256": "6c435dedb6c0112048fb2b5b03bf3c4550d06193a1a1d6b57d5519014385c9f8",
+        "retrieved_at": "2026-09-19T03:40:49.618128+00:00"
+      },
+      {
+        "id": "35419369",
+        "title": "Perioperative Complications and Anesthesia Practices in Managing Patients With Quadriplegia Undergoing Surgery: A Systematic Review.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35419369/",
+        "abstract": "Quadriplegia is associated with a multitude of health complications affecting numerous organ systems. Complications during the perioperative periods are not uncommon in this patient population due to abnormal responses to surgical stressors. Such complications include autonomic dysreflexia, cardiac ischemia, and respiratory compromise. Currently, there is no clear consensus on the ideal technique for perioperative anesthesia management in this population. In addition, the relationship between the perioperative complications and anesthesia practices have not been explored in-depth. Therefore, we aimed to investigate perioperative complications in the context of anesthesia that are associated with patients with quadriplegia undergoing various surgical procedures. Our PRISMA compliant systematic review included 12 articles covering the literature from inception to January 12, 2021. The review showed complications being pulmonary, cerebral, but most importantly and commonly cardiac in nature, with many patients suffering hypertension, and many others hypotension. In addition, our review showed that autonomic dysreflexia is common and in majority of patients, it was managed successfully with good recovery. Based on our findings, the use of anesthesia, either general or spinal, can be considered. Future studies are needed to elucidate the exact mechanisms involved in perioperative complications and anesthetic management that are associated with patients with quadriplegia. This review will aid in developing general recommendations based on the information available in the literature to guide perioperative management of this vulnerable patient population.",
+        "sha256": "6b12fd0ddf544df27129a73f0301515f2e55469a632816869290468aaa10a838",
+        "retrieved_at": "2026-09-19T03:40:50.701053+00:00",
+        "pmcid": "PMC8996073",
+        "body_excerpts": "Background\nPatients with quadriplegia due to cervical spinal cord injuries exhibit multiple health concerns including cardiorespiratory, gastrointestinal, cerebral neuropsychological and endocrinological dysfunctions ( 1 \u2013 12 ). In addition, during the perioperative period, complications such as autonomic dysreflexia, respiratory compromise, myocardial ischemia can impose further challenges to anesthesiologists. There are few anesthetic choices for managing such patients; however, current knowledge is unclear whether there is a distinct advantage of one anesthesia technique over another ( 1 \u2013 12 ). While general anesthesia is the traditional choice, some studies have indicated that a spinal anesthesia is preferred as it poses less risk of cardiac complications, namely autonomic dysreflexia ( 1 ). Unfortunately, the relationship between the various perioperative complications and anesthesia techniques were not studied extensively. Nevertheless, there is no consensus among the literature regarding a standard of care for this cohort of complex patients. Moreover, literature is limited to few case reports or observational studies ( 1 \u2013 12 ), and a systematic synthesis of literature is still lacking. Therefore, it is imperative to synthesize the current understanding of the perioperative complications and outcomes pertaining to perioperative anesthesia management of quadriplegic patients undergoing various surgical procedures.\n\nBackground\nIn this systematic review, we aim to investigate various perioperative complications (cardiac, cerebral, and pulmonary) that are associated with patients with quadriplegia undergoing surgical procedures. Specific objectives of the review are to evaluate the nature and extent of perioperative complications in the context of anesthesia, and the outcome of patients with quadriplegia undergoing, non-obstetric and non-spinal cord related surgeries. In addition, this synthesis will explore the various anesthetic management options for such cases to better guide perioperative patient management.\n\nMethods > Intervention and Comparator\nIn this review, the intervention was defined as presence of any type of anesthesia (general anesthesia, spinal anesthesia, conscious sedation, or combination). Patients with quadriplegia undergoing surgery and exhibiting similar complications without any anesthesia or only having local anesthesia were included as comparators (i.e., more than half of the total number of articles that mentioned the comparator group).\n\nMethods > Search Strategy\n(((\u201cQuadriplegia\u201d[Mesh]) OR ((quadripleg * [Title/Abstract]) OR (tetrapleg * [Title/Abstract]))) AND ((((((\u201cAnesthetics\u201d[Mesh]) OR \u201cAnesthesia\u201d[Mesh]) OR \u201cAnesthesia and Analgesia\u201d[Mesh]) OR \u201cHypnotics and Sedatives\u201d[Mesh]) OR \u201cAnalgesics\u201d[Mesh]) OR ((((anesthetic * [Title/Abstract]) OR (anesthes * [Title/Abstract])) OR (sedativ * [Title/Abstract])) OR (anelges * [Title/Abstract])))) AND (((((((((\u201cAutonomic Dysreflexia\u201d[Mesh]) OR \u201cStroke\u201d[Mesh]) OR \u201cMyocardial Ischemia\u201d[Mesh]) OR \u201cMyocardial Infarction\u201d[Mesh]) OR \u201cLung Diseases\u201d[Mesh]) OR \u201cRespiration Disorders\u201d[Mesh]) OR \u201cHeart Diseases\u201d[Mesh]) OR \u201cHemodynamics\u201d[Mesh]) OR (((((((((((autonomic dysreflexia * [Title/Abstract]) OR (stroke * [Title/Abstract])) OR (myocardial infarction * [Title/Abstract])) OR (myocardial ischemia * [Title/Abstract])) OR (pulmonary deficit * [Title/Abstract])) OR (pulmonary dysfunction * [Title/Abstract])) OR (hemodynamic * [Title/Abstract])) OR (respiratory acidosis * [Title/Abstract])) OR (respiratory alkalosis * [Title/Abstract])) OR (pulmonary complication * [Title/Abstract])) OR (complication * [Title/Abstract]))).\n\nMethods > Data Extraction and Quality Assessment\nAll study types including randomized controlled trials, prospective and retrospective studies, case series, and case reports were screened. Based on the screening of first fifty randomized pilot (4 selected) articles, we decided to include studies based on two essential criteria: first, the article should mention at least one of the (predefined) perioperative complications and second, it should clearly describe the type of anesthesia, if any is used. There was no gender restriction for this study. We excluded studies where patients with quadriplegia had surgery during pregnancy and/or for the spine-related disorders.\n\nMethods > Outcome Measurements\nThe primary outcomes of this study were to know the incidence of three major perioperative complications (from surgery until discharge from the hospital) and their clinical presentation in patients with quadriplegia undergoing non-obstetric and non-spinal cord surgery. Major perioperative complication include: (1) cardiac events namely autonomic dysreflexia (AD) [any of the following presentation either alone or in combinations: sudden unexplained increase in systolic blood pressure (BP) > 180 mm Hg or diastolic BP > 100 mmHg, bradycardia (<60 bpm), tachycardia (>100 bpm), headache, blurred vision, severe nausea/vomiting, nasal stuffiness and sweating], myocardial ischemia/infarction [electrocardiographic (ECG) changes and or biochemical diagnosis], cardiac arrest (asystole, ventricular fibrillation), arrythmias, along with (2) cerebral events such as hemorrhagic or ischemic stroke (diagnosed on the imaging), and finally (3) pulmonary events namely apnea, oxygen desaturation requiring airway (invasive or non-invasive) intervention or change in the anesthetic technique, pulmonary embolism (confirmed with the imaging), extubation failure at the end of the surgery or continued ventilation postoperatively, and pneumonia (confirmed either radiologically or with presenting symptoms) during the hospital stay.\n\nResults\nTable 2 Intra-operative characteristics. No . Author Procedure Type of anesthesia Anesthetic agent Position of patient 1 Vaidyanathan et al. ( 1 ) Case 1 Procedure A: Cystoscopy and laser lithotripsy Spinal Block Bupivicaine (15 mg) IV Midazolam (1 mg) Lithotomy Procedure B: Flexible Cystoscopy NR NR Supine Procedure C: Rigid Cystoscopy and Laser lithotripsy Sedation IV Midazolam (3 mg) Lithotomy Case 2 Procedure A: Laser Lithotripsy Spinal block Bupivacaine (17 mg) Lithotomy Procedure B: Cystoscopy and Laser lithotripsy No Anesthesia N/A Lithotomy 2 Smith et al. ( 2 ) Dental Extraction GA Meperidine (75 mg) Atropine (0.4 mg) Sodium thiamylal (100 mg) d-tubocurarine (6 mg) Succinylcholine (50 mg) Supine 3 Deschodt et al. ( 3 ) Upper limb surgeries Spinal Block Bupivacaine (7.0\u201332.5 mg) Fentanyl (50\u201375 \u03bcg); (7/10) Fentanyl (25\u2013100 \u03bcg); (6/10) Midazolam (1\u20132 mg); (5/10) Lateral Decubitus/ Supine 4 Yoo et al. ( 4 ) Debridement & primary closure of wound (post-reconstructive surgery) LA Lidocaine (1%) Prone 5 Yoo et al. ( 5 ) Different Surgical Procedures GA Midazolam oral (0.1 mg/kg) IV thiopental (5\u20137 mg/kg) IV vecuronium (0.12 mg/kg) Nitrous oxide (50%) Isoflurane in oxygen (1%) NR 6 Murphy et al. ( 6 ) Urinary diversion GA Lidocaine (2% 2 ml) Propofol (150 mg) Fentanyl (150 \u03bcg) Rocuronium (0.5 mg/kg) Nitrous oxide in oxygen (40%) Isoflurane (0.2\u20131.5%) Bupivacaine (10 mL, 0.25%) Supine 7 Raeder et al. ( 7 ) Procedure A: Removal of renal pelvic stone Sedation NR Prone Procedure B: Removal of ureteric concerment Sedation NR 8 Yamashita et al. ( 8 ) Urethral Catheter N/A Supine 9 Schonwald et al. ( 9 ) Case 1: NR Spinal Block Lidocaine (75 mg) NR Case 2: Procedure A: Transurethral Sphincterotomy Spinal Block Tetracaine (8 mg) Supine Procedure B: Penile Prosthesis Spinal Block Tetracaine (12 mg) Supine Case 3: Percutaneous rhizotomy GA Thiopental (300 mg) Succinylcholine (100 mg) Enflurane (2%) Supine 10 Dykstra et al. ( 10 ) Cystoscopy injection of the external urethral sphincter N/A NR Supine 11 Burenstein et al. ( 11 ) Procedure A: Cystoscopy NR NR Supine Procedure B: Extra shock wave Lithotripsy Sedation Midazolam (1.5 mg) Midazolam (0.5 mg) Procedure C: Cystoscopy and Extra shock wave lithotripsy NR NR 12 Snow et al. ( 12 ) Cystoscopy GA + Sedatives Diazepam (10 mg) Pentobarbital (100 mg) Thiopental (25\u201350 mg) Nitrous Oxide, Oxygen Various depending on procedure NR, Not reported; N/A, Not applicable; GA, General Anesthetic; LA, Local Anesthetic .\n\nResults\nTable 3 Study outcomes. No . Study ID Type of complication Complication specifics Management Outcomer 1 Vaidyanathan et al. ( 1 ) Case 1 P1: None N/A N/A N/A P2: None N/A N/A N/A P3: Cardiac Hypertension Tramadol IVx3 (25 mg) Labetalol (5 mg) Propofol (120 mg) Severe bleeding from hyperaemic bladder mucosa Surgery abandoned. Case 2 P1: None N/A N/A N/A P2: Cardiac Hypertension Bradycardia Headache IV Midazolam (2 mg) IV Glycopyrrolate (50 \u03bcg) IV Labetalol (10 mg) Uneventful recovery 2 Smith et al. ( 2 ) Cardiac ( 1 ) Cardiac arrest Ventricular fibrillation. Ventilation External cardiac compression Defibrillation Defibrillated successfully on third attempt. Extubated uneventfully Uneventful recovery 3 Deschodt et al. ( 3 ) Cardiac Pulmonary Cerebral Painful paresthesia ( n = 1) Apnea ( n = 1) Bradycardia ( n = 5) Face mask ventilation IV atropine ( n = 1) (0.25 mg) Pulmonary function restored. Uneventful recovery 4 Yoo et al. ( 4 ) Cardiac Cerebral Headache Abnormal mental status Diaphoresis Hypertension (268/185 mmHg) Bradycardia Confusion Numbness Coma (Glascow Coma Scale Score = 3) Intracranial hemorrhage Prone to supine position T1reated for the possible precipitating factors of AHR. Unblocked Foley Catheter IV Hydralazine (10 mg) Nitroglycerin External Ventricular Drains Mannitol Transferred to ICU Mechanical Ventilation Surgery immediately stopped. Hemodynamic and neurological status deteriorated. Died nine days after episode. 5 Yoo et al. ( 5 ) Cardiac Hypertension: QP ( n = 2), control ( n = 10) Hypotension: QP ( n = 9), control ( n = 1) Tachycardia: QP ( n = 1), control ( n = 3) Bradycardia: QP ( n = 1), control ( n = 0) Dysrhythmia: QP ( n = 1), Control ( n = 2) NR Arrythmias disappeared spontaneously without treatment 6 Murphy et al. ( 6 ) Cardiac Autonomic Dysreflexia + Epidural top-up Complete resolution after 12 min Uneventful recovery 7 Raeder et al. ( 7 ) Cardiac Hypertension (230/140 mmHg) Deepening of anesthesia Increments of Fentanyl Uneventful recovery Cardiac Cerebral Hypertension (220/130 mmHg) Tachycardia (120 bpm) Bladder spasm + Headache + Profuse sweating + Tachycardia + Blurred vision + Total Circulatory collapse + Convulsions + Bradycardia + Unconsciousness + Apnea + Intraoperatively Deepening anesthesia Post-op (2 days) Ventilated IV Propranolol (Tachycardia) Atropine (Bradycardia) Emepronium bromide IM x3 (200mg) Emepronium bromide IM x3 (50mg) Intraoperatively Symptoms relieved Post-op (2 days) Uneventful recovery 8 Yamashita et al. ( 8 ) Cardiac Cerebral Bradycardia Multiple subcortical and intracranial hemorrhage Intraoperatively Nicardipine Post- op Anticonvulsants Intubation + mechanical ventilation Patient died 3 weeks after intracranial hemorrhage. 9 Schonwald et al. ( 9 ) Case 1 Cardiac Pulmonary Cerebral Shortness of Breath Facial tingling Nausea Hypertension (220) Bradycardia (30 bpm) Cystoscope removed. Bladder emptied. General Anesthesia induced (2.5% halothane) Symptoms relieved Uneventful recovery Case 2 P1: Cardiac Bradycardia Asystole IV atropine (0.4mg) IV fluids Placed in Trendelenburg position Uneventful recovery P2: Cardiac Bradycardia (50bpm) Hypotension (90) No treatment Uneventful recovery Case 3 Cardiac Hypotension (50) when prone IV fluids Ephedrine (10 mg) Decreasing depth of anesthesia Uneventful recovery 10 Dykstra et al. ( 10 ) Cerebral Cardiac Headache Blurred vision Sweating Flushing Hypertension Sublingual Nifedipine Symptoms relieved Uneventful recovery 11 Burenstein et al. ( 11 ) Procedure A: Cardiac Autonomic Dysreflexia No medication given Surgery abandoned Procedure B: Cardiac Cerebral Hypertension (240/123) Head discomfort 10 mg sublingual nifedipine Surgery abandoned. Procedure C: Cardiac Pre-op Hypertension (150/80) Hypotension (80/60) Bradycardia (40 bpm) Pre-op Sublingual Nifedipine (prophylactically) (10 mg) Ephedrine (5 mg) Atropine (0.4 mg) Surgery and recovery uneventful 12 Snow et al. ( 12 ) Cardiac Hypertension (28/35 pts) Bradycardia Trimethaphan 0.1%, (10\u201350 mg) Mild allergic reaction to Trimethaphan. ( n = 2) Uneventful recoveries NR, Not reported; N/A, Not applicable; P, Procedure; \u201c+\u201d superscript signifying post-operative complication vs. no superscript signifying intra-operative complication .\n\nResults > Primary Outcome\nIn our study, majority of perioperative complications were reported during intraoperative phase (10, n = 12 articles) and only (2, n = 12 articles) reported during the postoperative period. Regarding the complications, all 82 patients had cardiac events (100%) with the majority (54%) experiencing autonomic dysreflexia (presenting as hypertension (44 out of 82) and bradycardia (13 out of 82) followed by hypotension (11 out of 82), and tachycardia (2 out of 82). Cerebral and pulmonary events were reported in 7 (8.5%) and 2 (2.5%) patients, respectively.\n\nResults > Primary Outcome\nManagement of complications varied with the type of surgery and the severity of the complication. In 95% of patients, intraoperative complications were successfully managed medically without the cancellation of the surgery or procedure. However, in the remaining 5% of patients with severe complications, the surgery was terminated. In all terminated surgeries, patients had severe hypertension which met criteria for autonomic dysreflexia.\n\nResults > Other Outcomes and Subgroup Analysis\nThe 82 patients included in the study underwent a total of 89 procedures. General anesthesia was the most commonly (68.5%) used anesthesia technique followed by the spinal anesthesia (13.5%). Three procedures were done under conscious sedation, one procedure was done under local anesthesia alone while nine procedures did not require general anesthesia. ( Table 4 ) Both sedation and spinal block anesthesia led to cardiac (bradycardia, hypotension, asystole, hypertension, sweating), pulmonary (shortness of breath, apnea), and cerebral complications (facial tingling, painful paresthesia, headaches, blurred vision, convulsions). On the other hand, local anesthesia reported only cardiac (sweating, hypertension) and cerebral complications (headaches, abnormal mental status, confusion, numbness, coma, and intracranial hemorrhage). In addition, general anesthesia protocols lead to only cardiac complications (cardiac arrest, ventricular fibrillation, hypertension, hypotension, tachycardia, bradycardia, dysrhythmia, autonomic dysreflexia). Lastly, not utilizing any anesthesia still caused cardiac (autonomic dysreflexia, hypotension, hypertension, bradycardia) and cerebral complications (headache, intracranial hemorrhage, blurred vision). While 10 out of the 12 articles did not comment on the 30-day mortality, only two deaths were reported following the procedures (9 and 13 days postoperatively, respectively). The length of hospital stay ranged from 1 day to 1 month, however the remaining 10 articles of studies did not report any follow-up periods.\n\nResults > Other Outcomes and Subgroup Analysis\nTable 4 Complications organized by categories: cardiac, pulmonary, cerebral and others. Cardiac complications (# of studies reported) Pulmonary complications (# of studies reported) Cerebral complications (# of studies reported) Other complications (# of studies reported) Spinal block Bradycardia Hypotension Asystole Hypertension Shortness of Breath Apnea Facial Tingling Painful Paresthesia Nausea Sedation Hypertension Bradycardia Tachycardia Sweating Apnea Headaches Blurred Vision Convulsions Bladder spasms Local anesthesia Sweating Hypertension Headaches Abnormal Mental Status Confusion Numbness Coma Intracranial hemorrhage General anesthesia Cardiac Arrest Ventricular Fibrillation Hypertension Hypotension Tachycardia Bradycardia Dysrhythmia Autonomic dysreflexia No Anesthesia Autonomic Dysreflexia Hypotension Hypertension Bradycardia Headache Intracranial Hemorrhage Blurred vision Sweating Flushing Exact number of cases per symptom could not be identified as majority of articles did not include this information. Empty boxes refer to no reported complications within that category .\n\nDiscussion > Perioperative Complications\nWith regards to the primary outcome, most complications were cardiac in nature, and interestingly many patients experienced hypertension, and others experienced hypotension in this review. This is in line with current literature where important perioperative complications reported include autonomic dysreflexia, bradycardia, hypotension, respiratory inadequacy, and muscle spasms ( 16 ).\n\nDiscussion > Perioperative Complications\nAutonomic Dysreflexia (AD) is a condition arising from previous spinal cord injury with severity and chance increasing as the level of injury increases ( Figure 2 ) ( 17 ). AD is a life-threatening condition in which autonomic responses are dysregulated leading to severe hypertension in response to a noxious stimulus from below the site of injury ( 17 ). In about 85% of cases, this stimulus is caused by a urological procedure or issue such as a distended bladder, a problematic Foley catheter or an infection ( 17 , 18 ). This is consistent with our findings, as the majority of our patients underwent a urological procedure. In addition, while patients with AD are at a much higher risk of death, our study only presented one patient who died within 30 days of the procedure ( 17 ). AD can also lead to severe cardiovascular dysfunction and painful headaches but objectively it is measured as a sudden increase in systolic blood pressure by 25 mm Hg ( 17 ). In addition, in line with our findings, AD occurs more frequently during urological surgery than any other surgery ( 17 \u2013 19 ). Therefore, prior to surgery, triggers must be identified such as checking for catheter blockages, ensuring empty bowels and attention to skin changes or ulcerations ( 20 ). It is also recorded that some urological conditions may precede AD ( 21 , 22 ).\n\nDiscussion > Perioperative Complications\nPulmonary and cerebral complications as part of the above-described AD were also observed during the procedures. While in some patients' vital capacities and ventilations are spared, their vital capacity and ventilation are reduced due to intercostal paralysis ( 3 ). As a consequence, patient must be given low concentrations of local anesthetics, and should be informed that if complications occur it might be necessary to switch to general anesthesia ( 3 ). In addition, a study showed a patient suffering from cerebral complications such as intracranial hemorrhage, headaches, irritability, and diaphoresis in response to AD ( 4 ). High catecholamine release in response to a noxious stimulus may be an explanation to the hypertensive crisis seen in these patients ( 4 ). Transformation of the anesthetic management should therefore be considered in such patients.\n\nDiscussion > Choice of Anesthesia\nIn perioperative setting, patients with complete upper spinal cord injury have three options for anesthesia: monitored anesthesia care (with or without conscious sedation), regional anesthesia, and general anesthesia ( 20 ). Some patients may not require anesthetic agents if their surgery is below the site of injury, however, these patients must be well-educated on the risks and symptoms of AD and be asked to immediately report any changes such as headache, sweating, or difficulty breathing ( 23 ). Additional caution must be used when utilizing sedative agents as it may mask some symptoms due to ventilatory depression ( 20 ). In addition, patients may also choose to receive regional anesthesia. Spinal anesthesia appears to be a safer option and has become more and more widely accepted as it reduces risks of AD, and of spasms ( 20 ). Unfortunately, effectiveness and level of block have been reported to be difficult to ascertain, and therefore careful watching is required. Premedication using nifedipine has been shown to be effective, however anticholinergics have not shown much benefit unless it induces detrusor areflexia ( 20 ).\n\nDiscussion > Choice of Anesthesia\nIn our review, majority of studies have utilized some form of anesthesia technique, which is in line with the literature suggesting that perioperative complications are more common in patients who do not use anesthetic agents ( 16 ). Although there are few articles discussing the safety of not using any anesthetic agents, the ones present recommended that lack of anesthesia should be considered only with extreme caution and with an anesthesiologist on standby ( 23 ). This is supported by our review as two patients declined both general and spinal anesthesia during their cystoscopy procedures. Severe cardiac complications were reported in two cases where no anesthetic technique was utilized. In one patient, spinal anesthesia was offered that was associated with an uneventful postoperative period. It is prudent to block the afferent pathway of the AD by utilizing local, or regional anesthesia technique ( 1 , 4 ). Therefore, our systematic review suggests that use of either general or spinal anesthesia is recommended over the sedation or local anesthesia.\n\nDiscussion > Choice of Anesthesia\nBoth general and spinal anesthesia are commonly used in surgical procedures for patients with high spinal cord injury. As of now, there is no consensus in the literature regarding a standard of care that should be applied for all patients.\n\nDiscussion > Management of Complications\nOur review showed that the AD is common and in majority of patients it was managed successfully with good recovery. This finding is in line with the literature, in which agents such as nifedipine, nitrates and captopril were preventively utilized with success ( 20 ). In some centers for example, 10 mg of oral nifedipine is given an hour prior to surgery to prevent AD ( 16 ). Although pharmacologic methods seem effective, identifying and eliminating triggers of AD, such as a distended bladder, have been utilized as first line treatment based on expert opinion and physiology rationale ( 17 , 18 ).\n\nDiscussion > Recommendations\nOur review has attempted to provide better understanding of the AD after quadriplegia. A range of afferent stimuli can trigger an AD reaching the isolated spinal cord caudal to the level of spinal cord damage, mostly of visceral but less commonly of cutaneous and proprioceptive nature ( 17 ). This trigger can persist through the whole perioperative period including the immediate postoperative period. This systematic review emerged to shed some insights to both clinical and neurophysiological findings that could aid healthcare teams to better take care of this cohort of patients. Based on the available literature and expert opinion, it is reasonable to recommend following a few steps:\n\nDiscussion > Recommendations\nPatients with high spinal lesions without severe respiratory compromise undergoing non-obstetric and non-spinal surgery appear to be at an increased risk of developing perioperative complications, especially cardiac. Therefore, in such a context, risks and benefits of using particular anesthetic agents should be incorporated into the discussion. The literature recommends spinal blocks as a safe and effective method for these patients, but most procedures in our review utilize general anesthesia and perioperative complications were adequately managed ( 2 , 5 , 6 , 11 , 12 ). In addition, even for minor surgeries, one should be cautious in using local anesthesia with or without sedation (if the site of surgery is below the injury level) and patients should be fully aware of potential risks such as headache, sweating, or palpitation, difficulty breathing etc. The Presence of anesthesiologist for such cases is warranted. Agents, such as Nifedipine, should also be readily accessible to minimize or even prevent the effects of these complications. Patient reassurance can be provided given most patients had uneventful recoveries post-administration of a reversal agent or by deepening of the anesthetic agent, which is in line with our findings. In summary, general or spinal anesthesia is recommended over the sedation or local anesthesia.\n\nDiscussion > Limitations\nThere are several limitations to our systematic review. Overall, there was a limited number of included studies looking at perioperative complications in patients with quadriplegia undergoing non-labor and non-spinal cord related surgeries ( n = 12), but our sensitivity analysis showed similar results. In addition, most of the included articles were of evidence level IV or higher. As a result, the overall conclusions regarding this cohort of patients undergoing surgery and their management are limited. However, our strict methodology in the study design of this review, has led to upgraded or double upgraded according to the GRADE system, ( 24 ) so that we have moderate to high quality of included studies, what gives sufficient evidence for our findings. Nevertheless, the results of this review should be considered preliminary with the aim to motivate future prospective studies.",
+        "body_excerpts_sha256": "04ee6dc1f0553fdb6d76ac438d0473c203eef495054de46f7f479b92d1154ad9",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8996073/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "38268066",
+        "title": "Safety and efficacy of blood flow restriction exercise in individuals with neurological disorders: A systematic review.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38268066/",
+        "abstract": "This systematic review evaluated the safety and efficacy of blood flow restriction exercise (BFRE) on skeletal muscle size, strength, and functional performance in individuals with neurological disorders (ND).\nA literature search was performed in PubMed, CINAHL, and Embase. Two researchers independently assessed eligibility and performed data extraction and quality assessments.\nStudy populations with ND, BFRE as intervention modality, outcome measures related to safety or efficacy.\nOut of 443 studies identified, 16 were deemed eligible for review. Three studies examined the efficacy and safety of BFRE, one study focused on efficacy results, and 12 studies investigated safety. Disease populations included spinal cord injury (SCI), inclusion body myositis (sIBM), multiple sclerosis (MS), Parkinson's disease (PD), and stroke. A moderate-to-high risk of bias was presented in the quality assessment. Five studies reported safety concerns, including acutely elevated pain and rating of perceived exertion levels, severe fatigue, muscle soreness, and cases of autonomic dysreflexia. Two RCTs reported a significant between-group difference in physical function outcomes, and two RCTs reported neuromuscular adaptations.\nBFRE seems to be a potentially safe and effective training modality in individuals with ND. However, the results should be interpreted cautiously due to limited quality and number of studies, small sample sizes, and a general lack of heterogeneity within and between the examined patient cohorts.",
+        "sha256": "d5f2e5d8afb2c5beed99b6d655f6c7889a10149d3e4d4506c3c1a2e2f31623e1",
+        "retrieved_at": "2026-09-19T03:40:50.701053+00:00"
+      },
+      {
+        "id": "40008161",
+        "title": "Breastfeeding After Spinal Cord Injury: A Systematic Review of Prevalence and Associated Complications.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40008161/",
+        "abstract": "Breastfeeding can be a vital component for maternal and infant health, but successful breastfeeding may be especially difficult for mothers with spinal cord injury (SCI). No reliable research on prevalence or complications associated with breastfeeding for mothers with SCI currently exists.\nOur systematic review aimed to answer the following: (1) What are the breastfeeding rates in women after SCI? (2) What are the rates and nature of postpartum complications reported by women with SCI in conjunction with breastfeeding?\nTen studies were included; the reported rates at which women with SCI were able to breastfeed varied widely, ranging from 11% to 100%. Generally speaking, women with higher-level SCI (above T6) were less likely to breastfeed and would breastfeed less frequently than women with lower-level SCI and less frequently than women without SCI. Complications reported included problems with the let-down reflex, autonomic dysreflexia, and a higher incidence of postpartum depression in women with SCI.\nMore research on mothers with SCI is needed, especially matched-control research comparing mothers with and without SCI on successful breastfeeding and associated complications.",
+        "sha256": "f149c91746b77ad8d458f9cc39da8b7c6dde0b8a697d59c2479899f12fbf7f43",
+        "retrieved_at": "2026-09-19T03:40:51.372473+00:00",
+        "pmcid": "PMC11848132"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The episodes are bladder-triggered autonomic dysreflexia caused by urodynamically demonstrated neurogenic detrusor overactivity in a patient with a C5 spinal cord injury. Because scheduled intermittent catheterization is already reliable and oral oxybutynin was ineffective and intolerable, addressing detrusor overactivity with intradetrusor botulinum toxin through neuro-urology is appropriate. Evidence indicates that botulinum toxin improves neurogenic detrusor overactivity and can reduce the frequency and severity of bladder-related autonomic dysreflexia, although it may cause retention, urinary infection, and procedure-associated dysreflexia and does not guarantee complete prevention (sources 42430939, 38393175, 34495688). Candidate B is less appropriate because urethral lidocaine has inconsistent evidence for preventing autonomic dysreflexia (source 35962043) and would target catheter-related afferent stimulation rather than the documented trigger\u2014bladder filling with involuntary detrusor contractions.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "42430939"
+              ],
+              "source_passage_ids": [
+                "42430939:p0"
+              ],
+              "reason": "The systematic review explicitly characterizes autonomic dysreflexia as severe and potentially life-threatening, particularly with spinal cord lesions at or above T6.",
+              "source_quotes": [
+                {
+                  "source_id": "42430939",
+                  "quote": "Autonomic dysreflexia (AD) is a severe and potentially life-threatening complication of a spinal cord injury (SCI), particularly in patients with lesions at or above the sixth thoracic level. Neurogenic detrusor overactivity (NDO) is one of the main triggering factors. The impact of NDO treatment on AD remains insufficiently clarified. We conducted a systematic review of the literature in PubMed and Cochrane Database between January 1990 and May 2025. Eligible studies included patients with SCI and AD undergoing treatment for NDO, including antimuscarinics, botulinum toxin (BTX) or augmentation cystoplasty. The primary outcome was the assessment of systolic blood pressure (SBP) parameters in patients undergoing cystomanometry. Of the thirteen eligible studies, only five were included. No study evaluated augmentation cystoplasty."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38393175"
+              ],
+              "source_passage_ids": [
+                "38393175:p33"
+              ],
+              "reason": "The cited passage expressly lists bladder distension, neurogenic detrusor overactivity, urinary tract infection, and urological procedures as common lower-urinary-tract triggers.",
+              "source_quotes": [
+                {
+                  "source_id": "38393175",
+                  "quote": "In AD, a noxious stimulus below the level of injury can trigger a disproportionate sympathetic response, defined as an elevation in systolic blood pressure greater than 20 mmHg from baseline [ 126 , 127 , 128 ]. Chronic AD is a risk factor for severe complications including ischemic and hemorrhagic stroke, seizures, myocardial infarction, and death [ 129 ]. LUT triggers, such as bladder distension, NDO, urinary tract infection, and urological procedures, are common provoking factors for AD [ 130 , 131 ]. The use of BoNT to mitigate the occurrence of AD is a relatively new area of research with promising implications. 4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.6."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "38393175"
+              ],
+              "source_passage_ids": [
+                "38393175:p31"
+              ],
+              "reason": "The review reports that Botox is recommended by the AUA for neurogenic lower urinary tract dysfunction in patients with spinal cord injury or multiple sclerosis who are refractory to oral anticholinergics.",
+              "source_quotes": [
+                {
+                  "source_id": "38393175",
+                  "quote": "Xeomin \u00ae has not been widely studied in the treatment of NDO; however, a recent study reported 200\u2013300 U intravesical Xeomin \u00ae injections in participants with NDO-reduced incontinence episodes and increased intermittent catheterization volumes and time between catheterizations [ 121 ]. Currently, only Botox \u00ae is recommended by the American Urological Association specifically for the treatment of NLUTD in patients with SCI or multiple sclerosis refractory to oral anticholinergics [ 122 ]. While BoNT is beneficial in the management of urinary incontinence in people with NLUTD, its suppression of the detrusor can result in increased urinary retention, increased cystometric capacities, and post-void residuals [ 115 , 123 ]."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "42430939"
+              ],
+              "source_passage_ids": [
+                "42430939:p1"
+              ],
+              "reason": "The systematic review reports improved urodynamic parameters and decreased autonomic dysreflexia severity during urodynamic testing and daily life after botulinum toxin treatment.",
+              "source_quotes": [
+                {
+                  "source_id": "42430939",
+                  "quote": "One study (12 patients) evaluating fesoterodine and four studies (95 patients) evaluating BTX injection demonstrated improved urodynamic parameters and a decrease in severity of AD during urodynamic studies and in daily life. Improvements in AD-HR-QoL and I-QoL scores were also demonstrated. Controlling NDO with fesoterodine or BTX injection reduces the prevalence and severity of AD, likely by limiting abnormal C-fiber recruitment and reducing neurogenic inflammation. BTX additionally modulates TRPV1-expressing afferents, which further reduces AD risk. Although hypertensive peaks improve, submaximal parameters remain unchanged, highlighting the need for additional complementary strategies. The use of BTX and fesoterodine for NDO treatment effectively reduces AD episodes in patients with SCI."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "38393175"
+              ],
+              "source_passage_ids": [
+                "38393175:p31",
+                "38393175:p32"
+              ],
+              "reason": "The source identifies increased urinary retention and post-void residuals from detrusor suppression and reports that repeated bladder injections can provoke autonomic dysreflexia in people with spinal cord injury.",
+              "source_quotes": [
+                {
+                  "source_id": "38393175",
+                  "quote": "Xeomin \u00ae has not been widely studied in the treatment of NDO; however, a recent study reported 200\u2013300 U intravesical Xeomin \u00ae injections in participants with NDO-reduced incontinence episodes and increased intermittent catheterization volumes and time between catheterizations [ 121 ]. Currently, only Botox \u00ae is recommended by the American Urological Association specifically for the treatment of NLUTD in patients with SCI or multiple sclerosis refractory to oral anticholinergics [ 122 ]. While BoNT is beneficial in the management of urinary incontinence in people with NLUTD, its suppression of the detrusor can result in increased urinary retention, increased cystometric capacities, and post-void residuals [ 115 , 123 ]."
+                },
+                {
+                  "source_id": "38393175",
+                  "quote": "In addition, multiple BoNT injections can result in irritation of the detrusor wall and have been shown to provoke AD in people with SCI [ 124 ], although some studies reported no injection-related adverse events [ 117 , 121 ]. Other reported adverse events include hematuria, pyrexia, dysuria, and urinary tract infections [ 119 , 125 ]. The use of Botox \u00ae for treating NDO is well-established, however, practitioners must be cognizant of correct dosing and timing of administration. In addition, further investigations may be required for alternative formulations of BoNT prior to their use in practice. 4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.6. Management of Autonomic Dysreflexia AD is a life-threatening complication commonly observed in individuals with SCI at or above the sixth thoracic spinal cord level."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "35962043"
+              ],
+              "source_passage_ids": [
+                "35962043:p1"
+              ],
+              "reason": "The systematic review found small studies with beneficial, neutral, and detrimental lidocaine results and concluded that evidence is insufficient to support or refute its use.",
+              "source_quotes": [
+                {
+                  "source_id": "35962043",
+                  "quote": "Four RCTs and two quasi-experimental studies met inclusion criteria. Results were narratively synthesized as meta-analysis was not possible due to heterogeneity across studies included in the review. All six studies administered lidocaine. Lidocaine was found to have a beneficial effect on AD in three studies, no effect in two studies and a detrimental effect in one study. Presently, RCTs and quasi-experimental studies on the use of lidocaine for reducing AD in individuals with SCI had small sample sizes and opposing findings. There is a strong need for definitive, well-monitored clinical trials with adequate sample sizes. Presently there is not enough compelling evidence to support or refute recommendations for the use of lidocaine from the AD management clinical practice guidelines."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The chart independently supports recurrent bladder-triggered autonomic dysreflexia associated with objectively demonstrated neurogenic detrusor overactivity: a chronic C5 injury, characteristic symptoms during filling, an increase in blood pressure from 102/62 to 188/104 mmHg, and prompt resolution after drainage. The patient is currently asymptomatic, so elective prevention rather than acute hypertensive management is the relevant decision. Candidate A appropriately preserves reliable bladder emptying and proposes specialist discussion of intradetrusor botulinum toxin after an ineffective and intolerable oral oxybutynin trial. It also appropriately avoids guaranteeing benefit and acknowledges retention and procedure-associated dysreflexia. The evidence substantively supports this decision through both the botulinum-toxin review and the later systematic review of NDO treatment and autonomic dysreflexia. Candidate B is not appropriate because topical lidocaine has conflicting, insufficient evidence and would not address the demonstrated detrusor-overactivity trigger. The visible title, question, notes, and study impression disclose the clinical syndrome but not the intended preventive treatment. The case remains within spinal cord injury rehabilitation practice, with reasonable neuro-urology collaboration. It is distinct from the prior post-stroke focal plantarflexor-spasticity case despite both involving botulinum toxin, because the indication, target organ, risks, and clinical decision are different."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The episodes are classic bladder-triggered autonomic dysreflexia in a patient with high cervical SCI, and urodynamics directly show neurogenic detrusor overactivity provoking severe symptomatic hypertension during filling. The more appropriate preventive strategy is to keep reliable bladder drainage while treating the underlying NDO. Retrieved evidence supports intradetrusor botulinum toxin for NDO in SCI, including improved urodynamic parameters and reduced severity/frequency of autonomic dysreflexia during urodynamics and daily life, particularly when oral antimuscarinics are not tolerated or insufficient. The AUA/SUFU NLUTD guideline framework also emphasizes individualized treatment based on symptoms, urodynamics, hand/caregiver support, bowel issues, and shared decision-making. Candidate A appropriately acknowledges planning for retention/catheterization needs and procedure-associated dysreflexia, and avoids promising complete prevention. Candidate B is less appropriate because topical urethral lidocaine addresses catheterization-related afferent stimulation, not the demonstrated detrusor-overactivity/bladder-filling trigger; a systematic review found mixed and insufficient evidence for lidocaine to prevent AD, so it should not be the primary long-term preventive measure while deferring NDO-directed therapy.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "42430939"
+              ],
+              "reason": "The cited systematic review directly states that autonomic dysreflexia is severe, potentially life-threatening, and particularly associated with SCI lesions at or above T6.",
+              "source_passage_ids": [
+                "42430939:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "42430939",
+                  "quote": "Autonomic dysreflexia (AD) is a severe and potentially life-threatening complication of a spinal cord injury (SCI), particularly in patients with lesions at or above the sixth thoracic level. Neurogenic detrusor overactivity (NDO) is one of the main triggering factors. The impact of NDO treatment on AD remains insufficiently clarified. We conducted a systematic review of the literature in PubMed and Cochrane Database between January 1990 and May 2025. Eligible studies included patients with SCI and AD undergoing treatment for NDO, including antimuscarinics, botulinum toxin (BTX) or augmentation cystoplasty. The primary outcome was the assessment of systolic blood pressure (SBP) parameters in patients undergoing cystomanometry. Of the thirteen eligible studies, only five were included. No study evaluated augmentation cystoplasty."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38393175"
+              ],
+              "reason": "The cited review directly identifies bladder distension, neurogenic detrusor overactivity, urinary tract infection, and urological procedures as lower urinary tract triggers for autonomic dysreflexia.",
+              "source_passage_ids": [
+                "38393175:p33"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38393175",
+                  "quote": "In AD, a noxious stimulus below the level of injury can trigger a disproportionate sympathetic response, defined as an elevation in systolic blood pressure greater than 20 mmHg from baseline [ 126 , 127 , 128 ]. Chronic AD is a risk factor for severe complications including ischemic and hemorrhagic stroke, seizures, myocardial infarction, and death [ 129 ]. LUT triggers, such as bladder distension, NDO, urinary tract infection, and urological procedures, are common provoking factors for AD [ 130 , 131 ]. The use of BoNT to mitigate the occurrence of AD is a relatively new area of research with promising implications. 4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.6."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "38393175"
+              ],
+              "reason": "The cited review states that Botox is recommended by the AUA for NLUTD in patients with SCI or MS refractory to oral anticholinergics, matching the case\u2019s SCI-associated NLUTD after an intolerable antimuscarinic trial.",
+              "source_passage_ids": [
+                "38393175:p31"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38393175",
+                  "quote": "Xeomin \u00ae has not been widely studied in the treatment of NDO; however, a recent study reported 200\u2013300 U intravesical Xeomin \u00ae injections in participants with NDO-reduced incontinence episodes and increased intermittent catheterization volumes and time between catheterizations [ 121 ]. Currently, only Botox \u00ae is recommended by the American Urological Association specifically for the treatment of NLUTD in patients with SCI or multiple sclerosis refractory to oral anticholinergics [ 122 ]. While BoNT is beneficial in the management of urinary incontinence in people with NLUTD, its suppression of the detrusor can result in increased urinary retention, increased cystometric capacities, and post-void residuals [ 115 , 123 ]."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "42430939"
+              ],
+              "reason": "The cited systematic review reports that botulinum toxin injection studies showed improved urodynamic parameters and decreased autonomic dysreflexia severity during urodynamic studies and in daily life.",
+              "source_passage_ids": [
+                "42430939:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "42430939",
+                  "quote": "One study (12 patients) evaluating fesoterodine and four studies (95 patients) evaluating BTX injection demonstrated improved urodynamic parameters and a decrease in severity of AD during urodynamic studies and in daily life. Improvements in AD-HR-QoL and I-QoL scores were also demonstrated. Controlling NDO with fesoterodine or BTX injection reduces the prevalence and severity of AD, likely by limiting abnormal C-fiber recruitment and reducing neurogenic inflammation. BTX additionally modulates TRPV1-expressing afferents, which further reduces AD risk. Although hypertensive peaks improve, submaximal parameters remain unchanged, highlighting the need for additional complementary strategies. The use of BTX and fesoterodine for NDO treatment effectively reduces AD episodes in patients with SCI."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "38393175"
+              ],
+              "reason": "The cited review supports both parts of the claim: detrusor suppression can increase urinary retention/post-void residuals, and multiple BoNT injections have been shown to provoke autonomic dysreflexia in people with SCI.",
+              "source_passage_ids": [
+                "38393175:p31",
+                "38393175:p32"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38393175",
+                  "quote": "Xeomin \u00ae has not been widely studied in the treatment of NDO; however, a recent study reported 200\u2013300 U intravesical Xeomin \u00ae injections in participants with NDO-reduced incontinence episodes and increased intermittent catheterization volumes and time between catheterizations [ 121 ]. Currently, only Botox \u00ae is recommended by the American Urological Association specifically for the treatment of NLUTD in patients with SCI or multiple sclerosis refractory to oral anticholinergics [ 122 ]. While BoNT is beneficial in the management of urinary incontinence in people with NLUTD, its suppression of the detrusor can result in increased urinary retention, increased cystometric capacities, and post-void residuals [ 115 , 123 ]."
+                },
+                {
+                  "source_id": "38393175",
+                  "quote": "In addition, multiple BoNT injections can result in irritation of the detrusor wall and have been shown to provoke AD in people with SCI [ 124 ], although some studies reported no injection-related adverse events [ 117 , 121 ]. Other reported adverse events include hematuria, pyrexia, dysuria, and urinary tract infections [ 119 , 125 ]. The use of Botox \u00ae for treating NDO is well-established, however, practitioners must be cognizant of correct dosing and timing of administration. In addition, further investigations may be required for alternative formulations of BoNT prior to their use in practice. 4. The Use of Botulinum Toxin in Conditions with Autonomic Dysfunction > 4.6. Management of Autonomic Dysreflexia AD is a life-threatening complication commonly observed in individuals with SCI at or above the sixth thoracic spinal cord level."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "35962043"
+              ],
+              "reason": "The cited systematic review found small studies with opposing findings and concluded that there was not enough compelling evidence to support or refute lidocaine recommendations.",
+              "source_passage_ids": [
+                "35962043:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35962043",
+                  "quote": "Four RCTs and two quasi-experimental studies met inclusion criteria. Results were narratively synthesized as meta-analysis was not possible due to heterogeneity across studies included in the review. All six studies administered lidocaine. Lidocaine was found to have a beneficial effect on AD in three studies, no effect in two studies and a detrimental effect in one study. Presently, RCTs and quasi-experimental studies on the use of lidocaine for reducing AD in individuals with SCI had small sample sizes and opposing findings. There is a strong need for definitive, well-monitored clinical trials with adequate sample sizes. Presently there is not enough compelling evidence to support or refute recommendations for the use of lidocaine from the AD management clinical practice guidelines."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is within PM&R spinal cord injury/autonomic dysreflexia management. The visible clinical data support recurrent bladder-filling autonomic dysreflexia in a chronic C5 SCI patient: classic symptoms, marked BP rise during urodynamic detrusor contraction, resolution with bladder drainage, no active alternative trigger, and prior oral antimuscarinic intolerance. Candidate A is the better and safe answer because it preserves reliable bladder emptying and appropriately directs elective prevention toward neuro-urology discussion of intradetrusor botulinum toxin for documented neurogenic detrusor overactivity, while acknowledging retention risk, procedure-associated dysreflexia risk, and incomplete guarantee of benefit. Candidate B is unsafe/unsupported because it substitutes routine peri-catheterization lidocaine as the primary long-term strategy despite conflicting evidence and defers treatment of the documented bladder-filling NDO trigger. The applicant-visible title/question do not reveal the intended answer or management plan. The decision is distinct from the prior case: both involve botulinum toxin, but this case concerns prevention of bladder-triggered autonomic dysreflexia after SCI rather than early post-stroke focal plantarflexor spasticity management."
+        },
+        "image_sha256": null
+      }
+    ],
+    "authoring_method": "prepared_revision",
+    "entry_sha256": "28d5b30315b1ecd1753ef51810e069f6aa78ee40345eb632168d8ab8248e84be"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

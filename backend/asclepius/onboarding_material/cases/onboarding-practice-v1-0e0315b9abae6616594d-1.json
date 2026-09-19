@@ -1,0 +1,419 @@
+{
+  "task_id": "onboarding-practice-v1-0e0315b9abae6616594d-1",
+  "specialty": "physical medicine and rehabilitation",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Focused lower-limb examination during stroke rehabilitation",
+    "question": "Which candidate provides the more appropriate management of the focal lower-limb impairment identified during this rehabilitation visit?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "physical medicine and rehabilitation",
+      "demographics": {
+        "age_band": "50-59",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Recent hemorrhagic stroke with left hemiparesis",
+          "since": "8 weeks",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Limited walking with recurrent left toe drag",
+          "since": "8 weeks",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "PM&R consultation",
+          "author_role": "physical medicine and rehabilitation",
+          "text": "The patient is eight weeks after a first hemorrhagic stroke and is participating in outpatient rehabilitation. She walks short indoor distances with a quad cane and contact guarding. During swing, the left foot remains plantarflexed and inverted, producing recurrent toe drag that limits gait practice. Examination shows moderate left ankle weakness. Slow passive dorsiflexion reaches neutral, while rapid dorsiflexion produces a clear catch followed by resistance through the remaining range. Plantarflexor tone is Modified Ashworth Scale grade 2, and two beats of ankle clonus are present. There is no fixed ankle contracture, skin breakdown, or resting pain.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for rehabilitation decision",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "Candidate A appropriately ties focal botulinum toxin treatment to documented, functionally problematic, velocity-dependent plantarflexor muscle overactivity during the first three months after stroke. Evidence supports reduction of measured spasticity in this period, but does not establish improvement in activity outcomes, so walking gains should not be promised. An ankle-foot orthosis may separately support post-stroke mobility, but it should not be prescribed or described as a treatment that decreases plantarflexor spasticity. Candidate B makes that clinically consequential error and omits a supported focal treatment option.",
+        "evidence": {
+          "decision_scope": "Management of focal plantarflexor muscle overactivity eight weeks after stroke"
+        },
+        "key_data": [
+          "The patient is eight weeks after stroke, within the studied early intervention period of less than three months.",
+          "Rapid stretch produces a catch and sustained resistance, with Modified Ashworth Scale grade 2 plantarflexor tone and ankle clonus.",
+          "The plantarflexed and inverted swing-phase posture produces recurrent toe drag that limits gait practice.",
+          "Slow passive dorsiflexion reaches neutral, making a fixed contracture less consistent with the observed impairment."
+        ]
+      },
+      "hard_hook": "Distinguish treatment of problematic focal muscle overactivity from an orthosis that may assist mobility without reducing plantarflexor spasticity.",
+      "reasoning_divergence": "The flawed approach incorrectly treats the mobility effects of an ankle-foot orthosis as evidence that the orthosis reduces the underlying plantarflexor spasticity."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Because the documented focal, velocity-dependent plantarflexor overactivity is limiting gait practice, offer focal botulinum toxin treatment with the goal of reducing measured tone, without promising improved walking activity. An ankle-foot orthosis may be considered separately for mobility assistance, but not as a treatment to decrease plantarflexor spasticity."
+      },
+      {
+        "id": "B",
+        "text": "Prescribe an ankle-foot orthosis as the primary antispasticity treatment, expecting positional control during walking to reduce the plantarflexor tone itself. Defer focal botulinum toxin treatment and determine success mainly from mobility while the orthosis is being worn."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "post-stroke spasticity",
+      "botulinum toxin",
+      "plantarflexor tone",
+      "ankle-foot orthosis",
+      "contracture",
+      "gait impairment"
+    ],
+    "evidence_keywords": [
+      "early intervention",
+      "Modified Ashworth Scale",
+      "focal muscle overactivity",
+      "ankle-foot orthosis",
+      "mobility",
+      "activity outcomes"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Botulinum toxin applied within three months after stroke consistently reduced spasticity measured by the Modified Ashworth Scale or electromyography.",
+        "source_ids": [
+          "38907596"
+        ]
+      },
+      {
+        "statement": "The early-intervention review could not establish botulinum toxin effects on the International Classification of Functioning activity domain.",
+        "source_ids": [
+          "38907596"
+        ]
+      },
+      {
+        "statement": "Ankle-foot orthoses can improve post-stroke gait speed, mobility, and dynamic balance, but should not be used to decrease plantarflexor spasticity.",
+        "source_ids": [
+          "33675603"
+        ]
+      },
+      {
+        "statement": "The VA and Department of Defense stroke-rehabilitation guideline synopsis identifies botulinum toxin among its major recommendations addressing spasticity.",
+        "source_ids": [
+          "39832369"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T03:00:49.092252+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "36254447",
+        "title": "Brazilian practice guidelines for stroke rehabilitation: Part II.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36254447/",
+        "abstract": "The Brazilian Practice Guidelines for Stroke Rehabilitation - Part II, developed by the Scientific Department of Neurological Rehabilitation of the Brazilian Academy of Neurology (Academia Brasileira de Neurologia, in Portuguese), focuses on specific rehabilitation techniques to aid recovery from impairment and disability after stroke. As in Part I, Part II is also based on recently available evidence from randomized controlled trials, systematic reviews, meta-analyses, and other guidelines. Part II covers disorders of communication, dysphagia, postural control and balance, ataxias, spasticity, upper limb rehabilitation, gait, cognition, unilateral spatial neglect, sensory impairments, home rehabilitation, medication adherence, palliative care, cerebrovascular events related to severe acute respiratory syndrome coronavirus 2 (SARS-CoV-2) infection, the future of stroke rehabilitation, and stroke websites to support patients and caregivers. Our goal is to provide health professionals with more recent knowledge and recommendations for better rehabilitation care after stroke.",
+        "sha256": "aef461e1fd8e24435e91dd7e9a1ed2d07430147f0330503356e221a822e028ae",
+        "retrieved_at": "2026-09-19T02:59:40.051693+00:00",
+        "pmcid": "PMC9685826"
+      },
+      {
+        "id": "33675603",
+        "title": "A Clinical Practice Guideline for the Use of Ankle-Foot Orthoses and Functional Electrical Stimulation Post-Stroke.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33675603/",
+        "abstract": "Level of ambulation following stroke is a long-term predictor of participation and disability. Decreased lower extremity motor control can impact ambulation and overall mobility. The purpose of this clinical practice guideline (CPG) is to provide evidence to guide clinical decision-making for the use of either ankle-foot orthosis (AFO) or functional electrical stimulation (FES) as an intervention to improve body function and structure, activity, and participation as defined by the International Classification of Functioning, Disability and Health (ICF) for individuals with poststroke hemiplegia with decreased lower extremity motor control.\nA review of literature published through November 2019 was performed across 7 databases for all studies involving stroke and AFO or FES. Data extracted included time post-stroke, participant characteristics, device types, outcomes assessed, and intervention parameters. Outcomes were examined upon initial application and after training. Recommendations were determined on the basis of the strength of the evidence and the potential benefits, harm, risks, or costs of providing AFO or FES.\nOne-hundred twenty-two meta-analyses, systematic reviews, randomized controlled trials, and cohort studies were included. Strong evidence exists that AFO and FES can each increase gait speed, mobility, and dynamic balance. Moderate evidence exists that AFO and FES increase quality of life, walking endurance, and muscle activation, and weak evidence exists for improving gait kinematics. AFO or FES should not be used to decrease plantarflexor spasticity. Studies that directly compare AFO and FES do not indicate overall superiority of one over the other. But evidence suggests that AFO may lead to more compensatory effects while FES may lead to more therapeutic effects. Due to the potential for gains at any phase post-stroke, the most appropriate device for an individual may change, and reassessments should be completed to ensure the device is meeting the individual's needs.\nThis CPG cannot address the effects of one type of AFO over another for the majority of outcomes, as studies used a variety of AFO types and rarely differentiated effects. The recommendations also do not address the severity of hemiparesis, and most studies included participants with varied baseline ambulation ability.\nThis CPG suggests that AFO and FES both lead to improvements post-stroke. Future studies should examine timing of provision, device types, intervention duration and delivery, longer term follow-up, responders versus nonresponders, and individuals with greater impairments.\nThese recommendations are intended as a guide for clinicians to optimize rehabilitation outcomes for people with poststroke hemiplegia who have decreased lower extremity motor control that impacts ambulation and overall mobility.A Video Abstract is available as supplemental digital content from the authors (available at: http://links.lww.com/JNPT/A335).",
+        "sha256": "033a1196734112cfe4f2432cc69b1448dd92178aec03dde69c434a2c8c1df259",
+        "retrieved_at": "2026-09-19T02:59:40.051693+00:00"
+      },
+      {
+        "id": "39832369",
+        "title": "Stroke Rehabilitation: Synopsis of the 2024 U.S. Department of Veterans Affairs and U.S. Department of Defense Clinical Practice Guidelines.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39832369/",
+        "abstract": "In July 2024, the U.S. Department of Veterans Affairs (VA) and U.S. Department of Defense (DOD) released a joint update of their 2019 clinical practice guideline (CPG) for the management of stroke rehabilitation. This synopsis is a condensed version of the 2024 CPG, highlighting the key aspects of the guideline development process and describing the major recommendations.\nThe VA/DOD Evidence-Based Practice Work Group convened a joint VA/DOD guideline development work group (WG) that included clinical stakeholders and conformed to the Institute of Medicine's tenets for trustworthy CPGs. The guideline WG conducted a patient focus group, developed key questions, and systematically searched and evaluated the literature (English-language publications from 1 July 2018 to 2 May 2023). The GRADE (Grading of Recommendations Assessment, Development and Evaluation) system was used to evaluate the evidence. The WG developed 47 recommendations along with algorithms for stroke rehabilitation in the inpatient and outpatient settings. Stakeholders outside the WG reviewed the CPG before approval by the VA/DOD Evidence-Based Practice Work Group.\nThis synopsis summarizes where evidence is strongest to support guidelines in crucial areas relevant to primary care physicians: transition to community (case management, psychosocial or behavioral interventions); motor therapy (task-specific practice, mirror therapy, rhythmic auditory stimulation, electrical stimulation, botulinum toxin for spasticity); dysphagia, aphasia, and cognition (chin tuck against resistance, respiratory muscle strength training); and mental health (selective serotonin reuptake inhibitor use, psychotherapy, mindfulness-based therapies for treatment but not prevention of depression).",
+        "sha256": "b0b226bb3a7877380b9a6a1171a0a57fad5558107fe8c2e20cb0ef6164fac20f",
+        "retrieved_at": "2026-09-19T02:59:40.051693+00:00"
+      },
+      {
+        "id": "41257457",
+        "title": "Canadian Stroke Best Practice Recommendations Rehabilitation, Recovery, and Community Participation Following Stroke, Part Two: Delivery of Stroke Rehabilitation to Optimize Functional Recovery, 7th Edition Update 2025.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41257457/",
+        "abstract": "The Canadian Stroke Best Practice Recommendations 7 th edition update of the Rehabilitation, Recovery and Community Participation module is presented in three parts. This publication, Part Two of the series, reflects the growing and changing body of research evidence available to guide direct stroke rehabilitation therapies, screening, assessment, interventions, and strategies. Topics in this module include rehabilitation of upper and lower extremity, aerobic function, balance, mobility, activities of daily living, spasticity, fall risk, communication, dysphagia, nutrition, central pain, visual and visual-perceptual issues, and bladder and bowel function. This module provides guidance in the delivery of coordinated and seamless systems of care that support timely access to rehabilitation therapies, building on progress achieved during initial recovery, enabling people to achieve as much independence as possible and successfully resume social roles and leisure activities. Successful recovery, transitions and community participation require integrated and coordinated people-centered efforts by all members of care teams involved, and the broader community. These recommendations were developed with active involvement of people with lived experience of stroke throughout the care continuum. Evidence for effective rehabilitation therapies and support for individuals with stroke and their families continues to emerge and gaps in knowledge should drive future research.",
+        "sha256": "09edc88e39063e8a5c1743460f05d663502c875c0d6728acdb765ff6340e3572",
+        "retrieved_at": "2026-09-19T02:59:40.803719+00:00"
+      },
+      {
+        "id": "38907596",
+        "title": "The effectiveness of early interventions for post-stroke spasticity: a systematic review.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38907596/",
+        "abstract": "To synthesize evidence on the effect of early post-stroke spasticity interventions.\nSystematic literature search (PubMed, Embase, and Web of Science) encompassing studies on spasticity reducing interventions within 3\u2009months post stroke on outcome defined within the International Classification of Functioning (ICF).\nIn total, 27 studies were identified with n\u2009=\u20091.658 cases. Botulinum toxin (2-12\u2009weeks; 10 studies, n\u2009=\u2009794) showed consistent and significant reduced spasticity by Modified Ashworth Scale (MAS) or electromyography (EMG). Electrical muscle stimulation (1-8\u2009weeks; 6 studies, n\u2009=\u2009335) showed lower MAS/Composite Spasticity Scale scores in 4 studies. Transcranial stimulation (3 studies; n\u2009=\u2009131), oral spasmolytics (1 study; n\u2009=\u200938), shockwave (1 study; n\u2009=\u200940), orthotics (3 studies; n\u2009=\u2009197 and robot-assisted therapy (3 studies; n\u2009=\u2009123) showed inconclusive results. Effects on ICF activity domain could not be established due to limited data and large outcome measures heterogeneity. One out of two studies showed significant benefit for early compared to late BoNT intervention (< 90 vs> 90\u2009days).\nThis study provides evidence for early applied (<3\u2009months) BoNT to effectively reduce spasticity and probable effectiveness of electrical stimulation. Establishing effects of interventions in the acute/hospitalization phase (<7\u2009days) needs further work, specifically on the ICF activity domain. Standardization of outcome measures is required.",
+        "sha256": "4b9b3d5d81a9a68a536047675bf9cbb356446b5f5f47cd2c0c7fb99c4ed9b7bd",
+        "retrieved_at": "2026-09-19T02:59:42.156267+00:00"
+      },
+      {
+        "id": "33551975",
+        "title": "Prevalence and Risk Factors for Spasticity After Stroke: A Systematic Review and Meta-Analysis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33551975/",
+        "abstract": "Background: Spasticity is a common sequela of stroke. The incidence of poststroke spasticity (PSS) has not been systematically reviewed in recent years, and some risk factors remain debated. This systematic review and meta-analysis was conducted to determine the prevalence and risk factors for PSS. Methods: We searched electronic databases (PubMed, Embase, Cochrane Library, CNKI, WANFANG and CBM) inception to May 12, 2020. Observational studies summarizing the incidence or risk factors for PSS were included. Only cohort studies were enrolled in meta-analysis. For risk factors examined in at least three different studies, we combined effects into odds ratios (OR) and 95% confidence intervals (CI). Results: One thousand four hundred sixty-seven studies were retrieved and 23 were involved in meta-analysis. The pooled prevalence of spasticity after stroke was 25.3% and that after the first-ever stroke was 26.7%. The incidence of spasticity after the first-ever stroke with paresis was 39.5%. The prevalence of disabling or severe spasticity (MAS \u2265 3) in stroke patients with paresis was 9.4% (95% CI 0.056-0.133), and severe spasticity was 10.3% (95% CI 0.058-0.149). Moderate to severe paresis (OR = 6.573, 95% CI 2.579-16.755, I 2 = 0.0%), hemorrhagic stroke (OR = 1.879, 95% CI 1.418-2.490, I 2 = 27.3%) and sensory disorder were risk factors for PSS. Conclusions: The incidence of PSS was significantly higher in stroke patients with paresis. Patients with moderate to severe paresis and sensory disorder should be closely followed up. The role of hemorrhagic stroke in predicting PSS remains to be further explored.",
+        "sha256": "68cd664fc972196126282624c92fc6342620adcdcb16d8fc719f8a0bcadbaaf1",
+        "retrieved_at": "2026-09-19T02:59:42.156267+00:00",
+        "pmcid": "PMC7855612",
+        "body_excerpts": "Introduction\nStroke is the third leading cause of death in the world, with about 795,000 people experiencing a new or recurrent stroke each year ( 1 , 2 ). Spasticity is a common sequela of stroke patients with an incidence of 4\u201342.6% ( 3 ). Initially Lance defined spasticity as an increased velocity-dependent muscle tone with exaggerated tendon jerks caused by hyperexcitability of the stretch reflex ( 4 ). Pandyan limited spasticity to all the positive signs of the Upper Motor Neuron (UMN) syndrome and redefined spasticity as disordered sensorimotor control, presenting as intermittent, or sustained involuntary involvement of muscles ( 5 ). Recently Dressler proposed a new definition as involuntary muscle overactivity in central paresis, which is caused by slow or rapid passive joint movement or sensory stimulation ( 6 ). Poststroke spasticity (PSS) severely impairs upper-limb flexibility and the ability of walking and moving, mostly resulting from five characteristic arm spasticity patterns, four common ankle and foot spasticity patterns and stiff-knee gait ( 7 \u2013 11 ). Long-term PSS may cause a severe deterioration of quality life due to complications including joint contractures, decubitus and pain ( 12 , 13 ), leading to a fourfold increase in care burden ( 14 ).\n\nIntroduction\nA 2013 review reported that the incidence of PSS in early stroke was 4\u201327%, in post-acute stroke was 19\u201326.7%, and in chronic stroke was 17\u201342.6% ( 3 ). In recent years, the prevalence of PSS has not been aggregated or updated. And it may change with the improvement of health care and economy, resulting in calling for further research ( 15 ). Meanwhile, no literature has quantified summarized the prevalence of PSS. Data on the incidence of disabling spasticity with a need for interventions are still scarce. There is no generally accepted definition of disabling spasticity. Lundstr\u00f6m defined disabling spasticity as spasticity that have a clinically significant impact on movement function, activity performance, or participation in social life, accompanied by positive symptoms of UMN syndrome ( 16 ). An international panel of clinical experts recommended building on clinical expertise and the concepts of the International Classification of Functioning, Disability and Health (ICF) domains ( 17 ), defined spasticity that considered by a spinal cord damage patients or caregiver to interfere with body function, activities and/or participation as disabling spasticity ( 18 ). This is consistent with another study ( 17 , 19 ).\n\nIntroduction\nPatients with PSS who have low motor recovery potential may benefit from aggressive treatment and care ( 20 , 21 ). Aiming at correctly following-up high-risk patients and effectively guide resources, a more comprehensive assessment of risk factors for PSS is needed ( 22 ). Severe paresis has been recognized as a risk factor for PSS in previous studies, but whether sensory impairment, early increased muscle tone, low BI score, stroke-related pain, hemorrhagic stroke and cognitive impairment predict PSS remains debated. A previous meta-analysis found motor and sensory impairment, hemorrhagic stroke and age predicted upper limb spasticity 1 month after stroke ( 23 ). But another review qualitatively concluded that low Barthel index (BI) score, severe paralysis, stroke related pain and sensory disorders were key risk factors for PSS ( 3 ). The differences may be related to inconsistent assessment methods and subjects.\n\nIntroduction\nTherefore, aiming at summarizing the latest evidences, this study provided a quantitative and qualitative analysis of the incidence of PSS including disabling spasticity and severe spasticity over time. To enhance evidence for the prevention and treatment of PSS, this meta-analysis was conducted to investigate risk factors for PSS. And a descriptive summary of risk factors that did not meet the inclusion criteria for meta-analysis was presented. Finally, the onset and course of PSS and the mechanisms involved in predicting PSS are discussed in this review.\n\nMaterials and Methods > Search Strategy\nPublications were searched PubMed, Embase, Cochrane Library, CNKI, WANFANG and CBM up to May 12, 2020 and were supplemented by manually selected from reference list and review. The term words were included \u201cstroke,\u201d \u201cmuscle spasticity,\u201d \u201cspasticity,\u201d \u201cmuscle hypertonia,\u201d \u201cdystonia,\u201d \u201cmuscle tonus,\u201d \u201cepidemiology,\u201d \u201cprevalence,\u201d \u201cincidence,\u201d \u201cpredict,\u201d \u201cdeterminant,\u201d \u201cmorbidity,\u201d \u201crisk,\u201d and \u201coccurrence.\u201d The detailed search strategy is presented in Supplementary Material . Only literature in English and Chinese were searched. Two authors separately and independently screened studies according to the selection criteria. A third author made the ultimate decision if consensus could not be reached. For studies without sufficient information to evaluate the eligibility, we contacted authors via E-mail to obtain data.\n\nMaterials and Methods > Inclusion and Exclusion Criteria\nStudies were included if met the following criteria: (1) Participants over 18 years old were had a stroke with a diagnosis by WHO criteria, excluding subarachnoid hemorrhage. (2) Outcomes included the risk factors and/or the prevalence of PSS. (3) Only cohort studies were enrolled in meta-analysis. Risk factors investigated in at least three studies that assessed muscle tone by the Modified Ashworth Scale (MAS) or the Ashworth Scale (AS) were meta-analyzed. Studies included in meta-analysis of the incidence of PSS were not required to use specific methods to assess spasticity. If multiple publications report the same results from the same study, the publication with the largest sample size was chosen. Conference literatures and studies focusing on functional improvement after intervention were excluded.\n\nMaterials and Methods > Data Extraction\nThe following data were independently extracted and cross-checked by the two evaluators according to the predetermined table: study characteristics (publication year, first author, study design, country, sample size), subjects (stroke type), outcomes (spasticity events, risk factors), follow-up time. Based on the concepts of the ICF domains, we defined disabling spasticity as spasticity that have a clinically significant impact on movement function, activity performance, or participation in social life, accompanied by positive symptoms of UMN syndrome. Severe spasticity was defined as MAS greater than or equal to 3.\n\nMaterials and Methods > Data Analysis\nSTATA 14.0 statistical software (StataCorp LP, College Station, Texas, USA) was used for statistical analysis. The pooled incidence of spasticity was calculated as a percentage based on the prevalence and standard error of each study, combining with a 95% confidence interval (CI). Risk factors were calculated by odds ratio (OR) and 95% CI. Bilateral P < 0.05 were considered statistically significant. Heterogeneity was measured by Cochran's Q test combined with I 2 statistics. The level of heterogeneity represented by the I 2 statistics is interpreted as small ( I 2 \u2264 25%), medium (25% < I 2 \u2264 50%), large (50% < I 2 \u2264 75%), or very large ( I 2 > 75%). A fixed-effect model was used if acceptable heterogeneity is found ( I 2 < 50%, P > 0.1). And random effect model was used to adjust significant heterogeneity. Subgroup analysis was performed according to different follow-up times including four periods: within 1, 1\u20133, 3\u20136, beyond 6 months. Sensitivity analysis excluded individual studies and re-conducted meta-analysis to evaluate the robustness of comprehensive results.\n\nResults > Study Characteristics and Risk of Bias\nTable 1 summarizes the characteristics of included studies in meta-analysis. Six thousand nine hundred and fifty six subjects were enrolled, and sample size ranged from 43 to 3056. Subjects were concentrated in Europe and Asia, with no participants from Oceania or Africa. Eleven studies included stroke patients, and nine studies included only ischemic stroke patients. Follow-up time ranged from 3 months to 7 years, with the majority in 3\u20136 months. The risk of bias was low in 21 studies with 6 stars or more. Only one study scored below 6, indicating a high risk of bias.\n\nResults > Study Characteristics and Risk of Bias\nTable 1 Characteristics of included studies in meta-analysis. Study Study design Country Sample Stroke Spasticity definition Spasticity events Predictors Follow-up Quality Volny et al. ( 51 ) Prospective cohort study Czech 76 First ever ischemic stroke MAS > 1 44 Age, gender, baseline NIHSS, ASPECTS, location 6 months 6 Shin et al. ( 49 ) Prospective cohort study Korea 3056 First ever stroke MAS \u2265 1 3, 6, 12 months: 156, 153, 160 Age, gender, stroke type, 12 months 7 Katoozian et al. ( 34 ) Prospective cohort study Iran 149 First ever stroke with hemiplegia MAS \u2265 1 1 week: 26 1 month: 30; 3 months: 18 Age, gender, stroke type, sensory disorder, lesion site 3 months 6 Opheim et al. ( 41 , 42 ) Prospective cohort study Sweden 117 First ever stroke with arm paresis MAS \u2265 1 4 weeks: 48 12 months: 35 Age, sensation, paresis, early increase in muscle tone, OCSP, FMA 12 months 8 Kong et al. ( 36 ) Prospective cohort study Singapore 163 First-ever ischemic stroke with weakness MAS \u2265 1 Severe PSS:MAS \u2265 3 3, 6, 12months: 54, 67, 72 UEMI, MBI 12 months 5 Lundstr\u00f6m et al. ( 30 ) Prospective cohort study Sweden 50 First-ever stroke with paresis MAS \u2265 1 Disabling spasticity 1 month: 13 6 months: 6 Severe arm paresis, sensory disorder 6 months 7 Persson et al. ( 43 ) Prospective cohort study Sweden 288 First-ever or recurrent acute ischemic stroke MAS \u2265 2 99 Age, arm motor power 7 years 7 Li et al. ( 54 ) Prospective cohort study China 185 ischemic stroke MAS \u2265 1 Severe PSS:MAS \u2265 3 32 Age, gender, sensory, smoking, diabetes, BI, lesion site, hypertension 6 months 6 Urban et al. ( 46 ) Prospective cohort study Germany 211 First-ever ischemic stroke with paresis MAS > 1 Severe PSS:MAS \u2265 3 90 Severe paresis and hemi-hypesthesia at stroke onset, moderate paresis, mild paresis 6 months 9 Leathley et al. ( 38 ) Watkins et al. ( 52 ) Cohort study UK 106 Stroke MAS \u2265 1 38 Leg and arm weakness, BI, smoking, side of weakness 12 months 7 Ryu et al. ( 48 ) Retrospective cohort study Korea 245 stroke MAS \u2265 1 Severe PSS:MAS \u2265 3 104 NIHSS, Motricity index No reported 5 de Jong et al. ( 28 ) Prospective cohort Study Netherlands 50 Ischemic stroke and paralysis MAS \u2265 1+ 3 months: 23 6 months: 26 FMA, stroke duration 6 months 6 Dorn\u00e1k et al. ( 29 ) Prospective cohort study Czech 307 First stroke with motor deficit MAS > 1 Severe PSS:MAS \u2265 3 138 BI, mRS 12 months 8 van Kuijk et al. ( 50 ) Cohort study Netherlands 43 Ischemic stroke with paralysis AS \u2265 2 22 Sensory disorder, early hand motor recovery 26 weeks 7 Plantin et al. ( 45 ) Cohort study Sweden 61 First ever stroke with weakness Neuro Flexor 3 weeks: 20; 3, 6 months: 28 corticospinal tract damage, FMA-hand, lesion Volume 6 months 6 Jin et al. ( 33 ) Cohort study China 407 First ever ischemic stroke MAS > 1 3, 6, 12 months: 142, 163, 173 Stroke site 12 months 6 Picelli et al. ( 24 ) Retrospective cohort study Italy 72 Ischemic stroke hemiparesis Severe PSS:MAS \u2265 3 40 Age, gender, ESS foot, ESS arm (proximal paresis of upper limb and distal paresis of lower limb), smoking 6 months 7 Egen-Lappe et al. ( 31 ) Cohort study Germany 1167 Stroke Diagnosis code 119 Age, gender, hypertension, diabetes, stroke type 6 months 6 Wissel et al. ( 32 ) Prospective cohort study Germany 94 Stroke MAS \u2265 1 6 days: 23; 6, 16 weeks: 23,18 Paresis, lower BI score, early increase in muscle tone 16 weeks 6 Welmer et al. ( 53 ) Prospective cohort study Sweden 109 First-ever stroke MAS > 0 3 months: 18 18 months: 13 No reported 18 months 6 ASPECTS, the Alberta Stroke Program Early CT Score; BI, Barthel Index; ESS, European Stroke Scale; NIHSS, National Institute of Health stroke scale; MBI, Modified Barthel Index; FMA, the Fugl-Meyer Assessment; mRS, modified Rankin scale; FMA-UE, the Fugl-Meyer Assessment Upper Extremity Scale; MAS, the Modified Ashworth Scale; AS, the Ashworth Scale; PSS, Poststroke spasticity; UEMI, Upper Extremity Motricity Index; OCSP, Oxfordshire community stroke project .\n\nResults > Incidence of Spasticity\nThis review descriptively summarized the incidence of PSS in 24 cross-sectional and cohort studies in order to compare with previous reviews ( 3 , 16 , 24 , 25 , 27 \u2013 36 , 41 , 45 , 46 , 48 \u2013 54 ). The prevalence of PSS ranged from 4 to 46% within 1 month, 4.16\u201348% in 1\u20133 months, 6.9\u201363% in 3\u20136 months, 7.6\u201349% beyond 6 months. And 2\u20132.6% of patients developed disabling or severe spasticity within 1 month, 5% in 1\u20133 months, 8\u201315.6% in 6 months and 12.5\u201318% beyond 6 months. Since most previous studies considered paresis to be a risk factor for PSS, we divided studies into two groups based on inclusion criteria for concurrent paresis: general stroke is defined as the diagnosis of stroke, whether or not paresis occurs. It is addressed to the entire stroke population. Stroke with paresis was defined as a stroke accompanied by a stroke-induced paresis.\n\nResults > Incidence of Spasticity in General Stroke\nNine cohort studies reported the prevalence of spasticity in general stroke patients and were included in meta-analysis ( 31 \u2013 33 , 43 , 49 , 51 \u2013 54 ). Ryu was excluded due to uncertain follow-up time ( 48 ). The prevalence of PSS was 6.8\u201364%. The follow-up period ranged from 6 days to 7 years, mostly within 12 months. Meta-analysis found that the incidence of PSS was the highest within 1 month, and the incidence changed little after 3 months. The overall incidence was 25.3% (95% CI 0.213\u20130.293, I 2 = 97.9%; Figure 2 ), 31.6% (95% CI 0.158\u20130.474, I 2 = 94.8%) within 1 month, 21.8% (95% CI 0.048\u20130.387, I 2 = 98.1%) in 1 to 3 months, 26.3% (95% CI 0.174\u20130.353, I 2 = 98.3%) in 3\u20136 months, 24.2% (95% CI 0.036\u20130.447, I 2 = 98.6%) beyond 6 months. Five studies included patients with a first-ever stroke, and four did not identify patients with a first or recurrent stroke. Combined results showed that overall incidence of PSS in the first-ever stroke patients was 26.7% (95% CI 0.217\u20130.318, I 2 = 98.5%). Most studies reported mild-to-moderate increases in muscle tone. Only two studies reported severe spasticity, with incidence ranging from 2 to 2.6% ( 48 , 54 ).\n\nResults > Incidence of Spasticity in Stroke With Paresis\nSeven cohort studies involving first-ever stroke patients with paresis provided data on incidence of PSS ( 29 , 30 , 34 , 35 , 41 , 45 , 46 ). Picelli was excluded from the meta-analysis because of the great heterogeneity, resulting from including stroke patients with early PSS in the rehabilitation center ( 24 ). The follow-up period ranged from 3 days to 12 months. Declarative review summarized that 23\u201349% of stroke patients with paresis had spasticity. Meta-analysis revealed an overall incidence of spasticity in first-ever stroke patients with paresis was 39.5% (95% CI 0.351 to 0.439, I 2 = 75.1%; Figure 3 ), 35.7% (95% CI 0.263\u20130.450, I 2 = 80.5%) within 1 month, 34.6% (95% CI 0.235\u20130.457, I 2 = 73.9%) in 1\u20133 months, 42.3% (95% CI 0.346\u20130.500, I 2 = 74.0%) from 3 to 6 months, 45.4% (95% CI 0.407\u20130.500, I 2 = 0%) beyond 6 months. Three studies assessed the incidence of severe spasticity in stroke patients with paresis, and one reported the incidence of disabling spasticity ( 29 , 30 , 36 , 46 ). Follow-up time is concentrated on 6\u201312 months. The incidence of disabling spasticity increased over time. Meta-analysis showed overall an incidence of disabling spasticity and severe spasticity was 9.4% (95% CI 0.056 to 0.133, I 2 = 87.8%; Figure 4 ); 2.5% (95% CI 0.009 to 0.041, I 2 = 0.0%) in 1 month, 5% (95% CI 0.017\u20130.083) in 1\u20133 months, 12% (95% CI 0.084\u20130.157, I 2 = 46.9%) in 6 months, 14.9% (95% CI 0.096\u20130.203, I 2 = 46.5%) in 12 months. The incidence of severe spasticity was 10.3% (95% CI 0.058\u20130.149, I 2 = 89.9%).\n\nResults > Risk Factors for Spasticity\nThis meta-analysis included 15 cohort studies that reported one or more risk factors for PSS ( 24 , 27 , 30 , 34 , 36 , 38 , 39 , 42 , 43 , 46 , 48 \u2013 51 , 54 ). Two studies that did not use MAS or AS to assess spasticity were excluded from the meta-analysis of risk factors for PSS ( 31 , 45 ). This meta-analysis found that BI, age, gender, hemisphere injury, smoking, hypertension, and diabetes could not predict PSS ( Table 2 ). The heterogeneity among studies may be related to different study environment, subjects, evaluation methods, and time.\n\nResults > Risk Factors for Spasticity\nTable 2 Potential risk factors for spasticity after stroke in meta-analysis. Risk factors (subgroup) Studies Sample size Effect OR 95%CI I 2 P Motor dysfunction 6 1,015 1.019 0.919\u20131.129 93.5% 0.723 Paresis 3 336 1.565 0.173\u201314.154 91.8% 0.690 Moderate to severe paresis 6.573 2.579\u201316.755 0% P < 0.001 Sensory disorder 6 755 1.44 0.81\u20132.55 70.4% 0.217 1\u20133 months 1.226 0.493\u20133.052 34.5% 0.661 3\u20136 months 1.990 1.031\u20133.841 0.040 Over 6 months 0.850 0.725\u20130.997 0.045 Hemorrhagic stroke 4 3,504 1.879 1.418\u20132.490 27.3% 0.001 1 month 1 49 6.667 1.309\u201333.943 18.4% 0.022 3 months 2 3,128 1.469 0.933\u20132.312 0.097 6 months 1 3,056 1.680 1.235\u20132.285 0.001 12 months 1 3,056 1.844 1.375\u20132.472 p < 0.001 Barthel index 4 761 1.052 0.974\u20131.136 69.8% 0.195 Hypertension 4 723 1.431 0.939\u20132.181 23.1% 0.232 Age 6 679 0.963 0.885\u20131.048 73.4% 0.386 Gender 7 3,776 1.068 0.855\u20131.334 0.0% 0.561 Hemisphere injury 3 3,316 1.212 0.990\u20131.484 3.6% 0.062 Smoking 4 580 0.934 0.396\u20132.201 69.3% 0.876 Diabetes 3 478 1.174 0.890\u20131.405 44.2% 0.617 Posterior circulation 3 262 0.706 0.304\u20131.641 28.9% 0.418 OR, odds ratio; CI, confidence interval .\n\nResults > Motor Dysfunction\nSix studies with complete data explored whether motor dysfunction after stroke was a risk factor for PSS and enrolled one thousand seventeen participants ( 30 , 36 , 42 , 43 , 46 , 48 ). Most studies suggested that motor dysfunction, especially early severe paresis, predicted PSS. Stroke patients with motor dysfunction was found to have no increased risk for PSS (OR = 1.019, 95% CI 0.919\u20131.129, I 2 = 93.5, P = 0.723; Table 2 ). Subgroup analysis confirmed that there was no significant increase in the incidence of PSS in stroke patients with motor dysfunction throughout the stroke duration. A subgroup analysis was made on the possibility of predicting the occurrence of PSS with mild paresis and moderate to severe paresis. Mild paresis was defined as NIHSS score of less than or equal to 1 in item 5 or 6, or at grade 4 of the British Medical Research Council (BMRC) scale, while moderate to severe paresis was greater than or equal to 2 in NIHSS or BMRC grades 0\u20133. A subgroup of four studies that showed that only moderate to severe paresis was a risk factor for PSS (OR = 6.573, 95% CI 2.579\u201316.755, I 2 = 0.0%, P < 0.001).\n\nResults > Hemorrhagic Stroke\nFive cohort studies compared the frequency of PSS in patients with ischemic or hemorrhagic stroke ( 30 , 31 , 34 , 48 , 49 ). A study was excluded from meta-analysis because of the use of diagnostic codes to assess PSS ( 31 ). Katoozian found a 2.5 times risk of PSS in patients with hemorrhagic stroke than ischemic stroke in 3 months ( 34 ). Lundstr\u00f6m followed up 48 stroke patients and reported that 62.5% (5 of 8) of patients with hemorrhagic stroke and 20% with ischemic stroke developed PSS in 1 month ( 30 ). Pooled data suggested a significantly increased incidence of PSS in patients with hemorrhagic stroke (OR = 1.879, 95% CI 1.418\u20132.490, I 2 = 27.3%, P < 0.001; Table 2 ). The risk of PSS was significantly increased at 1, 6, and 12 months in hemorrhagic stroke, but not at 3 months (OR = 1.469, 95% CI 0.933\u20132.312, I 2 = 18.4%, P = 0.097; Table 2 ) ( 30 , 34 , 49 ).\n\nResults > Stroke Site\nThree studies with sufficient data provided an association between posterior circulation injury and poststroke spasticity ( 34 , 42 , 54 ). Combined results showed that posterior circulation injury was not the risk factor for PSS (OR = 0.706, 95% CI 0.304\u20131.641, I 2 = 28.9%, P = 0.418). Because of insufficient data, fewer studies, and the classification of different stroke sites, we were unable to quantitatively update the relationship between other injury stroke sites and PSS. Some studies explored whether involvement of different stroke sites was a risk factor for PSS, especially for the upper limb spasticity. Jin found the highest incidence of upper limb spasticity (63.3%) in basal ganglia and internal capsule infarction ( 33 ). A retrospective study by Picelli revealed that damage to insula, thalamus, basal ganglia and white matter (internal capsule, corona radialis, external capsule and superior longitudinal tract) was significantly associated with severe PSS in upper limb ( 44 ). It was consistent as Cheung's finding ( 26 ). By using voxel-based lesion symptom mapping, Lee determined that corona radiata, posterior limb of internal capsule, thalamus, and putamen, premotor area, and insula were associated PSS in upper limb. Corona radiata, posterior limb of internal capsule, thalamus, and putamen caudate nucleus and external capsule are related to PSS in lower limb ( 40 ). In addition, the volume of stroke sites may also be associated with PSS. Ri found a high correlation between PSS and lesions in the middle cerebral artery supply area, pyramidal tract and/or internal capsule involvement and infarct size \u22653 cm 3 ( 47 ). Moreover, extensive multiple infarction may be a risk factor for PSS ( 25 , 54 ).\n\nDiscussion\nThis systematic review and meta-analysis provide the first quantitative summary of most up to date prevalence of PSS and reviews the risk factors for PSS. PSS occurred in 25.3% of stroke patients and 39.5% of stroke patients with paresis, which was basically consistent with a previous review ( 55 ). Descriptive summary data from 24 studies showed a higher prevalence of PSS within 1 month (4\u201346%) than Wissel (4\u201327%) ( 3 ). This meta-analysis concluded that 9.4% of stroke patients with paresis developed severe or disabling spasticity, higher than the previous review of severe PSS in lower limb (below 6%) ( 15 ). Lower incidence may be associated with short follow-up time. The prevalence of disabling spasticity continued to increase within 12 months, in line with Sunnerhagen ( 56 ). Only one cohort study provided data on disabling spasticity, so more high-quality, long-term studies on disabling spasticity after stroke are needed in the future. The incidence of severe spasticity (10.3%) in stroke patients with paralysis was slightly higher than that of disabling or severe spasticity, suggesting that not all severe spasticity develops into disabling spasticity, consistent with Kong's result ( 35 ).\n\nDiscussion\nTwo studies included patients with general stroke reported the incidence of severe spasticity (range from 2 to 2.6%). The paucity of studies on severe spasticity in the general stroke population are possibly due to the lower incidence of severe spasticity. General stroke patients are less likely to develop severe or disabling spasticity, and the prevalence of stroke patients with paresis is about 5 times as high as that of general stroke patients. Given the impacts of severe or disabling spasticity, stroke patients with paresis should be given more attention, especially with regard to the ability of activities or participation and quality of life.\n\nDiscussion\nThis meta-analysis showed that 39.5% of stroke patients with paresis may have PSS, but the treatment needs of patients with PSS are different ( 16 ). Spasticity following a moderate to severe stroke tends to stabilize within 30\u201390 days after stroke with poorer function over time, and these patients require active attention and intervention. Patients with disabling spasticity must be distinguished from those with mild spasticity. Even the treatment of a minor disability may have similar economic benefits as the treatment of a more severe disability ( 57 ). It is necessary to use the ICF system or other reasonable methods to classify and manage patients with PSS. There are different mechanisms for motor recovery and spasticity ( 58 , 59 ). The key to promoting motor recovery after stroke is to promote and regulate neuroplasticity through rehabilitation. By causing synaptic plasticity reorganization, Botulinum toxin creates a transient state of plasticity in the neuromotor system, allowing movement to be relearned and restored in the chronic phase ( 21 , 60 ). However, the efficacy of botulinum toxin in combination with rehabilitation has not been well-documented ( 61 ).\n\nDiscussion\nThe prevalence of PSS provides evidence for whether PSS occurs, but debates about when PSS occurs continues. Brunnstrom's theory characterized the onset of spasticity as a motor recovery phase and reflected PSS through synergistic effects rather than using AS or MAS to directly evaluate PSS. Onset of PSS helps to judge the prognosis of stroke patients and guide clinical treatment ( 62 ). A review by Sunnerhagen concluded that about half of patients with spasticity developed spasticity within 3 days after stroke, while the other half within the first month ( 56 ). Nam conducted a retrospective study of 861 stroke patients and found that median time from onset to onset of PSS in upper limb was 34 days. About half of patients developed PSS within 1 month after stroke, and a quarter of those with spasticity showed PSS after 2 months ( 63 ). However, Balakrishnan hold the opinion that PSS usually occurs within 1\u20136 weeks after stroke ( 64 ). Overall, the onset time of PSS is from 3 days to 6 weeks after stroke, mostly within 1 month. Changes in neuronal plasticity after central nervous system injury may lead to high variability in the onset of PSS ( 65 ). Neurogenic spasticity (spasticity and baseline activation) peaked 1\u20133 months after stroke ( 66 ). In the more advanced motor recovery stage, especially 3 months after stroke, resistance to passive movement was considered to be the result of inappropriate muscle activation (neural component) interacting with collagen tissue, tendons and muscle changes (biomechanical component) ( 12 ). As a widely used tool for evaluating PSS, MAS only provides subjective data on passive resistance and cannot distinguish the components of spasticity. And its poor reliability ( 67 ) and sensitivity may result in most patients being classified as having a moderate degree of clustering effect ( 68 ). The differentiation and objective quantification of spasmodic components should be combined with electrophysiological, biomechanical or optical evaluation methods to assist in clinical decision-making ( 69 , 70 ).\n\nDiscussion\nChanges in PSS status help determine the follow-up time. This meta-analysis suggested that PSS usually appeared or disappeared in 1\u20133 months after stroke and remained stable beyond 3 months according to changes in the prevalence of PSS over time. Most patients change from spasticity to non-spasticity because the incidence of PSS was lower at 3 months than at 1 month. Different degrees of spasticity evolved differently over time. At three months after stroke, patients with mild spasticity were less likely to deteriorate over time, while nearly half of those with moderate spasticity progressed to severe spasticity, and those with severe spasticity remained stable ( 36 ). In addition, Opheim reported that changes in PSS mostly occurred from day 3 to day 10 and from day 10 to 4 weeks ( 41 ). However, changes of PSS within 1 month were not able to further explored because of the large variation in evaluation time. Future studies need to focus on the changes of PSS in early stroke.\n\nDiscussion\nModerate to severe paresis was a risk factor for PSS, which was more detailed than motor dysfunction reported by previous meta-analysis ( 23 ). That's being expected. Reticulospinal tract and/or vestibulospinal tract hyperexcitability may be the mechanism of classic spasticity ( 71 ). After stroke, reticulospinal tract were activated and projected downward to both sides. Usually only in the paraplegia side developed spasticity may be due to stronger lateralization pathway that results in a marked increase in motor neuron excitability ( 59 ). Moreover, according to Brunnstrom's theory, patients with mild motor dysfunction may themselves be in or prone to developing into advanced motor recovery stages, and thus have a spasticity that eventually subsides or never experience spasticity ( 62 ).\n\nDiscussion\nPresent evidence indicates that the possible sites associated with PSS, including internal capsule, basal ganglia, thalamus, insula, etc. Some pathophysiological evidences have been established that damage to these sites predicts PSS. Basal ganglia injury increases involuntary muscle activation and cortical ridge marrow injury reduces voluntary muscle control, which may lead to involuntary muscle overactivity in central paralysis ( 72 ). This is in line with the new definition of spasticity ( 6 ). In addition, damage to insula may result in disorders of the vestibulospinal system, which leads to PSS ( 21 ). Considering the association of posterior limb lesions with severe motor impairment or isolated recovery of upper limb motion, the involvement of internal capsule was expected ( 73 ). In addition, corticospinal tract inhibits spinal reflexes.\n\nDiscussion\nAnother risk factor for PSS is hemorrhagic stroke, but no mechanism has been shown that hemorrhagic stroke directly predicted PSS. The most common sites of injury in hemorrhagic stroke were putamen/globus pallidus (56%) and internal capsule (51%). As discussed above, basal ganglia adjacent to internal capsule and corticospinal tract plays a role in predicting PSS. It's worth noting that hemorrhagic stroke may not be an independent risk factor for PSS, and damage to the basal ganglia region may lead to more PSS in patients with hemorrhagic stroke.\n\nDiscussion\nThis study could not be specifically identified whether severe paresis, early increased muscle tone or poor motor control as risk factors for PSS, which have been reported by previous studies. We proposed to define severe paresis as BMRC grades 0\u20133. And an ideal kind of study trying to resolve the relationship between severe paresis and PSS should involve all stroke patients and followed up for more than half a year. In addition, this review lacked data from the less developed region of Africa, where the lack of primary health-care services and increased the risk of disability. Emphasis should be placed on prevention and rehabilitation with post-stroke disability in these areas ( 74 ).\n\nStudy Limitations\nThis meta-analysis could not identify risk factors for severe spasticity or disabling spasticity because of different assessment methods and fewer studies. Stroke sites could not be subjected to a meta-analysis due to insufficient data after contacting the authors. Due to few studies, meta-regression analysis could not be conducted to explore the great heterogeneity. Publication bias risk assessment could not be carried out for the same reason. Due to the lack of long-term follow-up studies, this review was unable to explore the incidence of disabling spasticity more than 1 year after stroke. Since only the risk factors reported in at least three studies were included in the meta-analysis, it was not possible to analyze the effects of early increased muscle tone, NHISS scores and some stroke sites on the prediction of PSS.\n\nConclusions\nOverall, the incidence of PSS was 25.3%. 39.5% patients after first-ever stroke with paresis showed spasticity and 9.4% of which developed into severe or disabling spasticity. For patients with moderate to severe paresis, sensory disorder, close follow-up and intervention should be strengthened. The role of hemorrhagic stroke in predicting PSS remains to be further explored. Disabling spasticity requires longer follow-up studies and early identification and intervention are necessary due to impairment of function.",
+        "body_excerpts_sha256": "a77987c366606043301c52c4eebc66c4fac2a641f4383452ca3876d55f7d6476",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC7855612/fullTextXML",
+        "body_license_url": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "30582986",
+        "title": "Effectiveness of static stretching positioning on post-stroke upper-limb spasticity and mobility: Systematic review with meta-analysis.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30582986/",
+        "abstract": "To systematically review the effects of static stretching with positioning orthoses or simple positioning combined or not with other therapies on upper-limb spasticity and mobility in adults after stroke.\nThis meta-analysis was conducted according to PRISMA guidelines and registered at PROSPERO. MEDLINE (Pubmed), Embase, Cochrane CENTRAL, Scopus and PEDro databases were searched from inception to January 2018 for articles. Two independent researchers extracted data, assessed the methodological quality and rated the quality of evidence of studies.\nThree studies (57 participants) were included in the spasticity meta-analysis and 7 (210 participants) in the mobility meta-analysis. Static stretching with positioning orthoses reduced wrist-flexor spasticity as compared with no therapy (mean difference [MD]=-1.89, 95% confidence interval [CI] -2.44 to -1.34; I2 79%, P<0.001). No data were available concerning the spasticity of other muscles. Static stretching with simple positioning, combined or not with other therapies, was not better than conventional physiotherapy in preventing loss of mobility of shoulder external rotation (MD=3.50, 95% CI -3.45 to 10.45; I2 54.7%, P=0.32), shoulder flexion (MD=-1.20, 95% CI -8.95 to 6.55; I2 0%, P=0.76) or wrist extension (MD=-0.32, 95% CI -6.98 to 5.75; I2 38.5%, P=0.92). No data were available concerning the mobility of other joints.\nThis meta-analysis revealed very low-quality evidence that static stretching with positioning orthoses reduces wrist flexion spasticity after stroke as compared with no therapy. Furthermore, we found low-quality evidence that static stretching by simple positioning is not better than conventional physiotherapy for preventing loss of mobility in the shoulder and wrist. Considering the limited number of studies devoted to this issue in post-stroke survivors, further randomized clinical trials are still needed.\nPROSPERO (CRD42017078784).",
+        "sha256": "e6a4cf9c2ff431038d4df3c99a1a51ff1c7c35d1dc4f371b93a5c1f3a047ee16",
+        "retrieved_at": "2026-09-19T02:59:43.010277+00:00"
+      },
+      {
+        "id": "30452892",
+        "title": "Effect of Transcutaneous Electrical Nerve Stimulation on Spasticity in Adults With Stroke: A Systematic Review and Meta-analysis.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30452892/",
+        "abstract": "(1) To determine the effect of transcutaneous electrical nerve stimulation (TENS) on poststroke spasticity. (2) To determine the effect of different parameters (intensity, frequency, duration) of TENS on spasticity reduction in adults with stroke. (3) To determine the influence of time since stroke on the effectiveness of TENS on spasticity.\nPubMed, PEDro, CINAHL, Web of Science, CENTRAL, and EMBASE databases were searched from inception to March\u00a02017.\nRandomized controlled trial (RCT), quasi-RCT, and non-RCT were included if (1) they evaluated the effects of TENS for the management of spasticity in participants with acute or subacute or chronic stroke using clinical and neurophysiological tools; and (2) TENS was delivered either alone or as an adjunct to other treatments.\nTwo authors independently screened and extracted data from 15 of the 829 studies retrieved through the search using a pilot tested pro forma. Disagreements were resolved through discussion with other authors. Quality of studies was assessed using Cochrane risk of bias criteria.\nMeta-analysis was performed using a random-effects model that showed (1) TENS along with other physical therapy treatments was more effective in reducing spasticity in the lower limbs compared to placebo TENS (SMD -0.64; 95% confidence interval [95% CI], -0.98 to -0.31; P=.0001; I2=17%); and (2) TENS, when administered along with other physical therapy treatments, was effective in reducing spasticity when compared to other physical therapy interventions alone (SMD -0.83; 95% CI, -1.51 to -0.15; P=.02; I2=27%). There were limited studies to evaluate the effectiveness of TENS for upper limb spasticity.\nThere is strong evidence that TENS as an adjunct is effective in reducing lower limb spasticity when applied for more than 30 minutes over nerve or muscle belly in chronic stroke survivors (review protocol registered at PROSPERO: CRD42015020151).",
+        "sha256": "d570b21b6a38f40eb225e7dc5a5326d8e624c6ee8b6d393125b9c7e9a62416b3",
+        "retrieved_at": "2026-09-19T02:59:43.010277+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The rapid-stretch catch, sustained resistance, MAS grade 2 tone, and clonus with preserved slow passive dorsiflexion indicate focal, velocity-dependent plantarflexor spasticity rather than a fixed contracture. It is functionally relevant because it causes toe drag and limits gait practice. Evidence supports early botulinum toxin treatment for reducing focal post-stroke spasticity, although improvement in walking activity is not reliably established and should not be promised. An ankle-foot orthosis can separately improve foot clearance, gait speed, mobility, and balance, but guidelines specifically advise against using an AFO to decrease plantarflexor spasticity. Thus A correctly distinguishes impairment-directed botulinum toxin treatment from mobility assistance with an orthosis, whereas B incorrectly treats the orthosis as an antispasticity intervention.",
+          "confidence": 0.96
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.94,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "38907596"
+              ],
+              "reason": "The systematic review directly reports consistent, significant reduction of MAS- or EMG-measured spasticity with botulinum toxin administered 2\u201312 weeks after stroke.",
+              "source_passage_ids": [
+                "38907596:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38907596",
+                  "quote": "To synthesize evidence on the effect of early post-stroke spasticity interventions. Systematic literature search (PubMed, Embase, and Web of Science) encompassing studies on spasticity reducing interventions within 3 months post stroke on outcome defined within the International Classification of Functioning (ICF). In total, 27 studies were identified with n = 1.658 cases. Botulinum toxin (2-12 weeks; 10 studies, n = 794) showed consistent and significant reduced spasticity by Modified Ashworth Scale (MAS) or electromyography (EMG). Electrical muscle stimulation (1-8 weeks; 6 studies, n = 335) showed lower MAS/Composite Spasticity Scale scores in 4 studies. Transcranial stimulation (3 studies; n = 131), oral spasmolytics (1 study; n = 38), shockwave (1 study; n = 40), orthotics (3 studies; n = 197 and robot-assisted therapy (3 studies; n = 123) showed inconclusive results."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38907596"
+              ],
+              "reason": "The review explicitly states that effects on the ICF activity domain could not be established because of limited and heterogeneous data.",
+              "source_passage_ids": [
+                "38907596:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38907596",
+                  "quote": "Effects on ICF activity domain could not be established due to limited data and large outcome measures heterogeneity. One out of two studies showed significant benefit for early compared to late BoNT intervention (< 90 vs> 90 days). This study provides evidence for early applied (<3 months) BoNT to effectively reduce spasticity and probable effectiveness of electrical stimulation. Establishing effects of interventions in the acute/hospitalization phase (<7 days) needs further work, specifically on the ICF activity domain. Standardization of outcome measures is required."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33675603"
+              ],
+              "reason": "The AFO guideline reports improved gait speed, mobility, and dynamic balance while expressly recommending that AFO or FES not be used to decrease plantarflexor spasticity.",
+              "source_passage_ids": [
+                "33675603:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33675603",
+                  "quote": "Data extracted included time post-stroke, participant characteristics, device types, outcomes assessed, and intervention parameters. Outcomes were examined upon initial application and after training. Recommendations were determined on the basis of the strength of the evidence and the potential benefits, harm, risks, or costs of providing AFO or FES. One-hundred twenty-two meta-analyses, systematic reviews, randomized controlled trials, and cohort studies were included. Strong evidence exists that AFO and FES can each increase gait speed, mobility, and dynamic balance. Moderate evidence exists that AFO and FES increase quality of life, walking endurance, and muscle activation, and weak evidence exists for improving gait kinematics. AFO or FES should not be used to decrease plantarflexor spasticity."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "39832369"
+              ],
+              "reason": "The synopsis describes the VA/DoD guideline's major recommendations and includes botulinum toxin for spasticity among motor-therapy areas with the strongest support.",
+              "source_passage_ids": [
+                "39832369:p0",
+                "39832369:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39832369",
+                  "quote": "In July 2024, the U.S. Department of Veterans Affairs (VA) and U.S. Department of Defense (DOD) released a joint update of their 2019 clinical practice guideline (CPG) for the management of stroke rehabilitation. This synopsis is a condensed version of the 2024 CPG, highlighting the key aspects of the guideline development process and describing the major recommendations. The VA/DOD Evidence-Based Practice Work Group convened a joint VA/DOD guideline development work group (WG) that included clinical stakeholders and conformed to the Institute of Medicine's tenets for trustworthy CPGs. The guideline WG conducted a patient focus group, developed key questions, and systematically searched and evaluated the literature (English-language publications from 1 July 2018 to 2 May 2023)."
+                },
+                {
+                  "source_id": "39832369",
+                  "quote": "This synopsis summarizes where evidence is strongest to support guidelines in crucial areas relevant to primary care physicians: transition to community (case management, psychosocial or behavioral interventions); motor therapy (task-specific practice, mirror therapy, rhythmic auditory stimulation, electrical stimulation, botulinum toxin for spasticity); dysphagia, aphasia, and cognition (chin tuck against resistance, respiratory muscle strength training); and mental health (selective serotonin reuptake inhibitor use, psychotherapy, mindfulness-based therapies for treatment but not prevention of depression)."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The examination documents functionally consequential, velocity-dependent plantarflexor overactivity: rapid stretch causes a catch and sustained resistance, with MAS grade 2 tone and clonus, while slow dorsiflexion reaches neutral and therefore does not suggest a fixed contracture. At eight weeks after stroke, the patient falls within the early-treatment population in which botulinum toxin reduced measured spasticity. Candidate A appropriately limits the expected benefit to tone reduction because activity-level and walking benefits have not been established. It also correctly distinguishes an AFO's potential mobility assistance from treatment of plantarflexor spasticity. Candidate B incorrectly characterizes the AFO as a primary antispasticity intervention despite an explicit guideline statement against using it to decrease plantarflexor spasticity. The visible title, question, and note do not disclose botulinum toxin or the intended management choice. There are no previous cases against which this decision would be duplicative."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The examination describes focal post-stroke lower-limb spasticity: velocity-dependent plantarflexor resistance, MAS grade 2 tone, clonus, dynamic equinovarus/toe drag, and no fixed contracture. The supplied evidence supports botulinum toxin as an intervention that can reduce post-stroke spasticity, including when used early within 3 months, but notes that effects on activity-level outcomes such as walking are less certain. The AFO/FES clinical practice guideline states that AFOs can improve gait speed, mobility, and balance in people with post-stroke lower-extremity motor control deficits, but should not be used to decrease plantarflexor spasticity. Therefore, candidate A is more appropriate: focal botulinum toxin may be offered to reduce the identified focal tone while separately considering an AFO for gait assistance rather than as an antispasticity treatment. Candidate B incorrectly frames the AFO as the primary treatment to reduce plantarflexor tone itself.",
+          "confidence": 0.94
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "38907596"
+              ],
+              "reason": "The source directly states that the reviewed interventions were within 3 months post-stroke and that botulinum toxin at 2\u201312 weeks consistently and significantly reduced spasticity measured by MAS or EMG.",
+              "source_passage_ids": [
+                "38907596:p0",
+                "38907596:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38907596",
+                  "quote": "To synthesize evidence on the effect of early post-stroke spasticity interventions. Systematic literature search (PubMed, Embase, and Web of Science) encompassing studies on spasticity reducing interventions within 3 months post stroke on outcome defined within the International Classification of Functioning (ICF). In total, 27 studies were identified with n = 1.658 cases. Botulinum toxin (2-12 weeks; 10 studies, n = 794) showed consistent and significant reduced spasticity by Modified Ashworth Scale (MAS) or electromyography (EMG). Electrical muscle stimulation (1-8 weeks; 6 studies, n = 335) showed lower MAS/Composite Spasticity Scale scores in 4 studies. Transcranial stimulation (3 studies; n = 131), oral spasmolytics (1 study; n = 38), shockwave (1 study; n = 40), orthotics (3 studies; n = 197 and robot-assisted therapy (3 studies; n = 123) showed inconclusive results."
+                },
+                {
+                  "source_id": "38907596",
+                  "quote": "Effects on ICF activity domain could not be established due to limited data and large outcome measures heterogeneity. One out of two studies showed significant benefit for early compared to late BoNT intervention (< 90 vs> 90 days). This study provides evidence for early applied (<3 months) BoNT to effectively reduce spasticity and probable effectiveness of electrical stimulation. Establishing effects of interventions in the acute/hospitalization phase (<7 days) needs further work, specifically on the ICF activity domain. Standardization of outcome measures is required."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38907596"
+              ],
+              "reason": "The source directly states that effects on the ICF activity domain could not be established because of limited data and heterogeneous outcome measures.",
+              "source_passage_ids": [
+                "38907596:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38907596",
+                  "quote": "Effects on ICF activity domain could not be established due to limited data and large outcome measures heterogeneity. One out of two studies showed significant benefit for early compared to late BoNT intervention (< 90 vs> 90 days). This study provides evidence for early applied (<3 months) BoNT to effectively reduce spasticity and probable effectiveness of electrical stimulation. Establishing effects of interventions in the acute/hospitalization phase (<7 days) needs further work, specifically on the ICF activity domain. Standardization of outcome measures is required."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33675603"
+              ],
+              "reason": "The AFO/FES guideline abstract directly states that AFO can increase gait speed, mobility, and dynamic balance, and also directly states that AFO or FES should not be used to decrease plantarflexor spasticity.",
+              "source_passage_ids": [
+                "33675603:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33675603",
+                  "quote": "Data extracted included time post-stroke, participant characteristics, device types, outcomes assessed, and intervention parameters. Outcomes were examined upon initial application and after training. Recommendations were determined on the basis of the strength of the evidence and the potential benefits, harm, risks, or costs of providing AFO or FES. One-hundred twenty-two meta-analyses, systematic reviews, randomized controlled trials, and cohort studies were included. Strong evidence exists that AFO and FES can each increase gait speed, mobility, and dynamic balance. Moderate evidence exists that AFO and FES increase quality of life, walking endurance, and muscle activation, and weak evidence exists for improving gait kinematics. AFO or FES should not be used to decrease plantarflexor spasticity."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "39832369"
+              ],
+              "reason": "The VA/DoD synopsis states that it describes major recommendations and specifically lists botulinum toxin for spasticity among the motor-therapy areas where evidence is strongest to support guideline recommendations.",
+              "source_passage_ids": [
+                "39832369:p0",
+                "39832369:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39832369",
+                  "quote": "In July 2024, the U.S. Department of Veterans Affairs (VA) and U.S. Department of Defense (DOD) released a joint update of their 2019 clinical practice guideline (CPG) for the management of stroke rehabilitation. This synopsis is a condensed version of the 2024 CPG, highlighting the key aspects of the guideline development process and describing the major recommendations. The VA/DOD Evidence-Based Practice Work Group convened a joint VA/DOD guideline development work group (WG) that included clinical stakeholders and conformed to the Institute of Medicine's tenets for trustworthy CPGs. The guideline WG conducted a patient focus group, developed key questions, and systematically searched and evaluated the literature (English-language publications from 1 July 2018 to 2 May 2023)."
+                },
+                {
+                  "source_id": "39832369",
+                  "quote": "This synopsis summarizes where evidence is strongest to support guidelines in crucial areas relevant to primary care physicians: transition to community (case management, psychosocial or behavioral interventions); motor therapy (task-specific practice, mirror therapy, rhythmic auditory stimulation, electrical stimulation, botulinum toxin for spasticity); dysphagia, aphasia, and cognition (chin tuck against resistance, respiratory muscle strength training); and mental health (selective serotonin reuptake inhibitor use, psychotherapy, mindfulness-based therapies for treatment but not prevention of depression)."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is a PM&R post-stroke spasticity rehabilitation decision. The visible case describes focal, velocity-dependent left plantarflexor/inverter overactivity: rapid dorsiflexion causes a catch and resistance, MAS grade 2 tone and clonus are present, and the plantarflexed/inverted swing posture causes toe drag limiting gait practice. Slow passive dorsiflexion to neutral and absence of fixed contracture support a dynamic spasticity component rather than a fixed ankle contracture. Candidate A is the better and safer answer because it offers botulinum toxin for early focal spasticity with the realistic goal of reducing measured tone, while not promising improved walking activity; it also correctly separates AFO use for mobility support from antispasticity treatment. Candidate B incorrectly treats an AFO as the primary antispasticity intervention and expects it to reduce plantarflexor tone, which is contradicted by the AFO guideline. The applicant-visible title, question, and note do not disclose the intended answer or management plan; they describe the clinical impairment without naming botulinum toxin or AFO as the correct next step. The supplied evidence includes substantive support from more than two relevant sources for the clinical decision: early BoNT reduces spasticity, guideline synopsis includes botulinum toxin for spasticity, and AFO evidence supports mobility benefits but not reduction of plantarflexor spasticity. No prior cases were provided, so distinct_decision is satisfied."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "f450a73954b6b11820c4217d1f86d4c32e026a427fa630f841ce83c31a4a037f"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

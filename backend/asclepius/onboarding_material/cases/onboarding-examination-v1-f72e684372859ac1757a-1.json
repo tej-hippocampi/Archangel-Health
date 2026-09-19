@@ -1,0 +1,491 @@
+{
+  "task_id": "onboarding-examination-v1-f72e684372859ac1757a-1",
+  "specialty": "preventive medicine",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Preventive visit for an adult with substantial tobacco exposure",
+    "question": "Under the 2023 American Cancer Society lung cancer screening framework, which preventive approach is most appropriate at this visit?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "preventive medicine",
+      "demographics": {
+        "age_band": "50-59",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Current cigarette use",
+          "since": "22 years",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Preventive visit",
+          "author_role": "preventive medicine",
+          "text": "A 56-year-old woman presents for routine preventive care. She has smoked an average of one pack of cigarettes daily for 22 years and continues to smoke, giving a 22 pack-year history. She has no cough, hemoptysis, unexplained weight loss, chest pain, or change in exercise tolerance. She has never undergone lung cancer screening. She remains independent and active, has no life-limiting comorbidity, and states that she would consider curative lung surgery if an early cancer were found. She wants to understand both the potential benefits and harms of screening. Brief cessation advice has been provided previously, but she has not yet connected with cessation resources.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "She is asymptomatic, age 56, currently smokes, and has a 22 pack-year history, so she meets the ACS criteria for annual lung cancer screening with low-dose CT. Before screening begins, she should participate in shared decision making with a qualified health professional. Because she currently smokes, counseling and connection to cessation resources should also be provided. Her good functional status, willingness to consider curative surgery, and absence of a life-limiting condition support screening. Candidate B incorrectly applies older age and pack-year thresholds and would delay indicated screening.",
+        "evidence": null,
+        "key_data": [
+          "Age 56 years, within the 50-80-year screening range",
+          "Current cigarette smoker",
+          "Twenty-two pack-year cumulative smoking history",
+          "No symptoms suggesting a need for diagnostic rather than screening evaluation",
+          "No life-limiting comorbidity and willing to consider curative lung surgery"
+        ]
+      },
+      "hard_hook": "Recognition that the 20 pack-year threshold applies even though older criteria used a 30 pack-year threshold.",
+      "reasoning_divergence": "The flawed response applies superseded eligibility thresholds and delays screening; the sound response applies the named ACS framework and incorporates shared decision making and smoking-cessation support."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Engage her in shared decision making with a qualified health professional about the benefits and harms of lung cancer screening, then initiate annual low-dose CT if she chooses screening. Also provide smoking-cessation counseling and connect her with cessation resources."
+      },
+      {
+        "id": "B",
+        "text": "Defer lung cancer screening because she has not yet reached both 55 years of age and a 30 pack-year history. Continue routine preventive follow-up and reconsider screening only if her cumulative exposure reaches 30 pack-years."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "lung cancer screening",
+      "low-dose CT",
+      "tobacco use",
+      "shared decision making",
+      "smoking cessation"
+    ],
+    "evidence_keywords": [
+      "annual LDCT",
+      "20 pack-years",
+      "age 50-80",
+      "current smoker",
+      "life expectancy",
+      "curative surgery"
+    ],
+    "error_tags": [
+      "outdated_guideline",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "The ACS recommends annual low-dose CT screening for asymptomatic adults aged 50 to 80 years who currently or formerly smoked and have at least a 20 pack-year history.",
+        "source_ids": [
+          "37909877"
+        ]
+      },
+      {
+        "statement": "The ACS states that a shared decision-making discussion with a qualified health professional should occur before lung cancer screening is initiated.",
+        "source_ids": [
+          "37909877"
+        ]
+      },
+      {
+        "statement": "Current smokers undergoing consideration for screening should receive cessation counseling and be connected with smoking-cessation resources.",
+        "source_ids": [
+          "37909877"
+        ]
+      },
+      {
+        "statement": "The USPSTF also recommends annual low-dose CT for adults aged 50 to 80 years with at least 20 pack-years who currently smoke or quit within 15 years.",
+        "source_ids": [
+          "33687470"
+        ]
+      },
+      {
+        "statement": "Screening should not continue when a health problem substantially limits life expectancy or the ability or willingness to undergo curative lung surgery.",
+        "source_ids": [
+          "33687470",
+          "37909877"
+        ]
+      },
+      {
+        "statement": "The balance of benefits and harms from low-dose CT screening depends partly on appropriate eligibility selection and effective smoking-cessation interventions.",
+        "source_ids": [
+          "34270968"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T01:37:59.735596+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "33687470",
+        "title": "Screening for Lung Cancer: US Preventive Services Task Force Recommendation Statement.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33687470/",
+        "abstract": "Lung cancer is the second most common cancer and the leading cause of cancer death in the US. In 2020, an estimated 228\u202f820 persons were diagnosed with lung cancer, and 135\u202f720 persons died of the disease. The most important risk factor for lung cancer is smoking. Increasing age is also a risk factor for lung cancer. Lung cancer has a generally poor prognosis, with an overall 5-year survival rate of 20.5%. However, early-stage lung cancer has a better prognosis and is more amenable to treatment.\nTo update its 2013 recommendation, the US Preventive Services Task Force (USPSTF) commissioned a systematic review on the accuracy of screening for lung cancer with low-dose computed tomography (LDCT) and on the benefits and harms of screening for lung cancer and commissioned a collaborative modeling study to provide information about the optimum age at which to begin and end screening, the optimal screening interval, and the relative benefits and harms of different screening strategies compared with modified versions of multivariate risk prediction models.\nThis recommendation statement applies to adults aged 50 to 80 years who have a 20 pack-year smoking history and currently smoke or have quit within the past 15 years.\nThe USPSTF concludes with moderate certainty that annual screening for lung cancer with LDCT has a moderate net benefit in persons at high risk of lung cancer based on age, total cumulative exposure to tobacco smoke, and years since quitting smoking.\nThe USPSTF recommends annual screening for lung cancer with LDCT in adults aged 50 to 80 years who have a 20 pack-year smoking history and currently smoke or have quit within the past 15 years. Screening should be discontinued once a person has not smoked for 15 years or develops a health problem that substantially limits life expectancy or the ability or willingness to have curative lung surgery. (B recommendation) This recommendation replaces the 2013 USPSTF statement that recommended annual screening for lung cancer with LDCT in adults aged 55 to 80 years who have a 30 pack-year smoking history and currently smoke or have quit within the past 15 years.",
+        "sha256": "912a4c0b9ff98b1943193a772fd1cbe7bfe71ee9da055386a7b6271e5cd7846f",
+        "retrieved_at": "2026-09-19T01:36:46.492064+00:00"
+      },
+      {
+        "id": "37909877",
+        "title": "Screening for lung cancer: 2023 guideline update from the American Cancer Society.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37909877/",
+        "abstract": "Lung cancer is the leading cause of mortality and person-years of life lost from cancer among US men and women. Early detection has been shown to be associated with reduced lung cancer mortality. Our objective was to update the American Cancer Society (ACS) 2013 lung cancer screening (LCS) guideline for adults at high risk for lung cancer. The guideline is intended to provide guidance for screening to health care providers and their patients who are at high risk for lung cancer due to a history of smoking. The ACS Guideline Development Group (GDG) utilized a systematic review of the LCS literature commissioned for the US Preventive Services Task Force 2021 LCS recommendation update; a second systematic review of lung cancer risk associated with years since quitting smoking (YSQ); literature published since 2021; two Cancer Intervention and Surveillance Modeling Network-validated lung cancer models to assess the benefits and harms of screening; an epidemiologic and modeling analysis examining the effect of YSQ and aging on lung cancer risk; and an updated analysis of benefit-to-radiation-risk ratios from LCS and follow-up examinations. The GDG also examined disease burden data from the National Cancer Institute's Surveillance, Epidemiology, and End Results program. Formulation of recommendations was based on the quality of the evidence and judgment (incorporating values and preferences) about the balance of benefits and harms. The GDG judged that the overall evidence was moderate and sufficient to support a strong recommendation for screening individuals who meet the eligibility criteria. LCS in men and women aged 50-80\u00a0years is associated with a reduction in lung cancer deaths across a range of study designs, and inferential evidence supports LCS for men and women older than 80\u00a0years who are in good health. The ACS recommends annual LCS with low-dose computed tomography for asymptomatic individuals aged 50-80\u00a0years who currently smoke or formerly smoked and have a \u226520 pack-year smoking history (strong recommendation, moderate quality of evidence). Before the decision is made to initiate LCS, individuals should engage in a shared decision-making discussion with a qualified health professional. For individuals who formerly smoked, the number of YSQ is not an eligibility criterion to begin or to stop screening. Individuals who currently smoke should receive counseling to quit and be connected to cessation resources. Individuals with comorbid conditions that substantially limit life expectancy should not be screened. These recommendations should be considered by health care providers and adults at high risk for lung cancer in discussions about LCS. If fully implemented, these recommendations have a high likelihood of significantly reducing death and suffering from lung cancer in the United States.",
+        "sha256": "bf7c2ac525f5c345b8224af1f50e5e9d988e09b5e82fe2e57e285cebd07feea0",
+        "retrieved_at": "2026-09-19T01:36:46.492064+00:00"
+      },
+      {
+        "id": "39819601",
+        "title": "NCCN Guidelines\u00ae Insights: Lung Cancer Screening, Version 1.2025.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39819601/",
+        "abstract": "The NCCN Clinical Practice Guidelines in Oncology (NCCN Guidelines) for Lung Cancer Screening provide criteria for selecting individuals for screening and offer recommendations for evaluating and managing lung nodules detected during initial and subsequent annual screening. These NCCN Guidelines Insights focus on recent updates to the NCCN Guidelines for Lung Cancer Screening.",
+        "sha256": "05a8dae6d8b032ccf831e0a573320236c12cfd5c701e1a7c0ea35d66bc5af602",
+        "retrieved_at": "2026-09-19T01:36:46.492064+00:00"
+      },
+      {
+        "id": "34270968",
+        "title": "Screening for Lung Cancer: CHEST Guideline and Expert Panel Report.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34270968/",
+        "abstract": "Low-dose chest CT screening for lung cancer has become a standard of care in the United States, in large part because of the results of the National Lung Screening Trial (NLST). Additional evidence supporting the net benefit of low-dose chest CT screening for lung cancer, and increased experience in minimizing the potential harms, has accumulated since the prior iteration of these guidelines. Here, we update the evidence base for the benefit, harms, and implementation of low-dose chest CT screening. We use the updated evidence base to provide recommendations where the evidence allows, and statements based on experience and expert consensus where it does not.\nApproved panelists reviewed previously developed key questions using the Population, Intervention, Comparator, Outcome format to address the benefit and harms of low-dose CT screening, and key areas of program implementation. A systematic literature review was conducted using MEDLINE via PubMed, Embase, and the Cochrane Library on a quarterly basis since the time of the previous guideline publication. Reference lists from relevant retrievals were searched, and additional papers were added. Retrieved references were reviewed for relevance by two panel members. The quality of the evidence was assessed for each critical or important outcome of interest using the Grading of Recommendations, Assessment, Development, and Evaluation approach. Meta-analyses were performed when enough evidence was available. Important clinical questions were addressed based on the evidence developed from the systematic literature review. Graded recommendations and ungraded statements were drafted, voted on, and revised until consensus was reached.\nThe systematic literature review identified 75 additional studies that informed the response to the 12 key questions that were developed. Additional clinical questions were addressed resulting in seven graded recommendations and nine ungraded consensus statements.\nEvidence suggests that low-dose CT screening for lung cancer can result in a favorable balance of benefit and harms. The selection of screen-eligible individuals, the quality of imaging and image interpretation, the management of screen-detected findings, and the effectiveness of smoking cessation interventions can impact this balance.",
+        "sha256": "bfcb60794550a06e9bb2c759733b7aa805d4eee43110701241348e4904cc67e4",
+        "retrieved_at": "2026-09-19T01:36:47.174907+00:00",
+        "pmcid": "PMC8727886"
+      },
+      {
+        "id": "40593170",
+        "title": "Lung cancer screening with low-dose CT: definition of positive, indeterminate, and negative screen results. A nodule management recommendation from the European Society of Thoracic Imaging.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40593170/",
+        "abstract": "Early detection of lung cancer through low-dose CT lung cancer screening in a high-risk population has proven to reduce lung cancer-specific mortality. Nodule management plays a pivotal role in early detection and further diagnostic approaches. The European Society of Thoracic Imaging (ESTI) has established a nodule management recommendation to improve the handling of pulmonary nodules detected during screening. For solid nodules, the primary method for assessing the likelihood of malignancy is to monitor nodule growth using volumetry software. For subsolid nodules, the aggressiveness is determined by measuring the solid part. The ESTI-recommendation enhances existing protocols but puts a stronger focus on lesion aggressiveness. The main goals are to minimise the overall number of follow-up examinations while preventing the risk of a major stage shift and reducing the risk of overtreatment. KEY POINTS: Question Assessment of nodule growth and management according to guidelines is essential in lung cancer screening. Findings Assessment of nodule aggressiveness defines follow-up in lung cancer screening. Clinical relevance The ESTI nodule management recommendation aims to reduce follow-up examinations while preventing major stage shift and overtreatment.",
+        "sha256": "4f757601eba3da219bc0d68ef98d48cbbb95c435e1d8aca86d91277c01522e9a",
+        "retrieved_at": "2026-09-19T01:36:47.174907+00:00",
+        "pmcid": "PMC12711968",
+        "body_excerpts": "Introduction\nLung cancer is the leading cause of cancer death worldwide [ 1 ]. When diagnosed based on symptoms, most lung cancers are at an advanced stage and not eligible for complete surgical resection, which offers the greatest potential for long-term survival [ 2 ]. This is why screening reduces lung cancer mortality, by detecting lung cancer at an early, preclinical phase. This approach has recently been demonstrated to cause stage shift and improved survival in the US, following the introduction of lung cancer screening with low-dose computed tomography (LDCT) [ 3 ]. Lung cancer screening differs from other cancer screening programmes in that it specifically targets a high-risk population. So far, conducted European trials focused on current or former smokers with an age range between 50\u201374 years, a smoking history of 20\u201330 pack years and quit smoking within the last 10\u201315 years [ 4 \u2013 7 ]. Two large randomised controlled trials, NLST (National Lung Screening Trial) and NELSON (Nederlands-Leuvens Longkanker Screenings Onderzoek), have demonstrated the benefits of LDCT lung cancer screening (LCS), and further European studies, such as the MILD (Multicentric Italian Lung Detection) and LUSI (Lung Tumour Screening and Intervention Trial) trials, also confirmed a reduction in lung cancer-specific mortality [ 4 \u2013 7 ]. However, refinement of inclusion criteria for maximising the effectiveness of lung cancer screening may still be needed.\n\nIntroduction\nThe current evidence has led the European Council to update its 2003 recommendation on cancer screening at the end of 2022, to include lung cancer among the cancers to be screened, and to encourage countries to study the feasibility and effectiveness of screening [ 8 ]. Several countries (e.g. Poland, Croatia, United Kingdom) already run, or are setting up, nationwide lung cancer screening programmes [ 9 , 10 ]. Additionally, there are several lung cancer screening pilot projects in different European countries running or starting [ 11 ]. It is expected that governments and health care providers of other European countries will also approve similar initiatives. To foster the broad implementation of lung cancer screening in the member states of the European Union, the EU4Health programme has funded the SOLACE (strengthening the screening of lung cancer in Europe) project [ 12 ].\n\nIntroduction\nIt is essential to differentiate nodule management guidelines for incidental pulmonary nodules (e.g. Fleischner criteria [ 13 ]) from guidelines for screen-detected nodules (e.g. European Position Statement (EUPS) guidelines, the NELSON study nodule management protocol, the I-ELCAP (Early Lung Cancer Action Programme) recommendation and LungRADS v2022, which is the major US-American guideline) or guidelines for both screen-detected and incidental nodules (e.g. British Thoracic Society (BTS) guidelines) [ 14 \u2013 17 ]. As there is no uniformity between them, we felt it important to summarise them and to propose a new approach (discussed in detail in the justification paper) aimed at minimising false positives, reassessment errors and the number of intermediate scans during screening, while also reducing overdiagnosis and the risk for stage-shift during follow-up.\n\nNodule management guidelines for screen-detected pulmonary nodules > Risk categories and nodule classification approaches\nThe rationale between different nodule management categories is an estimate of the risk of the nodule detected being a lung cancer. To date, it is accepted that risk can be summarised into three main categories\n\nNodule management guidelines for screen-detected pulmonary nodules > Risk categories and nodule classification approaches\nNegative: estimated risk for lung cancer \u201cvery low\u201d. The risk is low enough so that the time interval until the next annual screening round can be upheld. Some authors set the 1-year risk threshold at 1%, whereas others push up to 6% for the recommendation of annual screening rounds [ 18 , 19 ]. This negative category represents up to 80\u201385% of all individuals undergoing LCS [ 5 , 20 ].\n\nNodule management guidelines for screen-detected pulmonary nodules > Risk categories and nodule classification approaches\nIndeterminate: estimated risk for lung cancer \u201clow to intermediate\u201d. The 1-year lung cancer risk for this category is heterogeneous across guidelines, with some guidelines using 2\u20133% risk as reference, while others pushing the boundary up to 10\u201330% [ 18 , 19 , 21 ]. The management of an indeterminate nodule requires a follow-up LDCT at an interval that is lower than the regular screening interval to ascertain nodule growth, size reduction or resolution. This follow-up LDCT is performed after a 1, 3, or 6-month interval, depending on the guideline. Indeterminate nodules are variably represented in the published series, found in 10\u201320% of subjects undergoing LCS.\n\nNodule management guidelines for screen-detected pulmonary nodules > Risk categories and nodule classification approaches\nPositive: estimated risk for lung cancer \u201chigh\u201d. In this case, diagnostic work-up and referral to a Multidisciplinary Team (MDT) meeting are needed to discuss management.\n\nNodule management guidelines for screen-detected pulmonary nodules > Risk categories and nodule classification approaches\nThe existing guidelines notably diverge in their method for weighting the risk of a nodule being a lung cancer. This heterogeneity is associated with variable degrees of complexity of the classification system (Supplementary Material, Table S1 ).\n\nNodule management guidelines for screen-detected pulmonary nodules > Risk categories and nodule classification approaches\n(b) Model-based classification of nodule risk by a mathematical model, e.g. a multivariable logistic regression model, that can be filled with a list of individual features and automatically provides a probability. The LCS reporting radiologist is called to enter each single feature into the model, which will automatically provide the estimate of lung cancer risk for that nodule. This automatically estimated risk is then assigned to a certain follow-up (or work-up) strategy. The example for this summarised format is found in the International Lung Screen Trial (ILST) and the British targeted lung health check (TLHC), both integrating the Brock model, in which the demographic, clinical, and imaging features are used for risk calculation. A definition for management of cystic nodules is missing in ILST and TLHC [ 10 , 19 ].\n\nNodule management guidelines for screen-detected pulmonary nodules > Risk categories and nodule classification approaches\nThese approaches both have their pros and cons. Specifically, approach (a) will apply to most \u201ccommon\u201d nodules. Approaches (b) and (c) are likely to reduce the variability of interpretation, especially for complex nodules, because the radiologist is not required to search for the most \u201crepresentative category,\u201d but the risk categories are assessed by filling a risk model, either manually (b) or automatically (c). The ILST demonstrated that method (b) shows higher negative predictive value, allegedly related to additional information included in the model that does not relate to the nodule morphology but are still included in the calculation determining if the nodule is likely to be a cancer (e.g. age, family history of lung cancer, lobar location, number of nodules, presence of emphysema, etc) [ 24 ].\n\nNodule management guidelines for screen-detected pulmonary nodules > Morphological criteria suggestive of malignancy\nCurrent guidelines are based on density (solid vs subsolid), size and growth. However, there are several morphological criteria on CT that are suggestive, though not specific, for malignancy. Although these features are used in daily practice, publications document considerable inter-reader variability [ 2 , 25 ]. This is especially true for patients with a high prevalence of pre-existing parenchymal changes (emphysema, fibrosis, silicosis, and bronchiectatic disease), where these morphological features become less specific, even though the underlying condition may increase the risk of developing lung cancer [ 26 ].\n\nNodule management guidelines for screen-detected pulmonary nodules > Morphological criteria suggestive of malignancy\nSpiculation and signs of perinodular architectural distortion, e.g. fissure displacement, are known features suggesting that a solid nodule is malignant. Signs of perinodular distortion, such as pleural indentation, also apply for subsolid nodules (Figs. 1 \u2013 3 ). Radio-pathological correlation has established that the size of a solid component is the best criterion to suggest invasiveness. A threshold of 5 mm for the solid component is generally accepted as a sign of invasiveness and corresponds to the pathological definition of a minimally invasive adenocarcinoma (MIA) in which the invasive portion should not exceed 5 mm [ 27 ]. However, it is also possible for invasive adenocarcinomas to take on the appearance of a pure ground glass nodule (GGN) [ 28 ]. If the solid component of a part-solid nodule is more than 80% of the entire nodule diameter, this nodule should be classified as a solid nodule [ 29 ].\n\nNodule management guidelines for screen-detected pulmonary nodules > Morphological criteria suggestive of malignancy\nOther features indicative of an underlying malignancy have been proposed, including: dilated small airways, bubble-like lucencies, arc concave sign, sudden bronchus cut off, endoluminal filling of bronchi in follow-up, or narrowing of vessels [ 31 , 32 ]. In addition to solid and subsolid nodule types, the \u201catypical pulmonary cyst\u201d category has been included in the recently updated 2022 Lung-RADS version [ 20 ]. Cysts that develop irregular extrinsic or intrinsic nodular wall thickening over time are highly suspicious for malignancy.\n\nNodule management guidelines for screen-detected pulmonary nodules > Morphological criteria suggestive of malignancy\nLung-RADS is the only management guideline that allows for upgrading nodules to a higher risk category (category 4X), if the CT shows morphological features that are considered suspicious. Although one study showed the positive effect of the 4X category on the correct estimation of risk, agreement between readers on the 4X category is moderate [ 33 ]. One possible explanation is the lack of an illustrated atlas accompanying the 4X category.\n\nNodule management guidelines for screen-detected pulmonary nodules > Morphological criteria for intrapulmonary lymph nodes and criteria suggesting benignity\nBased on the results of the screening trials, the vast majority of small solid nodules are benign. A significant proportion of these are intrapulmonary lymph nodes (IPLNs), either located along a fissure (also termed PFO for perifissural opacity) or close to the costal pleura. This category must be recognised morphologically, as volumetric assessment of growth is not appropriate, since these lymph nodes can have growth rates in the order of those of malignant nodules, even though they are benign by definition [ 34 ]. Typical CT features of IPLNs are a noncalcified solid nodule with sharp margins; a round, oval, or polygonal shape; distanced 15 mm or less from the pleura and a diameter of 12 mm or less; and located below the level of the carina, since most cancer nodules misclassified as IPLNs are in the upper lobes [ 35 ]. Perifissural nodules represent up to 28% of nodules seen at CT screening for lung cancer [ 36 ]. The adoption of recommendations for perifissural nodules is variable. The BTS guideline recommends no further follow-up for nodules meeting morphologic criteria that are within 1 cm of a fissure or pleural surface and less than 10 mm [ 14 ]. With Lung-RADS v2022, juxtapleural nodules < 10 mm are downclassified to category 2. Unlike with BTS, there is no definition regarding maximum distance from the fissure. Other morphological features indicative of benignity include a well-defined smooth border, the presence of intranodular fat (attenuation ranging from \u221240 HU to \u2212120 HU), and/or calcifications. Specific calcification patterns, such as central, diffuse, or \u2018popcorn-like,\u2019 are commonly associated with granulomas or hamartomas [ 31 ].\n\nNodule management guidelines for screen-detected pulmonary nodules > Size categories and follow-up recommendations of the various guidelines\nThe method for measuring nodule size, either diameter or volume, varies between guidelines. Nodule volume, however, can be transformed into effective diameter by calculating the diameter of a perfect sphere of the same volume. Calculating volumes from diameters requires diameter measurements in three orthogonal planes but still is problematic if the nodule is irregular and deviates in shape from a perfect ellipsoid. In such cases with irregular shape-, the volume calculated from orthogonal diameters will overestimate the real volume.\n\nNodule management guidelines for screen-detected pulmonary nodules > Size categories and follow-up recommendations of the various guidelines\nGuidelines show some similarity regarding the size thresholds for solid nodules, with 6 mm defined as the lower threshold in Lung-RADS v2022, which roughly corresponds to the 100 mm 3 proposed by the EUPS guideline [ 15 ]. The 15 mm upper threshold for a positive screen result according to the I-ELCAP corresponds to the Lung-RADS category 4B for referral to MDT discussion, whereas both the EUPS and BTS guidelines chose a threshold of 300 mm 3 for solid nodules (effective diameter 8.3 mm), in line with the post-hoc analysis of the NELSON trial [ 37 ].\n\nNodule management guidelines for screen-detected pulmonary nodules > Size categories and follow-up recommendations of the various guidelines\nThere are also differences with regard to which size of a pure GGN is considered a negative screening result: less than 8 mm according to NELSON, less than 3 cm according to LungRADS v2022 and whatever the size for pure GGNs, whether prevalent or incident, according to I-ELCAP [ 16 , 17 , 20 ]. Morphological nodule descriptors are consistent across various guidelines and are used not only to upstage nodules with malignant features but, more importantly, to downgrade larger nodules that exhibit benign morphology. Regarding the interval between screening rounds, annual rounds are the most widespread choice. The British TLHC and ILST are the only ones applying a biennial interval for their lowest risk category [ 10 , 19 ].\n\nNodule management guidelines for screen-detected pulmonary nodules > Size categories and follow-up recommendations of the various guidelines\nIn the various guidelines, the intervals for following indeterminate nodules vary between 1 month, 3 months and 6 months depending on the type of nodule. LungRADS v2022 follows pure GGNs larger than 3 cm after 6 months, while findings suggestive of an inflammatory or infectious process are reassessed after 1\u20133 months [ 20 ]. Nodules between 80 mm 3 and 300 mm 3 are reassessed at 3 months according to the BTS guideline [ 14 ]. If segmentation fails, an increase in mean diameter of > 1.5 mm (within a 12-month interval) with manual measurement results in a positive screen [ 20 ].\n\nAdvantages and limitations of volumetric assessment of nodules\nSoftware-based volume measurements are an important improvement for the precision of nodule growth assessment, though several limitations need to be considered. Most systems use a combination of density thresholding and shape recognition. Volumetry software is less efficient for segmenting non-solid components with a small difference in attenuation from the surrounding normal lung [ 40 ]. In addition, cystic nodules or part-solid nodules pose a problem, even if segmentation is targeted towards only the solid component. Segmentation of solid nodules adjacent to the pleura or pulmonary vessels may overestimate nodule size due to the inclusion of neighbouring structures [ 41 ].\n\nAdvantages and limitations of volumetric assessment of nodules\nSoftware from different vendors will provide different results [ 47 ]. Some allow segmentation errors to be corrected manually, while others do not. The same software should be used throughout a lung cancer screening programme, or at least as part of the follow-up of individual participants [ 48 ]. If new software is installed, earlier measurements have to be repeated if management may be affected.\n\nEuropean Society of Thoracic Imaging (ESTI) proposal for management of nodules detected during lung screening\nThe rationale for developing and proposing these ESTI guidelines was that reviewing and amalgamating the current international guidelines would improve participant/patient care by putting a stronger focus on the aggressiveness of lesions. The rationale for the choices made is extensively discussed in a separate manuscript [ 49 ].\n\nEuropean Society of Thoracic Imaging (ESTI) proposal for management of nodules detected during lung screening\nAt baseline, aggressiveness is mainly derived from nodule type [ 50 ]. As previously discussed, a number of morphological features may also give an indication of malignancy. Showing examples of suspicious morphological signs (Figs. 1 \u2013 3 ) is intended to improve inter-observer agreement.\n\nEuropean Society of Thoracic Imaging (ESTI) proposal for management of nodules detected during lung screening\nShort-term follow-up is meant to identify fast-growing nodules before they undergo stage shift. Later follow-up is designed to identify slower-growing lesions.\n\nEuropean Society of Thoracic Imaging (ESTI) proposal for management of nodules detected during lung screening\nAssessment of growth is key to assessing malignancy. Since most lung tumours exhibit exponential growth, volumetry with assessment of volume doubling time (VDT) can be used as a measure of growth rate [ 15 , 51 ]. Growth can be estimated more accurately for shorter volume doubling times, longer follow-up intervals, and more precise volumetry. All nodule measurements are prone to measurement variability. In the case of volumetry, this depends on software, nodule morphology and\u2014to a lesser degree\u2014scanning technique [ 46 ]. To note is that growth is not a synonym of malignancy since benign nodules (e.g. hamartomas) can exhibit slow growth patterns with VDTs comparable to some slow-growing malignant nodules. Manual measurement with a size threshold of >1.5 mm as a criterion for substantial growth is recommended for the solid component of subsolid nodules, since volume segmentation often is not sufficiently accurate in this setting. Manual measurement of the solid component should be performed on lung window settings. For manual measurements of the solid component in part-solid nodules, the use of a hard kernel might be preferred to more easily distinguish the boundaries of the solid component because of improved edge definition.\n\nEuropean Society of Thoracic Imaging (ESTI) proposal for management of nodules detected during lung screening\nThe proposal for nodule management of solid and subsolid nodules, both at baseline, during follow-up and when new, is summarised in Figs. 4 \u2013 6 and Table 1 . Annual screening should continue until the participant would no longer benefit from the early detection of lung cancer (e.g. they develop a life-limiting comorbidity) or until screening is stopped in accordance with programme-specific protocols (e.g. an upper age limit).\n\nEuropean Society of Thoracic Imaging (ESTI) proposal for management of nodules detected during lung screening\nTable 1 Overview of management of solid, subsolid and new nodules Baseline Morphology Density Criteria Management Negative No nodule 12 months Benign features Any Benign calcification, fat components, typical intrapulmonary lymph node or infection No suspicious features Solid (component) < 100 mm 3 (< 6 mm) Non-solid (component) < 30 mm Indeterminate Suspicious features Solid (component) < 100 mm 3 (< 6 mm) 6 months No suspicious features \u2265 100 to < 250 mm 3 (\u2265 6 to < 8 mm) Non-solid (component) \u2265 30 mm Suspicious features Solid (component) \u2265 100 to < 250 mm 3 (\u2265 6 to < 8 mm) 3 months No suspicious features \u2265 250 to < 500 mm 3 (\u2265 8 to < 10 mm) Positive No suspicious features Part-solid \u2265 500 mm 3 (\u2265 10 mm) 1 month Solid \u2265 500 mm 3 (\u2265 10 mm) Work up Suspicious features Solid (component) \u2265 250 mm 3 (\u2265 8 mm) Follow-up Prevalent/new Density Criteria Management Negative Prevalent nodule Solid (component) Regression OR VDT \u2265 400 d after 6 months OR VDT \u2265 500 d after 12 months average diameter increase \u2264 1.5 mm/year 1 12 months Non-solid (component) Size remains < 30 mm New nodule Solid (component) < 30 mm 3 (< 4 mm) Non-solid (component) Any Indeterminate Prevalent nodule Solid (component) VDT \u2265 250 d after 3 months average diameter increase \u2264 1.5 mm/3 months 1 6 months Non-solid (component) Size increases to \u2265 30 mm New nodule Solid (component) \u2265 30 mm 3 (\u2265 4 mm) 3 months Positive Prevalent nodule Part-solid Persistent solid component \u2265 500 mm 3 (\u2265 10 mm) MDT Solid Total diameter growth > 5 mm Non-solid Development of solid core Prevalent nodule Solid (component) VDT < 250 days after 3 months OR VDT < 400 days after 6 months OR VDT < 500 days after 12 months average diameter increase > 1.5 mm/year 1 Workup New nodule follow-up Solid (component) > 15% volume growth at 3 months > 1.5 mm diameter growth at 3 months 1 If volumetry fails: visually verifiable increase in average diameter of > 1.5 mm over a time interval of maximally 1 year, or substantial change in morphology\n\nEuropean Society of Thoracic Imaging (ESTI) proposal for management of nodules detected during lung screening\nA structured report template is presented in the supplementary material.\n\nFuture perspectives\nComputer-aided detection tools and artificial intelligence-based algorithms for lung nodule detection and volumetric assessment have demonstrated promising performance, although based on retrospective studies [ 52 \u2013 54 ]. More than fifteen CE-certified algorithms are now available in Europe for clinical use. However, there is no systematic reimbursement in the majority of European countries. Moreover, recent studies have shown that deep learning-based models using image data alone are able to outperform multivariable risk models such as Brock for malignancy risk estimation [ 22 , 23 ]. As a result, when prospectively validated, these models may in the future be used to guide nodule management, resulting in faster recognition of malignant nodules and fewer follow-up CT scans for benign nodules [ 55 ]. Radiomics and deep learning approaches have been developed to distinguish between pre-invasive and invasive forms of adenocarcinoma presenting as subsolid nodules. However, their performance is not yet superior to that of the radiologists\u2019 measurements of the size of the solid component [ 56 ].\n\nFuture perspectives\nThere is sufficient evidence showing that screening for lung cancer using low-dose CT in a high-risk population of current and former smokers reduces lung cancer mortality. Smoking, however, is not only a major risk factor for lung cancer but also for COPD and cardiovascular disease. All three (\u201cBIG 3\u201d) account for most of the deaths in screening participants and can be detected and quantitatively assessed with non-contrast, ungated chest CT [ 57 ]. This might open the way to further reduction of overall mortality in screening participants, but appropriate guidelines for quantification and further management remain to be defined. Future LDCT screening programmes, therefore, should address these issues adequately. Alternatives to LDCT for lung cancer screening are sparse. Despite technical feasibility, satisfactory nodule detection rates and even estimated cost-effectiveness [ 58 ], lung MRI requires specific expertise and dedicated MR scan time, both of which are not available on a sufficiently large scale [ 59 ]. A broad application beyond individual cases is therefore not expected in the near future. There is extensive research on the use of blood- and breath biomarkers to help determine who should be screened or to help determine if a nodule detected by LDCT is malignant. While such blood markers hold substantial promise, cost-effectiveness is not yet established, and sufficient data from large-scale clinical validation is still lacking.",
+        "body_excerpts_sha256": "ea59196a98d195055aba9ecf8e75d09af2d28f1f9b8988d16b5ee3f75e79e2e3",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12711968/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "37806735",
+        "title": "Update on Lung Cancer Screening Guideline.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37806735/",
+        "abstract": "Lung cancer screening has been shown to reduce lung cancer mortality and is recommended for individuals meeting age and smoking history criteria. Despite the expansion of lung cancer screening guidelines in 2021, racial/ethnic and sex disparities persist. High-risk racial minorities and women are more likely to be diagnosed with lung cancer at younger ages and have lower smoking histories when compared with White and male counterparts, resulting in higher rates of ineligibility for screening. Risk prediction models, biomarkers, and deep learning may help refine the selection of individuals who would benefit from screening.",
+        "sha256": "a1e5b06adc0f5e6cda1b5e83bd6cfff48c465bfd8b4fbab275c1a455c0f265ab",
+        "retrieved_at": "2026-09-19T01:36:47.174907+00:00"
+      },
+      {
+        "id": "37236754",
+        "title": "ACR Appropriateness Criteria\u00ae Lung Cancer Screening: 2022 Update.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37236754/",
+        "abstract": "Lung cancer remains the leading cause of cancer-related mortality for men and women in the United States. Screening for lung cancer with annual low-dose CT is saving lives, and the continued implementation of lung screening can save many more. In 2015, the CMS began covering annual lung screening for those who qualified based on the original United States Preventive Services Task Force (USPSTF) lung screening criteria, which included patients 55 to 77 year of age with a 30 pack-year history of smoking, who were either currently using tobacco or who had smoked within the previous 15 years. In 2021, the USPSTF issued new screening guidelines, decreasing the age of eligibility to 80 years of age and pack-years to 20. Lung screening remains controversial for those who do not meet the updated USPSTF criteria, but who have additional risk factors for the development of lung cancer. The American College of Radiology Appropriateness Criteria are evidence-based guidelines for specific clinical conditions that are reviewed annually by a multidisciplinary expert panel. The guideline development and revision process support the systematic analysis of the medical literature from peer reviewed journals. Established methodology principles such as Grading of Recommendations Assessment, Development, and Evaluation or GRADE are adapted to evaluate the evidence. The RAND/UCLA Appropriateness Method User Manual provides the methodology to determine the appropriateness of imaging and treatment procedures for specific clinical scenarios. In those instances where peer reviewed literature is lacking or equivocal, experts may be the primary evidentiary source available to formulate a recommendation.",
+        "sha256": "95e310a54a3379519b0bf0a072f711516000f5bf478b97db58b4dd769727f1ed",
+        "retrieved_at": "2026-09-19T01:36:47.896365+00:00"
+      },
+      {
+        "id": "34270965",
+        "title": "Executive Summary: Screening for Lung Cancer: Chest Guideline and Expert Panel Report.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34270965/",
+        "abstract": "Low-dose chest CT screening for lung cancer has become a standard of care in the United States, in large part because of the results of the National Lung Screening Trial (NLST). Additional evidence supporting the net benefit of low-dose chest CT screening for lung cancer, and increased experience in minimizing the potential harms, has accumulated since the prior iteration of these guidelines. Here, we update the evidence base for the benefit, harms, and implementation of low-dose chest CT screening. We use the updated evidence base to provide recommendations where the evidence allows, and statements based on experience and expert consensus where it does not.\nApproved panelists reviewed previously developed key questions using the Population, Intervention, Comparator, Outcome format to address the benefit and harms of low-dose CT screening, and key areas of program implementation. A systematic literature review was conducted using MEDLINE via PubMed, Embase, and the Cochrane Library on a quarterly basis since the time of the previous guideline publication. Reference lists from relevant retrievals were searched, and additional papers were added. Retrieved references were reviewed for relevance by two panel members. The quality of the evidence was assessed for each critical or important outcome of interest using the Grading of Recommendations, Assessment, Development and Evaluation approach. Meta-analyses were performed where appropriate. Important clinical questions were addressed based on the evidence developed from the systematic literature review. Graded recommendations and ungraded statements were drafted, voted on, and revised until consensus was reached.\nThe systematic literature review identified 75 additional studies that informed the response to the 12 key questions that were developed. Additional clinical questions were addressed resulting in seven graded recommendations and nine ungraded consensus statements.\nEvidence suggests that low-dose CT screening for lung cancer can result in a favorable balance of benefit and harms. The selection of screen-eligible individuals, the quality of imaging and image interpretation, the management of screen-detected findings, and the effectiveness of smoking cessation interventions can impact this balance.",
+        "sha256": "e734e2d0dc909e3af337752c7e2a7cac58de88afeb302613aeaec56820bbe5cb",
+        "retrieved_at": "2026-09-19T01:36:47.896365+00:00",
+        "pmcid": "PMC8727851"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The 2023 American Cancer Society guideline recommends annual low-dose CT screening for asymptomatic adults aged 50\u201380 years who currently or formerly smoked and have at least a 20 pack-year history. This 56-year-old current smoker has a 22 pack-year history, no symptoms, no life-limiting comorbidity, and willingness to undergo curative treatment, so she meets screening criteria. The ACS also recommends shared decision-making with a qualified health professional before screening and, for current smokers, cessation counseling with connection to cessation resources. Answer B uses the obsolete 55-year/30 pack-year thresholds.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.99,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37909877"
+              ],
+              "reason": "The ACS source directly recommends annual LDCT for asymptomatic adults aged 50\u201380 who currently or formerly smoked and have at least 20 pack-years.",
+              "source_passage_ids": [
+                "37909877:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37909877",
+                  "quote": "Formulation of recommendations was based on the quality of the evidence and judgment (incorporating values and preferences) about the balance of benefits and harms. The GDG judged that the overall evidence was moderate and sufficient to support a strong recommendation for screening individuals who meet the eligibility criteria. LCS in men and women aged 50-80 years is associated with a reduction in lung cancer deaths across a range of study designs, and inferential evidence supports LCS for men and women older than 80 years who are in good health. The ACS recommends annual LCS with low-dose computed tomography for asymptomatic individuals aged 50-80 years who currently smoke or formerly smoked and have a \u226520 pack-year smoking history (strong recommendation, moderate quality of evidence)."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37909877"
+              ],
+              "reason": "The ACS source explicitly requires shared decision making with a qualified health professional before initiating screening.",
+              "source_passage_ids": [
+                "37909877:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37909877",
+                  "quote": "Before the decision is made to initiate LCS, individuals should engage in a shared decision-making discussion with a qualified health professional. For individuals who formerly smoked, the number of YSQ is not an eligibility criterion to begin or to stop screening. Individuals who currently smoke should receive counseling to quit and be connected to cessation resources. Individuals with comorbid conditions that substantially limit life expectancy should not be screened. These recommendations should be considered by health care providers and adults at high risk for lung cancer in discussions about LCS. If fully implemented, these recommendations have a high likelihood of significantly reducing death and suffering from lung cancer in the United States."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37909877"
+              ],
+              "reason": "The ACS source explicitly directs clinicians to counsel current smokers to quit and connect them with cessation resources.",
+              "source_passage_ids": [
+                "37909877:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37909877",
+                  "quote": "Before the decision is made to initiate LCS, individuals should engage in a shared decision-making discussion with a qualified health professional. For individuals who formerly smoked, the number of YSQ is not an eligibility criterion to begin or to stop screening. Individuals who currently smoke should receive counseling to quit and be connected to cessation resources. Individuals with comorbid conditions that substantially limit life expectancy should not be screened. These recommendations should be considered by health care providers and adults at high risk for lung cancer in discussions about LCS. If fully implemented, these recommendations have a high likelihood of significantly reducing death and suffering from lung cancer in the United States."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "33687470"
+              ],
+              "reason": "The USPSTF source directly recommends annual LDCT for adults aged 50\u201380 with at least 20 pack-years who currently smoke or quit within 15 years.",
+              "source_passage_ids": [
+                "33687470:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33687470",
+                  "quote": "The USPSTF concludes with moderate certainty that annual screening for lung cancer with LDCT has a moderate net benefit in persons at high risk of lung cancer based on age, total cumulative exposure to tobacco smoke, and years since quitting smoking. The USPSTF recommends annual screening for lung cancer with LDCT in adults aged 50 to 80 years who have a 20 pack-year smoking history and currently smoke or have quit within the past 15 years. Screening should be discontinued once a person has not smoked for 15 years or develops a health problem that substantially limits life expectancy or the ability or willingness to have curative lung surgery."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "33687470",
+                "37909877"
+              ],
+              "reason": "USPSTF explicitly addresses substantial limits on life expectancy and the ability or willingness to undergo curative surgery; ACS independently states that patients with comorbidities substantially limiting life expectancy should not be screened.",
+              "source_passage_ids": [
+                "33687470:p2",
+                "37909877:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33687470",
+                  "quote": "The USPSTF concludes with moderate certainty that annual screening for lung cancer with LDCT has a moderate net benefit in persons at high risk of lung cancer based on age, total cumulative exposure to tobacco smoke, and years since quitting smoking. The USPSTF recommends annual screening for lung cancer with LDCT in adults aged 50 to 80 years who have a 20 pack-year smoking history and currently smoke or have quit within the past 15 years. Screening should be discontinued once a person has not smoked for 15 years or develops a health problem that substantially limits life expectancy or the ability or willingness to have curative lung surgery."
+                },
+                {
+                  "source_id": "37909877",
+                  "quote": "Before the decision is made to initiate LCS, individuals should engage in a shared decision-making discussion with a qualified health professional. For individuals who formerly smoked, the number of YSQ is not an eligibility criterion to begin or to stop screening. Individuals who currently smoke should receive counseling to quit and be connected to cessation resources. Individuals with comorbid conditions that substantially limit life expectancy should not be screened. These recommendations should be considered by health care providers and adults at high risk for lung cancer in discussions about LCS. If fully implemented, these recommendations have a high likelihood of significantly reducing death and suffering from lung cancer in the United States."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "34270968"
+              ],
+              "reason": "The CHEST source states that selection of screen-eligible individuals and effectiveness of smoking-cessation interventions can affect the benefit-harm balance.",
+              "source_passage_ids": [
+                "34270968:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34270968",
+                  "quote": "The systematic literature review identified 75 additional studies that informed the response to the 12 key questions that were developed. Additional clinical questions were addressed resulting in seven graded recommendations and nine ungraded consensus statements. Evidence suggests that low-dose CT screening for lung cancer can result in a favorable balance of benefit and harms. The selection of screen-eligible individuals, the quality of imaging and image interpretation, the management of screen-detected findings, and the effectiveness of smoking cessation interventions can impact this balance."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This asymptomatic 56-year-old current smoker has a 22 pack-year history and therefore meets the supplied 2023 ACS eligibility criteria for annual LDCT. The record also establishes that she lacks a life-limiting comorbidity and is willing to consider curative treatment. Candidate A appropriately places shared decision making before initiation, makes screening contingent on her choice, and includes the ACS-recommended cessation counseling and resource connection. No prior imaging is required to determine initial screening eligibility. Candidate B applies the superseded 55-year/30-pack-year USPSTF criteria and would improperly delay indicated screening. The title, clinical note, and question do not disclose the answer or management plan. With no previous cases supplied, there is no demonstrated duplication of a prior clinical decision."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The 2023 American Cancer Society lung cancer screening guideline recommends annual low-dose CT screening for asymptomatic adults aged 50-80 years who currently smoke or formerly smoked and have at least a 20 pack-year history. It also states that before initiating screening, eligible individuals should engage in shared decision making with a qualified health professional, and people who currently smoke should receive quit counseling and be connected with cessation resources. This 56-year-old current smoker has a 22 pack-year history, is asymptomatic, has no life-limiting comorbidity, and would consider curative lung surgery, so she meets the ACS 2023 screening framework. Answer B reflects older 55-year/30 pack-year criteria and is not appropriate under the 2023 ACS guideline.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.96,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37909877"
+              ],
+              "reason": "The ACS passage directly states annual low-dose CT lung cancer screening for asymptomatic adults aged 50-80 who currently or formerly smoked and have at least 20 pack-years.",
+              "source_passage_ids": [
+                "37909877:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37909877",
+                  "quote": "Formulation of recommendations was based on the quality of the evidence and judgment (incorporating values and preferences) about the balance of benefits and harms. The GDG judged that the overall evidence was moderate and sufficient to support a strong recommendation for screening individuals who meet the eligibility criteria. LCS in men and women aged 50-80 years is associated with a reduction in lung cancer deaths across a range of study designs, and inferential evidence supports LCS for men and women older than 80 years who are in good health. The ACS recommends annual LCS with low-dose computed tomography for asymptomatic individuals aged 50-80 years who currently smoke or formerly smoked and have a \u226520 pack-year smoking history (strong recommendation, moderate quality of evidence)."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37909877"
+              ],
+              "reason": "The ACS passage directly requires shared decision making with a qualified health professional before initiating lung cancer screening.",
+              "source_passage_ids": [
+                "37909877:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37909877",
+                  "quote": "Before the decision is made to initiate LCS, individuals should engage in a shared decision-making discussion with a qualified health professional. For individuals who formerly smoked, the number of YSQ is not an eligibility criterion to begin or to stop screening. Individuals who currently smoke should receive counseling to quit and be connected to cessation resources. Individuals with comorbid conditions that substantially limit life expectancy should not be screened. These recommendations should be considered by health care providers and adults at high risk for lung cancer in discussions about LCS. If fully implemented, these recommendations have a high likelihood of significantly reducing death and suffering from lung cancer in the United States."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37909877"
+              ],
+              "reason": "The ACS passage directly states that current smokers should receive quit counseling and be connected to cessation resources.",
+              "source_passage_ids": [
+                "37909877:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37909877",
+                  "quote": "Before the decision is made to initiate LCS, individuals should engage in a shared decision-making discussion with a qualified health professional. For individuals who formerly smoked, the number of YSQ is not an eligibility criterion to begin or to stop screening. Individuals who currently smoke should receive counseling to quit and be connected to cessation resources. Individuals with comorbid conditions that substantially limit life expectancy should not be screened. These recommendations should be considered by health care providers and adults at high risk for lung cancer in discussions about LCS. If fully implemented, these recommendations have a high likelihood of significantly reducing death and suffering from lung cancer in the United States."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "33687470"
+              ],
+              "reason": "The USPSTF passage directly recommends annual LDCT screening for adults aged 50-80 with a 20 pack-year history who currently smoke or quit within 15 years.",
+              "source_passage_ids": [
+                "33687470:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33687470",
+                  "quote": "The USPSTF concludes with moderate certainty that annual screening for lung cancer with LDCT has a moderate net benefit in persons at high risk of lung cancer based on age, total cumulative exposure to tobacco smoke, and years since quitting smoking. The USPSTF recommends annual screening for lung cancer with LDCT in adults aged 50 to 80 years who have a 20 pack-year smoking history and currently smoke or have quit within the past 15 years. Screening should be discontinued once a person has not smoked for 15 years or develops a health problem that substantially limits life expectancy or the ability or willingness to have curative lung surgery."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "33687470",
+                "37909877"
+              ],
+              "reason": "USPSTF directly supports discontinuing screening when life expectancy or ability/willingness for curative lung surgery is substantially limited; ACS directly supports not screening individuals with comorbid conditions substantially limiting life expectancy.",
+              "source_passage_ids": [
+                "33687470:p2",
+                "37909877:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33687470",
+                  "quote": "The USPSTF concludes with moderate certainty that annual screening for lung cancer with LDCT has a moderate net benefit in persons at high risk of lung cancer based on age, total cumulative exposure to tobacco smoke, and years since quitting smoking. The USPSTF recommends annual screening for lung cancer with LDCT in adults aged 50 to 80 years who have a 20 pack-year smoking history and currently smoke or have quit within the past 15 years. Screening should be discontinued once a person has not smoked for 15 years or develops a health problem that substantially limits life expectancy or the ability or willingness to have curative lung surgery."
+                },
+                {
+                  "source_id": "37909877",
+                  "quote": "Before the decision is made to initiate LCS, individuals should engage in a shared decision-making discussion with a qualified health professional. For individuals who formerly smoked, the number of YSQ is not an eligibility criterion to begin or to stop screening. Individuals who currently smoke should receive counseling to quit and be connected to cessation resources. Individuals with comorbid conditions that substantially limit life expectancy should not be screened. These recommendations should be considered by health care providers and adults at high risk for lung cancer in discussions about LCS. If fully implemented, these recommendations have a high likelihood of significantly reducing death and suffering from lung cancer in the United States."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "34270968"
+              ],
+              "reason": "The CHEST passage directly states that screen eligibility selection and smoking-cessation intervention effectiveness affect the benefit-harm balance of LDCT screening.",
+              "source_passage_ids": [
+                "34270968:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34270968",
+                  "quote": "The systematic literature review identified 75 additional studies that informed the response to the 12 key questions that were developed. Additional clinical questions were addressed resulting in seven graded recommendations and nine ungraded consensus statements. Evidence suggests that low-dose CT screening for lung cancer can result in a favorable balance of benefit and harms. The selection of screen-eligible individuals, the quality of imaging and image interpretation, the management of screen-detected findings, and the effectiveness of smoking cessation interventions can impact this balance."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is a preventive medicine lung cancer screening eligibility and counseling case. Independently applying the supplied ACS evidence: the patient is 56 years old, asymptomatic, currently smokes, has a 22 pack-year history, has no life-limiting comorbidity, and is willing to consider curative surgery. She meets the ACS criteria for annual low-dose CT lung cancer screening, with shared decision making before initiation and smoking-cessation counseling/resources. Candidate A matches these requirements and is safe. Candidate B incorrectly relies on older 55-year/30-pack-year thresholds and would delay indicated screening. The question/title do not disclose the exact answer or management plan, and there are no previous cases showing a duplicate clinical decision."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "944e0c148e163706068e8a99b81a6b7cf5bc958815816943569916c75df0e611"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

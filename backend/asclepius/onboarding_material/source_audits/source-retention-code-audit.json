@@ -1,0 +1,83 @@
+{
+  "audit_version": 1,
+  "audited_at": "2026-09-19T02:50:18.057853+00:00",
+  "auditor": "Independent code auditor /root/audit_release_group1",
+  "disposition": "clear",
+  "base_commit": "0f2fde73349aa5ebad870a0aca01bb8e07e6eaf9",
+  "scope": "Uncommitted changes versus HEAD in onboarding_evidence.py and test_onboarding_evidence.py: contradictory CC licenses, separately credited nested illustration/table exclusion, intact source retention, and mass/masses PubMed search behavior. Clinical source pins, generated cases, release-registry changes and other files are outside this code-audit scope. No real-model calls or auditor code edits.",
+  "audited_files": [
+    {
+      "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_evidence.py",
+      "sha256": "193f3bfb277d8a83a1fe5f097551ffaf316056d4f5050971904b0b227b040df4",
+      "git_blob": "6219c051d28188135f14fefa0c55ab1c97b09312"
+    },
+    {
+      "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/tests/test_onboarding_evidence.py",
+      "sha256": "3c5718f873b3df6626eb8c82e9d98ca1d7172d3580fde286304c8aedc234bc2e",
+      "git_blob": "93f2e7eedfbf478db29399c2d9e0f9e4c43c353a"
+    }
+  ],
+  "findings": [],
+  "resolved_findings": [
+    {
+      "id": "SRC-1",
+      "priority": 2,
+      "title": "Ordinary third-party credit lines could enter retained evidence",
+      "file": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_evidence.py",
+      "function": "_restricted_illustration",
+      "initial_finding": "Initial implementation retained table clinical text and its containing paragraph when the separate credit was Reproduced from, Adapted from, or Source: without an explicit permission/copyright/NCND/SA marker. This could treat separately credited material as covered by the article license.",
+      "initial_reproduction": "A p containing a table-wrap with <attrib>Reproduced from Example Society clinical guideline.</attrib> and an ordinary clinical cell remained in body_excerpts. Analogous Adapted from and Source: credits also remained.",
+      "builder_resolution": "Reject any nonempty illustration attrib, explicit reproduced/adapted/reprinted/republished/modified-from credit, or Source: marker, in addition to restrictive licenses and copyright/permission indicators. The existing parent-block check discards the entire containing paragraph.",
+      "regression_quality_resolution": "The shared test payload was changed from permission-controlled recommendation to clinical recommendation so credit-only cases cannot accidentally pass through the older reproduced-to-permission matcher.",
+      "confirmation": "Latest 71-test evidence suite passes. Independent probes with no permission/copyright wording in the clinical payload reject five representative credits across seven illustration/container tags in standalone and paragraph-nested positions (70 cases), preserving unrelated article-owned text and table content.",
+      "status": "resolved"
+    }
+  ],
+  "checks": [
+    {
+      "name": "contradictory_license_fail_closed",
+      "result": "pass",
+      "details": "Article licensing is checked before accepting a permissive CC BY/CC0 link. Restricted labels, Unicode dash forms, license attributes and an additional restrictive license all cause no retained full text. Exact CC-domain matching and article PMID/PMCID checks remain active. Six additional independent contradictory-label probes passed."
+    },
+    {
+      "name": "restricted_nested_objects_and_context",
+      "result": "pass",
+      "details": "Candidate paragraph/table blocks scan every nested table-wrap, table-wrap-group, table, fig, fig-group, graphic and media node. A restricted or separately credited descendant causes the complete containing block to be skipped, avoiding clinical-text splicing or preservation without its associated credit."
+    },
+    {
+      "name": "intact_article_owned_retention",
+      "result": "pass",
+      "details": "Compared exact complete return dictionaries against HEAD in five independent fixtures: ordinary CC BY, CC0, standard article-level third-party boilerplate, an article-owned nested table with surrounding qualifiers, and a long intact paragraph. All outputs, including hashes, were unchanged. Existing tests also preserve contraindication sections and ordinary article-owned tables."
+    },
+    {
+      "name": "mass_query_precision",
+      "result": "pass",
+      "details": "The exact clinical token mass expands to grouped mass OR masses for each Title/Title-Abstract query, eliminating mass* and unintended massage matches while retaining plural recall. Other sufficiently long tokens keep their existing truncation behavior. The focused regression checks all four search combinations and both field tags."
+    },
+    {
+      "name": "transport_and_evidence_integrity",
+      "result": "pass",
+      "details": "No URL-source, redirect, size-cap or network-transport behavior is broadened by this patch. Existing tests for safe fixed-host retrieval, redirects, oversized bodies, exact passage resolution, hash tampering and abstract preservation pass."
+    }
+  ],
+  "validation": [
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 ../../.bulk-test-venv/bin/python -m pytest tests/test_onboarding_evidence.py -q -p no:cacheprovider --disable-warnings",
+      "working_directory": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend",
+      "result": "71 passed; 16 existing dependency/deprecation warnings; 1.15 seconds on final corrected fixture run"
+    },
+    {
+      "name": "Independent credit-only probes",
+      "result": "70 passed; no permission/copyright words in the generic clinical payload"
+    },
+    {
+      "name": "Independent contradictory-label probes",
+      "result": "6 passed"
+    },
+    {
+      "name": "Exact HEAD output compatibility",
+      "result": "5 fixture return dictionaries unchanged"
+    }
+  ],
+  "remaining_work": "None within this code-audit scope. Source-by-source clinical/license eligibility for the upcoming generated cases remains a separate artifact audit."
+}

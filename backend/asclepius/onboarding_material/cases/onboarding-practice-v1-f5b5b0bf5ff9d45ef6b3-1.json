@@ -1,0 +1,476 @@
+{
+  "task_id": "onboarding-practice-v1-f5b5b0bf5ff9d45ef6b3-1",
+  "specialty": "obstetrics and gynecology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Early Pregnancy With Spotting and Inconclusive Location Findings",
+    "question": "Which candidate most accurately classifies the pregnancy at this assessment point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "obstetrics and gynecology",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "First-trimester vaginal spotting",
+          "since": "1 day",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Mild unilateral pelvic discomfort",
+          "since": "1 day",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "History of treated pelvic inflammatory disease",
+          "since": "several years",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "blood_pressure": "116/72 mmHg",
+        "heart_rate": "78 beats/min",
+        "respiratory_rate": "16 breaths/min",
+        "temperature": "36.8 C",
+        "oxygen_saturation": "99% on room air"
+      },
+      "lab_panels": [
+        {
+          "panel": "Pregnancy testing",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Serum beta-human chorionic gonadotropin",
+              "loinc": null,
+              "value": 620,
+              "unit": "IU/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "positive",
+              "ref_range_unusable": true
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Initial assessment",
+          "author_role": "obstetrics and gynecology",
+          "text": "An adult in her early thirties presents after a positive home pregnancy test with one day of light vaginal spotting and mild intermittent left-sided pelvic discomfort. She has not passed recognizable tissue and reports no syncope, shoulder pain, heavy bleeding, fever, or vomiting. Menstrual dating suggests an early first-trimester pregnancy, although her cycles are irregular. She has a remote history of treated pelvic inflammatory disease. Examination shows a comfortable, alert patient with a soft abdomen, mild lower-quadrant tenderness, and no guarding or rebound. Serum pregnancy testing is positive, and transvaginal ultrasound does not identify a definite or probable gestation inside or outside the uterus.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Transvaginal ultrasound",
+          "label": "First-trimester pelvic ultrasound",
+          "findings": "No definite or probable intrauterine gestational sac is identified. No definite or probable extrauterine gestational sac or adnexal pregnancy is identified. There is no substantial free pelvic fluid.",
+          "measurements": [],
+          "impression": "Positive pregnancy test without sonographic identification of a definite or probable intrauterine or extrauterine gestation.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "basic",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "This is a pregnancy of unknown location because pregnancy is established, but transvaginal ultrasound shows neither a definite or probable intrauterine pregnancy nor a definite or probable ectopic pregnancy. These findings do not establish a completed intrauterine early pregnancy loss or confirm implantation at an ectopic location. Candidate A is clinically consequential because an incorrect pregnancy-loss diagnosis can harm a normally sited pregnancy and would also misclassify a pregnancy whose location remains undetermined.",
+        "evidence": {
+          "decision": "Classify the current findings as a pregnancy of unknown location."
+        },
+        "key_data": [
+          "Serum beta-human chorionic gonadotropin is positive.",
+          "Transvaginal ultrasound shows no definite or probable intrauterine pregnancy.",
+          "Transvaginal ultrasound shows no definite or probable ectopic pregnancy.",
+          "No substantial free pelvic fluid or hemodynamic instability is present.",
+          "There is no documented prior normally sited intrauterine pregnancy in this episode."
+        ]
+      },
+      "hard_hook": "A positive pregnancy test with no definite or probable intrauterine or ectopic pregnancy on transvaginal ultrasound has a specific location classification.",
+      "reasoning_divergence": "The flawed response treats nonvisualization on one early ultrasound as proof of completed intrauterine loss, while the sound response classifies the pregnancy according to what the ultrasound actually establishes."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Classify this as a completed intrauterine early pregnancy loss because vaginal bleeding occurred and no gestational sac is visible on the initial transvaginal ultrasound."
+      },
+      {
+        "id": "B",
+        "text": "Classify this as a pregnancy of unknown location because pregnancy is confirmed, while transvaginal ultrasound shows neither a definite or probable intrauterine pregnancy nor a definite or probable ectopic pregnancy."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "ectopic pregnancy",
+      "pregnancy of unknown location",
+      "vaginal bleeding",
+      "pelvic pain",
+      "early pregnancy loss"
+    ],
+    "evidence_keywords": [
+      "transvaginal ultrasound",
+      "beta-hCG",
+      "intrauterine pregnancy",
+      "ectopic implantation",
+      "ultrasound lexicon"
+    ],
+    "error_tags": [
+      "wrong_diagnosis",
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "Pregnancy of unknown location is the term for a pregnant patient whose transvaginal ultrasound shows no definite or probable intrauterine or ectopic pregnancy.",
+        "source_ids": [
+          "39198135"
+        ]
+      },
+      {
+        "statement": "Ectopic pregnancy is defined by implantation in an abnormal location, so failure to visualize an intrauterine pregnancy alone does not confirm ectopic implantation.",
+        "source_ids": [
+          "39198135"
+        ]
+      },
+      {
+        "statement": "Guidance for intrauterine early pregnancy loss applies to loss involving a normally sited intrauterine pregnancy and expressly excludes pregnancy of unknown location.",
+        "source_ids": [
+          "40349974"
+        ]
+      },
+      {
+        "statement": "Incorrectly diagnosing pregnancy loss can harm a live, normally sited pregnancy.",
+        "source_ids": [
+          "40349974"
+        ]
+      },
+      {
+        "statement": "A history of pelvic inflammatory disease is associated with elevated ectopic-pregnancy risk and remains clinically relevant during assessment.",
+        "source_ids": [
+          "30878686"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T02:22:05.862206+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "33453378",
+        "title": "Guideline No. 414: Management of Pregnancy of Unknown Location and Tubal and Nontubal Ectopic Pregnancies.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33453378/",
+        "abstract": "To provide an evidence-based algorithm to guide the diagnosis and management of pregnancy of unknown location and tubal and nontubal ectopic pregnancy.\nAll patients of reproductive age.\nThe implementation of this guideline aims to benefit patients with positive \u03b2-human chorionic gonadotropin results and provide physicians with a standard algorithm for expectant, medical, and surgical treatment of pregnancy of unknown location and tubal pregnancy and nontubal ectopic pregnancies.\nThe following search terms were entered into PubMed/Medline and Cochrane in 2018: cesarean section, chorionic gonadotropin, beta subunit, human/blood, fallopian tubes/surgery, female, fertility, humans, infertility, laparoscopy, methotrexate, methotrexate/administration & dosage, methotrexate/therapeutic use, pregnancy (abdominal, angular, cervix, cornual, ectopic, ectopic/diagnosis, ectopic/diagnostic imaging, ectopic/drug therapy, ectopic/epidemiology, ectopic/mortality, ectopic/surgery, heterotopic, interstitial, isthmo-cervical, ovarian, tubal, unknown location), recurrence, risk factors, salpingectomy, salpingostomy, tubal pregnancy, ultrasonography, doppler ultrasonography, and prenatal. Articles included were randomized controlled trials, meta-analyses, systematic reviews, observational studies, and case reports. Additional publications were identified from the bibliographies of these articles. Only English-language articles were reviewed.\nThe authors rated the quality of evidence and strength of recommendations using the Grading of Recommendations Assessment, Development, and Evaluation (GRADE) approach. See online Appendix\u00a0A (Tables\u00a0A1 for definitions and A2 for interpretations of strong and weak recommendations).\nObstetrician-gynaecologists, family physicians, emergency physicians, midwives, registered nurses, nurse practitioners, medical students, and residents and fellows.\nRECOMMENDATIONS (GRADE RATINGS IN PARENTHESES).",
+        "sha256": "96e6266579362a91cc09004767106c6d2ea5ec2e98ae218ffdf480a639ac55e0",
+        "retrieved_at": "2026-09-19T02:21:20.597204+00:00"
+      },
+      {
+        "id": "32106976",
+        "title": "Evidence-based treatments for couples with unexplained infertility: a guideline.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32106976/",
+        "abstract": "To provide evidence-based recommendations to practicing physicians and others regarding the effectiveness and safety of therapies for unexplained infertility.\nASRM conducted a literature search, which included systematic reviews, meta-analyses, randomized controlled trials, and prospective and retrospective comparative observational studies published from 1968 through 2019. The ASRM Practice Committee and a task force of experts used available evidence and informal consensus to develop evidence-based guideline recommendations.\nOutcomes of interest included: live-birth rate, clinical pregnancy rate, implantation rate, fertilization rate, multiple pregnancy rate, dose of treatment, rate of ovarian hyperstimulation, abortion rate, and ectopic pregnancy rate.\nThe literature search identified 88 relevant studies to inform the evidence base for this guideline.\nEvidence-based recommendations were developed for the following treatments for couples with unexplained infertility: natural cycle with intrauterine insemination (IUI); clomiphene citrate with intercourse; aromatase inhibitors with intercourse; gonadotropins with intercourse; clomiphene citrate with IUI; aromatase inhibitors with IUI; combination of clomiphene citrate or letrozole and gonadotropins (low dose and conventional dose) with IUI; low-dose gonadotropins with IUI; conventional-dose gonadotropins with IUI; timing of IUI; and in\u00a0vitro fertilization and treatment paradigms.\nThe treatment of unexplained infertility is by necessity empiric. For most couples, the best initial therapy is a course (typically 3 or 4 cycles) of ovarian stimulation with oral medications and intrauterine insemination (OS-IUI) followed by in\u00a0vitro fertilization for those unsuccessful with OS-IUI treatments.",
+        "sha256": "3a668e29e1d549ce9c89ffe5fe4d4a4cd7891b125aad23e947828dccdc61a034",
+        "retrieved_at": "2026-09-19T02:21:21.718360+00:00"
+      },
+      {
+        "id": "39198135",
+        "title": "A Lexicon for First-Trimester US: Society of Radiologists in Ultrasound Consensus Conference Recommendations.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39198135/",
+        "abstract": "The Society of Radiologists in Ultrasound convened a multisociety panel to develop a first-trimester US lexicon based on scientific evidence, societal guidelines, and expert consensus that would be appropriate for imagers, clinicians, and patients. Through a modified Delphi process with consensus of at least 80%, agreement was reached for preferred terms, synonyms, and terms to avoid. An intrauterine pregnancy (IUP) is defined as a pregnancy implanted in a normal location within the uterus. In contrast, an ectopic pregnancy (EP) is any pregnancy implanted in an abnormal location, whether extrauterine or intrauterine, thus categorizing cesarean scar implantations as EPs. The term pregnancy of unknown location is used in the setting of a pregnant patient without evidence of a definite or probable IUP or EP at transvaginal US. Since cardiac development is a gradual process and cardiac chambers are not fully formed in the first trimester, the term cardiac activity is recommended in lieu of 'heart motion' or 'heartbeat.' The terms 'living' and 'viable' should also be avoided in the first trimester. 'Pregnancy failure' is replaced by early pregnancy loss (EPL). When paired with various modifiers, EPL is used to describe a pregnancy in the first trimester that may or will not progress, is in the process of expulsion, or has either incompletely or completely passed.",
+        "sha256": "8e035dc243763034d7a3f60b85530184cbbd832f0afeee3f03d330f9796682e2",
+        "retrieved_at": "2026-09-19T02:21:21.718360+00:00"
+      },
+      {
+        "id": "40349974",
+        "title": "Guideline No. 460: Diagnosis and Management of Intrauterine Early Pregnancy Loss.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40349974/",
+        "abstract": "To provide an evidence-based approach to guide the diagnosis and management of intrauterine early pregnancy loss.\nThis population includes patients experiencing pregnancy loss/miscarriage and incomplete pregnancy loss in the context of a normally sited intrauterine pregnancy. It does not include patients with a pregnancy of unknown location, ectopic pregnancy or recurrent pregnancy loss (2 or more pregnancy losses).\nIncorrect diagnosis of a pregnancy loss increases the risk of harming a live, normally sited pregnancy. Prolonged waiting for confirmation of a diagnosis can increase anxiety and delay treatment. Patient-centred care discussions can help patients understand their pregnancy loss risk and make decisions about their management and follow-up, including time off for bereavement and mental health support.\nThe following search terms were entered into PubMed from January 2021 to December 2024: early pregnancy loss, incomplete, spontaneous abortion, diagnosis, and management. The International Society of Ultrasound in Obstetrics and Gynecology (2021 and 2022), and Association of Early Pregnancy Units presentations and references were also used.\nThe authors rated the quality of evidence and strength of recommendations using the Grading of Recommendations Assessment, Development and Evaluation (GRADE) approach. See online Appendix A (Tables A1 for definitions and A2 for interpretations).\nHealth care providers who provide care to pregnant patients experiencing intrauterine early pregnancy loss.\nEarly pregnancy loss is a common experience that can be traumatic. Patient-centred care in an Early Pregnancy Assessment Clinic can help patients make informed decisions.\nRECOMMENDATIONS.",
+        "sha256": "81b4a5eb549b7035c7bcb6c542afba64b8dc27c58c496942f4df9a7040131327",
+        "retrieved_at": "2026-09-19T02:21:22.209979+00:00"
+      },
+      {
+        "id": "30878686",
+        "title": "[Follow-up and counselling after pelvic inflammatory disease: CNGOF and SPILF Pelvic Inflammatory Diseases Guidelines].",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30878686/",
+        "abstract": "To determine the procedures for follow-up and counselling of patients after pelvic inflammatory disease (PID).\nA search in the Cochrane database, PubMed, and Google was performed using keywords related to follow-up and PID to identify reports published between 1990 and 2018. All studies published in French and English relevant to the areas of focus were included. A level of evidence (LE) based on the quality of the data available was applied for each area of focus and used for the guidelines.\nThe rate of recurrent PID is 15 to 21%. They are related to a recurrent sexually transmitted infection (STI) in 20 to 34% of cases. Recurrence PID increase the risk of infertility and chronic pelvic pain (LE2). Follow-up is recommended after PID (grade C). The rate of patients lost to follow-up is around 40%. Follow-up is improved by personalized text message reminders (grade B). Vaginal sampling for detection of N.\u00a0gonorrhoeae, C.\u00a0trachomatis, (and M.\u00a0genitalium) by nucleic acid amplification techniques is recommended 3 to 6 months after treatment of PID associated with STI to rule out possible reinfections (grade C). The use of condoms after PID associated with STI is recommended to reduce the risk of recurrences (grade C). The systematic use of contraceptive pills after PID is not recommended to prevent subsequent infertility and chronic pelvic pain. Vaginal sampling for microbiological diagnosis is recommended before the insertion of an intrauterine device (grade B). The risk of ectopic pregnancy is high in these women and must be kept in mind.\nPatient counselling and microbiological testing after PID decrease the risk of STI and thus the recurrence of PID.",
+        "sha256": "c11302ede765c0372b4abc77bf6845821e827fc3c7e1b44269a771196952b9eb",
+        "retrieved_at": "2026-09-19T02:21:22.209979+00:00"
+      },
+      {
+        "id": "31972162",
+        "title": "Society for Maternal-Fetal Medicine (SMFM) Consult Series #49: Cesarean scar pregnancy.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31972162/",
+        "abstract": "Cesarean scar pregnancy is a complication in which an early pregnancy implants in the scar from a prior cesarean delivery. This condition presents a substantial risk for severe maternal morbidity because of challenges in securing a prompt diagnosis, as well as uncertainty regarding optimal treatment once identified. Ultrasound is the primary imaging modality for cesarean scar pregnancy diagnosis, although a correct and timely determination can be difficult. Surgical, medical, and minimally invasive therapies have been described for cesarean scar pregnancy management, but the optimal treatment is not known. Women who decline treatment of a cesarean scar pregnancy should be counseled regarding the risk for severe morbidity. The following are Society for Maternal-Fetal Medicine recommendations: We recommend against expectant management of cesarean scar pregnancy (GRADE 1B); we suggest operative resection (with transvaginal or laparoscopic approaches when possible) or ultrasound-guided vacuum aspiration be considered for surgical management of cesarean scar pregnancy and that sharp curettage alone be avoided (GRADE 2C); we suggest intragestational methotrexate for medical treatment of cesarean scar pregnancy, with or without other treatment modalities (GRADE 2C); we recommend that systemic methotrexate alone not be used to treat cesarean scar pregnancy (GRADE 1C); in women who choose expectant management and continuation of a cesarean scar pregnancy, we recommend repeat cesarean delivery between 34 0/7 and 35 6/7 weeks of gestation (GRADE 1C); we recommend that women with a cesarean scar pregnancy be advised of the risks of another pregnancy and counseled regarding effective contraceptive methods, including long-acting reversible contraception and permanent contraception (GRADE 1C).",
+        "sha256": "55cb90244db9b955d4dece26d2ddbba6f1b2e84ffd2f54bf78ac93bd851dca0c",
+        "retrieved_at": "2026-09-19T02:21:22.209979+00:00"
+      },
+      {
+        "id": "41183782",
+        "title": "[Therapeutic management of tubal ectopic pregnancies: Clinical practice guidelines of CNGOF and SCGP].",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41183782/",
+        "abstract": "Ectopic Pregnancy is defined as the presence of a pregnancy or pregnancy residue outside the uterine cavity, with a prevalence of approximately 2%. Tubal ectopic pregnancy is defined as the presence of a pregnancy or pregnancy residue in the extra-myometrial portion of the fallopian tube (isthmus, ampulla, or fimbriae), and accounts for 96 to 99% of ectopic pregnancy locations. Management of tubal ectopic pregnancy should depend on both its activity and whether it is symptomatic or not. Regarding emergency management of tubal ectopic pregnancy, it is recommended not to consider expectant management for patients with symptomatic tubal ectopic pregnancy, nor for patients with active tubal ectopic pregnancy (Strong recommendation, low quality of evidence). It is recommended to offer expectant management as an alternative to medical treatment with MTX (methotrexate) for patients with non-active and asymptomatic tubal ectopic pregnancy (Strong recommendation, low quality of evidence). It is recommended to offer expectant management as an alternative to surgical treatment for patients with non-active and asymptomatic tubal ectopic pregnancy (Strong recommendation, very low quality of evidence). In cases of expectant management of tubal ectopic pregnancy, it is strongly recommended to systematically re-evaluate the patient clinically and biologically at 48hours (Strong recommendation, low quality of evidence). If hCG levels decrease by more than 15% at 48hours, it is recommended to continue monitoring weekly until negativity, provided there are no signs of symptomatic tubal ectopic pregnancy (Strong recommendation, very low quality of evidence). If an expectant approach is chosen, and there is an increase in hCG levels of more than 15% at 48hours or the tubal ectopic pregnancy becomes symptomatic, it is recommended to discontinue expectant management (Strong recommendation, low quality of evidence). Regarding medical treatment of tubal ectopic pregnancy, it is recommended not to favor a multi-dose protocol over a single-dose protocol to increase the success rate of MTX treatment (Strong recommendation, moderate quality of evidence). It is recommended to prefer the single-dose MTX protocol over the multi-dose protocol to limit the risk of adverse effects (Strong recommendation, high quality of evidence). It is also recommended not to systematically combine mifepristone treatment with an MTX injection to improve the efficacy of medical treatment for tubal ectopic pregnancy (Strong recommendation, high quality of evidence). Regarding surgical management, in a patient with tubal ectopic pregnancy, it is recommended to perform either salpingotomy or salpingectomy with regard to fertility (Strong recommendation, high quality of evidence). It is recommended not to perform tubal expression in order to reduce morbidity compared to salpingotomy (Strong recommendation, very low quality of evidence).",
+        "sha256": "aab3365e04c665651c8ed8aa556d862976f5ab6247cae1332cda090b7104468a",
+        "retrieved_at": "2026-09-19T02:21:22.773987+00:00"
+      },
+      {
+        "id": "41069289",
+        "title": "[Management of ectopic pregnancies: therapeutic options and clinical decision-making criteria].",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41069289/",
+        "abstract": "Ectopic pregnancy is a gynecological emergency that can be life-threatening if not diagnosed and treated promptly. This review discusses therapeutic options, comparing medical and surgical management based on clinical and biological data of patients, aiming to guide practitioners in selecting the optimal treatment according to hCG (human chorionic gonadotrophin) levels and patient hemodynamics. Approximately 1-2 % of pregnancies are ectopic, with an associated mortality rate that has decreased in recent decades due to advancements in diagnosis and treatment.",
+        "sha256": "69c3ea0468db290a9b129c9a8063292fb8b0d3f69027b999aba4509fb2af3210",
+        "retrieved_at": "2026-09-19T02:21:22.773987+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This is a pregnancy of unknown location: serum beta-hCG confirms pregnancy, but transvaginal ultrasound identifies neither a definite/probable intrauterine pregnancy nor a definite/probable ectopic pregnancy. The Society of Radiologists in Ultrasound consensus explicitly uses this definition. Spotting and an empty uterus on a single early scan do not establish completed intrauterine early pregnancy loss, particularly without a previously documented intrauterine pregnancy or passage of tissue. The beta-hCG of 620 IU/L may also be too low for reliable sonographic visualization. Her prior pelvic inflammatory disease increases ectopic-pregnancy risk, so follow-up is required, but it does not change the current classification.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.99,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "39198135"
+              ],
+              "reason": "The consensus lexicon directly defines pregnancy of unknown location as pregnancy with neither a definite nor probable intrauterine or ectopic pregnancy on transvaginal ultrasound, exactly matching the case.",
+              "source_passage_ids": [
+                "39198135:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39198135",
+                  "quote": "The Society of Radiologists in Ultrasound convened a multisociety panel to develop a first-trimester US lexicon based on scientific evidence, societal guidelines, and expert consensus that would be appropriate for imagers, clinicians, and patients. Through a modified Delphi process with consensus of at least 80%, agreement was reached for preferred terms, synonyms, and terms to avoid. An intrauterine pregnancy (IUP) is defined as a pregnancy implanted in a normal location within the uterus. In contrast, an ectopic pregnancy (EP) is any pregnancy implanted in an abnormal location, whether extrauterine or intrauterine, thus categorizing cesarean scar implantations as EPs. The term pregnancy of unknown location is used in the setting of a pregnant patient without evidence of a definite or probable IUP or EP at transvaginal US."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39198135"
+              ],
+              "reason": "The source defines ectopic pregnancy by abnormal implantation and separately classifies absent evidence of either location as pregnancy of unknown location; therefore nonvisualization of an intrauterine pregnancy alone does not establish ectopic implantation.",
+              "source_passage_ids": [
+                "39198135:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39198135",
+                  "quote": "The Society of Radiologists in Ultrasound convened a multisociety panel to develop a first-trimester US lexicon based on scientific evidence, societal guidelines, and expert consensus that would be appropriate for imagers, clinicians, and patients. Through a modified Delphi process with consensus of at least 80%, agreement was reached for preferred terms, synonyms, and terms to avoid. An intrauterine pregnancy (IUP) is defined as a pregnancy implanted in a normal location within the uterus. In contrast, an ectopic pregnancy (EP) is any pregnancy implanted in an abnormal location, whether extrauterine or intrauterine, thus categorizing cesarean scar implantations as EPs. The term pregnancy of unknown location is used in the setting of a pregnant patient without evidence of a definite or probable IUP or EP at transvaginal US."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "40349974"
+              ],
+              "reason": "The guideline explicitly limits its population to loss involving a normally sited intrauterine pregnancy and excludes pregnancy of unknown location and ectopic pregnancy.",
+              "source_passage_ids": [
+                "40349974:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40349974",
+                  "quote": "To provide an evidence-based approach to guide the diagnosis and management of intrauterine early pregnancy loss. This population includes patients experiencing pregnancy loss/miscarriage and incomplete pregnancy loss in the context of a normally sited intrauterine pregnancy. It does not include patients with a pregnancy of unknown location, ectopic pregnancy or recurrent pregnancy loss (2 or more pregnancy losses). Incorrect diagnosis of a pregnancy loss increases the risk of harming a live, normally sited pregnancy. Prolonged waiting for confirmation of a diagnosis can increase anxiety and delay treatment. Patient-centred care discussions can help patients understand their pregnancy loss risk and make decisions about their management and follow-up, including time off for bereavement and mental health support."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "40349974"
+              ],
+              "reason": "The guideline expressly states that an incorrect pregnancy-loss diagnosis risks harming a live, normally sited pregnancy.",
+              "source_passage_ids": [
+                "40349974:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40349974",
+                  "quote": "To provide an evidence-based approach to guide the diagnosis and management of intrauterine early pregnancy loss. This population includes patients experiencing pregnancy loss/miscarriage and incomplete pregnancy loss in the context of a normally sited intrauterine pregnancy. It does not include patients with a pregnancy of unknown location, ectopic pregnancy or recurrent pregnancy loss (2 or more pregnancy losses). Incorrect diagnosis of a pregnancy loss increases the risk of harming a live, normally sited pregnancy. Prolonged waiting for confirmation of a diagnosis can increase anxiety and delay treatment. Patient-centred care discussions can help patients understand their pregnancy loss risk and make decisions about their management and follow-up, including time off for bereavement and mental health support."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "30878686"
+              ],
+              "reason": "The PID guideline states that ectopic-pregnancy risk is high after PID and must be kept in mind.",
+              "source_passage_ids": [
+                "30878686:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "30878686",
+                  "quote": "Vaginal sampling for detection of N. gonorrhoeae, C. trachomatis, (and M. genitalium) by nucleic acid amplification techniques is recommended 3 to 6 months after treatment of PID associated with STI to rule out possible reinfections (grade C). The use of condoms after PID associated with STI is recommended to reduce the risk of recurrences (grade C). The systematic use of contraceptive pills after PID is not recommended to prevent subsequent infertility and chronic pelvic pain. Vaginal sampling for microbiological diagnosis is recommended before the insertion of an intrauterine device (grade B). The risk of ectopic pregnancy is high in these women and must be kept in mind. Patient counselling and microbiological testing after PID decrease the risk of STI and thus the recurrence of PID."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Candidate B is independently correct. The patient has a confirmed pregnancy, while transvaginal ultrasound identifies neither a definite or probable intrauterine pregnancy nor a definite or probable ectopic pregnancy, which meets the supplied consensus definition of pregnancy of unknown location. A single early nondiagnostic scan, especially with beta-hCG of 620 IU/L and irregular dating, does not establish completed intrauterine pregnancy loss. Candidate A is therefore the intentionally flawed option. The current question asks only for classification, so Candidate B does not omit essential requested management. The visible case presents the relevant findings but does not explicitly name the classification, so it does not disclose the answer. The decision is also distinct from the previous postpartum-hemorrhage case."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient has a confirmed pregnancy by positive serum beta-hCG, but transvaginal ultrasound identifies neither a definite/probable intrauterine pregnancy nor a definite/probable ectopic pregnancy. This matches the definition of pregnancy of unknown location (PUL) in the Society of Radiologists in Ultrasound lexicon: PUL is used for a pregnant patient without evidence of a definite or probable IUP or ectopic pregnancy at transvaginal ultrasound. Candidate A is not supported because vaginal spotting plus absence of a visible gestational sac on an initial scan does not establish a completed intrauterine early pregnancy loss, especially when no intrauterine pregnancy has previously been documented; guidelines on intrauterine early pregnancy loss explicitly exclude pregnancy of unknown location from that category.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.96,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "39198135"
+              ],
+              "reason": "The source explicitly defines pregnancy of unknown location as a pregnant patient without evidence of definite or probable intrauterine or ectopic pregnancy at transvaginal ultrasound.",
+              "source_passage_ids": [
+                "39198135:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39198135",
+                  "quote": "The Society of Radiologists in Ultrasound convened a multisociety panel to develop a first-trimester US lexicon based on scientific evidence, societal guidelines, and expert consensus that would be appropriate for imagers, clinicians, and patients. Through a modified Delphi process with consensus of at least 80%, agreement was reached for preferred terms, synonyms, and terms to avoid. An intrauterine pregnancy (IUP) is defined as a pregnancy implanted in a normal location within the uterus. In contrast, an ectopic pregnancy (EP) is any pregnancy implanted in an abnormal location, whether extrauterine or intrauterine, thus categorizing cesarean scar implantations as EPs. The term pregnancy of unknown location is used in the setting of a pregnant patient without evidence of a definite or probable IUP or EP at transvaginal US."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39198135"
+              ],
+              "reason": "The source defines ectopic pregnancy by abnormal implantation and separately defines pregnancy of unknown location when transvaginal ultrasound lacks definite or probable IUP or EP, supporting that nonvisualization of IUP alone does not establish ectopic implantation.",
+              "source_passage_ids": [
+                "39198135:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39198135",
+                  "quote": "The Society of Radiologists in Ultrasound convened a multisociety panel to develop a first-trimester US lexicon based on scientific evidence, societal guidelines, and expert consensus that would be appropriate for imagers, clinicians, and patients. Through a modified Delphi process with consensus of at least 80%, agreement was reached for preferred terms, synonyms, and terms to avoid. An intrauterine pregnancy (IUP) is defined as a pregnancy implanted in a normal location within the uterus. In contrast, an ectopic pregnancy (EP) is any pregnancy implanted in an abnormal location, whether extrauterine or intrauterine, thus categorizing cesarean scar implantations as EPs. The term pregnancy of unknown location is used in the setting of a pregnant patient without evidence of a definite or probable IUP or EP at transvaginal US."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "40349974"
+              ],
+              "reason": "The source states that intrauterine early pregnancy loss guidance concerns normally sited intrauterine pregnancy and excludes pregnancy of unknown location.",
+              "source_passage_ids": [
+                "40349974:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40349974",
+                  "quote": "To provide an evidence-based approach to guide the diagnosis and management of intrauterine early pregnancy loss. This population includes patients experiencing pregnancy loss/miscarriage and incomplete pregnancy loss in the context of a normally sited intrauterine pregnancy. It does not include patients with a pregnancy of unknown location, ectopic pregnancy or recurrent pregnancy loss (2 or more pregnancy losses). Incorrect diagnosis of a pregnancy loss increases the risk of harming a live, normally sited pregnancy. Prolonged waiting for confirmation of a diagnosis can increase anxiety and delay treatment. Patient-centred care discussions can help patients understand their pregnancy loss risk and make decisions about their management and follow-up, including time off for bereavement and mental health support."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "40349974"
+              ],
+              "reason": "The source explicitly warns that incorrect diagnosis of pregnancy loss can harm a live, normally sited pregnancy.",
+              "source_passage_ids": [
+                "40349974:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40349974",
+                  "quote": "To provide an evidence-based approach to guide the diagnosis and management of intrauterine early pregnancy loss. This population includes patients experiencing pregnancy loss/miscarriage and incomplete pregnancy loss in the context of a normally sited intrauterine pregnancy. It does not include patients with a pregnancy of unknown location, ectopic pregnancy or recurrent pregnancy loss (2 or more pregnancy losses). Incorrect diagnosis of a pregnancy loss increases the risk of harming a live, normally sited pregnancy. Prolonged waiting for confirmation of a diagnosis can increase anxiety and delay treatment. Patient-centred care discussions can help patients understand their pregnancy loss risk and make decisions about their management and follow-up, including time off for bereavement and mental health support."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "30878686"
+              ],
+              "reason": "The source states that ectopic pregnancy risk is high after PID and must be kept in mind, supporting clinical relevance of the remote PID history during assessment.",
+              "source_passage_ids": [
+                "30878686:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "30878686",
+                  "quote": "Vaginal sampling for detection of N. gonorrhoeae, C. trachomatis, (and M. genitalium) by nucleic acid amplification techniques is recommended 3 to 6 months after treatment of PID associated with STI to rule out possible reinfections (grade C). The use of condoms after PID associated with STI is recommended to reduce the risk of recurrences (grade C). The systematic use of contraceptive pills after PID is not recommended to prevent subsequent infertility and chronic pelvic pain. Vaginal sampling for microbiological diagnosis is recommended before the insertion of an intrauterine device (grade B). The risk of ectopic pregnancy is high in these women and must be kept in mind. Patient counselling and microbiological testing after PID decrease the risk of STI and thus the recurrence of PID."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The clinical data independently support candidate B. The patient has a confirmed pregnancy by serum beta-hCG and transvaginal ultrasound shows neither a definite/probable intrauterine pregnancy nor a definite/probable ectopic pregnancy, with no substantial free fluid or instability. That matches the supplied lexicon definition of pregnancy of unknown location. Candidate A incorrectly treats one early nondiagnostic ultrasound plus bleeding as proof of completed intrauterine early pregnancy loss; the supplied evidence distinguishes intrauterine early pregnancy loss from pregnancy of unknown location and warns that misdiagnosing pregnancy loss can harm a normally sited live pregnancy. The visible title, question, notes, and imaging impression do not explicitly disclose the answer term or a management plan. The prior case involved postpartum hemorrhage recognition, so this assesses a distinct clinical decision."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "bdd7ad54db98eb2f3bd22bf17e1ff186ef51fabf300126abe946dc8b0052d3e4"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

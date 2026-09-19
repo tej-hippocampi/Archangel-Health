@@ -1,0 +1,154 @@
+{
+  "audit_date": "2026-09-18",
+  "scope": "Independent source/retention audit; no repo edits, real model calls or patient data.",
+  "records": [
+    {
+      "pmid": "34882261",
+      "pmcid": "PMC8803744",
+      "pin": {
+        "id": "34882261",
+        "pmcid": "PMC8803744",
+        "title": "EANM procedure guidelines for brain PET imaging using [18F]FDG, version 3.",
+        "source_type": "primary_society_guideline",
+        "require_licensed_fulltext": true
+      },
+      "excerpt_terms": "brain FDG PET preparation glucose hyperglycemia preinjection hypometabolism Alzheimer posterior parieto occipital interpretation postpone euglycemic",
+      "exact_pubmed_title": "EANM procedure guidelines for brain PET imaging using [18F]FDG, version 3.",
+      "pubmed_title_repr": "'EANM procedure guidelines for brain PET imaging using [18F]FDG, version 3.'",
+      "publication_types": [
+        "Journal Article"
+      ],
+      "publication_date": "2022 Jan",
+      "correction_relations": [
+        {
+          "type": "ErratumIn",
+          "pmid": "35254483",
+          "citation": "Eur J Nucl Med Mol Imaging. 2022 May;49(6):2100-2101. doi: 10.1007/s00259-022-05755-3."
+        }
+      ],
+      "license_statement": "© The Author(s) 2021 Open Access This article is licensed under a Creative Commons Attribution 4.0 International License, which permits use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons licence, and indicate if changes were made. The images or other third party material in this article are included in the article's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the article's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit http://creativecommons.org/licenses/by/4.0/ .",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "ordinary_parser_accepts": false,
+      "exact_pin_parser_accepts": true,
+      "fulltext_parser_accepts": true,
+      "retained_body_characters": 32009,
+      "body_excerpts_sha256": "7a4908a9958d6d338506f97bc2c763e9bf423cf9c0c28014fa59fae833f37eff",
+      "abstract_sha256": "4ba77cacb6ebf55e5054379cb848cd69ca3dacde367ea0e1e848392e2f8a4ef1",
+      "raw_xml_sha256": "de9e3efdf4235a92650ab527eaa16940411f852a1d8644929db5c93d2dae6c84",
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-imaging-sources/34882261-source.json",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-imaging-sources/evidence-gap-imaging-pubmed-more.xml",
+      "fulltext_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-imaging-sources/evidence-gap-imaging-PMC8803744.xml",
+      "verified_literal_quotes": [
+        "Blood glucose levels should be checked prior to [ 18 F]FDG administration.",
+        "In any case, an examination should be postponed until a proper euglycemic state is reached.",
+        "Very few studies directly addressed this issue, and, to date, a measurable effect on scan interpretation has not been proven",
+        "acute correction of hyperglycemia with insulin usually does not substantially improve brain image quality"
+      ],
+      "disposition": "clear_with_erratum_and_inference_limits",
+      "authority": "EANM Neuro-Imaging Committee NIC primary procedural guidelines; abstract explicitly European practice.",
+      "limits": [
+        "A procedural guideline, not direct proof that this patient has Alzheimer disease or that hyperglycemia alone explains the observed pattern.",
+        "Guideline says hyperglycemia can reduce whole-brain uptake and posterior patterns may overlap AD, but measurable effect on interpretation is not proven. Avoid claiming specific AD-like pattern is definitely artifact.",
+        "If making a repeat/preparation recommendation, preserve the distinction between postponing a planned exam until euglycemia and proving an already acquired scan is wholly non-diagnostic.",
+        "Raw original XML still has >8.9 nmol/L typo. Use mg/dL or explicitly corrected mmol/L; never copy the erroneous unit into a case."
+      ],
+      "erratum": {
+        "pmid": "35254483",
+        "pmcid": "PMC9016017",
+        "doi": "10.1007/s00259-022-05755-3",
+        "change": "Hyperglycemia threshold unit >8.9 mmol/L replaces >8.9 nmol/L. 160 mg/dL threshold unchanged.",
+        "raw_original_still_wrong": true,
+        "correction_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-imaging-sources/evidence-gap-imaging-PMC9016017.xml",
+        "correction_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9016017/",
+        "scope": "Erratum corrects the unit only; no clinical recommendation or AD pattern changes.",
+        "not_retraction": true,
+        "correction_not_ordinary_source": "No substantive >=300-character abstract; do not pretend it passes normal clinical-source parser. Retain audit/authoring correction separately if not extending correction metadata."
+      }
+    },
+    {
+      "pmid": "41296251",
+      "pmcid": "PMC12982265",
+      "pin": {
+        "id": "41296251",
+        "pmcid": "PMC12982265",
+        "title": "Incidental pulmonary findings on CT in daily practice: the nodule and the interstitial lung abnormalities - what's old, what's new.",
+        "source_type": "secondary_clinical_review",
+        "require_licensed_fulltext": true
+      },
+      "excerpt_terms": "incidental pulmonary nodule solid solitary high risk Fleischner follow up CT 6 8 12 18 24 months",
+      "exact_pubmed_title": "Incidental pulmonary findings on CT in daily practice: the nodule and the interstitial lung abnormalities - what's old, what's new.",
+      "pubmed_title_repr": "\"Incidental\\xa0pulmonary findings on CT in daily practice: the nodule and the interstitial lung abnormalities - what's old, what's new.\"",
+      "publication_types": [
+        "Journal Article",
+        "Review"
+      ],
+      "publication_date": "2026 Mar",
+      "correction_relations": [],
+      "license_statement": "© The Author(s) 2025 2025 https://creativecommons.org/licenses/by/4.0/ Open Access This article is licensed under a Creative Commons Attribution 4.0 International License, which permits use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons licence, and indicate if changes were made. The images or other third party material in this article are included in the article's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the article's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit http://creativecommons.org/licenses/by/4.0/ .",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "ordinary_parser_accepts": false,
+      "exact_pin_parser_accepts": true,
+      "fulltext_parser_accepts": true,
+      "retained_body_characters": 31942,
+      "body_excerpts_sha256": "99db1c024ea0f9b830dbd893b7c647b3028cfb097882be817b6d26f269e9fef0",
+      "abstract_sha256": "ace3a44c5a08da2ba1dae17654adeab234f90157120531287acba579e04f00f7",
+      "raw_xml_sha256": "532adb5a4469304392349816f2e82d77863e46d118e92abb6cacf952ac6cb23a",
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-imaging-sources/41296251-source.json",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-imaging-sources/evidence-gap-imaging-pubmed.xml",
+      "fulltext_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-imaging-sources/evidence-gap-imaging-PMC12982265.xml",
+      "verified_literal_quotes": [
+        "The 2017 Fleischner Society guidelines recommend pulmonary nodule follow-up based primarily on nodule size, density (solid or subsolid), and patient-specific risk factors.",
+        "These recommendations do not apply to lung cancer screening, patients with immunosuppression, or patients with a known primary cancer"
+      ],
+      "disposition": "hold_for_decisive_table_reuse",
+      "authority": "Peer-reviewed narrative review in Radiologia Medica; not a Fleischner Society guideline or systematic review.",
+      "title_identity_note": "U+00A0 NO-BREAK SPACE after Incidental. PubMed apostrophes in what's are ASCII U+0027; XML article body title uses curly apostrophes. Use the exact PubMed title, not a hand-normalized title.",
+      "limits": [
+        "Population is incidental pulmonary nodules in adults, excluding screening, known primary cancer and immunosuppression. Correct match to intended incidental solitary solid nodule only if those exclusions are absent.",
+        "Exact solitary high-risk6–8mm schedule (CT6–12 then18–24months) occurs in Table2, marked Adapted with permission from reference7. Standard article license excludes third-party material with a contrary credit line; reuse rights for this adapted table are not verified by article-level CC BY4 alone.",
+        "Table2 is nested in a paragraph, so the unchanged parser currently copies the entire adapted table into retained body. Parser license acceptance does not resolve the table-specific credit.",
+        "Standalone author narrative discusses risk-based surveillance but does not state the same full solitary6–8mm schedule outside Table2. It cannot serve as the second decisive schedule source if that table is excluded.",
+        "Independent later review still synthesizes Fleischner2017 and is not a second independent trial/guideline. No Japanese screening guideline should be substituted."
+      ],
+      "decisive_table": {
+        "label": "Table2",
+        "credit": "Adapted with permission from reference 7",
+        "expected_high_risk_solitary_solid6_8mm": "CT at6–12months, then CT at18–24months",
+        "credit_retained_by_parser": true,
+        "retention_reuse_clear": false
+      }
+    }
+  ],
+  "recommended_nuclear_pin": {
+    "topic": "FDG PET CT preparation hyperglycemia and uptake interpretation using a structured report",
+    "excerpt_terms": "brain FDG PET preparation glucose hyperglycemia preinjection hypometabolism Alzheimer posterior parieto occipital interpretation postpone euglycemic",
+    "source": {
+      "id": "34882261",
+      "pmcid": "PMC8803744",
+      "title": "EANM procedure guidelines for brain PET imaging using [18F]FDG, version 3.",
+      "source_type": "primary_society_guideline",
+      "require_licensed_fulltext": true
+    }
+  },
+  "radiology_result": "Candidate has matching population and exact schedule but decisive adapted-table reuse is not cleared; do not label an article-level CC BY parser pass as table-level reuse verification.",
+  "other_candidates_checked": [
+    {
+      "pmcid": "PMC12818888",
+      "pmid": "41363795",
+      "title": "Incidental Pulmonary Nodules: What Should We Do in 2026?",
+      "status": "exclude_fulltext_CC_BY_NC4"
+    },
+    {
+      "pmcid": "PMC12425691",
+      "pmid": "40859810",
+      "title": "Diagnostic approach for incidental pulmonary nodules",
+      "status": "exclude_fulltext_CC_BY_NC4"
+    },
+    {
+      "pmcid": "PMC12094709",
+      "title": "Incidental Pulmonary Nodules: Differential Diagnosis and Clinical Management",
+      "status": "EuropePMCfullTextXML500_on_two_attempts_no_license_asserted"
+    }
+  ],
+  "gate_note": "No recency/retraction/license/population exceptions proposed. Current parser accepts ErratumIn but still rejects RetractionIn/ExpressionOfConcernIn; correction must be read and applied, not ignored."
+}

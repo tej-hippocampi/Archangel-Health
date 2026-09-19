@@ -1,0 +1,516 @@
+{
+  "protocol": "prepared_revision_code_input_audit_v1",
+  "audited_at": "2026-09-19T03:37:18.651207+00:00",
+  "auditor": "independent fresh-context agent /root/audit_prepared_path",
+  "disposition": "clear",
+  "scope": "CI-only prepared-draft review code and exact input integrity; not clinical approval or publication authority",
+  "release_approval": false,
+  "physician_ratification": false,
+  "real_model_calls_performed": 0,
+  "base_commit": "4ba340ec1a144a1a8da8d4bf19bad775952113ae",
+  "repository": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library",
+  "file_hashes_sha256": {
+    "backend/asclepius/onboarding_cases.py": "0f835263093b9bd63620abd2b8bb586b730673a87ef3dc893476624444576226",
+    "backend/scripts/trial_onboarding_openai.py": "473df3848a12662457dda88bff93a94b305a17d0b157cfeeab49e92d9d029c09",
+    "backend/tests/test_onboarding_openai_trial.py": "23479a640c650a05ecb5569f3248e21925bf62f2d32b83d0e22cc65e4e9fee8e",
+    "backend/scripts/onboarding_revision_inputs.json": "6d70c0033b2805bad0c0d110d1a7fecbfb27a9f8b7769567ac5154700c741830",
+    "backend/asclepius/onboarding_library.py": "0d4a849c234b9c596d1a5809cf1d3c030d66b027121577da28f556287fd2c4ea",
+    "backend/asclepius/onboarding_evidence.py": "193f3bfb277d8a83a1fe5f097551ffaf316056d4f5050971904b0b227b040df4",
+    ".github/workflows/llm-smoke.yml": "4dda58beb96ccfbbba3dad487bf7e663a4908d9f8932b290e2d8c8e2f0411491",
+    "backend/tests/test_onboarding_library.py": "a1a3849c63c2da0ab823eaa0f8dfead94223e99ab82c3bc58c33e97c9bca1e6c",
+    "backend/tests/test_onboarding_evidence.py": "3c5718f873b3df6626eb8c82e9d98ca1d7172d3580fde286304c8aedc234bc2e"
+  },
+  "builder_confirmation": {
+    "received": true,
+    "final_three_code_test_hashes_matched": true,
+    "builder_reported_tests": "40 focused tests passed in 2.71 seconds"
+  },
+  "open_findings": [],
+  "resolved_findings": [
+    {
+      "id": "prepared-schema-equality",
+      "origin": "parent-identified; independently reviewed",
+      "problem": "Python equality can treat 1, 1.0 and True as equal after schema normalization, permitting changed serialized input.",
+      "resolution": "Post-validation comparison uses canonical sorted JSON serialization; integer/float and boolean/integer regressions pass.",
+      "location": "backend/asclepius/onboarding_cases.py:510"
+    },
+    {
+      "id": "cli-access-before-checksum",
+      "origin": "this independent audit",
+      "problem": "Workflow plan called --check-access before matrix validation; the CLI branch could issue both access probes without validating prepared checksums.",
+      "reproduction_before_fix": "Offline mock produced two access probes while revision_inputs was never called.",
+      "resolution": "main validates revision_inputs synchronously before running check_access; run separately validates before its probe.",
+      "verification_after_fix": "Offline CLI checksum failure produced zero access/model calls; all five malformed-input variants pass direct build, runner and CLI regressions.",
+      "location": "backend/scripts/trial_onboarding_openai.py:199"
+    }
+  ],
+  "verified_invariants": [
+    "Prepared review requires explicit boolean true, nonempty entry, matching canonical entry hash and no resume flag.",
+    "Normal runtime rejects revision context; real OpenAI trial remains restricted by CI, nonproduction, real-provider and key guards.",
+    "Entry is deep-copied and hash-verified before retrieval; CLI and runner validate inputs before access probes.",
+    "Fresh evidence retrieval is unconditional; retained abstract and body-excerpt checksums are validated; fresh IDs take precedence over retained duplicates.",
+    "Only authorship is skipped; prepared entry still passes full schema, specialty, age, identifiers, source, modality and image gates.",
+    "Canonical serialized equality prevents defaults, coercions or server image attachment from silently changing prepared content.",
+    "Two different approved OpenAI models each perform blinded solve then clinical review; confidence must remain at least 0.90 and at most 1.",
+    "Existing clinical flags, answer correctness, issues-empty, rationale, exact cited-source-set, passage handle and literal quotation checks remain enforced.",
+    "Prior feedback and draft repair metadata are absent from both solver and clinical-review payloads; solvers receive the public case without the private answer key.",
+    "Prepared reports and rejection diagnostics have author_model null and authoring_method prepared_revision; rejected diagnostics also have author_request_id null.",
+    "Trial output remains release_eligible false and method openai_only_trial; exact independent artifact audit and all existing release gates remain required.",
+    "Prepared review does not invoke the production write/publish worker; trial runner checks clinical inventory tables remain empty in isolated temporary storage."
+  ],
+  "input_diff": {
+    "baseline_rows": 45,
+    "current_rows": 45,
+    "changed_rows": [
+      "onboarding-examination-v1-8e91610afd9fe9c9d129-1",
+      "onboarding-practice-v1-a5ec2abe485f271a3e3d-1",
+      "onboarding-practice-v1-3e19e5ff97ee3c9c1348-1",
+      "onboarding-examination-v1-0e0315b9abae6616594d-1",
+      "onboarding-practice-v1-98d3f77f8d4d452b76d0-1"
+    ],
+    "unchanged_rows": 40,
+    "added_rows": [],
+    "removed_rows": [],
+    "protocol_unchanged": true,
+    "retained_source_rows_hash_verified": 28
+  },
+  "prepared_inputs": [
+    {
+      "task_id": "onboarding-examination-v1-8e91610afd9fe9c9d129-1",
+      "specialty": "infectious diseases",
+      "kind": "examination",
+      "input_integrity": "verified",
+      "entry_sha256": "6656b63c748e4a477b4d44c87a92ebc9a8df443a8d6d40829ee3b6bbc3a60642",
+      "row_sha256": "27cf4286a7435cf29ed0d10c1305b60171c7fbc58e217daa17569634bae4e06d",
+      "resume": false,
+      "review_prepared": true,
+      "prepared_artifact": "output/specialty-onboarding/prepared-id-revision3.json",
+      "prepared_artifact_file_sha256": "7d24b61075eeb033d515b88e06d08d5c6277363e57b1fb2d78f935852dfe2ca0",
+      "source_artifact": "output/specialty-onboarding/openai-trial-35417109660/10576551837/trial-rejected-ff5c9f36a8024de08bb6bff4ee483009.json",
+      "source_artifact_file_sha256": "6a3ac102f6335602f1dbea12f9d3978e5aee6c8ad328f936be3e4331d10f93a2",
+      "prior_entry_sha256": "daf26a119bccec5f97ec74aac1e59dd6297fb3bf0569f83c4b6eed939f96e121",
+      "prepared_artifact_entry_and_sources_match": true,
+      "schema_canonical_representation_unchanged": true,
+      "age_scope": "adult",
+      "sources": [
+        {
+          "id": "39387894",
+          "abstract_sha256": "5b5d4f9bc248bd5dba5ce88c643ce3502dce50ca3d6cb145ba419c56b39cda0b",
+          "body_excerpts_sha256": "bc5c16f0662d7f81302d546f8135efb5aca1c26a4ded339ff7a20580a9c55346"
+        },
+        {
+          "id": "35331165",
+          "abstract_sha256": "faa2628f0e4335fde0b786f57e163cdc2c8cffe1dc572966228be5e04e3a4b8d",
+          "body_excerpts_sha256": "e47d18517661541999a48f17ffeb028ae9b0900ed91c774ae8d2b0513b898dd6"
+        }
+      ],
+      "claimed_source_ids": [
+        "35331165",
+        "39387894"
+      ]
+    },
+    {
+      "task_id": "onboarding-practice-v1-a5ec2abe485f271a3e3d-1",
+      "specialty": "oncology",
+      "kind": "practice",
+      "input_integrity": "verified",
+      "entry_sha256": "e8fb3b3e3c356e1a4385de7632f05d0df8f157c21a1fe5b9301f82bd4614f242",
+      "row_sha256": "7b3430abfc906182556c2d781bcc69bafe54130293eb411d286bb3603eace375",
+      "resume": false,
+      "review_prepared": true,
+      "prepared_artifact": "output/specialty-onboarding/prepared-oncology-revision3.json",
+      "prepared_artifact_file_sha256": "a464b94fe98c28f94b258efa2ee95f411bc22ef17332e7505e106ca0f41e298b",
+      "source_artifact": "output/specialty-onboarding/openai-trial-35417109660/10576332177/trial-rejected-ef10ee81c06b453385e32e3cf9e5d7b1.json",
+      "source_artifact_file_sha256": "bcb7015966ff931ac95b4357876aaf7ad5f3e5c400ce21910057490b337e7a66",
+      "prior_entry_sha256": "1c60e277635d5420c6ac13ba27a47a375678ec1aaa3b66f693cace6c84ab3f2d",
+      "prepared_artifact_entry_and_sources_match": true,
+      "schema_canonical_representation_unchanged": true,
+      "age_scope": "adult",
+      "sources": [
+        {
+          "id": "37921996",
+          "abstract_sha256": "cec3de1bc3cbd3981b78c76728b2cbc4de19ff14f1802e9b1eefd11b67dec1fe",
+          "body_excerpts_sha256": "869443b672a8e81d03f285f9f6c0fda096dee1aebec24c33f923e3df9516740a"
+        },
+        {
+          "id": "41521418",
+          "abstract_sha256": "58cb36d94c9e2c1714ad9988c344720c3472e0af596ba934c94955c9206bd6fd",
+          "body_excerpts_sha256": null
+        }
+      ],
+      "claimed_source_ids": [
+        "37921996",
+        "41521418"
+      ]
+    },
+    {
+      "task_id": "onboarding-practice-v1-3e19e5ff97ee3c9c1348-1",
+      "specialty": "pain medicine",
+      "kind": "practice",
+      "input_integrity": "verified",
+      "entry_sha256": "cafcae353ee92f2c7fcbdb9b1cebad8f6d4a57ff3e23bd4e42c037ea59604624",
+      "row_sha256": "38070194bacf5b3574716c86e8526ff10b9297f34ef6570a1f25e240ee38fb82",
+      "resume": false,
+      "review_prepared": true,
+      "prepared_artifact": "output/specialty-onboarding/prepared-pain-revision3.json",
+      "prepared_artifact_file_sha256": "6ec01a65926181dd9ac19904ee2d198d595b50689c5e1f29e6ed3a0c3adcd8ff",
+      "source_artifact": "output/specialty-onboarding/openai-trial-35417109660/10576402275/trial-rejected-50dbd17d5f2e46649966db63a2253449.json",
+      "source_artifact_file_sha256": "06df419cacdccc77077ff38cc6b21cf86676e6e0f0b9b9b0dae4b4939a6926d8",
+      "prior_entry_sha256": "0e495220a33b068a1885f8a15af398daf8c6d2c2a0281ea748c6704941d1bd6a",
+      "prepared_artifact_entry_and_sources_match": true,
+      "schema_canonical_representation_unchanged": true,
+      "age_scope": "adult",
+      "sources": [
+        {
+          "id": "41481869",
+          "abstract_sha256": "4f988fe4e824bac79b4b8ffe7a186275c76ad1a48a28d63b609ac9cdb20bd152",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "40665902",
+          "abstract_sha256": "b87bf05676c353e6233605577682fc90263c6fea0ed6b2d695b1bca615b84dea",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "38101929",
+          "abstract_sha256": "c07fadf69ee504f2bb9d1e4a973ddfbb8341c6cee147ddad919b9c4f178aa79d",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "39133736",
+          "abstract_sha256": "17cdc3bdca9289e4bd979c5432987d9a490b71953eac55df6e50bead090f33fd",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "34051387",
+          "abstract_sha256": "25b0b8ef9953748bad0bbe839dd4a64167beee137fb6d8bddd56444dd21c938b",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "32503359",
+          "abstract_sha256": "7525cbb246e850011b9990e6aa74f0cfda2f5bfc5bee51f72660e852f729d8d5",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "41318933",
+          "abstract_sha256": "9485dd3750c7f82e9e975c18d63a80d82e7274ec75a1c7d241842831b4349a62",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "38117465",
+          "abstract_sha256": "313320ea2be6ba8e31fafb195c9b97137423e422066c3e85aac69451d0d6b56b",
+          "body_excerpts_sha256": null
+        }
+      ],
+      "claimed_source_ids": [
+        "34051387",
+        "41481869"
+      ]
+    },
+    {
+      "task_id": "onboarding-examination-v1-0e0315b9abae6616594d-1",
+      "specialty": "physical medicine and rehabilitation",
+      "kind": "examination",
+      "input_integrity": "verified",
+      "entry_sha256": "28d5b30315b1ecd1753ef51810e069f6aa78ee40345eb632168d8ab8248e84be",
+      "row_sha256": "132f15a9ad658b2ecf3b00fa2c357e04f8c3545173fbed195dc2afd0f5c77c7a",
+      "resume": false,
+      "review_prepared": true,
+      "prepared_artifact": "output/specialty-onboarding/prepared-pmr-revision3.json",
+      "prepared_artifact_file_sha256": "382952e068ad1418fe770f6ccaf60a9c8b4dc7ab013a4fa4e85e0c7fbc39c7ed",
+      "source_artifact": "output/specialty-onboarding/openai-trial-35417109660/10576052764/trial-rejected-aed46f1be1dd4e119518e8cddcf8d5d7.json",
+      "source_artifact_file_sha256": "c205bcaa9da89cd94d9c253d9b5daca2cf965889b86c5114190117b0718abca7",
+      "prior_entry_sha256": "e1860bae6485ef284600329e7f00024fb5817645808caf6f6069e423ead3afb9",
+      "prepared_artifact_entry_and_sources_match": true,
+      "schema_canonical_representation_unchanged": true,
+      "age_scope": "adult",
+      "sources": [
+        {
+          "id": "42430939",
+          "abstract_sha256": "fcdbab5904d6fb5b90b15a7d60e6954e3d682decb9ac75397a5b58c740c20ffd",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "38393175",
+          "abstract_sha256": "881df5d496b7cf9e4f80ce10c72296a78e73cfa41a57eecfebe48f47b259908c",
+          "body_excerpts_sha256": "77ddb2a378bed312f6efd0a9eb496dade784a0f319130649fc37953270cfbb6e"
+        },
+        {
+          "id": "34495687",
+          "abstract_sha256": "2977cdcd9b9344a77f6ee02777a2c78f1c79d26daa2fa6aef08109dab65bb3c8",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "34495688",
+          "abstract_sha256": "26e8ede993b9caad2f46ff81d57e85bb7cabbc482cd5ff071bde7c9659ff5ce8",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "35962043",
+          "abstract_sha256": "6c435dedb6c0112048fb2b5b03bf3c4550d06193a1a1d6b57d5519014385c9f8",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "35419369",
+          "abstract_sha256": "6b12fd0ddf544df27129a73f0301515f2e55469a632816869290468aaa10a838",
+          "body_excerpts_sha256": "04ee6dc1f0553fdb6d76ac438d0473c203eef495054de46f7f479b92d1154ad9"
+        },
+        {
+          "id": "38268066",
+          "abstract_sha256": "d5f2e5d8afb2c5beed99b6d655f6c7889a10149d3e4d4506c3c1a2e2f31623e1",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "40008161",
+          "abstract_sha256": "f149c91746b77ad8d458f9cc39da8b7c6dde0b8a697d59c2479899f12fbf7f43",
+          "body_excerpts_sha256": null
+        }
+      ],
+      "claimed_source_ids": [
+        "35962043",
+        "38393175",
+        "42430939"
+      ]
+    },
+    {
+      "task_id": "onboarding-practice-v1-98d3f77f8d4d452b76d0-1",
+      "specialty": "vascular surgery",
+      "kind": "practice",
+      "input_integrity": "verified",
+      "entry_sha256": "6f4065514102eb405a6630efb04c239b45fbf822a8b460e33e9eb343cd2d8d55",
+      "row_sha256": "91b95729af8d26da5f16d8d44f0d01f2caf78a812b3a7c53c24cd528e3b255d2",
+      "resume": false,
+      "review_prepared": true,
+      "prepared_artifact": "output/specialty-onboarding/prepared-vascular-revision3.json",
+      "prepared_artifact_file_sha256": "c6a53ec0e87bdb4bd4a0800db61765f5fcba473850d308099212a754075911ef",
+      "source_artifact": "output/specialty-onboarding/openai-trial-35417109660/10576690712/trial-rejected-ff8a765d861141a5b84142f0cb07a2f4.json",
+      "source_artifact_file_sha256": "79ed8dc2c14ee2705c44e2501fa6ec363b788269699838632d1cf8c09b2f2a65",
+      "prior_entry_sha256": "f941a01db51bbfb15c823e9d102663bc9b93ea9ea4b0c0ee465ee07e3b7f6340",
+      "prepared_artifact_entry_and_sources_match": true,
+      "schema_canonical_representation_unchanged": true,
+      "age_scope": "adult",
+      "sources": [
+        {
+          "id": "40428785",
+          "abstract_sha256": "b35b1e9e4cb35e3e6291b0e9dc6cacebdd252d0bfe68438c0703c2f40dcfe514",
+          "body_excerpts_sha256": "859575764d296a8b48df3bf8e6b1a5aeab7f4aee35c8350a31e7c2eeb1d3dbb8"
+        },
+        {
+          "id": "41232816",
+          "abstract_sha256": "3596f0e9f9cda0e797ed68a9242e77e49219cf1a287293bbe78a3f4e6a63963e",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "42097877",
+          "abstract_sha256": "3dc51fcd079b262dcab5a7d0b42ba02f5050ffb92cb5bf70a40b62c45bc50068",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "31416204",
+          "abstract_sha256": "0a2c234a577752632b8ee1276e104d8ac11d72d7b91df92d7b82b72637d0afce",
+          "body_excerpts_sha256": "9ba6d1907f75038629ca824dc9d15f96d24701d7b9255071eddcb3370033271c"
+        },
+        {
+          "id": "38743805",
+          "abstract_sha256": "85a4ce426de97adf57c3cee4f16e42a3cf9e58b3463f853f55c8131da42e0c63",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "38752899",
+          "abstract_sha256": "85a4ce426de97adf57c3cee4f16e42a3cf9e58b3463f853f55c8131da42e0c63",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "34023430",
+          "abstract_sha256": "64e090be4bdd0ca051998afba400c0fa6977fb154a37e66d7fcf72c15ae31856",
+          "body_excerpts_sha256": null
+        },
+        {
+          "id": "40409886",
+          "abstract_sha256": "a616186eb0616d4c7892b7eb324d5b14bad5b20aa95f8c00735eb9b024a52790",
+          "body_excerpts_sha256": null
+        }
+      ],
+      "claimed_source_ids": [
+        "31416204",
+        "42097877"
+      ]
+    }
+  ],
+  "preservation": {
+    "original_manifest": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/revision-before-bundles.json",
+    "original_manifest_sha256": "86d732bc0dd2ba0609f32c202eedde4612ef8f3e11122bf94ae5c7c0016c3a74",
+    "original_41_count": 41,
+    "original_41_unchanged": true,
+    "original_41_hashes": {
+      "onboarding-practice-v1-0e709f79e5406de4e058-1.json": "17057078f66e80cca64f652c61615c06d327bcce6cdec980a04c7be72d1c606b",
+      "onboarding-practice-v1-33aa98a024c410e5e9b7-1.json": "1af87119e690dfb2ee5cb78d8552d7aeb9a12aa6745e4ff878463570729fabdc",
+      "onboarding-practice-v1-558a055d93f6a8479019-1.json": "20ec0601a2ff0d5f8f8f30fa089594e70bb0e38a6ecab0497fa2ed6303105ba4",
+      "onboarding-examination-v1-76e4644baee47eeda234-1.json": "9268ba3a3e26559b96a88b38dd1e92730daf3893a2e9c2cdebd6fb3ee64852d2",
+      "onboarding-practice-v1-c72bcc59869444a84f98-1.json": "00cb402fa1d1f2e715be6eb9b038a56fe6e06a8cbe70c290cc9b85c5e1fb6795",
+      "onboarding-practice-v1-d6cc8a50a7bd4ff6e9f8-1.json": "902b5c41e9743364bc873c453144b74b7999bc6bec5e937dc71f714ff325dc1c",
+      "onboarding-examination-v1-6e7fdf319c0398ff7d9b-1.json": "53b28e3712ac6fc3ca0e512007c41c605b7c36f2f29ae80ff9b1ee384c51d1dd",
+      "onboarding-examination-v1-f9bdbf3cfce2a57bc57b-1.json": "737200542532008f9932b1347314f76780acedda24b8e44aee1d0f24e58343de",
+      "onboarding-examination-v1-c81048b60c5736de1ba4-1.json": "6717c4d850e0f95a90eae5dbe4319754a407672484ce58908ee52f4e31581805",
+      "onboarding-practice-v1-8e91610afd9fe9c9d129-1.json": "e7192c48e4774237a252c5e63eb5851d5dcb772806e08578aa4aee2b1da5ad2d",
+      "onboarding-examination-v1-0e709f79e5406de4e058-1.json": "6875e247e4b8548977d80c4e1ed116cabcc99472b6d1c77a6fb132b6d84a28a6",
+      "onboarding-practice-v1-ca25a37ef4cffb536a33-1.json": "1e972857a927e84a9159d1e89027e32aeeb186963844e9a64801c6017c5cbb54",
+      "onboarding-practice-v1-f56c68f42cb42511dd16-1.json": "14e107aa5b261c02b7787060f2af4846ddfbdc824292daf5e36a2f7253e71d95",
+      "onboarding-examination-v1-33aa98a024c410e5e9b7-1.json": "355b00d0aef417d17a70480e8808df45bbd7d827212d36a29674dd450e96332a",
+      "onboarding-examination-v1-7e10bcdcaa72d9b4a621-1.json": "ba83f1789cf3a555ce9663007ec1d11c8ef0729249e8a3f9541e5c18410c7204",
+      "onboarding-practice-v1-aa3792e95218f1af9490-1.json": "a64b8d54f60eb6dba5bcf73c0009d8759f3ab3dc87e4677b402b3b4420a7e250",
+      "onboarding-examination-v1-c72bcc59869444a84f98-1.json": "e354d84e36f5ab3539003ad2503be65376f6cb6ae14499f1f52e3fa7073dae27",
+      "onboarding-practice-v1-6e7fdf319c0398ff7d9b-1.json": "9c2511a51b9894fe50607c50a4eafd01c532266bd4710657388694acbfc7f121",
+      "onboarding-examination-v1-d6cc8a50a7bd4ff6e9f8-1.json": "e894f74d49ab032a60261cf502965b01dfc338536800c697cbe348e27b70ba75",
+      "onboarding-practice-v1-06867f80c28206f80670-1.json": "bdebe5a91d7e484f10aff9b0ee8f4dfedb69c4fa1255a1fb57c2a832c623cab5",
+      "onboarding-practice-v1-f9bdbf3cfce2a57bc57b-1.json": "f18af9a01bd7338befabe1703a0024f0b3f6fc03462c97d5eb1b2d34698d4efe",
+      "onboarding-practice-v1-44054454697e27006b24-1.json": "e9cebba5817bcc2234a71b19571627d353ced359de1bcdba4f60331b6eae5167",
+      "onboarding-examination-v1-35e2a2612a84e34c4349-1.json": "6c12978c1a206bca81b898a72df48e4e0797976af71b9a907048a96b3096dde4",
+      "onboarding-examination-v1-49c4d5f3a0a7242591f8-1.json": "1ca5f1ba9f4df012635e786fbabc2687a93f0236a0bba82b1f930f16ec2b8459",
+      "onboarding-practice-v1-3f575170e141e983093b-1.json": "9cda3238997bf0bd965f130aa219b4a4d63f25f33009d35c8e830348d0d7310b",
+      "onboarding-examination-v1-8caab966bd6fc783dbf4-1.json": "e04be5e285d20b3791bcda8b511bfe09702e75c7e82f5eacd55d5b2f323840d0",
+      "onboarding-practice-v1-7c4ff9e6c4470cdf7d03-1.json": "24e9bdb3176f42afe1f2cb476222fd7148a0d9e86d799ce0e82bc7717f529d99",
+      "onboarding-practice-v1-a3873ec0669a1b8026f4-1.json": "3b286cdeed3a4954c2d8765f841d17160622215a8a3b3c97f26447e3303eaff9",
+      "onboarding-examination-v1-b0b91d66638590da5847-1.json": "623a06cecd8294f18f974260d4ad8552dfd34cc7180de308d641f408996682b0",
+      "onboarding-examination-v1-33ab997763c8ffce91de-1.json": "e56463b54f8287dbbd704c957da281a604e0eb7b1734d33314799262010d8923",
+      "onboarding-practice-v1-b3588e5ac8c59e52674a-1.json": "fb3cb151fd6eb714d69bc202c9d2cff285958c06e3b0145ac143da56ad975247",
+      "onboarding-examination-v1-a06f761693889cca8f11-1.json": "06bb0a2c817225677b7162d3896155dc2f686be23d6ffb2790255eaa8c43d066",
+      "onboarding-practice-v1-b71cdb20a2f872d6b152-1.json": "030c4f09b16d5ef58d2d54dcfbe77333d1dd0e7e242173207c3cd7086bb7cdfd",
+      "onboarding-practice-v1-49c4d5f3a0a7242591f8-1.json": "b4406816f6a6d35daee12d8e522e07bba5f0fe5a2ba6813b334ae32b69c6fbec",
+      "onboarding-practice-v1-8caab966bd6fc783dbf4-1.json": "f3de14568cc62f9bbde3313716351fe379f7d85bf0a433668bd22c41bd67f326",
+      "onboarding-examination-v1-98d3f77f8d4d452b76d0-1.json": "768b4e350439a71e9277df910d5feafa509a4b73ba037b7d19825649f2f443c4",
+      "onboarding-practice-v1-50bdde6ac891da15cea7-1.json": "86975b80493a5782cbe384bfaa6dba001061cb448a887a3c862878e8bff93121",
+      "onboarding-examination-v1-306f5a139a55f0c90a72-1.json": "346a14e90edcfd776a7d324473de778595055970aaf3c7c8a3b5677af78c557a",
+      "onboarding-examination-v1-a3873ec0669a1b8026f4-1.json": "355375fa52dad49a471c6887eae7e71d6f5bc94a9b55c04efb4811b841d95e59",
+      "onboarding-practice-v1-33ab997763c8ffce91de-1.json": "82cc7a763167d220ed54abd55315c2b091b14fb72758a7f7b75eae404fd37f89",
+      "onboarding-practice-v1-a06f761693889cca8f11-1.json": "dba320fde2fd53db0f90badc303bc2eeb3df2ca615b0e8df2cdef650a4f3c927"
+    },
+    "head_baseline_case_count": 73,
+    "head_baseline_cases_unchanged": true,
+    "head_baseline_case_hashes": {
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-06867f80c28206f80670-1.json": "149447fa35a8c065dcea2c52662eae2dc38b6465f7843e48979553a4021313b7",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-0e709f79e5406de4e058-1.json": "6875e247e4b8548977d80c4e1ed116cabcc99472b6d1c77a6fb132b6d84a28a6",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-306f5a139a55f0c90a72-1.json": "346a14e90edcfd776a7d324473de778595055970aaf3c7c8a3b5677af78c557a",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-33aa98a024c410e5e9b7-1.json": "355b00d0aef417d17a70480e8808df45bbd7d827212d36a29674dd450e96332a",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-33ab997763c8ffce91de-1.json": "e56463b54f8287dbbd704c957da281a604e0eb7b1734d33314799262010d8923",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-35e2a2612a84e34c4349-1.json": "6c12978c1a206bca81b898a72df48e4e0797976af71b9a907048a96b3096dde4",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-3e19e5ff97ee3c9c1348-1.json": "5472a79201db2bdd62933c9a768835eb89cb60b9429eeec36e08f125bf5e55d8",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-3f575170e141e983093b-1.json": "57b76119db9c31b3b211bee2ceec070327f4c98fe12e6de2879ee8775ab605dd",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-44054454697e27006b24-1.json": "84437f2ac7d35a1ba517bc2f64f60f46d4257453d2d4ae9c2e19f654423f7151",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-49c4d5f3a0a7242591f8-1.json": "1ca5f1ba9f4df012635e786fbabc2687a93f0236a0bba82b1f930f16ec2b8459",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-536d65a07b5d16bb9bde-1.json": "dacffcc3e91c49c12ad15842c89d8004fb5d2c3e8abc0a9379f11eb02b5cf559",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-558a055d93f6a8479019-1.json": "3fcb6fa8882c679272f7f61afe5a0096d44bb2e06f67ae10f31a9f977facb3f5",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-6e7fdf319c0398ff7d9b-1.json": "53b28e3712ac6fc3ca0e512007c41c605b7c36f2f29ae80ff9b1ee384c51d1dd",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-76e4644baee47eeda234-1.json": "9268ba3a3e26559b96a88b38dd1e92730daf3893a2e9c2cdebd6fb3ee64852d2",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-7c4ff9e6c4470cdf7d03-1.json": "d8792545dbead22c40a8210daebf7a1b955055def0a5cc3aaa3aad6745749388",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-7e10bcdcaa72d9b4a621-1.json": "ba83f1789cf3a555ce9663007ec1d11c8ef0729249e8a3f9541e5c18410c7204",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-8caab966bd6fc783dbf4-1.json": "e04be5e285d20b3791bcda8b511bfe09702e75c7e82f5eacd55d5b2f323840d0",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-98d3f77f8d4d452b76d0-1.json": "768b4e350439a71e9277df910d5feafa509a4b73ba037b7d19825649f2f443c4",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-9cbe2b30e23c85c74ba0-1.json": "b9be4ead6373deef2ededd7231efba3d16ba52dc5864abeb4f875d40084d5250",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-a06f761693889cca8f11-1.json": "06bb0a2c817225677b7162d3896155dc2f686be23d6ffb2790255eaa8c43d066",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-a3873ec0669a1b8026f4-1.json": "355375fa52dad49a471c6887eae7e71d6f5bc94a9b55c04efb4811b841d95e59",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-a3f0529b322c9d257c29-1.json": "c3f1c3e289e480fac1b38415998ea4b4fb76d29254e6edf7490d9e2387e4435a",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-a5ec2abe485f271a3e3d-1.json": "515917c4f7c0056a857cabea827d6639b634c083b81190b76a7e95fa2d9205f3",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-aa3792e95218f1af9490-1.json": "a266582c272ee7db42e59b1221b386f509cf5a74f6030eae3ab8091c390f112b",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-b0b91d66638590da5847-1.json": "623a06cecd8294f18f974260d4ad8552dfd34cc7180de308d641f408996682b0",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-b3588e5ac8c59e52674a-1.json": "d48e3623a1e4be49e481e197ecc42f432f5f5abe423936726375784fcb5fbee6",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-b71cdb20a2f872d6b152-1.json": "fe3ca1d6b3357ea2a87428ab00897c82f9973f236264be3c333ab07691212f83",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-b83236bc7e0943e796cb-1.json": "3d9d22cb3495eb31d1916444773357d4fd6e20b7a2f3d57ae07bb5029d837eaf",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-b8ef799a756d2d5dc30e-1.json": "42ecd9fe9f762d4eb8bd7de283763af8f9fefb463560e5a8638a893e3fc81d18",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-c72bcc59869444a84f98-1.json": "e354d84e36f5ab3539003ad2503be65376f6cb6ae14499f1f52e3fa7073dae27",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-c81048b60c5736de1ba4-1.json": "6717c4d850e0f95a90eae5dbe4319754a407672484ce58908ee52f4e31581805",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-ca25a37ef4cffb536a33-1.json": "9f58cb870b6f31ad4324504675f97e293f812ca325ccd3a2fc3ba79035764d91",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-d6cc8a50a7bd4ff6e9f8-1.json": "e894f74d49ab032a60261cf502965b01dfc338536800c697cbe348e27b70ba75",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-eab374162d4f1d645638-1.json": "dad736d4ec4b97f087bed50cbd32d3902e0ed75246fc72feb224ccbc0c4f152e",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-f5b5b0bf5ff9d45ef6b3-1.json": "badd43c7a073bee60cb01adbc27f00f94fa794c59264e3a38080620b28423c3a",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-f72e684372859ac1757a-1.json": "38477177b23b90b40033fde88de7911ddb48d52606594875a4d6443e1ecbc7c7",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-f9bdbf3cfce2a57bc57b-1.json": "737200542532008f9932b1347314f76780acedda24b8e44aee1d0f24e58343de",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-06867f80c28206f80670-1.json": "bdebe5a91d7e484f10aff9b0ee8f4dfedb69c4fa1255a1fb57c2a832c623cab5",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-0e709f79e5406de4e058-1.json": "17057078f66e80cca64f652c61615c06d327bcce6cdec980a04c7be72d1c606b",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-306f5a139a55f0c90a72-1.json": "e6d537aabcc13c6fdf7706e8dc8d10def13517c144ef16a3234de588e18dfa81",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-33aa98a024c410e5e9b7-1.json": "1af87119e690dfb2ee5cb78d8552d7aeb9a12aa6745e4ff878463570729fabdc",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-33ab997763c8ffce91de-1.json": "82cc7a763167d220ed54abd55315c2b091b14fb72758a7f7b75eae404fd37f89",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-35e2a2612a84e34c4349-1.json": "cefd4ba572b3a9a970da6c4021dfec2861ad0e7c5671e15bb4b64de3d415386c",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-3f575170e141e983093b-1.json": "9cda3238997bf0bd965f130aa219b4a4d63f25f33009d35c8e830348d0d7310b",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-44054454697e27006b24-1.json": "e9cebba5817bcc2234a71b19571627d353ced359de1bcdba4f60331b6eae5167",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-49c4d5f3a0a7242591f8-1.json": "b4406816f6a6d35daee12d8e522e07bba5f0fe5a2ba6813b334ae32b69c6fbec",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-50bdde6ac891da15cea7-1.json": "86975b80493a5782cbe384bfaa6dba001061cb448a887a3c862878e8bff93121",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-536d65a07b5d16bb9bde-1.json": "a29be87cdec8c6656d79fadefd4b0ea3625e776f14b6760b92abddd6cfb7efb1",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-558a055d93f6a8479019-1.json": "20ec0601a2ff0d5f8f8f30fa089594e70bb0e38a6ecab0497fa2ed6303105ba4",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-6e7fdf319c0398ff7d9b-1.json": "9c2511a51b9894fe50607c50a4eafd01c532266bd4710657388694acbfc7f121",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-7c4ff9e6c4470cdf7d03-1.json": "24e9bdb3176f42afe1f2cb476222fd7148a0d9e86d799ce0e82bc7717f529d99",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-7e10bcdcaa72d9b4a621-1.json": "d0e1280b4cfcc4d22d6a091956559255365654ed8e03e1c5dede2f7cf6733c7d",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-8caab966bd6fc783dbf4-1.json": "f3de14568cc62f9bbde3313716351fe379f7d85bf0a433668bd22c41bd67f326",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-8e91610afd9fe9c9d129-1.json": "e7192c48e4774237a252c5e63eb5851d5dcb772806e08578aa4aee2b1da5ad2d",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-9cbe2b30e23c85c74ba0-1.json": "3ce841d2e3fde330c690ab888b79839bb1c39632cf66290cb2b1d623bd5e8448",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-a06f761693889cca8f11-1.json": "dba320fde2fd53db0f90badc303bc2eeb3df2ca615b0e8df2cdef650a4f3c927",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-a2344499dcd2cac5f8d6-1.json": "e04304bd63102fee8b9834fa7b0044f899ca694804d1c9fcbfe5fecccdbf98ab",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-a3873ec0669a1b8026f4-1.json": "3b286cdeed3a4954c2d8765f841d17160622215a8a3b3c97f26447e3303eaff9",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-a3f0529b322c9d257c29-1.json": "6d3b1cf6f4fee7e47ebcdb451afca7f7bc71bd8dc9c2b2676526c7bd4f441321",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-aa3792e95218f1af9490-1.json": "a64b8d54f60eb6dba5bcf73c0009d8759f3ab3dc87e4677b402b3b4420a7e250",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-b0b91d66638590da5847-1.json": "4d59a9d75a844d0b3a40ca4d21dbba2648350f9b9482d9f69a242bed32cc1e46",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-b3588e5ac8c59e52674a-1.json": "fb3cb151fd6eb714d69bc202c9d2cff285958c06e3b0145ac143da56ad975247",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-b71cdb20a2f872d6b152-1.json": "030c4f09b16d5ef58d2d54dcfbe77333d1dd0e7e242173207c3cd7086bb7cdfd",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-b83236bc7e0943e796cb-1.json": "b9809cb53fdceb0a77e596e133fd386c8fe75de1e49404d513de43037a5a50ec",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-b8ef799a756d2d5dc30e-1.json": "e29862563c5f59dd356bf341be36ab9541cdd5b647a3cce7fc1406c4f892a6c3",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-c72bcc59869444a84f98-1.json": "00cb402fa1d1f2e715be6eb9b038a56fe6e06a8cbe70c290cc9b85c5e1fb6795",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-c81048b60c5736de1ba4-1.json": "52e6567feef7e692ce3bda9ac3fb4e8a23999cea806f3e8303c83d1619ef7aec",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-ca25a37ef4cffb536a33-1.json": "1e972857a927e84a9159d1e89027e32aeeb186963844e9a64801c6017c5cbb54",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-d6cc8a50a7bd4ff6e9f8-1.json": "902b5c41e9743364bc873c453144b74b7999bc6bec5e937dc71f714ff325dc1c",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-f56c68f42cb42511dd16-1.json": "14e107aa5b261c02b7787060f2af4846ddfbdc824292daf5e36a2f7253e71d95",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-f5b5b0bf5ff9d45ef6b3-1.json": "2cd819adc602c3d429502e1ec6b60ba88014204fe7053ff2ecae097331743969",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-f72e684372859ac1757a-1.json": "3d7bcb4f474ba8473f89490fd4a9412662a5dad84a5a5e2cd76d5c6e4c606516",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-f9bdbf3cfce2a57bc57b-1.json": "f18af9a01bd7338befabe1703a0024f0b3f6fc03462c97d5eb1b2d34698d4efe"
+    },
+    "current_case_count": 81,
+    "added_case_files_outside_this_audit": [
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-50bdde6ac891da15cea7-1.json",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-a2344499dcd2cac5f8d6-1.json",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-a804935ada9d87b2997e-1.json",
+      "backend/asclepius/onboarding_material/cases/onboarding-examination-v1-f56c68f42cb42511dd16-1.json",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-0e0315b9abae6616594d-1.json",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-76e4644baee47eeda234-1.json",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-a804935ada9d87b2997e-1.json",
+      "backend/asclepius/onboarding_material/cases/onboarding-practice-v1-eab374162d4f1d645638-1.json"
+    ]
+  },
+  "independent_test_evidence": [
+    {
+      "command": "../../.bulk-test-venv/bin/python -m pytest -q tests/test_onboarding_openai_trial.py tests/test_onboarding_evidence.py tests/test_onboarding_library.py -k 'not release_library_contains_all_86_reviewed_cases'",
+      "working_directory": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend",
+      "result": "213 passed, 1 deselected, 4245 warnings in 16.72s",
+      "exit_code": 0,
+      "tool_output_chunks": [
+        "17b0ce",
+        "574201"
+      ],
+      "deselection_reason": "Whole-library 86-case completeness is outside this prepared-code audit and remains a parent release gate."
+    },
+    {
+      "check": "Actual CLI invalid-checksum preflight",
+      "result": "ValueError before any mock access/model call; zero real calls."
+    },
+    {
+      "check": "Deep-copy isolation",
+      "result": "Mutating caller nested input after prepared_revision_entry does not alter snapshot."
+    },
+    {
+      "check": "All five exact inputs",
+      "result": "All entry hashes, full schema validation, exact canonical representation, identity, age, PHI scan and 28 retained source row checks passed."
+    },
+    {
+      "check": "git diff --check",
+      "result": "passed",
+      "exit_code": 0
+    }
+  ],
+  "limits": [
+    "This report does not clear the clinical content of any prepared case and intentionally supplies no per-case release verdicts.",
+    "Fresh real-model solve/review and subsequent independent exact-artifact clinical audit must occur before publication.",
+    "No production database, live patient record, secret or real model endpoint was accessed by this audit; regression fixtures initialize temporary test stores.",
+    "External publication accuracy, current evidence adequacy and clinical entailment were not independently re-researched in this code/input audit.",
+    "Exactness means the canonical JSON representation used by entry_sha256, not original whitespace or object key ordering in the input file.",
+    "Concurrent parent case imports and their audit-registry changes are outside this report; all 73 baseline and original 41 artifacts were independently checked unchanged.",
+    "The full 86-case release coverage check and production operational verification are not claimed complete here."
+  ]
+}

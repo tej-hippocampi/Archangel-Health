@@ -1,0 +1,560 @@
+{
+  "task_id": "onboarding-examination-v1-a5ec2abe485f271a3e3d-1",
+  "specialty": "oncology",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Persistent gastrointestinal symptoms during checkpoint therapy",
+    "question": "Which assessment strategy most reliably determines the cause of this patient\u2019s persistent diarrhea?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "oncology",
+      "demographics": {
+        "age_band": "50-59",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Metastatic melanoma",
+          "since": "Prior to current presentation",
+          "collected_offset_days": -90
+        },
+        {
+          "condition": "Persistent increased stool frequency with intermittent cramping",
+          "since": "10 days",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Nivolumab",
+          "dose": null,
+          "route": "intravenous",
+          "freq": "per oncology treatment schedule",
+          "collected_offset_days": -18
+        },
+        {
+          "drug": "Ipilimumab",
+          "dose": null,
+          "route": "intravenous",
+          "freq": "per oncology treatment schedule",
+          "collected_offset_days": -18
+        }
+      ],
+      "vitals": {
+        "temperature_c": 37.1,
+        "heart_rate_bpm": 88,
+        "blood_pressure_mm_hg": "118/72",
+        "respiratory_rate_per_min": 16,
+        "oxygen_saturation_percent": 98
+      },
+      "lab_panels": [
+        {
+          "panel": "Blood evaluation",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "White blood cell count",
+              "loinc": null,
+              "value": 8.9,
+              "unit": "10^9/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": true
+            },
+            {
+              "analyte": "Hemoglobin",
+              "loinc": null,
+              "value": 12.7,
+              "unit": "g/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": true
+            },
+            {
+              "analyte": "Creatinine",
+              "loinc": null,
+              "value": 0.9,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": true
+            },
+            {
+              "analyte": "Albumin",
+              "loinc": null,
+              "value": 3.6,
+              "unit": "g/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": true
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Oncology assessment",
+          "author_role": "oncology",
+          "text": "The patient reports ten days of four to five loose stools daily compared with one formed stool at baseline. Episodes include nocturnal urgency and intermittent lower abdominal cramping, without persistent bleeding, vomiting, fever, syncope, or inability to drink. She received combination checkpoint therapy 18 days ago and has no known inflammatory bowel disease. Examination shows an alert, hemodynamically stable adult with mild diffuse lower abdominal tenderness but no guarding, rebound, or distention. Initial stool infectious testing has not identified a pathogen.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Stool microbiology",
+          "label": "Completed infectious evaluation",
+          "findings": "Multiplex bacterial pathogen testing and Clostridioides difficile testing are negative. No pathogen was identified on the completed evaluation.",
+          "measurements": [],
+          "impression": "No infectious cause identified by the completed stool testing.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for assessment decision",
+      "ground_truth": {
+        "answer": "Arrange lower gastrointestinal endoscopic evaluation with mucosal biopsies to establish the etiology. Biopsy is the diagnostic gold standard for immune checkpoint inhibitor enterocolitis, helps exclude competing causes, and remains important even if the mucosa appears normal endoscopically.",
+        "rationale": "The temporal association and negative initial stool tests raise concern for checkpoint inhibitor toxicity but do not establish it. Diarrhea has multiple potential etiologies, and clinical findings or biomarkers alone may be insufficient. Histologic assessment provides the most reliable attribution and can detect microscopic disease despite a normal-appearing colon.",
+        "evidence": {
+          "decision": "Endoscopic mucosal sampling for etiologic assessment"
+        },
+        "key_data": [
+          "Four to five loose stools daily with nocturnal urgency for ten days",
+          "Recent nivolumab plus ipilimumab exposure",
+          "Completed stool testing has not identified an infectious pathogen",
+          "Clinical stability without peritoneal findings",
+          "Normal endoscopic appearance would not exclude histologic colitis"
+        ]
+      },
+      "hard_hook": "A temporal relationship to immunotherapy does not by itself establish the cause of diarrhea.",
+      "reasoning_divergence": "The flawed approach treats clinical attribution as definitive, whereas the supported approach obtains histologic evidence and assesses competing etiologies."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Perform lower gastrointestinal endoscopic evaluation with mucosal biopsies. Tissue assessment is the diagnostic gold standard, helps distinguish checkpoint-related injury from competing causes, and may reveal microscopic disease even when the mucosa appears normal."
+      },
+      {
+        "id": "B",
+        "text": "Diagnose immune checkpoint inhibitor colitis solely from the timing and stool frequency, begin high-dose corticosteroid treatment immediately, and defer endoscopy and biopsy unless symptoms later prove refractory."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "immune checkpoint inhibitor",
+      "colitis",
+      "diarrhea",
+      "corticosteroids",
+      "infectious colitis",
+      "mucosal biopsy"
+    ],
+    "evidence_keywords": [
+      "endoscopy",
+      "histology",
+      "biopsy gold standard",
+      "microscopic colitis",
+      "differential diagnosis",
+      "checkpoint enterocolitis"
+    ],
+    "error_tags": [
+      "omission",
+      "unsafe_recommendation",
+      "wrong_diagnosis"
+    ],
+    "claims": [
+      {
+        "statement": "Biopsy is the gold standard for diagnosing immunotherapy-induced enterocolitis.",
+        "source_ids": [
+          "32856210"
+        ]
+      },
+      {
+        "statement": "Biopsy can help exclude competing diagnoses and support appropriate management.",
+        "source_ids": [
+          "32856210"
+        ]
+      },
+      {
+        "statement": "Diarrhea has a broad differential that includes infection, inflammatory disease, drug injury, functional disorders, and metabolic causes.",
+        "source_ids": [
+          "42070936"
+        ]
+      },
+      {
+        "statement": "Serological biomarkers may support assessment but are frequently insufficient to establish a definitive cause of colitis symptoms.",
+        "source_ids": [
+          "42070936"
+        ]
+      },
+      {
+        "statement": "Endoscopic examination can appear normal even when mucosal histology demonstrates clinically significant microscopic colitis.",
+        "source_ids": [
+          "42070936"
+        ]
+      },
+      {
+        "statement": "Checkpoint inhibitor colitis can show acute, chronic-active, or microscopic-colitis-like histopathologic patterns.",
+        "source_ids": [
+          "35917654"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T01:25:33.015858+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "33080231",
+        "title": "AGA Clinical Practice Update on Diagnosis and Management of Immune Checkpoint Inhibitor Colitis and Hepatitis: Expert Review.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33080231/",
+        "abstract": "Immune checkpoint inhibitors (ICIs) have transformed the treatment landscape for oncology, leading to durable remissions in a subset of patients, but also a broad range of potentially life-threatening inflammatory toxicities, many of which involve the gastrointestinal (GI) tract and liver. The purpose of this expert review was to update gastroenterologists on the gastrointestinal and hepatic toxicities of ICIs and provide best practice advice on their diagnosis and management.\nThe evidence reviewed in this work combines the expert clinical opinion of the authors with a comprehensive search of several English-language databases and a manual review of relevant publications.",
+        "sha256": "6c9c97375d6d7529bdc3fa5f49f8dead10deff3fdd6d76c6a0fd5135bb0a214d",
+        "retrieved_at": "2026-09-19T01:24:02.893112+00:00"
+      },
+      {
+        "id": "38228461",
+        "title": "Management of liver and gastrointestinal toxicity induced by immune checkpoint inhibitors: Position statement of the AEEH-AEG-SEPD-SEOM-GETECCU.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38228461/",
+        "abstract": "The development of the immune checkpoint inhibitors (ICI) is one of the most remarkable achievements in cancer therapy in recent years. However, their exponential use has led to an increase in immune-related adverse events (irAEs). Gastrointestinal and liver events encompass hepatitis, colitis and upper digestive tract symptoms accounting for the most common irAEs, with incidence rates varying from 2% to 40%, the latter in patients undergoing combined ICIs therapy. Based on the current scientific evidence derived from both randomized clinical trials and real-world studies, this statement document provides recommendations on the diagnosis, treatment and prognosis of the gastrointestinal and hepatic ICI-induced adverse events.",
+        "sha256": "acb035f74b75e52edf05cb323163e5ef99703c821301c3c32b533430294e06b4",
+        "retrieved_at": "2026-09-19T01:24:04.060413+00:00"
+      },
+      {
+        "id": "32856210",
+        "title": "Multinational Association of Supportive Care in Cancer (MASCC) 2020 clinical practice recommendations for the management of severe gastrointestinal and hepatic toxicities from checkpoint inhibitors.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32856210/",
+        "abstract": "Immune-related adverse events (IrAEs) affecting the gastrointestinal (GI) tract and liver are among the most frequent and most severe inflammatory toxicities from contemporary immunotherapy. Inflammation of the colon and or small intestines (entero)colitis is the single most common GI IrAE and is an important cause of delay of discontinuation of immunotherapy. The severity of these GI IrAEs can range from manageable with symptomatic treatment alone to life-threatening complications, including perforation and liver failure. The frequency and severity of GI IrAEs is dependent on the specific immunotherapy given, with cytotoxic T lymphocyte antigen (CTLA)-4 blockade more likely to induce severe GI IrAEs than blockade of either programmed cell death protein 1 (PD-1) or PD-1 ligand (PD-L1), and combination therapy showing the highest rate of GI IrAEs, particularly in the liver. To date, we have minimal prospective data on the appropriate diagnosis and management of GI IrAEs, and recommendations are based largely on retrospective data and expert opinion. Although clinical diagnoses of GI IrAEs are common, biopsy is the gold standard for diagnosis of both immunotherapy-induced enterocolitis and hepatitis and can play an important role in excluding competing, though less common, diagnoses and ensuring optimal management. GI IrAEs typically respond to high-dose corticosteroids, though a significant fraction of patients requires secondary immune suppression. For colitis, both TNF-\u03b1 blockade with infliximab and integrin inhibition with vedolizumab have proved highly effective in corticosteroid-refractory cases. Detailed guidelines have been published for the management of low-grade GI IrAEs. In the setting of more severe toxicities, involvement of a GI specialist is generally recommended. The purpose of this review is to survey the available literature and provide management recommendations focused on the GI specialist.",
+        "sha256": "a7e25953d16f2d2cb79622e39dd6301bd33a9f2a16aec3d8bd28348b13c8f145",
+        "retrieved_at": "2026-09-19T01:24:04.060413+00:00",
+        "pmcid": "PMC8507388"
+      },
+      {
+        "id": "32135517",
+        "title": "NCCN Guidelines Insights: Management of Immunotherapy-Related Toxicities, Version 1.2020.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32135517/",
+        "abstract": "The NCCN Guidelines for Management of Immunotherapy-Related Toxicities provide interdisciplinary guidance on the management of immune-related adverse events (irAEs) resulting from cancer immunotherapy. These NCCN Guidelines Insights describe symptoms that may be caused by an irAE and should trigger further investigation, and summarize the NCCN Management of Immunotherapy-Related Toxicities Panel discussions for the 2020 update to the guidelines regarding immune checkpoint inhibitor-related diarrhea/colitis and cardiovascular irAEs.",
+        "sha256": "b0d17176a93e5b6ef7f1d4583c163429b9fd2c07b6b2344add3a809dd6ca8481",
+        "retrieved_at": "2026-09-19T01:24:04.060413+00:00"
+      },
+      {
+        "id": "42070936",
+        "title": "Pattern-based histologic approach in colitis without chronic architectural damage: GIPAD recommendations.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/42070936/",
+        "abstract": "In patients presenting with intestinal symptoms who undergo colonoscopy with mucosal sampling, the pathologist plays a central role in identifying the underlying etiology in order to guide appropriate clinical management. However, common intestinal symptoms such as diarrhea are shared by a broad spectrum of conditions, including infectious diseases, functional disorders (e.g., irritable bowel syndrome), inflammatory bowel disease (IBD), drug-induced injury, and metabolic disorders (e.g., diabetes mellitus). Although serological biomarkers may support the diagnostic workup, they are frequently insufficient to establish a definitive diagnosis. Moreover, endoscopic examination may fail to detect significant mucosal abnormalities even when histology reveals disease-specific patterns, as occurs in lymphocytic and collagenous colitis (i.e., microscopic colitis). In this complex diagnostic landscape, histomorphological evaluation represents a crucial element, allowing integration of microscopic findings with clinical and endoscopic data to reach an accurate interpretation. In recent years, accumulating evidence has demonstrated that similar histological patterns of intestinal injury-such as IBD-like architectural and inflammatory changes or eosinophil-rich infiltrates-may be associated with different underlying etiologies. This overlap is particularly relevant in patients treated with novel oncologic therapies, including tyrosine kinase inhibitors (TKIs), immune checkpoint inhibitors (ICIs), and emerging treatments such as chimeric antigen receptor T-cell (CAR-T) therapy. In addition, in daily practice, pathology request forms often lack essential clinical, endoscopic, and laboratory information, further increasing the risk of diagnostic misinterpretation and inappropriate disease attribution. To address these challenges, the Italian Group of Digestive Disease Pathology (GIPAD) proposes a pattern-based histological approach for reporting mucosal damage in patients with colitis. In this first paper, we focus on non-chronic patterns of mucosal injury and discuss their principal differential diagnoses, with the aim of supporting standardized reporting and improving clinicopathological correlation.",
+        "sha256": "dffb7fe66b2bd00ab9a1375b9b9a46609b5485af6ab5ac3d2a688d50f4374898",
+        "retrieved_at": "2026-09-19T01:24:04.617735+00:00"
+      },
+      {
+        "id": "35917654",
+        "title": "Immune checkpoint Inhibitor-Induced diarrhea and Colitis: Incidence and Management. A systematic review and Meta-analysis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35917654/",
+        "abstract": "Immune checkpoint inhibitors (ICIs) have improved cancer outcomes. However, immune-related adverse effects are common. The aim was to investigate the incidence of diarrhea and colitis of ICIs alone and in combination with chemotherapy or tyrosine kinase inhibitors (TKIs), histopathological findings, and management.\nTwo separate studies, including meta-analyses, were performed. Key inclusion criteria were for Study I) phase I-IV trials, and data on diarrhea and/or colitis; for Study II) studies describing histopathologic and endoscopic findings and/or biologic treatment for ICI-induced colitis.\nThe incidence of anti-PD-1/PD-L1 antibody-induced diarrhea and colitis was 10% and 2%, respectively, with no clinically relevant differences between the compounds. The CTLA-4 inhibitor, ipilimumab, induced diarrhea and colitis in 33% and 7% of patients, respectively, whereas the incidence of diarrhea and colitis following ipilimumab combined with nivolumab was 21%-37% and 4%-8%, depending on regimen. The incidence of all-grade diarrhea following ICIs combined with chemotherapy or TKIs was high (17%-56%), whereas only 0.5% of patients developed severe (\u2265grade 3) colitis. The main patterns of histopathologic presentation after PD-1/CTLA-4 inhibitor mono- or combination therapy were acute and chronic active colitis and microscopic colitis-like. Infliximab and vedolizumab were equally effective against ICI-induced colitis.\nExpanding treatment options include combinations of ICIs and chemotherapy/TKI with a high incidence of diarrhea and a low incidence of colitis; thus, a potential risk of overtreatment with corticosteroids exists. We suggest a more tailored approach, particularly for the management of low-grade diarrhea. Prospective clinical trials are needed to refine management.",
+        "sha256": "6f980a77b0f988b4445517015be6ef31ffa65e20068f92811ecb3e37e0317e1c",
+        "retrieved_at": "2026-09-19T01:24:05.704275+00:00"
+      },
+      {
+        "id": "37100606",
+        "title": "Characteristics of Immune Checkpoint Inhibitor-Induced Colitis: A Systematic Review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37100606/",
+        "abstract": "Immune checkpoint inhibitors (ICIs) including anti-CTLA-4, anti-PD-1, and anti-PD-L1 antibodies have been increasingly used for various malignancies. These ICIs activate immune functions to treat malignant tumors; however, this causes characteristic complications called immune-related adverse events (irAE). In the gastrointestinal tract, ICIs cause adverse events such as diarrhea and enterocolitis, thus warranting treatment discontinuation. These irAEs require treatment that suppresses immunity; however, no treatment strategies based on approved guidelines have been reported. This review aimed to investigate the current treatment status for refractory cases of ICI-induced colitis in accordance with their diagnosis, therapy, and prognosis.\nWe systematically reviewed studies in accordance with the Preferred Reporting Items for Systematic Reviews and Meta-analysis (PRISMA) checklist. Two investigators searched PubMed and Scopus in January 2019. We extracted data, including the number of ICI-treated patients developing colitis and diarrhea. The number of cases classified as severe per the National Cancer Institute's Common Terminology Criteria for Adverse Events (CTCAE) definitions and the progress of corticosteroid-treated and anti-TNF-\u03b1- antibody-treated cases (e.g., infliximab) were recorded. Details of further treatment were also recorded for cases that did not improve with antiTNF-\u03b1- antibody. Among patients receiving anti-CTLA-4 antibody, corticosteroids were administered to 14.6% of patients, and infliximab was administered to 5.7% of patients. Among patients receiving anti-PD-1/PD-L1 antibody, corticosteroids were administered to 2.37% of patients. For refractory cases unsuccessful with infliximab, the continuation of infliximab every 2 weeks, tacrolimus administration, prolonged corticosteroid treatment, colectomy, or vedolizumab administration were reported.\nTreatment of ICI-induced colitis is important to avoid the need to discontinue cancer treatment. Many therapeutic agents for inflammatory bowel disease are reportedly effective in treating refractory ICI-induced colitis.",
+        "sha256": "11330c7777d6815f978cb1d13b1d0bb107d14d01bc2b893bb6c994ac730c9a3f",
+        "retrieved_at": "2026-09-19T01:24:05.704275+00:00"
+      },
+      {
+        "id": "32702598",
+        "title": "Differential risks of immune-related colitis among various immune checkpoint inhibitor regimens.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32702598/",
+        "abstract": "Colitis is a life-threatening and common immune-related adverse event in patients receiving immune checkpoint inhibitors (ICIs). Therefore, we performed a meta-analysis to assess the risk of immune-related colitis among various ICI treatment regimens.\nWe used PubMed, EMBASE, and the Cochrane Library to retrieve phase II or III randomized controlled trials (RCTs) of ICIs that specified the number of all-grade (grade 1-5) colitis and high-grade (grade 3-5) colitis events through January 2020. The pooled relative risk (RR) and 95% confidence intervals (CIs) were calculated to compare the risk of colitis among various therapeutic regimens.\nThe search strategy identified 40 RCTs involving 26,893 patients. The risk of all-grade and high-grade colitis after PD-1/PD-L1 inhibitor was significantly lower than that of CTLA-4 inhibitor (0.18 and 0.14 relative risk respectively). The risk of all-grade and high-grade colitis was dose-dependent for CTLA-4 inhibitor therapy, but not for PD-1/PD-L1 inhibitor therapy. The relative risk of all-grade and high-grade colitis after combination therapy with PD-1/PD-L1 inhibitor and CTLA-4 inhibitor compared to PD-1/PD-L1 inhibitor alone was 9.25 and 12.00 respectively. No significant difference was found between PD-1/PD-L1 inhibitor combined with chemotherapy or targeted therapy and PD-1/PD-L1 inhibitor alone for either all-grade or high-grade colitis.\nOur meta-analysis indicates that CTLA-4 inhibitor is associated with a higher risk of colitis compared with PD-1/PD-L1 inhibitor, whether used as a monotherapy or combination immunotherapy. Importantly, the combination of PD-1/PD-L1 inhibitor with chemotherapy or targeted therapy may not increase the risk of colitis significantly compared to PD-1/PD-L1 inhibitor alone.",
+        "sha256": "508c5316f1adc5fb7e8b735842d52ea90e13c40ea8f0e8f372b8ef9a1583f10e",
+        "retrieved_at": "2026-09-19T01:24:05.704275+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The patient has persistent grade 2 diarrhea after high-risk combination nivolumab/ipilimumab therapy, with initial infectious stool studies negative. Lower gastrointestinal endoscopy with mucosal biopsies most reliably establishes the cause: histology is the diagnostic gold standard for checkpoint inhibitor enterocolitis, helps exclude competing etiologies, and can detect microscopic inflammation despite normal-appearing mucosa. Timing and stool frequency alone are not sufficiently specific and could lead to unnecessary corticosteroid treatment. This is supported by the MASCC recommendations (PMID 32856210), the AGA expert review (PMID 33080231), and evidence that checkpoint-related injury may have microscopic-colitis-like patterns (PMID 35917654).",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.96,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "32856210"
+              ],
+              "reason": "The source explicitly identifies biopsy as the diagnostic gold standard for immunotherapy-induced enterocolitis.",
+              "source_passage_ids": [
+                "32856210:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32856210",
+                  "quote": "To date, we have minimal prospective data on the appropriate diagnosis and management of GI IrAEs, and recommendations are based largely on retrospective data and expert opinion. Although clinical diagnoses of GI IrAEs are common, biopsy is the gold standard for diagnosis of both immunotherapy-induced enterocolitis and hepatitis and can play an important role in excluding competing, though less common, diagnoses and ensuring optimal management. GI IrAEs typically respond to high-dose corticosteroids, though a significant fraction of patients requires secondary immune suppression. For colitis, both TNF-\u03b1 blockade with infliximab and integrin inhibition with vedolizumab have proved highly effective in corticosteroid-refractory cases. Detailed guidelines have been published for the management of low-grade GI IrAEs."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "32856210"
+              ],
+              "reason": "The source expressly states that biopsy helps exclude competing diagnoses and ensure optimal management.",
+              "source_passage_ids": [
+                "32856210:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32856210",
+                  "quote": "To date, we have minimal prospective data on the appropriate diagnosis and management of GI IrAEs, and recommendations are based largely on retrospective data and expert opinion. Although clinical diagnoses of GI IrAEs are common, biopsy is the gold standard for diagnosis of both immunotherapy-induced enterocolitis and hepatitis and can play an important role in excluding competing, though less common, diagnoses and ensuring optimal management. GI IrAEs typically respond to high-dose corticosteroids, though a significant fraction of patients requires secondary immune suppression. For colitis, both TNF-\u03b1 blockade with infliximab and integrin inhibition with vedolizumab have proved highly effective in corticosteroid-refractory cases. Detailed guidelines have been published for the management of low-grade GI IrAEs."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "42070936"
+              ],
+              "reason": "The passage lists infectious disease, functional disorders, inflammatory bowel disease, drug injury, and metabolic disorders as causes of diarrhea.",
+              "source_passage_ids": [
+                "42070936:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "42070936",
+                  "quote": "In patients presenting with intestinal symptoms who undergo colonoscopy with mucosal sampling, the pathologist plays a central role in identifying the underlying etiology in order to guide appropriate clinical management. However, common intestinal symptoms such as diarrhea are shared by a broad spectrum of conditions, including infectious diseases, functional disorders (e.g., irritable bowel syndrome), inflammatory bowel disease (IBD), drug-induced injury, and metabolic disorders (e.g., diabetes mellitus). Although serological biomarkers may support the diagnostic workup, they are frequently insufficient to establish a definitive diagnosis. Moreover, endoscopic examination may fail to detect significant mucosal abnormalities even when histology reveals disease-specific patterns, as occurs in lymphocytic and collagenous colitis (i.e., microscopic colitis)."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "42070936"
+              ],
+              "reason": "The source explicitly says serological biomarkers may support the workup but are frequently insufficient for a definitive diagnosis.",
+              "source_passage_ids": [
+                "42070936:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "42070936",
+                  "quote": "In patients presenting with intestinal symptoms who undergo colonoscopy with mucosal sampling, the pathologist plays a central role in identifying the underlying etiology in order to guide appropriate clinical management. However, common intestinal symptoms such as diarrhea are shared by a broad spectrum of conditions, including infectious diseases, functional disorders (e.g., irritable bowel syndrome), inflammatory bowel disease (IBD), drug-induced injury, and metabolic disorders (e.g., diabetes mellitus). Although serological biomarkers may support the diagnostic workup, they are frequently insufficient to establish a definitive diagnosis. Moreover, endoscopic examination may fail to detect significant mucosal abnormalities even when histology reveals disease-specific patterns, as occurs in lymphocytic and collagenous colitis (i.e., microscopic colitis)."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "42070936"
+              ],
+              "reason": "The source states that endoscopy may show no significant abnormality despite diagnostic histology in microscopic colitis.",
+              "source_passage_ids": [
+                "42070936:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "42070936",
+                  "quote": "In patients presenting with intestinal symptoms who undergo colonoscopy with mucosal sampling, the pathologist plays a central role in identifying the underlying etiology in order to guide appropriate clinical management. However, common intestinal symptoms such as diarrhea are shared by a broad spectrum of conditions, including infectious diseases, functional disorders (e.g., irritable bowel syndrome), inflammatory bowel disease (IBD), drug-induced injury, and metabolic disorders (e.g., diabetes mellitus). Although serological biomarkers may support the diagnostic workup, they are frequently insufficient to establish a definitive diagnosis. Moreover, endoscopic examination may fail to detect significant mucosal abnormalities even when histology reveals disease-specific patterns, as occurs in lymphocytic and collagenous colitis (i.e., microscopic colitis)."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "35917654"
+              ],
+              "reason": "The meta-analysis explicitly reports acute, chronic-active, and microscopic-colitis-like histopathologic patterns after PD-1/CTLA-4 inhibitor therapy.",
+              "source_passage_ids": [
+                "35917654:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35917654",
+                  "quote": "The CTLA-4 inhibitor, ipilimumab, induced diarrhea and colitis in 33% and 7% of patients, respectively, whereas the incidence of diarrhea and colitis following ipilimumab combined with nivolumab was 21%-37% and 4%-8%, depending on regimen. The incidence of all-grade diarrhea following ICIs combined with chemotherapy or TKIs was high (17%-56%), whereas only 0.5% of patients developed severe (\u2265grade 3) colitis. The main patterns of histopathologic presentation after PD-1/CTLA-4 inhibitor mono- or combination therapy were acute and chronic active colitis and microscopic colitis-like. Infliximab and vedolizumab were equally effective against ICI-induced colitis. Expanding treatment options include combinations of ICIs and chemotherapy/TKI with a high incidence of diarrhea and a low incidence of colitis; thus, a potential risk of overtreatment with corticosteroids exists."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Answer A independently follows from the clinical question and supplied evidence. Recent nivolumab plus ipilimumab exposure and negative initial bacterial/C. difficile testing make immune-mediated enterocolitis plausible, but they do not establish attribution. The cited MASCC review explicitly calls biopsy the diagnostic gold standard and notes its role in excluding competing diagnoses. The pathology source establishes that normal-appearing endoscopy can coexist with microscopic disease, while the ICI meta-analysis confirms that checkpoint colitis can have a microscopic-colitis-like pattern. Thus lower gastrointestinal endoscopy with mucosal sampling is the most reliable etiologic assessment among the options. The patient is stable without peritoneal findings, so the record does not identify a contraindication or a need for emergency abdominal imaging before this assessment. Candidate B is the intentionally flawed option: it treats timing and stool frequency as definitive and commits to immediate high-dose corticosteroids without histologic attribution; the supplied meta-analysis specifically notes a risk of corticosteroid overtreatment and favors tailored management of lower-grade diarrhea. This decision is distinct from the prior cases, including the previous ICI-myocarditis case, because it tests etiologic evaluation of persistent gastrointestinal toxicity by endoscopy and biopsy rather than emergency treatment of cardiac toxicity."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The patient has persistent grade 2-range diarrhea after combination nivolumab/ipilimumab with negative initial infectious stool testing. Although immune checkpoint inhibitor colitis is clinically likely, the question asks which assessment most reliably determines the cause. The retrieved MASCC recommendations state that biopsy is the gold standard for diagnosing immunotherapy-induced enterocolitis and helps exclude competing diagnoses. The AGA expert review addresses diagnosis and management of ICI colitis, and pathology-focused sources emphasize that endoscopy can appear normal while biopsies reveal microscopic colitis-like or other injury patterns. Therefore, lower GI endoscopy with mucosal biopsies is the most reliable strategy. Diagnosing solely from timing and stool frequency risks misattribution and overtreatment with corticosteroids, especially because diarrhea during ICI therapy can have non-ICI causes.",
+          "confidence": 0.93
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.91,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "32856210"
+              ],
+              "source_passage_ids": [
+                "32856210:p1"
+              ],
+              "reason": "The cited passage explicitly states that biopsy is the gold standard for diagnosis of immunotherapy-induced enterocolitis.",
+              "source_quotes": [
+                {
+                  "source_id": "32856210",
+                  "quote": "To date, we have minimal prospective data on the appropriate diagnosis and management of GI IrAEs, and recommendations are based largely on retrospective data and expert opinion. Although clinical diagnoses of GI IrAEs are common, biopsy is the gold standard for diagnosis of both immunotherapy-induced enterocolitis and hepatitis and can play an important role in excluding competing, though less common, diagnoses and ensuring optimal management. GI IrAEs typically respond to high-dose corticosteroids, though a significant fraction of patients requires secondary immune suppression. For colitis, both TNF-\u03b1 blockade with infliximab and integrin inhibition with vedolizumab have proved highly effective in corticosteroid-refractory cases. Detailed guidelines have been published for the management of low-grade GI IrAEs."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "32856210"
+              ],
+              "source_passage_ids": [
+                "32856210:p1"
+              ],
+              "reason": "The cited passage states that biopsy can exclude competing diagnoses and ensure optimal management.",
+              "source_quotes": [
+                {
+                  "source_id": "32856210",
+                  "quote": "To date, we have minimal prospective data on the appropriate diagnosis and management of GI IrAEs, and recommendations are based largely on retrospective data and expert opinion. Although clinical diagnoses of GI IrAEs are common, biopsy is the gold standard for diagnosis of both immunotherapy-induced enterocolitis and hepatitis and can play an important role in excluding competing, though less common, diagnoses and ensuring optimal management. GI IrAEs typically respond to high-dose corticosteroids, though a significant fraction of patients requires secondary immune suppression. For colitis, both TNF-\u03b1 blockade with infliximab and integrin inhibition with vedolizumab have proved highly effective in corticosteroid-refractory cases. Detailed guidelines have been published for the management of low-grade GI IrAEs."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "42070936"
+              ],
+              "source_passage_ids": [
+                "42070936:p0"
+              ],
+              "reason": "The cited passage lists infectious disease, functional disorders, IBD, drug-induced injury, and metabolic disorders as causes sharing the symptom of diarrhea.",
+              "source_quotes": [
+                {
+                  "source_id": "42070936",
+                  "quote": "In patients presenting with intestinal symptoms who undergo colonoscopy with mucosal sampling, the pathologist plays a central role in identifying the underlying etiology in order to guide appropriate clinical management. However, common intestinal symptoms such as diarrhea are shared by a broad spectrum of conditions, including infectious diseases, functional disorders (e.g., irritable bowel syndrome), inflammatory bowel disease (IBD), drug-induced injury, and metabolic disorders (e.g., diabetes mellitus). Although serological biomarkers may support the diagnostic workup, they are frequently insufficient to establish a definitive diagnosis. Moreover, endoscopic examination may fail to detect significant mucosal abnormalities even when histology reveals disease-specific patterns, as occurs in lymphocytic and collagenous colitis (i.e., microscopic colitis)."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "42070936"
+              ],
+              "source_passage_ids": [
+                "42070936:p0"
+              ],
+              "reason": "The cited passage states that serological biomarkers may support workup but are frequently insufficient for a definitive diagnosis.",
+              "source_quotes": [
+                {
+                  "source_id": "42070936",
+                  "quote": "In patients presenting with intestinal symptoms who undergo colonoscopy with mucosal sampling, the pathologist plays a central role in identifying the underlying etiology in order to guide appropriate clinical management. However, common intestinal symptoms such as diarrhea are shared by a broad spectrum of conditions, including infectious diseases, functional disorders (e.g., irritable bowel syndrome), inflammatory bowel disease (IBD), drug-induced injury, and metabolic disorders (e.g., diabetes mellitus). Although serological biomarkers may support the diagnostic workup, they are frequently insufficient to establish a definitive diagnosis. Moreover, endoscopic examination may fail to detect significant mucosal abnormalities even when histology reveals disease-specific patterns, as occurs in lymphocytic and collagenous colitis (i.e., microscopic colitis)."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "42070936"
+              ],
+              "source_passage_ids": [
+                "42070936:p0"
+              ],
+              "reason": "The cited passage states that endoscopy may fail to detect significant mucosal abnormalities even when histology shows disease-specific patterns, including microscopic colitis.",
+              "source_quotes": [
+                {
+                  "source_id": "42070936",
+                  "quote": "In patients presenting with intestinal symptoms who undergo colonoscopy with mucosal sampling, the pathologist plays a central role in identifying the underlying etiology in order to guide appropriate clinical management. However, common intestinal symptoms such as diarrhea are shared by a broad spectrum of conditions, including infectious diseases, functional disorders (e.g., irritable bowel syndrome), inflammatory bowel disease (IBD), drug-induced injury, and metabolic disorders (e.g., diabetes mellitus). Although serological biomarkers may support the diagnostic workup, they are frequently insufficient to establish a definitive diagnosis. Moreover, endoscopic examination may fail to detect significant mucosal abnormalities even when histology reveals disease-specific patterns, as occurs in lymphocytic and collagenous colitis (i.e., microscopic colitis)."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "35917654"
+              ],
+              "source_passage_ids": [
+                "35917654:p1"
+              ],
+              "reason": "The cited passage identifies acute, chronic active, and microscopic-colitis-like histopathologic patterns after PD-1/CTLA-4 inhibitor mono- or combination therapy.",
+              "source_quotes": [
+                {
+                  "source_id": "35917654",
+                  "quote": "The CTLA-4 inhibitor, ipilimumab, induced diarrhea and colitis in 33% and 7% of patients, respectively, whereas the incidence of diarrhea and colitis following ipilimumab combined with nivolumab was 21%-37% and 4%-8%, depending on regimen. The incidence of all-grade diarrhea following ICIs combined with chemotherapy or TKIs was high (17%-56%), whereas only 0.5% of patients developed severe (\u2265grade 3) colitis. The main patterns of histopathologic presentation after PD-1/CTLA-4 inhibitor mono- or combination therapy were acute and chronic active colitis and microscopic colitis-like. Infliximab and vedolizumab were equally effective against ICI-induced colitis. Expanding treatment options include combinations of ICIs and chemotherapy/TKI with a high incidence of diarrhea and a low incidence of colitis; thus, a potential risk of overtreatment with corticosteroids exists."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Independently, the patient has persistent diarrhea after combination nivolumab/ipilimumab with negative completed bacterial/C. difficile stool testing and no instability or peritoneal signs. Timing raises concern for immune checkpoint inhibitor enterocolitis, but timing and stool frequency alone do not establish etiology. The best-supported assessment is lower GI endoscopic evaluation with mucosal biopsies, because the supplied evidence states biopsy is the diagnostic gold standard for immunotherapy-induced enterocolitis, helps exclude competing diagnoses, and histology can reveal disease despite normal endoscopic appearance. Candidate A matches this assessment strategy. Candidate B is the intentionally flawed option: it makes a clinical attribution solely from timing/stool frequency and starts high-dose corticosteroids while deferring tissue assessment, which risks misattribution and overtreatment. The case is within oncology because it concerns immune checkpoint inhibitor toxicity in a melanoma patient. The title, question, visible note, and study findings do not disclose the answer outright; they provide clinical context and negative infectious testing. The decision is distinct from prior cases, including the prior ICI myocarditis management case, because this case tests etiologic assessment of persistent checkpoint-associated diarrhea/colitis rather than emergency myocarditis treatment or other oncologic management decisions."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "826f0e5d8daddf910dced9dca021913b0c577eb2cdc98e211855a6892f6e3c88"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

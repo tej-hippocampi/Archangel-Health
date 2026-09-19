@@ -1,0 +1,589 @@
+{
+  "task_id": "onboarding-examination-v1-b71cdb20a2f872d6b152-1",
+  "specialty": "emergency medicine",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Adult with infection-associated hypotension in the emergency department",
+    "question": "Which approach to intravascular volume expansion is most appropriate at this decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "emergency medicine",
+      "demographics": {
+        "age_band": "60-69",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Febrile urinary tract infection with acute organ dysfunction",
+          "since": "Index presentation",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Persistent hypotension",
+          "since": "Index presentation",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Acute confusion",
+          "since": "Index presentation",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Acute kidney injury",
+          "since": "Index presentation",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Empiric broad-spectrum anti-infective therapy",
+          "dose": null,
+          "route": "intravenous",
+          "freq": "Initial dose completed",
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "temperature_c": 39.1,
+        "heart_rate_per_min": 118,
+        "blood_pressure_mmHg": "82/47",
+        "mean_arterial_pressure_mmHg": 59,
+        "respiratory_rate_per_min": 24,
+        "oxygen_saturation_percent": 95,
+        "oxygen_delivery": "room air"
+      },
+      "lab_panels": [
+        {
+          "panel": "Emergency sepsis evaluation",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Blood lactate",
+              "loinc": null,
+              "value": 3.8,
+              "unit": "mmol/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Creatinine",
+              "loinc": null,
+              "value": 2.1,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high compared with prior baseline of 0.8 mg/dL",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "White blood cell count",
+              "loinc": null,
+              "value": 17.6,
+              "unit": "10^3/uL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Serum albumin",
+              "loinc": null,
+              "value": 2.4,
+              "unit": "g/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "low",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Urinalysis",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Leukocyte esterase",
+              "loinc": null,
+              "value": "positive",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "abnormal",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Nitrite",
+              "loinc": null,
+              "value": "positive",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "abnormal",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Emergency assessment",
+          "author_role": "emergency medicine",
+          "text": "The patient arrived after one day of fever, rigors, dysuria, flank discomfort, and progressive lethargy. Family reports new confusion and markedly reduced urine output. Examination shows disorientation, dry mucous membranes, warm extremities, and right costovertebral-angle tenderness. Hypotension persists on repeated measurements. Blood and urine specimens were collected, lactate was measured, and the initial intravenous empiric anti-infective dose was completed. No resuscitation fluid has yet been administered. There is no history of cirrhosis, traumatic brain injury, or chronic heart failure.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete to decision point",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The patient has infection-associated acute organ dysfunction and persistent hypotension requiring initial intravascular volume expansion. In adults with sepsis, the supplied ESICM guideline conditionally recommends crystalloids rather than albumin and balanced crystalloids rather than isotonic saline. The S3 guideline supports adding albumin to balanced crystalloids only when large fluid quantities are required to achieve hemodynamic stability and advises against gelatin. Therefore, isolated hypoalbuminemia does not justify replacing initial balanced crystalloid resuscitation with albumin.",
+        "evidence": null,
+        "key_data": [
+          "Persistent blood pressure of 82/47 mmHg with a mean arterial pressure of 59 mmHg.",
+          "Fever, urinary symptoms, costovertebral-angle tenderness, and abnormal urinalysis support an infectious source.",
+          "Acute confusion, oliguria, and creatinine elevation indicate acute organ dysfunction.",
+          "Blood lactate is elevated at 3.8 mmol/L.",
+          "No resuscitation fluid has yet been administered, so the initial fluid choice remains unresolved.",
+          "There is no cirrhosis or traumatic brain injury that would alter the cited fluid-choice framework."
+        ]
+      },
+      "hard_hook": "Low serum albumin makes albumin-first resuscitation appear attractive despite the sepsis-specific fluid recommendations.",
+      "reasoning_divergence": "The flawed approach treats hypoalbuminemia as an indication for albumin-first resuscitation, whereas the supported approach distinguishes a laboratory abnormality from the recommended initial fluid class."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Use albumin as the initial and primary volume-expansion fluid because the serum albumin is low and acute kidney injury makes crystalloid undesirable; avoid balanced crystalloid unless albumin fails to improve the blood pressure."
+      },
+      {
+        "id": "B",
+        "text": "Use a balanced crystalloid for initial intravascular volume expansion rather than albumin or isotonic saline. Do not use gelatin; albumin may be considered only as an additive if large crystalloid volumes are required for hemodynamic stability."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "sepsis",
+      "hypotension",
+      "acute kidney injury",
+      "hyperlactatemia",
+      "fluid resuscitation",
+      "organ dysfunction"
+    ],
+    "evidence_keywords": [
+      "balanced crystalloids",
+      "albumin",
+      "volume expansion",
+      "blood lactate",
+      "gelatin",
+      "hemodynamic stability"
+    ],
+    "error_tags": [
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "Adult sepsis is defined as life-threatening acute organ dysfunction caused by an inadequate host response to infection.",
+        "source_ids": [
+          "40824313"
+        ]
+      },
+      {
+        "statement": "The 2025 S3 guideline strongly recommends measuring blood lactate in adults with suspected sepsis.",
+        "source_ids": [
+          "40824313"
+        ]
+      },
+      {
+        "statement": "For volume expansion in adults with sepsis, crystalloids are conditionally recommended rather than albumin.",
+        "source_ids": [
+          "38771364"
+        ]
+      },
+      {
+        "statement": "For adults with sepsis, balanced crystalloids are conditionally recommended rather than isotonic saline.",
+        "source_ids": [
+          "38771364"
+        ]
+      },
+      {
+        "statement": "Albumin may be added to balanced crystalloids when large fluid quantities are required to achieve hemodynamic stability.",
+        "source_ids": [
+          "40824313"
+        ]
+      },
+      {
+        "statement": "The S3 guideline suggests that gelatin should not be used for fluid therapy in patients with sepsis or septic shock.",
+        "source_ids": [
+          "40824313"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T01:30:00.858489+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "40824313",
+        "title": "[S3 guideline on sepsis-prevention, diagnosis, therapy, and follow-up care-update 2025].",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40824313/",
+        "abstract": "Sepsis is an acute, life-threatening multiple organ dysfunction triggered by an infection.\nThis guideline is an update of the S3 guideline \"Sepsis-prevention, diagnosis, therapy, and follow-up care\" (Arbeitsgemeinschaft der Wissenschaftlichen Medizinischen Fachgesellschaft [AMWF] Registry No. 079-001) of the German Sepsis Society (DSG) dated 31\u00a0December\u00a02018. The update of the \"Surviving sepsis campaign (SSC): international guidelines for management of sepsis and septic shock 2021\" dated 4\u00a0October\u00a02021, was used as the reference guideline. The DSG Guideline Commission compared each recommendation on the underlying PICO questions of the DSG Guideline 2018 (literature search until December 2018) with those of the SSC Guideline 2021 (literature search until July 2019) and evaluated the newly available published data (literature search until December 2024) by means of systematic update searches and literature reviews in compliance with the rules of the Grading of Recommendations, Assessment, Development and Evaluation (GRADE) system and the AWMF.\nA\u00a0total of 88\u00a0PICO questions were addressed, including those related to the diagnosis and treatment of infection and organ failure. Of these, two were agreed upon as statements, 29\u00a0as expert consensus, and 57\u00a0as evidence-based recommendations (26\u00a0with a\u00a0strong and 31\u00a0with a\u00a0weak recommendation grade). Compared to the previous 2018 guideline, 43\u00a0recommendations were reviewed but retained, 16\u00a0recommendations were modified, and 29\u00a0recommendations were newly issued.\nGiven the lack of evidence for numerous measures for the inpatient care of patients with sepsis or septic shock, old and new knowledge gaps were revealed. Among the evidence-based recommendations, the underlying GRADE quality of evidence was high for only 5\u00a0recommendations, moderate for 18\u00a0recommendations, low for 17\u00a0recommendations, and very low for\u00a016. These evidence gaps can only be closed through future multicenter, noncommercial clinical trials. The update to the S3 guideline on sepsis includes some updates to the recommendations of the previous guideline. These updates will need to be incorporated into some of the case- and facility-specific quality assurance indicators of quality assurance (QA) procedure 2025. Impairments in health-related quality of life for survivors must be given greater focus in outpatient care.",
+        "sha256": "2946f8df394c02b41193b2488542ae13fec6202f95665ad58e3eff08d1ad0995",
+        "retrieved_at": "2026-09-19T01:28:31.433858+00:00",
+        "pmcid": "PMC12708846",
+        "body_excerpts": "Infobox\nBeteiligte Fachgesellschaften Federf\u00fchrend : Deutsche Sepsis-Gesellschaft e. V. (DSG) Deutsche Gesellschaft f\u00fcr An\u00e4sthesiologie und Intensivmedizin e. V. (DGAI) Deutsche Gesellschaft f\u00fcr Chirurgie (DGCH) Deutsche Gesellschaft f\u00fcr Internistische Intensivmedizin und Notfallmedizin (DGIIN) Deutsche Gesellschaft f\u00fcr Ern\u00e4hrungsmedizin e. V. (DGEM) Deutsche Gesellschaft f\u00fcr Neurologie (DGN) Deutsche Gesellschaft f\u00fcr Infektiologie (DGI) Deutsche Gesellschaft f\u00fcr Nephrologie e. V. (DGfN) Deutsche Interdisziplin\u00e4re Vereinigung f\u00fcr Intensiv- und Notfallmedizin (DIVI) Deutsche Gesellschaft f\u00fcr Pneumologie und Beatmungsmedizin (DGP) Deutsche Gesellschaft f\u00fcr Hygiene und Mikrobiologie (DGHM) Deutsche Gesellschaft f\u00fcr H\u00e4matologie und. Medizinische Onkologie e. V (DGHO) Deutsche Gesellschaft f\u00fcr Medizinische Psychologie (DGMP) Deutsche Sepsis-Hilfe e. V. (DSH) Nationales Referenzzentrum f\u00fcr Surveillance von nosokomialen Infektionen (NRZ) Paul-Ehrlich-Gesellschaft f\u00fcr Infektionstherapie e. V. (PEG)\n\nWas gibt es Neues?\nBei der vorliegenden Leitlinie der Klassifikation S3 handelt es sich um ein Update der S3-Leitlinie \u201eSepsis \u2013 Pr\u00e4vention, Diagnose, Therapie und Nachsorge\u201c [ 1 ] (AMWF-Register-Nr.: 079\u2013001) der Deutschen Sepsis-Gesellschaft (DSG) vom 31.12.2018. Dabei wurde das Update der \u201eSurviving sepsis campaign (SSC): international guidelines for management of sepsis and septic shock 2021\u201c [ 2 ] vom 04.10.2021 als Referenzleitlinie zugrunde gelegt. Die DSG-Leitlinienkommission verglich jede Empfehlung zu den zugrunde liegenden PICO-Fragen der DSG-Leitlinie 2018 (Literaturrecherche bis Dezember 2018) mit denen der SSC-Leitlinie 2021 (Literaturrecherche bis Juli 2019) und bewertete gegebenenfalls die in der Zwischenzeit neu verf\u00fcgbare publizierte Datenlage mittels systematischer Aktualisierungsrecherchen und Literaturbewertungen unter Befolgung des Regelwerkes des GRADE-Systems [ 3 ]. Au\u00dferdem fanden aktuelle deutsche Leitlinien besondere Ber\u00fccksichtigung, u. a. die S3-Leitlinie \u201eInvasive Beatmung und Einsatz extrakorporaler Verfahren bei akuter respiratorischer Insuffizienz\u201c [ 4 ] (AWMF-Reg.-Nr.: 001\u2013021), die S3-Leitlinie \u201eNierenersatztherapie in der Intensiv- und Notfallmedizin\u201c [ 5 ] (AWMF-Reg.-Nr.: 040\u2013017), sowie der S3-Leitlinie \u201eLagerungstherapie und Mobilisation von kritisch Erkrankten auf Intensivstationen\u201c [ 6 ] (AWMF-Reg.-Nr.: 001\u2013015).\n\nWas gibt es Neues?\nDie Erweiterung des Kapitels \u201eNachsorge\u201c adressiert Aspekte der Langzeitfolgen nach \u00fcberlebter Sepsis, welche als Teil des sogenannten PICS (Post Intensive Care Syndrome) zusammengefasst werden.\n\nScreening und Erstma\u00dfnahmen > Screening\nDSG 2025 (\u00c4nderung): Wir empfehlen Krankenh\u00e4usern ein Qualit\u00e4tssicherungsprogramm zum Thema Sepsis, einschlie\u00dflich eines Sepsis-Screenings f\u00fcr akut erkrankte Hochrisikopatienten und Standardarbeitsanweisungen (SOPs) f\u00fcr die Behandlung ( Empfehlungsgrad: stark).\n\nScreening und Erstma\u00dfnahmen > Screening\nDSG 2025 (\u00c4nderung): Wir empfehlen bei Patienten au\u00dferhalb der Intensivstation, bei denen der Verdacht auf eine Infektion besteht, regelm\u00e4\u00dfig ein geeignetes Screeninginstrument anzuwenden, um eine Sepsis fr\u00fchzeitig zu erkennen ( Empfehlungsgrad: stark).\n\nScreening und Erstma\u00dfnahmen > Screening\nDSG 2025 (NEU): Wir empfehlen bei Erwachsenen mit Verdacht auf Sepsis, eine Messung des Laktats im Blut durchzuf\u00fchren ( Empfehlungsgrad: stark).\n\nScreening und Erstma\u00dfnahmen > Screening\nDSG 2025 (NEU): Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock, Vasopressoren auch peripherven\u00f6s zu applizieren, um den MAP auf > 65 mm Hg anzuheben und nicht auf die Anlage eines ZVK zu warten ( Expertenkonsens).\n\nInfektion und antimikrobielle Therapie > Beginn der antimikrobiellen Therapie\nDSG 2025 (\u00c4nderung): Wir empfehlen, bei Patienten mit Sepsis , dass die Verabreichung von intraven\u00f6sen Antiinfektiva so schnell wie m\u00f6glich, bei Patienten mit einem septischen Schock idealerweise innerhalb einer Stunde erfolgt ( Empfehlungsgrad: stark).\n\nInfektion und antimikrobielle Therapie > Beginn der antimikrobiellen Therapie\nDSG 2018: Wir empfehlen, dass die Verabreichung von intraven\u00f6sen Antiinfektiva so schnell wie m\u00f6glich, idealerweise innerhalb einer Stunde, nach der Diagnose einer Sepsis oder eines septischen Schocks erfolgt ( Empfehlungsgrad: stark).\n\nInfektion und antimikrobielle Therapie > Beginn der antimikrobiellen Therapie\nDSG 2025 (NEU): Wir schlagen vor, bei einem Verdacht auf eine Sepsis ohne Schocksymptomatik zun\u00e4chst eine zeitnahe weitere Diagnostik durchzuf\u00fchren. Falls der Verdacht auf eine zugrunde liegende Infektion weiterbesteht, sollte die Verabreichung der antiinfektiven Therapie innerhalb von drei Stunden erfolgen ( Expertenkonsens).\n\nInfektion und antimikrobielle Therapie > Wahl der antimikrobiellen Therapie\nDSG 2025 (NEU): Wir empfehlen, bei Patienten mit Sepsis oder septischem Schock Beta-Laktam-Antibiotika als prolongierte oder kontinuierliche Infusion (nach initialem Bolus) zu verabreichen ( Empfehlungsgrad: stark).\n\nInfektion und antimikrobielle Therapie > Wahl der antimikrobiellen Therapie\nDSG 2025 (NEU): Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock ohne erh\u00f6htes Risiko f\u00fcr multiresistente Erreger KEINE routinem\u00e4\u00dfige, initiale Therapie mit zwei verschiedenen gegen gramnegative Erreger wirksamen Substanzen (\u201edouble gram-negative coverage\u201c) durchzuf\u00fchren ( Empfehlungsgrad: schwach).\n\nInfektion und antimikrobielle Therapie > Wahl der antimikrobiellen Therapie\nDSG 2025 (\u00c4nderung): Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock mit einem niedrigen Risiko f\u00fcr eine Pilzinfektion KEINE antimykotische Therapie durchzuf\u00fchren. Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock mit einem hohen Risiko f\u00fcr eine Pilzinfektion eine empirische antimykotische Therapie durchzuf\u00fchren ( Empfehlungsgrad: schwach).\n\nKreislauftherapie > Fl\u00fcssigkeitstherapie\nDSG 2025 (NEU): Wir schlagen vor, bei Patienten mit Sepsis und septischem Schock Gelatine NICHT anzuwenden. 1 (Empfehlungsgrad: schwach).\n\nKreislauftherapie > Fl\u00fcssigkeitstherapie\nDSG 2025 (\u00c4nderung): Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock Albumin additiv zu balancierten Kristalloiden zu verabreichen, wenn gro\u00dfe Mengen an Fl\u00fcssigkeit ben\u00f6tigt werden, um eine h\u00e4modynamische Stabilit\u00e4t zu erreichen. 1 (Empfehlungsgrad: schwach).\n\nBeatmungstherapie > Beatmungseinstellungen\nDSG 2025 (\u00c4nderung): Wir empfehlen, Patienten mit Sepsis oder septischem Schock und ARDS mit einem Tidalvolumen um 6 ml/kg IBW (4\u20138 ml/kg IBW) zu beatmen ( Empfehlungsgrad: stark).\n\nBeatmungstherapie > Beatmungseinstellungen\nDSG 2025 (\u00c4nderung) : Wir schlagen vor, bei der invasiven Beatmung von Patienten mit Sepsis oder septischem Schock und ARDS eine inspiratorische Druckdifferenz von \u2264 14 cmH 2 O anzustreben ( Empfehlungsgrad: schwach).\n\nBeatmungstherapie > Beatmungseinstellungen\nDSG 2025 (NEU): Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock und moderatem oder schwerem ARDS die Einstellung des PEEP mit Hilfe einer in der Tabelle vorgeschlagenen bettseitigen Methoden zu individualisieren ( Empfehlungsgrad: schwach).\n\nBeatmungstherapie > Inspiratorische Sauerstoffkonzentration\nDSG 2025 (NEU): Wir schlagen vor, bei invasiv beatmeten Patienten mit Sepsis oder septischem Schock eine SaO 2 bzw. SpO 2 von 92\u201396 % bzw. eine paO 2 zwischen 70\u201390 mm Hg (9,3\u201312 kPa) anzustreben ( Empfehlungsgrad: schwach).\n\nBeatmungstherapie > Inspiratorische Sauerstoffkonzentration\nDSG 2025 (\u00c4nderung): Wir empfehlen bei Patienten mit Sepsis oder septischem Schock KEINE Durchf\u00fchrung von prolongierten (> 60 s) Rekrutierungsman\u00f6vern ( Empfehlungsgrad: stark).\n\nBeatmungstherapie > Inspiratorische Sauerstoffkonzentration\nDSG 2025 (\u00c4nderung): Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock KEINE routinem\u00e4\u00dfige Durchf\u00fchrung von kurzen (< 60 s) Rekrutierungsman\u00f6vern durchzuf\u00fchren ( Empfehlungsgrad: schwach).\n\nBeatmungstherapie > Nichtinvasive Atmungsunterst\u00fctzung\nDSG 2025 (\u00c4nderung): Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock und milder bis moderater akuter hypox\u00e4mischer respiratorischer Insuffizienz (PaO 2 /FiO 2 : 100\u2013300) prim\u00e4r eine nichtinvasive Atmungsunterst\u00fctzung (NIV, CPAP oder HFNO) anzuwenden ( Empfehlungsgrad: schwach).\n\nBeatmungstherapie > Nichtinvasive Atmungsunterst\u00fctzung\nDSG 2018: Wir sprechen keine Empfehlung hinsichtlich der Verwendung einer nichtinvasiven Beatmung bei Patienten mit Sepsis-induziertem ARDS aus (Statement).\n\nBeatmungstherapie > Bauchlagerung\nDSG 2025 (\u00c4nderung): Wir empfehlen, bei Patienten mit Sepsis oder septischem Schock eine Bauchlagerung \u00fcber mindestens 12 h, vorzugsweise 16 h durchzuf\u00fchren. Wir empfehlen, die Bauchlagerung fr\u00fchzeitig zu erw\u00e4gen und nach Indikationsstellung unverz\u00fcglich umzusetzen ( Empfehlungsgrad: stark)\n\nBeatmungstherapie > ECMO\nDSG 2025 (NEU): Wir schlagen vor, den Einsatz einer venoven\u00f6sen ECMO bei Patienten mit Sepsis oder septischem Schock und schwerem ARDS nur nach Aussch\u00f6pfen der konservativen Therapiema\u00dfnahmen, einschlie\u00dflich der Durchf\u00fchrung einer Bauchlagerung, und fortbestehender schwerer Gasaustauschst\u00f6rung zu erw\u00e4gen ( Empfehlungsgrad: schwach).\n\nNierenersatztherapie > Indizierung und Durchf\u00fchrung\nDSG 2025 (NEU): Wir empfehlen, bei Patienten mit Sepsis oder septischem Schock und lebensbedrohlichen Ver\u00e4nderungen des Fl\u00fcssigkeits\u2011, S\u00e4ure-Basen- oder Elektrolythaushaltes unverz\u00fcglich mit einer Nierenersatztherapie zu beginnen ( Expertenkonsens).\n\nNierenersatztherapie > Diffusion versus Konvektion\nDSG 2025 (NEU): Wir schlagen vor, bei Patienten mit einer Sepsis und Indikation zur Nierenersatztherapie diffusive Nierenersatzverfahren oder konvektive Verfahren bzw. eine Kombination aus diffusiven und konvektiven Verfahren gleichwertig einzusetzen ( Empfehlungsgrad: schwach).\n\nNierenersatztherapie > Regionale und systemische Antikoagulation\nDSG 2025 (NEU): Wir empfehlen, bei Patienten mit Sepsis oder septischem Schock eine regionale Citrat-Antikoagulation oder eine systemische Heparin-Antikoagulation des extrakorporalen Blutkreislaufs gleichwertig einzusetzen ( Empfehlungsgrad: stark).\n\nNierenersatztherapie > Ad\u00e4quate Dosis\nDSG 2025 (NEU): Wir empfehlen, bei Patienten mit Sepsis oder septischem Schock f\u00fcr ein kontinuierliches Nierenersatzverfahren eine mittlere Dosis von 20\u201325 ml/kg/h \u00fcber die geplante Behandlungsdauer zu verabreichen ( Empfehlungsgrad: stark).\n\nNierenersatztherapie > Ad\u00e4quate Dosis\nDSG 2025 (NEU): Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock eine kontinuierliche hochvolumige (\u201ehigh-volume\u201c) H\u00e4mofiltration NICHT anzuwenden ( Empfehlungsgrad: schwach).\n\nWeitere Ma\u00dfnahmen > Blutreinigung\u00a0\u2013 unselektive Adsorptionsverfahren\nDSG 2025 (NEU): Wir empfehlen, dass bei Patienten mit Sepsis oder septischem Schock unselektive Adsorptionsverfahren NICHT eingesetzt werden ( Empfehlungsgrad: stark).\n\nWeitere Ma\u00dfnahmen > Blutreinigung\u00a0\u2013 Polymyxin-B-H\u00e4moperfusion\nDSG 2025 (NEU): Wir k\u00f6nnen bei Patienten mit Sepsis oder septischem Schock weder f\u00fcr noch gegen den Einsatz einer Polymyxin-B-H\u00e4moperfusion eine Empfehlung aussprechen ( Expertenkonsens).\n\nWeitere Ma\u00dfnahmen > Blutreinigung\u00a0\u2013 Plasmapherese\nDSG 2025 (NEU): Wir k\u00f6nnen bei Patienten mit Sepsis oder septischem Schock weder f\u00fcr noch gegen den Einsatz einer Plasmapherese eine Empfehlung aussprechen ( Expertenkonsens).\n\nWeitere Ma\u00dfnahmen > Antikoagulation und Thromboseprophylaxe\nDSG 2025 (\u00c4nderung): Wir empfehlen bei Patienten mit Sepsis oder septischem Schock eine pharmakologische Prophylaxe einer ven\u00f6sen Thromboembolie (VTE) mittels niedermolekularen Heparins (NMH) ( Empfehlungsgrad: stark).\n\nWeitere Ma\u00dfnahmen > Glukosemanagement\nDSG 2025 (\u00c4nderung): Wir empfehlen bei Patienten mit Sepsis oder septischem Schock den Beginn einer Insulintherapie bei einem oberen Blutzuckerspiegel von \u2265 180 mg/dl (\u2265 10 mmol/l) ( Empfehlungsgrad: stark).\n\nWeitere Ma\u00dfnahmen > Glukosemanagement\nDSG 2018: Wir empfehlen einen protokollierten Ansatz f\u00fcr das Blutzuckermanagement bei ITS-Patienten mit Sepsis, bei denen die Insulindosisgabe beginnt, wenn zwei aufeinanderfolgende Messungen einen Blutzuckerspiegel von > 180 mg/dl ergeben. Bei diesem Ansatz sollte bevorzugt ein oberer Blutzuckerspiegel von \u2264 180 mg/dl statt eines oberen Zielblutzuckerspiegels von \u2264 110 mg/dl angestrebt werden ( Empfehlungsgrad: stark).\n\nWeitere Ma\u00dfnahmen > Stressulkusprophylaxe\nDSG 2025 (NEU): Wir empfehlen, dass Patienten mit Sepsis oder septischem Schock mit vorliegenden Risikofaktoren f\u00fcr gastrointestinale (GI-)Blutungen eine Stressulkusprophylaxe mit Protonenpumpeninhibitoren erhalten ( Empfehlungsgrad: stark).\n\nWeitere Ma\u00dfnahmen > Vitamine\nDSG 2025 (NEU): Wir empfehlen, bei Patienten mit Sepsis oder septischem Schock hochdosiertes Vitamin C \u2013 weder als Monotherapie noch als Kombinationstherapie mit Hydrocortison und hochdosiertem Vitamin B1 (Thiamin) \u2013 NICHT zu verwenden ( Empfehlungsgrad: schwach).\n\nWeitere Ma\u00dfnahmen > Vitamine\nDSG 2025 (NEU): Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock, die Behandlungsziele m\u00f6glichst fr\u00fch (innerhalb von 72 h) festzulegen ( Expertenkonsens).\n\nWeitere Ma\u00dfnahmen > Entlassmanagement\nDSG 2025 (NEU): Wir empfehlen, dass Sepsis-\u00dcberlebende und deren Angeh\u00f6rige \u00fcber das Beratungsangebot von Selbsthilfe-Gruppen informiert werden ( Expertenkonsens).\n\nWeitere Ma\u00dfnahmen > Entlassmanagement\nDSG 2025 (NEU): Wir empfehlen, dass bei Sepsis-\u00dcberlebenden im Entlassbericht auf die M\u00f6glichkeit der Entwicklung eines Post-Intensive-Care-Syndroms (PICS) hingewiesen wird ( Expertenkonsens).\n\n1. Geltungsbereich und Zweck > 1.1 Zielsetzung und Fragestellung\nDas Institut f\u00fcr Qualit\u00e4tssicherung und Transparenz im Gesundheitswesen (IQTIG) hat im Rahmen der Erstellung einer Konzeptstudie zu einem Qualit\u00e4tssicherungsverfahren Sepsis umfangreiche empirische Pr\u00fcfungen anhand von Sozialdaten der Krankenkassen (gem\u00e4\u00df \u00a7 299 Abs. 1a SGB V) durchgef\u00fchrt und 2020 publiziert [ 7 ]. Danach werden j\u00e4hrlich derzeit in Deutschland 91.000 Patienten mit Sepsis oder septischem Schock station\u00e4r behandelt, die mittlere Verweildauer betr\u00e4gt im Mittel 25 (median 17 Tage), und die Krankenhaussterblichkeit 38,4 % (55,1 % bei septischem Schock). Aufgrund der demografischen Entwicklung und der zunehmenden Fortschritte der Hochleistungsmedizin ist von einer Zunahme der Sepsisf\u00e4lle auszugehen. Im Rahmen des Innovationsfonds-gef\u00f6rderten Projektes OPTIMISE wurde zudem festgestellt, dass Sepsis nicht korrekt \u00fcber ICD-Codes in Abrechnungsdaten abgebildet wird [ 8 ]. Insbesondere unterscheiden sich Krankenh\u00e4user deutlich in der Validit\u00e4t der Sepsiskodierung. Hierdurch kommt es zu starken Verzerrungen bei der Berechnung von Qualit\u00e4tsindikatoren der Sepsisversorgung auf Basis von Abrechnungsdaten. Um diesem Problem zu begegnen, wurde durch eine Expertengruppe des Deutschen Qualit\u00e4tsb\u00fcndnisses Sepsis (DQS) in Zusammenarbeit mit der Deutschen Sepsis-Gesellschaft ein umf\u00e4nglicher Kodierleitfaden f\u00fcr die Sepsis entwickelt, welcher die aktuellen klinischen Definitionen, ICD-Codes sowie Kodierrichtlinien ber\u00fccksichtigt [ 9 ].\n\n1. Geltungsbereich und Zweck > 1.1 Zielsetzung und Fragestellung\nWie kaum eine andere Erkrankung stellt die Sepsis eine interdisziplin\u00e4re Herausforderung dar, da sie in allen Fachdisziplinen der Medizin \u2013 wenn auch mit unterschiedlicher H\u00e4ufigkeit \u2013 pr\u00e4valent ist und eine anhaltend hohe Sterblichkeit und Morbidit\u00e4t hat. Kenntnisse in der evidenzbasierten Diagnostik und Therapie der zugrunde liegenden Infektion und des Sepsis-assoziierten Organversagens sind elementarer Wissensbestandteil von Medizinern und Pflegepersonal. Die S3-Leitlinie Sepsis wird daher von Rezipienten fast aller medizinischen Fachbereiche mit hohem Interesse aufgenommen. Aufgrund von Erfahrungen der Vergangenheit ist davon auszugehen, dass das Update dieser Leitlinie auf Fort- und Weiterbildungsveranstaltungen fast aller Fachdisziplinen in Deutschland weite Verbreitung findet und Gegenstand zahlreicher Publikationen in den Organen der einzelnen wissenschaftlich-medizinischen Fachgesellschaften, aber auch in den Pflegewissenschaften sein wird.\n\n1. Geltungsbereich und Zweck > 1.1 Zielsetzung und Fragestellung\nAuch f\u00fcr das vom G\u2011BA beauftragte Qualit\u00e4tssicherungsverfahren (QS-Verfahren) zur Diagnostik, Therapie und Nachsorge der Sepsis wird die Leitlinie wichtige Handlungsempfehlungen zur Verf\u00fcgung stellen k\u00f6nnen. Sie liefert auch die Grundlage f\u00fcr die Lehre an deutschen Universit\u00e4tsklinika und wird diesbez\u00fcglich in den Nationalen Kompetenzbasierten Lernzielkatalog NKLM einflie\u00dfen.\n\n1. Geltungsbereich und Zweck > 1.1 Zielsetzung und Fragestellung\nDie Leitlinie bezieht sich auf erwachsene (> 18 Jahre) Patienten mit Sepsis oder septischem Schock. Sie bietet eine Informationsgrundlage zu angemessenen, wissenschaftlich begr\u00fcndeten und aktuellen Verfahren f\u00fcr Diagnostik, Therapie und Nachsorge und beinhaltet Empfehlungen zur Pr\u00e4vention der Sepsis.\n\n1. Geltungsbereich und Zweck > 1.3 Patient*innenzielgruppe\nDiese Leitlinie bezieht sich auf erwachsene Patientinnen und Patienten mit Sepsis oder septischem Schock.\n\n1. Geltungsbereich und Zweck > 1.4 Adressaten\nDie interdisziplin\u00e4re Leitlinie der Qualit\u00e4t S3 zur Pr\u00e4vention, Diagnose, Therapie und Nachsorge der Sepsis richtet sich mit Fokus auf die Intensivmedizin und Infektiologie an An\u00e4sthesisten, Intensivmediziner, Notfallmediziner, Ern\u00e4hrungsmediziner, Neurologen, Kardiologen, Internisten, Infektiologen, Nephrologen, Pneumologen, Chirurgen, Hygieniker und Mikrobiologen sowie Patienten und Selbsthilfegruppen. Sie dient auch zur Information f\u00fcr die Pflegeberufe und \u00fcbergeordnete Organisationen (z. B. Krankenkassen und Einrichtungen der \u00e4rztlichen Selbstverwaltung) und die interessierte Fach\u00f6ffentlichkeit.\n\n2. Screening und Erstma\u00dfnahmen > 2.1 Einleitung\nBei einer Sepsis handelt es sich um eine lebensbedrohliche Organdysfunktion, ausgel\u00f6st durch eine Infektion, welche mit einer Regulationsst\u00f6rung beim Wirt einhergeht [ 10 ]. Somit wird f\u00fcr die Diagnose einer Sepsis dezidiert das Vorliegen einer oder mehrerer Organdysfunktion(en) gefordert. Die Kodierung einer Sepsis im ICD-10 GM 2023 erfolgt mittels eines Codes f\u00fcr die Sepsis, z. B. A 41.\u2013 (\u201eSonstige Sepsis\u201c). F\u00fcr die Kodierung der Organkomplikation(en) k\u00f6nnen z. B. eine oder mehrere der unten aufgef\u00fchrten Schl\u00fcsselnummern verwendet werden [ 9 ]: R 57.2 \u2013 septischer Schock N 17. \u2013 akutes Nierenversagen J 96.0 \u2013 akutes respiratorisches Versagen D 65 \u2013 disseminierte intravasale Gerinnungsst\u00f6rung G 93.4 \u2013 Enzephalopathie, nicht n\u00e4her bezeichnet K 72.0 \u2013 Leberversagen\n\n2. Screening und Erstma\u00dfnahmen > 2.1 Einleitung\nDas fr\u00fchzeitige Erkennen einer Sepsis und eine fr\u00fchzeitige evidenzbasierte Behandlung tragen entscheidend dazu bei, die Erkrankungsschwere und das \u00dcberleben zu verbessern.\n\n2. Screening und Erstma\u00dfnahmen > 2.1 Einleitung\nDie Leitlinie fasst angemessene, wissenschaftlich begr\u00fcndete und aktuelle Verfahren f\u00fcr Diagnostik, Therapie und Nachsorge zusammen und erg\u00e4nzt diese um Ma\u00dfnahmen der Sepsis-Pr\u00e4vention. Die Empfehlungen der Leitlinie sollen als unterst\u00fctzende Informations- und Entscheidungsgrundlage f\u00fcr den Kliniker zur Behandlung von erwachsenen Patienten mit Sepsis oder septischem Schock dienen. Sie ersetzen nicht die F\u00e4higkeiten des Arztes, eine angemessene Entscheidung bei der individuellen Behandlung eines Patienten nach Ma\u00dfgabe der verf\u00fcgbaren klinischen Parameter zu treffen.\n\n2. Screening und Erstma\u00dfnahmen > 2.1 Einleitung\nDie vorliegende interdisziplin\u00e4re Leitlinie der Klassifikation S3 ist ein evidenz- und konsensbasiertes Instrument zur Verbesserung und Qualit\u00e4tssicherung von Pr\u00e4vention, Diagnostik, Therapie und Nachsorge der Sepsis. Sie richtet sich mit dem Fokus auf die Querschnittsf\u00e4cher Intensiv- und Infektionsmedizin an Mitglieder unterschiedlicher Fachgesellschaften.\n\n2. Screening und Erstma\u00dfnahmen > 2.2 Definition der Sepsis\nDie dieser Leitlinie zugrunde liegende Definition der Sepsis basiert auf den von der Sepsis-3-Task-Force ver\u00f6ffentlichten Definitionen [ 10 ]. Sie wird in der vorliegenden Leitlinie nicht als Empfehlung, sondern als Statement (Stellungnahme) beschrieben. Studien, die als Evidenz f\u00fcr die SSC-Leitlinie und die vorliegende Leitlinie herangezogen wurden, beziehen sich allerdings zu einem gro\u00dfen Teil auf Patientenpopulationen, die anhand \u00fcberholter Definitionen der Sepsis, schweren Sepsis und des septischen Schocks identifiziert wurden.\n\n2. Screening und Erstma\u00dfnahmen > 2.2 Definition der Sepsis > Definition 1/Statement/Best\u00e4tigt (Stand 2025)\nEine Sepsis ist eine akut lebensbedrohliche Organdysfunktion, hervorgerufen durch eine inad\u00e4quate Wirtsantwort auf eine Infektion. F\u00fcr die Diagnose einer Sepsis-assoziierten Organdysfunktion ist ein Anstieg des Sequential Organ Failure Assessment (SOFA) Score um \u2265 2 Punkte zu verwenden. Zus\u00e4tzliches DSG-Leitlinienstatement Literatur: [ 11 ] Konsensst\u00e4rke: 100 %\n\n2. Screening und Erstma\u00dfnahmen > 2.2 Definition der Sepsis > Definition 1/Statement/Best\u00e4tigt (Stand 2025)\nDie \u00fcberholten Sepsis-Definitionen (Sepsis\u20111 von 1992 und Sepsis\u20112 von 2001) beruhten auf dem SIRS-Konzept (Systemisches inflammatorisches Response-Syndrom) [ 12 , 13 ]. Die SIRS-Kriterien, die eine Hypo- (\u2264 36 \u00b0C) oder Hyperthermie (\u2265 38 \u00b0C), Tachykardie (\u2265 90/min), Tachypnoe (\u2265 20/min) sowie eine Leukozytose \u2265 12.000/\u00b5l oder Leukopenie \u2264 4000/\u00b5l und/oder Linksverschiebung > 10 % umfassen, sind weder spezifisch noch besonders sensitiv f\u00fcr Infektionen. So berichteten Churpek et al. [ 14 ], dass 50 % der Krankenhauspatienten SIRS mindestens einmal w\u00e4hrend ihres Krankenhausaufenthaltes aufwiesen, auch wenn viele dieser Patienten keine Infektion hatten und keine antiinfektive Therapie ben\u00f6tigten [ 14 ]. Kaukonen et al. [ 15 ] haben gezeigt, dass einer von acht Intensivpatienten mit Infektionsverdacht und neu aufgetretenem Organversagen weniger als zwei SIRS-Kriterien erf\u00fcllt [ 15 ]. Diese Patientengruppe wurde gleichwohl als \u201eseptisch\u201c eingestuft und entsprechend behandelt. Epidemiologische Analysen von Krankenhausdaten, welche bei der Erf\u00fcllung von nur zwei SIRS-Kriterien bereits eine Kodierung als Sepsis gestatteten, haben somit zu einer \u201eVerw\u00e4sserung\u201c der realen H\u00e4ufigkeit von und der Sterblichkeit durch Sepsis gef\u00fchrt. So konnten Gaieski et al. [ 16 ] f\u00fcr die USA zeigen, dass die relative Krankenhaussterblichkeit in den Jahren 2004\u20132009 zwar zur\u00fcckging, die absolute Sterblichkeit aber kontinuierlich stieg [ 16 ].\n\n2. Screening und Erstma\u00dfnahmen > 2.2 Definition der Sepsis > Definition 1/Statement/Best\u00e4tigt (Stand 2025)\nAls Reaktion auf diese Inkonsistenzen erarbeitete die Sepsis-3-Task-Force, eine internationale Arbeitsgruppe der European Society of Intensive Care Medicine (ESICM) und der Society of Critical Care Medicine (SCCM), im Februar 2016 eine Neudefinition der Sepsis [ 10 , 11 ].\n\n2. Screening und Erstma\u00dfnahmen > 2.2 Definition der Sepsis > Definition 1/Statement/Best\u00e4tigt (Stand 2025)\nErstmals wurde die Sepsis im gesamten Krankenhaus, also auch auf Normalstationen und in Notaufnahmen, ber\u00fccksichtigt. Sepsis wird demnach immer durch eine akut lebensbedrohliche, weil dysregulierte Wirtsreaktion (Organdysfunktion) auf eine Infektion verursacht. Der Begriff der \u201eschweren\u201c Sepsis entf\u00e4llt, weil es eine \u201eleichte\u201c Sepsis in dem neuen Konzept nicht gibt. Die Autoren schlugen vor, stattdessen folgerichtig von einer \u201eInfektion\u201c zu sprechen. Basierend auf routinem\u00e4\u00dfig erhobenen klinischen Daten identifizierten die Autoren robuste Risikofaktoren, welche \u00fcber das Risiko zur Baseline hinaus den \u00dcbergang von einer lokal begrenzten Infektion mit geringem Sterberisiko zu einer Sepsis mit hohem Sterberisiko anzeigen. Hierzu waren geeignete statistische Verfahren erforderlich, da es gegenw\u00e4rtig keinen Goldstandard f\u00fcr die Diagnose einer Sepsis gibt. Nur wenn ein Goldstandard existiert, ist die Berechnung von Sensitivit\u00e4t und Spezifit\u00e4t auf Grundlage folgender Zuordnungen m\u00f6glich: richtig-positive (F\u00e4lle mit Sepsis), richtig-negative (Kontrollen ohne Sepsis) bzw. falsch-positive und falsch-negative. Stattdessen musste die Aussagekraft eines Tests unter verschiedenen Aspekten der Validit\u00e4t, Reliabilit\u00e4t und N\u00fctzlichkeit beurteilt werden.\n\n2. Screening und Erstma\u00dfnahmen > 2.2 Definition der Sepsis > Definition 1/Statement/Best\u00e4tigt (Stand 2025)\nF\u00fcr die Feststellung der Sepsis-assoziierten Organdysfunktion wird eine Ver\u00e4nderung des SOFA-Scores um \u2265 2 Punkte vorgeschlagen. Ein SOFA-Score von \u2265 2 entspricht einem Mortalit\u00e4tsrisiko von \u00fcber 10 % bei station\u00e4ren Patienten au\u00dferhalb der Intensivstation (ITS), die eine Infektion haben. Der SOFA-Score, der sechs Organsysteme nach vier Schweregraden der Organdysfunktion einstuft und 0 bis 24 Punkte umfasst, ist jedoch aufwendig zu ermitteln und daher in der klinischen Routine au\u00dferhalb der ITS zum bettseitigen Screening ungeeignet. Daher hat die Sepsis-3-Arbeitsgruppe den qSOFA entwickelt, um Patienten mit hohem Sepsis-Risiko schneller zu identifizieren.\n\n2. Screening und Erstma\u00dfnahmen > 2.2 Definition der Sepsis > Definition\u00a02/Statement/Best\u00e4tigt (Stand 2025)\nEin septischer Schock ist definiert als eine trotz ad\u00e4quater Volumentherapie persistierende arterielle Hypotension mit der Notwendigkeit einer Therapie mit Vasopressoren, um einen mittleren arteriellen Blutdruck von \u2265 65 mm Hg zu erreichen. Gleichzeitig muss der Laktatwert im Blut > 2 mmol/l betragen. Zus\u00e4tzliches DSG-Leitlinienstatement Literatur: [ 11 ] Konsensst\u00e4rke: 100 %\n\n2. Screening und Erstma\u00dfnahmen > 2.2 Definition der Sepsis > Definition\u00a02/Statement/Best\u00e4tigt (Stand 2025)\nEin systematisches Review, das die Operationalisierung von gegenw\u00e4rtigen Definitionen des septischen Schocks untersuchte, zeigte eine erhebliche Heterogenit\u00e4t der berichteten Sterblichkeitsraten auf [ 17 ]. Diese Heterogenit\u00e4t resultierte u. a. aus Unterschieden in den ausgew\u00e4hlten klinischen Variablen (unterschiedliche Cut-offs f\u00fcr den systolischen oder mittleren Blutdruck, unterschiedliche Level von Hyperlaktat\u00e4mie und Vasopressor-Dosis). Unter Verwendung der o. g. Definition (mittlerer arterieller Blutdruck von \u2265 65 mm Hg UND Laktatwert > 2 mmol/l) wurden in gro\u00dfen klinischen Kohorten, Notaufnahmen und Normalstationen Krankenhaussterblichkeitsraten von mehr als 40 % festgestellt. Durch die Laktatmessung mittels Point-of-Care-Ger\u00e4ten kann Zeit eingespart werden, die Werte im Vollblut korrelieren sehr gut mit dem Serumlaktat [ 18 ].\n\n2. Screening und Erstma\u00dfnahmen > 2.3 Screening > 2.1/Empfehlung/Modifiziert (Stand 2025)\nEmpfehlungsgrad: Stark Wir empfehlen Krankenh\u00e4usern ein Qualit\u00e4tssicherungsprogramm zum Thema Sepsis, einschlie\u00dflich eines Sepsis-Screenings f\u00fcr akut erkrankte Hochrisikopatienten und Standardarbeitsanweisungen (SOPs) f\u00fcr die Behandlung. SSC-Leitlinienadoption Qualit\u00e4t der Evidenz: Sepsis-Screening: Moderat \u2295\u2295\u2295\u229d SOP: Sehr niedrig \u2295\u229d\u229d\u229d Literatur: [ 19 , 20 ] Konsensst\u00e4rke: 100 %\n\n2. Screening und Erstma\u00dfnahmen > 2.3 Screening > 2.1/Empfehlung/Modifiziert (Stand 2025)\nQualit\u00e4tssicherungsprogramme k\u00f6nnen die Einhaltung von Sepsis-Protokollen optimieren und damit zu verbesserten Behandlungsergebnissen f\u00fchren [ 21 ]. Diese Programme sollten Screening-Tools, Standardarbeitsanweisungen (SOPs) und Aufkl\u00e4rungsprogramme zur Sensibilisierung der Sepsis-Behandlung beinhalten. Die fr\u00fchzeitige Identifizierung von Patienten mit Sepsis ist von hoher Bedeutung, da eine unverz\u00fcgliche Therapie die \u00dcberlebenschancen wesentlich verbessern und Folgesch\u00e4den reduzieren kann [ 19 , 22 ]. Strategien zur Qualit\u00e4tssicherung fu\u00dfen im Idealfall auf einer interdisziplin\u00e4ren Kooperation zwischen allen Fachgebieten.\n\n2. Screening und Erstma\u00dfnahmen > 2.3 Screening > 2.1/Empfehlung/Modifiziert (Stand 2025)\nEine Metaanalyse von 50 Observationsstudien hat gezeigt, dass Programme zur Qualit\u00e4tssicherung in der Versorgung von Sepsis-Patienten mit einer signifikant verbesserten Compliance mit den Leitlinienempfehlungen der SSC und einer geringeren Krankenhausmortalit\u00e4t verbunden waren (OR 0,66; 95 % CI 0,61 bis 0,72) [ 20 ].\n\n2. Screening und Erstma\u00dfnahmen > 2.3 Screening > 2.1/Empfehlung/Modifiziert (Stand 2025)\nIm Rahmen einer retrospektiven Kohortenstudie von 1.012.410 Sepsis-Aufnahmen in 509 US-Krankenh\u00e4usern wurde die Sterblichkeit, vor und nach Einf\u00fchrung der Sepsis-Vorschriften des Bundesstaates New York, mit einer Kontrollpopulation aus anderen Bundesstaaten untersucht [ 23 ]. Die Einf\u00fchrung von Sepsis-Vorschriften war dabei mit einem st\u00e4rkeren R\u00fcckgang der Sepsis-Sterblichkeit assoziiert.\n\n2. Screening und Erstma\u00dfnahmen > 2.3 Screening > 2.2/Empfehlung/Modifiziert (Stand 2025)\nEs existieren verschiedene Instrumente, die bez\u00fcglich ihrer Eignung zum Erkennen einer Sepsis oder zur Vorhersage der Prognose untersucht wurden. Beispiele sind: die Systemic-Inflammatory-Response-Syndrome(SIRS)-Kriterien, der quick Sequential Organ Failure Assessment (qSOFA) Score, der Modified Early Warning Score (MEWS) oder der National Early Warning Score (NEWS). In Gro\u00dfbritannien wird aktuell schon der \u00fcberarbeitete NEWS2 eingesetzt, welcher u. a. auch \u00fcber einen eigenen Abschnitt (SpO 2 -Skala 2) f\u00fcr die Anwendung bei Patienten mit gesichertem hyperkapnischem Versagen mit entsprechend adaptierten SpO 2 -Werten verf\u00fcgt (Tab. 1 ). Tab. 1 H\u00e4ufig verwendete Sepsis-Screening-Tools qSOFA SIRS MEWS NEWS/NEWS2 Temperatur \u2013 \u2713 \u2713 \u2713 Herzfrequenz \u2013 \u2713 \u2713 \u2713 Blutdruck \u2713 \u2013 \u2713 \u2713 Atemfrequenz \u2713 \u2713 \u2713 \u2713 GCS \u2713 \u2013 \u2713 \u2713 SpO 2 \u2013 \u2013 \u2013 \u2713 O 2 -Zufuhr \u2013 \u2013 \u2013 \u2713 Leukozyten \u2013 \u2713 \u2013 \u2013 qSOFA quick Sequential Organ Failure Assessment (qSOFA), SIRS Systemic Inflammatory Response Syndrome, MEWS Modified Early Warning Score, NEWS National Early Warning Score\n\n2. Screening und Erstma\u00dfnahmen > 2.3 Screening > 2.2/Empfehlung/Modifiziert (Stand 2025)\nEarly Warning Scores (NEWS, NEWS 2, MEWS) zeigen eine bessere Sensitivit\u00e4t beim Screening auf Sepsis, sind aufgrund der Vielzahl an Parametern allerdings auch etwas aufwendiger zu erheben [ 31 \u2013 33 ].\n\n9. Behandlungsziele und Sp\u00e4tfolgen > 9.1 Behandlungsziele und Palliativversorgung > 9.2/Empfehlung/NEU (Stand 2025)\nEin systematisches Review von palliativen Ma\u00dfnahmen aus dem Jahre 2015 hat ergeben, dass Patienten, bei denen vollumf\u00e4ngliche Intensivbehandlungspl\u00e4ne und palliative Ma\u00dfnahmen einbezogen wurden \u2013 trotz gro\u00dfer Abweichungen in Bezug auf den Studientyp und die Qualit\u00e4t \u2013 in 9 randomisierten kontrollierten Studien und 13 nichtrandomisierten kontrollierten Studien durchg\u00e4ngig ein Muster aufwiesen, welches auf einen R\u00fcckgang der Wiederaufnahmen und einen k\u00fcrzeren Aufenthalt auf der Intensivstation hindeutet [ 501 ]. Zudem konnte 2022 in der randomisierten IMPACTS-Studie gezeigt werden, dass die Implementierung eines Ma\u00dfnahmen-B\u00fcndels zur Optimierung des Entlassmanagements der Sepsis-Patienten vom Akutkrankenhaus in andere Versorgungseinrichtungen, welches auch palliativmedizinische Aspekte beinhaltete, sogar zu einem besseren \u00dcberleben f\u00fchren kann [ 502 , 503 ].\n\n13. Informationen zu dieser Leitlinie > 13.2 Systematische Recherche und Auswahl der Evidenz\nDen Arbeitsgruppen oblag die Pr\u00fcfung der Aktualit\u00e4t der Empfehlungen und der zugrunde liegenden Evidenz bzw. Formulierung zus\u00e4tzlicher im Fachgebiet relevanter, neuer Fragestellungen nach dem PICO-Prinzip (Tab. 8 ). Tab. 8 Beispiel PICO-Fragestellung Should prolonged infusion of beta-lactams (maintenance) vs. bolus infusion of beta-lactams (maintenance) be used in adults with sepsis or septic shock? Population Intervention Comparator Outcome(s) Setting Patient/Population bzw. Problem: Um welche Patienten, Population geht es, gibt es Subgruppen zu ber\u00fccksichtigen? Welche Intervention ziehe ich in Betracht und welche (Qualit\u00e4ts\u2011)Kriterien muss sie erf\u00fcllen? Vergleichsintervention: Welche Alternative(n) gibt es und welche Kriterien m\u00fcssen diese erf\u00fcllen? Ergebnisparameter: Welche Ziele m\u00f6chte ich erreichen? Setting, Studientyp, Zeitraum Adult patients with sepsis or septic shock Prolonged infusion of beta-lactams (maintenance) Bolus infusion of beta-lactams (maintenance) Mortality, clinical cure rate ICU, hospital ward Design: systematische \u00dcbersichtsarbeiten/Metaanalysen",
+        "body_excerpts_sha256": "1f08c5eb7134e3a64fa14069fb9253d55f311022723aa405c9031f098787f5c6",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12708846/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "41028542",
+        "title": "A consensus blood transcriptomic framework for sepsis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41028542/",
+        "abstract": "Sepsis is a life-threatening condition driven by a maladaptive host response to infection. To establish a standardized blood transcriptomic subtype model, we aggregated blood transcriptomics data from two major sepsis cohorts: the Molecular Diagnosis and Risk Stratification of Sepsis (MARS) project (n\u2009=\u2009678 sampled on intensive care unit admission; ClinicalTrials.gov registration no. NCT01905033 ) and the Genomic Advances in Sepsis (GAinS) study (n\u2009=\u2009444 sampled on intensive care unit admission and n\u2009=\u2009817 follow-up samples; ClinicalTrials.gov registration no. NCT00131196 ). We demonstrate a strong interconnection across three separate classification methods, resulting in the proposed groupings of three consensus transcriptomic subtypes (CTSs). The distinguishing characteristics of CTS1 included gene activation of typical inflammatory pathways, more pronounced endothelial activation and an overall immature neutrophil theme. CTS2 was characterized by gene activation of a heme metabolism pathway, fibrinolytic disturbances and platelet and eosinophil signatures. CTS3 was associated with genes involved in the activation of allograft rejection, interferon signaling and anticoagulation functions, together with lymphocyte and nonclassical monocyte features. Evaluating CTS classification in independent patient cohorts, specifically the vasopressin vs noradrenaline as initial therapy in septic shock (VANISH) randomized controlled trial (n\u2009=\u2009176; ISRCTN registration no. ISRCTN20769191 ) and patients hospitalized with suspected sepsis at a district hospital in Uganda (n\u2009=\u2009128), ascertained the robustness of our approach. Notably, post hoc analysis of a pseudo-randomized cohort, along with a reanalysis of the VANISH trial data, unmasked a harmful signal in CTS2-assigned patients treated with corticosteroids. The CTS classification method aligns diverse sepsis transcriptomic subgroupings into a robust, reproducible framework, thereby enabling biological interpretation and potentially assisting aspects of clinical trial design to advance precision medicine in sepsis.",
+        "sha256": "e82ffc1781f6faa8136af5a30d736a7c731f194bdf196722aae575471af1b132",
+        "retrieved_at": "2026-09-19T01:28:32.822982+00:00",
+        "pmcid": "PMC12705454",
+        "body_excerpts": "Main\nSepsis is a potentially fatal clinical syndrome characterized by a maladaptive host response to infection, frequently associated with substantial long-term health issues for those who survive 1 \u2013 3 . Despite our improved understanding of sepsis pathophysiology 4 \u2013 6 , the heterogeneity of patient responses to infection remains a major challenge in developing specific treatment strategies. Several features of the host response that may be maladaptive in terms of degree of activation or dysregulation, have been described in sepsis, including inflammation, activation of the complement and coagulation systems, and enhanced apoptosis of particularly T lymphocytes 7 . Although these different reactions of the immune system provide us with an insight into sepsis immunopathology, they do not fully capture the complexity and heterogeneity of the host response in sepsis. To better understand this complexity, blood transcriptomics has enabled the identification of biologically distinct molecular subtypes 8 \u2013 12 . A prevalent finding from the initial studies was the identification of a poor prognosis subtype, characterized by blood transcriptomes indicative of diminished innate and adaptive immune responses 8 , 9 , 11 . This subtype has been referred to by various nomenclatures arising from different patient classification methods, underscoring the existing challenges in the field. Notably, blood transcriptomic subtypes may be useful to predict the response to therapy 13 , which with increasing availability of immunomodulatory agents and evidence of benefit in severe coronavirus diseases 2019 (COVID-19) 14 \u2013 16 is crucial to identify patients who would benefit or be harmed when managing sepsis. Despite these inroads, the clinical implications of those findings are currently limited. The lack of a standardized subtype model is an important factor.\n\nMain\nDisease stratification is commonly acknowledged to be substantially enhanced retrospectively by transcriptomics to discover and assign subtypes 17 . Blood transcriptomic profiling offers a comprehensive analysis of the circulating cellular immune and inflammatory host response in sepsis, revealing the complex interplay of multiple molecular pathways involving mainly white blood cells 18 . Although commonly studied, the effectiveness of blood transcriptomics in translating to clinical applications is hindered by inconsistent findings, particularly the varying number of subtypes identified by different research groups, currently ranging from two to four 8 , 9 , 11 . These discrepancies are probably due to variations in patient populations and management, sample preparation procedures, gene expression platforms, data processing and algorithms. In addition, overfitting to the data could also be a factor, at least to some extent. To address the lack of a definitive and widely accepted approach to conduct these studies, it is necessary to develop a comprehensive framework that incorporates and evaluates many methodologies. We envisioned that a comprehensive comparison of blood transcriptome subtype membership using different classification strategies applied to a common cohort could help resolve discrepancies in subtype numbers and their biological interpretation. Reaching a consensus on blood transcriptome subtypes is key to applying techniques that can assist in risk stratification, identifying diagnostic and prognostic biomarkers, and enhancing the design of clinical trials by classifying patients according to distinct pathophysiological pathways, that is, predictive enrichment 12 . Considering that blood transcriptomics is a high-throughput molecular assay closely linked to both cellular phenotypes and clinical presentation, we also wanted to define the key biological features that characterize subtypes, informed by other data sources, including single-cell RNA profiles and plasma proteomics, and determine if subtype assignment correlated with patient outcome and clinical severity. In doing so, we sought to create a paradigm for collaborative, community-based efforts that would make molecular subtypes easier to translate into the clinic for sepsis and possibly related critical illness syndromes.\n\nResults > Identification of three consensus transcriptomic subtypes of sepsis with clinical implications\nWe combined the blood transcriptomic data of two large prospective observational studies in critical illness caused by sepsis from the Molecular Diagnosis and Risk Stratification of Sepsis (MARS) project in the Netherlands (clinicaltrials.gov registration no. NCT01905033 ) and the UK Genomic Advances in Sepsis (GAinS) study (clinicaltrials.gov registration no. NCT00131196 ). A total of 1,122 unique patient samples obtained on the day of intensive care unit (ICU) admission (MARS n = 678; GAinS n = 444) and blood transcriptomes generated using microarray ( n = 834) or RNA sequencing (RNA-seq) ( n = 288) were included in this study 8 , 9 , 19 \u2013 21 . In addition, the GAinS researchers collected 817 samples obtained 3 or 5 days after ICU admission. To minimize technical variability, normalized RNA-seq and microarray datasets were adjusted for batch, and microarray probe sequences were re-annotated against the current genome build (GRCh38). Using this combined dataset, each of the three investigator groups who previously published on the blood transcriptomic subtypes of sepsis 8 \u2013 11 , independently used their subtype classification algorithm to classify samples from ICU admission. Therefore, each patient sample had three subtype classifications: sepsis response signatures \u2018SRS1 and SRS2\u2019 8 ; \u2018Mars1\u20134\u2019 9 ; \u2018inflammopathic\u2019, \u2018adaptive\u2019 and \u2018coagulopathic\u2019 11 . The analytical workflow is depicted in Fig. 1a . We used a network-based method to examine the correlation between the three sepsis subtype classification systems, each comprising 2\u20134 subtypes (Fig. 1b ). The distance network was then clustered using a Markov clustering algorithm 22 . Network granularity was controlled by a standard inflation factor; silhouette widths were used as a measure of clustering robustness and classifier performance 23 . The overlap between sepsis subtype classifications was determined using hypergeometric tests on the union sets, adjusting the nominal probabilities with the Benjamini\u2013Hochberg\u2019s method 24 . On the basis of the most effective inflation factor, we identified three clearly defined consensus transcriptomic subtypes (CTSs) that exhibited substantial interconnectedness across the three distinct subtype classification methods (Fig. 1c and Table 1 ). The SRS1, Mars2 and inflammopathic subtypes clustered together (CTS1); SRS2 clustered with the Mars1 and coagulopathic subtypes (CTS2), as well as the Mars3 and adaptive subtypes (CTS3). Patients classified as Mars4 did not cluster together in this analysis; however, a hypergeometric test yielded a substantial association with \u2018adaptive\u2019 classification (Fig. 1c ). The low prevalence of Mars4 patients may explain the lack of a robust cluster.\n\nResults > Identification of three consensus transcriptomic subtypes of sepsis with clinical implications\nTable 1 Clinical characteristics of patients with sepsis classified as CTSs 1\u20133 from the MARS and GAinS cohorts sampled on the day of ICU admission CTS1 CTS2 CTS3 P Patients, n 497 213 412 Demographics Age, mean (s.d.) 61.4 (15.6) 62.4 (13.6) 60.3 (15.9) 0.238 a Sex, males (%) 265 (53.3) 118 (55.4) 258 (62.6) 0.01 b Chronic comorbidity, n (%) COPD 62 (12.5) 29 (13.6) 64 (15.5) 0.726 b Diabetes 62 (12.5) 44 (20.7) 61 (14.8) 0.806 b Malignancy 31 (6.2) 13 (6.1) 19 (4.6) 0.091 b Site of infection, n (%) Lung 222 (44.8) 98 (46.0) 285 (69.7) <0.001 b Abdominal 220 (44.4) 65 (30.5) 43 (10.5) <0.001 b Other c 55 (11.1) 50 (23.5) 84 (20.4) <0.001 b Severity of disease on ICU admission APACHE IV score, median (Q1\u2013Q3) 40.5 (18\u201381) 73 (50\u2013100) 54 (19\u201379) <0.001 d SOFA score, median (Q1\u2013Q3) 7 (5\u20139) 7 (5\u201310) 6 (4\u20138) <0.001 d Septic shock, n (%) 175 (35.2) 73 (34.3) 50 (19.4) <0.001 b Outcome Length of ICU stay, median days (Q1\u2013Q3) 4 (2\u20138) 6 (2\u201312) 5 (3\u20139.75) 0.038 d 28-day mortality, n (%) 80 (16.1) 61 (28.6) 65 (15.8) 0.003 b a Two-sided analysis of variance (ANOVA). b Chi-squared test after Bonferroni correction. c Other sites of infection, genitourinary, skin, primary bacteremia, mediastinitis. d Kruksal\u2013Wallis test. COPD, chronic obstructive pulmonary disease.\n\nResults > Identification of three consensus transcriptomic subtypes of sepsis with clinical implications\nOur network-based analysis identified a group of core consensus samples, which are representative of each CTS. Core samples were defined by correspondence between the subtype assigned initially by the research group and the subtype associated with each CTS. These samples showed a strong agreement in their subtype membership across distinct subtyping methods, as determined using a hypergeometric test ( P < 0.05). We derived a classification system for predicting CTSs using gene expression data from core samples. Genes were ranked according to their importance in discriminating CTSs in the core sample set using a Kruskal\u2013Wallis test and tenfold cross-validation in a one-versus-all scheme. Subsequently, a random forest classifier consisting of 500 trees was used to assess the performance of the classifier in terms of misclassification error rates, Brier scores and average probabilities (Extended Data Fig. 1a\u2013c ). We settled on an 18-gene panel (Fig. 1d ), with an out-of-bag error rate equal to 2.2%. Silhouette width analysis yielded a robust model fit with an average width equating to 0.7 (Extended Data Fig. 1d ). The receiver operating characteristic (ROC) area under the curve (AUC) for non-core samples further supports our approach of identifying core samples, particularly because of the lower discriminative power of CTS3 for non-core samples (Extended Data Fig. 1e ). Moreover, quantification of the probability distribution output using the random forest prediction model for each sample ( n = 1,122) illustrated confident assignments to each subtype with overall probabilities of more than 0.8 (Extended Data Fig. 1f ).\n\nResults > Identification of three consensus transcriptomic subtypes of sepsis with clinical implications\nTo enhance the robustness and generalizability of the CTS1\u20133 model, we first performed de novo consensus clustering on all samples obtained on ICU admission and unique genes ( n = 7,260), as described previously 9 . This analysis identified an optimal cluster (subtype) size of three, reinforcing our CTS1\u20133 model (Extended Data Fig. 2a\u2013e ). Strong concordance was observed between CTS1 and CTS2, and de novo clusters 1 and 2, respectively, with 85.4% and 94.0% alignment (Extended Data Fig. 2f ). The high concordance for CTS1 and CTS2 indicates that these subtypes were well captured by unsupervised clustering. In contrast, CTS3 showed mixed concordance with de novo cluster 2 (69.7%) and almost exclusively cluster 3 (29.3%; Extended Data Fig. 2f ). This observation may reflect a transitional or mixed immune state, or limitations of the de novo clustering approach in capturing the distinct features of CTS3. Second, we tested our CTS gene classifier using publicly available RNA-seq data from a prospective, observational cohort of adults (\u226518 years) hospitalized with severe, undifferentiated infection (suspected sepsis) at the Entebbe General Referral Hospital in Uganda (RESERVE-U) 25 . Our CTS gene classifier and random forest method on co-normalized RNA-seq data ( n = 128) successfully assigned RESERVE-U patients to CTS1\u20133, providing evidence of demographic and geographical generalizability (Extended Data Fig. 2g,h ). Additionally, we tested the sensitivity of the CTS gene classifier in the context of differing time intervals between hospital and ICU admission, which may represent a good proxy to the progression to organ dysfunction that triggers ICU admission. In our cohort, the median interval was 3 days (Extended Data Fig. 3a ). Of the patients, 348 were admitted to the ICU for 1 day or less (first quartile, Q1) of hospital admission, 284 patients were admitted for 8 or more days (third quartile, Q3) and 44 patients were transferred to the ICU after 28 or more days. No substantial differences in CTS distribution were observed across the three admission groups (Extended Data Fig. 3b ). The original CTS assignments overlapped almost completely with CTS classifications based on groups with different hospital-to-ICU admission intervals (98%, 99% and 98% for admission intervals of 1 day or less, 8 or more days and 28 or more days, respectively). Heatmap representations of classifier genes and CTS assignments across different ICU admission intervals are shown in Extended Data Fig. 3c . Silhouette and confusion matrix analyses further demonstrated the robust performance of the gene classifier across different ICU admission times (Extended Data Fig. 3d,e ). Furthermore, classification of patients stratified according to cohort successfully identified CTSs, with positive silhouette widths and confusion matrix analyses supporting the robust performance of the gene classifier (Extended Data Fig. 4a\u2013f ). Based on these sensitivity analyses, we conclude that CTS gene classifier performance is unaffected by either the time interval between hospitalization and ICU admission or the study site.\n\nResults > Identification of three consensus transcriptomic subtypes of sepsis with clinical implications\nClassifying patient samples as CTS1\u20133 was substantially associated with the sequential organ failure assessment (SOFA) score (Fig. 1e ), acute physiology and chronic health evaluation IV (APACHE IV) score (Fig. 1f ) and ICU mortality (Fig. 1g ). CTS1-classified and CTS2-classified patients were relatively more severe, with CTS2 patients having the highest APACHE IV scores and rate of deaths in the ICU. Evaluating the association of CTS assignment on admission with the SOFA score in MARS and GAinS patients revealed consistent relationships (Extended Data Fig. 5a,c ). The analysis of CTS membership in relation to ICU mortality among MARS and GAinS patients indicated distinct outcomes with a substantial association observed solely in MARS patients classified according to CTS (Extended Data Fig. 5b,d ). CTS assignment was associated with the primary anatomical site of infection, where a higher percentage of CTS1-classified patients were diagnosed with intra-abdominal infection or fecal peritonitis (44.4%), while 69.2% of CTS3 patients were diagnosed with pneumonia (Table 1 ). Next, using Levene\u2019s test for homogeneity of variance in APACHE IV scores across CTSs resulted in a nonsignificant outcome ( P = 0.143), suggesting similar variance across CTSs. Furthermore, we assessed the ability of APACHE IV scores to classify patients into CTS1\u20133 using ROC curves and evaluated net reclassification improvement (NRI) to determine whether CTS adds predictive value beyond APACHE IV in mortality risk assessment. ROC analysis yielded AUC values of 0.56, 0.66 and 0.54 for CTS1, CTS2 and CTS3, respectively, indicating poor discrimination of CTS subtypes by APACHE IV scores. Reclassification tables showed minimal shifts, with only six of 241 non-survivors and four of 881 survivors being reclassified. Bootstrap NRI estimates yielded narrow confidence intervals (0.0128\u20130.0172), suggesting marginal improvement in classification performance. These findings indicate that while APACHE IV captures overall illness severity, it does not effectively distinguish CTS subtypes, reinforcing the notion that CTS represents a distinct dimension of patient heterogeneity not captured by conventional clinical severity scores. To explore patient trajectories within assigned CTSs throughout their ICU stay, we classified blood transcriptomic data from the GAinS cohort, collected on days 3 and 5 after ICU admission ( n = 817), to CTS1\u20133 using the 18-gene CTS classifier, and analyzed these together with the ICU admission samples ( n = 444). We found that CTS patterns were dynamic over the ICU stay, as illustrated by trajectories from 35 patients with blood transcriptomic data available at days 1, 3 and 5 (Fig. 1h ). Patients who remained in CTS1 and CTS2 at later time points had more severe disease and worse outcomes (Extended Data Fig. 5b,d ), which is consistent with differences in disease progression and response to therapy according to CTS group. The proportion of patient clustering between CTS and SRS classifiers was lower at later time points (Extended Data Fig. 5e ).\n\nResults > CTSs and the impact of corticosteroid use\nTo test the effect of corticosteroid treatment on outcome (mortality) across CTSs, we evaluated the number of patients treated in the MARS cohort (treated n = 362, non-treated n = 316). A chi-squared test of the association between corticosteroid treatment and CTS assignment revealed a substantial relationship. Specifically, 61.5% and 62.5% of patients assigned to CTS1 and CTS2, respectively, were treated with corticosteroids on ICU admission, compared to 38.1% in CTS3 (Fig. 2a ). To further explore the impact of corticosteroid treatment on mortality across the different CTS assignments, we used propensity score matching. This method allowed for the balancing of covariates between treated and untreated patients, ensuring that the treatment groups were comparable. By estimating the probability of receiving corticosteroid treatment based on age, SOFA score, primary site of infection, hospital-to-ICU admission intervals and septic shock diagnosis, we matched 408 patients (Table 2 ). Following this, patients assigned to CTS1, CTS2 or CTS3 were largely similar in baseline characteristics, with minor differences observed in the diagnosis of abdominal sepsis, pneumonia and hospital-to-ICU time interval. Next, we fitted a binomial logistic regression model to assess the effect of corticosteroid use on 28-day mortality across CTS1, CTS2 and CTS3. Corticosteroid use significantly increased the odds of 28-day mortality (odds ratio (OR) = 3.83, 95% confidence interval (CI) = 2.38 to 6.28, P = 5.2 \u00d7 10 \u22128 ). Without corticosteroid use, matched CTS1-classified patients had the lowest baseline mortality (OR = 0.15, 95% CI = 0.09 to 0.25, P = 5.6 \u00d7 10 \u221214 ), followed by CTS3 (OR = 0.80, 95% CI = 0.46 to 1.38, P = 0.42) and CTS2 (OR = 2.14, 95% CI = 1.22 to 3.8, P = 0.00085). The latter suggests that CTS2 membership is associated with a significantly higher risk of mortality up to 28 days. The interaction term for CTS2-assigned patients showed no significant alteration in the corticosteroid effect compared to CTS1 (OR = 0.56, 95% CI = 0.16 to 1.94, P = 0.363). The interaction term in CTS3 was significant (OR = 0.2, 95% CI = 0.06 to 0.66, P = 0.009), indicating that corticosteroid use in CTS3 patients was associated with a significant reduction in mortality compared to the reference group (CTS1). This suggests that corticosteroids may have a protective effect for patients assigned to CTS3 relative to CTS1. Overall, the model explained a substantial portion of the variation, with an Akaike information criterion of 441.38, indicating a good fit. Kaplan\u2013Meier survival curves and log-rank P values are illustrated in Fig. 2b\u2013d . Substantially, the 28-day mortality rate among patients assigned to CTS1 and CTS2 who received corticosteroid treatment increased by 33.7% and 34%, respectively, relative to their untreated counterparts, with log-rank P values equating to 5 \u00d7 10 \u22127 and 0.0003 (Fig. 2b,c ). Next, we evaluated the blood transcriptomes of patients enrolled in the vasopressin vs noradrenaline as initial therapy in septic shock (VANISH) clinical trial 13 , 26 . VANISH investigators compared norepinephrine to vasopressin with or without hydrocortisone for the treatment of septic shock. A total of 176 patients were classified as CTS1\u20133 (Fig. 2e ). A logistic regression model assessing hydrocortisone treatment on 28-day mortality with interaction terms showed higher predicted probabilities of 28-day mortality in hydrocortisone-treated CTS2-classified and CTS3-classified patients (Fig. 2f ). The interaction terms were not significant, suggesting no strong evidence that the effect of the drug differed across CTS subtypes. In line with our previous observations (Fig. 1f ), the main effect of CTS2 was significant (OR = 5.76, 95% CI = 1.31 to 25.4, P = 0.021), indicating that it increased the odds of mortality relative to CTS1 and CTS3 (Fig. 2g ).\n\nResults > Characterization of biological pathways and single-cell patterns of the CTSs\nTo delineate the biological characteristics of each CTS at ICU admission, we investigated additional molecular data available from a subset of patients, and gene set enrichment analysis (GSEA) and single-cell RNA-seq (scRNA-seq) data mining. GSEA revealed differential abundance of distinct gene expression pathways per CTS, thus providing substantial insight into the putative biological underpinnings of the subtypes (Fig. 3a ). CTS1 was characterized by typical pro-inflammatory pathways that included interleukin-6 (IL-6) signaling, reactive oxygen species pathway, glycolysis, adipogenesis, oxidative phosphorylation and mammalian target of rapamycin complex 1 (mTORC1) signaling. CTS2 was robustly associated with a heme metabolism pathway, KRAS signaling, myogenesis and estrogen response pathways, whereas allograft rejection, Wnt \u03b2-catenin, MYC, interferon signaling and DNA repair pathways characterized CTS3 (Fig. 3a ). Transcript-level concordance between CTSs and de novo clusters was evaluated using GSEA, identifying multiple gene sets in de novo clusters 1, 2 and 3 that distinguish CTS1, CTS2 and CTS3 (Extended Data Fig. 6a,b ). Furthermore, the GSEA results showed that while de novo cluster 3 was enriched for the interferon signaling and allograft rejection pathways similar to CTS3, there was overlap with other pathways characterizing CTSs, suggesting that the mixed concordance of CTS3 may be due to overlapping biology that could not be resolved by de novo clustering. Next, we investigated the putative cell-type specificity of the CTSs using a recently generated single-cell map of whole blood in sepsis 27 . The composition and cellular annotations of the sepsis single-cell atlas are illustrated in Fig. 3b . Briefly, we used AUCell 28 to score each cell in the single-cell atlas based on CTS1-specific, CTS2-specific and CTS3-specific gene sets (30 genes per CTS). This analysis showed that the CTS1 and CTS2 gene sets scored high in immature neutrophils and platelets, respectively (Extended Data Fig. 7a ). CTS3 exhibited moderately increased scores in lymphocytes. This analysis was then repeated using a larger gene set. Namely, gene expression levels were compared between samples in each CTS and differentially expressed genes were filtered to retain only those genes uniquely upregulated in each CTS (~3,000 genes per set). Next, these gene sets were used to perform cell scoring. The results from this test reinforce our previous analysis where CTS1 genes were upregulated in immature neutrophils, including protein-arginine deiminase type-4 (PADI4) + and interleukin-1 receptor type 2 (IL1R2) + neutrophils, while CTS2 genes were upregulated in platelets and eosinophils (Fig. 3c,d ). CTS3 genes may be upregulated across all lymphocyte populations (B, T and natural killer (NK) cells), and nonclassical monocytes. Cell-type-specific distribution of CTS scores corroborates these findings (Extended Data Fig. 7b ).\n\nResults > CTSs and host response biomarkers\nTo obtain further insight into the pathobiological features of CTSs, we analyzed a set of plasma biomarkers reflective of changes in key pathophysiological domains implicated in sepsis measured in the MARS cohort. CTS1-classified patients had the highest levels of cytokine and neutrophil activation markers, including IL-6, IL-10, IL-8, matrix metalloproteinase-8 (MMP8) and neutrophil gelatinase-associated lipocalin (NGAL) (Fig. 4a ). In addition, high levels of soluble E-selectin and angiopoietin-2-to-angiopoietin-1 ratio (reflective of endothelial activation and disturbed barrier function, respectively) were observed in CTS1 (Fig. 4a,b ). Higher levels of the fibrinolysis markers tissue-type plasminogen activator (tPA) and plasminogen activator inhibitor type 1 (PAI1) were found for patients classified as poor-prognosis CTS2 (Fig. 4c ). Protein C levels were significantly different between CTSs, with higher levels found in CTS3 and lowest in CTS1-classified patients (Fig. 4d ). D-dimer levels were not different between groups (Fig. 4e ), suggesting that although there may be differences in fibrinolysis and anticoagulation, the overall rate of clot formation and breakdown was consistent across subtypes. Altogether, these findings indicate that CTS1 has features of an increased inflammatory state and neutrophil subsets and function. CTS2 was characterized by a heme metabolism transcriptional signature and fibrinolytic disturbances relative to other subtypes. CTS3-classified patients were consistent with less severe cellular and molecular perturbations.\n\nDiscussion\nThis study represents a collaborative effort by a group of investigators who earlier independently published transcriptomic sepsis subtypes to establish a standardized blood transcriptomics-based strategy to classify patients with all-cause sepsis. Through cooperative bioinformatics work on a large collection of patients with sepsis from two cohorts, we developed a consensus blood transcriptomic classification strategy that can categorize critically ill patients with sepsis into three distinct molecular subtypes with pathophysiological implications. The proposed taxonomy is supported by substantial variations in the underlying biological characteristics of each subtype, particularly CTS1 and CTS2 (Fig. 4f ). Thus, we have improved our understanding of the sepsis transcriptomic subtypes and exposed previously unknown associations between heme metabolism and coagulation underlying CTS2-classified patients, which make up approximately 20% of patients with sepsis studied. We propose that the adoption of this new taxonomy, consisting of CTS1 (IL1R2 + and PADI4 + immature neutrophils; inflammatory and endothelial), CTS2 (platelets and eosinophils; heme metabolism and coagulation) and CTS3 (lymphocytes, nonclassical monocytes and NK cells; interferon signaling, Wnt/\u03b2-catenin, DNA repair), will enhance future research involving the field of sepsis molecular subtypes and can be adopted by the scientific community for the purpose of resolving sepsis heterogeneity by categorizing the systemic host response.\n\nDiscussion\nFrom a clinical standpoint, it is yet uncertain which characteristics will serve as the most pertinent for the subclassification of patients with sepsis. Several studies have sought to subclassify patients with sepsis using diverse data sources, including clinical parameters and molecular data 29 , 30 . Members of this study group and others 22 have also compared sepsis subclassification strategies in one cohort, which illustrated little concordance between molecular and clinical subphenotypes 31 . It is unlikely that one strategy will outperform others in reliably assigning patients with sepsis to subtypes or subphenotypes. Instead, a combination of factors representing dominant facets of sepsis pathophysiology is more likely to resolve sepsis heterogeneity. However, it is uncertain whether a mixture of clinical parameters and molecular profiles is necessary for accurately identifying treatable traits and predicting therapeutic responses. It is crucial to highlight that while CTSs show higher levels of certain soluble mediators of the host response, for example, pro-inflammatory cytokines for CTS1 and coagulation markers for CTS2, these associations alone do not enable classification into blood transcriptomic subtypes. This emphasizes the concept that transcriptional signatures may provide a more precise tool to classify diseases compared to currently advocated biomarkers or clinical measurements 32 . These signatures provide valuable information on the mechanisms of diseases 33 , assist in the process of diagnosis 34 \u2013 36 and may be used to inform therapy decisions 13 . Moreover, transcriptional markers have had a crucial role in revealing the diversity of disorders, such as autoimmune diseases. The use of immune cell transcriptional profiling has improved our capacity to identify changes in disease activity and make well-informed decisions on treatment 37 . These signatures have also been used to predict the future course of autoimmune disorders, indicating their importance in assessing the seriousness of the condition and the likelihood of relapse 38 . Furthermore, our results support the application of CTSs for tracking patient trajectories throughout their ICU stay. Given that we were limited to 35 patients having samples at all three time points, we acknowledge that observations regarding CTS dynamics remain exploratory. Dynamic assessment of CTSs may support adaptive clinical management in sepsis by enabling real-time stratification of immune status, informing immunomodulatory treatment decisions and monitoring response to therapy. CTS classifiers were derived from ICU admission samples, which may be a factor in the reduced concordance between CTS and SRS clustering observed with day 3 and day 5 samples, and highlights the need for additional work to address this and more fully understand how rapidly sepsis subtypes shift at the individual patient level. Although exploratory, our findings highlight the potential value of incorporating serial CTS profiling into future clinical trials and precision-guided treatment strategies in sepsis.\n\nDiscussion\nIn conclusion, we believe that the standardized framework outlined in this study offers a shared basis to resolve sepsis molecular heterogeneity in the clinical context. It is expected to undergo further iterations and enhancements in parallel with technological advancements that will enable incorporation of more data sources. We envisage that this will improve our understanding of sepsis pathophysiology and provide a key bridge to establish precision medicine approaches in the context of critical care.\n\nMethods > Study design\nThe overall design and analytical workflow of this study are described in Fig. 1a . There were three participating research groups, each of which had previously developed and published an approach for classifying patients with sepsis as transcriptomic subtypes using whole-blood samples 8 \u2013 11 . This study focused on the secondary analysis of existing de-identified transcriptomic, soluble biomarker and clinical data. No personal identifiable information was included in these datasets. Each dataset was processed and co-normalized (see section on \u2018RNA transcriptomic data preprocessing and co-normalization\u2019). Although this decision precluded an analysis of the impact of gene expression normalization on subtype assignments, it allowed this study to focus on biological interpretations and evaluate the clinical relevance of the different subtypes versus bioinformatic approaches. Each expert group then applied their classification strategy to the datasets in the common aggregated dataset.\n\nMethods > Classification of sepsis transcriptomic subtypes specific to research groups\nFor GSE65682 (ref. 9 ) and GSE134347 (ref. 20 ) Mars1\u20134, a previously described 140-gene signature was used to train a random forest classifier and assign patient samples. For E-MTAB- 4421 , E-MTAB- 4451 and EGAD00001008730 (refs. 8 , 21 ) SRS 1 and 2, patient samples were assigned to SRS1 or SRS2 using the SepstratifieR seven-gene method as described previously 19 . The Stanford inflammapathic, adaptive and coagulopathic labels were assigned based on the geometric means of expression levels of 33 genes 11 .",
+        "body_excerpts_sha256": "863fe988a1eba6d2864e2c686172591484218b8db100c68bf99f7017786bbf2a",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12705454/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "39676120",
+        "title": "Clinical practice guidelines for management of disseminated intravascular coagulation in Japan 2024. Part 1: sepsis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39676120/",
+        "abstract": "The Japanese Society on Thrombosis and Hemostasis (JSTH) published the first-ever disseminated intravascular coagulation (DIC) guidelines in 2009. Fifteen years later, the JSTH developed new guidelines covering DIC associated with various underlying conditions. These guidelines were developed in accordance with the GRADE system to determine the strength of the recommendations and certainty of the evidence. This article was drafted as Part 1 of an overall DIC guideline covering various underlying conditions, with sepsis as the subject. In this section, seven key clinical issues (questions) are set. Question 1, regarding DIC diagnosis, introduces several diagnostic criteria, such as the JAAM-2, ISTH overt, SIC, and JSTH DIC criteria and recommends choosing the appropriate diagnostic criteria for DIC based on an understanding of their diagnostic properties. For pharmacotherapy in DIC patients with sepsis, we recommend the administration of antithrombin (Question 2) and recombinant thrombomodulin (Question 3) (both GRADE 1B). However, we do not make a clear recommendation regarding the administration of heparin (Question 6) and serine protease inhibitors (Question 7) because of the lack of evidence. Combination therapy, order of administration, and other administration methods for antithrombin and recombinant thrombomodulin are proposed as important future research questions (Questions 4 and 5).",
+        "sha256": "4d9c537fea339ecfde2cb22d46a2332d7732036470d4f16a28278935fb466628",
+        "retrieved_at": "2026-09-19T01:28:32.822982+00:00"
+      },
+      {
+        "id": "40929000",
+        "title": "Extracorporeal Blood Purification with the oXiris\u00ae Filter for Patients with Sepsis and Hyperinflammatory Conditions: The Asia-Pacific oXiris Expert Meeting 2024 Consensus Statements.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40929000/",
+        "abstract": "Extracorporeal blood purification is a technique for reducing elevated levels of inflammatory mediators and/or endotoxins in critically ill patients with sepsis or other hyperinflammatory conditions. The oXiris filter combines endotoxin adsorption, cytokine adsorption, hemofiltration, and anti-thrombosis, and an emerging body of evidence demonstrates its use in critical care patients with hyperinflammatory conditions and acute kidney injury (AKI). A group of Asia-Pacific experts convened to formulate consensus statements for the use of the oXiris filter based on a comprehensive review of publications. After evaluation using a Delphi methodology, 17 statements achieved consensus (three recommendations and 14 practice points). These offer guidance on the initiation, monitoring, and evaluation of treatment with the oXiris filter in patients with sepsis, septic shock, severe COVID-19, or other hyperinflammatory states. We also recommend using the oXiris filter in patients undergoing cardiopulmonary bypass for cardiac surgery who are at risk for developing AKI. Other statements discuss modality, dosage, filter lifespan, anticoagulation, and combining the oXiris filter set with other extracorporeal therapies. Taken together, our statements offer targeted guidance for clinicians on the use of the oXiris filter across different patient populations. Additionally, we highlight the limitations of the current evidence base and identify key areas requiring further research.",
+        "sha256": "bcdb9792fca4cf8b6110a79389b9f815a8af385c0edfe1760ec992e7b95d53d0",
+        "retrieved_at": "2026-09-19T01:28:32.822982+00:00",
+        "pmcid": "PMC12668718"
+      },
+      {
+        "id": "41028543",
+        "title": "A consensus immune dysregulation framework for sepsis and critical illnesses.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41028543/",
+        "abstract": "Critical care syndromes such as sepsis, acute respiratory distress syndrome (ARDS) and trauma continue to have unacceptably high morbidity and mortality, with progress limited by the inherent heterogeneity within syndromic illnesses. Although numerous immune endotypes have been proposed for sepsis and critical care, the similarities and differences between these endotypes remain unclear, hindering clinical translation. The SUBSPACE consortium is an international consortium that aims to advance precision medicine in critical care through the sharing of transcriptomic data. Here, evaluating the overlap of existing immune endotypes in sepsis across >7,074 samples from 37 independent cohorts, we developed cell-type-specific gene expression signatures to quantify dysregulation within immune compartments. Myeloid and lymphoid dysregulation were associated with disease severity and mortality across all cohorts. Importantly, this dysregulation was also observed in patients with ARDS, trauma and burns, suggesting a conserved mechanism across various critical illness syndromes. Moreover, analysis of randomized controlled trial data revealed that myeloid and lymphoid dysregulation are associated with differential mortality in patients treated with anakinra in the SAVE-MORE trial (n\u2009=\u2009452) and corticosteroids in the VICTAS (n\u2009=\u200989) and VANISH (n\u2009=\u2009117) trials, underscoring their prognostic and therapeutic implications. In conclusion, our proposed immunology-based framework for quantifying cellular compartment dysregulation offers a potentially valuable tool for understanding immune dysregulation in critical illness with prognostic and therapeutic significance.",
+        "sha256": "88edde5ff66f968761629cea9dc4826931056085a24e3d03bbcbfb8bac60a410",
+        "retrieved_at": "2026-09-19T01:28:33.612957+00:00",
+        "pmcid": "PMC12705441"
+      },
+      {
+        "id": "32222812",
+        "title": "Surviving Sepsis Campaign: guidelines on the management of critically ill adults with Coronavirus Disease 2019 (COVID-19).",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32222812/",
+        "abstract": "The novel severe acute respiratory syndrome coronavirus 2 (SARS-CoV-2) is the cause of a rapidly spreading illness, Coronavirus Disease 2019 (COVID-19), affecting thousands of people around the world. Urgent guidance for clinicians caring for the sickest of these patients is needed.\nWe formed a panel of 36 experts from 12 countries. All panel members completed the World Health Organization conflict of interest disclosure form. The panel proposed 53 questions that are relevant to the management of COVID-19 in the ICU. We searched the literature for direct and indirect evidence on the management of COVID-19 in critically ill patients in the ICU. We identified relevant and recent systematic reviews on most questions relating to supportive care. We assessed the certainty in the evidence using the Grading of Recommendations, Assessment, Development and Evaluation (GRADE) approach, then generated recommendations based on the balance between benefit and harm, resource and cost implications, equity, and feasibility. Recommendations were either strong or weak, or in the form of best practice recommendations.\nThe Surviving Sepsis Campaign COVID-19 panel issued 54 statements, of which 4 are best practice statements, 9 are strong recommendations, and 35 are weak recommendations. No recommendation was provided for 6 questions. The topics were: (1) infection control, (2) laboratory diagnosis and specimens, (3) hemodynamic support, (4) ventilatory support, and (5) COVID-19 therapy.\nThe Surviving Sepsis Campaign COVID-19 panel issued several recommendations to help support healthcare workers caring for critically ill ICU patients with COVID-19. When available, we will provide new recommendations in further releases of these guidelines.",
+        "sha256": "b457a92da597e5256139dd67aa565c2ec801de1ca8bb559f56ef6b594e74c3cd",
+        "retrieved_at": "2026-09-19T01:28:33.612957+00:00",
+        "pmcid": "PMC7101866"
+      },
+      {
+        "id": "30348463",
+        "title": "ESPEN guideline on clinical nutrition in the intensive care unit.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30348463/",
+        "abstract": "Following the new ESPEN Standard Operating Procedures, the previous guidelines to provide best medical nutritional therapy to critically ill patients have been updated. These guidelines define who are the patients at risk, how to assess nutritional status of an ICU patient, how to define the amount of energy to provide, the route to choose and how to adapt according to various clinical conditions. When to start and how to progress in the administration of adequate provision of nutrients is also described. The best determination of amount and nature of carbohydrates, fat and protein are suggested. Special attention is given to glutamine and omega-3 fatty acids. Particular conditions frequently observed in intensive care such as patients with dysphagia, frail patients, multiple trauma patients, abdominal surgery, sepsis, and obesity are discussed to guide the practitioner toward the best evidence based therapy. Monitoring of this nutritional therapy is discussed in a separate document.",
+        "sha256": "e01aaea0119c167ca00ba72342e0e4a78716776ab4229dea843955b88515d920",
+        "retrieved_at": "2026-09-19T01:28:35.051273+00:00"
+      },
+      {
+        "id": "38771364",
+        "title": "European Society of Intensive Care Medicine clinical practice guideline on fluid therapy in adult critically ill patients. Part 1: the choice of resuscitation fluids.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38771364/",
+        "abstract": "This is the first of three parts of the clinical practice guideline from the European Society of Intensive Care Medicine (ESICM) on resuscitation fluids in adult critically ill patients. This part addresses fluid choice and the other two will separately address fluid amount and fluid removal.\nThis guideline was formulated by an international panel of clinical experts and methodologists. The Grading of Recommendations Assessment, Development, and Evaluation (GRADE) methodology was applied to evaluate the certainty of evidence and to move from evidence to decision.\nFor volume expansion, the guideline provides conditional recommendations for using crystalloids rather than albumin in critically ill patients in general (moderate certainty of evidence), in patients with sepsis (moderate certainty of evidence), in patients with acute respiratory failure (very low certainty of evidence) and in patients in the perioperative period and patients at risk for bleeding (very low certainty of evidence). There is a conditional recommendation for using isotonic saline rather than albumin in patients with traumatic brain injury (very low certainty of evidence). There is a conditional recommendation for using albumin rather than crystalloids in patients with cirrhosis (very low certainty of evidence). The guideline provides conditional recommendations for using balanced crystalloids rather than isotonic saline in critically ill patients in general (low certainty of evidence), in patients with sepsis (low certainty of evidence) and in patients with kidney injury (very low certainty of evidence). There is a conditional recommendation for using isotonic saline rather than balanced crystalloids in patients with traumatic brain injury (very low certainty of evidence). There is a conditional recommendation for using isotonic crystalloids rather than small-volume hypertonic crystalloids\u00a0in critically ill patients in general (very low certainty of evidence).\nThis guideline provides eleven recommendations to inform clinicians on resuscitation fluid choice in critically ill patients.",
+        "sha256": "6e32327eb75dbf199fbe6910fe09c2f2672800bbcc29218ba30ca4395f27b216",
+        "retrieved_at": "2026-09-19T01:28:35.051273+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This patient has sepsis-associated hypotension with organ dysfunction and requires immediate intravascular volume expansion. The 2024 ESICM guideline conditionally recommends crystalloids rather than albumin for sepsis and balanced crystalloids rather than isotonic saline, including in patients with kidney injury. The 2025 S3 sepsis guideline likewise reserves albumin as an additive when large amounts of balanced crystalloid are required and advises against gelatin. Low serum albumin and acute kidney injury do not justify albumin as the initial primary resuscitation fluid.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.99,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "40824313"
+              ],
+              "reason": "The guideline directly defines sepsis as acute life-threatening organ dysfunction caused by an inadequate host response to infection.",
+              "source_passage_ids": [
+                "40824313:p31"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40824313",
+                  "quote": "Screening und Erstma\u00dfnahmen > 2.2 Definition der Sepsis > Definition 1/Statement/Best\u00e4tigt (Stand 2025) Eine Sepsis ist eine akut lebensbedrohliche Organdysfunktion, hervorgerufen durch eine inad\u00e4quate Wirtsantwort auf eine Infektion. F\u00fcr die Diagnose einer Sepsis-assoziierten Organdysfunktion ist ein Anstieg des Sequential Organ Failure Assessment (SOFA) Score um \u2265 2 Punkte zu verwenden. Zus\u00e4tzliches DSG-Leitlinienstatement Literatur: [ 11 ] Konsensst\u00e4rke: 100 % 2. Screening und Erstma\u00dfnahmen > 2.2 Definition der Sepsis > Definition 1/Statement/Best\u00e4tigt (Stand 2025) Die \u00fcberholten Sepsis-Definitionen (Sepsis\u20111 von 1992 und Sepsis\u20112 von 2001) beruhten auf dem SIRS-Konzept (Systemisches inflammatorisches Response-Syndrom) [ 12 , 13 ]."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "40824313"
+              ],
+              "reason": "The 2025 guideline explicitly gives a strong recommendation to measure blood lactate in adults with suspected sepsis.",
+              "source_passage_ids": [
+                "40824313:p7"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40824313",
+                  "quote": "Screening und Erstma\u00dfnahmen > Screening DSG 2025 (\u00c4nderung): Wir empfehlen Krankenh\u00e4usern ein Qualit\u00e4tssicherungsprogramm zum Thema Sepsis, einschlie\u00dflich eines Sepsis-Screenings f\u00fcr akut erkrankte Hochrisikopatienten und Standardarbeitsanweisungen (SOPs) f\u00fcr die Behandlung ( Empfehlungsgrad: stark). Screening und Erstma\u00dfnahmen > Screening DSG 2025 (\u00c4nderung): Wir empfehlen bei Patienten au\u00dferhalb der Intensivstation, bei denen der Verdacht auf eine Infektion besteht, regelm\u00e4\u00dfig ein geeignetes Screeninginstrument anzuwenden, um eine Sepsis fr\u00fchzeitig zu erkennen ( Empfehlungsgrad: stark). Screening und Erstma\u00dfnahmen > Screening DSG 2025 (NEU): Wir empfehlen bei Erwachsenen mit Verdacht auf Sepsis, eine Messung des Laktats im Blut durchzuf\u00fchren ( Empfehlungsgrad: stark)."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "38771364"
+              ],
+              "reason": "The ESICM guideline directly gives a conditional recommendation for crystalloids rather than albumin for volume expansion in patients with sepsis.",
+              "source_passage_ids": [
+                "38771364:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38771364",
+                  "quote": "For volume expansion, the guideline provides conditional recommendations for using crystalloids rather than albumin in critically ill patients in general (moderate certainty of evidence), in patients with sepsis (moderate certainty of evidence), in patients with acute respiratory failure (very low certainty of evidence) and in patients in the perioperative period and patients at risk for bleeding (very low certainty of evidence). There is a conditional recommendation for using isotonic saline rather than albumin in patients with traumatic brain injury (very low certainty of evidence). There is a conditional recommendation for using albumin rather than crystalloids in patients with cirrhosis (very low certainty of evidence)."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "38771364"
+              ],
+              "reason": "The ESICM guideline directly gives a conditional recommendation for balanced crystalloids rather than isotonic saline in sepsis; it also supports this choice in kidney injury.",
+              "source_passage_ids": [
+                "38771364:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38771364",
+                  "quote": "The guideline provides conditional recommendations for using balanced crystalloids rather than isotonic saline in critically ill patients in general (low certainty of evidence), in patients with sepsis (low certainty of evidence) and in patients with kidney injury (very low certainty of evidence). There is a conditional recommendation for using isotonic saline rather than balanced crystalloids in patients with traumatic brain injury (very low certainty of evidence). There is a conditional recommendation for using isotonic crystalloids rather than small-volume hypertonic crystalloids in critically ill patients in general (very low certainty of evidence). This guideline provides eleven recommendations to inform clinicians on resuscitation fluid choice in critically ill patients."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "40824313"
+              ],
+              "reason": "The S3 guideline explicitly suggests albumin as an additive to balanced crystalloids when large fluid quantities are needed for hemodynamic stability.",
+              "source_passage_ids": [
+                "40824313:p12"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40824313",
+                  "quote": "Kreislauftherapie > Fl\u00fcssigkeitstherapie DSG 2025 (\u00c4nderung): Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock Albumin additiv zu balancierten Kristalloiden zu verabreichen, wenn gro\u00dfe Mengen an Fl\u00fcssigkeit ben\u00f6tigt werden, um eine h\u00e4modynamische Stabilit\u00e4t zu erreichen. 1 (Empfehlungsgrad: schwach). Beatmungstherapie > Beatmungseinstellungen DSG 2025 (\u00c4nderung): Wir empfehlen, Patienten mit Sepsis oder septischem Schock und ARDS mit einem Tidalvolumen um 6 ml/kg IBW (4\u20138 ml/kg IBW) zu beatmen ( Empfehlungsgrad: stark). Beatmungstherapie > Beatmungseinstellungen DSG 2025 (\u00c4nderung) : Wir schlagen vor, bei der invasiven Beatmung von Patienten mit Sepsis oder septischem Schock und ARDS eine inspiratorische Druckdifferenz von \u2264 14 cmH 2 O anzustreben ( Empfehlungsgrad: schwach)."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "40824313"
+              ],
+              "reason": "The S3 guideline explicitly suggests not using gelatin in sepsis or septic shock.",
+              "source_passage_ids": [
+                "40824313:p11"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40824313",
+                  "quote": "Infektion und antimikrobielle Therapie > Wahl der antimikrobiellen Therapie DSG 2025 (\u00c4nderung): Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock mit einem niedrigen Risiko f\u00fcr eine Pilzinfektion KEINE antimykotische Therapie durchzuf\u00fchren. Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock mit einem hohen Risiko f\u00fcr eine Pilzinfektion eine empirische antimykotische Therapie durchzuf\u00fchren ( Empfehlungsgrad: schwach). Kreislauftherapie > Fl\u00fcssigkeitstherapie DSG 2025 (NEU): Wir schlagen vor, bei Patienten mit Sepsis und septischem Schock Gelatine NICHT anzuwenden. 1 (Empfehlungsgrad: schwach)."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The chart supports infection-associated acute organ dysfunction with severe persistent hypotension: urinary-source findings, fever, confusion, oliguria, creatinine elevation, and lactate 3.8 mmol/L are present, and no resuscitation fluid has yet been given. For the scoped decision about fluid class, candidate B matches the supplied guidelines: crystalloids are preferred to albumin in sepsis, balanced crystalloids are preferred to isotonic saline, gelatin should not be used, and albumin is reserved as an additive when large fluid quantities are required for hemodynamic stability. Low serum albumin alone does not override those recommendations. Candidate A reverses the supported ranking and incorrectly portrays acute kidney injury as a reason to avoid balanced crystalloid, despite the ESICM recommendation favoring balanced crystalloid in kidney injury. The answer appropriately addresses fluid choice rather than fluid dose; the cited ESICM document expressly separates fluid choice from fluid amount. This is an emergency-medicine sepsis-resuscitation decision and is distinct from the prior pulmonary-embolism reperfusion case."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient has infection-associated hypotension with elevated lactate and acute organ dysfunction, so initial intravascular volume expansion is indicated. The cited sepsis guideline recommends albumin only as an additive to balanced crystalloids when large fluid volumes are needed to achieve hemodynamic stability, and recommends not using gelatin. The ESICM fluid guideline conditionally recommends crystalloids rather than albumin for volume expansion in sepsis and balanced crystalloids rather than isotonic saline in patients with sepsis or kidney injury. Low serum albumin and acute kidney injury do not make albumin the appropriate initial and primary resuscitation fluid. Therefore, balanced crystalloid as the initial fluid, with albumin reserved only as an adjunct if large crystalloid volumes are required, is the best-supported approach.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.92,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "40824313"
+              ],
+              "reason": "The supplied S3 guideline passage states the Sepsis-3 definition as acute life-threatening organ dysfunction caused by an inadequate host response to infection.",
+              "source_passage_ids": [
+                "40824313:p31"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40824313",
+                  "quote": "Screening und Erstma\u00dfnahmen > 2.2 Definition der Sepsis > Definition 1/Statement/Best\u00e4tigt (Stand 2025) Eine Sepsis ist eine akut lebensbedrohliche Organdysfunktion, hervorgerufen durch eine inad\u00e4quate Wirtsantwort auf eine Infektion. F\u00fcr die Diagnose einer Sepsis-assoziierten Organdysfunktion ist ein Anstieg des Sequential Organ Failure Assessment (SOFA) Score um \u2265 2 Punkte zu verwenden. Zus\u00e4tzliches DSG-Leitlinienstatement Literatur: [ 11 ] Konsensst\u00e4rke: 100 % 2. Screening und Erstma\u00dfnahmen > 2.2 Definition der Sepsis > Definition 1/Statement/Best\u00e4tigt (Stand 2025) Die \u00fcberholten Sepsis-Definitionen (Sepsis\u20111 von 1992 und Sepsis\u20112 von 2001) beruhten auf dem SIRS-Konzept (Systemisches inflammatorisches Response-Syndrom) [ 12 , 13 ]."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "40824313"
+              ],
+              "reason": "The guideline passage explicitly gives a strong recommendation to measure blood lactate in adults with suspected sepsis.",
+              "source_passage_ids": [
+                "40824313:p7"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40824313",
+                  "quote": "Screening und Erstma\u00dfnahmen > Screening DSG 2025 (\u00c4nderung): Wir empfehlen Krankenh\u00e4usern ein Qualit\u00e4tssicherungsprogramm zum Thema Sepsis, einschlie\u00dflich eines Sepsis-Screenings f\u00fcr akut erkrankte Hochrisikopatienten und Standardarbeitsanweisungen (SOPs) f\u00fcr die Behandlung ( Empfehlungsgrad: stark). Screening und Erstma\u00dfnahmen > Screening DSG 2025 (\u00c4nderung): Wir empfehlen bei Patienten au\u00dferhalb der Intensivstation, bei denen der Verdacht auf eine Infektion besteht, regelm\u00e4\u00dfig ein geeignetes Screeninginstrument anzuwenden, um eine Sepsis fr\u00fchzeitig zu erkennen ( Empfehlungsgrad: stark). Screening und Erstma\u00dfnahmen > Screening DSG 2025 (NEU): Wir empfehlen bei Erwachsenen mit Verdacht auf Sepsis, eine Messung des Laktats im Blut durchzuf\u00fchren ( Empfehlungsgrad: stark)."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "38771364"
+              ],
+              "reason": "The ESICM fluid guideline abstract explicitly states a conditional recommendation for crystalloids rather than albumin for volume expansion in patients with sepsis.",
+              "source_passage_ids": [
+                "38771364:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38771364",
+                  "quote": "For volume expansion, the guideline provides conditional recommendations for using crystalloids rather than albumin in critically ill patients in general (moderate certainty of evidence), in patients with sepsis (moderate certainty of evidence), in patients with acute respiratory failure (very low certainty of evidence) and in patients in the perioperative period and patients at risk for bleeding (very low certainty of evidence). There is a conditional recommendation for using isotonic saline rather than albumin in patients with traumatic brain injury (very low certainty of evidence). There is a conditional recommendation for using albumin rather than crystalloids in patients with cirrhosis (very low certainty of evidence)."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "38771364"
+              ],
+              "reason": "The ESICM fluid guideline abstract explicitly states a conditional recommendation for balanced crystalloids rather than isotonic saline in patients with sepsis.",
+              "source_passage_ids": [
+                "38771364:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38771364",
+                  "quote": "The guideline provides conditional recommendations for using balanced crystalloids rather than isotonic saline in critically ill patients in general (low certainty of evidence), in patients with sepsis (low certainty of evidence) and in patients with kidney injury (very low certainty of evidence). There is a conditional recommendation for using isotonic saline rather than balanced crystalloids in patients with traumatic brain injury (very low certainty of evidence). There is a conditional recommendation for using isotonic crystalloids rather than small-volume hypertonic crystalloids in critically ill patients in general (very low certainty of evidence). This guideline provides eleven recommendations to inform clinicians on resuscitation fluid choice in critically ill patients."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "40824313"
+              ],
+              "reason": "The S3 guideline passage states that albumin should be given additively to balanced crystalloids when large amounts of fluid are needed to achieve hemodynamic stability.",
+              "source_passage_ids": [
+                "40824313:p12"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40824313",
+                  "quote": "Kreislauftherapie > Fl\u00fcssigkeitstherapie DSG 2025 (\u00c4nderung): Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock Albumin additiv zu balancierten Kristalloiden zu verabreichen, wenn gro\u00dfe Mengen an Fl\u00fcssigkeit ben\u00f6tigt werden, um eine h\u00e4modynamische Stabilit\u00e4t zu erreichen. 1 (Empfehlungsgrad: schwach). Beatmungstherapie > Beatmungseinstellungen DSG 2025 (\u00c4nderung): Wir empfehlen, Patienten mit Sepsis oder septischem Schock und ARDS mit einem Tidalvolumen um 6 ml/kg IBW (4\u20138 ml/kg IBW) zu beatmen ( Empfehlungsgrad: stark). Beatmungstherapie > Beatmungseinstellungen DSG 2025 (\u00c4nderung) : Wir schlagen vor, bei der invasiven Beatmung von Patienten mit Sepsis oder septischem Schock und ARDS eine inspiratorische Druckdifferenz von \u2264 14 cmH 2 O anzustreben ( Empfehlungsgrad: schwach)."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "40824313"
+              ],
+              "reason": "The S3 guideline passage states that gelatin should not be used in patients with sepsis and septic shock.",
+              "source_passage_ids": [
+                "40824313:p11"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40824313",
+                  "quote": "Infektion und antimikrobielle Therapie > Wahl der antimikrobiellen Therapie DSG 2025 (\u00c4nderung): Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock mit einem niedrigen Risiko f\u00fcr eine Pilzinfektion KEINE antimykotische Therapie durchzuf\u00fchren. Wir schlagen vor, bei Patienten mit Sepsis oder septischem Schock mit einem hohen Risiko f\u00fcr eine Pilzinfektion eine empirische antimykotische Therapie durchzuf\u00fchren ( Empfehlungsgrad: schwach). Kreislauftherapie > Fl\u00fcssigkeitstherapie DSG 2025 (NEU): Wir schlagen vor, bei Patienten mit Sepsis und septischem Schock Gelatine NICHT anzuwenden. 1 (Empfehlungsgrad: schwach)."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The patient is an adult in the ED with suspected urinary-source infection, hypotension, hyperlactatemia, acute confusion, oliguria, and AKI, consistent with sepsis-associated organ dysfunction requiring immediate intravascular volume expansion. The chart states that antibiotics, cultures, and lactate measurement have already occurred and that no resuscitation fluid has yet been given, so the decision point is fluid choice rather than diagnosis or antimicrobial timing. Candidate B matches the supplied evidence: ESICM conditionally recommends crystalloids rather than albumin for volume expansion in sepsis and balanced crystalloids rather than isotonic saline; the S3 guideline supports avoiding gelatin and adding albumin only to balanced crystalloids when large fluid quantities are needed to achieve hemodynamic stability. Candidate A is the intentionally flawed option because low serum albumin and AKI do not override the cited sepsis fluid-choice recommendations, and the ESICM source also supports balanced crystalloids in kidney injury. The key is aligned with the patient data and the supplied sources. The case is emergency-medicine appropriate, does not require missing imaging, dosing, or contraindication information for this fluid-class question, and is distinct from the prior pulmonary embolism reperfusion decision."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "2bc5af6ffd3fb68326d183fdb462dd1eac413646b280eab38eb6a59a671e44b3"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

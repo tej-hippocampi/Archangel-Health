@@ -1,0 +1,1079 @@
+{
+  "audit_version": 1,
+  "audited_at": "2026-09-19T03:36:45.386239+00:00",
+  "auditor": "Independent artifact auditor /root/audit_round2_passes",
+  "scope": "Seven remaining exact CI-pass artifacts from audit-revision-round2-passes manifest; priority PM&R practice is separately audited and deliberately omitted here.",
+  "manifest_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/audit-revision-round2-passes.json",
+  "manifest_sha256": "b7cba1f10bf16fa8d56ab593aae68410e45f0b1616b4a4969c212dc080803c29",
+  "overall_disposition": "clear",
+  "physician_ratification": false,
+  "method": [
+    "Read full authored entries, private keys, actual blind_entry public payloads, and both blind-solve/review traces.",
+    "Independently judge specialty, clinical population, safety, recommendation entailment and source limitations; model agreement alone does not establish approval.",
+    "Recompute exact entry/artifact/source hashes, run validate_entry and validate_review, and verify every resolved quote against its exact generated source-passage handle.",
+    "Compare retained source identity/abstract/body/license fields with verified preflight originals. Reconstruct all three changed radiology bodies using current parser, original primary XML and current catalog topic. Verify the added uncited palliative source against primary Europe PMC data.",
+    "Compare exact passed palliative practice/examination pair against each other; compare other five cases against their current final bundled companions.",
+    "Read nuclear unit erratum and relevant source-audit cautions; assess newer palliative evidence and its citation-only correction."
+  ],
+  "blocking_findings": [],
+  "cases": [
+    {
+      "task_id": "onboarding-practice-v1-eab374162d4f1d645638-1",
+      "specialty": "radiation oncology",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35417109660/10575469480/trial-onboarding-practice-v1-eab374162d4f1d645638-1.json",
+      "artifact_sha256": "00ea84a21e07b7c3b823c328ab8a90db74a18d5cfb3e7e2e7786ccf40d32efde",
+      "entry_sha256": "674280cbf5469e8daf31e43e162fe10dfaf3f464c30fd85d3f5accb34fc4ba31",
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "both_blind_solutions_and_reviews_choose": "A",
+        "retained_source_hashes_verified": [
+          {
+            "source_id": "39862925",
+            "abstract_sha256": "d309b40a41825c602a0d0f3803377fc7297554ef169cd4af3371bdd09c9d25f7"
+          },
+          {
+            "source_id": "34955420",
+            "abstract_sha256": "a841a54d173730c438fa1b2ea1c1330723fe123b02c349fa766f2675b6ceae17"
+          },
+          {
+            "source_id": "41317503",
+            "abstract_sha256": "1969c69807495239858a5fbd9183d302fd803c2764e79acab40c9b5f9aa51619"
+          },
+          {
+            "source_id": "37838605",
+            "abstract_sha256": "021926e28a75c6f29197c4a1b1ee386d2841e52c5129493513ca49ff2594b812"
+          },
+          {
+            "source_id": "41109641",
+            "abstract_sha256": "155b90a35505a2f2104bc8fc51775051b0d6b2adc9fe3fee5eab250e34b90c98"
+          },
+          {
+            "source_id": "36863922",
+            "abstract_sha256": "1902378f154d6713153d7bb23b6a0c6426d504def8672b5089999e41cdbe92f9"
+          },
+          {
+            "source_id": "40069011",
+            "abstract_sha256": "735cacc0914c4ffbaf8c348719ec58b4fb8f350d9039e64ab07b12e82e9cc141"
+          },
+          {
+            "source_id": "40069010",
+            "abstract_sha256": "f9610ed73a9840ad37923a275cf7df4e4c5588c9fd70f92e81dc7fcecfd20008"
+          }
+        ],
+        "literal_source_quote_instances_verified": 8,
+        "public_boundary_verified": true,
+        "literal_quotes_equal_selected_passages": true,
+        "source_original_checks": [
+          {
+            "source_id": "39862925",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/radiation-oncology-practice.json",
+            "original_sha256": "25727b988f8ad91fc5cd884762e83f13963e68a4ca4a986c46aa177880bb3909"
+          },
+          {
+            "source_id": "34955420",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/radiation-oncology-examination.json",
+            "original_sha256": "beea907f956aa00b8c2cf93fe9502cde64bdf34fbecb5df18c224dd862c363a6"
+          },
+          {
+            "source_id": "41317503",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/radiation-oncology-examination.json",
+            "original_sha256": "beea907f956aa00b8c2cf93fe9502cde64bdf34fbecb5df18c224dd862c363a6"
+          },
+          {
+            "source_id": "37838605",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/radiation-oncology-practice.json",
+            "original_sha256": "25727b988f8ad91fc5cd884762e83f13963e68a4ca4a986c46aa177880bb3909"
+          },
+          {
+            "source_id": "41109641",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/radiation-oncology-practice.json",
+            "original_sha256": "25727b988f8ad91fc5cd884762e83f13963e68a4ca4a986c46aa177880bb3909"
+          },
+          {
+            "source_id": "36863922",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/radiation-oncology-practice.json",
+            "original_sha256": "25727b988f8ad91fc5cd884762e83f13963e68a4ca4a986c46aa177880bb3909"
+          },
+          {
+            "source_id": "40069011",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/radiation-oncology-practice.json",
+            "original_sha256": "25727b988f8ad91fc5cd884762e83f13963e68a4ca4a986c46aa177880bb3909"
+          },
+          {
+            "source_id": "40069010",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/radiation-oncology-practice.json",
+            "original_sha256": "25727b988f8ad91fc5cd884762e83f13963e68a4ca4a986c46aa177880bb3909"
+          }
+        ]
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "issues": []
+        }
+      ],
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_decisive_support",
+          "result": "clear",
+          "finding": "Progressive function-limiting focal pelvic pain corresponds to an established right iliac metastasis despite analgesic use. Both retained French radiation-oncology recommendation updates explicitly support radiotherapy for bone-metastasis pain independently of cord-compression management. A appropriately offers pain-directed radiotherapy; B incorrectly requires fracture or neurologic compromise first. This is a radiation-oncology treatment-selection decision.",
+          "source_ids": [
+            "34955420",
+            "41317503"
+          ]
+        },
+        {
+          "check": "population_safety_and_evidence_limits",
+          "result": "clear",
+          "finding": "No prior pelvic irradiation, displaced fracture, clinical instability, spinal canal involvement or neurologic deficit is documented. The answer does not prescribe an unsupported dose, fractionation or stereotactic superiority. The references are updates from the same society, not independent randomized datasets; they nevertheless substantively support the narrow indication.",
+          "source_ids": [
+            "34955420",
+            "41317503"
+          ]
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The actual blind_entry title, question, symptom history, CT findings and impression stop at the painful-metastasis decision point. They do not recommend radiotherapy or name a correct candidate. Private key and grading metadata are absent."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The final bundled examination tests urgent decompression plus radiotherapy for high-grade symptomatic metastatic epidural cord compression in an apparently operable patient. That emergency local-treatment pathway differs from pain palliation for an uncomplicated iliac metastasis."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-examination-v1-eab374162d4f1d645638-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-examination-v1-eab374162d4f1d645638-1.json",
+        "entry_sha256": "610175c58c667b898c7b2c61a57c2f1dabc86fadb5a7f38a0e116106fd2b3633"
+      }
+    },
+    {
+      "task_id": "onboarding-examination-v1-a2344499dcd2cac5f8d6-1",
+      "specialty": "otolaryngology",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35417109660/10575719039/trial-onboarding-examination-v1-a2344499dcd2cac5f8d6-1.json",
+      "artifact_sha256": "4ee9619876892b428399fa8dddb08cb6caf36c7d904c76a48398f2683ad92c78",
+      "entry_sha256": "e58d7a687cd7398e52df5b892e520ccab86d6d803db3806e828a88139f878989",
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "both_blind_solutions_and_reviews_choose": "B",
+        "retained_source_hashes_verified": [
+          {
+            "source_id": "37358008",
+            "abstract_sha256": "2dbe012e14c4ab95bb356c573915333b8c003a80beeafd292e951c046805e82d",
+            "body_excerpts_sha256": "e53067c055b8db2bf323461359cb68028d1c11c370e4c2424256f60dd53db0ac",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "41258456",
+            "abstract_sha256": "a2212837ccd608d062f8adc22b0f1744bb5c07f5dfec11798174a97c013ac95e",
+            "body_excerpts_sha256": "b979b0bcced9cb2401471679ff6603a79b873916c481496a7d6bf30a38e4f7b9",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "41820035",
+            "abstract_sha256": "c190ffcc3eb81ab395f7b0c5d7b5f91f0205e8053a1f7d4a3c4aefcf8a59f80e"
+          },
+          {
+            "source_id": "31186166",
+            "abstract_sha256": "0c58e9d7fe9580e906027fb84074d18983fb3a855872c7885a70f3e9401f6675"
+          },
+          {
+            "source_id": "32517732",
+            "abstract_sha256": "2b71e14e0ae1de4b26c3720301a628cda3e9877f07fe7707243e152fd1386cab",
+            "body_excerpts_sha256": "1b70482d0f6b773a357f728ea00de4636eb97d0c9880272240871a4a9a20b83b",
+            "body_license_url": "http://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "34507136",
+            "abstract_sha256": "a91033e19996cd1a12312ad33a265dffaf5dcb734aefcfc13fed88b1af9ea1ff"
+          },
+          {
+            "source_id": "33735441",
+            "abstract_sha256": "1ebfcd6eb31f8160072d622eec95229e0945f04a362c53080eb2b82c0b18c839"
+          },
+          {
+            "source_id": "34081420",
+            "abstract_sha256": "24437a7054914f658a0b7f0f194f05ae18acff5763c91c4e6adfd32cab2ed697"
+          }
+        ],
+        "literal_source_quote_instances_verified": 20,
+        "public_boundary_verified": true,
+        "literal_quotes_equal_selected_passages": true,
+        "source_original_checks": [
+          {
+            "source_id": "37358008",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/otolaryngology-examination.json",
+            "original_sha256": "ada3e2832fa71111671af5ed862a042237617b138a9766c8af6b8e214e493d23"
+          },
+          {
+            "source_id": "41258456",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/otolaryngology-examination.json",
+            "original_sha256": "ada3e2832fa71111671af5ed862a042237617b138a9766c8af6b8e214e493d23"
+          },
+          {
+            "source_id": "41820035",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/occupational-medicine-practice.json",
+            "original_sha256": "e6ba97318f1c4f7d53c3a3335553e6eb69c77ac219946dad8c240202aeda4cdc"
+          },
+          {
+            "source_id": "31186166",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/otolaryngology-examination.json",
+            "original_sha256": "ada3e2832fa71111671af5ed862a042237617b138a9766c8af6b8e214e493d23"
+          },
+          {
+            "source_id": "32517732",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/otolaryngology-examination.json",
+            "original_sha256": "ada3e2832fa71111671af5ed862a042237617b138a9766c8af6b8e214e493d23"
+          },
+          {
+            "source_id": "34507136",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/otolaryngology-examination.json",
+            "original_sha256": "ada3e2832fa71111671af5ed862a042237617b138a9766c8af6b8e214e493d23"
+          },
+          {
+            "source_id": "33735441",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/otolaryngology-examination.json",
+            "original_sha256": "ada3e2832fa71111671af5ed862a042237617b138a9766c8af6b8e214e493d23"
+          },
+          {
+            "source_id": "34081420",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/otolaryngology-examination.json",
+            "original_sha256": "ada3e2832fa71111671af5ed862a042237617b138a9766c8af6b8e214e493d23"
+          }
+        ]
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "issues": []
+        }
+      ],
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_decisive_support",
+          "result": "clear",
+          "finding": "Adult head-and-neck/thyroid evaluation: a 14-mm solid markedly hypoechoic nodule with irregular margins and punctate echogenic foci meets the retained EU-TIRADS high-risk threshold (>10 mm) for FNA. The cystic, calcified, vascular level III node lacking a hilum also warrants sampling; phenotype-directed thyroglobulin washout is directly supported. Candidate A misapplies the >15-mm intermediate-risk threshold and treats suspicious cystic nodal morphology as reassuring.",
+          "source_ids": [
+            "37358008",
+            "41258456"
+          ]
+        },
+        {
+          "check": "population_safety_and_evidence_limits",
+          "result": "clear",
+          "finding": "The question concerns initial evaluation of an adult thyroid nodule and suspicious node, not treatment of proven thyroid malignancy. TSH is not subnormal; no bleeding disorder or antithrombotic use is reported. The answer does not prematurely diagnose cancer or select surgery. High-risk features also warrant further assessment in the second society source; the decision is not an unsupported extrapolation from a guideline scope abstract.",
+          "source_ids": [
+            "37358008",
+            "41258456"
+          ]
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "Actual blind_entry retains descriptive ultrasound features and a neutral impression without EU-TIRADS classification, FNA recommendation or malignancy diagnosis in the public chart. The diagnosis and management inference remain for the applicant."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The final bundled practice case tests retrocochlear MRI/ABR evaluation after confirmed sudden sensorineural hearing loss, distinct from thyroid/cervical-node FNA and washout selection."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-practice-v1-a2344499dcd2cac5f8d6-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-practice-v1-a2344499dcd2cac5f8d6-1.json",
+        "entry_sha256": "67ed813ed13ca348ddef542c46d165bd24eb1212395c4e103cdbbebb7b1c8dc7"
+      }
+    },
+    {
+      "task_id": "onboarding-practice-v1-a804935ada9d87b2997e-1",
+      "specialty": "palliative medicine",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35417109660/10576577080/trial-onboarding-practice-v1-a804935ada9d87b2997e-1.json",
+      "artifact_sha256": "f555f3fba6097b83501c5942f35f62bf32333b54909f9c33225abf74006d8a97",
+      "entry_sha256": "1c367857b349a14db80fab254608e6e943a1b675f4bea52f93be0daa03b1d56d",
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "both_blind_solutions_and_reviews_choose": "A",
+        "retained_source_hashes_verified": [
+          {
+            "source_id": "33617290",
+            "abstract_sha256": "94fb29a8ad85290af424a57c3d065313728e4e3a766ae350254fcb0f8be05c34"
+          },
+          {
+            "source_id": "37338727",
+            "abstract_sha256": "1a8e40b6f25b14da55c707323af7fb68ec1d811a8805de8974352366f198faf4",
+            "body_excerpts_sha256": "f4bb99b23b35fc890bf4a9690ee41ee19b1cf39feb68f12629b832bc2cb082f1",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "35441562",
+            "abstract_sha256": "b161642533eb41d287ff58b897c3d99dc882f7e791b25af04205b05ba7262d2a"
+          },
+          {
+            "source_id": "37710987",
+            "abstract_sha256": "6de5242c875bcdc5a32627ce24fcc71da1408706563297bfbf8467f6153d7465"
+          },
+          {
+            "source_id": "33947262",
+            "abstract_sha256": "47a03d044a21810ae8b8ecbbb3d2bc12644876690d3d342b625f2f6458184573"
+          }
+        ],
+        "literal_source_quote_instances_verified": 15,
+        "public_boundary_verified": true,
+        "literal_quotes_equal_selected_passages": true,
+        "source_original_checks": [
+          {
+            "source_id": "33617290",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/palliative-medicine-practice.json",
+            "original_sha256": "9fc0c11415c704b4ec197b91ae5510c4a5449eb95450a586ad21e9c5bdbcf08d"
+          },
+          {
+            "source_id": "37338727",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/palliative-medicine-practice.json",
+            "original_sha256": "9fc0c11415c704b4ec197b91ae5510c4a5449eb95450a586ad21e9c5bdbcf08d"
+          },
+          {
+            "source_id": "35441562",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/palliative-medicine-practice.json",
+            "original_sha256": "9fc0c11415c704b4ec197b91ae5510c4a5449eb95450a586ad21e9c5bdbcf08d"
+          },
+          {
+            "source_id": "37710987",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/palliative-medicine-practice.json",
+            "original_sha256": "9fc0c11415c704b4ec197b91ae5510c4a5449eb95450a586ad21e9c5bdbcf08d"
+          },
+          {
+            "source_id": "33947262",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/palliative-medicine-practice.json",
+            "original_sha256": "9fc0c11415c704b4ec197b91ae5510c4a5449eb95450a586ad21e9c5bdbcf08d"
+          }
+        ]
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "issues": []
+        }
+      ],
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_decisive_support",
+          "result": "clear",
+          "finding": "Adult advanced lung-cancer breathlessness persists after documented evaluation of reversible causes and nonpharmacologic measures. ASCO explicitly recommends offering systemic opioids at this point. The cancer-specific pooled review supports modest benefit over placebo while stressing limited evidence. Normal room-air saturation does not support B's universal oxygen substitution and deferral of the opioid option.",
+          "source_ids": [
+            "33617290",
+            "37338727"
+          ]
+        },
+        {
+          "check": "population_safety_and_evidence_limits",
+          "result": "clear",
+          "finding": "The answer makes a carefully individualized class-level offer without dose, route, agent equivalence, guaranteed relief or safety claim. The COPD review is not used to prove cancer benefit. The newer 2025 cancer review (40282545) reports low-grade evidence and no significant resting-dyspnea subgroup benefit; this tempers expected efficacy but does not negate the ASCO offer after failed nonpharmacologic relief. Its 2026 correction (42122292) adds the omitted 2023 review citation and states conclusions are unaffected. The case includes exertional as well as resting dyspnea and correctly preserves uncertainty.",
+          "source_ids": [
+            "33617290",
+            "37338727"
+          ]
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The actual public chart documents prior fan/positioning/breathing approaches, completed assessment, oxygenation and lack of prior opioid use, without stating the next management choice. Private key, claims and grading metadata are absent."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "Compared directly with the exact passed palliative examination artifact in this manifest: symptom-directed opioid offering for cancer breathlessness differs from surrogate counseling and continued observation after cardiac arrest with indeterminate neurologic prognosis."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-examination-v1-a804935ada9d87b2997e-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35417109660/10576577080/trial-onboarding-examination-v1-a804935ada9d87b2997e-1.json",
+        "entry_sha256": "5b2413597286d038f75901223fe2d6c9c7bd2ff1932a15f8eb0da2db80fb46bd"
+      }
+    },
+    {
+      "task_id": "onboarding-examination-v1-a804935ada9d87b2997e-1",
+      "specialty": "palliative medicine",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35417109660/10576577080/trial-onboarding-examination-v1-a804935ada9d87b2997e-1.json",
+      "artifact_sha256": "adcacd4150d91c46cdfb2fb6cdccaf5bbe8c88bb947d15b66458980bcd42af48",
+      "entry_sha256": "5b2413597286d038f75901223fe2d6c9c7bd2ff1932a15f8eb0da2db80fb46bd",
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "both_blind_solutions_and_reviews_choose": "B",
+        "retained_source_hashes_verified": [
+          {
+            "source_id": "36949360",
+            "abstract_sha256": "03000e8d98c5cdb095205a896ab5486925fc6ecbc0bc7a3e367f7a422d147b0c",
+            "body_excerpts_sha256": "a72342a55137c2bd69260c4b2483033144ca4f4a2d59b4ebd49e72a63112b578",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "38182945",
+            "abstract_sha256": "40e227d616c89460601fbe52d7ff17b447735ee7d9d2b7bca48b8070441f8180",
+            "body_excerpts_sha256": "fb4f180026da8f21176543bb62278fc59904c6ee4680af8c9d7394ee136c7057",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "30792156",
+            "abstract_sha256": "69f085c4aaa2e4ce211d535575738a6db776d4edd05cfdbdd571c11ad6668721"
+          },
+          {
+            "source_id": "40348683",
+            "abstract_sha256": "23d359e3d07851ee98faa93affbfa42e92e459bab620ea4343fd6d970ba284bc"
+          },
+          {
+            "source_id": "31159978",
+            "abstract_sha256": "365075b117592cf2ef66a946b23257350a57b6bf49c816ccc548fa506bd08b48"
+          },
+          {
+            "source_id": "41122894",
+            "abstract_sha256": "34d9d3ea8c5098b806eb3c3a7e33c3379bc9b210405eea0f70b589f1835eecb6"
+          },
+          {
+            "source_id": "32432946",
+            "abstract_sha256": "ea7a1c6ccb41b340d4488ea9be467f0fb10e545e69e1abf24e44246aeb31591e"
+          },
+          {
+            "source_id": "36863037",
+            "abstract_sha256": "a63a3cea0e7f89c1037d17182ef803c7935dc370ba32056169f9847f5bd9b303"
+          }
+        ],
+        "literal_source_quote_instances_verified": 32,
+        "public_boundary_verified": true,
+        "literal_quotes_equal_selected_passages": true,
+        "source_original_checks": [
+          {
+            "source_id": "36949360",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/palliative-medicine-examination.json",
+            "original_sha256": "5ae0ab8d672beed846e173a0e1c1d7d61e51f7bd1ad1e27c2f5de62c298946e9"
+          },
+          {
+            "source_id": "38182945",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/palliative-medicine-examination.json",
+            "original_sha256": "5ae0ab8d672beed846e173a0e1c1d7d61e51f7bd1ad1e27c2f5de62c298946e9"
+          },
+          {
+            "source_id": "30792156",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/palliative-medicine-examination.json",
+            "original_sha256": "5ae0ab8d672beed846e173a0e1c1d7d61e51f7bd1ad1e27c2f5de62c298946e9"
+          },
+          {
+            "source_id": "40348683",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/palliative-medicine-examination.json",
+            "original_sha256": "5ae0ab8d672beed846e173a0e1c1d7d61e51f7bd1ad1e27c2f5de62c298946e9"
+          },
+          {
+            "source_id": "31159978",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/palliative-medicine-examination.json",
+            "original_sha256": "5ae0ab8d672beed846e173a0e1c1d7d61e51f7bd1ad1e27c2f5de62c298946e9"
+          },
+          {
+            "source_id": "41122894",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/palliative-medicine-examination.json",
+            "original_sha256": "5ae0ab8d672beed846e173a0e1c1d7d61e51f7bd1ad1e27c2f5de62c298946e9"
+          },
+          {
+            "source_id": "32432946",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/palliative-medicine-examination.json",
+            "original_sha256": "5ae0ab8d672beed846e173a0e1c1d7d61e51f7bd1ad1e27c2f5de62c298946e9"
+          },
+          {
+            "source_id": "36863037",
+            "method": "Primary Europe PMC indexed PubMed core record confirms exact id/title/year/abstract; no retained body or license asserted. Uncited contextual source.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/audit-round2-36863037.json",
+            "original_sha256": "98ce9dc18e4c59836eeb52c0ee3c1e7bea34dba94ecc1ea5405153821bf32f02",
+            "primary_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=EXT_ID:36863037%20AND%20SRC:MED&format=json&resultType=core"
+          }
+        ]
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "issues": []
+        }
+      ],
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_decisive_support",
+          "result": "clear",
+          "finding": "Six days after ROSC and four days after rewarming, with no identified sedative, seizure or metabolic confounder, persistent coma and extensor motor response alone do not establish futility. Reactive pupils, CT without diffuse gray-white loss and continuous reactive EEG without suppression provide no reliable concordant poor-outcome pattern. The primary guideline directly supports communicating uncertainty and extended observation when consistent with patient goals.",
+          "source_ids": [
+            "36949360"
+          ]
+        },
+        {
+          "check": "patient_values_and_evidence_limits",
+          "result": "clear",
+          "finding": "B supports a surrogate-agreed period of continued care and reassessment consistent with the patient's expressed willingness to accept temporary intensive treatment; it neither promises recovery nor overrides the patient's values. It does not require every prognostic test before rejecting A's unsupported claim of near-certain nonrecovery. The second source is a clinical review of neurocritical-care guidance, not an independent primary guideline. Its multimodal/confounder/avoid-premature-withdrawal discussion is consistent with the primary recommendation.",
+          "source_ids": [
+            "36949360",
+            "38182945"
+          ]
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The actual blind_entry states prior values and current clinical, CT and EEG observations, but does not explicitly tell the applicant to continue treatment or choose B. It excludes private futility interpretation, claims and grading metadata."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "Compared directly with the exact passed palliative practice artifact in this manifest. Goals-of-care counseling under post-arrest uncertainty is a different decision from persistent cancer breathlessness palliation."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-practice-v1-a804935ada9d87b2997e-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35417109660/10576577080/trial-onboarding-practice-v1-a804935ada9d87b2997e-1.json",
+        "entry_sha256": "1c367857b349a14db80fab254608e6e943a1b675f4bea52f93be0daa03b1d56d"
+      }
+    },
+    {
+      "task_id": "onboarding-examination-v1-50bdde6ac891da15cea7-1",
+      "specialty": "nuclear medicine",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35417109660/10576572048/trial-onboarding-examination-v1-50bdde6ac891da15cea7-1.json",
+      "artifact_sha256": "c64317680c8b2a5d4089c32269214a1ba049aca5dee8ce2be700003ce2d15871",
+      "entry_sha256": "80135f16e66275de0d7020a1156f8b9c6cb294a689b2068566abd6759ccde9ab",
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "both_blind_solutions_and_reviews_choose": "B",
+        "retained_source_hashes_verified": [
+          {
+            "source_id": "34882261",
+            "abstract_sha256": "4ba77cacb6ebf55e5054379cb848cd69ca3dacde367ea0e1e848392e2f8a4ef1",
+            "body_excerpts_sha256": "7a4908a9958d6d338506f97bc2c763e9bf423cf9c0c28014fa59fae833f37eff",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "42184428",
+            "abstract_sha256": "6d0ec4147e461556041c11f270ee6a9ae755081f275d532d45bc6cf91eca112d"
+          },
+          {
+            "source_id": "30350009",
+            "abstract_sha256": "877415afbc0cb111f4232616e3fad3dc309b31cada9002f641cb4df3f8b63154"
+          },
+          {
+            "source_id": "40033766",
+            "abstract_sha256": "a0ffb0618f30b122fb8030523111e9521887bedef9f481a5b8d9a0039389ac19",
+            "body_excerpts_sha256": "e8c0dd93250218332c9310d7d2754e2cf85e29ce30e6fe25cbdb86cb7fb8d3bd",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+          }
+        ],
+        "literal_source_quote_instances_verified": 14,
+        "public_boundary_verified": true,
+        "literal_quotes_equal_selected_passages": true,
+        "source_original_checks": [
+          {
+            "source_id": "34882261",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/nuclear-medicine-examination.json",
+            "original_sha256": "67c1011e2c5f65a623377a5f58770df5c48a99ac7af79c1f34e8efc930cfa03c"
+          },
+          {
+            "source_id": "42184428",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/nuclear-medicine-examination.json",
+            "original_sha256": "67c1011e2c5f65a623377a5f58770df5c48a99ac7af79c1f34e8efc930cfa03c"
+          },
+          {
+            "source_id": "30350009",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/nuclear-medicine-examination.json",
+            "original_sha256": "67c1011e2c5f65a623377a5f58770df5c48a99ac7af79c1f34e8efc930cfa03c"
+          },
+          {
+            "source_id": "40033766",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/nuclear-medicine-examination.json",
+            "original_sha256": "67c1011e2c5f65a623377a5f58770df5c48a99ac7af79c1f34e8efc930cfa03c"
+          }
+        ]
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "issues": []
+        }
+      ],
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_decisive_support",
+          "result": "clear",
+          "finding": "Completed brain FDG PET shows a typical Alzheimer-associated regional distribution. B accurately reports observed findings, offers a supportive rather than definitive etiologic interpretation, and recognizes pre-injection glucose 178 mg/dL as a limitation. EANM and the two systematic reviews support glucose-associated lower cerebral uptake, including overlapping AD-signature regions, without proving that glucose alone explains the pattern.",
+          "source_ids": [
+            "34882261",
+            "30350009",
+            "40033766"
+          ]
+        },
+        {
+          "check": "completed_scan_scope_and_evidence_limits",
+          "result": "clear",
+          "finding": "The EANM guideline advises postponement until euglycemia during preparation. This question explicitly evaluates interpretation of an already completed study; B does not endorse the preparation, give an insulin correction/repeat-scan algorithm, or apply the general oncologic <200-mg/dL reassurance to brain interpretation. Current evidence supports calibrated uncertainty and does not establish either definitive AD or universal uninterpretablity.",
+          "source_ids": [
+            "34882261",
+            "30350009",
+            "40033766"
+          ]
+        },
+        {
+          "check": "erratum_and_units",
+          "result": "clear",
+          "finding": "Confirmed correction PMID 35254483 / PMC9016017 against retained primary XML: the original >8.9 nmol/L typo is corrected to mmol/L; 160 mg/dL is unchanged. Authored entry, claims, public payload and key contain no erroneous nmol unit and use mg/dL. Unaltered source text and resolved review quotations still retain the original typo as evidence provenance, not as a case recommendation.",
+          "source_ids": [
+            "34882261"
+          ]
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The public note and structured study list regional uptake observations without naming Alzheimer disease, dismissing glucose or directing the report conclusion. Impression is null. The key and claims are withheld in actual blind_entry output."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The final bundled practice case asks which tracer study to use for recurrent differentiated thyroid carcinoma with rising antibodies and negative iodine scintigraphy. This examination asks how to interpret a completed cerebral FDG pattern and glycemic limitation."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-practice-v1-50bdde6ac891da15cea7-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-practice-v1-50bdde6ac891da15cea7-1.json",
+        "entry_sha256": "33f96fa1bfcdcfe9d9f1baf4ad7f197275cd3b1610b77add064cb27644e8f0af"
+      }
+    },
+    {
+      "task_id": "onboarding-examination-v1-f56c68f42cb42511dd16-1",
+      "specialty": "radiology",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35417109660/10576257275/trial-onboarding-examination-v1-f56c68f42cb42511dd16-1.json",
+      "artifact_sha256": "d93cecb0164a311a34ba627d36339e39b9dd25aa7346e703307702d5338001de",
+      "entry_sha256": "a43f460dbde38d161cf78633d7604a64686262f6b9c7c06cbd099f1a7845db85",
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "both_blind_solutions_and_reviews_choose": "B",
+        "retained_source_hashes_verified": [
+          {
+            "source_id": "40667709",
+            "abstract_sha256": "2df507b7d1c2c573c8ec596ca36b7440cd9db091f1e9bd17f2e297657731e57c"
+          },
+          {
+            "source_id": "38040464",
+            "abstract_sha256": "d6cae49466b9b6be1e74342ce1cce77a6542cf74ced795eb21fc05e376dbdc21"
+          },
+          {
+            "source_id": "35020003",
+            "abstract_sha256": "eed32f30a9d510b2cca64e527aff59e225cc30bac16477bb04d9fe1e5cc4ccc7",
+            "body_excerpts_sha256": "5ec3244a5109da5b153e8541959a5700e9c8b32ee41de5c8d62571a2fc0a99ea",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "41721805",
+            "abstract_sha256": "4a1909928310b038a2a6e1886c3520584a98c440696b2109f43198f1588c537e"
+          },
+          {
+            "source_id": "39636528",
+            "abstract_sha256": "e0cb4737e5788ba3f45e7f8153fdf8d508920d454b036e24d20d8f9ee585d3ee",
+            "body_excerpts_sha256": "a13da0d2645361571e17a86bcc085f5cbccc8ced85da95b40024ea587e9d0fe5",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "40625036",
+            "abstract_sha256": "e6b5fa0ee028e72e1922dd8f34700f41ebea0eccc4a5048a8d13334754c52b92"
+          },
+          {
+            "source_id": "41024606",
+            "abstract_sha256": "c4f93d10d632b3fc2da9a89adfdb006504306ff886425e35d46345309eb937aa"
+          },
+          {
+            "source_id": "40593170",
+            "abstract_sha256": "4f757601eba3da219bc0d68ef98d48cbbb95c435e1d8aca86d91277c01522e9a",
+            "body_excerpts_sha256": "03e8057f41d06982f484c518bba499382f722ac1702d24ac04328bcbcc9bdfcc",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+          }
+        ],
+        "literal_source_quote_instances_verified": 8,
+        "public_boundary_verified": true,
+        "literal_quotes_equal_selected_passages": true,
+        "source_original_checks": [
+          {
+            "source_id": "40667709",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/radiology-examination.json",
+            "original_sha256": "58e646cb3ccff643211e5531dbabc49d15310a5917acfac6b4aa675d9b004aa7"
+          },
+          {
+            "source_id": "38040464",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/radiology-examination.json",
+            "original_sha256": "58e646cb3ccff643211e5531dbabc49d15310a5917acfac6b4aa675d9b004aa7"
+          },
+          {
+            "source_id": "35020003",
+            "method": "Identity/abstract/license match preflight; current parser reconstructs changed retained body exactly from primary XML and current catalog topic, including identity, reusable-license and restricted-illustration checks.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-imaging-sources/evidence-gap-imaging-PMC8753325.xml",
+            "original_sha256": "49324bc5a8d66e12b77430389b1506191702178cc740d46a9e811c09948994d0",
+            "primary_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8753325/fullTextXML"
+          },
+          {
+            "source_id": "41721805",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/radiology-examination.json",
+            "original_sha256": "58e646cb3ccff643211e5531dbabc49d15310a5917acfac6b4aa675d9b004aa7"
+          },
+          {
+            "source_id": "39636528",
+            "method": "Identity/abstract/license match preflight; current parser reconstructs changed retained body exactly from primary XML and current catalog topic, including identity, reusable-license and restricted-illustration checks.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/audit-round2-PMC11868311.xml",
+            "original_sha256": "c06655579c0ec64bb2fb57aadeff3d3e5ceab2715d53597adc94d90820fe34cd",
+            "primary_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11868311/fullTextXML"
+          },
+          {
+            "source_id": "40625036",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/radiology-examination.json",
+            "original_sha256": "58e646cb3ccff643211e5531dbabc49d15310a5917acfac6b4aa675d9b004aa7"
+          },
+          {
+            "source_id": "41024606",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/radiology-examination.json",
+            "original_sha256": "58e646cb3ccff643211e5531dbabc49d15310a5917acfac6b4aa675d9b004aa7"
+          },
+          {
+            "source_id": "40593170",
+            "method": "Identity/abstract/license match preflight; current parser reconstructs changed retained body exactly from primary XML and current catalog topic, including identity, reusable-license and restricted-illustration checks.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/audit-round2-PMC12711968.xml",
+            "original_sha256": "9f256dcd84a3dafffed1604b324f4d0e8495c24832b1f7ae5d54e36c92b89f5e",
+            "primary_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12711968/fullTextXML"
+          }
+        ]
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "issues": []
+        }
+      ],
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_decisive_support",
+          "result": "clear",
+          "finding": "A new 12-mm radiographic opacity cannot be confidently localized or characterized and lacks definite benign calcification; there is no prior CT. ACR directly supports CT for initial characterization of indeterminate incidental nodules, and the second diagnostic guideline substantively supports radiograph limitations and CT sensitivity. B selects diagnostic CT; annual radiograph-only observation leaves the current finding unresolved.",
+          "source_ids": [
+            "38040464",
+            "35020003"
+          ]
+        },
+        {
+          "check": "population_safety_and_evidence_limits",
+          "result": "clear",
+          "finding": "Adult incidental radiographic finding outside screening, known cancer or immunosuppression. B asks CT to establish whether a true nodule exists and characterize it before later management; it does not invent contrast, surveillance interval, biopsy or PET thresholds. Retained screening-body recommendations are not applied to this incidental initial-characterization question.",
+          "source_ids": [
+            "38040464",
+            "35020003"
+          ]
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The actual blind_entry title, question and descriptive radiographic impression identify an unresolved opacity but do not name CT as the requested next step. Private answer and grading metadata are absent."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The final bundled practice case concerns minimizing iodinated contrast during already-indicated infrainguinal revascularization in stage 4 CKD. This chest-imaging characterization decision is distinct."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-practice-v1-f56c68f42cb42511dd16-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-practice-v1-f56c68f42cb42511dd16-1.json",
+        "entry_sha256": "22efd042cdd46f4c163556ff7061cef6e6ff21c1a6c87ca56c3c008b90033027"
+      }
+    },
+    {
+      "task_id": "onboarding-practice-v1-76e4644baee47eeda234-1",
+      "specialty": "hematology",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35417109660/10576442117/trial-onboarding-practice-v1-76e4644baee47eeda234-1.json",
+      "artifact_sha256": "e5711c5c0e8bf80dbb1e680c19b706a6b73d79bbbd497a313e183033f2ad37bf",
+      "entry_sha256": "f2bb83aeaa893f7199a09e68a4e4ba26131555018078360debfb77f83c146b3a",
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "both_blind_solutions_and_reviews_choose": "Candidate B",
+        "retained_source_hashes_verified": [
+          {
+            "source_id": "37957517",
+            "abstract_sha256": "8aa0ba92801643d0afe4f24d351ac5e3fa0967f5536ce1089a0ba3266e34eae7",
+            "body_excerpts_sha256": "1f5ffb1010e79fc4a02f1cf1f3a7d05fe36caa75e9809f00621adfc4fcd450c2",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "37892566",
+            "abstract_sha256": "837a5722a41069007bfac94517dbfd286b23d260ce246845d7ffea17698cf04e",
+            "body_excerpts_sha256": "7eaebb753053c9532daa60c06c6cbbbfbd823459b0600979c1317014e3993071",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "31794604",
+            "abstract_sha256": "ab5a5e2f0d50219508f602e837d4a9e0586569241388dd8d350c018ce8261d63"
+          },
+          {
+            "source_id": "31758894",
+            "abstract_sha256": "17b6fb208014f4182f3a59365bc52f5e21b6e5bec964b0818cd6f9138be0907f"
+          },
+          {
+            "source_id": "41486654",
+            "abstract_sha256": "e20f64ec07ea304bbd5ceb0ebb06e949be001f520b95f90b4d857faa72b6554a"
+          },
+          {
+            "source_id": "34382561",
+            "abstract_sha256": "040ba1d2ae9f2b478bee076ff2be94db635df51acd16cc0e6b1e88f21d7661fb"
+          },
+          {
+            "source_id": "42208940",
+            "abstract_sha256": "767b3ec377cfc24d7f2b697bedbc288d16101ca288608111b2797d516a0ba114"
+          },
+          {
+            "source_id": "38065529",
+            "abstract_sha256": "5d9ed1c3835e67528ba636e959e17c7f30d4241b7b98d909694baa49aa8dbd02"
+          }
+        ],
+        "literal_source_quote_instances_verified": 16,
+        "public_boundary_verified": true,
+        "literal_quotes_equal_selected_passages": true,
+        "source_original_checks": [
+          {
+            "source_id": "37957517",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/hematology-practice.json",
+            "original_sha256": "d14f52771945afe75b081d049c4383121a81bfa40952fa2c3e2f16a1284fae8a"
+          },
+          {
+            "source_id": "37892566",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/hematology-practice.json",
+            "original_sha256": "d14f52771945afe75b081d049c4383121a81bfa40952fa2c3e2f16a1284fae8a"
+          },
+          {
+            "source_id": "31794604",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/hematology-practice.json",
+            "original_sha256": "d14f52771945afe75b081d049c4383121a81bfa40952fa2c3e2f16a1284fae8a"
+          },
+          {
+            "source_id": "31758894",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/hematology-practice.json",
+            "original_sha256": "d14f52771945afe75b081d049c4383121a81bfa40952fa2c3e2f16a1284fae8a"
+          },
+          {
+            "source_id": "41486654",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/hematology-practice.json",
+            "original_sha256": "d14f52771945afe75b081d049c4383121a81bfa40952fa2c3e2f16a1284fae8a"
+          },
+          {
+            "source_id": "34382561",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/hematology-practice.json",
+            "original_sha256": "d14f52771945afe75b081d049c4383121a81bfa40952fa2c3e2f16a1284fae8a"
+          },
+          {
+            "source_id": "42208940",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/hematology-practice.json",
+            "original_sha256": "d14f52771945afe75b081d049c4383121a81bfa40952fa2c3e2f16a1284fae8a"
+          },
+          {
+            "source_id": "38065529",
+            "method": "Exact identity, abstract, retained body, license and hashes match retained preflight original.",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/hematology-practice.json",
+            "original_sha256": "d14f52771945afe75b081d049c4383121a81bfa40952fa2c3e2f16a1284fae8a"
+          }
+        ]
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "issues": []
+        }
+      ],
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_decisive_support",
+          "result": "clear",
+          "finding": "Young adult with isolated thrombocytopenia 42 x 10^9/L and minor bruising has a reassuring smear, preserved other cell lines and no organomegaly. These findings are compatible with ITP but do not establish primary ITP before exclusion of associated causes. The Spanish consensus and Japanese diagnostic guide support exclusion-focused evaluation; retained passages directly support quantitative immunoglobulins and HIV/HBV/HCV/H. pylori testing.",
+          "source_ids": [
+            "37892566",
+            "37957517"
+          ]
+        },
+        {
+          "check": "population_safety_and_evidence_limits",
+          "result": "clear",
+          "finding": "B avoids routine marrow examination in the absence of anemia, macrocytosis, leukocyte/morphology abnormalities, organomegaly, advanced age or refractory course. The selected question is current diagnostic interpretation/evaluation, not treatment or a universal confirmatory biomarker rule. It does not assert that completing these tests guarantees primary ITP; the Japanese guide's more specialized TPO/IPF criteria are not incorrectly imported into the Spanish exclusion-based framework. No life-threatening bleeding is present.",
+          "source_ids": [
+            "37892566",
+            "37957517"
+          ]
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The actual public note identifies tests not yet available as clinical missingness without ordering them or assigning a primary ITP diagnosis. Descriptive smear findings do not label ITP or give the key. The withheld key uses the unambiguous label Candidate B, consistent with both blind solutions and reviews."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The final bundled examination tests confirmed HIT with thrombosis, immediate heparin avoidance and therapeutic nonheparin anticoagulation. This practice case tests exclusion-focused evaluation of isolated non-heparin-associated thrombocytopenia."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-examination-v1-76e4644baee47eeda234-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-examination-v1-76e4644baee47eeda234-1.json",
+        "entry_sha256": "fef1484432f0fa7f469e551b36278da94584c2afb362c036fa2759679b30b9e1"
+      }
+    }
+  ],
+  "integrity_summary": {
+    "cases": 7,
+    "literal_source_quote_instances_verified": 113,
+    "all_manifest_hashes_match": true,
+    "all_public_boundaries_verified": true,
+    "all_companion_decisions_distinct": true
+  },
+  "limits": [
+    "These are synthetic educational cases, not health-system records or physician-ratified clinical material.",
+    "No real-model calls, repository/case/reviewer edits, publication, or approval of any unlisted artifact was performed.",
+    "Clear applies only to each exact entry hash and retained validation reviewed here; any content revision requires a new audit.",
+    "Original source text and literal review quotation provenance remain unedited, including the documented EANM unit typo; authored nuclear content does not reproduce that unit.",
+    "PM&R examination is outside this report."
+  ],
+  "supplementary_sources": [
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/40282545/",
+      "purpose": "Check newer cancer-dyspnea evidence limits."
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42122292/",
+      "local_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/audit-round2-PMC13163085.xml",
+      "sha256": "9c51cf25690047aa84f900a5781b5fd3aeb1a59eb5147f7eaae354c923233846",
+      "purpose": "Verify correction adds the earlier review citation without altering scientific conclusions."
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/35254483/",
+      "local_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-imaging-sources/evidence-gap-imaging-PMC9016017.xml",
+      "sha256": "22335eb952c9f298399c1dca6b1321a444188333b8d866da505fbe61ea810da2",
+      "purpose": "Confirm mmol/L correction; retained authored case uses mg/dL only."
+    }
+  ]
+}

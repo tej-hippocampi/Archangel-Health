@@ -1,0 +1,432 @@
+{
+  "task_id": "onboarding-examination-v1-06867f80c28206f80670-1",
+  "specialty": "plastic surgery",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Initial assessment of an adult with extensive thermal injury",
+    "question": "Which approach best addresses the immediate burn assessment and fluid-resuscitation decision at this point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "plastic surgery",
+      "demographics": {
+        "age_band": "40-49",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Acute thermal injury involving the anterior trunk and both upper limbs",
+          "since": "Day 0",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Severe wound pain",
+          "since": "Day 0",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "weight_kg": 72,
+        "heart_rate_per_min": 112,
+        "blood_pressure_mmHg": "104/68",
+        "respiratory_rate_per_min": 20,
+        "oxygen_saturation_percent": 98,
+        "temperature_c": 36.4
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Emergency assessment",
+          "author_role": "plastic surgery",
+          "text": "On day 0, the patient arrived after clothing ignited during a brief indoor cooking-fire exposure. The flame was extinguished before arrival. Examination documents painful blistered and pale areas over the anterior trunk and both upper limbs, estimated at 24% total body surface area. Weight is 72 kg. He is alert and speaking normally, with no facial burn, soot, hoarseness, stridor, or increased work of breathing. Peripheral pulses are palpable, and no circumferential extremity injury is recorded. No fluid-resuscitation formula has yet been selected.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical review"
+        ],
+        "disclaimers": [
+          "Fictional examination case for onboarding; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete to decision point",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The documented burn size is 24% TBSA, placing this adult within the American Burn Association guideline population of adults with burns of at least 20% TBSA. Airway evaluation and burn-size estimation are core elements of initial burn assessment. Resuscitation should be initiated using 2 mL/kg/%TBSA as the starting basis; for 72 kg and 24% TBSA, the formula-derived volume basis is 3,456 mL. Starting automatically at 4 mL/kg/%TBSA would double that basis to 6,912 mL and conflicts with the supplied recommendation intended to reduce excessive resuscitation volumes.",
+        "evidence": {
+          "formula_calculation": "2 mL \u00d7 72 kg \u00d7 24 = 3,456 mL",
+          "guideline_population": "Adult with burn size at least 20% TBSA"
+        },
+        "key_data": [
+          "The patient is an adult with an estimated 24% TBSA thermal injury.",
+          "The recorded body weight is 72 kg.",
+          "Initial airway findings do not currently show soot, hoarseness, stridor, or respiratory distress.",
+          "The supported initiation basis is 2 mL/kg/%TBSA, yielding 3,456 mL for the documented weight and burn size."
+        ]
+      },
+      "hard_hook": "An older 4 mL/kg/%TBSA starting formula may appear familiar but conflicts with the supplied adult burn-resuscitation guideline.",
+      "reasoning_divergence": "The candidates differ in whether they use the supported lower starting resuscitation basis while preserving structured airway and burn-size assessment."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Accept the 24% estimate without further structured burn assessment and begin fluid resuscitation at 4 mL/kg/%TBSA, giving a formula-derived basis of 6,912 mL for this 72 kg adult."
+      },
+      {
+        "id": "B",
+        "text": "Confirm that airway status and burn-size estimation are included in the initial assessment, then initiate resuscitation using 2 mL/kg/%TBSA, giving a formula-derived basis of 3,456 mL for this 72 kg adult."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "major burn",
+      "burn shock",
+      "airway assessment",
+      "fluid resuscitation",
+      "resuscitation volume"
+    ],
+    "evidence_keywords": [
+      "total body surface area",
+      "2 mL/kg/%TBSA",
+      "adult burn",
+      "burn-size estimation",
+      "initial evaluation"
+    ],
+    "error_tags": [
+      "dosing_error",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Initial burn evaluation includes airway management and estimation of burn size.",
+        "source_ids": [
+          "41578417"
+        ]
+      },
+      {
+        "statement": "The adult burn-shock resuscitation guideline applies to burns involving at least 20% TBSA.",
+        "source_ids": [
+          "38051821"
+        ]
+      },
+      {
+        "statement": "Initial resuscitation should be based on 2 mL/kg/%TBSA to reduce resuscitation volumes.",
+        "source_ids": [
+          "38051821"
+        ]
+      },
+      {
+        "statement": "Burn-management guidance treats airway evaluation, burn-size estimation, and resuscitation strategy as core components of early care.",
+        "source_ids": [
+          "41578417",
+          "38051821"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T01:27:24.202298+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "41578417",
+        "title": "Explosive Weapons Trauma Care Collective (EXTRACCT) Blast Injury Clinical Practice Guideline: Burn Management in Low-Resource Settings.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41578417/",
+        "abstract": "This clinical practice guideline from the Explosive Weapons Trauma Care Collective (EXTRACCT) group provides a review of current best practice for management of burn wounds in low-resource conflict settings. The vast majority of burn wounds occur in low-and middle-income countries and yet international consensus guidelines are largely based on highly resource-intensive practices utilized in high-income countries. The guideline provides recommendations for initial evaluation, including airway management and estimation of burn size, resuscitation strategies, wound care, and approaches to definitive surgical management.",
+        "sha256": "de33b5011efa6774c52063e563d8ff8d90eca9331f7f77834e6c038bfac8d58f",
+        "retrieved_at": "2026-09-19T01:25:50.542516+00:00"
+      },
+      {
+        "id": "38051821",
+        "title": "American Burn Association Clinical Practice Guidelines on Burn Shock Resuscitation.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38051821/",
+        "abstract": "This Clinical Practice Guideline (CPG) addresses the topic of acute fluid resuscitation during the first 48 hours following a burn injury for adults with burns \u226520% of the total body surface area (%TBSA). The listed authors formed an investigation panel and developed clinically relevant PICO (Population, Intervention, Comparator, Outcome) questions. A systematic literature search returned 5978 titles related to this topic and after 3 levels of screening, 24 studies met criteria to address the PICO questions and were critically reviewed. We recommend that clinicians consider the use of human albumin solution, especially in patients with larger burns, to lower resuscitation volumes and improve urine output. We recommend initiating resuscitation based on providing 2 mL/kg/% TBSA burn in order to reduce resuscitation fluid volumes. We recommend selective monitoring of intra-abdominal and intraocular pressure during burn shock resuscitation. We make a weak recommendation for clinicians to consider the use of computer decision support software to guide fluid titration and lower resuscitation fluid volumes. We do not recommend the use of transpulmonary thermodilution-derived variables to guide burn shock resuscitation. We are unable to make any recommendations on the use of high-dose vitamin C (ascorbic acid), fresh frozen plasma (FFP), early continuous renal replacement therapy, or vasopressors as adjuncts during acute burn shock resuscitation. Mortality is an important outcome in burn shock resuscitation, but it was not formally included as a PICO outcome because the available scientific literature is missing studies of sufficient population size and quality to allow us to confidently make recommendations related to the outcome of survival at this time.",
+        "sha256": "54437650288d850c07e7083901e7669ab6c8e8e487269240f9388123250ee49e",
+        "retrieved_at": "2026-09-19T01:25:51.674561+00:00"
+      },
+      {
+        "id": "31810972",
+        "title": "Mental health issues and psychological factors in athletes: detection, management, effect on performance and prevention: American Medical Society for Sports Medicine Position Statement-Executive Summary.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31810972/",
+        "abstract": "The American Medical Society for Sports Medicine convened a panel of experts to provide an evidence-based, best practices document to assist sports medicine physicians and other members of the athletic care network with the detection, treatment and prevention of mental health issues in competitive athletes. This statement discusses how members of the sports medicine team, including team physicians, athletic trainers and mental health providers, work together in providing comprehensive psychological care to athletes. It specifically addresses psychological factors in athletes including personality issues and the psychological response to injury and illness. The statement also examines the athletic culture and environmental factors that commonly impact mental health, including sexuality and gender issues, hazing, bullying, sexual misconduct and transition from sport. Specific mental health disorders in athletes, such as eating disorders/disordered eating, depression and suicide, anxiety and stress, overtraining, sleep disorders and attention-deficit/hyperactivity disorder, are reviewed with a focus on detection, management, the effect on performance and prevention. This document uses the Strength of Recommendation Taxonomy to grade level of evidence.",
+        "sha256": "011f13246baf5deecf300d5556f81c48f66c46b7923c9ffb841854de9c8bcda2",
+        "retrieved_at": "2026-09-19T01:25:51.674561+00:00"
+      },
+      {
+        "id": "32370960",
+        "title": "ACR Appropriateness Criteria\u00ae Major Blunt Trauma.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32370960/",
+        "abstract": "This review assesses the appropriateness of various imaging studies for adult major blunt trauma or polytrauma in the acute setting. Trauma is the leading cause of mortality for people in the United States <45 years of age, and the fourth leading cause of death overall. Imaging, in particular CT, plays a critical role in the management of these patients, and a number of indications are discussed in this publication, including patients who are hemodynamically stable or unstable; patients with additional injuries to the face, extremities, chest, bowel, or urinary system; and pregnant patients. Excluded from consideration in this review are penetrating traumatic injuries, burns, and injuries to pediatric patients. Patients with suspected injury to the head and spine are also discussed more specifically in other appropriateness criteria documents. The American College of Radiology Appropriateness Criteria are evidence-based guidelines for specific clinical conditions that are reviewed annually by a multidisciplinary expert panel. The guideline development and revision include an extensive analysis of current medical literature from peer reviewed journals and the application of well-established methodologies (RAND/UCLA Appropriateness Method and Grading of Recommendations Assessment, Development, and Evaluation or GRADE) to rate the appropriateness of imaging and treatment procedures for specific clinical scenarios. In those instances where evidence is lacking or equivocal, expert opinion may supplement the available evidence to recommend imaging or treatment.",
+        "sha256": "ddcbb1979ba85db82cea810be29ec1b8fad924a2d51c4fff1b119d352aa897b6",
+        "retrieved_at": "2026-09-19T01:25:51.674561+00:00"
+      },
+      {
+        "id": "34016932",
+        "title": "Abdominal compartment syndrome in burns patients: Introduction of an evidence-based management guideline and algorithm.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34016932/",
+        "abstract": "Abdominal compartment syndrome is a serious potential complication of burn injury, and carries high morbidity and mortality. Although there are generalised published guidelines on managing the condition, to date no management algorithm has yet been published tailored specifically to the burn injury patient. We set out to examine the literature on the subject in order to produce an evidence based management guideline, with the aim of improving outcomes for these patients. The guideline covers early detection and assessment of the condition as well as optimum medical, surgical and postoperative management. We believe that this guideline provides a much needed benchmark for managing burns patients with raised intra-abdominal pressure, as well as providing a template for further research and improvements in care.",
+        "sha256": "0713715e35639e9c552c6017f4d65483ac63658fcdc3ce741e4aeaaf513e0970",
+        "retrieved_at": "2026-09-19T01:25:52.233041+00:00"
+      },
+      {
+        "id": "41177896",
+        "title": "Chinese expert consensus on prevention, diagnosis, and management of venous thromboembolism in adult burn patients (2024).",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41177896/",
+        "abstract": "Venous thromboembolism (VTE) management in adult burn patients has become a crucial focus in China. The intricate nature of VTE necessitates specialized anticoagulation strategies due to the unique challenges posed by burn injuries. To address this pressing issue, the Burn and Trauma Branch of the Chinese Geriatric Medical Association and Critical Care Group of Burn Surgery Branch of the Chinese Medical Association organized a panel of domestic experts in burn surgery, critical care medicine, vascular surgery, nursing, and health statistics and methodology from Chinese hospitals to discuss VTE-related issues in burn injury, the heightened risk factors such as extensive tissue damage and prolonged immobilization, and the delicate balance required in anticoagulation therapy to mitigate bleeding risks. Based on the latest available research evidence as well as the clinical experience of the panel experts, this consensus comprehensively evaluates factors such as generalizability, suitability, and the potential implications for resource allocation. It also appropriately weighs the clinical advantages against possible drawbacks, resulting in the formulation of 21 guideline recommendations.Registration Practice Guideline REgistry for transPAREncy (PREPARE): No. 2023CN656.",
+        "sha256": "3efb6f504380043449685101617cb8e41421b854ed6e0b2acef92f5387a42d5e",
+        "retrieved_at": "2026-09-19T01:25:52.233041+00:00",
+        "pmcid": "PMC12581310",
+        "body_excerpts": "Background\nThe risk of VTE escalates remarkably in burn patients due to factors, including tissue damage from shock, resuscitation, hypothermia, intense stress responses, inflammation, vascular endothelial injury, and the diminution or dilution of coagulation factors [ 9 ]. Additional risks such as prolonged immobility, repetitive vascular punctures, fever, malnutrition, and the stresses inherent in long-term treatments like surgery and frequent dressing changes post-burn [ 10 \u2013 12 ]. However, because of the lack of high-quality clinical research and limited basic research, there are still great differences in the occurrence and development, clinical evaluation, prevention, and management of VTE, and some even have gaps in worldwide of burns.\n\nBackground\nChina is a populous country with the highest incidence of burns in 2019 (approximately 1,079,670 cases), accounting for 12% of global total [ 13 ]. Domestic relevant research reports show that the incidence of VTE in burn patients is 1.04% to 3.9% [ 14 , 15 ]. A wealth of clinical experience has been accumulated through previous medical practices. In recent years, as clinical understanding of VTE in burn patients has deepened and related disciplines have made progress in this field, Chinese burn practitioners increasingly recognize the importance of VTE in burn prevention and treatment, which significantly impacts the prognosis and quality of life for such patients. Currently, there are no consensus or guideline documents on the prevention, diagnosis, and management of VTE in burn patients both domestically and internationally. To address the gap in this field, the Burn and Trauma Branch of the Chinese Geriatric Medical Association and Critical Care Group of Burn Surgery Branch of the Chinese Medical Association have collaboratively provided contemporary information on VTE in adult burn patients and developed this consensus. In this consensus, we focus on adult burn patients as this is the primary population for burn care with more evidence and experience available. Evidence and experience regarding VTE in pediatric and special population burns (the elderly, especially more than 90 years old, pregnant women and so on) are relatively limited and more complex, which will not be discussed here. This consensus is not only grounded in the currently limited evidence-based literature, but also incorporates valuable insights from clinical studies, guidelines, and consensus documents across relevant disciplines over the past decade. We carefully reviewed domestic and international data on the prevention, diagnosis, and management of VTE in adult burn patients, based on the latest available research evidence as well as the clinical experience of the panel experts. This consensus comprehensively evaluates factors such as generalizability, suitability, and the potential implications for resource allocation. It also appropriately weighs the clinical advantages against possible drawbacks, resulting in the formulation of 21 guideline recommendations, aiming to provide scientific and comprehensive guidance for clinical practice.\n\nResults > Statistical results > Consensus evaluation and recommendation strength\nBased on the CV for each recommendation, 3 recommendations were rated as \u201cperfect consistency\u201d (CV \u2264 0.04), 10 recommendations as \u201cvery good consistency\u201d (0.05 \u2264 CV \u2264 0.07), and 8 recommendations as \u201cgood consistency\u201d (0.08 \u2264 CV \u2264 0.10). Regarding recommendation strength, 18 items were classified as strong recommendations, and 3 items as weak recommendations, with no items rated as \u201cno recommendation\u201d. These findings directly correspond to the 21 finalized consensus recommendations for VTE prevention, diagnosis, and management in adult burn patients. The concentration, coordination, and authority of the 21 consensuses are detailed in Additional file 1 : Table S2.\n\nResults > Recommendation 1: VTE is a prevalent complication following burn injuries, particularly in patients with extensive, critical burns. This condition poses significant risks and warrants early attention and both mechanical and pharmacologic preventive interventions (Strong recommendation, evidence level: high)\nDespite the absence of precise epidemiological data delineating the full scope of VTE prevalence among burn patients, existing literature provides evidence for an elevated risk in this cohort, especially in those with extensive critical burns. This risk was first systematically documented by Foley et al. [ 27 ] in 1968. In their seminal autopsy study of 233 deceased burn patients, microthrombosis was observed in a quarter of the specimens, with 0.8% of deaths attributable to PE. Subsequent retrospective studies, primarily focused on symptomatic patients, reported variable VTE incidence ranging from 0.25% to 5.92% [ 28 \u2013 33 ]. A comprehensive retrospective study by Fecher et al. [ 28 ] encompassing 4102 burn patients over a decade, wherein all individuals received prophylactic-dose subcutaneous heparin and underwent imaging for symptomatic evaluation, revealed a DVT occurrence rate of 0.25%. In a pivotal study by Mullins et al. [ 32 ], employing Doppler ultrasound (DUS) for patients subjected to prolonged mechanical ventilation and immobilization, DVT was diagnosed in 86 out of 1452 burn patients, resulting in an incidence of 5.92%, predominantly in the lower extremities. Moreover, an analysis by Satahoo et al. [ 34 ] in 2015, involving 36,638 burn patients from the United States National Burn Database, identified a DVT incidence of 0.8%. Recently, Lu et al. [ 35 ] conducted a study in Australia and New Zealand, encompassing data from 1475 burn patients registered between 2013 and 2018, and reported a VTE incidence of 1.36%. Consistently, retrospective studies in China have reported DVT incidences of 1.04% [ 14 ] and 0.98% [ 36 ], respectively. Overall, these data indicate a relatively low incidence of VTE among burn patients. However, due to inherent differences in study designs, inclusion criteria, and diagnostic approaches, the reported incidence rates of VTE in burn patients vary substantially across retrospective and prospective studies [ 33 ]. Retrospective analyses often yield lower incidence rates compared to their prospective counterparts. The reported incidence of VTE in prospective studies ranges considerably, from 6.08% to 23.3% [ 37 \u2013 39 ].\n\nResults > Recommendation 1: VTE is a prevalent complication following burn injuries, particularly in patients with extensive, critical burns. This condition poses significant risks and warrants early attention and both mechanical and pharmacologic preventive interventions (Strong recommendation, evidence level: high)\nThe American Burn Association (ABA) conducted a large study including 33,637 thermally injured patients between 1995 and 2007 [ 21 ]. The overall incidence of VTE post-burn was 0.61%, comprising DVT at 0.48% and PE at 0.18%. Notably, among patients with TBSA > 10%, the incidence increased to 1.22%, highlighting the higher VTE risk in patients with more extensive burns [ 40 ]. An illuminating prospective study by Wahl et al. [ 38 ] reported a notably high incidence of DVT at 23.3% among adult burn patients in their burn center.\n\nResults > Recommendation 1: VTE is a prevalent complication following burn injuries, particularly in patients with extensive, critical burns. This condition poses significant risks and warrants early attention and both mechanical and pharmacologic preventive interventions (Strong recommendation, evidence level: high)\nUp to 50% of DVT cases in burn patients may be asymptomatic [ 41 ], and burn-related symptoms such as swelling and pain can obscure DVT signs, complicating diagnosis, particularly in severe cases requiring mechanical ventilation. Therefore, the true incidence of DVT in burn patients is likely higher than reported, as many cases are asymptomatic and difficult to detect. Untreated DVT can lead to PE, which may be fatal; however, estimates of mortality vary widely depending on patient population and study methodology [ 42 , 43 ]. This underscores the importance of early diagnosis and proactive DVT prevention.\n\nResults > Recommendation 1: VTE is a prevalent complication following burn injuries, particularly in patients with extensive, critical burns. This condition poses significant risks and warrants early attention and both mechanical and pharmacologic preventive interventions (Strong recommendation, evidence level: high)\nNotably, postmortem examinations reveal even more striking data, with incidences of DVT climbing as high as 60% in certain studies, significantly surpassing those observed in retrospective analyses [ 27 , 44 , 45 ].\n\nResults > Recommendation 1: VTE is a prevalent complication following burn injuries, particularly in patients with extensive, critical burns. This condition poses significant risks and warrants early attention and both mechanical and pharmacologic preventive interventions (Strong recommendation, evidence level: high)\nGlobal research consistently demonstrates that early prevention of VTE plays a crucial role in substantially lowering its incidence among burn patients. Following the introduction of preventive interventions, the proportion of patients developing VTE post-burn decreased to between 50% and 84% in countries including Canada, United States, and United Kingdom [ 46 \u2013 48 ]. A Chinese study demonstrated that a standardized VTE prevention program markedly lowered VTE incidence compared to traditional methods (1.56% vs. 10.17%) [ 15 ]. These findings emphasize the importance of early VTE prevention in improving care and outcomes for burn patients.\n\nResults > Recommendation 2: Advanced age, obesity, extensive burns (especially on lower extremities), deep venous catheters, prolonged intensive care unit (ICU) stay, long-term immobility in bed, wound infection, number of operations, and the presence of inhalation injuries or trauma should be recognized as primary risk factors for VTE following burns (Strong recommendation, evidence level: medium)\nIn non-burn critically ill patients, numerous studies have pinpointed factors like advanced age and obesity as VTE risk factors [ 49 \u2013 52 ]. However, research specifically focused on VTE in burn patients remains comparatively scarce. The American College of Chest Physicians-8th edition (ACCP-8) antithrombotic guidelines [ 53 ] recommend routine VTE preventive interventions in burn patients with additional risk factors such as advanced age, morbid obesity, extensive or lower extremity burns, concomitant lower extremity trauma, femoral vein catheter usage, and/or prolonged immobilization.\n\nResults > Recommendation 2: Advanced age, obesity, extensive burns (especially on lower extremities), deep venous catheters, prolonged intensive care unit (ICU) stay, long-term immobility in bed, wound infection, number of operations, and the presence of inhalation injuries or trauma should be recognized as primary risk factors for VTE following burns (Strong recommendation, evidence level: medium)\nProgressing clinical research has identified several risk factors for VTE in burn patients, including surgery or frequent dressing changes, mechanical ventilation, central venous catheters, wound infection, and associated trauma in addition to those risk factors above [ 32 , 33 , 36 , 54 , 55 ]. A retrospective study from the National Burn Database in the United States, involving 33,637 burn patients, revealed that factors like advanced age, having more than 2 comorbidities, concurrent inhalation injuries, extended ICU stays and ventilation (over 48 h), increased ventilation days, more surgical interventions, and an extensive burn area, significantly escalate VTE risk. Further analysis identified burn total body surface area (TBSA), ICU stay duration, and the number of surgeries as independent risk factors for heightened VTE risk [ 56 ]. A retrospective analysis of 845 burn patients in China indicated that advanced age, lower extremity burns, wound infection, femoral vein catheterization, and prolonged bed rest (over 40 d) were independent VTE risk factors. Of these, advanced age, wound infection, femoral vein catheterization, and extended bed rest emerged as strong independent predictors [ 54 ]. In the analysis from Pannucci et al. [ 40 ], 3 factors including TBSA burned, ICU days, and number of operations, were independently associated with increased VTE risk after controlling for age, gender, presence of inhalation injury, central venous catheter insertion, and ventilator days.\n\nResults > Recommendation 3: Caprini risk score (CRS) is recommended for VTE risk assessment in hospitalized burn patients (Strong recommendation, evidence level: medium)\nVTE risk assessment is essential for all hospitalized patients, and specific validated scoring systems are recommended according to patient type. For example, the CRS is widely used in surgical and burn patients, the Autar score is applied in general medical inpatients, and the Well\u2019s grading scale is primarily used for patients with suspected DVT or PE. This stratified approach ensures that risk assessment is tailored to the clinical context, facilitating appropriate preventive interventions.\n\nResults > Recommendation 3: Caprini risk score (CRS) is recommended for VTE risk assessment in hospitalized burn patients (Strong recommendation, evidence level: medium)\nThe CRS was originally developed by Caprini et al. [ 57 ] at Northwestern University in 1991 and underwent multiple revisions, reaching its mature form in 2010 [ 58 \u2013 60 ]. The ACCP-9 evaluated the CRS, noting its simplicity and reasonable risk stratification, although it was not derived using rigorous statistical methods [ 61 ]. Nevertheless, the CRS remains a thoroughly validated tool for predicting surgery-related and burn-related VTE risk, and its use is strongly recommended in these patient populations.\n\nResults > Recommendation 3: Caprini risk score (CRS) is recommended for VTE risk assessment in hospitalized burn patients (Strong recommendation, evidence level: medium)\nCRS comprehensive coverage of surgical scenarios makes it particularly suitable for surgical patients. It encompasses 40 different thrombosis risk factors, covering virtually all potential VTE risks in hospitalized medical and surgical patients (including cardiac, respiratory, psychiatric, orthopedic, general surgery, obstetrics, and gynecology departments). Factors are scored from 1 to 5 based on severity, with the total score determining the patient\u2019s risk category: low risk (0\u20131 point), medium risk (2 points), high risk (3\u20134 points), and extremely high risk (\u2265 5 points) [ 57 ]. This scoring system offers a comprehensive approach to assessing the VTE risk in a diverse patient population. As previously discussed, factors like hypercoagulation, vascular integrity destruction, and central venous catheterization in burn patients are all independent predictors of VTE, making the CRS theoretically suitable for evaluating VTE risk in burn surgery patients.\n\nResults > Recommendation 3: Caprini risk score (CRS) is recommended for VTE risk assessment in hospitalized burn patients (Strong recommendation, evidence level: medium)\nA single-center study involving 1939 burn patients assessed using the CRS found that the incidence of symptomatic VTE was 0.18% for CRS of 0\u20132 points, 0.69% for CRS of 3\u20134 points, 0.78% for CRS of 5\u20136 points, 3.66% for CRS of 7\u20138 points, and 8.82% for CRS > 8 points [ 62 ]. Notably, when the CRS > 8 points, the incidence of DVT soared to 62% [ 63 ]. This study supports the use of the CRS for informed decision-making regarding VTE prevention strategies in burn patients. A retrospective study by Peng et al. [ 54 ] assessed DVT risk using the CRS. The patients were categorized into non-DVT ( n = 830) and DVT ( n = 15) groups. Among 360 (42.7%) patients with a high-risk CRS, only 30 underwent color Doppler examination of lower extremity veins, with 15 diagnosed with DVT, resulting in a diagnostic rate of 1.8%. The study found a significant difference in CRS between the non-DVT and DVT groups (4.30 \u00b1 2.71 vs. 9.87 \u00b1 1.46, respectively). Another study also differentiated patients into non-VTE and VTE groups, revealing a significant disparity in CRS between these groups and indicating that VTE can occur even in low-risk patients [ 64 ]. A retrospective study [ 65 ] was conducted on electrically injured patients at a burn center verified by the ABA and American College of Surgeons over 9 years. This study identified risk factors to calculate CRS at admission and discharge, focusing on outcomes like symptomatic DVT or PE and the timing of these events. Out of 77 patients, the DVT incidence was 6.5%. Those with DVT had significantly higher TBSA burns (27.8% vs. 3.8%), more surgeries (4.8 vs. 0.3), central venous catheter insertion (100.0% vs. 5.3%), longer ventilator use (16.2 d vs. 0.3 d), and longer ICU stays (24.4 d vs. 0.9 d). Notably, their CRS change during hospitalization was markedly higher (18.6 vs. 1.3). Although baseline scores were low, DVT events occurred after multiple risk factors emerged, typically around hospital day 17. Remarkably, DVT incidence rose to 62% in patients whose CRS exceeded 8 points during hospitalization [ 65 ].\n\nResults > Recommendation 3: Caprini risk score (CRS) is recommended for VTE risk assessment in hospitalized burn patients (Strong recommendation, evidence level: medium)\nWhile this score is useful for assessing VTE risk in burn patients, it doesn\u2019t account for specific factors crucial in burn care, such as inhalation injury and the extent of burn area. Additionally, it includes a maximum of 2 surgeries, whereas severe burn patients often undergo multiple operations. These should be concurrently considered when applying the CRS in burn patients. Considering the current limited evidence specific to burns and data from related fields, we recommend using the CRS for VTE risk assessment in adult burn patients.\n\nResults > Recommendation 4: It is recommended to assess bleeding risk in hospitalized burn patients receiving anticoagulant/antithrombotic therapy (Strong recommendation, evidence level: low)\nAccurate bleeding risk assessment is crucial in VTE management. It\u2019s important to balance reducing thrombosis recurrence risk through anticoagulation against the risk of anticoagulation-induced bleeding. The International Society on Thrombosis and Haemostasis defines bleeding severity and its categories [ 66 ]. Bleeding events often occur within the first 3\u20136 months of anticoagulation, and the risk of major bleeding-induced mortality increases over time [ 67 ]. An ideal bleeding risk model should identify reversible bleeding factors, high-risk groups, and estimate individual bleeding risk during anticoagulation therapy.\n\nResults > Recommendation 4: It is recommended to assess bleeding risk in hospitalized burn patients receiving anticoagulant/antithrombotic therapy (Strong recommendation, evidence level: low)\nNo specialized bleeding risk assessment models for burn patients currently exist, and existing models haven\u2019t been studied in burn populations. Nonetheless, bleeding assessments and monitoring are highly recommended for burn patients, especially those with high-risk factors.\n\nResults > Recommendation 5: It is recommended to comprehensively diagnose and evaluate DVT in adult burn patients by combining injury condition, clinical manifestations, CRS, high-sensitivity D-dimer, and imaging (Strong recommendation, evidence level: medium)\nBurn patients are notably susceptible to DVT. The nature of the injury, such as the cause of the burn, accompanying trauma, or inhalation injury, dictates the patient\u2019s pathophysiological alterations. These include a systemic inflammatory response, stress, endothelial injury, and microthrombosis in soft tissues [ 77 ]. Such factors potentially elevate the risk of VTE in burn patients. Particularly in cases of electrical burns, deep burns, and injuries involving inhalation or blast trauma to the lungs, vigilant screening, and evaluation for DVT are crucial [ 78 ]. Extensive burns often lead to wound-related complications, including early limb swelling, which, along with bandaging, surgery, and blood exudation, can significantly hinder routine physical examinations and ultrasound procedures, complicating DVT identification [ 79 ]. Therefore, a multifaceted approach to diagnosis is recommended.\n\nResults > Recommendation 5: It is recommended to comprehensively diagnose and evaluate DVT in adult burn patients by combining injury condition, clinical manifestations, CRS, high-sensitivity D-dimer, and imaging (Strong recommendation, evidence level: medium)\nThe CRS, assessing DVT risk based on injury and clinical indicators, is useful for burn patients. For those with a low clinical likelihood of DVT, a high-sensitivity D-dimer test is advised. A negative result largely excludes the possibility of DVT, whereas a positive result necessitates further investigation through ultrasound or venous compression ultrasound (CUS) [ 79 ]. In cases where DVT is highly probable or ultrasound is impeded by wounds, alternative imaging methods like computed tomography angiography or magnetic resonance venography (MRV) may be considered [ 80 ].\n\nResults > Recommendation 5: It is recommended to comprehensively diagnose and evaluate DVT in adult burn patients by combining injury condition, clinical manifestations, CRS, high-sensitivity D-dimer, and imaging (Strong recommendation, evidence level: medium)\nConventional ultrasound provides direct signs for diagnosing lower extremity DVT. These signs include: (1) presence of solid echoes of varying intensity within the venous cavity, partially or completely filling the vessel; (2) inability or partial inability to compress the lumen with probe pressure; (3) absence of blood flow signals in completely embolized deep veins, as detected by pulse and color Doppler. This includes no increase in blood flow after squeezing the distal limb; (4) in partially embolized veins, pulse Doppler detects a continuous blood flow spectrum at the non-embolized site that does not change with respiration, and color Doppler shows blood flow filling defects. Sometimes, small blood flow is only visible after distal limb compression; and (5) chronic DVT is indicated by vascular wall thickening, lumen narrowing, and the presence of collateral circulation [ 81 ].\n\nResults > Recommendation 5: It is recommended to comprehensively diagnose and evaluate DVT in adult burn patients by combining injury condition, clinical manifestations, CRS, high-sensitivity D-dimer, and imaging (Strong recommendation, evidence level: medium)\nSeveral key points in DVT diagnosis among burn patients need emphasis. (1) Due to potential long-term systemic inflammation in burn patients, D-dimer test results alone should not be the sole diagnostic criterion for DVT [ 82 ]. (2) Given the complexity of clinical observations and monitoring in burn patients, continuous evaluation with the CRS, D-dimer testing, and imaging is essential [ 83 ]. (3) The diagnostic specificity of D-dimer decreases with age; hence, adjusting the cut-off value for elderly patients can enhance specificity [ 84 ].\n\nResults > Recommendation 5: It is recommended to comprehensively diagnose and evaluate DVT in adult burn patients by combining injury condition, clinical manifestations, CRS, high-sensitivity D-dimer, and imaging (Strong recommendation, evidence level: medium)\nInjury and clinical manifestations indicate that lower limb burns independently increase the risk of DVT [ 14 , 27 , 29 , 30 , 32 , 33 , 40 , 54 , 58 , 85 , 86 ]. However, burns on other sites (upper limbs, trunk, head, face) do not show a significant correlation with DVT [ 34 ]. Regarding burn area, studies suggest that burns covering 40\u201359% of TBSA carry the highest VTE risk [ 40 ]. Inhalation injuries also correlate with increased VTE incidence [ 87 ]. Furthermore, during treatment, factors like multiple surgeries, pneumonia, and central venous catheter placement are associated with higher VTE risk [ 88 ].\n\nResults > Recommendation 5: It is recommended to comprehensively diagnose and evaluate DVT in adult burn patients by combining injury condition, clinical manifestations, CRS, high-sensitivity D-dimer, and imaging (Strong recommendation, evidence level: medium)\nAudu et al. [ 89 ] reviewed VTE biomarkers from 2001 to 2019, suggesting high-sensitivity D-dimer as the most relevant for VTE. D-dimer, a degradation product of cross-linked fibrin, rises when thrombi dissolve. A study by Fronas et al. [ 90 ] with 913 suspected DVT patients showed a high accuracy of D-dimer testing, with only 1 false negative in 298 cases, indicating a 0.3% failure rate [95% confidence interval (CI) 0.1\u20131.9%]. The American Society of Hematology (ASH) guidelines for diagnosing VTE [ 91 ] recommend high-sensitivity D-dimer testing in patients with low pretest probability of DVT, as it demonstrates superior sensitivity compared with whole-blood or latex semi-quantitative assays. A negative high-sensitivity D-dimer result generally rules out DVT without the need for further imaging, whereas a positive result indicates the need for proximal lower-extremity or whole-leg ultrasonography.\n\nResults > Recommendation 5: It is recommended to comprehensively diagnose and evaluate DVT in adult burn patients by combining injury condition, clinical manifestations, CRS, high-sensitivity D-dimer, and imaging (Strong recommendation, evidence level: medium)\nSeveral studies have demonstrated that in high-risk patients, D-dimer testing alone may miss clinically significant DVT, whereas ultrasonography provides higher diagnostic sensitivity and reliability [ 92 ]. For high-risk DVT patients, guidelines suggest starting with ultrasonography, confirming negative results with D-dimer testing, or repeating ultrasonography after a week. In suspected recurrent lower extremity DVT or low probability upper extremity DVT, D-dimer testing is first-line, followed by ultrasonography if positive. For high probability upper extremity DVT, D-dimer testing followed by ultrasonography, or a second ultrasound after a week, is recommended. Conclusively, a negative D-dimer result combined with negative ultrasound, or 2 negative ultrasounds, is needed to rule out upper extremity DVT in high-risk patients [ 91 , 93 ].\n\nResults > Recommendation 5: It is recommended to comprehensively diagnose and evaluate DVT in adult burn patients by combining injury condition, clinical manifestations, CRS, high-sensitivity D-dimer, and imaging (Strong recommendation, evidence level: medium)\nWahl et al. [ 94 ] and Ahuja et al. [ 33 ] investigated the utility of D-dimer in screening for DVT among burn patients. Their study involved 30 burn patients, with ultrasounds and D-dimer testing conducted on admission and then weekly until discharge. They identified 11 DVT sites in 7 patients. Notably, unlike trauma patients whose D-dimer levels peak within the first 48 h post-injury, most burn patients did not exhibit elevated D-dimer levels upon admission. However, 86% of those who developed DVT showed elevated levels within the first week, yielding a negative predictive value of 94%. This suggests that a week post-injury, a negative D-dimer result is a strong indicator for excluding DVT in burn patients.\n\nResults > Recommendation 5: It is recommended to comprehensively diagnose and evaluate DVT in adult burn patients by combining injury condition, clinical manifestations, CRS, high-sensitivity D-dimer, and imaging (Strong recommendation, evidence level: medium)\nIn the second week after burn, systemic complications like wound infection and bacteremia led to hypercoagulable state even in patients without DVT [ 95 , 96 ]. Although the literature on D-dimer clinical significance in burn patients is limited and its diagnostic value for burn-induced DVT is debated, due to early-stage burn inflammation and coagulation effects, high-sensitivity D-dimer testing is still recommended. A negative high-sensitivity D-dimer test can rule out DVT, and a level above 500 \u03bcg/L warrants further investigation.\n\nResults > Recommendation 5: It is recommended to comprehensively diagnose and evaluate DVT in adult burn patients by combining injury condition, clinical manifestations, CRS, high-sensitivity D-dimer, and imaging (Strong recommendation, evidence level: medium)\nHowever, there\u2019s a lack of literature supporting the diagnostic value threshold of high-sensitivity D-dimer in burn patients, particularly considering variables like age and inhalation injury. Moreover, since burn wounds are often located on limbs and are usually bandaged, diagnosing DVT in burn patients should be a comprehensive process. It should involve assessing the injury, clinical manifestations, CRS, high-sensitivity D-dimer results, and imaging evaluations. This holistic approach is strongly recommended for accurate diagnosis and management.\n\nResults > Recommendation 6: DUS or CUS is recommended as an important method for regular screening and diagnosis of DVT in burn patients (Weak recommendation, level of evidence: low)\nResearch indicates that the sensitivity of DUS for diagnosing DVT ranges between 88.0% and 98.0%, with a specificity of 97.0\u2013100.0% and an overall accuracy of 97.8%. This high efficacy has made it a standard diagnostic tool for DVT [ 97 \u2013 100 ].\n\nResults > Recommendation 7: Screening and diagnosis of PE after burns are based on a strategy of suspicion, confirmation, etiology, and risk stratification, combining clinical manifestations, CRS, high-sensitivity D-dimer, and imaging studies (Strong recommendation, evidence level: low)\nAnalyzing the cause of acute PE is vital for determining treatment strategy and duration. It\u2019s essential to explore factors contributing to venous stasis, vascular endothelial injury, and hypercoagulable states, including genetic and acquired factors. Identifying reversible risk factors (such as surgery, trauma, medical diseases, and immobilization) in burn patients is crucial. For patients without acute reversible factors, underlying diseases like malignancies, rheumatic immune diseases, endocrine abnormalities, and nephrotic syndrome should be investigated. Young burn patients (< 50 years) with acute PE and no definite acquired risk factors should be screened for thrombophilia and familial VTE [ 31 ].\n\nResults > Recommendation 15: When using different anticoagulant drugs, we recommend to choose different methods for monitoring coagulation function and anticoagulation effect, and to comprehensively evaluate factors such as weight, burn complications, and liver and kidney function to timely adjust the anticoagulant medication and dosage (Strong recommendation, evidence level: medium)\nPrevious study indicates that underweight patients (BMI < 18.5 kg/m 2 or weight \u2264 55 kg) require lower VTE prevention drug doses, while obese patients (BMI \u2265 30 kg/m 2 ) benefit from higher dosages [ 168 ]. Given the heterogeneity in body types and injury severity in burn patients, individualized thromboprophylaxis strategies are necessary [ 143 , 169 , 170 ]. A study evaluating the impact of body weight on anticoagulant dosing found that anti-Xa factor levels correlate with body weight [ 171 ]. Obese patients receiving LMWH for acute VTE should base initial LMWH doses on actual body weight, potentially leading to higher anti-Xa factor levels in critically ill patients. A cohort study reported that 12.0% of overweight and 9.1% of underweight patients, respectively, required dosage adjustments to avoid sub-prophylactic anti-Xa factor levels [ 172 , 173 ]. Weight loss in burn patients often results from acute/chronic comorbidities and age-related metabolic changes, while chronic severe illness can lead to fat accumulation and obesity [ 12 ]. Weight considerations are thus essential when administering LMWH for VTE prevention in burn patients.",
+        "body_excerpts_sha256": "56568b8b5f4252243e7ca56bc9a29b9f8ca30294bc426307c568581896aa9498",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12581310/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "32298453",
+        "title": "Actionable, Revised (v.3), and Amplified American Burn Association Triage Tables for Mass Casualties: A Civilian Defense Guideline.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32298453/",
+        "abstract": "Burn care remains among the most complex of the time-sensitive treatment interventions in medicine today. An enormous quantity of specialized resources are required to support the critical and complex modalities needed to meet the conventional standard of care for each patient with a critical burn injury. Because of these dependencies, a sudden surge of patients with critical burn injuries requiring immediate and prolonged care following a burn mass casualty incident (BMCI) will place immense stress on healthcare system assets, including supplies, space, and an experienced workforce (staff). Therefore, careful planning to maximize the efficient mobilization and rational use of burn care resources is essential to limit morbidity and mortality following a BMCI. The U.S. burn care profession is represented by the American Burn Association (ABA). This paper has been written by clinical experts and led by the ABA to provide further clarity regarding the capacity of the American healthcare system to absorb a surge of burn-injured patients. Furthermore, this paper intends to offer responders and clinicians evidence-based tools to guide their response and care efforts to maximize burn care capabilities based on realistic assumptions when confronted with a BMCI. This effort also aims to align recommendations in part with those of the Committee on Crisis Standards of Care for the Institute of Medicine, National Academies of Sciences. Their publication guided the work in this report, identified here as \"conventional, contingency, and crisis standards of care.\" This paper also includes an update to the burn Triage Tables- Seriously Resource-Strained Situations (v.2).",
+        "sha256": "d1accf8a9bc95c97843cd20dde075c661e26ff3a4b6fa015c651e7877224efd9",
+        "retrieved_at": "2026-09-19T01:25:52.233041+00:00",
+        "pmcid": "PMC7530540"
+      },
+      {
+        "id": "41758104",
+        "title": "ACR Appropriateness Criteria\u00ae Major Blunt Trauma: Update 2025.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41758104/",
+        "abstract": "Trauma remains the leading cause of mortality in the United States for those <45 years of age, and it is the fourth leading cause of death overall. Polytrauma is defined as an injury to at least two body parts, including the head, neck, chest, abdomen, pelvis, or an extremity, with any one or a combination of these injuries being potentially fatal. This document covers imaging of major blunt trauma or polytrauma resulting in multiple organ injuries. Burn injuries, and injuries to pediatric patients are excluded. The American College of Radiology Appropriateness Criteria are evidence-based guidelines for specific clinical conditions that are reviewed annually by a multidisciplinary expert panel. The guideline development and revision process support the systematic analysis of the medical literature from peer reviewed journals. Established methodology principles such as Grading of Recommendations Assessment, Development, and Evaluation or GRADE are adapted to evaluate the evidence. The RAND/UCLA Appropriateness Method User Manual provides the methodology to determine the appropriateness of imaging and treatment procedures for specific clinical scenarios. In those instances where peer reviewed literature is lacking or equivocal, experts may be the primary evidentiary source available to formulate a recommendation.",
+        "sha256": "1e6fe717e63a35634bf2881baa429a0be763b7b27eb21ee408170491ceeaf13c",
+        "retrieved_at": "2026-09-19T01:25:52.799725+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The immediate assessment should systematically confirm airway status and estimate burn size rather than simply accepting an unverified TBSA value. This adult has a 24% TBSA burn, exceeding the \u226520% threshold addressed by the 2024 American Burn Association burn-shock guideline. That guideline recommends initiating resuscitation at 2 mL/kg/%TBSA to reduce excessive fluid administration. The calculation is 2 \u00d7 72 \u00d7 24 = 3,456 mL as the initial formula-derived resuscitation volume, followed by clinical titration. No current findings suggest an inhalation injury, but airway assessment remains part of the initial evaluation. Option A uses the older 4 mL/kg/%TBSA starting approach and omits structured reassessment.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.94,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "41578417"
+              ],
+              "reason": "The cited burn-management guideline explicitly places airway management and burn-size estimation within its recommendations for initial evaluation.",
+              "source_passage_ids": [
+                "41578417:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41578417",
+                  "quote": "This clinical practice guideline from the Explosive Weapons Trauma Care Collective (EXTRACCT) group provides a review of current best practice for management of burn wounds in low-resource conflict settings. The vast majority of burn wounds occur in low-and middle-income countries and yet international consensus guidelines are largely based on highly resource-intensive practices utilized in high-income countries. The guideline provides recommendations for initial evaluation, including airway management and estimation of burn size, resuscitation strategies, wound care, and approaches to definitive surgical management."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38051821"
+              ],
+              "reason": "The ABA guideline passage explicitly identifies its population as adults with burns involving at least 20% TBSA. This adult's documented 24% TBSA burn meets that threshold.",
+              "source_passage_ids": [
+                "38051821:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38051821",
+                  "quote": "This Clinical Practice Guideline (CPG) addresses the topic of acute fluid resuscitation during the first 48 hours following a burn injury for adults with burns \u226520% of the total body surface area (%TBSA). The listed authors formed an investigation panel and developed clinically relevant PICO (Population, Intervention, Comparator, Outcome) questions. A systematic literature search returned 5978 titles related to this topic and after 3 levels of screening, 24 studies met criteria to address the PICO questions and were critically reviewed. We recommend that clinicians consider the use of human albumin solution, especially in patients with larger burns, to lower resuscitation volumes and improve urine output. We recommend initiating resuscitation based on providing 2 mL/kg/% TBSA burn in order to reduce resuscitation fluid volumes."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "38051821"
+              ],
+              "reason": "The passage directly recommends initiating resuscitation on a 2 mL/kg/%TBSA basis to reduce resuscitation fluid volumes. The calculation is correct: 2 \u00d7 72 \u00d7 24 = 3,456 mL.",
+              "source_passage_ids": [
+                "38051821:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38051821",
+                  "quote": "This Clinical Practice Guideline (CPG) addresses the topic of acute fluid resuscitation during the first 48 hours following a burn injury for adults with burns \u226520% of the total body surface area (%TBSA). The listed authors formed an investigation panel and developed clinically relevant PICO (Population, Intervention, Comparator, Outcome) questions. A systematic literature search returned 5978 titles related to this topic and after 3 levels of screening, 24 studies met criteria to address the PICO questions and were critically reviewed. We recommend that clinicians consider the use of human albumin solution, especially in patients with larger burns, to lower resuscitation volumes and improve urine output. We recommend initiating resuscitation based on providing 2 mL/kg/% TBSA burn in order to reduce resuscitation fluid volumes."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "41578417",
+                "38051821"
+              ],
+              "reason": "The first passage identifies airway management, burn-size estimation, and resuscitation strategies as elements of initial burn evaluation, while the second directly addresses early adult burn-shock resuscitation and its starting-volume basis.",
+              "source_passage_ids": [
+                "41578417:p0",
+                "38051821:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41578417",
+                  "quote": "This clinical practice guideline from the Explosive Weapons Trauma Care Collective (EXTRACCT) group provides a review of current best practice for management of burn wounds in low-resource conflict settings. The vast majority of burn wounds occur in low-and middle-income countries and yet international consensus guidelines are largely based on highly resource-intensive practices utilized in high-income countries. The guideline provides recommendations for initial evaluation, including airway management and estimation of burn size, resuscitation strategies, wound care, and approaches to definitive surgical management."
+                },
+                {
+                  "source_id": "38051821",
+                  "quote": "This Clinical Practice Guideline (CPG) addresses the topic of acute fluid resuscitation during the first 48 hours following a burn injury for adults with burns \u226520% of the total body surface area (%TBSA). The listed authors formed an investigation panel and developed clinically relevant PICO (Population, Intervention, Comparator, Outcome) questions. A systematic literature search returned 5978 titles related to this topic and after 3 levels of screening, 24 studies met criteria to address the PICO questions and were critically reviewed. We recommend that clinicians consider the use of human albumin solution, especially in patients with larger burns, to lower resuscitation volumes and improve urine output. We recommend initiating resuscitation based on providing 2 mL/kg/% TBSA burn in order to reduce resuscitation fluid volumes."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "B is the independently supported choice. The patient is an adult with a documented 24% TBSA burn, so he falls within the supplied ABA guideline population of adults with burns at least 20% TBSA. The guideline directly recommends a 2 mL/kg/%TBSA starting basis, and the stated 3,456 mL calculation is accurate. B also preserves structured reassessment of airway status and burn extent; the current negative inhalation-injury findings do not eliminate the need to include airway evaluation in the initial assessment. The volume is described as a formula-derived starting basis rather than an immediate bolus, so the answer does not direct administration of the entire amount at once. A uses the unsupported 4 mL/kg/%TBSA basis and omits structured reassessment. No imaging is required for the decision presented. This decision is distinct from the previous case, which concerned comprehensive assessment of a suspected flexor-tendon injury."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient is an adult with an estimated 24% TBSA thermal burn, which meets the threshold for formal burn-shock fluid resuscitation. The 2024 American Burn Association burn shock resuscitation guideline applies to adults with burns \u226520% TBSA and recommends initiating resuscitation at 2 mL/kg/%TBSA to reduce excessive fluid volumes. For this 72 kg patient with 24% TBSA burns, that gives 2 \u00d7 72 \u00d7 24 = 3,456 mL as the formula-derived starting basis. Initial burn evaluation should also include airway assessment and burn-size estimation; the case documents no current inhalation/airway warning signs, but confirming airway status and structured TBSA assessment is still part of the immediate approach. Answer A uses a higher 4 mL/kg/%TBSA volume and explicitly accepts the burn-size estimate without further structured assessment, making it less consistent with the cited current guidance.",
+          "confidence": 0.94
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "41578417"
+              ],
+              "reason": "The cited burn-management guideline passage explicitly states that initial evaluation includes airway management and estimation of burn size.",
+              "source_passage_ids": [
+                "41578417:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41578417",
+                  "quote": "This clinical practice guideline from the Explosive Weapons Trauma Care Collective (EXTRACCT) group provides a review of current best practice for management of burn wounds in low-resource conflict settings. The vast majority of burn wounds occur in low-and middle-income countries and yet international consensus guidelines are largely based on highly resource-intensive practices utilized in high-income countries. The guideline provides recommendations for initial evaluation, including airway management and estimation of burn size, resuscitation strategies, wound care, and approaches to definitive surgical management."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38051821"
+              ],
+              "reason": "The ABA burn shock resuscitation guideline passage explicitly defines its adult population as burns involving at least 20% TBSA.",
+              "source_passage_ids": [
+                "38051821:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38051821",
+                  "quote": "This Clinical Practice Guideline (CPG) addresses the topic of acute fluid resuscitation during the first 48 hours following a burn injury for adults with burns \u226520% of the total body surface area (%TBSA). The listed authors formed an investigation panel and developed clinically relevant PICO (Population, Intervention, Comparator, Outcome) questions. A systematic literature search returned 5978 titles related to this topic and after 3 levels of screening, 24 studies met criteria to address the PICO questions and were critically reviewed. We recommend that clinicians consider the use of human albumin solution, especially in patients with larger burns, to lower resuscitation volumes and improve urine output. We recommend initiating resuscitation based on providing 2 mL/kg/% TBSA burn in order to reduce resuscitation fluid volumes."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "38051821"
+              ],
+              "reason": "The ABA passage directly recommends initiating resuscitation based on 2 mL/kg/%TBSA burn to reduce resuscitation fluid volumes.",
+              "source_passage_ids": [
+                "38051821:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38051821",
+                  "quote": "This Clinical Practice Guideline (CPG) addresses the topic of acute fluid resuscitation during the first 48 hours following a burn injury for adults with burns \u226520% of the total body surface area (%TBSA). The listed authors formed an investigation panel and developed clinically relevant PICO (Population, Intervention, Comparator, Outcome) questions. A systematic literature search returned 5978 titles related to this topic and after 3 levels of screening, 24 studies met criteria to address the PICO questions and were critically reviewed. We recommend that clinicians consider the use of human albumin solution, especially in patients with larger burns, to lower resuscitation volumes and improve urine output. We recommend initiating resuscitation based on providing 2 mL/kg/% TBSA burn in order to reduce resuscitation fluid volumes."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "41578417",
+                "38051821"
+              ],
+              "reason": "The burn-management guideline passage supports airway management, burn-size estimation, and resuscitation strategies as part of initial/early burn care; the ABA passage supports acute first-48-hour burn resuscitation strategy and the 2 mL/kg/%TBSA initiation basis for adults with burns of at least 20% TBSA.",
+              "source_passage_ids": [
+                "41578417:p0",
+                "38051821:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41578417",
+                  "quote": "This clinical practice guideline from the Explosive Weapons Trauma Care Collective (EXTRACCT) group provides a review of current best practice for management of burn wounds in low-resource conflict settings. The vast majority of burn wounds occur in low-and middle-income countries and yet international consensus guidelines are largely based on highly resource-intensive practices utilized in high-income countries. The guideline provides recommendations for initial evaluation, including airway management and estimation of burn size, resuscitation strategies, wound care, and approaches to definitive surgical management."
+                },
+                {
+                  "source_id": "38051821",
+                  "quote": "This Clinical Practice Guideline (CPG) addresses the topic of acute fluid resuscitation during the first 48 hours following a burn injury for adults with burns \u226520% of the total body surface area (%TBSA). The listed authors formed an investigation panel and developed clinically relevant PICO (Population, Intervention, Comparator, Outcome) questions. A systematic literature search returned 5978 titles related to this topic and after 3 levels of screening, 24 studies met criteria to address the PICO questions and were critically reviewed. We recommend that clinicians consider the use of human albumin solution, especially in patients with larger burns, to lower resuscitation volumes and improve urine output. We recommend initiating resuscitation based on providing 2 mL/kg/% TBSA burn in order to reduce resuscitation fluid volumes."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is a plastic-surgery/burn-injury initial assessment and resuscitation decision. The patient is an adult with a documented 24% TBSA thermal injury and weight 72 kg, placing him within the supplied ABA guideline population for adult burns involving at least 20% TBSA. The supplied ABA abstract directly supports initiating resuscitation at 2 mL/kg/%TBSA to reduce resuscitation volumes; 2 \u00d7 72 \u00d7 24 = 3456 mL as a formula-derived basis. Candidate B also preserves initial assessment of airway status and burn-size estimation, which is supported by the supplied burn-management guideline passage. Candidate A uses 4 mL/kg/%TBSA, yielding 6912 mL, and omits structured reassessment; it is therefore the intentionally flawed choice. The case is independent from the previous flexor tendon assessment case and contains the needed adult status, burn size, weight, and current airway findings for the tested decision."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "006887e65da04b86af6c96a8af8ec5f57a49aa544244fe10ccad007cb7365ecb"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

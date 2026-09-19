@@ -1,0 +1,164 @@
+{
+  "audit_kind": "independent_retained_artifact_content_audit",
+  "audited_at_utc": "2026-09-19T02:19:26.800634+00:00",
+  "source_artifacts_modified": false,
+  "real_model_calls": false,
+  "physician_certification": false,
+  "scope": "Revised neurology examination and pathology practice from audit-revision-batch1.json. Current artifacts, all declared decisive claims and retained quotations, actual public payload transformations, reviewer reports, pinned pathology pixels and final companion artifacts inspected.",
+  "release_note": "Clear means content audit only. Release eligibility and truthful representation of OpenAI two-model review plus independent audit are handled by the separate release gate.",
+  "cases": [
+    {
+      "task_id": "onboarding-practice-v1-b8ef799a756d2d5dc30e-1",
+      "specialty": "pathology",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10575398432/trial-onboarding-practice-v1-b8ef799a756d2d5dc30e-1.json",
+      "entry_sha256": "5d833ef82276566141328f00cba8fbca8de2c03f8f1ee882de5b4c74644ec143",
+      "disposition": "clear",
+      "findings": [],
+      "evidence": {
+        "integrity": {
+          "manifest_hash_matches": true,
+          "reviewed_entry_hash_matches": true,
+          "all_source_abstract_and_body_hashes_match": true,
+          "all_quotes_are_literal_retained_text": true,
+          "reviewer_claim_checks_checked": 6,
+          "literal_quotes_checked": 6,
+          "source_count": 9
+        },
+        "public_payload_sha256": "927246c02ff39d3b513e28ad0e1befe29d8f20ace3ae50a783c9a3c2fa8af488",
+        "reviewers": [
+          {
+            "model": "gpt-5.6-sol",
+            "provider": "openai",
+            "blind_answer": "A",
+            "blind_confidence": 0.98,
+            "review_confidence": 0.98
+          },
+          {
+            "model": "gpt-5.5",
+            "provider": "openai",
+            "blind_answer": "A",
+            "blind_confidence": 0.93,
+            "review_confidence": 0.93
+          }
+        ],
+        "final_companion": {
+          "task_id": "onboarding-examination-v1-b8ef799a756d2d5dc30e-1",
+          "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-examination-v1-b8ef799a756d2d5dc30e-1.json",
+          "entry_sha256": "e242c8239ec635e1dfa5617dc73b20c4e9282bcdeb394913ca002e84f4837d74"
+        },
+        "decisive_claims": [
+          {
+            "claim_indices": [
+              0,
+              1
+            ],
+            "sources": [
+              "40687210"
+            ],
+            "assessment": "The retained teaching article explicitly describes BCC as dark basaloid cells in nests/nodules with peripheral palisading and tumor-stroma retraction. These visible defining features support candidateA; the case does not require evidence for a treatment regimen or infer margins, stage, perineural invasion or a specific high-risk subtype."
+          },
+          {
+            "claim_indices": [
+              2
+            ],
+            "sources": [
+              "reference-slide-practice"
+            ],
+            "assessment": "The retained caption identifies basaloid epithelial islands contrasting with pink stroma; its literal text and hash verify. The caption is internal and is supplemented by independent pixel inspection, not used as applicant-visible diagnostic text."
+          }
+        ],
+        "source_population": "Single-field skin morphology exercise in an older adult with a sun-exposed nonpigmented lesion is consistent with the BCC teaching/source image context. The synthetic-patient/public-domain-image separation is disclosed.",
+        "image_audit": {
+          "local_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/images/680ca4d6cd4426b3b327374fe9afab73b9df5a0674c2aa046839b46c8fbc4441.png",
+          "sha256": "680ca4d6cd4426b3b327374fe9afab73b9df5a0674c2aa046839b46c8fbc4441",
+          "byte_size": 3298929,
+          "pixels_independently_inspected": true,
+          "reviewer_image_hashes_match": true,
+          "observations": "Readable H&E field shows dark basaloid epithelial islands in pink stroma, prominent peripheral nuclear palisading and pale cleft-like spaces adjacent to tumor nests. No definite keratin pearls, diagnostic labels, names or identifiers are visible. Pale intranest spaces do occur, but the overall basaloid/palisaded morphology favors BCC over the distractor assertion of infiltrative gland-forming adnexal adenocarcinoma."
+        },
+        "public_payload_review": "Actual public_case transformation blanks findings/impression under hidden policy. Neutral title, question, biopsy note and study label do not name BCC or describe the diagnostic palisading/retraction. Asset metadata uses an opaque hash identifier; source refs are empty.",
+        "pair_distinctness": "The final companion examination e242c8239ec635e1dfa5617dc73b20c4e9282bcdeb394913ca002e84f4837d74 uses a different image (ff98b0cd...) and asks SCC-versus-BCC interpretation based on keratin pearls and dermal squamous nests. Practice asks BCC-versus-adnexal gland formation based on palisading and retraction. They share a skin-neoplasm learning domain but require different dominant visual evidence and different diagnostic distinctions, not merely a reversed version of the same image/question."
+      }
+    },
+    {
+      "task_id": "onboarding-examination-v1-b3588e5ac8c59e52674a-1",
+      "specialty": "neurology",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10575353635/trial-onboarding-examination-v1-b3588e5ac8c59e52674a-1.json",
+      "entry_sha256": "b4d133688a5e23ef75d182d43c24eb80139ae63541d9b7568e4cc304ef27fe1a",
+      "disposition": "clear",
+      "findings": [],
+      "evidence": {
+        "integrity": {
+          "manifest_hash_matches": true,
+          "reviewed_entry_hash_matches": true,
+          "all_source_abstract_and_body_hashes_match": true,
+          "all_quotes_are_literal_retained_text": true,
+          "reviewer_claim_checks_checked": 10,
+          "literal_quotes_checked": 19,
+          "source_count": 8
+        },
+        "public_payload_sha256": "75d847e35983f6fb05480f1c77f0b97395aff77735757a0ae4785d2586316c74",
+        "reviewers": [
+          {
+            "model": "gpt-5.6-sol",
+            "provider": "openai",
+            "blind_answer": "B",
+            "blind_confidence": 0.99,
+            "review_confidence": 0.98
+          },
+          {
+            "model": "gpt-5.5",
+            "provider": "openai",
+            "blind_answer": "B",
+            "blind_confidence": 0.98,
+            "review_confidence": 0.93
+          }
+        ],
+        "final_companion": {
+          "task_id": "onboarding-practice-v1-b3588e5ac8c59e52674a-1",
+          "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-practice-v1-b3588e5ac8c59e52674a-1.json",
+          "entry_sha256": "f3bd0b114bc501d0ba20e3166f5f3f718533809c906e0ffbbe4cb1e8da7a5eb0"
+        },
+        "source_population": "Adult woman with established generalized AChR-antibody-positive MG matches the Nordic source population; the German MG crisis guidance also applies. No MuSK/seronegative or pediatric extrapolation.",
+        "decisive_claims": [
+          {
+            "claim_indices": [
+              0,
+              1
+            ],
+            "sources": [
+              "38152089",
+              "38321574"
+            ],
+            "assessment": "Retained German recommendation2.4.3a explicitly calls for rapid monitored/ICU admission in impending or manifest crisis and IVIG or PE/IA. Nordic crisis recommendations call for immediate ICU admission for early signs and identify PE/IVIG as primary treatment."
+          },
+          {
+            "claim_indices": [
+              2,
+              4
+            ],
+            "sources": [
+              "38321574"
+            ],
+            "assessment": "Retained MG-crisis text explicitly says respiratory capacity can fall quickly, continuous hospital observation is necessary, and immediate airway/respiratory support is essential. Progressive dysphagia, pooled secretions, weak cough, orthopnea, interrupted speech and accessory-muscle use establish a threatening presentation without needing a single spirometric cutoff."
+          },
+          {
+            "claim_indices": [
+              3
+            ],
+            "sources": [
+              "38152089",
+              "38321574"
+            ],
+            "assessment": "Both retained passages directly state that PE-versus-IVIG selection depends on patient factors and availability; the answer does not claim universal superiority or prescribe an unsupported dose."
+          }
+        ],
+        "public_payload_review": "Title, question, clinical note and observed respiratory findings do not prescribe admission or rescue therapy. The respiratory impression summarizes observed weakness rather than revealing the management plan. Required modalities are empty; private rationale/hooks are stripped. Preserved oxygen saturation is used as a distractor, not a reason to dismiss overt respiratory and bulbar signs.",
+        "pair_distinctness": "The retained practice case f3bd0b114bc501d0ba20e3166f5f3f718533809c906e0ffbbe4cb1e8da7a5eb0 asks about disease-modifying treatment of nonambulatory GBS within8 days without bulbar/respiratory compromise. The revised exam instead tests impending MG crisis and immediate high-acuity disposition/airway readiness plus rescue therapy. Both mention IVIG and a steroid distractor, but the diagnosis, clinical trigger, time-sensitive decision and correct management are materially different.",
+        "nonblocking_observation": "The flawed option says increase oral corticosteroids although current medications list only pyridostigmine and azathioprine. This is a minor distractor wording issue; it does not change the key or the explicit unsafe outpatient delay."
+      }
+    }
+  ]
+}

@@ -12,6 +12,8 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 import hashlib
+import json
+from pathlib import Path
 import re
 import weakref
 from xml.etree import ElementTree
@@ -24,6 +26,38 @@ _LOCKS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 # differentials. It is educational morphology evidence, not a treatment guideline.
 # Explicit identity pinning avoids broadening the guideline search to case reports.
 _PATHOLOGY_TEACHING = {"40687210": ("PMC12271062", "Educational Case: Squamous cell carcinoma.")}
+_ILLUSTRATION_TAGS = {"table-wrap", "table-wrap-group", "table", "fig", "fig-group", "graphic", "media"}
+
+
+def _restrictive_license(node: ElementTree.Element) -> bool:
+    # Check both the human-readable license and its links/attributes. A CC BY
+    # link cannot override a contradictory NonCommercial/NoDerivatives label.
+    text = " ".join(node.itertext()) + " " + " ".join(
+        value for child in node.iter() for value in child.attrib.values())
+    text = re.sub(r"[\u2010-\u2015\u2212]", "-", text)
+    return bool(re.search(
+        r"\b(?:non[\s-]*commercial|no[\s-]*deriv(?:ative)?s?|share[\s-]*alike)\b"
+        r"|\b(?:by|attribution)[\s-]+(?:nc|nd|sa)\b", text, re.I))
+
+
+def _restricted_illustration(node: ElementTree.Element) -> bool:
+    # An article's license does not grant reuse of separately credited material.
+    # Be conservative when a table/figure carries its own copyright or permission
+    # notice; do not remove the credit and retain its underlying clinical text.
+    if _restrictive_license(node) or any(
+        child.tag in {"copyright-statement", "copyright-holder"}
+        or (child.tag == "attrib" and " ".join(child.itertext()).strip())
+        for child in node.iter()
+    ):
+        return True
+    text = " ".join(" ".join(node.itertext()).split())
+    return bool(re.search(
+        r"\bcopyright\b|©|\ball rights reserved\b|\bcourtesy of\b"
+        r"|\bwith\s+(?:kind\s+)?permission\b"
+        r"|\b(?:adapted|reproduced|reprinted|republished|modified|used)\b.{0,100}\bpermission\b"
+        r"|\bpermission\s+(?:of|from|granted)\b"
+        r"|\b(?:adapted|reproduced|reprinted|republished|modified)\s+from\b"
+        r"|\bsource\s*:", text, re.I))
 
 
 def source_text(source: dict) -> str:
@@ -72,7 +106,10 @@ def parse_open_text(raw: bytes, source: dict, topic: str) -> dict | None:
     pmcids = [n.text or "" for n in meta.findall('./article-id') if n.get('pub-id-type') in {'pmc', 'pmcid'}]
     if not pmcids or any(pmcid.removeprefix("PMC") != source["pmcid"].removeprefix("PMC") for pmcid in pmcids):
         return None
-    license_nodes = [node for license_node in meta.findall("./permissions/license")
+    licenses = meta.findall("./permissions/license")
+    if any(_restrictive_license(license_node) for license_node in licenses):
+        return None
+    license_nodes = [node for license_node in licenses
                      for node in license_node.iter()]
     # Some publishers put the URL in plain license-p text, not an ext-link.
     # Read only the permissions/license node; a URL in the article body is not
@@ -95,6 +132,12 @@ def parse_open_text(raw: bytes, source: dict, topic: str) -> dict | None:
             title = node.find("./title")
             headings += (" ".join(title.itertext()) if title is not None else "",)
         if node.tag in {"p", "table-wrap"}:
+            # JATS permits tables/figures inside paragraphs. itertext() would
+            # otherwise copy a restricted nested object with its surrounding
+            # prose. Skip the entire block rather than splice its text.
+            if any(child.tag in _ILLUSTRATION_TAGS and _restricted_illustration(child)
+                   for child in node.iter()):
+                return
             text = " ".join(" ".join(node.itertext()).split())
             if 40 <= len(text) <= 12000:
                 heading = " > ".join(h for h in headings if h)
@@ -200,7 +243,7 @@ def population_matches(title: str, mesh_terms: set[str], age_scope: str | None) 
 
 
 def parse_articles(raw: bytes, *, now: datetime | None = None, pathology_teaching: bool = False,
-                   age_scope: str | None = None) -> list[dict]:
+                   age_scope: str | None = None, pinned: dict | None = None) -> list[dict]:
     if b"<!ENTITY" in raw.upper():
         raise ValueError("Unexpected XML entity")
     root = ElementTree.fromstring(raw)
@@ -221,6 +264,10 @@ def parse_articles(raw: bytes, *, now: datetime | None = None, pathology_teachin
         year = int(year_match.group()) if year_match else 0
         pmcid = article.findtext("./PubmedData/ArticleIdList/ArticleId[@IdType='pmc']", "")
         teaching = pathology_teaching and _PATHOLOGY_TEACHING.get(pmid) == (pmcid, title)
+        pin = (pinned or {}).get(pmid)
+        exact_pin = bool(pin and (pin["pmcid"], pin["title"]) == (pmcid, title))
+        if pinned is not None and not exact_pin:
+            continue
         if pathology_teaching and not teaching:
             # The pinned fetch must not be satisfied by an unrelated article,
             # even if that article would qualify for the ordinary guideline path.
@@ -229,13 +276,15 @@ def parse_articles(raw: bytes, *, now: datetime | None = None, pathology_teachin
                 or not today.year - 7 <= year <= today.year
                 or types & {"Retracted Publication", "Retraction of Publication"}
                 or relations & {"RetractionIn", "ExpressionOfConcernIn"}
-                or (not teaching and not types & {"Guideline", "Practice Guideline", "Systematic Review", "Consensus Development Conference"})):
+                or (not teaching and not exact_pin and not types & {"Guideline", "Practice Guideline", "Systematic Review", "Consensus Development Conference"})):
             continue
         row = {"id": pmid, "title": title, "year": year,
                      "url": "https://pubmed.ncbi.nlm.nih.gov/" + pmid + "/",
                      "abstract": abstract,
                      "sha256": hashlib.sha256(abstract.encode()).hexdigest(),
                      "retrieved_at": today.isoformat()}
+        if exact_pin:
+            row["source_type"] = pin["source_type"]
         if teaching:
             row["source_type"] = "peer_reviewed_pathology_teaching"
         if re.fullmatch(r"PMC[0-9]+", pmcid):
@@ -275,6 +324,25 @@ async def retrieve(specialty: str, *, topic: str | None = None) -> list[dict]:
                 source.update(extra)
                 rows.append(source)
                 seen.add(source["id"])
+        # Narrow exceptions for independently verified guidance/systematic
+        # reviews whose PubMed publication-type indexing omits that class.
+        # Identity, recency, retraction, population and CC BY/CC0 checks remain.
+        configured = json.loads((Path(__file__).with_name("onboarding_material") / "evidence_pins.json").read_text()).get(topic, {})
+        pins = {s["id"]: s for s in configured.get("sources", [])}
+        excerpt_topic = configured.get("excerpt_terms") or topic or clinical_term
+        if pins:
+            pinned_rows = parse_articles(await _request(client, "efetch.fcgi",
+                {"id": ",".join(pins), "retmode": "xml"}), age_scope=age_scope, pinned=pins)
+            if {s["id"] for s in pinned_rows} != set(pins):
+                raise ValueError("Pinned clinical reference unavailable, changed or retracted")
+            for source in pinned_rows:
+                extra = await _open_text(client, source, excerpt_topic)
+                if pins[source["id"]]["require_licensed_fulltext"] and not extra:
+                    raise ValueError("Licensed pinned clinical evidence unavailable")
+                if extra:
+                    source.update(extra)
+                rows.append(source)
+                seen.add(source["id"])
         # First obtain actual practice guidance. A combined query can fill all
         # eight slots with narrow systematic reviews and exclude the guideline
         # containing the clinical algorithm. Within each publication category,
@@ -289,7 +357,9 @@ async def retrieve(specialty: str, *, topic: str | None = None) -> list[dict]:
             # Explicit field tags disable PubMed's automatic singular/plural
             # expansion. Without a suffix, "infant" misses the AAP guideline
             # titled "Febrile Infants". NCBI permits truncation from four chars.
-            disease_query = ' AND '.join(f'{word}{"*" if len(word) >= 4 else ""}[{field}]' for word in words)
+            disease_query = ' AND '.join(
+                f'(mass[{field}] OR masses[{field}])' if word.lower() == 'mass'
+                else f'{word}{"*" if len(word) >= 4 else ""}[{field}]' for word in words)
             search = json.loads(await _request(client, "esearch.fcgi",
                 {"term": f'({disease_query}) AND ({category}) AND {filters}', "retmode": "json", "retmax": 12, "sort": "relevance"}))
             ids = [str(i) for i in search.get("esearchresult", {}).get("idlist", []) if str(i).isdigit() and str(i) not in seen][:12]
@@ -310,7 +380,7 @@ async def retrieve(specialty: str, *, topic: str | None = None) -> list[dict]:
                 break
             if source.get("body_excerpts"):
                 continue
-            extra = await _open_text(client, source, topic or clinical_term)
+            extra = await _open_text(client, source, excerpt_topic)
             if extra:
                 source.update(extra)
                 expanded += 1

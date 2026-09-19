@@ -1,0 +1,404 @@
+{
+  "task_id": "onboarding-practice-v1-eab374162d4f1d645638-1",
+  "specialty": "radiation oncology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Persistent focal pelvic pain in an adult with metastatic cancer",
+    "question": "Which radiation oncology management approach is appropriate at this decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "radiation oncology",
+      "demographics": {
+        "age_band": "60-69",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Metastatic prostate adenocarcinoma with osseous involvement",
+          "since": "Previously established",
+          "collected_offset_days": -90
+        },
+        {
+          "condition": "Progressive right pelvic pain",
+          "since": "Three weeks",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Acetaminophen",
+          "dose": null,
+          "route": null,
+          "freq": null,
+          "collected_offset_days": 0
+        },
+        {
+          "drug": "Short-acting opioid analgesic",
+          "dose": null,
+          "route": null,
+          "freq": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Radiation oncology consultation",
+          "author_role": "radiation oncology",
+          "text": "The patient has previously confirmed metastatic prostate adenocarcinoma and reports three weeks of increasing, well-localized pain over the right posterior pelvis. The pain occurs with walking and at night and remains functionally limiting despite acetaminophen and intermittent short-acting opioid use. He remains ambulatory and reports no new weakness, sensory loss, bowel or bladder dysfunction, or spinal tenderness. He has not previously received radiotherapy to the pelvis. Examination demonstrates focal tenderness over the right iliac region without a palpable mass or clinical evidence of instability.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "CT",
+          "label": "Recent staging CT",
+          "findings": "Multiple osseous metastases are present. A destructive metastatic lesion involves the right posterior iliac bone at the site corresponding to the focal pain. There is no displaced fracture and no spinal canal involvement.",
+          "measurements": [],
+          "impression": "Right posterior iliac metastasis corresponding to the symptomatic site, without displaced fracture or spinal canal involvement.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -4
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical content reviewer"
+        ],
+        "disclaimers": [
+          "Fictional onboarding assessment case; not intended for patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "introductory",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the stated decision",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "The patient has progressive, function-limiting pain that corresponds anatomically to a confirmed iliac bone metastasis and remains inadequately controlled with analgesics. Radiotherapy for bone metastases has proven efficacy in reducing pain, and pain palliation is supported independently of treatment for spinal cord compression. Pain-directed radiotherapy should therefore be offered now rather than withheld until a displaced fracture or neurologic complication occurs. The supplied evidence does not establish a specific dose, fractionation schedule, or delivery technique for this case.",
+        "evidence": {
+          "decision": "Offer radiotherapy for the symptomatic right iliac bone metastasis now."
+        },
+        "key_data": [
+          "The focal pelvic pain is progressive and functionally limiting despite analgesic use.",
+          "CT confirms a right posterior iliac bone metastasis corresponding to the painful site.",
+          "There has been no prior radiotherapy to the pelvis.",
+          "There is no displaced fracture, spinal canal involvement, or neurologic deficit.",
+          "Radiotherapy has proven efficacy in reducing pain from bone metastases."
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Offer pain-directed radiotherapy to the symptomatic right iliac bone metastasis now. The exact dose, fractionation schedule, and delivery technique should not be inferred from the information supplied."
+      },
+      {
+        "id": "B",
+        "text": "Continue analgesic treatment and observation without local radiotherapy because no displaced fracture or neurologic compromise is present; reconsider irradiation only if one of those complications develops."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "painful bone metastasis",
+      "palliative radiotherapy",
+      "pathologic fracture",
+      "neurologic compromise",
+      "pelvic metastasis"
+    ],
+    "evidence_keywords": [
+      "radiotherapy",
+      "pain reduction",
+      "bone metastases",
+      "symptomatic treatment"
+    ],
+    "error_tags": [
+      "omission",
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "Radiotherapy for bone metastases has proven efficacy in reducing pain.",
+        "source_ids": [
+          "34955420"
+        ]
+      },
+      {
+        "statement": "Updated bone-metastasis recommendations describe radiotherapy as commonly used and effective for pain reduction.",
+        "source_ids": [
+          "41317503"
+        ]
+      },
+      {
+        "statement": "Pain reduction and management of spinal cord compression are separately supported uses of radiotherapy for bone metastases.",
+        "source_ids": [
+          "34955420",
+          "41317503"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T03:01:38.692863+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "39862925",
+        "title": "Stereotactic body radiotherapy for non-spine bone metastases: A meta-analysis and international stereotactic radiosurgery society (ISRS) clinical practice guidelines.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39862925/",
+        "abstract": "While SBRT to NSBM has become common, particularly in the oligometastatic population, the approach to treating non-spine bone metastases (NSBM) with stereotactic body radiotherapy (SBRT) varies widely across institutions and clinical trial protocols. We present a comprehensive systematic review of the literatures to inform practice recommendations on behalf of the International Stereotactic Radiosurgery Society (ISRS).\nA systematic literature review was conducted in accordance with the Preferred Reporting Items for Systematic Reviews and Meta-Analyses (PRISMA) guidelines. Studies with at least 10 patients receiving SBRT for NSBM were identified and meta-analyses were completed to estimate pooled local control and overall survival rates. Published guidelines on NSBM SBRT were reviewed and consolidated.\nThere were 25 studies included for qualitative analysis and 18 studies for quantitative analysis consisting of 13 retrospective studies, 2 non-randomized prospective studies, 1 randomized phase 2/3 trial, and a subgroup analysis of a phase I trial. The pooled local control rates at 1 and 2\u00a0years were 95\u00a0% (95\u00a0% CI: 89\u00a0%-98\u00a0%) and 94\u00a0% (95\u00a0% CI: 86\u00a0%-98\u00a0%), respectively. Pooled overall survival rates at 1\u00a0year and 2\u00a0years were 84\u00a0% (95\u00a0% CI: 73\u00a0%-91\u00a0%) and 81\u00a0% (95\u00a0% CI: 45\u00a0%-95\u00a0%), respectively. Consensus was reached on recommendations to inform treatment simulation, target delineation, dose fractionation, and anatomic site-specific recommendations.\nWe present ISRS-endorsed consensus recommendations to inform best practice of SBRT to NSBM, which we found to be efficacious and associated with low rates of adverse events.",
+        "sha256": "d309b40a41825c602a0d0f3803377fc7297554ef169cd4af3371bdd09c9d25f7",
+        "retrieved_at": "2026-09-19T03:00:51.185385+00:00"
+      },
+      {
+        "id": "34955420",
+        "title": "Radiotherapy of bone metastases.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34955420/",
+        "abstract": "We present the update of the recommendations of the French society of oncological radiotherapy on bone metastases. This is a common treatment in the management of patients with cancer. It is a relatively simple treatment with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments by stereotaxis can be proposed for oligometastatic patients or in case of reirradiation. In this context, increased vigilance should be given to the risks to the spinal cord.",
+        "sha256": "a841a54d173730c438fa1b2ea1c1330723fe123b02c349fa766f2675b6ceae17",
+        "retrieved_at": "2026-09-19T03:00:51.185385+00:00"
+      },
+      {
+        "id": "41317503",
+        "title": "Radiotherapy of bone metastases: 2025 update.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41317503/",
+        "abstract": "We present the updated recommendations of the Soci\u00e9t\u00e9 fran\u00e7aise de radioth\u00e9rapie oncologique (the French society for radiation oncology) regarding the indications and technical modalities of radiotherapy for bone metastases. This treatment is commonly used in the management of patients with cancer. In most cases, it involves relatively simple radiotherapy technique with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments using stereotactic conditions can be proposed for patients with painful bone metastases, oligometastatic disease, or in case of reirradiation. In this context, increased vigilance must be given to the risks of spinal cord toxicity.",
+        "sha256": "1969c69807495239858a5fbd9183d302fd803c2764e79acab40c9b5f9aa51619",
+        "retrieved_at": "2026-09-19T03:00:51.185385+00:00"
+      },
+      {
+        "id": "37838605",
+        "title": "Stereotactic body radiation therapy for bone oligometastases.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37838605/",
+        "abstract": "Stereotactic body radiation therapy is effective for the local management of oligometastases (at most five metastases) with a benefit in survival and local control. Most studies on the management of oligometastases focus on all oligometastatic sites in primary cancer and very few focus on a single oligometastatic site. In particular, there are few data on bone oligometastases, which represent one of the preferred sites for secondary cancer locations. This article focuses on the benefit of stereotactic radiotherapy for bone oligometastases of all cancers by histological types, and reviews the results of major studies in this field.",
+        "sha256": "021926e28a75c6f29197c4a1b1ee386d2841e52c5129493513ca49ff2594b812",
+        "retrieved_at": "2026-09-19T03:00:52.418755+00:00"
+      },
+      {
+        "id": "41109641",
+        "title": "French recommendations from the AFU Cancer Committee for prostate cancer: 2025 summary of changes.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41109641/",
+        "abstract": "The Oncology Committee of the French Urology Association (CCAFU) is proposing a 2025 summary of recommendations' changes for the management of prostate cancer (PCa).\nA systematic review of the literature from July 2024 to September 2025 was conducted by the CCAFU on the evolutions of diagnostic and therapeutic management of PCa evaluating the newly published references with their level of evidence.\nBiparametric MRI is an alternative to multiparametric MRI imaging to guide biopsy decision making provided that a high-quality imaging and radiology expertise is achieved. Transperineal biopsy is the recommended approach when technically feasible. Whole-gland HIFU in patients fulfilling the HIFI trial criteria is a treatment option for intermediate-risk PCa patients. In case of metastasis-directed therapy outside the context of symptoms for oligometastatic hormone-sensitive PCa (mHSPC) disease, at least 6\u00a0months of androgen deprivation therapy (ADT) should be given. In patients with high-risk BCR treated according to the EMBARK criteria, systemic treatment with monotherapy enzalutamide may be considered. The ARPI used in addition to ADT alone can be: abiraterone, apalutamide, darolutamide, enzalutamide. In the case of HRR alterations, the combination of niraparib and abiraterone may be proposed as first-line mHSPC. In the case of a positive radiolabelled PSMA ligand PET/CT scan in a patient progressing after at least one ARPI, internal radiotherapy using [177 Lu]LuPSMA-617 may be proposed. In patients with no or mildly symptomatic bone metastatic castration-resistant PCa without visceral metastases, the combination of enzalutamide+6\u00a0cycles of radium-223 may be proposed.\nThis 2025 summary of changes of French recommendations on PCa should help physicians to stay up-to-date with recent evolutions and aim to improve the management of PCa patients.",
+        "sha256": "155b90a35505a2f2104bc8fc51775051b0d6b2adc9fe3fee5eab250e34b90c98",
+        "retrieved_at": "2026-09-19T03:00:52.418755+00:00"
+      },
+      {
+        "id": "36863922",
+        "title": "[Uterine leiomyosarcoma\u00a0-\u00a0French guidelines from the GSF/NETSARC and TMRG groups].",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36863922/",
+        "abstract": "Uterine leiomyosarcomas represent the most common uterine sarcomas. The prognosis is poor with metastatic recurrence in more than half of the cases. The purpose of this review is to make French recommendations for the management of uterine leiomyosarcomas within the framework of the French Sarcoma Group - Bone Tumor Study Group (GSF-GETO)/NETSARC+ and Malignant Rare Gynecological Tumors (TMRG) networks in order to optimize their therapeutic management. The initial assessment includes a MRI with diffusion perfusion sequence. The diagnosis is histological with a review in an expert center (Reference Network in Sarcoma Pathology (RRePS)). Total hysterectomy with bilateral salpingectomy, en bloc without morcellation, is performed when complete resection is possible, whatever the stage. There is no indication of systematic lymph node dissection. Bilateral oophorectomy is indicated in peri-menopausal or menopausal women. Adjuvant external radiotherapy is not a standard. Adjuvant chemotherapy is not a standard. It can be an option and consists in doxorobucin based protocols. In the event of local recurrence, the therapeutic options are based on revision surgery and/or radiotherapy. Systemic treatment with chemotherapy is most often indicated. In case of metastatic disease, surgical treatment remains indicated when resecable. In cases of oligo-metastatic disease, focal treatment of metastases should be considered. In the case of stage IV, chemotherapy is indicated, and is based on first-line doxorubicin-based protocols. In the event of excessive deterioration in general condition, management by exclusive supportive care is recommended. External palliative radiotherapy can be proposed for symptomatic purposes.",
+        "sha256": "1902378f154d6713153d7bb23b6a0c6426d504def8672b5089999e41cdbe92f9",
+        "retrieved_at": "2026-09-19T03:00:53.146233+00:00"
+      },
+      {
+        "id": "40069011",
+        "title": "Treatment guidelines/propositions, on behalf of French multidisciplinary working group on bone primary tumours GroupOs.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40069011/",
+        "abstract": "Osteosarcomas are radioresistant tumors whose first-line treatment is based on chemotherapy and surgery. To better define the role of radiotherapy, we carried out a review of the literature from the 2000s concerning children and adults. Radiotherapy can be offered post-operatively in cases of R1 resection, at a minimum dose of 60Gy. It is also used exclusively for unresectable tumors, with higher doses. The use of hadrons seems promising. Radiotherapy under stereotactic conditions can be considered for lung and bone metastases. Finally, adaptation of systemic treatments is necessary during irradiation.",
+        "sha256": "735cacc0914c4ffbaf8c348719ec58b4fb8f350d9039e64ab07b12e82e9cc141",
+        "retrieved_at": "2026-09-19T03:00:53.146233+00:00"
+      },
+      {
+        "id": "40069010",
+        "title": "[Recommendations from the group of bone tumors of the French Childhood Cancer Society and the French Sarcoma Group/Group for the Study of Bone Tumors].",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40069010/",
+        "abstract": "Osteosarcomas of the mandible represent 3-8% of osteosarcomas. The rarity of this anatomic site and its specific treatment explain that only retrospective and a few prospective studies are available in literature. However, there is a consistent evidence on the natural history and treatment of these tumors, which clearly differentiates them from osteosarcomas of the long bones. The aim of this study was to draw up recommendations based on these data and on a retrospective study by the French Sarcoma Group (GSF-GETO). Osteosarcomas of the mandible should be centrally reviewed by an expert pathologist. MDM2, GNAS and RASAL1 status should be checked, and a fragment should be frozen. Complete surgical resection with wide margins is the cornerstone of treatment. Mandibular reconstruction techniques can reduce the sequelae. Contrary to the validated treatment for osteosarcomas of limbs, the role of chemotherapy to prevent metastasis or local recurrence has yet to be clarified for mandibular osteosarcomas. The role of postoperative radiotherapy, in adults, should be discussed for these tumors, whose wide soft-tissue resection may be difficult to confirm. In children, adjuvant chemotherapy is preferable in cases of uncertain/possibly incomplete resection. Relapse of mandibular osteosarcomas is primarily local. Pulmonary metastases are delayed and less frequent than in long-bone osteosarcomas. The overall survival rate at five years is about 70%.",
+        "sha256": "f9610ed73a9840ad37923a275cf7df4e4c5588c9fd70f92e81dc7fcecfd20008",
+        "retrieved_at": "2026-09-19T03:00:53.146233+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The patient has persistent, function-limiting focal pain that localizes to a CT-confirmed right iliac bone metastasis despite analgesic therapy. Pain-directed radiotherapy is an established, effective treatment for symptomatic bone metastases and does not require a displaced fracture, neurologic deficit, or spinal cord compression. The absence of those complications makes this a non-emergent palliative indication rather than a reason to defer treatment. The supplied sources support radiotherapy for reducing pain from bone metastases (PMID: 34955420; PMID: 41317503). The case does not provide enough information to select conventional versus stereotactic treatment or a specific dose and fractionation schedule, so answer A appropriately avoids doing so.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34955420"
+              ],
+              "reason": "The source explicitly states that radiotherapy for bone metastases has proven efficacy in reducing pain.",
+              "source_passage_ids": [
+                "34955420:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34955420",
+                  "quote": "We present the update of the recommendations of the French society of oncological radiotherapy on bone metastases. This is a common treatment in the management of patients with cancer. It is a relatively simple treatment with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments by stereotaxis can be proposed for oligometastatic patients or in case of reirradiation. In this context, increased vigilance should be given to the risks to the spinal cord."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "41317503"
+              ],
+              "reason": "The updated recommendations explicitly describe radiotherapy as commonly used in cancer care and effective for reducing pain.",
+              "source_passage_ids": [
+                "41317503:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41317503",
+                  "quote": "We present the updated recommendations of the Soci\u00e9t\u00e9 fran\u00e7aise de radioth\u00e9rapie oncologique (the French society for radiation oncology) regarding the indications and technical modalities of radiotherapy for bone metastases. This treatment is commonly used in the management of patients with cancer. In most cases, it involves relatively simple radiotherapy technique with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments using stereotactic conditions can be proposed for patients with painful bone metastases, oligometastatic disease, or in case of reirradiation. In this context, increased vigilance must be given to the risks of spinal cord toxicity."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34955420",
+                "41317503"
+              ],
+              "reason": "Both sources identify pain reduction and management of spinal cord compression as alternative, separately applicable roles of radiotherapy; spinal cord compression is not presented as a prerequisite for treating pain.",
+              "source_passage_ids": [
+                "34955420:p0",
+                "41317503:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34955420",
+                  "quote": "We present the update of the recommendations of the French society of oncological radiotherapy on bone metastases. This is a common treatment in the management of patients with cancer. It is a relatively simple treatment with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments by stereotaxis can be proposed for oligometastatic patients or in case of reirradiation. In this context, increased vigilance should be given to the risks to the spinal cord."
+                },
+                {
+                  "source_id": "41317503",
+                  "quote": "We present the updated recommendations of the Soci\u00e9t\u00e9 fran\u00e7aise de radioth\u00e9rapie oncologique (the French society for radiation oncology) regarding the indications and technical modalities of radiotherapy for bone metastases. This treatment is commonly used in the management of patients with cancer. In most cases, it involves relatively simple radiotherapy technique with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments using stereotactic conditions can be proposed for patients with painful bone metastases, oligometastatic disease, or in case of reirradiation. In this context, increased vigilance must be given to the risks of spinal cord toxicity."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Answer A is independently favored. The patient has progressive, function-limiting focal pain despite analgesic use, and CT confirms a corresponding right iliac bone metastasis. There is no prior pelvic radiotherapy, displaced fracture, clinical instability, spinal canal involvement, or neurologic deficit that would redirect the immediate decision toward fracture stabilization or cord-compression management. Two supplied recommendation updates substantively support radiotherapy's established pain-palliative role, and the newer source specifically discusses radiotherapy for painful bone metastases. Answer A appropriately avoids inventing a dose, fractionation schedule, or technique not established by the supplied excerpts. Answer B incorrectly makes fracture or neurologic compromise a prerequisite and would omit indicated pain-directed local treatment. The visible title, question, notes, and imaging do not reveal the intended answer. This decision is distinct from the previous cases, which concerned urgent surgery plus radiotherapy for high-grade metastatic epidural spinal cord compression with major neurologic deficits."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The patient has a well-localized, function-limiting painful right posterior iliac bone metastasis that correlates with imaging, has not previously been irradiated, and has no contraindicating complication described. Contemporary bone metastasis radiotherapy recommendations describe radiotherapy as a common, proven treatment for painful bone metastases, not only for fracture or neurologic compromise. The absence of displaced fracture or spinal canal involvement means urgent surgical/neurosurgical management is not indicated, but it does not justify withholding pain-directed palliative radiotherapy. Because the case does not provide enough detail to select a specific dose, fractionation, or technique, those should not be inferred.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34955420"
+              ],
+              "reason": "The cited passage directly states that radiotherapy for bone metastases is a common cancer treatment with proven efficacy in reducing pain.",
+              "source_passage_ids": [
+                "34955420:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34955420",
+                  "quote": "We present the update of the recommendations of the French society of oncological radiotherapy on bone metastases. This is a common treatment in the management of patients with cancer. It is a relatively simple treatment with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments by stereotaxis can be proposed for oligometastatic patients or in case of reirradiation. In this context, increased vigilance should be given to the risks to the spinal cord."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "41317503"
+              ],
+              "reason": "The cited 2025 update directly describes radiotherapy for bone metastases as commonly used and, in most cases, involving relatively simple technique with proven efficacy in reducing pain.",
+              "source_passage_ids": [
+                "41317503:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41317503",
+                  "quote": "We present the updated recommendations of the Soci\u00e9t\u00e9 fran\u00e7aise de radioth\u00e9rapie oncologique (the French society for radiation oncology) regarding the indications and technical modalities of radiotherapy for bone metastases. This treatment is commonly used in the management of patients with cancer. In most cases, it involves relatively simple radiotherapy technique with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments using stereotactic conditions can be proposed for patients with painful bone metastases, oligometastatic disease, or in case of reirradiation. In this context, increased vigilance must be given to the risks of spinal cord toxicity."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34955420",
+                "41317503"
+              ],
+              "reason": "Both cited passages distinguish pain reduction from management of spinal cord compression as separate supported uses of radiotherapy for bone metastases.",
+              "source_passage_ids": [
+                "34955420:p0",
+                "41317503:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34955420",
+                  "quote": "We present the update of the recommendations of the French society of oncological radiotherapy on bone metastases. This is a common treatment in the management of patients with cancer. It is a relatively simple treatment with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments by stereotaxis can be proposed for oligometastatic patients or in case of reirradiation. In this context, increased vigilance should be given to the risks to the spinal cord."
+                },
+                {
+                  "source_id": "41317503",
+                  "quote": "We present the updated recommendations of the Soci\u00e9t\u00e9 fran\u00e7aise de radioth\u00e9rapie oncologique (the French society for radiation oncology) regarding the indications and technical modalities of radiotherapy for bone metastases. This treatment is commonly used in the management of patients with cancer. In most cases, it involves relatively simple radiotherapy technique with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments using stereotactic conditions can be proposed for patients with painful bone metastases, oligometastatic disease, or in case of reirradiation. In this context, increased vigilance must be given to the risks of spinal cord toxicity."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is an adult radiation oncology case about a symptomatic non-spine bone metastasis. The chart describes progressive, function-limiting, well-localized right posterior pelvic pain despite analgesics, CT-confirmed right posterior iliac metastatic disease corresponding to the painful site, no prior pelvic radiotherapy, and no displaced fracture, spinal canal involvement, neurologic deficit, or clinical instability. The supplied evidence supports radiotherapy as a common and effective treatment for pain reduction from bone metastases, independently of spinal cord compression management. Therefore answer A is the best choice: offer pain-directed radiotherapy now, without inferring a specific dose, fractionation, or technique from the supplied data. Answer B is the intended flawed option because it incorrectly withholds local radiotherapy until fracture or neurologic compromise, even though pain palliation itself is a supported indication. The visible case title, question, notes, and imaging do not explicitly disclose the intended management plan. The prior cases concern metastatic epidural spinal cord compression requiring a surgery-versus-radiotherapy pathway, which is a different clinical decision from uncomplicated painful iliac bone metastasis palliation."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "674280cbf5469e8daf31e43e162fe10dfaf3f464c30fd85d3f5accb34fc4ba31"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

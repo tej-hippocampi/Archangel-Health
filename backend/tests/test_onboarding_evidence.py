@@ -107,6 +107,81 @@ def test_plain_text_license_is_read_only_from_permissions():
     assert evidence.parse_open_text(raw.replace(b'<permissions>', b'<other>').replace(b'</permissions>', b'</other>'), source(), 'asthma') is None
 
 
+@pytest.mark.parametrize('label', [
+    'Creative Commons Attribution-NonCommercial 4.0 International License',
+    'Creative Commons Attribution–NonCommercial 4.0 International License',
+    'CC BY-NC 4.0',
+    'Creative Commons Attribution-NoDerivatives 4.0',
+    'CC BY-ND 4.0',
+    'Creative Commons Attribution-ShareAlike 4.0',
+    'CC BY-SA 4.0',
+])
+def test_permissive_license_link_cannot_override_restrictive_label(label):
+    # The source's label and URL can disagree (as in PMC11232065). Fail closed.
+    raw = article().replace(b'>Terms</ext-link>', f'>{label}</ext-link>'.encode())
+    assert evidence.parse_open_text(raw, source(), 'asthma') is None
+
+
+def test_conflicting_license_attributes_or_second_license_are_rejected():
+    raw = article().replace(b'<license>', b'<license license-type="CC-BY-NC">')
+    assert evidence.parse_open_text(raw, source(), 'asthma') is None
+    raw = article().replace(b'</permissions>', b'''<license><license-p>
+        <ext-link xlink:href="https://creativecommons.org/licenses/by-nc/4.0/">Terms</ext-link>
+        </license-p></license></permissions>''')
+    assert evidence.parse_open_text(raw, source(), 'asthma') is None
+
+
+def test_standard_cc_by_third_party_boilerplate_preserves_article_owned_text():
+    raw = article().replace(b'>Terms</ext-link>', b'''>Creative Commons Attribution 4.0</ext-link>
+        Third party material is included unless indicated otherwise in a credit line.
+        For material not included, obtain permission directly from the copyright holder.''')
+    parsed = evidence.parse_open_text(raw, source(), 'asthma')
+    assert 'Table 1' in parsed['body_excerpts']
+    assert 'Contraindications' in parsed['body_excerpts']
+    assert parsed['body_license_url'] == 'https://creativecommons.org/licenses/by/4.0/'
+
+
+@pytest.mark.parametrize('tag,credit', [
+    ('table-wrap', '<caption><p>Adapted with permission from Example Society.</p></caption>'),
+    ('table-wrap', '<table-wrap-foot><p>Copyright 2025 Example Society.</p></table-wrap-foot>'),
+    ('table-wrap', '<permissions><copyright-holder>Example Society</copyright-holder></permissions>'),
+    ('table-wrap', '<attrib>CC BY-NC 4.0</attrib>'),
+    ('table-wrap', '<attrib>Example Society clinical guideline.</attrib>'),
+    ('table-wrap', '<caption><p>Reproduced from Example Society clinical guideline.</p></caption>'),
+    ('table-wrap', '<table-wrap-foot><p>Adapted from Example Society guidance.</p></table-wrap-foot>'),
+    ('fig', '<caption><p>Source: Example Society guidance.</p></caption>'),
+    ('fig', '<attrib>Reproduced with permission from Example Society.</attrib>'),
+    ('fig', '<attrib>© Example Society. All rights reserved.</attrib>'),
+    ('fig', '<attrib>Creative Commons Attribution-NoDerivatives 4.0</attrib>'),
+    ('fig', '<attrib>Creative Commons Attribution-ShareAlike 4.0</attrib>'),
+])
+@pytest.mark.parametrize('nested', [False, True])
+def test_third_party_illustrations_cannot_enter_excerpts_through_parent_paragraph(tag, credit, nested):
+    block = (f'<{tag}><label>Restricted object</label>{credit}'
+             '<caption><p>Excluded asthma algorithm with a clinical recommendation.</p></caption>'
+             f'</{tag}>')
+    if nested:
+        block = f'<p>Excluded containing paragraph starts here. {block} Excluded paragraph tail.</p>'
+    raw = article().replace(b'</body>', block.encode() + b'</body>')
+    parsed = evidence.parse_open_text(raw, source(), 'asthma')
+    assert 'Restricted object' not in parsed['body_excerpts']
+    assert 'Excluded' not in parsed['body_excerpts']
+    # Other intact paragraphs and the ordinary article-owned table still survive.
+    assert 'Adults with asthma should receive the explicitly described fictional treatment for this software fixture.' in parsed['body_excerpts']
+    assert 'The fictional asthma treatment must not be used when the contraindication in this paragraph applies.' in parsed['body_excerpts']
+    assert 'Table 1 Asthma population Fictional recommendation' in parsed['body_excerpts']
+    assert parsed['body_excerpts_sha256'] == hashlib.sha256(parsed['body_excerpts'].encode()).hexdigest()
+
+
+def test_article_owned_nested_table_is_retained_as_an_intact_block():
+    raw = article().replace(b'</body>', b'''<p>Asthma recommendations follow.
+        <table-wrap><label>Table 2</label><table><tr><td>Fictional recommendation for adults.</td></tr></table></table-wrap>
+        Consider the contraindications before applying this recommendation.</p></body>''')
+    parsed = evidence.parse_open_text(raw, source(), 'asthma')
+    assert ('Asthma recommendations follow. Table 2 Fictional recommendation for adults. '
+            'Consider the contraindications before applying this recommendation.') in parsed['body_excerpts']
+
+
 def test_pathology_teaching_exception_requires_exact_identity_and_no_retraction():
     from datetime import datetime, timezone
     raw = b'''<PubmedArticleSet><PubmedArticle><MedlineCitation><PMID>40687210</PMID><Article>
@@ -127,6 +202,26 @@ def test_pathology_teaching_exception_requires_exact_identity_and_no_retraction(
         b'</Article>', b'<Abstract><AbstractText>' + b'Fictional guideline abstract. ' * 20 + b'</AbstractText></Abstract></Article>')
     assert len(evidence.parse_articles(unrelated_guideline, now=now)) == 1
     assert evidence.parse_articles(unrelated_guideline, now=now, pathology_teaching=True) == []
+
+
+def test_misindexed_guidance_pin_requires_exact_identity_and_preserves_safety_filters():
+    from datetime import datetime, timezone
+    raw = b'''<PubmedArticleSet><PubmedArticle><MedlineCitation><PMID>38152089</PMID><Article>
+        <Journal><JournalIssue><PubDate><Year>2023</Year></PubDate></JournalIssue></Journal>
+        <ArticleTitle>Guideline for the management of myasthenic syndromes.</ArticleTitle>
+        <Abstract><AbstractText>''' + b'Fictional source for parser testing. ' * 20 + b'''</AbstractText></Abstract>
+        <PublicationTypeList><PublicationType>Review</PublicationType></PublicationTypeList>
+        </Article></MedlineCitation><PubmedData><ArticleIdList>
+        <ArticleId IdType="pmc">PMC10752078</ArticleId></ArticleIdList></PubmedData></PubmedArticle></PubmedArticleSet>'''
+    now = datetime(2026, 9, 18, tzinfo=timezone.utc)
+    pins = {'38152089': {'pmcid': 'PMC10752078', 'title': 'Guideline for the management of myasthenic syndromes.',
+                         'source_type': 'primary_society_guideline'}}
+    assert evidence.parse_articles(raw, now=now) == []
+    assert evidence.parse_articles(raw, now=now, pinned=pins)[0]['source_type'] == 'primary_society_guideline'
+    for old, new in [(b'38152089', b'11111111'), (b'PMC10752078', b'PMC123'),
+                     (b'syndromes.', b'other.'), (b'>2023<', b'>2010<'),
+                     (b'>Review<', b'>Retracted Publication<')]:
+        assert evidence.parse_articles(raw.replace(old, new), now=now, pinned=pins) == []
 
 
 def test_long_sources_are_split_without_ellipses_or_rewritten_punctuation():
@@ -214,3 +309,17 @@ def test_tagged_reference_search_preserves_plural_guideline_titles(monkeypatch):
     with pytest.raises(ValueError, match='Insufficient clinical reference'):
         asyncio.run(evidence.retrieve('pediatrics', topic=topic_for('pediatrics', 'examination')))
     assert 'febrile*[Title] AND infant*[Title]' in queries[0]
+
+
+def test_mass_query_does_not_expand_to_unrelated_massage(monkeypatch):
+    queries = []
+    async def request(client, endpoint, params):
+        queries.append(params['term'])
+        return b'{"esearchresult":{"idlist":[]}}'
+    monkeypatch.setattr(evidence, '_request', request)
+    with pytest.raises(ValueError, match='Insufficient clinical reference'):
+        asyncio.run(evidence.retrieve('neck mass'))
+    assert len(queries) == 4
+    assert all('mass*' not in query for query in queries)
+    assert '(mass[Title] OR masses[Title])' in queries[0]
+    assert '(mass[Title/Abstract] OR masses[Title/Abstract])' in queries[1]

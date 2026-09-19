@@ -1,0 +1,567 @@
+{
+  "audit_date": "2026-09-18",
+  "scope": "Independent evidence retrieval/content audit only. No repository edits, clinical model calls, patient data, or physician certification.",
+  "parser_file": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_evidence.py",
+  "parser_sha256": "e6b9293159bce603e32b881349bd8b6bf8e70bcb82802c080a375fd336caabde",
+  "method": "Verified PubMed EFetch title, PMID/PMCID, publication date/type and available corrections; fetched raw Europe PMC fullTextXML. Executed unchanged local parser functions in memory on these bytes with adult scope and exact identity pins. Literal quotes verified against actual retained abstract + licensed body, normalized whitespace. Restricted full texts were not placed in source JSON body fields. Raw restricted XML is retained only as audit evidence outside git.",
+  "recommended_pins": {
+    "immune thrombocytopenia evaluation": {
+      "excerpt_terms": "immune thrombocytopenia diagnosis evaluation exclusion peripheral smear secondary HIV HCV HBV bone marrow abnormalities pseudothrombocytopenia",
+      "sources": [
+        {
+          "id": "37957517",
+          "pmcid": "PMC10770234",
+          "title": "Reference guide for the diagnosis of adult primary immune thrombocytopenia, 2023 edition.",
+          "source_type": "primary_expert_diagnostic_guidance",
+          "require_licensed_fulltext": true
+        },
+        {
+          "id": "37892566",
+          "pmcid": "PMC10607106",
+          "title": "Recommendations for the Clinical Approach to Immune Thrombocytopenia: Spanish ITP Working Group (GEPTI).",
+          "source_type": "primary_society_consensus",
+          "require_licensed_fulltext": true
+        }
+      ]
+    },
+    "febrile neutropenia immediate management": {
+      "excerpt_terms": "febrile neutropenia outpatient ambulatory low risk eligibility oral antibiotics observation follow up risk stratification MASCC CISNE",
+      "sources": [
+        {
+          "id": "37921996",
+          "pmcid": "PMC10624743",
+          "title": "Ambulatory management of low-risk febrile neutropenia in adult oncological patients. Systematic review.",
+          "source_type": "systematic_review",
+          "require_licensed_fulltext": true
+        },
+        {
+          "id": "41521418",
+          "pmcid": "",
+          "title": "Consensus guidelines for ambulatory care for neutropenic fever.",
+          "source_type": "primary_society_consensus",
+          "require_licensed_fulltext": false
+        }
+      ]
+    }
+  },
+  "decision_support": {
+    "hematology_practice": {
+      "disposition": "two_direct_sources_available",
+      "source_ids": [
+        "37957517",
+        "37892566"
+      ],
+      "supported_decision": "Evaluate isolated adult thrombocytopenia with history/exam, peripheral smear and exclusion of secondary causes; reserve marrow for additional abnormal findings or atypical/refractory clinical presentation.",
+      "revision_guidance": [
+        "Keep vignette adult and without additional cytopenias, dysplastic smear, systemic signs or other features that would justify marrow if correct answer avoids routine marrow.",
+        "A platelet count alone is not a confirmed primary ITP diagnosis. Preserve explicit exclusion-based uncertainty.",
+        "Do not attach treatment thresholds/doses to a diagnosis-focused item unless separate retained source supports them.",
+        "Japanese detailed testing and Spanish general secondary-cause exclusion directly support the decision; no scope-only abstract padding."
+      ]
+    },
+    "oncology_practice": {
+      "disposition": "two_direct_sources_available_for_narrowed_outpatient_eligibility_decision",
+      "source_ids": [
+        "37921996",
+        "41521418"
+      ],
+      "supported_decision": "Selected clinically low-risk adult cancer patients may enter an established ambulatory FN pathway after validated clinical risk assessment and disease/treatment/patient safety-net evaluation.",
+      "revision_guidance": [
+        "Keep decision focused on eligibility and disposition. This pair does not establish a universal named drug/dose, fixed time-to-antibiotic interval, minimum observation duration, or exact follow-up schedule.",
+        "Include clinically relevant stability, absence of organ dysfunction/severe focal infection, oral tolerance and dependable access/caregiver context; a numerical low-risk score alone is insufficient.",
+        "Do not put evaluative phrases such as suitable for outpatient care, low-risk management recommendation, or score interpretation in visible imaging/findings/impression fields.",
+        "Specific examples of safety exclusions come from heterogeneous study criteria in systematic-review Table1; do not present all as universally validated mandatory cutoffs.",
+        "For chemo/ICI-specific cases MASCC42525130 offers usable abstract-only consensus, with explicit nonvalidation and limited-evidence caveats."
+      ]
+    }
+  },
+  "records": [
+    {
+      "pmid": "37957517",
+      "pmcid": "PMC10770234",
+      "exact_pubmed_title": "Reference guide for the diagnosis of adult primary immune thrombocytopenia, 2023 edition.",
+      "journal_date": "2024 Jan",
+      "publication_types": [
+        "Journal Article"
+      ],
+      "comments_corrections": [],
+      "source_class": "primary_expert_diagnostic_guidance",
+      "disposition": "recommended_licensed_fulltext",
+      "authority": "Created under the auspices of the Japanese Ministry of Health, Labor and Welfare Science Research Grant Project, Research Team for Blood Coagulation and Other Intractable Diseases (Research Representative Eriko Morishita); confirmed in XML acknowledgement. Do not describe as an ASH or universally adopted guideline.",
+      "pin": {
+        "id": "37957517",
+        "pmcid": "PMC10770234",
+        "title": "Reference guide for the diagnosis of adult primary immune thrombocytopenia, 2023 edition.",
+        "source_type": "primary_expert_diagnostic_guidance",
+        "require_licensed_fulltext": true
+      },
+      "ordinary_parser_accepts": false,
+      "exact_pin_parser_accepts": true,
+      "fulltext_accepted_by_unchanged_parser": true,
+      "license_statement": "© The Author(s) 2023 Open Access This article is licensed under a Creative Commons Attribution 4.0 International License, which permits use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons licence, and indicate if changes were made. The images or other third party material in this article are included in the article's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the article's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit http://creativecommons.org/licenses/by/4.0/ .",
+      "license_xml": "<permissions xmlns:ns0=\"http://www.w3.org/1999/xlink\"><copyright-statement>© The Author(s) 2023</copyright-statement><license><license-p><bold>Open Access</bold> This article is licensed under a Creative Commons Attribution 4.0 International License, which permits use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons licence, and indicate if changes were made. The images or other third party material in this article are included in the article's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the article's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit <ext-link ns0:href=\"https://creativecommons.org/licenses/by/4.0/\" ext-link-type=\"uri\">http://creativecommons.org/licenses/by/4.0/</ext-link>.</license-p></license></permissions>",
+      "retained_body_license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "abstract_sha256": "8aa0ba92801643d0afe4f24d351ac5e3fa0967f5536ce1089a0ba3266e34eae7",
+      "body_excerpts_sha256": "1f5ffb1010e79fc4a02f1cf1f3a7d05fe36caa75e9809f00621adfc4fcd450c2",
+      "retained_body_characters": 31503,
+      "fulltext_xml_sha256": "c8e151a474fd2afba949eaac2fb48e18bbc6cf5037af317cfbe88fc6ec98f74d",
+      "fulltext_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-PMC10770234.xml",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-pubmed.xml",
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/37957517-source.json",
+      "supporting_quotes": [
+        {
+          "quote": "It is important to confirm the presence of platelet aggregates in a peripheral blood smear.",
+          "literal_in_retained_source": true,
+          "section": "licensed_body_excerpt"
+        },
+        {
+          "quote": "Testing should also be performed for H. pylori , HIV, HBV, and HCV, all of which are potentially associated with ITP.",
+          "literal_in_retained_source": true,
+          "section": "licensed_body_excerpt"
+        },
+        {
+          "quote": "Therefore, exclusion of secondary ITP is based on detailed interviews, physical findings, and test results specific to underlying diseases (e.g. virus tests).",
+          "literal_in_retained_source": true,
+          "section": "licensed_body_excerpt"
+        }
+      ],
+      "limitations": [
+        "Adult primary ITP diagnosis; Japanese reference framework adds TPO/IPF biomarkers to address aplastic-anemia differential. Do not require those biomarkers universally.",
+        "Do not use isolated low platelets to establish primary ITP before excluding secondary causes. Selective marrow evaluation depends on abnormalities and clinical context."
+      ],
+      "urls": {
+        "pubmed": "https://pubmed.ncbi.nlm.nih.gov/37957517/",
+        "fulltext_xml": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10770234/fullTextXML"
+      }
+    },
+    {
+      "pmid": "37892566",
+      "pmcid": "PMC10607106",
+      "exact_pubmed_title": "Recommendations for the Clinical Approach to Immune Thrombocytopenia: Spanish ITP Working Group (GEPTI).",
+      "journal_date": "2023 Oct 10",
+      "publication_types": [
+        "Journal Article",
+        "Review"
+      ],
+      "comments_corrections": [],
+      "source_class": "primary_society_consensus",
+      "disposition": "recommended_licensed_fulltext",
+      "authority": "Spanish ITP Working Group GEPTI of the Spanish Society of Hematology and Hemotherapy SEHH; abstract states updated society consensus recommendations; body reports AGREE methodology and PICO questions. Recommendations are expert opinion/non-comparative evidence and not graded.",
+      "pin": {
+        "id": "37892566",
+        "pmcid": "PMC10607106",
+        "title": "Recommendations for the Clinical Approach to Immune Thrombocytopenia: Spanish ITP Working Group (GEPTI).",
+        "source_type": "primary_society_consensus",
+        "require_licensed_fulltext": true
+      },
+      "ordinary_parser_accepts": false,
+      "exact_pin_parser_accepts": true,
+      "fulltext_accepted_by_unchanged_parser": true,
+      "license_statement": "© 2023 by the authors. Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license ( https://creativecommons.org/licenses/by/4.0/ ).",
+      "license_xml": "<permissions xmlns:ns0=\"http://www.w3.org/1999/xlink\"><copyright-statement>© 2023 by the authors.</copyright-statement><license><license-p>Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (<ext-link ns0:href=\"https://creativecommons.org/licenses/by/4.0/\" ext-link-type=\"uri\">https://creativecommons.org/licenses/by/4.0/</ext-link>).</license-p></license></permissions>",
+      "retained_body_license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "abstract_sha256": "837a5722a41069007bfac94517dbfd286b23d260ce246845d7ffea17698cf04e",
+      "body_excerpts_sha256": "ad4d16bd5b9d495e7e5a0f8b086b289499647232e5b92209d71e11ba74bceff9",
+      "retained_body_characters": 31915,
+      "fulltext_xml_sha256": "4861c701d79388ce6db5f48fc3bc58f616934f96926a1d3e404ea2837f47f1ff",
+      "fulltext_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-PMC10607106.xml",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-pubmed-more.xml",
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/37892566-source.json",
+      "supporting_quotes": [
+        {
+          "quote": "Diagnosis continues to be essentially clinical and based on excluding other causes of thrombocytopenia.",
+          "literal_in_retained_source": true,
+          "section": "licensed_body_excerpt"
+        },
+        {
+          "quote": "The paradigmatic laboratory finding is isolated thrombocytopenia, and careful examination of the peripheral blood smear is mandatory.",
+          "literal_in_retained_source": true,
+          "section": "licensed_body_excerpt"
+        },
+        {
+          "quote": "The systematic analysis of bone marrow is not recommended, except in the event that treatment response is inadequate, or when other abnormalities in the peripheral blood smear or the clinical presentation lead us to suspect other disorders.",
+          "literal_in_retained_source": true,
+          "section": "licensed_body_excerpt"
+        }
+      ],
+      "limitations": [
+        "Mixed adult/pediatric and special-population article; use the general diagnosis section for this adult evaluation.",
+        "Routine marrow is not recommended in uncomplicated isolated thrombocytopenia, with exceptions for other abnormalities or inadequate treatment response."
+      ],
+      "urls": {
+        "pubmed": "https://pubmed.ncbi.nlm.nih.gov/37892566/",
+        "fulltext_xml": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10607106/fullTextXML"
+      }
+    },
+    {
+      "pmid": "34628650",
+      "pmcid": "PMC9293212",
+      "exact_pubmed_title": "Consensus guidelines for the management of adult immune thrombocytopenia in Australia and New Zealand.",
+      "journal_date": "2022 Jan 17",
+      "publication_types": [
+        "Journal Article"
+      ],
+      "comments_corrections": [
+        {
+          "RefType": "ErratumIn"
+        }
+      ],
+      "source_class": "primary_expert_consensus",
+      "disposition": "optional_substantive_abstract_only",
+      "authority": "Australia/New Zealand adult ITP consensus; title and indexed abstract confirm guidance. Restricted full text must not be retained.",
+      "pin": {
+        "id": "34628650",
+        "pmcid": "PMC9293212",
+        "title": "Consensus guidelines for the management of adult immune thrombocytopenia in Australia and New Zealand.",
+        "source_type": "primary_expert_consensus",
+        "require_licensed_fulltext": false
+      },
+      "ordinary_parser_accepts": false,
+      "exact_pin_parser_accepts": true,
+      "fulltext_accepted_by_unchanged_parser": false,
+      "license_statement": "© 2021 The Authors. Medical Journal of Australia published by John Wiley & Sons Australia, Ltd on behalf of AMPCo Pty Ltd. This is an open access article under the terms of the http://creativecommons.org/licenses/by-nc-nd/4.0/ License, which permits use and distribution in any medium, provided the original work is properly cited, the use is non‐commercial and no modifications or adaptations are made.",
+      "license_xml": "<permissions xmlns:ns0=\"http://www.w3.org/1999/xlink\"><copyright-statement>© 2021 The Authors. <italic>Medical Journal of Australia</italic> published by John Wiley &amp; Sons Australia, Ltd on behalf of AMPCo Pty Ltd.</copyright-statement><license><license-p>This is an open access article under the terms of the <ext-link ns0:href=\"https://creativecommons.org/licenses/by-nc-nd/4.0/\" ext-link-type=\"uri\">http://creativecommons.org/licenses/by-nc-nd/4.0/</ext-link> License, which permits use and distribution in any medium, provided the original work is properly cited, the use is non‐commercial and no modifications or adaptations are made.</license-p></license></permissions>",
+      "retained_body_license_url": null,
+      "abstract_sha256": "72ccff9ff95e01ac7b7faab8bbb36e12d3b4b28c1878000b1c54ac0798778cb4",
+      "body_excerpts_sha256": null,
+      "retained_body_characters": 0,
+      "fulltext_xml_sha256": "9703cce68953a3393626e9a5d4ec730a79e1088a41a318d1f7296097199e49a8",
+      "fulltext_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-PMC9293212.xml",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-pubmed-last.xml",
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/34628650-source.json",
+      "supporting_quotes": [
+        {
+          "quote": "ITP is diagnosed by exclusions, with a hallmark laboratory finding of isolated thrombocytopenia.",
+          "literal_in_retained_source": true,
+          "section": "abstract"
+        },
+        {
+          "quote": "Bleeding, family and medication histories and a review of historical investigations are required to gauge the bleeding risk and possible hereditary syndromes.",
+          "literal_in_retained_source": true,
+          "section": "abstract"
+        }
+      ],
+      "limitations": [
+        "Abstract supports exclusion-based diagnosis, bleeding/family/medication history; no detailed marrow or viral-testing recommendation in abstract."
+      ],
+      "urls": {
+        "pubmed": "https://pubmed.ncbi.nlm.nih.gov/34628650/",
+        "fulltext_xml": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC9293212/fullTextXML"
+      }
+    },
+    {
+      "pmid": "38545671",
+      "pmcid": "PMC11589261",
+      "exact_pubmed_title": "Management of Adult Primary Immune Thrombocytopenia: Delphi-Based Consensus Recommendations.",
+      "journal_date": "2024 May 30",
+      "publication_types": [
+        "Journal Article",
+        "Consensus Statement"
+      ],
+      "comments_corrections": [],
+      "source_class": "primary_society_consensus",
+      "disposition": "exclude_for_diagnostic_decision",
+      "authority": "Turkish National ITP Working Group under auspices of Turkish Society of Hematology; 14 steering members and 107 adult hematologists, modified Delphi.",
+      "pin": {
+        "id": "38545671",
+        "pmcid": "PMC11589261",
+        "title": "Management of Adult Primary Immune Thrombocytopenia: Delphi-Based Consensus Recommendations.",
+        "source_type": "primary_society_consensus",
+        "require_licensed_fulltext": false
+      },
+      "ordinary_parser_accepts": false,
+      "exact_pin_parser_accepts": true,
+      "fulltext_accepted_by_unchanged_parser": false,
+      "license_statement": "©Copyright 2024 by Turkish Society of Hematology Turkish Journal of Hematology, Published by Galenos Publishing House. Licensed under a Creative Commons Attribution-NonCommercial (CC BY-NC-ND) 4.0 International License.",
+      "license_xml": "<permissions><copyright-statement>©Copyright 2024 by Turkish Society of Hematology Turkish Journal of Hematology, Published by Galenos Publishing House.</copyright-statement><license><license-p>Licensed under a Creative Commons Attribution-NonCommercial (CC BY-NC-ND) 4.0 International License.</license-p></license></permissions>",
+      "retained_body_license_url": null,
+      "abstract_sha256": "1702739e4edcd6ab15811a48c79ae9ca81d5cd92d82e8084caf8ee484f381eaa",
+      "body_excerpts_sha256": null,
+      "retained_body_characters": 0,
+      "fulltext_xml_sha256": "faad2e3ffad98d00d22dafcb67d26f6aa30dee46d204e991b6789fa6f178bd5a",
+      "fulltext_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-PMC11589261.xml",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-pubmed.xml",
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/38545671-source.json",
+      "supporting_quotes": [],
+      "limitations": [
+        "Actual fullTextXML license says CC BY-NC-ND4 (wording also calls it Attribution-NonCommercial), no allowed CC BY/CC0 URL; parser rejects.",
+        "Abstract has actual treatment conclusions but does not directly support initial diagnostic workup, marrow avoidance, or secondary-cause screening."
+      ],
+      "urls": {
+        "pubmed": "https://pubmed.ncbi.nlm.nih.gov/38545671/",
+        "fulltext_xml": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11589261/fullTextXML"
+      }
+    },
+    {
+      "pmid": "39719150",
+      "pmcid": "PMC12373449",
+      "exact_pubmed_title": "Primary versus Secondary Immune Thrombocytopenia (ITP): A Meeting Report from the 2023 McMaster ITP Summit.",
+      "journal_date": "2025 Sep",
+      "publication_types": [
+        "Conference Proceedings"
+      ],
+      "comments_corrections": [],
+      "source_class": "educational_meeting_report",
+      "disposition": "exclude",
+      "authority": "2023 McMaster ITP Summit educational meeting report, published 2025; conference proceedings.",
+      "pin": {
+        "id": "39719150",
+        "pmcid": "PMC12373449",
+        "title": "Primary versus Secondary Immune Thrombocytopenia (ITP): A Meeting Report from the 2023 McMaster ITP Summit.",
+        "source_type": "educational_meeting_report",
+        "require_licensed_fulltext": false
+      },
+      "ordinary_parser_accepts": false,
+      "exact_pin_parser_accepts": true,
+      "fulltext_accepted_by_unchanged_parser": false,
+      "license_statement": "The Author(s). This is an open access article published by Thieme under the terms of the Creative Commons Attribution-NonDerivative-NonCommercial License, permitting copying and reproduction so long as the original work is given appropriate credit. Contents may not be used for commercial purposes, or adapted, remixed, transformed or built upon. ( https://creativecommons.org/licenses/by-nc-nd/4.0/ ) 2025 The Author(s). https://creativecommons.org/licenses/by-nc-nd/4.0/ This is an open-access article distributed under the terms of the Creative Commons Attribution-NonCommercial-NoDerivatives License, which permits unrestricted reproduction and distribution, for non-commercial purposes only; and use and reproduction, but not distribution, of adapted material for non-commercial purposes only, provided the original work is properly cited.",
+      "license_xml": "<permissions xmlns:ns0=\"http://www.w3.org/1999/xlink\" xmlns:ns1=\"http://www.niso.org/schemas/ali/1.0/\"><copyright-statement>\nThe Author(s). This is an open access article published by Thieme under the terms of the Creative Commons Attribution-NonDerivative-NonCommercial License, permitting copying and reproduction so long as the original work is given appropriate credit. Contents may not be used for commercial purposes, or adapted, remixed, transformed or built upon. (\n<uri ns0:href=\"https://creativecommons.org/licenses/by-nc-nd/4.0/\">https://creativecommons.org/licenses/by-nc-nd/4.0/</uri>\n)\n</copyright-statement><copyright-year>2025</copyright-year><copyright-holder>The Author(s).</copyright-holder><license><ns1:license_ref specific-use=\"textmining\" content-type=\"ccbyncndlicense\">https://creativecommons.org/licenses/by-nc-nd/4.0/</ns1:license_ref><license-p>This is an open-access article distributed under the terms of the Creative Commons Attribution-NonCommercial-NoDerivatives License, which permits unrestricted reproduction and distribution, for non-commercial purposes only; and use and reproduction, but not distribution, of adapted material for non-commercial purposes only, provided the original work is properly cited.</license-p></license></permissions>",
+      "retained_body_license_url": null,
+      "abstract_sha256": "8352c337b4659c5e5f0b38b618d8821907d894f24eb827b749104e08d69a3b44",
+      "body_excerpts_sha256": null,
+      "retained_body_characters": 0,
+      "fulltext_xml_sha256": "e38145c9ca582aa989380a2addd34319ce6e7647bbe126ca0f286f40afa8056a",
+      "fulltext_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-PMC12373449.xml",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-pubmed-oncology.xml",
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/39719150-source.json",
+      "supporting_quotes": [],
+      "limitations": [
+        "CC BY-NC-ND4 full text. Abstract discusses mechanisms and research objectives, not an actionable diagnostic recommendation. Do not label as a primary guideline."
+      ],
+      "urls": {
+        "pubmed": "https://pubmed.ncbi.nlm.nih.gov/39719150/",
+        "fulltext_xml": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12373449/fullTextXML"
+      }
+    },
+    {
+      "pmid": "37921996",
+      "pmcid": "PMC10624743",
+      "exact_pubmed_title": "Ambulatory management of low-risk febrile neutropenia in adult oncological patients. Systematic review.",
+      "journal_date": "2023 Nov 03",
+      "publication_types": [
+        "Systematic Review",
+        "Journal Article"
+      ],
+      "comments_corrections": [],
+      "source_class": "systematic_review",
+      "disposition": "recommended_licensed_fulltext",
+      "authority": "Authors conducted qualitative systematic review of MEDLINE, Embase and Cochrane; 27 included studies with efficacy, cost-effectiveness and quality-of-life outcomes. Not a new society guideline or quantitative meta-analysis.",
+      "pin": {
+        "id": "37921996",
+        "pmcid": "PMC10624743",
+        "title": "Ambulatory management of low-risk febrile neutropenia in adult oncological patients. Systematic review.",
+        "source_type": "systematic_review",
+        "require_licensed_fulltext": true
+      },
+      "ordinary_parser_accepts": true,
+      "exact_pin_parser_accepts": true,
+      "fulltext_accepted_by_unchanged_parser": true,
+      "license_statement": "© The Author(s) 2023, corrected publication 2024 https://creativecommons.org/licenses/by/4.0/ Open Access This article is licensed under a Creative Commons Attribution 4.0 International License, which permits use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons licence, and indicate if changes were made. The images or other third party material in this article are included in the article's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the article's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit http://creativecommons.org/licenses/by/4.0/ .",
+      "license_xml": "<permissions xmlns:ns0=\"http://www.niso.org/schemas/ali/1.0/\" xmlns:ns1=\"http://www.w3.org/1999/xlink\"><copyright-statement>© The Author(s) 2023, corrected publication 2024</copyright-statement><license><ns0:license_ref specific-use=\"textmining\" content-type=\"ccbylicense\">https://creativecommons.org/licenses/by/4.0/</ns0:license_ref><license-p><bold>Open Access</bold> This article is licensed under a Creative Commons Attribution 4.0 International License, which permits use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons licence, and indicate if changes were made. The images or other third party material in this article are included in the article's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the article's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit <ext-link ext-link-type=\"uri\" ns1:href=\"https://creativecommons.org/licenses/by/4.0/\">http://creativecommons.org/licenses/by/4.0/</ext-link>.</license-p></license></permissions>",
+      "retained_body_license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "abstract_sha256": "cec3de1bc3cbd3981b78c76728b2cbc4de19ff14f1802e9b1eefd11b67dec1fe",
+      "body_excerpts_sha256": "869443b672a8e81d03f285f9f6c0fda096dee1aebec24c33f923e3df9516740a",
+      "retained_body_characters": 28261,
+      "fulltext_xml_sha256": "aa57a5dac20fe2378438f30120510ed0ad1d6fbf9e63fe740056a86e0e731105",
+      "fulltext_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-PMC10624743.xml",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-pubmed-last.xml",
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/37921996-source.json",
+      "supporting_quotes": [
+        {
+          "quote": "Recent clinical practice guidelines have recommended ambulatory management of febrile neutropenia in patients with low risk of complications.",
+          "literal_in_retained_source": true,
+          "section": "abstract"
+        },
+        {
+          "quote": "all other clinical trials and observational studies have used the MASCC score, generally with a cutoff of 21 points to define low risk",
+          "literal_in_retained_source": true,
+          "section": "licensed_body_excerpt"
+        },
+        {
+          "quote": "Available evidence on efficacy, quality of life, and cost-efficiency seems to support ambulatory approaches for low-risk patients with febrile neutropenia.",
+          "literal_in_retained_source": true,
+          "section": "licensed_body_excerpt"
+        },
+        {
+          "quote": "following good response to the first dose in hospital and early discharge.",
+          "literal_in_retained_source": true,
+          "section": "licensed_body_excerpt"
+        }
+      ],
+      "limitations": [
+        "Adult population; excludes studies under age19, though discussion mentions teenagers.",
+        "Evidence pertains to selected low-risk cancer patients, mostly solid tumors, with heterogeneous exclusion criteria. Does not justify universal discharge based only on a score.",
+        "Included studies vary in antibiotics and observation periods; avoid a definitive drug/dose or fixed observation interval without separately retained support."
+      ],
+      "urls": {
+        "pubmed": "https://pubmed.ncbi.nlm.nih.gov/37921996/",
+        "fulltext_xml": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10624743/fullTextXML"
+      }
+    },
+    {
+      "pmid": "41521418",
+      "pmcid": "",
+      "exact_pubmed_title": "Consensus guidelines for ambulatory care for neutropenic fever.",
+      "journal_date": "2025 Dec",
+      "publication_types": [
+        "Consensus Statement",
+        "Journal Article"
+      ],
+      "comments_corrections": [],
+      "source_class": "primary_society_consensus",
+      "disposition": "recommended_substantive_abstract_only",
+      "authority": "Australasian Neutropenic Fever Guidelines Steering Committee is the PubMed collective author. Published Internal Medicine Journal 2025 supplement; clinical guidance from named national committee.",
+      "pin": {
+        "id": "41521418",
+        "pmcid": "",
+        "title": "Consensus guidelines for ambulatory care for neutropenic fever.",
+        "source_type": "primary_society_consensus",
+        "require_licensed_fulltext": false
+      },
+      "ordinary_parser_accepts": false,
+      "exact_pin_parser_accepts": true,
+      "fulltext_accepted_by_unchanged_parser": false,
+      "license_statement": null,
+      "license_xml": null,
+      "retained_body_license_url": null,
+      "abstract_sha256": "58cb36d94c9e2c1714ad9988c344720c3472e0af596ba934c94955c9206bd6fd",
+      "body_excerpts_sha256": null,
+      "retained_body_characters": 0,
+      "fulltext_xml_sha256": null,
+      "fulltext_xml_path": null,
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-pubmed-more.xml",
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/41521418-source.json",
+      "supporting_quotes": [
+        {
+          "quote": "For adult patients the Multinational Association of Supportive Care in Cancer and the Clinical Index of Stable Febrile Neutropenia scores are recommended, whereas for paediatric patients the AUS rule has been prospectively derived and validated in the Australian setting.",
+          "literal_in_retained_source": true,
+          "section": "abstract"
+        },
+        {
+          "quote": "These rules are recommended as part of a structured low-risk neutropenic fever care pathway that incorporates additional disease-level, treatment-level and patient-level safety net criteria.",
+          "literal_in_retained_source": true,
+          "section": "abstract"
+        }
+      ],
+      "limitations": [
+        "Mixed adult and pediatric guidance; abstract explicitly recommends MASCC/CISNE for adults and AUS for children.",
+        "Abstract supports a structured low-risk pathway plus disease/treatment/patient safety-net criteria. It does not give exact antimicrobial choices, dose, or numerical discharge/follow-up intervals.",
+        "No PMCID in PubMed metadata; no full-text license asserted. Abstract-only use under existing PubMed pipeline."
+      ],
+      "urls": {
+        "pubmed": "https://pubmed.ncbi.nlm.nih.gov/41521418/",
+        "fulltext_xml": null
+      }
+    },
+    {
+      "pmid": "39973942",
+      "pmcid": "PMC11836497",
+      "exact_pubmed_title": "2024 update of the AGIHO guideline on diagnosis and empirical treatment of fever of unknown origin (FUO) in adult neutropenic patients with solid tumours and hematological malignancies.",
+      "journal_date": "2025 Apr",
+      "publication_types": [
+        "Journal Article",
+        "Review"
+      ],
+      "comments_corrections": [],
+      "source_class": "primary_society_guideline",
+      "disposition": "exclude_for_outpatient_decision",
+      "authority": "AGIHO infectious diseases working party of the German Society of Hematology and Medical Oncology DGHO, explicit in abstract. 2024 update published 2025.",
+      "pin": {
+        "id": "39973942",
+        "pmcid": "PMC11836497",
+        "title": "2024 update of the AGIHO guideline on diagnosis and empirical treatment of fever of unknown origin (FUO) in adult neutropenic patients with solid tumours and hematological malignancies.",
+        "source_type": "primary_society_guideline",
+        "require_licensed_fulltext": false
+      },
+      "ordinary_parser_accepts": false,
+      "exact_pin_parser_accepts": true,
+      "fulltext_accepted_by_unchanged_parser": false,
+      "license_statement": "© 2025 The Author(s) 2025 https://creativecommons.org/licenses/by-nc-nd/4.0/ This is an open access article under the CC BY-NC-ND license (http://creativecommons.org/licenses/by-nc-nd/4.0/).",
+      "license_xml": "<permissions xmlns:ns0=\"http://www.niso.org/schemas/ali/1.0/\"><copyright-statement>© 2025 The Author(s)</copyright-statement><copyright-year>2025</copyright-year><license><ns0:license_ref specific-use=\"textmining\" content-type=\"ccbyncndlicense\">https://creativecommons.org/licenses/by-nc-nd/4.0/</ns0:license_ref><license-p>This is an open access article under the CC BY-NC-ND license (http://creativecommons.org/licenses/by-nc-nd/4.0/).</license-p></license></permissions>",
+      "retained_body_license_url": null,
+      "abstract_sha256": "2c76b1a2dd6e576dcb7b462ac3f32f06311b4507bd7435a3f9ba89781ec61884",
+      "body_excerpts_sha256": null,
+      "retained_body_characters": 0,
+      "fulltext_xml_sha256": "cc17a07da7343e8a6e4fbb1e193a55f400803bed8e01a4214d0d7b9f8adde981",
+      "fulltext_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-PMC11836497.xml",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-pubmed-oncology.xml",
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/39973942-source.json",
+      "supporting_quotes": [],
+      "limitations": [
+        "Actual fullTextXML is CC BY-NC-ND4, not CC BY4.",
+        "Abstract supports FN emergency/prompt antimicrobial care but otherwise describes scope; it cannot establish outpatient eligibility or regimen/timing."
+      ],
+      "urls": {
+        "pubmed": "https://pubmed.ncbi.nlm.nih.gov/39973942/",
+        "fulltext_xml": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11836497/fullTextXML"
+      }
+    },
+    {
+      "pmid": "42525130",
+      "pmcid": "PMC13421288",
+      "exact_pubmed_title": "Febrile neutropenia in patients treated with chemotherapy/immune checkpoint inhibition: a MASCC consensus statement.",
+      "journal_date": "2026 Jul 29",
+      "publication_types": [
+        "Journal Article",
+        "Consensus Statement",
+        "Review"
+      ],
+      "comments_corrections": [],
+      "source_class": "primary_society_consensus",
+      "disposition": "optional_substantive_abstract_only",
+      "authority": "MASCC consensus statement, explicit title and abstract.",
+      "pin": {
+        "id": "42525130",
+        "pmcid": "PMC13421288",
+        "title": "Febrile neutropenia in patients treated with chemotherapy/immune checkpoint inhibition: a MASCC consensus statement.",
+        "source_type": "primary_society_consensus",
+        "require_licensed_fulltext": false
+      },
+      "ordinary_parser_accepts": false,
+      "exact_pin_parser_accepts": true,
+      "fulltext_accepted_by_unchanged_parser": false,
+      "license_statement": "© The Author(s) 2026 2026 https://creativecommons.org/licenses/by-nc-nd/4.0/ Open Access This article is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License, which permits any non-commercial use, sharing, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons licence, and indicate if you modified the licensed material. You do not have permission under this licence to share adapted material derived from this article or parts of it. The images or other third party material in this article are included in the article's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the article's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit http://creativecommons.org/licenses/by-nc-nd/4.0/ .",
+      "license_xml": "<permissions xmlns:ns0=\"http://www.niso.org/schemas/ali/1.0/\" xmlns:ns1=\"http://www.w3.org/1999/xlink\"><copyright-statement>© The Author(s) 2026</copyright-statement><copyright-year>2026</copyright-year><license><ns0:license_ref specific-use=\"textmining\" content-type=\"ccbyncndlicense\">https://creativecommons.org/licenses/by-nc-nd/4.0/</ns0:license_ref><license-p><bold>Open Access</bold> This article is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License, which permits any non-commercial use, sharing, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original author(s) and the source, provide a link to the Creative Commons licence, and indicate if you modified the licensed material. You do not have permission under this licence to share adapted material derived from this article or parts of it. The images or other third party material in this article are included in the article's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the article's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit <ext-link ext-link-type=\"uri\" ns1:href=\"https://creativecommons.org/licenses/by-nc-nd/4.0/\">http://creativecommons.org/licenses/by-nc-nd/4.0/</ext-link>.</license-p></license></permissions>",
+      "retained_body_license_url": null,
+      "abstract_sha256": "b698ba5e1c043bcf45d9136ad9d0205840a3ffad4542b3e51007e0a77ace50ee",
+      "body_excerpts_sha256": null,
+      "retained_body_characters": 0,
+      "fulltext_xml_sha256": "95aadbeb8749c8029ccb9efff6c8b9494b7732962ba2907cff4fc4bf5471f4c6",
+      "fulltext_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-PMC13421288.xml",
+      "pubmed_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-pubmed-oncology.xml",
+      "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/42525130-source.json",
+      "supporting_quotes": [
+        {
+          "quote": "Management of patients with low-risk FN in an outpatient setting is proven to be safe and effective.",
+          "literal_in_retained_source": true,
+          "section": "abstract"
+        },
+        {
+          "quote": "patients with a score ≥ 21 are likely to be suitable for outpatient management.",
+          "literal_in_retained_source": true,
+          "section": "abstract"
+        },
+        {
+          "quote": "Patients treated with chemotherapy/ICI therapy with low-risk FN should be treated on the same pathway as those treated with chemotherapy alone with inclusion criteria adapted to recognise their eligibility.",
+          "literal_in_retained_source": true,
+          "section": "abstract"
+        }
+      ],
+      "limitations": [
+        "Actual fullTextXML CC BY-NC-ND4; retain only PubMed abstract.",
+        "Primarily chemotherapy plus immune-checkpoint-inhibitor cohort; abstract says MASCC not validated for combined chemo/ICI and notes only one eligible literature paper. Distinguish consensus extrapolation from validated evidence.",
+        "For current ordinary chemotherapy low-risk scenario, independent systematic review plus Australasian consensus is cleaner; avoid counting older and updated same-organization position papers as independent research."
+      ],
+      "urls": {
+        "pubmed": "https://pubmed.ncbi.nlm.nih.gov/42525130/",
+        "fulltext_xml": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC13421288/fullTextXML"
+      }
+    }
+  ],
+  "not_recommended": [
+    "38545671 full text restricted and abstract not diagnostic",
+    "39719150 meeting report restricted and abstract non-actionable",
+    "39973942 full text restricted and abstract insufficient for outpatient decision"
+  ],
+  "gate_conclusion": "No license, identity, population, recency, retraction or model-review gate relaxation is needed. Heme two exact guideline/consensus pins; oncology ordinary systematic review can be pinned for deterministic retrieval plus exact abstract-only Australasian consensus pin."
+}

@@ -1,0 +1,430 @@
+{
+  "task_id": "onboarding-practice-v1-c81048b60c5736de1ba4-1",
+  "specialty": "cardiothoracic surgery",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Emergency ascending aortic surgical assessment",
+    "question": "Which definitive management strategy is most appropriate at this decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "cardiothoracic surgery",
+      "demographics": {
+        "age_band": "60-69",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Abrupt severe chest pain radiating to the upper back",
+          "since": "Index day",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Hypertension",
+          "since": "Several years",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "blood_pressure_mmHg": "118/64",
+        "heart_rate_bpm": 72,
+        "respiratory_rate_per_min": 18,
+        "oxygen_saturation_percent": 97,
+        "hemodynamic_status": "Stable"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Cardiothoracic Surgery Assessment",
+          "author_role": "cardiothoracic surgery",
+          "text": "A woman in her late 60s developed abrupt, severe central chest pain radiating to the upper back approximately three hours before assessment. Initial stabilization and monitored transfer were completed before arrival. She remains alert, hemodynamically stable, and neurologically intact, with palpable extremity pulses and no clinical evidence of limb ischemia. She lived independently before this event and has no prior sternotomy, advanced pulmonary disease, active malignancy, or other documented condition considered prohibitive for open surgery. Completed CT angiography demonstrates an acute dissection involving the ascending aorta.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "CT angiography",
+          "label": "Thoracic aorta",
+          "findings": "An intimal flap begins in the ascending aorta and extends through the arch into the proximal descending thoracic aorta. The ascending aorta is involved. No contained or free rupture is identified. The proximal coronary arteries remain opacified, and there is no CT evidence of visceral or limb malperfusion.",
+          "measurements": [],
+          "impression": "Acute Stanford type A aortic dissection without imaging evidence of rupture.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for operative strategy assessment",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "This is a confirmed acute Stanford type A dissection in a patient without a documented prohibitive operative risk. Open repair is the standard surgical approach and the condition is time-critical, so definitive open surgical repair should proceed without avoidable delay. Ascending aortic endovascular repair has been studied mainly as an emerging alternative for carefully selected patients who are inoperable or declined for open surgery; limited patient numbers, heterogeneous techniques, reintervention, and insufficient longer-term evidence prevent its routine use in an otherwise operable patient.",
+        "evidence": {
+          "decision_focus": "Standard open repair versus primary ascending endovascular repair",
+          "diagnosis_status": "Confirmed acute Stanford type A aortic dissection",
+          "operative_risk_context": "No documented prohibitive risk for open repair"
+        },
+        "key_data": [
+          "CT angiography confirms dissection involving the ascending aorta",
+          "Symptoms began approximately three hours before surgical assessment",
+          "No documented condition makes the patient inoperable for open repair",
+          "No rupture or established malperfusion changes the immediate strategy comparison"
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Proceed without avoidable delay to standard open surgical repair of the acute ascending aortic dissection because the patient has no documented prohibitive operative risk."
+      },
+      {
+        "id": "B",
+        "text": "Use primary endovascular stent-graft repair of the ascending aorta as routine first-line treatment, avoiding open surgery despite the absence of prohibitive operative risk."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "acute type A dissection",
+      "ascending aorta",
+      "open repair",
+      "endovascular repair",
+      "operative delay"
+    ],
+    "evidence_keywords": [
+      "standard surgical approach",
+      "inoperable patients",
+      "technical failure",
+      "reintervention",
+      "long-term outcomes"
+    ],
+    "error_tags": [
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "Open repair is the standard surgical approach for Stanford type A aortic dissection.",
+        "source_ids": [
+          "33592292"
+        ]
+      },
+      {
+        "statement": "Endovascular ascending repair is described as an alternative for selected inoperable patients, not established routine care.",
+        "source_ids": [
+          "33592292"
+        ]
+      },
+      {
+        "statement": "Limited mid- and long-term outcome evidence prevents broad introduction of endovascular repair for type A dissection.",
+        "source_ids": [
+          "33169411"
+        ]
+      },
+      {
+        "statement": "Aortic dissection is a life-threatening, time-critical condition in which diagnostic and treatment delays are important.",
+        "source_ids": [
+          "33415812"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T01:25:28.616723+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "32001058",
+        "title": "Society for Vascular Surgery (SVS) and Society of Thoracic Surgeons (STS) reporting standards for type B aortic dissections.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32001058/",
+        "abstract": "This Society for Vascular Surgery/Society of Thoracic Surgeons (SVS/STS) document illustrates and defines the overall nomenclature associated with type B aortic dissection. The contents describe a new classification system for practical use and reporting that includes the aortic arch. Chronicity of aortic dissection is also defined along with nomenclature in patients with prior aortic repair and other aortic pathologic processes, such as intramural hematoma and penetrating atherosclerotic ulcer. Complicated vs uncomplicated dissections are clearly defined with a new high-risk grouping that will undoubtedly grow in reporting and controversy. Follow-up criteria are also discussed with nomenclature for false lumen status in addition to measurement criteria and definitions of aortic remodeling. Overall, the document provides a facile framework of language that will allow more granular discussions and reporting of aortic dissection in the future.",
+        "sha256": "2af3441dd305d8e589d2fdacfb78d9118d9c4c7df4e6747fb1e41633c1c5b052",
+        "retrieved_at": "2026-09-19T01:24:16.496130+00:00"
+      },
+      {
+        "id": "41448425",
+        "title": "European Society for Vascular Surgery (ESVS) 2026 Clinical Practice Guidelines on the Management of Descending Thoracic and Thoraco-Abdominal Aortic Diseases - Editor's Choice.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41448425/",
+        "abstract": "The European Society for Vascular Surgery (ESVS) has developed clinical practice guidelines for the care of patients with descending thoracic and thoraco-abdominal aortic pathologies, in succession to the 2017 version, with the aim of assisting physicians and patients in selecting the best management strategy.\nThe guidelines are based on scientific evidence complemented with expert opinion on the matter. By summarising and evaluating the best available evidence, recommendations for the evaluation and treatment of patients have been formulated. The recommendations are graded according to the ESVS grading system, where the strength (class) of each recommendation is graded from I to III and the level of evidence from A to C.\nOne hundred and twenty-nine recommendations have been issued across the following main topics: (1) acute thoracic aortic syndrome; (2) chronic type B aortic dissection; (3) descending thoracic and thoraco-abdominal aortic aneurysms; (4) ruptured descending thoracic and thoraco-abdominal aortic aneurysms; and (5) blunt thoracic aortic injury. Additional topics include genetic aortopathy, floating thrombus and shaggy aorta, inflammatory aortitis, mycotic aortic aneurysms, coarctation of the aorta, aberrant subclavian artery, and service standards such as surgical volume, imaging, risk assessment, and optimisation. Special considerations include pregnancy, left subclavian artery revascularisation, spinal cord ischaemia, stroke prevention, vascular access, and the patient's perspective. A final chapter addresses unresolved issues.\nThese clinical practice guidelines provide comprehensive, up to date advice to clinicians and patients on the management of descending thoracic and thoraco-abdominal aortic pathologies.",
+        "sha256": "db42ed0b8beed2324460e40d8d14ef3cc0152167b6d40dd9bf07a2e96bc2b840",
+        "retrieved_at": "2026-09-19T01:24:18.444061+00:00"
+      },
+      {
+        "id": "39792236",
+        "title": "Clinical practice guidelines for management of disseminated intravascular coagulation in Japan 2024. Part 3: solid cancers and vascular abnormalities.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39792236/",
+        "abstract": "This study discusses disseminated intravascular coagulation (DIC) associated with solid cancers and various vascular abnormalities, both of which generally exhibit chronic DIC patterns. Solid cancers are among the most significant underlying diseases that induce DIC. However, the severity, bleeding tendency, and progression of DIC vary considerably depending on the type and stage of the cancer, making generalization difficult. Moreover, during the process of creating these guidelines, it became apparent that despite solid cancers being a major underlying condition for DIC, there is a lack of high-quality research on DIC associated with solid cancers. Nevertheless, we developed recommendations for clinical questions (CQs) regarding the use of heparin and recombinant thrombomodulin. Additionally, statements concerning these five questions were provided. DIC associated with various vascular abnormalities, is characterized by hyperfibrinolytic activity and linked to underlying conditions such as aortic aneurysm, aortic dissection, vasculitis syndromes, and vascular malformations. These conditions must always be considered differential diagnoses when unexplained thrombocytopenia or bleeding tendencies are observed. Although no evidence was found to support the assignment of recommendation levels, three statements were made. However, traumatic vascular abnormalities have not been discussed in this context.",
+        "sha256": "88ab371fb5ae89e49fe441cdc55d34b81e3fdbe3dfb93b9ae007585da4c33466",
+        "retrieved_at": "2026-09-19T01:24:18.444061+00:00"
+      },
+      {
+        "id": "30598351",
+        "title": "Systematic review and meta-analysis of acute type B thoracic aortic dissection, open, or\u00a0endovascular repair.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30598351/",
+        "abstract": "The purpose of this study was to compare perioperative and mortality outcomes of endovascular aortic repair against open repair in acute type B thoracic aortic dissection.\nA comprehensive search was undertaken among the four major databases (PubMed, Embase, Scopus, and Ovid) to identify all published data comparing open vs endovascular repair in management of acute type B aortic dissection. Databases where evaluated and assessed to July 2017. The 95% confidence intervals were analyzed from the extracted data using relevant statistical methods.\nOverall, 18,193 patients were found in a combination of nine studies. Patients undergoing open repair were younger (mean, 61.3\u00a0\u00b1 9.3\u00a0years vs 66.6\u00a0\u00b1 12.5\u00a0years; P\u00a0< .00001). Postoperative stroke and paraplegia were similar in both groups (P\u00a0= .71 and P\u00a0= .81 respectively); however, the rate of all neurologic complications were more common in the traditional open repair group (6.9% vs 4.8%; P\u00a0= .006). The all-cause operative and 1-year death was reported as higher in the open repair group (18.6% vs 7.4% [P\u00a0< .0001] and 24.3% vs 14.3% [P\u00a0< .0001], respectively); however, at 5\u00a0years this rate is almost similar between both groups (46.7% vs 49.7%; P\u00a0= .21). At 1\u00a0year, the rate of reintervention was reported to be higher in endovascular repair group of patients (15.4% vs 5.5%; P\u00a0= .004).\nThis study concludes that endovascular repair, in the setting of acute type B thoracic aortic dissection, provides an early surgical benefit; however, this finding has not yet been supported by long-term data. There seems to be a benefit with respect to all-neurologic events in favor of endovascular repair. Long-term comparative data and studies are required to give a better understanding of these two approaches.",
+        "sha256": "2b54601353f5ef6477f39e1f7382912537db50df0e48d3d22b254a3db9041046",
+        "retrieved_at": "2026-09-19T01:24:19.859832+00:00"
+      },
+      {
+        "id": "33592292",
+        "title": "Systematic review and meta-analysis of endovascular interventions for Stanford type A aortic dissection.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33592292/",
+        "abstract": "The standard surgical approach to Stanford type A aortic dissection is open repair. However, up to one in four patients will be declined surgery because of prohibitive risk. Patients who are treated nonoperatively have an unacceptably high mortality. Endovascular repair of the ascending aorta is emerging as an alternative treatment for a select group of patients. The reported rates of technical success, mortality, stroke, and reintervention have varied. The objective of the study was to systematically report outcomes for acute type A dissections repaired using an endovascular approach.\nThe systematic review and meta-analysis was conducted in accordance with the PRISMA (preferred reporting items for systematic reviews and meta-analyses) guidelines. We performed online literature database searches through April 2020. The demographic and procedural characteristics of the individual studies were tabulated. Data on technical success, short-term mortality, stroke, and reintervention were extracted and underwent meta-analysis using a random effects model.\nFourteen studies with 80 cases of aortic dissection (55 acute and 25 subacute) were included in the final analysis. A wide variation was found in technique and device design across the studies. The outcomes rates were estimated at 17% (95% confidence interval [CI], 10%-26%) for mortality, 15% (95% CI, 8%-23%) for technical failure, 11% (95% CI, 6%-19%) for stroke and 18% (95% CI, 9%-31%) for reintervention. The mean Downs and Black quality assessment score was 13.9\u00a0\u00b1 3.2.\nThe technique for endovascular repair of type A aortic dissection is feasible and reproducible. The results of our meta-analysis demonstrate an acceptable safety profile for inoperable patients who otherwise would have an extremely poor prognosis. Data from clinical trials are required before the technique can be introduced into routine clinical practice.",
+        "sha256": "717f03818d1e53ee8b5dd40b10538a17faf41a6a5a2684742cd59cc604ffc78c",
+        "retrieved_at": "2026-09-19T01:24:19.859832+00:00"
+      },
+      {
+        "id": "33169411",
+        "title": "Endovascular ascending aortic repair in type A dissection: A systematic review.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33169411/",
+        "abstract": "Up to 10% of acute type A aortic dissection (TAAD) patients are deemed unfit for open surgical repair, exposing these patients to high mortality rates. In recent years, thoracic endovascular aortic repair has proven to be a promising alternative treatment modality in specific cases. This study presents a comprehensive overview of the current state of catheter-based interventions in the setting of primary TAAD.\nA literature search was conducted, using MEDLINE and PubMed databases according to PRISMA guidelines, updated until January 2020. Articles were selected if they reported on the endovascular repair of DeBakey Type I and II aortic dissections. The exclusion criteria were retrograde type A dissection, hybrid procedures, and combined outcome reporting of mixed aortic pathologies (e.g., pseudoaneurysm and intramural hematoma).\nA total of 31 articles, out of which 19 were case reports and 12 case series, describing a total of 92 patients, were included. The median follow-up was 6 months for case reports and the average follow-up was 14 months for case series. Overall technical success was 95.6% and 30-day mortality of 9%. Stroke and early endoleak rates were 6% and 18%, respectively. Reintervention was required in 14 patients (15%).\nThis review not only demonstrates that endovascular repair in the setting of isolated TAAD is feasible with acceptable outcomes at short-term follow-up, but also underlines a lack of mid-late outcomes and reporting consistency. Studies with longer follow-up and careful consideration of patient selection are required before endovascular interventions can be widely introduced.",
+        "sha256": "624c45f8c240f2bd4b30d1435d8fe0f88ffdd78ab6cc201c628072b35615eb17",
+        "retrieved_at": "2026-09-19T01:24:19.859832+00:00",
+        "pmcid": "PMC8463007"
+      },
+      {
+        "id": "30578057",
+        "title": "The fate of unrepaired chronic type A aortic dissection.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30578057/",
+        "abstract": "The current guidelines do not consider chronic type A aortic dissection as one of the triggers for prophylactic aortic repair, and an aortic diameter of 55\u00a0mm is considered the threshold for surgery.\nFrom the institutional database, we retrieved 82 patients who were diagnosed as having chronic type A aortic dissection but did not undergo immediate surgical repair from 1997 to 2016. The primary outcome was a composite of adverse aortic events defined as aortic rupture and sudden death. Conversion to elective surgery during follow-up was regarded as competing risk for adverse events.\nThe median value of the maximal aortic diameter at baseline was 55.2\u00a0mm. During a median follow-up of 77.1\u00a0months, 19 adverse events occurred while 9 patients received elective aortic repair. On multivariable competing risk analyses, baseline aortic diameter and age emerged as significant and independent factors associated with aortic events. The estimated rates of aortic event within 5\u00a0years were 12.0%, 19.4%, and 29.7% for aortic diameters of 50, 60, and 70\u00a0mm, respectively, with escalating risk rates as age increased for the given aortic diameters.\nIn unrepaired chronic type A aortic dissection, aortic events were not infrequent even for patients with an aortic diameter of less than 55\u00a0mm. This finding indicates that there may be a need to lower the surgical threshold for chronic type A aortic dissection.",
+        "sha256": "d35e5614e4a707edfb16e75f872cfb7fce14e706f89a59e6356cbea898de6a32",
+        "retrieved_at": "2026-09-19T01:24:20.487721+00:00"
+      },
+      {
+        "id": "33415812",
+        "title": "From ER to OR-Type A aortic dissection delay dilemma.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33415812/",
+        "abstract": "Aortic dissection (AD) remains a life-threatening and time-critical condition. The classical presentation involves sudden onset, sharp \"tearing\" chest pain radiating to the back. However, it can present with a myriad of symptoms, leading to a high occurrence of misdiagnosis and delay in treatment.\nA review of the available literature published on AD and diagnostic delays. A systematic review of the literature performed via PubMed and Google scholar using key search terms such as \"type A,\" \"aortic dissection,\" \"delay,\" \"misdiagnosis,\" and synonyms. The Boolean operator used to narrow results specifically to diagnostic elements of AD. A current lack of data collection has impeded the systematic analysis and review of this condition making it difficult to assess reasons for delay. A review of the literature showed a large variation in the presentation of those that have acute AD. Often the presentation mimics other more common conditions such as acute coronary syndrome. Lack of awareness amongst clinicians means that it is often not considered as a differential. Furthermore, the lack of a discriminator for patients being triaged leads to diagnostic delay; this is exacerbated by limited accessibility to diagnostic tests such as CT.\nBased on the current literature, collaborative data collection, regular audit, national guidance, and communication between Royal Colleges will improve awareness, reduce diagnostic delays, and shine greater light on the issue.",
+        "sha256": "3c71ae182e9b54cb4dfe94d0e1ec2acc9dbcb8b2ca4d2024a90f964e942d15d7",
+        "retrieved_at": "2026-09-19T01:24:20.487721+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "This is an acute Stanford type A dissection involving the ascending aorta, a life-threatening and time-critical condition for which standard definitive treatment is urgent open surgical repair. The patient is stable and has no documented prohibitive operative risk, rupture, or malperfusion that would justify departing from the standard approach. The cited systematic reviews describe ascending-aortic endovascular repair as an emerging option mainly for carefully selected patients considered inoperable or at prohibitive risk, with insufficient evidence for routine first-line use. Therefore, primary endovascular repair is not appropriate simply to avoid open surgery in this operable patient.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33592292"
+              ],
+              "reason": "The source directly identifies open repair as the standard surgical approach for Stanford type A dissection.",
+              "source_passage_ids": [
+                "33592292:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33592292",
+                  "quote": "The standard surgical approach to Stanford type A aortic dissection is open repair. However, up to one in four patients will be declined surgery because of prohibitive risk. Patients who are treated nonoperatively have an unacceptably high mortality. Endovascular repair of the ascending aorta is emerging as an alternative treatment for a select group of patients. The reported rates of technical success, mortality, stroke, and reintervention have varied. The objective of the study was to systematically report outcomes for acute type A dissections repaired using an endovascular approach. The systematic review and meta-analysis was conducted in accordance with the PRISMA (preferred reporting items for systematic reviews and meta-analyses) guidelines. We performed online literature database searches through April 2020."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "33592292"
+              ],
+              "reason": "The review describes ascending endovascular repair as an emerging option for selected patients, reports its evidence in inoperable patients, and states that clinical-trial data are required before routine use.",
+              "source_passage_ids": [
+                "33592292:p0",
+                "33592292:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33592292",
+                  "quote": "The standard surgical approach to Stanford type A aortic dissection is open repair. However, up to one in four patients will be declined surgery because of prohibitive risk. Patients who are treated nonoperatively have an unacceptably high mortality. Endovascular repair of the ascending aorta is emerging as an alternative treatment for a select group of patients. The reported rates of technical success, mortality, stroke, and reintervention have varied. The objective of the study was to systematically report outcomes for acute type A dissections repaired using an endovascular approach. The systematic review and meta-analysis was conducted in accordance with the PRISMA (preferred reporting items for systematic reviews and meta-analyses) guidelines. We performed online literature database searches through April 2020."
+                },
+                {
+                  "source_id": "33592292",
+                  "quote": "The results of our meta-analysis demonstrate an acceptable safety profile for inoperable patients who otherwise would have an extremely poor prognosis. Data from clinical trials are required before the technique can be introduced into routine clinical practice."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33169411"
+              ],
+              "reason": "The evidence consists primarily of case reports and small case series with short follow-up, explicitly identifies absent mid-to-late outcomes and inconsistent reporting, and calls for longer follow-up before broad introduction.",
+              "source_passage_ids": [
+                "33169411:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33169411",
+                  "quote": "A total of 31 articles, out of which 19 were case reports and 12 case series, describing a total of 92 patients, were included. The median follow-up was 6 months for case reports and the average follow-up was 14 months for case series. Overall technical success was 95.6% and 30-day mortality of 9%. Stroke and early endoleak rates were 6% and 18%, respectively. Reintervention was required in 14 patients (15%). This review not only demonstrates that endovascular repair in the setting of isolated TAAD is feasible with acceptable outcomes at short-term follow-up, but also underlines a lack of mid-late outcomes and reporting consistency. Studies with longer follow-up and careful consideration of patient selection are required before endovascular interventions can be widely introduced."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "33415812"
+              ],
+              "reason": "The source directly characterizes aortic dissection as life-threatening and time-critical and discusses clinically important diagnostic and treatment delays.",
+              "source_passage_ids": [
+                "33415812:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33415812",
+                  "quote": "Aortic dissection (AD) remains a life-threatening and time-critical condition. The classical presentation involves sudden onset, sharp \"tearing\" chest pain radiating to the back. However, it can present with a myriad of symptoms, leading to a high occurrence of misdiagnosis and delay in treatment. A review of the available literature published on AD and diagnostic delays. A systematic review of the literature performed via PubMed and Google scholar using key search terms such as \"type A,\" \"aortic dissection,\" \"delay,\" \"misdiagnosis,\" and synonyms. The Boolean operator used to narrow results specifically to diagnostic elements of AD. A current lack of data collection has impeded the systematic analysis and review of this condition making it difficult to assess reasons for delay. A review of the literature showed a large variation in the presentation of those that have acute AD."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "CTA confirms an acute Stanford type A dissection involving the ascending aorta. The assessment explicitly documents no condition considered prohibitive for open surgery. The supplied evidence identifies open repair as the standard approach, while primary ascending endovascular repair remains an emerging option supported mainly for selected inoperable patients and is not established as routine first-line treatment. Because aortic dissection is time-critical, proceeding to open repair without avoidable delay is appropriate. Hemodynamic stability and the absence of rupture or malperfusion do not support replacing standard open repair with routine primary endovascular treatment. The title and visible assessment establish the emergency surgical context but do not disclose the intended open-versus-endovascular answer. This decision is distinct from the previous case, which concerned valve replacement for symptomatic severe aortic stenosis rather than repair strategy for acute type A dissection."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The case describes an acute Stanford type A aortic dissection involving the ascending aorta in a hemodynamically stable, neurologically intact woman with no documented prohibitive operative risk. Definitive management for acute type A dissection is urgent open surgical repair without avoidable delay. The cited literature states that the standard surgical approach to Stanford type A aortic dissection is open repair, while endovascular ascending repair remains an emerging option mainly for selected inoperable or prohibitive-risk patients and is not ready for routine first-line use in operable patients. Therefore, primary endovascular stent-grafting as routine first-line therapy is not the most appropriate strategy here.",
+          "confidence": 0.96
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33592292"
+              ],
+              "reason": "The cited source explicitly states that open repair is the standard surgical approach for Stanford type A aortic dissection.",
+              "source_passage_ids": [
+                "33592292:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33592292",
+                  "quote": "The standard surgical approach to Stanford type A aortic dissection is open repair. However, up to one in four patients will be declined surgery because of prohibitive risk. Patients who are treated nonoperatively have an unacceptably high mortality. Endovascular repair of the ascending aorta is emerging as an alternative treatment for a select group of patients. The reported rates of technical success, mortality, stroke, and reintervention have varied. The objective of the study was to systematically report outcomes for acute type A dissections repaired using an endovascular approach. The systematic review and meta-analysis was conducted in accordance with the PRISMA (preferred reporting items for systematic reviews and meta-analyses) guidelines. We performed online literature database searches through April 2020."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "33592292"
+              ],
+              "reason": "The cited source describes endovascular ascending repair as emerging for a select group, specifically notes acceptable safety for inoperable patients, and states clinical trials are needed before routine clinical practice.",
+              "source_passage_ids": [
+                "33592292:p0",
+                "33592292:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33592292",
+                  "quote": "The standard surgical approach to Stanford type A aortic dissection is open repair. However, up to one in four patients will be declined surgery because of prohibitive risk. Patients who are treated nonoperatively have an unacceptably high mortality. Endovascular repair of the ascending aorta is emerging as an alternative treatment for a select group of patients. The reported rates of technical success, mortality, stroke, and reintervention have varied. The objective of the study was to systematically report outcomes for acute type A dissections repaired using an endovascular approach. The systematic review and meta-analysis was conducted in accordance with the PRISMA (preferred reporting items for systematic reviews and meta-analyses) guidelines. We performed online literature database searches through April 2020."
+                },
+                {
+                  "source_id": "33592292",
+                  "quote": "The results of our meta-analysis demonstrate an acceptable safety profile for inoperable patients who otherwise would have an extremely poor prognosis. Data from clinical trials are required before the technique can be introduced into routine clinical practice."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33169411"
+              ],
+              "reason": "The cited source reports short follow-up and explicitly states that lack of mid-late outcomes and reporting consistency means longer follow-up and careful patient selection are required before wide introduction.",
+              "source_passage_ids": [
+                "33169411:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33169411",
+                  "quote": "A total of 31 articles, out of which 19 were case reports and 12 case series, describing a total of 92 patients, were included. The median follow-up was 6 months for case reports and the average follow-up was 14 months for case series. Overall technical success was 95.6% and 30-day mortality of 9%. Stroke and early endoleak rates were 6% and 18%, respectively. Reintervention was required in 14 patients (15%). This review not only demonstrates that endovascular repair in the setting of isolated TAAD is feasible with acceptable outcomes at short-term follow-up, but also underlines a lack of mid-late outcomes and reporting consistency. Studies with longer follow-up and careful consideration of patient selection are required before endovascular interventions can be widely introduced."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "33415812"
+              ],
+              "reason": "The cited source explicitly characterizes aortic dissection as life-threatening and time-critical and discusses misdiagnosis and treatment/diagnostic delays.",
+              "source_passage_ids": [
+                "33415812:p0",
+                "33415812:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33415812",
+                  "quote": "Aortic dissection (AD) remains a life-threatening and time-critical condition. The classical presentation involves sudden onset, sharp \"tearing\" chest pain radiating to the back. However, it can present with a myriad of symptoms, leading to a high occurrence of misdiagnosis and delay in treatment. A review of the available literature published on AD and diagnostic delays. A systematic review of the literature performed via PubMed and Google scholar using key search terms such as \"type A,\" \"aortic dissection,\" \"delay,\" \"misdiagnosis,\" and synonyms. The Boolean operator used to narrow results specifically to diagnostic elements of AD. A current lack of data collection has impeded the systematic analysis and review of this condition making it difficult to assess reasons for delay. A review of the literature showed a large variation in the presentation of those that have acute AD."
+                },
+                {
+                  "source_id": "33415812",
+                  "quote": "Often the presentation mimics other more common conditions such as acute coronary syndrome. Lack of awareness amongst clinicians means that it is often not considered as a differential. Furthermore, the lack of a discriminator for patients being triaged leads to diagnostic delay; this is exacerbated by limited accessibility to diagnostic tests such as CT. Based on the current literature, collaborative data collection, regular audit, national guidance, and communication between Royal Colleges will improve awareness, reduce diagnostic delays, and shine greater light on the issue."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case describes an adult patient with confirmed acute Stanford type A aortic dissection involving the ascending aorta, symptom onset about three hours earlier, no rupture or malperfusion on CTA, and no documented prohibitive operative risk. This is within cardiothoracic surgery and asks the definitive operative strategy. Based on the supplied evidence, open repair is the standard approach for Stanford type A dissection, while primary ascending endovascular repair remains an emerging option mainly for selected/inoperable patients and is not established as routine first-line care. Therefore candidate A is the best answer and the key is correct. Candidate B is the intentionally unsafe option because it recommends routine endovascular stent-graft repair despite absence of prohibitive operative risk. The visible title/question do not directly disclose the exact intended answer, and the decision is distinct from the previous aortic stenosis valve-replacement case."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "66517ad2a9a30330033dd62588685837f13e589984197b916bdac7e71205b7b1"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

@@ -1,0 +1,569 @@
+{
+  "task_id": "onboarding-examination-v1-eab374162d4f1d645638-1",
+  "specialty": "radiation oncology",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Acute neurologic decline in metastatic cancer",
+    "question": "Which local treatment pathway is most appropriate at this decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "radiation oncology",
+      "demographics": {
+        "age_band": "60-69",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Biopsy-confirmed metastatic solid malignancy documented as relatively radioresistant",
+          "since": "18 months",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Progressive thoracic back pain",
+          "since": "3 weeks",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Rapidly progressive bilateral leg weakness and numbness",
+          "since": "1 day",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "New urinary retention",
+          "since": "1 day",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Dexamethasone",
+          "dose": null,
+          "route": null,
+          "freq": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "hemodynamic_status": "stable",
+        "respiratory_status": "unlabored on room air"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Urgent consultation",
+          "author_role": "radiation oncology",
+          "text": "An adult with metastatic solid malignancy developed worsening mid-thoracic pain followed by bilateral leg weakness, sensory loss below the lower chest, and urinary retention over the past day. The patient could walk independently two days earlier but is now unable to stand without substantial assistance. Examination shows marked bilateral lower-extremity weakness and reduced sensation below an approximate T8 level. Upper-extremity findings are normal. The emergency oncology team initiated corticosteroid therapy before this consultation. There has been no prior radiotherapy to the thoracic spine. The patient is hemodynamically stable, has no major uncontrolled comorbidity or documented operative contraindication, and had been independently performing daily activities before the neurologic decline. Prior oncology documentation characterizes the tumor histology as relatively radioresistant.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "MRI",
+          "label": "Urgent contrast-enhanced total-spine MRI",
+          "findings": "A destructive T7 vertebral metastasis extends circumferentially into the epidural space. There is high-grade spinal cord compression with complete effacement of surrounding cerebrospinal fluid and visible cord deformation. Associated vertebral collapse and posterior element involvement are present. No second site of cord compression is identified.",
+          "measurements": [],
+          "impression": "High-grade symptomatic metastatic epidural spinal cord compression at T7.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "advanced",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for management decision",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "This is high-grade, symptomatic metastatic epidural spinal cord compression from a tumor documented as relatively radioresistant, with rapid loss of ambulation and no identified operative contraindication. The applicable evidence supports urgent multidisciplinary management using direct circumferential surgical decompression combined with radiotherapy rather than definitive radiotherapy alone. Evidence questioning surgical benefit in mobile patients without neurologic deficit should not be extrapolated to this nonambulatory patient with major progressive deficits. The radiotherapy technique and fractionation should be selected after decompression rather than inferred from evidence that does not establish a preferred regimen here.",
+        "evidence": {
+          "selection_framework": "High-grade symptomatic compression, less radiosensitive tumor, major evolving neurologic deficit, and apparent operative candidacy."
+        },
+        "key_data": [
+          "MRI demonstrates high-grade T7 epidural spinal cord compression with cord deformation.",
+          "The patient has rapidly progressive weakness, sensory loss, urinary retention, and loss of ambulation.",
+          "The malignancy is documented as relatively radioresistant.",
+          "No prohibitive operative condition or prior thoracic radiotherapy is documented.",
+          "Corticosteroid therapy was already initiated before the unresolved local-treatment decision."
+        ]
+      },
+      "hard_hook": "An ambulatory-patient meta-analysis should not be extrapolated to a patient who has lost ambulation from high-grade symptomatic compression.",
+      "reasoning_divergence": "The flawed response applies evidence from mobile patients without neurologic deficit and omits decompression despite the case-specific high-grade symptomatic framework."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Urgently coordinate spine surgery and radiation oncology for direct circumferential decompression followed by radiotherapy. This high-grade symptomatic compression from a relatively radioresistant tumor should not be managed with definitive radiotherapy alone when the patient appears operable."
+      },
+      {
+        "id": "B",
+        "text": "Begin definitive external-beam radiotherapy alone without surgical decompression, because studies of ambulatory patients show that adding surgery does not improve local control, survival, or walking outcomes. The same conclusion should be applied despite this patient's recent loss of ambulation."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "spinal cord compression",
+      "neurologic deficit",
+      "urinary retention",
+      "loss of ambulation",
+      "surgical decompression",
+      "radiotherapy"
+    ],
+    "evidence_keywords": [
+      "metastatic epidural spinal cord compression",
+      "high-grade compression",
+      "radioresistant tumor",
+      "direct circumferential decompression",
+      "combined-modality treatment",
+      "ambulatory status"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Malignant spinal cord compression is an oncologic emergency that can produce paralysis, limb weakness, numbness, and urinary or bowel dysfunction.",
+        "source_ids": [
+          "38055061"
+        ]
+      },
+      {
+        "statement": "Timely diagnosis and efficient multidisciplinary treatment of metastatic epidural spinal cord compression are critically important for neurological outcomes.",
+        "source_ids": [
+          "37890190"
+        ]
+      },
+      {
+        "statement": "For high-grade symptomatic metastatic epidural spinal cord compression from less radiosensitive tumors, combination therapy with direct circumferential decompression is supported over radiotherapy alone.",
+        "source_ids": [
+          "39637710"
+        ]
+      },
+      {
+        "statement": "Radiotherapy has established efficacy in managing spinal cord compression caused by bone metastases.",
+        "source_ids": [
+          "34955420",
+          "41317503"
+        ]
+      },
+      {
+        "statement": "Findings that surgery did not improve ambulatory function were derived from mobile patients, while the role of surgery without neurological deficit remained debatable.",
+        "source_ids": [
+          "37890190"
+        ]
+      },
+      {
+        "statement": "Broader surgical meta-analysis findings carry a high risk of bias and did not show significant primary-outcome differences within the solid-malignancy subgroup.",
+        "source_ids": [
+          "39477818"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T01:34:27.780422+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "34955420",
+        "title": "Radiotherapy of bone metastases.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34955420/",
+        "abstract": "We present the update of the recommendations of the French society of oncological radiotherapy on bone metastases. This is a common treatment in the management of patients with cancer. It is a relatively simple treatment with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments by stereotaxis can be proposed for oligometastatic patients or in case of reirradiation. In this context, increased vigilance should be given to the risks to the spinal cord.",
+        "sha256": "a841a54d173730c438fa1b2ea1c1330723fe123b02c349fa766f2675b6ceae17",
+        "retrieved_at": "2026-09-19T01:32:41.016346+00:00"
+      },
+      {
+        "id": "41317503",
+        "title": "Radiotherapy of bone metastases: 2025 update.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41317503/",
+        "abstract": "We present the updated recommendations of the Soci\u00e9t\u00e9 fran\u00e7aise de radioth\u00e9rapie oncologique (the French society for radiation oncology) regarding the indications and technical modalities of radiotherapy for bone metastases. This treatment is commonly used in the management of patients with cancer. In most cases, it involves relatively simple radiotherapy technique with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments using stereotactic conditions can be proposed for patients with painful bone metastases, oligometastatic disease, or in case of reirradiation. In this context, increased vigilance must be given to the risks of spinal cord toxicity.",
+        "sha256": "1969c69807495239858a5fbd9183d302fd803c2764e79acab40c9b5f9aa51619",
+        "retrieved_at": "2026-09-19T01:32:41.016346+00:00"
+      },
+      {
+        "id": "31005225",
+        "title": "Single versus multifraction radiotherapy for spinal cord compression: A systematic review and meta-analysis.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31005225/",
+        "abstract": "While multifraction radiotherapy (RT) regimens (MFRT) have been considered the standard of care in patients with metastatic epidural spinal cord compression (MESCC) with limited prognosis, recent randomized evidence has demonstrated that single fraction RT (SFRT) may be equivalent in terms of functional and overall outcomes. A systematic review and meta-analysis was conducted to determine the effects of SFRT compared to short course MFRT in patients with MESCC.\nA search of OVID, EMBASE, and the Cochrane Central Register of Controlled Trials from inception to February 2018 was conducted. Randomized and prospective non-randomized trials comparing SFRT and short course MFRT for MESCC were included. Data were analyzed using a random effects model, and relative risks (RR) or hazard ratios (HR) were reported with corresponding 95% confidence intervals (CI). Quality of evidence was assessed using the GRADE criteria.\nOverall 1717 articles were reviewed. Three randomized trials were eligible for inclusion (n\u202f=\u202f712 patients). The pooled treatment effect for SFRT versus MFRT with respect to motor response was RR\u202f=\u202f0.96 (95% CI\u202f=\u202f0.86-1.07, I2\u202f=\u202f19%), HR\u202f=\u202f1.00 (95% CI\u202f=\u202f0.88-1.13, I2\u202f=\u202f0%) for OS, and RR\u202f=\u202f0.97, (95% CI\u202f=\u202f0.85-1.11, I2\u202f=\u202f61%) for bladder function. There was insufficient data to perform a meta-analysis on quality of life, toxicity or pain response, however available information suggests pain response appears similar between SFRT and MFRT. Overall quality of evidence was deemed moderate due to risk of bias. There was no evidence of an observed difference with respect to motor response, bladder dysfunction and OS between SFRT and MFRT for MESCC in patients with a limited prognosis.",
+        "sha256": "cbc6187dad8aa023e9b9b9c9339fcf56735e8f1909912ce7425c2ca0d523df86",
+        "retrieved_at": "2026-09-19T01:32:42.173377+00:00"
+      },
+      {
+        "id": "39637710",
+        "title": "The role of combination surgery and radiotherapy in patients with metastatic spinal cord compression: What are the remaining grey areas? A systematic review.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39637710/",
+        "abstract": "Traditional management of patients with metastatic epidural spinal cord compression (MESCC) consists of radiotherapy (RT) with or without surgical decompression. With extensive literature and the introduction of clinical frameworks, such as the neurologic, oncologic, mechanical, and systemic criteria and the epidural spinal cord compression scale, progress has been made in refining the appropriate treatment regimen. In this review, we analyze the existing literature to identify the consensus frameworks and the remaining gaps in clinical knowledge.\nPubMed, Embase, Cochrane, Web of Science, Scopus, and ClinicalTrials.gov were queried in January 2023. Only articles comparing combination therapy (surgery plus RT) to RT alone and assessing neurological and/or survival outcomes in patients with MESCC were retained for full-text review.\nOut of 2157 unique articles, 29 met inclusion criteria. The most common primary cancer locations included lung (n=1031, 20.0\u202f%), breast (n=747, 14.5\u202f%), and prostate (n=712, 13.8\u202f%), and back pain was the most common symptom reported (n=1186/1622, 73.1\u202f%). While baseline patient characteristics were not controlled between the different treatment regimens, the included studies demonstrated a median survival of 4.0 months (interquartile range [IQR] 3.0-6.1 months) in patients receiving RT alone compared to 7.7 months (IQR 6.3-11.1 months) in the cohort receiving combination therapy. Similarly, in patients undergoing RT alone, a median of 29.0\u202f% (IQR 16.0-37.9\u202f%) of patients experienced a neurologic improvement, compared to 38.0\u202f% (IQR 31.5-64.4\u202f%) of patients undergoing combination therapy.\nIn patients with high-grade, symptomatic MESCC, combination therapy with direct circumferential decompression is superior to RT alone in patients with less radiosensitive tumors. In patients with high-grade asymptomatic MESCC, RT alone can be pursued for patients with the most radiosensitive tumors, such as myeloma and lymphoma; however, more research is needed on the treatment of less radiosensitive tumors. A major grey area exists in the treatment of patients with intermediate grade epidural involvement.",
+        "sha256": "5f6bd00fa2c82fcc11a5a688a6ee0fa1d1cb8779c2466cc8b9af9762bd51be46",
+        "retrieved_at": "2026-09-19T01:32:42.173377+00:00"
+      },
+      {
+        "id": "39477818",
+        "title": "Surgery With or Without Radiotherapy Versus Radiotherapy Alone for Malignant Spinal Cord Compression : An Updated Meta-analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39477818/",
+        "abstract": "A systematic review and meta-analysis.\nTo conduct a meta-analysis of studies that compared surgery with or without radiotherapy to radiotherapy alone for patients with malignant spinal cord compression, and a subgroup analysis of patients stratified by hematologic and solid malignancies.\nTwo previous meta-analyses showed that surgery with or without radiotherapy was better than radiotherapy alone in patients with malignant spinal cord compression. Nevertheless, there was no stratification by tumor type, leading to uncertainty regarding the best approach for patients with hematologic malignancies.\nWe searched PubMed, Scopus, and Web of Science, for studies comparing surgery with or without radiotherapy to radiotherapy alone in patients with malignant spinal cord compression. The primary outcomes were improvement in ambulatory status and survival at 12 months. For neurological outcomes, we included studies involving both locally advanced primary malignancies of the spine and metastatic tumors. We restricted our analysis to studies on metastases for survival outcomes.\nWe included 2536 patients from 18 studies. Surgery was performed in 890 (35%) patients. The pooled analysis of all studies revealed that improvement in ambulatory status [odds ratio (OR): 2.65; 95% CI: 1.60-4.39] and survival at 12 months (OR: 1.66; 95% CI: 1.10-2.52) were significantly higher in patients who underwent surgery with or without radiotherapy. Improvement in ambulatory status (OR: 1.92; 95% CI: 1.19-3.09) and survival at 12 months (OR: 4.24; 95% CI: 2.35-7.66) were significantly higher in patients with hematologic malignancies in the surgical arm. The primary outcomes were not significantly different between patients with solid malignancies.\nSurgical intervention demonstrates superior neurological outcomes and increased survival compared with radiotherapy alone. Subgroup analysis revealed that patients with hematologic malignancies in the surgery group experienced superior primary outcomes; however, the high risk of bias of the included studies precludes definitive changes in standard care based on this data. These findings underscore the need for further research regarding the efficacy of surgical versus radiotherapeutic approaches for specific tumor types.\nLevel II.",
+        "sha256": "8b217cb50f3767e949b55c74fe56f164b049bb6b6733a3c8c50c6bcc3c340ba6",
+        "retrieved_at": "2026-09-19T01:32:42.173377+00:00"
+      },
+      {
+        "id": "34762165",
+        "title": "[Benefits of radiotherapy for patients with solitary plasmacytoma or multiple myeloma].",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34762165/",
+        "abstract": "Treatment options for patients with solitary plasmacytoma (SP) or multiple myeloma (MM) should be discussed in an interdisciplinary context. This systematic review focuses on the importance of radiotherapy in MM and SP.\nSummary of local radio-oncological treatment options for patients with SP and MM.\nBased on a\u00a0systematic literature search, the current evidence on the topic was analyzed and summarized.\nPatients with SP should be primarily treated with radiotherapy with or without surgery. Irradiation concepts may vary depending on risk factors and manifestation (solitary bone plasmacytoma vs. solitary extramedullary plasmacytoma). Although local control rates are high after radiotherapy, progression to multiple myeloma frequently occurs. In patients with MM, radiation is mainly used in palliative settings for pain relief, prevention of fractures or in patients who suffer from neurological symptoms due to spinal cord compression. Irradiation dose and fractionation should be selected based on treatment indication and general condition of the patient.\nAlthough most patients receive systemic treatment at initial diagnosis, approximately 40% of patients with MM will require radiation during the course of their disease. While radiation is mainly used for palliation in patients with MM, it represents the primary and curative treatment option in patients with SP.",
+        "sha256": "71632ce7b5b3e5ed75ccade5c04f4accce75d1904ead9d245ba621a1f8861b65",
+        "retrieved_at": "2026-09-19T01:32:43.416385+00:00"
+      },
+      {
+        "id": "38055061",
+        "title": "Quality of life in patients with malignant spinal cord compression: a systematic review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38055061/",
+        "abstract": "Malignant spinal cord compression (MSCC) is an oncological emergency that may result in a devastating combination of malignancy and disability. Existing quality of life (QoL) questionnaires commonly used in MSCC literature (EORTC QLQ-C30, BM-22, Brief Pain Inventory, and Spine Oncology Study Group Outcomes) may not capture all the commonly reported symptoms and lack specificity to MSCC. The primary objective of this systematic review is to determine unmet patient needs and underreported QoL issues and compile a comprehensive list of QoL issues. The secondary objective of this review is to compile all existing QoL tools and questionnaires and determine whether any QoL issues are not addressed in the existing tools currently used in the literature.\nA literature search was conducted on Ovid MEDLINE, EMBASE, and Cochrane Central Register of Controlled Trials databases between 1946 and February 6, 2023, to compile all QoL issues and existing questionnaires used to assess QoL in patients with MSCC. All study designs were included given that they discussed QoL issues specific to patients with MSCC.\nThe results of this systematic review identified the most frequently discussed QoL issues in the literature studying MSCC. This included direct symptoms of MSCC such as back pain, paralysis, limb weakness/numbness, and urinary/bowel incontinence. Indirect symptoms coming from radiotherapy treatment such as dysphagia, painful swallowing, mouth pain, dry mouth, diarrhea, fatigue, and nausea/vomiting were also noted. Other symptoms resulting from corticosteroid treatment included difficulty sleeping, blurring of vision, weight gain, and mood disturbance. Patients also experienced psychosocial issues such as anxiety, depression, emotional distress, low self-esteem, concerns about dependence on others, concerns about getting home, and fear about their prognosis and future.\nThis review highlights the QoL issues specific to patients with MSCC and QoL tools capturing these issues. Relevance of QoL issues identified in this systematic review must be prospectively validated by patients and healthcare professionals with experience in treating MSCC.",
+        "sha256": "45d17abf81199b6647656844a725763bb32f0f77d985ec7a86f413894e7ec8ea",
+        "retrieved_at": "2026-09-19T01:32:43.416385+00:00"
+      },
+      {
+        "id": "37890190",
+        "title": "Treatment of ambulatory patients with metastatic epidural spinal cord compression: a systematic review and meta-analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37890190/",
+        "abstract": "Approximately 10% of patients with spinal metastases develop metastatic epidural spinal cord compression (MESCC), which left undiagnosed and untreated can lead to the loss of ambulation. Timely diagnosis and efficient multidisciplinary treatment are critically important to optimize neurological outcomes. This meta-analysis aimed to determine the most efficient treatment for ambulatory patients with MESCC.\nThe authors conducted a systematic review and meta-analysis of the treatment of mobile patients with MESCC in terms of outcomes described as local control (LC), ambulatory function, quality of life (QOL), morbidity, and overall survival (OS).\nOverall, 54 papers (4101 patients) were included. A trend toward improved LC with stereotactic body radiotherapy (SBRT) compared with conventional external beam radiotherapy (cEBRT) was demonstrated: random effects modeling 1-year LC rate 86% (95% CI 84%-88%) versus 81% (95% CI 74%-86%) (p > 0.05), respectively, and common effects modeling 1-year LC rate 85% (95% CI 82%-87%) versus 76% (95% CI 74%-78%) (p < 0.05). Surgery followed by adjuvant radiotherapy, either cEBRT or SBRT, showed no significant benefit in either LC (OR 0.88, 95% CI 0.65-1.19) or ambulatory function (OR 1.51, 95% CI 0.83-2.74) compared with radiotherapy without surgery. There was a significant benefit of surgery compared with cEBRT regarding QOL, and furthermore SBRT alone provided long-term improvement in QOL. The type of treatment was not a significant predictor of OS, but fully ambulatory status was significantly associated with improved OS (HR 0.46-0.52, relative risk 1.79-2.3). Radiation-induced myelopathy is a rare complication of SBRT (2 patients [0.1%] in the included papers). The morbidity rate associated with surgery was relatively high, with a 10% wound complication rate and 1.6% hardware-failure rate.\nSBRT is an extremely promising treatment modality being integrated into treatment algorithms and provides durable LC. In mobile patients with MESCC, surgery does not improve LC, survival, or ambulatory function; nonetheless, there is a significant benefit of surgery in terms of QOL. In patients with MESCC without neurological deficit, the role of surgery is still debatable as studies demonstrate good LC for patients who undergo SBRT without preceding surgery. However, surgery can provide safe margins for the administration of the ablative dose of SBRT to the entire tumor volume within the constraints of spinal cord tolerance. Further randomized controlled trials are needed on the benefit of surgery before SBRT in mobile patients with MESCC. With the excellent results of separation surgery and SBRT, the role of highly invasive vertebrectomy is diminishing given the complication rate and morbidity of these procedures.",
+        "sha256": "ecea01e63eb484ec2977387de0d11074dc2af793c98a54714ac3a9273d570e77",
+        "retrieved_at": "2026-09-19T01:32:44.000960+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "This is an oncologic and surgical emergency: rapidly progressive neurologic deficits, urinary retention, recent loss of ambulation, and MRI-confirmed high-grade T7 epidural cord compression with vertebral collapse and posterior-element involvement. The patient was functionally independent, appears operable, has not received prior thoracic radiotherapy, and has a relatively radioresistant tumor. Contemporary evidence supports urgent direct decompression, with stabilization as indicated, followed by radiotherapy for high-grade symptomatic compression from less radiosensitive tumors. The ambulatory-patient evidence cited in B is not directly applicable because this patient has already developed severe neurologic deficit and loss of ambulation; it also does not justify radiotherapy alone in the setting of mechanical instability and radioresistant histology.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "38055061"
+              ],
+              "reason": "The source explicitly identifies malignant spinal cord compression as an oncologic emergency and lists paralysis, weakness or numbness, and urinary or bowel incontinence among its manifestations.",
+              "source_passage_ids": [
+                "38055061:p0",
+                "38055061:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38055061",
+                  "quote": "Malignant spinal cord compression (MSCC) is an oncological emergency that may result in a devastating combination of malignancy and disability. Existing quality of life (QoL) questionnaires commonly used in MSCC literature (EORTC QLQ-C30, BM-22, Brief Pain Inventory, and Spine Oncology Study Group Outcomes) may not capture all the commonly reported symptoms and lack specificity to MSCC. The primary objective of this systematic review is to determine unmet patient needs and underreported QoL issues and compile a comprehensive list of QoL issues. The secondary objective of this review is to compile all existing QoL tools and questionnaires and determine whether any QoL issues are not addressed in the existing tools currently used in the literature."
+                },
+                {
+                  "source_id": "38055061",
+                  "quote": "A literature search was conducted on Ovid MEDLINE, EMBASE, and Cochrane Central Register of Controlled Trials databases between 1946 and February 6, 2023, to compile all QoL issues and existing questionnaires used to assess QoL in patients with MSCC. All study designs were included given that they discussed QoL issues specific to patients with MSCC. The results of this systematic review identified the most frequently discussed QoL issues in the literature studying MSCC. This included direct symptoms of MSCC such as back pain, paralysis, limb weakness/numbness, and urinary/bowel incontinence. Indirect symptoms coming from radiotherapy treatment such as dysphagia, painful swallowing, mouth pain, dry mouth, diarrhea, fatigue, and nausea/vomiting were also noted."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37890190"
+              ],
+              "reason": "The source explicitly states that timely diagnosis and efficient multidisciplinary treatment are critically important for optimizing neurologic outcomes.",
+              "source_passage_ids": [
+                "37890190:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37890190",
+                  "quote": "Approximately 10% of patients with spinal metastases develop metastatic epidural spinal cord compression (MESCC), which left undiagnosed and untreated can lead to the loss of ambulation. Timely diagnosis and efficient multidisciplinary treatment are critically important to optimize neurological outcomes. This meta-analysis aimed to determine the most efficient treatment for ambulatory patients with MESCC. The authors conducted a systematic review and meta-analysis of the treatment of mobile patients with MESCC in terms of outcomes described as local control (LC), ambulatory function, quality of life (QOL), morbidity, and overall survival (OS). Overall, 54 papers (4101 patients) were included."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "39637710"
+              ],
+              "reason": "The systematic review directly states that combination therapy with direct circumferential decompression is superior to radiotherapy alone for high-grade symptomatic MESCC from less radiosensitive tumors, matching this case's compression grade, symptoms, and tumor characterization.",
+              "source_passage_ids": [
+                "39637710:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39637710",
+                  "quote": "In patients with high-grade, symptomatic MESCC, combination therapy with direct circumferential decompression is superior to RT alone in patients with less radiosensitive tumors. In patients with high-grade asymptomatic MESCC, RT alone can be pursued for patients with the most radiosensitive tumors, such as myeloma and lymphoma; however, more research is needed on the treatment of less radiosensitive tumors. A major grey area exists in the treatment of patients with intermediate grade epidural involvement."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34955420",
+                "41317503"
+              ],
+              "reason": "Both radiation-oncology recommendation updates explicitly describe radiotherapy as having proven efficacy for managing spinal cord compression.",
+              "source_passage_ids": [
+                "34955420:p0",
+                "41317503:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34955420",
+                  "quote": "We present the update of the recommendations of the French society of oncological radiotherapy on bone metastases. This is a common treatment in the management of patients with cancer. It is a relatively simple treatment with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments by stereotaxis can be proposed for oligometastatic patients or in case of reirradiation. In this context, increased vigilance should be given to the risks to the spinal cord."
+                },
+                {
+                  "source_id": "41317503",
+                  "quote": "We present the updated recommendations of the Soci\u00e9t\u00e9 fran\u00e7aise de radioth\u00e9rapie oncologique (the French society for radiation oncology) regarding the indications and technical modalities of radiotherapy for bone metastases. This treatment is commonly used in the management of patients with cancer. In most cases, it involves relatively simple radiotherapy technique with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments using stereotactic conditions can be proposed for patients with painful bone metastases, oligometastatic disease, or in case of reirradiation. In this context, increased vigilance must be given to the risks of spinal cord toxicity."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37890190"
+              ],
+              "reason": "The review identifies its population as ambulatory or mobile patients, reports no significant ambulatory-function benefit from surgery in that population, and states that surgery remains debatable in patients without neurologic deficit. Those findings should not be extrapolated to this newly nonambulatory patient with major progressive deficits.",
+              "source_passage_ids": [
+                "37890190:p0",
+                "37890190:p1",
+                "37890190:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37890190",
+                  "quote": "Approximately 10% of patients with spinal metastases develop metastatic epidural spinal cord compression (MESCC), which left undiagnosed and untreated can lead to the loss of ambulation. Timely diagnosis and efficient multidisciplinary treatment are critically important to optimize neurological outcomes. This meta-analysis aimed to determine the most efficient treatment for ambulatory patients with MESCC. The authors conducted a systematic review and meta-analysis of the treatment of mobile patients with MESCC in terms of outcomes described as local control (LC), ambulatory function, quality of life (QOL), morbidity, and overall survival (OS). Overall, 54 papers (4101 patients) were included."
+                },
+                {
+                  "source_id": "37890190",
+                  "quote": "A trend toward improved LC with stereotactic body radiotherapy (SBRT) compared with conventional external beam radiotherapy (cEBRT) was demonstrated: random effects modeling 1-year LC rate 86% (95% CI 84%-88%) versus 81% (95% CI 74%-86%) (p > 0.05), respectively, and common effects modeling 1-year LC rate 85% (95% CI 82%-87%) versus 76% (95% CI 74%-78%) (p < 0.05). Surgery followed by adjuvant radiotherapy, either cEBRT or SBRT, showed no significant benefit in either LC (OR 0.88, 95% CI 0.65-1.19) or ambulatory function (OR 1.51, 95% CI 0.83-2.74) compared with radiotherapy without surgery. There was a significant benefit of surgery compared with cEBRT regarding QOL, and furthermore SBRT alone provided long-term improvement in QOL."
+                },
+                {
+                  "source_id": "37890190",
+                  "quote": "The type of treatment was not a significant predictor of OS, but fully ambulatory status was significantly associated with improved OS (HR 0.46-0.52, relative risk 1.79-2.3). Radiation-induced myelopathy is a rare complication of SBRT (2 patients [0.1%] in the included papers). The morbidity rate associated with surgery was relatively high, with a 10% wound complication rate and 1.6% hardware-failure rate. SBRT is an extremely promising treatment modality being integrated into treatment algorithms and provides durable LC. In mobile patients with MESCC, surgery does not improve LC, survival, or ambulatory function; nonetheless, there is a significant benefit of surgery in terms of QOL. In patients with MESCC without neurological deficit, the role of surgery is still debatable as studies demonstrate good LC for patients who undergo SBRT without preceding surgery."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "39477818"
+              ],
+              "reason": "The meta-analysis reports no significant primary-outcome differences within the solid-malignancy subgroup and explicitly warns that the included studies had a high risk of bias that precluded definitive changes in care.",
+              "source_passage_ids": [
+                "39477818:p1",
+                "39477818:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39477818",
+                  "quote": "For neurological outcomes, we included studies involving both locally advanced primary malignancies of the spine and metastatic tumors. We restricted our analysis to studies on metastases for survival outcomes. We included 2536 patients from 18 studies. Surgery was performed in 890 (35%) patients. The pooled analysis of all studies revealed that improvement in ambulatory status [odds ratio (OR): 2.65; 95% CI: 1.60-4.39] and survival at 12 months (OR: 1.66; 95% CI: 1.10-2.52) were significantly higher in patients who underwent surgery with or without radiotherapy. Improvement in ambulatory status (OR: 1.92; 95% CI: 1.19-3.09) and survival at 12 months (OR: 4.24; 95% CI: 2.35-7.66) were significantly higher in patients with hematologic malignancies in the surgical arm. The primary outcomes were not significantly different between patients with solid malignancies."
+                },
+                {
+                  "source_id": "39477818",
+                  "quote": "Surgical intervention demonstrates superior neurological outcomes and increased survival compared with radiotherapy alone. Subgroup analysis revealed that patients with hematologic malignancies in the surgery group experienced superior primary outcomes; however, the high risk of bias of the included studies precludes definitive changes in standard care based on this data. These findings underscore the need for further research regarding the efficacy of surgical versus radiotherapeutic approaches for specific tumor types. Level II."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Answer A is the appropriate urgent local-treatment pathway. The patient has MRI-confirmed high-grade symptomatic T7 metastatic epidural spinal cord compression, rapidly progressive motor and sensory deficits, urinary retention, recent loss of ambulation, vertebral collapse, and a relatively radioresistant solid tumor. He was independently functional before deterioration and has no documented operative contraindication, making urgent spine-surgery and radiation-oncology coordination for decompression followed by radiotherapy appropriate. Candidate B improperly generalizes findings from ambulatory or neurologically intact populations to a nonambulatory patient with major evolving deficits. The broader solid-tumor meta-analysis introduces uncertainty because of bias and nonsignificant subgroup findings, but it does not establish equivalence or superiority of radiotherapy alone in the narrower high-grade, symptomatic, less-radiosensitive phenotype addressed directly by source 39637710. Steroids have already been initiated, and the question is limited to the unresolved local-treatment pathway, so omission of a new steroid regimen is not an essential-care defect. No prior cases were supplied, so no duplicated clinical decision is evident."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The patient has an oncologic emergency: high-grade symptomatic metastatic epidural spinal cord compression at T7 with rapid neurologic decline, recent loss of ambulation, sensory level, urinary retention, vertebral collapse/posterior element involvement, and a relatively radioresistant solid tumor. He also appears operable and had good baseline function. The most directly applicable source states that in patients with high-grade symptomatic MESCC, combination therapy with direct circumferential decompression plus radiotherapy is superior to radiotherapy alone for less radiosensitive tumors. Another meta-analysis also found better ambulatory improvement and 12-month survival with surgery with or without radiotherapy versus radiotherapy alone, while noting limitations and heterogeneity. The source cited by option B concerns ambulatory/mobile patients and explicitly addresses a different population; this patient has already lost independent ambulation and has severe neurologic deficits. Therefore, applying the ambulatory-patient conclusion to avoid surgery here is inappropriate.",
+          "confidence": 0.92
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.91,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "38055061"
+              ],
+              "reason": "The cited source explicitly describes MSCC as an oncological emergency and lists paralysis, limb weakness/numbness, and urinary/bowel incontinence among direct symptoms.",
+              "source_passage_ids": [
+                "38055061:p0",
+                "38055061:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38055061",
+                  "quote": "Malignant spinal cord compression (MSCC) is an oncological emergency that may result in a devastating combination of malignancy and disability. Existing quality of life (QoL) questionnaires commonly used in MSCC literature (EORTC QLQ-C30, BM-22, Brief Pain Inventory, and Spine Oncology Study Group Outcomes) may not capture all the commonly reported symptoms and lack specificity to MSCC. The primary objective of this systematic review is to determine unmet patient needs and underreported QoL issues and compile a comprehensive list of QoL issues. The secondary objective of this review is to compile all existing QoL tools and questionnaires and determine whether any QoL issues are not addressed in the existing tools currently used in the literature."
+                },
+                {
+                  "source_id": "38055061",
+                  "quote": "A literature search was conducted on Ovid MEDLINE, EMBASE, and Cochrane Central Register of Controlled Trials databases between 1946 and February 6, 2023, to compile all QoL issues and existing questionnaires used to assess QoL in patients with MSCC. All study designs were included given that they discussed QoL issues specific to patients with MSCC. The results of this systematic review identified the most frequently discussed QoL issues in the literature studying MSCC. This included direct symptoms of MSCC such as back pain, paralysis, limb weakness/numbness, and urinary/bowel incontinence. Indirect symptoms coming from radiotherapy treatment such as dysphagia, painful swallowing, mouth pain, dry mouth, diarrhea, fatigue, and nausea/vomiting were also noted."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37890190"
+              ],
+              "reason": "The cited source directly states that timely diagnosis and efficient multidisciplinary treatment are critically important to optimize neurological outcomes in MESCC.",
+              "source_passage_ids": [
+                "37890190:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37890190",
+                  "quote": "Approximately 10% of patients with spinal metastases develop metastatic epidural spinal cord compression (MESCC), which left undiagnosed and untreated can lead to the loss of ambulation. Timely diagnosis and efficient multidisciplinary treatment are critically important to optimize neurological outcomes. This meta-analysis aimed to determine the most efficient treatment for ambulatory patients with MESCC. The authors conducted a systematic review and meta-analysis of the treatment of mobile patients with MESCC in terms of outcomes described as local control (LC), ambulatory function, quality of life (QOL), morbidity, and overall survival (OS). Overall, 54 papers (4101 patients) were included."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "39637710"
+              ],
+              "reason": "The cited source defines the comparison as combination therapy, surgery plus radiotherapy, versus radiotherapy alone, and states that in high-grade symptomatic MESCC with less radiosensitive tumors, combination therapy with direct circumferential decompression is superior to radiotherapy alone.",
+              "source_passage_ids": [
+                "39637710:p0",
+                "39637710:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39637710",
+                  "quote": "Traditional management of patients with metastatic epidural spinal cord compression (MESCC) consists of radiotherapy (RT) with or without surgical decompression. With extensive literature and the introduction of clinical frameworks, such as the neurologic, oncologic, mechanical, and systemic criteria and the epidural spinal cord compression scale, progress has been made in refining the appropriate treatment regimen. In this review, we analyze the existing literature to identify the consensus frameworks and the remaining gaps in clinical knowledge. PubMed, Embase, Cochrane, Web of Science, Scopus, and ClinicalTrials.gov were queried in January 2023. Only articles comparing combination therapy (surgery plus RT) to RT alone and assessing neurological and/or survival outcomes in patients with MESCC were retained for full-text review. Out of 2157 unique articles, 29 met inclusion criteria."
+                },
+                {
+                  "source_id": "39637710",
+                  "quote": "In patients with high-grade, symptomatic MESCC, combination therapy with direct circumferential decompression is superior to RT alone in patients with less radiosensitive tumors. In patients with high-grade asymptomatic MESCC, RT alone can be pursued for patients with the most radiosensitive tumors, such as myeloma and lymphoma; however, more research is needed on the treatment of less radiosensitive tumors. A major grey area exists in the treatment of patients with intermediate grade epidural involvement."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34955420",
+                "41317503"
+              ],
+              "reason": "Both cited radiotherapy recommendation updates state that radiotherapy has proven efficacy in managing spinal cord compression in the bone metastasis context.",
+              "source_passage_ids": [
+                "34955420:p0",
+                "41317503:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34955420",
+                  "quote": "We present the update of the recommendations of the French society of oncological radiotherapy on bone metastases. This is a common treatment in the management of patients with cancer. It is a relatively simple treatment with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments by stereotaxis can be proposed for oligometastatic patients or in case of reirradiation. In this context, increased vigilance should be given to the risks to the spinal cord."
+                },
+                {
+                  "source_id": "41317503",
+                  "quote": "We present the updated recommendations of the Soci\u00e9t\u00e9 fran\u00e7aise de radioth\u00e9rapie oncologique (the French society for radiation oncology) regarding the indications and technical modalities of radiotherapy for bone metastases. This treatment is commonly used in the management of patients with cancer. In most cases, it involves relatively simple radiotherapy technique with proven efficacy in reducing pain or managing spinal cord compression. More complex treatments using stereotactic conditions can be proposed for patients with painful bone metastases, oligometastatic disease, or in case of reirradiation. In this context, increased vigilance must be given to the risks of spinal cord toxicity."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37890190"
+              ],
+              "reason": "The source specifies that the meta-analysis addressed mobile or ambulatory patients, reports no improvement in ambulatory function from surgery in that population, and separately states that the role of surgery remains debatable in patients without neurological deficit.",
+              "source_passage_ids": [
+                "37890190:p0",
+                "37890190:p1",
+                "37890190:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37890190",
+                  "quote": "Approximately 10% of patients with spinal metastases develop metastatic epidural spinal cord compression (MESCC), which left undiagnosed and untreated can lead to the loss of ambulation. Timely diagnosis and efficient multidisciplinary treatment are critically important to optimize neurological outcomes. This meta-analysis aimed to determine the most efficient treatment for ambulatory patients with MESCC. The authors conducted a systematic review and meta-analysis of the treatment of mobile patients with MESCC in terms of outcomes described as local control (LC), ambulatory function, quality of life (QOL), morbidity, and overall survival (OS). Overall, 54 papers (4101 patients) were included."
+                },
+                {
+                  "source_id": "37890190",
+                  "quote": "A trend toward improved LC with stereotactic body radiotherapy (SBRT) compared with conventional external beam radiotherapy (cEBRT) was demonstrated: random effects modeling 1-year LC rate 86% (95% CI 84%-88%) versus 81% (95% CI 74%-86%) (p > 0.05), respectively, and common effects modeling 1-year LC rate 85% (95% CI 82%-87%) versus 76% (95% CI 74%-78%) (p < 0.05). Surgery followed by adjuvant radiotherapy, either cEBRT or SBRT, showed no significant benefit in either LC (OR 0.88, 95% CI 0.65-1.19) or ambulatory function (OR 1.51, 95% CI 0.83-2.74) compared with radiotherapy without surgery. There was a significant benefit of surgery compared with cEBRT regarding QOL, and furthermore SBRT alone provided long-term improvement in QOL."
+                },
+                {
+                  "source_id": "37890190",
+                  "quote": "The type of treatment was not a significant predictor of OS, but fully ambulatory status was significantly associated with improved OS (HR 0.46-0.52, relative risk 1.79-2.3). Radiation-induced myelopathy is a rare complication of SBRT (2 patients [0.1%] in the included papers). The morbidity rate associated with surgery was relatively high, with a 10% wound complication rate and 1.6% hardware-failure rate. SBRT is an extremely promising treatment modality being integrated into treatment algorithms and provides durable LC. In mobile patients with MESCC, surgery does not improve LC, survival, or ambulatory function; nonetheless, there is a significant benefit of surgery in terms of QOL. In patients with MESCC without neurological deficit, the role of surgery is still debatable as studies demonstrate good LC for patients who undergo SBRT without preceding surgery."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "39477818"
+              ],
+              "reason": "The source states that primary outcomes were not significantly different in the solid-malignancy subgroup and that high risk of bias precludes definitive changes in standard care based on those data.",
+              "source_passage_ids": [
+                "39477818:p1",
+                "39477818:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39477818",
+                  "quote": "For neurological outcomes, we included studies involving both locally advanced primary malignancies of the spine and metastatic tumors. We restricted our analysis to studies on metastases for survival outcomes. We included 2536 patients from 18 studies. Surgery was performed in 890 (35%) patients. The pooled analysis of all studies revealed that improvement in ambulatory status [odds ratio (OR): 2.65; 95% CI: 1.60-4.39] and survival at 12 months (OR: 1.66; 95% CI: 1.10-2.52) were significantly higher in patients who underwent surgery with or without radiotherapy. Improvement in ambulatory status (OR: 1.92; 95% CI: 1.19-3.09) and survival at 12 months (OR: 4.24; 95% CI: 2.35-7.66) were significantly higher in patients with hematologic malignancies in the surgical arm. The primary outcomes were not significantly different between patients with solid malignancies."
+                },
+                {
+                  "source_id": "39477818",
+                  "quote": "Surgical intervention demonstrates superior neurological outcomes and increased survival compared with radiotherapy alone. Subgroup analysis revealed that patients with hematologic malignancies in the surgery group experienced superior primary outcomes; however, the high risk of bias of the included studies precludes definitive changes in standard care based on this data. These findings underscore the need for further research regarding the efficacy of surgical versus radiotherapeutic approaches for specific tumor types. Level II."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The clinical data describe acute symptomatic high-grade metastatic epidural spinal cord compression at T7 with cord deformation, rapid bilateral leg weakness and sensory loss, urinary retention, loss of ambulation, a relatively radioresistant solid tumor, no prior thoracic radiotherapy, and no documented operative contraindication. On the supplied evidence, this fits the subgroup for urgent multidisciplinary management with surgical decompression plus radiotherapy rather than definitive radiotherapy alone. Candidate A is therefore the best answer and is appropriately conditional on apparent operability. Candidate B incorrectly extrapolates evidence from mobile or ambulatory patients, including patients without neurological deficit, to a now nonambulatory patient with major progressive neurologic deficits. The case is within radiation oncology because urgent radiotherapy assessment and coordination with spine surgery are central to management of metastatic epidural spinal cord compression. The title, question, and visible clinical note do not disclose the intended answer or management plan. No prior cases were provided, so the decision is distinct."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "610175c58c667b898c7b2c61a57c2f1dabc86fadb5a7f38a0e116106fd2b3633"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

@@ -16,7 +16,7 @@ on:
         description: Clinical generation path to verify
         default: multimodal
         type: choice
-        options: [multimodal, onboarding, onboarding-library]
+        options: [multimodal, onboarding, onboarding-library, onboarding-openai-trial]
       specialty:
         description: Specialty to generate against
         default: nephrology
@@ -47,13 +47,13 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
       - uses: actions/setup-python@v5
-        if: inputs.mode == 'onboarding-library'
+        if: inputs.mode == 'onboarding-library' || inputs.mode == 'onboarding-openai-trial'
         with:
           python-version: "3.11"
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - name: Install reviewer preflight dependencies
-        if: inputs.mode == 'onboarding-library'
+        if: inputs.mode == 'onboarding-library' || inputs.mode == 'onboarding-openai-trial'
         run: pip install -r backend/requirements.txt
       - name: Check reviewer before starting specialty jobs
         if: inputs.mode == 'onboarding-library'
@@ -62,6 +62,13 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ASCLEPIUS_LLM_PROVIDER: ""
         run: python3 backend/scripts/check_onboarding_reviewer.py
+      - name: Check OpenAI trial access before any authorship
+        if: inputs.mode == 'onboarding-openai-trial'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MODEL_ASCLEPIUS_CASE_GEN: gpt-5.6-sol
+          ASCLEPIUS_LLM_PROVIDER: ""
+        run: python3 backend/scripts/trial_onboarding_openai.py --check-access
       - id: matrix
         env:
           SMOKE_SPECIALTY: ${{ inputs.specialty }}
@@ -71,6 +78,8 @@ jobs:
           import json, os, subprocess
           if os.environ['SMOKE_MODE'] == 'onboarding-library':
               values = json.loads(subprocess.check_output(['python3', 'backend/scripts/build_onboarding_library.py', '--matrix']))
+          elif os.environ['SMOKE_MODE'] == 'onboarding-openai-trial':
+              values = json.loads(subprocess.check_output(['python3', 'backend/scripts/trial_onboarding_openai.py', '--matrix', '--specialty', os.environ['SMOKE_SPECIALTY']]))
           else:
               values = [os.environ['SMOKE_SPECIALTY']]
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
@@ -80,7 +89,7 @@ jobs:
     needs: plan
     strategy:
       fail-fast: false
-      max-parallel: 8
+      max-parallel: ${{ inputs.mode == 'onboarding-openai-trial' && 4 || 8 }}
       matrix:
         specialty: ${{ fromJson(needs.plan.outputs.specialties) }}
     runs-on: ubuntu-latest
@@ -115,6 +124,7 @@ jobs:
           }
 
       - name: Run the multimodal smoke
+        if: inputs.mode != 'onboarding-openai-trial'
         working-directory: backend
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -142,6 +152,20 @@ jobs:
             python3 scripts/smoke_multimodal.py --specialty "$SMOKE_SPECIALTY" --n "$SMOKE_COUNT" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
           fi
 
+      - name: Run OpenAI-only onboarding experiment
+        if: inputs.mode == 'onboarding-openai-trial'
+        working-directory: backend
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MODEL_ASCLEPIUS_CASE_GEN: gpt-5.6-sol
+          ASCLEPIUS_LLM_PROVIDER: ""
+          ASCLEPIUS_DB_PATH: ${{ runner.temp }}/openai-trial.db
+          ASCLEPIUS_EXPORT_DIR: ${{ runner.temp }}/openai-trial-exports
+          SMOKE_SPECIALTY: ${{ matrix.specialty }}
+        run: |
+          set -euo pipefail
+          python3 scripts/trial_onboarding_openai.py --specialty "$SMOKE_SPECIALTY" --output "${RUNNER_TEMP}/openai-trial-results" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
+
       - name: Upload the report
         if: always()
         uses: actions/upload-artifact@v4
@@ -151,4 +175,5 @@ jobs:
             ${{ runner.temp }}/smoke-report.txt
             ${{ runner.temp }}/onboarding-cases/*.json
             ${{ runner.temp }}/onboarding-review-diagnostics/*.json
+            ${{ runner.temp }}/openai-trial-results/*.json
           if-no-files-found: warn
