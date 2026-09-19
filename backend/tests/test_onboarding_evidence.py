@@ -129,6 +129,26 @@ def test_pathology_teaching_exception_requires_exact_identity_and_no_retraction(
     assert evidence.parse_articles(unrelated_guideline, now=now, pathology_teaching=True) == []
 
 
+def test_misindexed_guidance_pin_requires_exact_identity_and_preserves_safety_filters():
+    from datetime import datetime, timezone
+    raw = b'''<PubmedArticleSet><PubmedArticle><MedlineCitation><PMID>38152089</PMID><Article>
+        <Journal><JournalIssue><PubDate><Year>2023</Year></PubDate></JournalIssue></Journal>
+        <ArticleTitle>Guideline for the management of myasthenic syndromes.</ArticleTitle>
+        <Abstract><AbstractText>''' + b'Fictional source for parser testing. ' * 20 + b'''</AbstractText></Abstract>
+        <PublicationTypeList><PublicationType>Review</PublicationType></PublicationTypeList>
+        </Article></MedlineCitation><PubmedData><ArticleIdList>
+        <ArticleId IdType="pmc">PMC10752078</ArticleId></ArticleIdList></PubmedData></PubmedArticle></PubmedArticleSet>'''
+    now = datetime(2026, 9, 18, tzinfo=timezone.utc)
+    pins = {'38152089': {'pmcid': 'PMC10752078', 'title': 'Guideline for the management of myasthenic syndromes.',
+                         'source_type': 'primary_society_guideline'}}
+    assert evidence.parse_articles(raw, now=now) == []
+    assert evidence.parse_articles(raw, now=now, pinned=pins)[0]['source_type'] == 'primary_society_guideline'
+    for old, new in [(b'38152089', b'11111111'), (b'PMC10752078', b'PMC123'),
+                     (b'syndromes.', b'other.'), (b'>2023<', b'>2010<'),
+                     (b'>Review<', b'>Retracted Publication<')]:
+        assert evidence.parse_articles(raw.replace(old, new), now=now, pinned=pins) == []
+
+
 def test_long_sources_are_split_without_ellipses_or_rewritten_punctuation():
     text = 'A source sentence with a precise comparator and its limitations. ' * 200
     parts = evidence.passages([{'id': 'long', 'abstract': text}])

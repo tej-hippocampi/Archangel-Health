@@ -12,6 +12,8 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 import hashlib
+import json
+from pathlib import Path
 import re
 import weakref
 from xml.etree import ElementTree
@@ -200,7 +202,7 @@ def population_matches(title: str, mesh_terms: set[str], age_scope: str | None) 
 
 
 def parse_articles(raw: bytes, *, now: datetime | None = None, pathology_teaching: bool = False,
-                   age_scope: str | None = None) -> list[dict]:
+                   age_scope: str | None = None, pinned: dict | None = None) -> list[dict]:
     if b"<!ENTITY" in raw.upper():
         raise ValueError("Unexpected XML entity")
     root = ElementTree.fromstring(raw)
@@ -221,6 +223,10 @@ def parse_articles(raw: bytes, *, now: datetime | None = None, pathology_teachin
         year = int(year_match.group()) if year_match else 0
         pmcid = article.findtext("./PubmedData/ArticleIdList/ArticleId[@IdType='pmc']", "")
         teaching = pathology_teaching and _PATHOLOGY_TEACHING.get(pmid) == (pmcid, title)
+        pin = (pinned or {}).get(pmid)
+        exact_pin = bool(pin and (pin["pmcid"], pin["title"]) == (pmcid, title))
+        if pinned is not None and not exact_pin:
+            continue
         if pathology_teaching and not teaching:
             # The pinned fetch must not be satisfied by an unrelated article,
             # even if that article would qualify for the ordinary guideline path.
@@ -229,13 +235,15 @@ def parse_articles(raw: bytes, *, now: datetime | None = None, pathology_teachin
                 or not today.year - 7 <= year <= today.year
                 or types & {"Retracted Publication", "Retraction of Publication"}
                 or relations & {"RetractionIn", "ExpressionOfConcernIn"}
-                or (not teaching and not types & {"Guideline", "Practice Guideline", "Systematic Review", "Consensus Development Conference"})):
+                or (not teaching and not exact_pin and not types & {"Guideline", "Practice Guideline", "Systematic Review", "Consensus Development Conference"})):
             continue
         row = {"id": pmid, "title": title, "year": year,
                      "url": "https://pubmed.ncbi.nlm.nih.gov/" + pmid + "/",
                      "abstract": abstract,
                      "sha256": hashlib.sha256(abstract.encode()).hexdigest(),
                      "retrieved_at": today.isoformat()}
+        if exact_pin:
+            row["source_type"] = pin["source_type"]
         if teaching:
             row["source_type"] = "peer_reviewed_pathology_teaching"
         if re.fullmatch(r"PMC[0-9]+", pmcid):
@@ -275,6 +283,25 @@ async def retrieve(specialty: str, *, topic: str | None = None) -> list[dict]:
                 source.update(extra)
                 rows.append(source)
                 seen.add(source["id"])
+        # Narrow exceptions for independently verified guidance/systematic
+        # reviews whose PubMed publication-type indexing omits that class.
+        # Identity, recency, retraction, population and CC BY/CC0 checks remain.
+        configured = json.loads((Path(__file__).with_name("onboarding_material") / "evidence_pins.json").read_text()).get(topic, {})
+        pins = {s["id"]: s for s in configured.get("sources", [])}
+        excerpt_topic = configured.get("excerpt_terms") or topic or clinical_term
+        if pins:
+            pinned_rows = parse_articles(await _request(client, "efetch.fcgi",
+                {"id": ",".join(pins), "retmode": "xml"}), age_scope=age_scope, pinned=pins)
+            if {s["id"] for s in pinned_rows} != set(pins):
+                raise ValueError("Pinned clinical reference unavailable, changed or retracted")
+            for source in pinned_rows:
+                extra = await _open_text(client, source, excerpt_topic)
+                if pins[source["id"]]["require_licensed_fulltext"] and not extra:
+                    raise ValueError("Licensed pinned clinical evidence unavailable")
+                if extra:
+                    source.update(extra)
+                rows.append(source)
+                seen.add(source["id"])
         # First obtain actual practice guidance. A combined query can fill all
         # eight slots with narrow systematic reviews and exclude the guideline
         # containing the clinical algorithm. Within each publication category,
@@ -310,7 +337,7 @@ async def retrieve(specialty: str, *, topic: str | None = None) -> list[dict]:
                 break
             if source.get("body_excerpts"):
                 continue
-            extra = await _open_text(client, source, topic or clinical_term)
+            extra = await _open_text(client, source, excerpt_topic)
             if extra:
                 source.update(extra)
                 expanded += 1

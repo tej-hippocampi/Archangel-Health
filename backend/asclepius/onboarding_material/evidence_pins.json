@@ -1,0 +1,66 @@
+{
+  "myasthenia gravis impending crisis assessment": {
+    "excerpt_terms": "myasthenia crisis exacerbation respiratory airway vital capacity intravenous immunoglobulin plasma exchange intensive care",
+    "sources": [
+      {
+        "id": "38152089",
+        "pmcid": "PMC10752078",
+        "title": "Guideline for the management of myasthenic syndromes.",
+        "source_type": "primary_society_guideline",
+        "require_licensed_fulltext": true
+      },
+      {
+        "id": "38321574",
+        "pmcid": "PMC11236053",
+        "title": "Generalized myasthenia gravis with acetylcholine receptor antibodies: A guidance for treatment.",
+        "source_type": "primary_expert_consensus",
+        "require_licensed_fulltext": true
+      }
+    ]
+  },
+  "obstructed infected ureteric stone urgent drainage": {
+    "excerpt_terms": "obstructive urolithiasis sepsis decompression antibiotics definitive treatment",
+    "sources": [
+      {
+        "id": "38929478",
+        "pmcid": "PMC11206041",
+        "title": "Percutaneous Nephrostomy versus Ureteral Stent for Severe Urinary Tract Infection with Obstructive Urolithiasis: A Systematic Review and Meta-Analysis.",
+        "source_type": "systematic_review_meta_analysis",
+        "require_licensed_fulltext": true
+      },
+      {
+        "id": "41375849",
+        "pmcid": "PMC12693273",
+        "title": "Time to Decompression in Obstructive Urosepsis from Ureteral Calculi: Thresholds, Initial Diversion, and Early Biomarkers: A Systematic Review.",
+        "source_type": "systematic_review",
+        "require_licensed_fulltext": true
+      }
+    ]
+  },
+  "acute limb ischemia initial management": {
+    "excerpt_terms": "acute limb ischemia prompt urgent revascularization vascular multidisciplinary",
+    "sources": [
+      {
+        "id": "40428785",
+        "pmcid": "PMC12113467",
+        "title": "Treatment Strategies and Prognostic Outcomes in Acute Limb Ischemia: A Systematic Review and Meta-Analysis Comparing Thrombolytic Therapy and Open Surgical Interventions.",
+        "source_type": "systematic_review_meta_analysis",
+        "require_licensed_fulltext": true
+      },
+      {
+        "id": "41232816",
+        "pmcid": "",
+        "title": "Endovascular versus open surgical approach in patients with acute limb ischemia: A systematic review and meta-analysis.",
+        "source_type": "systematic_review_meta_analysis",
+        "require_licensed_fulltext": false
+      },
+      {
+        "id": "42097877",
+        "pmcid": "",
+        "title": "Comparative Safety and Effectiveness of Endovascular Versus Surgical Treatment for Acute Limb Ischemia: A Systematic Review and Meta-Analysis.",
+        "source_type": "systematic_review_meta_analysis",
+        "require_licensed_fulltext": false
+      }
+    ]
+  }
+}

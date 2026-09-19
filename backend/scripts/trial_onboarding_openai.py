@@ -16,6 +16,8 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+REVISION_INPUTS = Path(__file__).with_name("onboarding_revision_inputs.json")
+
 CALL_USAGE = ContextVar('openai_trial_call_usage', default=None)
 
 
@@ -83,24 +85,45 @@ def isolated_paths(output: Path):
     return output
 
 
+def revision_inputs():
+    """Immutable CI preparation only; these records never authorize publication."""
+    import hashlib
+    if not REVISION_INPUTS.is_file():
+        return {}
+    rows = json.loads(REVISION_INPUTS.read_text())["cases"]
+    for ident, row in rows.items():
+        if row.get("entry") and hashlib.sha256(json.dumps(row["entry"], sort_keys=True).encode()).hexdigest() != row.get("entry_sha256"):
+            raise ValueError("Revision input checksum mismatch: " + ident)
+        if row.get("resume") and (not row.get("entry") or not row.get("audit_disposition") == "clear"):
+            raise ValueError("Only independently audited trial passes can be resumed")
+    return rows
+
+
 def matrix(value: str):
     from scripts.build_onboarding_library import matrix_specialties
     from asclepius import onboarding_cases as bank, onboarding_library as library
+    inputs = revision_inputs()
     return [s for s in matrix_specialties(value)
-            if any(library.row_for(bank.task_id(s, k)) is None for k in ('practice', 'examination'))]
+            if any(library.row_for(bank.task_id(s, k)) is None
+                   and not inputs.get(bank.task_id(s, k), {}).get("resume")
+                   for k in ('practice', 'examination'))]
 
 
 async def run(specialty: str, output: Path):
     from asclepius import onboarding_cases as bank, onboarding_library as library
     from asclepius.store import get_store
     if specialty not in matrix(specialty):
-        print(json.dumps({'specialty': specialty, 'skipped': 'both release cases already exist'}))
+        print(json.dumps({'specialty': specialty, 'skipped': 'both cases covered by release library or audited trial inputs'}))
         return
     output = isolated_paths(output)
     await check_access()
     store = get_store()
     output.mkdir(parents=True, exist_ok=True)
-    results, previous = [], []
+    inputs = revision_inputs()
+    results = []
+    previous = [{"question": row["entry"]["question"], "answer_key": row["entry"]["case"]["ground_truth"]}
+                for ident, row in inputs.items() if row.get("resume") and
+                ident in {bank.task_id(specialty, k) for k in ('practice', 'examination')}]
 
     def retain(document):
         document = {**document, 'release_eligible': False, 'experiment': 'openai_only_trial'}
@@ -117,11 +140,14 @@ async def run(specialty: str, output: Path):
             if library.row_for(ident) is not None:
                 results.append({'kind': kind, 'status': 'existing_release_case_skipped'})
                 continue
+            if inputs.get(ident, {}).get("resume"):
+                results.append({'kind': kind, 'status': 'audited_trial_case_skipped'})
+                continue
             print(json.dumps({'specialty': specialty, 'kind': kind, 'status': 'started'}), flush=True)
             try:
                 entry, report = await asyncio.wait_for(
                     bank.build_case(store, specialty, kind, ident, openai_trial=True,
-                                    previous_trial_cases=previous), timeout=600)
+                                    previous_trial_cases=previous, revision=inputs.get(ident)), timeout=600)
                 assert report['method'] == 'openai_only_trial'
                 document = {'task_id': ident, 'specialty': specialty, 'kind': kind, 'slot': 1,
                             'entry': entry, 'validation': report, 'release_eligible': False}

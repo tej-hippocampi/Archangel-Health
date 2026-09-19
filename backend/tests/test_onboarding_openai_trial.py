@@ -155,3 +155,54 @@ def test_trial_transport_retains_usage_without_shared_team_store(monkeypatch, tm
     finally: trial.CALL_USAGE.reset(token)
     assert records[0]['request_id'] == 'synthetic-request-id'
     assert records[0]['input_tokens'] == 20 and records[0]['output_tokens'] == 10
+
+
+def test_revision_feedback_is_author_only_and_public_boundary_is_explicit(monkeypatch, tmp_path):
+    from asclepius import onboarding_evidence
+    from tests._asclepius import fresh_store
+    from tests.test_onboarding_specialty_cases import fixture_entry, approved_review, SOURCES
+    configure(monkeypatch, tmp_path)
+    observed = []
+    async def retrieve(*args, **kwargs): return list(SOURCES)
+    async def llm(**kwargs):
+        payload = json.loads(kwargs['messages'][0]['content'])
+        observed.append(kwargs['purpose'])
+        if kwargs['purpose'] == 'onboarding_case_author':
+            assert payload['revision_feedback'] == 'AUTHOR_ONLY_REPAIR'
+            assert payload['draft_to_revise'] == fixture_entry()
+            result = fixture_entry()
+        elif kwargs['purpose'] == 'onboarding_case_solve':
+            assert 'AUTHOR_ONLY_REPAIR' not in json.dumps(payload)
+            assert 'ground_truth' not in payload['case']['case']
+            result = {'best_answer_id': 'A', 'confidence': .96, 'rationale': 'Fixture assessment'}
+        else:
+            assert 'AUTHOR_ONLY_REPAIR' not in json.dumps(payload)
+            assert payload['applicant_visible_case'] == bank.blind_entry(payload['case_to_review'])
+            assert 'ground_truth' not in payload['applicant_visible_case']['case']
+            result = approved_review(payload['case_to_review'])
+        return SimpleNamespace(content=[SimpleNamespace(type='text', text=json.dumps(result))]), {
+            'model': kwargs.get('model', 'gpt-5.6-sol'), 'provider': 'openai'}
+    monkeypatch.setattr(onboarding_evidence, 'retrieve', retrieve)
+    monkeypatch.setattr(trial, 'call_openai', llm)
+    ident = bank.task_id('dermatology', 'practice')
+    asyncio.run(bank.build_case(fresh_store(), 'dermatology', 'practice', ident,
+        openai_trial=True, revision={'entry': fixture_entry(), 'feedback': 'AUTHOR_ONLY_REPAIR'}))
+    assert len(observed) == 5
+
+
+def test_resume_requires_audit_and_matching_input_hash(monkeypatch, tmp_path):
+    import hashlib
+    path = tmp_path / 'inputs.json'
+    monkeypatch.setattr(trial, 'REVISION_INPUTS', path)
+    entry = {'question': 'Immutable synthetic trial input'}
+    row = {'entry': entry, 'resume': True, 'audit_disposition': 'clear',
+           'entry_sha256': hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest()}
+    path.write_text(json.dumps({'cases': {'test': row}}))
+    assert trial.revision_inputs()['test']['resume']
+    row['entry']['question'] += ' changed'
+    path.write_text(json.dumps({'cases': {'test': row}}))
+    with pytest.raises(ValueError, match='checksum'): trial.revision_inputs()
+    row['entry_sha256'] = hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest()
+    row['audit_disposition'] = 'hold'
+    path.write_text(json.dumps({'cases': {'test': row}}))
+    with pytest.raises(ValueError, match='independently audited'): trial.revision_inputs()

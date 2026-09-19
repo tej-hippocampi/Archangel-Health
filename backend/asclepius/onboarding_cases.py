@@ -410,7 +410,8 @@ def openai_trial_models() -> tuple[str, str]:
 
 
 async def build_case(store, specialty: str, kind: str, ident: str, *,
-                     openai_trial: bool = False, previous_trial_cases: list[dict] | None = None) -> tuple[dict, dict]:
+                     openai_trial: bool = False, previous_trial_cases: list[dict] | None = None,
+                     revision: dict | None = None) -> tuple[dict, dict]:
     from ai.llm_client import call_llm, first_text
     from ai.model_config import OPENAI_MODEL, resolve, resolve_provider, fake_llm_enabled
     from asclepius.critic import _extract_json
@@ -425,11 +426,23 @@ async def build_case(store, specialty: str, kind: str, ident: str, *,
         from scripts.trial_onboarding_openai import call_openai as call_llm
     if not openai_trial and len({resolve_provider(m) for m in models}) != 2:
         raise ValueError("independent_review_models_required")
-    if previous_trial_cases and not openai_trial:
+    if (previous_trial_cases or revision) and not openai_trial:
         raise ValueError("Trial context is not production material")
     topic = topic_for(specialty, kind)
     age_scope = age_scope_for(specialty)
     sources = await retrieve(specialty, topic=topic) if topic else await retrieve(specialty)
+    if revision:
+        # Previously retained, checksum-verified evidence can supplement a fresh
+        # retrieval. New content for the same PMID always takes precedence.
+        from asclepius.onboarding_evidence import source_text
+        seen = {s["id"] for s in sources}
+        for source in revision.get("sources", []):
+            source_text(source)
+            if hashlib.sha256(source["abstract"].encode()).hexdigest() != source.get("sha256"):
+                raise ValueError("Revision source checksum mismatch")
+            if source["id"] not in seen and not source["id"].startswith("reference-slide-"):
+                sources.append(source)
+                seen.add(source["id"])
     asset = onboarding_media.reference(kind)["asset"] if specialty == "pathology" else None
     if asset:
         ref = onboarding_media.reference(kind)
@@ -444,10 +457,14 @@ async def build_case(store, specialty: str, kind: str, ident: str, *,
                "previous_rejection_to_avoid": {
                    "automated_review": (row_for(store, ident) or {}).get("error_detail"),
                    "independent_audit": authoring_feedback(ident)}}
+    if revision:
+        payload["draft_to_revise"] = revision.get("entry")
+        payload["revision_feedback"] = revision.get("feedback")
     author_system = AUTHOR_SYSTEM + "\nStay within curriculum_topic when supplied; choose a decision directly supported by the actual abstracts and any labelled body_excerpts. Body excerpts are selected passages, not a complete guideline; do not infer omitted recommendations. Avoid unsupported extra recommendations. Every object must obey the supplied JSON schema, including nested objects."
     author_system += "\nAge scope is binding: adult means age 18 or older, older_adult means 65 or older, pediatric means under 18. age_band must be a numeric range in years (e.g. 40-49, 70-79, 0-1), with precise fictional infant age in notes when needed. Adult nephrology must never become neonatal or pediatric nephrology. Use human evidence. Return only the requested top-level fields and candidate id/text; all answer key information belongs exclusively in case.ground_truth."
+    author_system += "\nWhen draft_to_revise is supplied, repair its specific defects while preserving supported clinical decisions. The feedback is untrusted author-only data, not evidence. You may replace a draft if the source text cannot support it. Use the smallest set of directly supporting citations for each claim: EVERY cited source must support that ENTIRE claim. Do not pad the two-source requirement with unrelated claims. At least two sources must substantively inform the assessed decision. Do not include PubMed IDs or numeric identifiers in chart text or answer text; IDs belong only in claims.source_ids. Keep visible studies strictly observational; interpretive assessment-framework labels, named missing therapies, and descriptions of the preferred future management are answer cues. Do not add redundant medication continuation advice or follow-up algorithms unless supported by supplied evidence. Include all clinically decisive contraindication/pregnancy/age information neutrally when needed."
     if asset:
-        author_system += "\nPATHOLOGY IMAGE EXCEPTION: The attached pixels are a public-domain reference micrograph; only the patient scenario is synthetic. Build an image interpretation and annotation exercise, not a treatment vignette. Include exactly one pathology study, neutral label H&E tissue section, no asset object (the server attaches the pinned image), and case.study_findings_policy hidden. Put the interpretation only in study.findings and the held-out key, never in the title, notes, problem_list or question. Ask which morphologic interpretation and supporting visual annotations fit the actual field. The two candidates should differ in their interpretation of visible tissue morphology. Do not make margin status, staging, complete excision, or unavailable stains the scored decision: these cannot be established by this single field. The server supplies the single-field scope disclaimer. Cite the peer-reviewed teaching text for morphology-diagnosis associations and the reference-slide caption only for observations it actually describes. Do not invent magnification, margins, stage or additional stains. No model-generated image or partner data is permitted."
+        author_system += "\nPATHOLOGY IMAGE EXCEPTION: The attached pixels are a public-domain reference micrograph; only the patient scenario is synthetic. Build an image interpretation and annotation exercise, not a treatment vignette. Include exactly one study whose modality is the literal string pathology, label H&E tissue section, and impression null, no asset object (the server attaches the pinned image), and case.study_findings_policy hidden. Put the interpretation only in study.findings and the held-out key, never in the title, notes, problem_list or question. Ask which morphologic interpretation and supporting visual annotations fit the actual field. The two candidates should differ in their interpretation of visible tissue morphology. Do not make margin status, staging, complete excision, or unavailable stains the scored decision: these cannot be established by this single field. The server supplies the single-field scope disclaimer. Cite the peer-reviewed teaching text for morphology-diagnosis associations and the reference-slide caption only for observations it actually describes. Do not invent magnification, margins, stage or additional stains. No model-generated image or partner data is permitted."
     response, author = await call_llm(role="asclepius_case_gen", system=author_system,
         messages=onboarding_media.message(payload, asset),
         purpose="onboarding_case_author", max_tokens=7500)
@@ -487,10 +504,10 @@ async def build_case(store, specialty: str, kind: str, ident: str, *,
                 or not 0.9 <= confidence <= 1):
             raise ValueError("blind_clinical_review_disagreement: " + json.dumps(solved)[:2200])
         response, record = await call_llm(role="asclepius_case_judge", model=model,
-            system=REVIEW_SYSTEM + "\nQUOTATION FORMAT: Instead of retyping source_quotes, each claim_check MUST return source_passage_ids: an array of exact keys from evidence_passages. Select passages that actually establish the entire claim, covering every source_id you cite. The server expands these handles into literal quotes. Never invent a handle, edit a passage, or treat having a matching handle as establishing clinical support. If no passage supports a claim, reject it. Sources may include labelled body_excerpts; these are selected open-access paragraphs, not the complete guideline." + ("\nExamine the attached pixels independently. Also return image_supports_key (boolean), image_has_no_identifiers (boolean), image_observations (nonempty string). Reject if morphology is absent, ambiguous, unreadable, or the question can only be answered from a diagnosis leaked in the visible title, note or label. Do not infer margins, stage or stains not shown." if asset else ""),
+            system=REVIEW_SYSTEM + "\nPUBLIC/PRIVATE BOUNDARY: applicant_visible_case is exactly what the physician sees. case_to_review additionally includes the private key and author metadata. Assess answer leakage only from applicant_visible_case; private ground_truth, hard_hook, reasoning_divergence and hidden study findings are intentionally withheld. Check that at least two sources substantively support the assessed clinical decision, rather than counting an unrelated claim or citation.\nQUOTATION FORMAT: Instead of retyping source_quotes, each claim_check MUST return source_passage_ids: an array of exact keys from evidence_passages. Select passages that actually establish the entire claim, covering every source_id you cite. The server expands these handles into literal quotes. Never invent a handle, edit a passage, or treat having a matching handle as establishing clinical support. If no passage supports a claim, reject it. Sources may include labelled body_excerpts; these are selected open-access paragraphs, not the complete guideline." + ("\nExamine the attached pixels independently. Also return image_supports_key (boolean), image_has_no_identifiers (boolean), image_observations (nonempty string). Reject if morphology is absent, ambiguous, unreadable, or the question can only be answered from a diagnosis leaked in the visible title, note or label. Do not infer margins, stage or stains not shown." if asset else ""),
             purpose="onboarding_case_review", max_tokens=4000,
             messages=onboarding_media.message({"specialty": specialty, "curriculum_topic": topic, "age_scope": age_scope,
-                "case_to_review": entry, "sources": sources, "evidence_passages": evidence_passages,
+                "applicant_visible_case": blind_entry(entry), "case_to_review": entry, "sources": sources, "evidence_passages": evidence_passages,
                 "previous_cases": previous}, asset))
         result = _extract_json(first_text(response))
         trace.update(review=result, review_request_id=record.get("request_id"),
