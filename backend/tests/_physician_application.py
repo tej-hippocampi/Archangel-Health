@@ -28,7 +28,8 @@ def submit_physician_application(client, email, password=PASSWORD):
     post("asclepius/credentials", credentials={
         "fullLegalName": "Amara Okafor", "primarySpecialty": "Nephrology", "degree": "MD"})
     post("asclepius/attestations", attestations={
-        "consentCredentialShare": True, "attestIndependentJudgment": True,
+        "attestConfidentiality": True, "attestNoDisciplinaryAction": True,
+    "attestWorkQuality": True, "consentCredentialShare": True, "attestIndependentJudgment": True,
         "ipAssignment": True, "noPhi": True, "signedInitials": "AO"})
     finished = post("asclepius/finish")
     assert finished["awaiting_review"] and finished["token"]

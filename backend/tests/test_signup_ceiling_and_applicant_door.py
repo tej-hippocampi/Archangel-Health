@@ -62,7 +62,8 @@ def sent(monkeypatch):
 
 CREDS_MINIMAL = {"fullLegalName": "Dr. Amara Okafor", "primarySpecialty": "Nephrology"}
 ATTS = {
-    "consentCredentialShare": True,
+    "attestConfidentiality": True, "attestNoDisciplinaryAction": True,
+    "attestWorkQuality": True, "consentCredentialShare": True,
     "attestIndependentJudgment": True,
     "ipAssignment": True,
     "noPhi": True,

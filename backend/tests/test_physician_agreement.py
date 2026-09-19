@@ -431,6 +431,12 @@ def test_a_superseded_signature_stops_the_next_case_and_not_the_current_one(
         assert blocked.headers["X-Asclepius-Agreement-Gate"] == PA.SUPERSEDED
         assert client.get("/api/asclepius/tasks/available",
                           headers=A.headers_for(doc)).status_code == 403
+        # All three documented continuation routes remain available.
+        assert client.get("/api/asclepius/tasks/" + task_id,
+                          headers=A.headers_for(doc)).status_code == 200
+        reveal = client.post("/api/asclepius/tasks/" + task_id + "/reveal",
+            json={"text": "Stabilize, shift, then remove."}, headers=A.headers_for(doc))
+        assert reveal.status_code == 200, reveal.text
         # ...and the case already in their hands still submits.
         done = client.post("/api/asclepius/submissions", json={
             "submission_id": "s-" + uuid.uuid4().hex[:12], "task_id": task_id,
@@ -475,3 +481,138 @@ def test_the_agreement_is_readable_before_anyone_is_allowed_to_work():
     assert r.status_code == 200
     assert len(r.json()["text"]) > 2000
     assert r.json()["interim"] is True
+
+
+# Include paths that do not follow the /next naming convention. The structural
+# assertion below discovers newly added conventional draw routes automatically.
+WORK_ROUTES = [
+    ("GET", "/tasks/next", None, "evaluator"),
+    ("GET", "/tasks/available", None, "evaluator"),
+    ("GET", "/review/double-label/next", None, "evaluator"),
+    ("GET", "/review/next", None, "evaluator"),
+    ("GET", "/review/pair/next", None, "evaluator"),
+    ("GET", "/environments/annotation-queue", None, "evaluator"),
+    ("GET", "/environments/runs/missing", None, "evaluator"),
+    ("POST", "/environments/missing/annotate", {"run_id": "missing"}, "evaluator"),
+    ("POST", "/tasks/missing/trajectory-self-score", {"marks": []}, "evaluator"),
+    ("POST", "/review/missing", {"verdict": "accept"}, "evaluator"),
+    ("POST", "/review/pair/missing", {"verdict": "accept", "stronger": "A"}, "evaluator"),
+    ("GET", "/qa/queue", None, "qa_reviewer"),
+    ("GET", "/submissions", None, "qa_reviewer"),
+    ("GET", "/submissions/missing", None, "qa_reviewer"),
+    ("POST", "/qa/approve-all", None, "qa_reviewer"),
+    ("POST", "/qa/missing/decision", {"decision": "approve"}, "qa_reviewer"),
+]
+
+
+def _work_user(role):
+    return A.make_user(_store(), role=role, tier="reviewer", specialty="nephrology",
+                       board_cert="board_certified_nephrology", years_experience=12)
+
+
+def _request_work(route, user):
+    method, path, body, _ = route
+    return client.request(method, "/api/asclepius" + path, json=body,
+                          headers=A.headers_for(user))
+
+
+@pytest.mark.parametrize("route", WORK_ROUTES, ids=lambda r: r[0] + " " + r[1])
+def test_every_work_surface_refuses_unsigned_and_admits_signed_physicians(monkeypatch, route):
+    _armed(monkeypatch)
+    user = _work_user(route[3])
+    result = _request_work(route, user)
+    assert result.status_code == 403, result.text
+    assert result.headers["X-Asclepius-Agreement-Gate"] == PA.NEVER_SIGNED
+    assert result.json()["detail"]["action"]["kind"] == "sign_agreement"
+    assert _sign(user).status_code == 200
+    result = _request_work(route, user)
+    # Absent resources return 404; empty queues return 200. Neither should
+    # remain locked after the signature was committed.
+    assert result.status_code in (200, 404), result.text
+    assert "X-Asclepius-Agreement-Gate" not in result.headers
+
+
+@pytest.mark.parametrize("route", WORK_ROUTES, ids=lambda r: r[0] + " " + r[1])
+def test_supersession_stops_every_work_surface(monkeypatch, second_version, route):
+    _armed(monkeypatch)
+    user = _work_user(route[3])
+    assert _sign(user).status_code == 200
+    monkeypatch.setattr(PA, "CURRENT_VERSION", "v2")
+    result = _request_work(route, user)
+    assert result.status_code == 403, result.text
+    assert result.headers["X-Asclepius-Agreement-Gate"] == PA.SUPERSEDED
+    assert result.json()["detail"]["action"]["kind"] == "sign_agreement"
+
+
+def test_the_annotation_queue_is_gated_even_in_an_open_case_pool(monkeypatch):
+    _armed(monkeypatch)
+    monkeypatch.setenv("ASCLEPIUS_OPEN_CASE_POOL_ENABLED", "1")
+    user = _physician()
+    result = client.get("/api/asclepius/environments/annotation-queue", headers=A.headers_for(user))
+    assert result.status_code == 403
+    assert result.headers["X-Asclepius-Agreement-Gate"] == PA.NEVER_SIGNED
+
+
+def _dependency_calls(dependency):
+    yield dependency.call
+    for child in dependency.dependencies:
+        yield from _dependency_calls(child)
+
+
+def test_every_draw_and_work_write_surface_is_gated():
+    from routers.asclepius import require_current_agreement
+    extras = {
+        ("GET", "/api/asclepius/tasks/available"),
+        ("GET", "/api/asclepius/environments/runs/{run_id}"),
+        ("POST", "/api/asclepius/tasks/{task_id}/trajectory-self-score"),
+        ("POST", "/api/asclepius/review/{submission_id}"),
+        ("POST", "/api/asclepius/review/pair/{task_id}"),
+        ("GET", "/api/asclepius/qa/queue"),
+        ("GET", "/api/asclepius/submissions"),
+        ("GET", "/api/asclepius/submissions/{submission_id}"),
+        ("POST", "/api/asclepius/qa/approve-all"),
+        ("POST", "/api/asclepius/qa/{submission_id}/decision"),
+    }
+    seen = set()
+    for route in A.app.routes:
+        if not route.path.startswith("/api/asclepius/") or not hasattr(route, "dependant"):
+            continue
+        for method in route.methods:
+            key = method, route.path
+            if key in extras or route.path.endswith(("/next", "/annotation-queue", "/annotate")):
+                assert require_current_agreement in set(_dependency_calls(route.dependant)), key
+                seen.add(key)
+    assert extras <= seen
+    assert len(seen) == len(WORK_ROUTES)
+
+
+@pytest.mark.parametrize("path", ["/review/next", "/review/pair/next", "/review/missing", "/review/pair/missing"])
+def test_signing_does_not_grant_reviewer_privileges(monkeypatch, path):
+    _armed(monkeypatch)
+    user = _physician(tier="labeler")
+    assert _sign(user).status_code == 200
+    method = "GET" if path.endswith("/next") else "POST"
+    result = client.request(method, "/api/asclepius" + path,
+        json={"verdict": "accept", "stronger": "A"}, headers=A.headers_for(user))
+    assert result.status_code == 403
+    assert "Reviewer" in result.json()["detail"]
+    assert "X-Asclepius-Agreement-Gate" not in result.headers
+
+
+@pytest.mark.parametrize("route", WORK_ROUTES, ids=lambda r: r[0] + " " + r[1])
+def test_disarmed_gate_still_admits_eligible_unsigned_work(monkeypatch, route):
+    monkeypatch.delenv("ASCLEPIUS_AGREEMENT_GATE", raising=False)
+    result = _request_work(route, _work_user(route[3]))
+    assert result.status_code in (200, 404), result.text
+
+
+@pytest.mark.parametrize("route", WORK_ROUTES, ids=lambda r: r[0] + " " + r[1])
+def test_admins_and_mock_contributors_remain_agreement_exempt(monkeypatch, route):
+    _armed(monkeypatch)
+    for user in (A.make_user(_store(), role="admin"), _work_user(route[3])):
+        if user["role"] != "admin":
+            with _store()._conn() as conn:
+                conn.execute("UPDATE users SET is_mock = 1 WHERE id = ?", (user["id"],))
+        result = _request_work(route, user)
+        assert "X-Asclepius-Agreement-Gate" not in result.headers, result.text
+        assert result.status_code in (200, 404, 409), result.text

@@ -1,0 +1,23 @@
+{
+  "asclepius": {
+    "scope": "local synthetic fixture only",
+    "tables": 73,
+    "before_rows": 1,
+    "after_rows": 1,
+    "problems": [],
+    "restore_problems": []
+  },
+  "team": {
+    "scope": "local synthetic fixture only",
+    "tables": 44,
+    "before_rows": 3,
+    "after_rows": 3,
+    "problems": [],
+    "restore_problems": []
+  },
+  "legal": {
+    "version": "v1",
+    "gate_default": false,
+    "sha256": "282306f1b15f15a4a3b3d99d8a95a6afa2d0e67d7ed04278cb37fd1b9b5c9666"
+  }
+}
