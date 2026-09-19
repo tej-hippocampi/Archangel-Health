@@ -1883,6 +1883,10 @@ def _parse_cv_into_person(ts: Any, hs_id: str, email: str, sha: str, mime: str,
     from asclepius import credentialing
 
     def _stage(name: str) -> None:
+        # Completion is announced before the parser returns its result. Only
+        # the final write below may publish a terminal stage with its payload.
+        if name in ("done", "failed"):
+            return
         _record_cv_on_person(ts, hs_id, email, sha=sha, mime=mime, stage=name,
                              attempt_id=attempt_id)
         if attempt_id:

@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'backend/asclepius/credentialing.py'
+      - 'backend/asclepius/cv_specialty.py'
+      - 'backend/asclepius/onboarding_specialties.py'
       - 'backend/team_store.py'
       - 'backend/routers/onboarding.py'
       - 'backend/tests/**'
@@ -31,4 +33,4 @@ jobs:
         env:
           CV_REQUIRE_CORPUS: '1'
           CV_REQUIRE_OCR: '1'
-        run: python -m pytest tests/test_cv_autofill_regressions.py tests/test_cv_upload_corpus.py tests/test_cv_parse_quality.py tests/test_onboarding_v2.py tests/test_onboarding_review_clarity.py -q
+        run: python -m pytest tests/test_cv_autofill_regressions.py tests/test_cv_upload_corpus.py tests/test_cv_parse_quality.py tests/test_cv_specialty_evidence.py tests/test_cv_specialty_case_flow.py tests/test_cv_attempt_lifecycle.py tests/test_onboarding_v2.py tests/test_onboarding_review_clarity.py -q

@@ -112,17 +112,27 @@ def _object(value: Any) -> dict:
 
 
 def resolve(user: dict) -> dict:
-    """The doctor-confirmed declaration wins; a CV only fills a missing value.
+    """The doctor-confirmed declaration wins over every automated suggestion.
 
     In particular, recover declarations discarded by old provisioning without
     rewriting either the original credential record or the physician profile.
+    A resolved, evidence-attributed CV can recover an unconfirmed legacy profile.
+    Older parses lack that provenance and cannot override a saved profile.
     Never send the CV or physician identity to case generation.
     """
     credentials = _object(user.get("credentials_json") or user.get("credentials"))
-    cv = _object(user.get("cv_parsed_json") or user.get("cv_parsed"))
+    cv = _object(user.get("cv_parsed_json") or user.get("cv_parsed") or credentials.get("cvParsed"))
+    # Legacy display extraction could contradict the key or even turn an
+    # ambiguous (null) decision into Nephrology. Use display only when no key
+    # was recorded at all, for compatibility with older imported records.
+    cv_value = cv.get("specialty") if "specialty" in cv else cv.get("specialty_display")
+    if cv.get("ok") is False or cv.get("specialty_status") in ("ambiguous", "missing"):
+        cv_value = None
+    attributed_cv = cv_value if cv.get("ok") is True and cv.get("specialty_status") == "resolved" else None
     for source, value in (("confirmed", credentials.get("primarySpecialty")),
+                          ("cv", attributed_cv),
                           ("profile", user.get("specialty")),
-                          ("cv", cv.get("specialty_display") or cv.get("specialty"))):
+                          ("cv", cv_value)):
         specialty = canonical(value)
         if specialty:
             return {"specialty": specialty, "applied_with": str(value).strip(), "source": source}

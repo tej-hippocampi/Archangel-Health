@@ -53,7 +53,7 @@ def generate():
             lines += ['References', 'Alex Example, MD, PhD', 'Reference author only; not applicant credentials.']
         lines += ['Selected Publications', 'Synthetic study. Example Journal. 2022. doi:10.0000/example']
         expected = {'fullLegalName': name, 'degree': degree, 'qualification': degree,
-                    'primarySpecialty': field, 'healthSystem': hospital,
+                    'primarySpecialty': '' if field == 'Surgery' else field, 'healthSystem': hospital,
                     'yearsInActivePractice': str(profile + 3),
                     'linkedinUrl': f'https://linkedin.com/in/synthetic-doctor-{i:03d}',
                     'licenseNumber': number, 'licenseState': 'CA',

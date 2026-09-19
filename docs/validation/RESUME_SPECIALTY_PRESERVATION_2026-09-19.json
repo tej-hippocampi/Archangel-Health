@@ -1,0 +1,11 @@
+{
+  "base_commit": "333896355790e89dd58b7e1cd6fe90ffb61c0ff5",
+  "files_preserved": 218,
+  "case_bundles_preserved": 86,
+  "synthetic_cv_pdfs_preserved": 102,
+  "before_manifest_sha256": "493022219db65c2dd78bd4a2b41d43f99a77fdc0306605c003a7876d54091d6f",
+  "after_manifest_sha256": "493022219db65c2dd78bd4a2b41d43f99a77fdc0306605c003a7876d54091d6f",
+  "missing": [],
+  "changed": [],
+  "scope": "Tracked immutable onboarding material and synthetic CV PDF fixtures only; no production database access."
+}

@@ -146,7 +146,7 @@ function cvSession(stage, credentials = {}) {
     director_cv: { uploaded: true, filename: "cv.pdf", stage, parsed: stage === "done" ? parsedCv : null },
   };
 }
-const specialtyInput = () => document.querySelector('input[placeholder="Nephrology"]');
+const specialtyInput = () => document.querySelector('input[placeholder="Your primary clinical specialty"]');
 const phoneInput = () => document.querySelector('input[type="tel"]');
 
 test("resuming a parsed CV restores unsaved suggestions and retains physician edits", async () => {
@@ -157,6 +157,40 @@ test("resuming a parsed CV restores unsaved suggestions and retains physician ed
   assert.equal(specialtyInput().value, "Nephrology");
   assert.equal(phoneInput().value, "+44 20 5555 0101");
 });
+
+for (const manual of [false, true]) {
+  test(`resuming failed replacement clears old suggestions and preserves manual choice (${manual})`, async () => {
+    global.fetch = async (url) => new Response(JSON.stringify(url.includes("/session?")
+      ? cvSession("failed", { primarySpecialty: manual ? "Dermatology" : "Nephrology",
+          cvSuggestions: { primarySpecialty: "Nephrology" },
+          cvManualFields: manual ? ["primarySpecialty"] : [] })
+      : { countries: [] }));
+    await mount(Wizard, { token: "recovery-token" });
+    if (manual) {
+      // A confirmed manual answer resumes the attestation screen; returning
+      // to Review must still show that answer after a failed replacement.
+      const back = [...document.querySelectorAll("button")].find(b => /Back/.test(b.textContent));
+      await act(async () => back.click());
+    }
+    assert.equal(specialtyInput().value, manual ? "Dermatology" : "");
+  });
+}
+
+for (const ambiguous of [false, true]) {
+  test(`replacement specialty requires Review again on reload (${ambiguous})`, async () => {
+    const session = cvSession("done", { primarySpecialty: "Nephrology",
+      cvSuggestions: { primarySpecialty: "Nephrology" } });
+    session.director_cv.parsed = { ok: true,
+      specialty: ambiguous ? null : "dermatology",
+      specialty_display: ambiguous ? "" : "Dermatology",
+      specialty_status: ambiguous ? "ambiguous" : "resolved" };
+    global.fetch = async (url) => new Response(JSON.stringify(url.includes("/session?") ? session : { countries: [] }));
+    await mount(Wizard, { token: "recovery-token" });
+    assert.equal(specialtyInput().value, ambiguous ? "" : "Dermatology");
+    assert.match(document.body.textContent, /Review the fields/);
+    if (ambiguous) assert.match(document.body.textContent, /Your CV lists more than one specialty/);
+  });
+}
 
 test("resuming an unfinished CV parse polls again without replacing an in-progress edit", async () => {
   let polls = 0;

@@ -25,7 +25,7 @@ def test_all_100_uploaded_pdfs_fill_expected_fields(client):
         assert status['finished'] and status['ok'],(filename,status)
         assert status['attempt_id']==response.json()['attempt_id']
         assert status['filename']==filename
-        assert status['parser_version']=='cv-parse-2'
+        assert status['parser_version']=='cv-parse-3'
         results.append(status['parsed'])
     forms=json.loads(subprocess.check_output([node,str(root/'map.cjs')],input=json.dumps(results),text=True))
     failures=[(case['id'],field,expected,form.get(field)) for case,form in zip(cases,forms)
