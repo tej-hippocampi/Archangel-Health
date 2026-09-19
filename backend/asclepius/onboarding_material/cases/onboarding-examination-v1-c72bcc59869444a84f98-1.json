@@ -1,0 +1,595 @@
+{
+  "task_id": "onboarding-examination-v1-c72bcc59869444a84f98-1",
+  "specialty": "critical care",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Ventilated adult with persistent severe hypoxemia",
+    "question": "Which respiratory support strategy is more appropriate at this decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "critical care",
+      "demographics": {
+        "age_band": "50-59",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Acute hypoxemic respiratory failure",
+          "since": "2 days",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Multifocal pneumonia",
+          "since": "3 days",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "temperature_c": 38.1,
+        "heart_rate_bpm": 104,
+        "blood_pressure_mm_hg": "112/66",
+        "oxygen_saturation_percent": 91
+      },
+      "lab_panels": [
+        {
+          "panel": "Arterial blood gas",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "PaO2",
+              "loinc": null,
+              "value": 72,
+              "unit": "mm Hg",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": true
+            },
+            {
+              "analyte": "FiO2",
+              "loinc": null,
+              "value": 0.8,
+              "unit": "fraction",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": true
+            },
+            {
+              "analyte": "PaCO2",
+              "loinc": null,
+              "value": 46,
+              "unit": "mm Hg",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": true
+            },
+            {
+              "analyte": "pH",
+              "loinc": null,
+              "value": 7.34,
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": true
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "ICU Progress",
+          "author_role": "ICU",
+          "text": "The patient was intubated two days ago after rapidly progressive hypoxemia associated with multifocal pneumonia. Bilateral pulmonary opacities developed within the same week, and echocardiography did not identify left ventricular failure as the primary explanation. Predicted body weight is 60 kg. Current volume-controlled ventilation uses a tidal volume of 350 mL, PEEP of 10 cm H2O, and FiO2 of 0.80. Plateau pressure is 27 cm H2O. The current arterial PaO2 is 72 mm Hg, yielding a PaO2/FiO2 ratio of 90 mm Hg. Oxygen saturation remains 91%. Blood pressure is stable without escalating vasoactive support, and no pneumothorax has been identified.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Chest radiography",
+          "label": "Portable chest radiograph",
+          "findings": "Diffuse bilateral airspace opacities are present. No pneumothorax or large pleural effusion is identified.",
+          "measurements": [],
+          "impression": "Diffuse bilateral pulmonary opacities.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        },
+        {
+          "modality": "Echocardiography",
+          "label": "Focused transthoracic echocardiogram",
+          "findings": "Left ventricular systolic function is preserved. There is no marked left-sided chamber dilation or other reported finding indicating cardiogenic pulmonary edema.",
+          "measurements": [],
+          "impression": "No primary cardiac explanation for the pulmonary edema pattern.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "advanced",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The patient has severe ARDS physiology with a PaO2/FiO2 ratio of 90 mm Hg despite lung-protective tidal volume and a plateau pressure below 30 cm H2O. The appropriate strategy is to preserve those protective limits, use a higher-PEEP approach without a lung recruitment maneuver, and institute prone positioning for at least 16 hours per session. Prolonged recruitment maneuvers are strongly discouraged in moderate-to-severe ARDS and have been associated with greater mortality than higher PEEP without recruitment. Candidate A therefore introduces a consequentially unsafe maneuver and withdraws other supported protective measures.",
+        "evidence": null,
+        "key_data": [
+          "PaO2 is 72 mm Hg while FiO2 is 0.80, producing a PaO2/FiO2 ratio of 90 mm Hg.",
+          "Tidal volume is 350 mL for a predicted body weight of 60 kg, approximately 5.8 mL/kg.",
+          "Plateau pressure is 27 cm H2O, below the supported 30 cm H2O ceiling.",
+          "Diffuse bilateral opacities arose acutely without a primary cardiac explanation.",
+          "No pneumothorax or escalating hemodynamic instability is reported."
+        ]
+      },
+      "hard_hook": "Distinguishing higher PEEP without recruitment from a prolonged recruitment-maneuver strategy in severe ARDS.",
+      "reasoning_divergence": "The flawed response treats aggressive recruitment and subsequent PEEP reduction as preferable despite evidence favoring higher PEEP without prolonged recruitment."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Perform a prolonged stepwise lung recruitment maneuver, then reduce PEEP to limit barotrauma; allow larger tidal volumes if needed for oxygenation and continue ventilation in the supine position."
+      },
+      {
+        "id": "B",
+        "text": "Continue tidal volume below 6 mL/kg predicted body weight and plateau pressure below 30 cm H2O, use a higher-PEEP strategy without a recruitment maneuver, and initiate prone positioning for at least 16 hours per session."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "severe ARDS",
+      "ventilator-induced lung injury",
+      "prolonged recruitment maneuver",
+      "barotrauma",
+      "refractory hypoxemia"
+    ],
+    "evidence_keywords": [
+      "low tidal volume",
+      "plateau pressure",
+      "higher PEEP",
+      "prone positioning",
+      "PaO2/FiO2 ratio"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Adult ARDS ventilation should use tidal volumes below 6 mL/kg ideal body weight and plateau pressures below 30 cm H2O.",
+        "source_ids": [
+          "31258917"
+        ]
+      },
+      {
+        "statement": "For moderate-to-severe ARDS, higher PEEP without lung recruitment maneuvers is suggested instead of lower PEEP.",
+        "source_ids": [
+          "38032683"
+        ]
+      },
+      {
+        "statement": "Prolonged lung recruitment maneuvers are strongly recommended against in adults with moderate-to-severe ARDS.",
+        "source_ids": [
+          "38032683"
+        ]
+      },
+      {
+        "statement": "Higher PEEP without recruitment was associated with lower mortality than lower PEEP in moderate-to-severe ARDS.",
+        "source_ids": [
+          "35180042"
+        ]
+      },
+      {
+        "statement": "Higher PEEP with prolonged recruitment was associated with increased mortality compared with higher PEEP without recruitment.",
+        "source_ids": [
+          "35180042"
+        ]
+      },
+      {
+        "statement": "Current guideline-aligned prone positioning uses sessions lasting at least 16 hours for moderate-to-severe ARDS.",
+        "source_ids": [
+          "41199320"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:58:09.080058+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "38032683",
+        "title": "An Update on Management of Adult Patients with Acute Respiratory Distress Syndrome: An Official American Thoracic Society Clinical Practice Guideline.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38032683/",
+        "abstract": "Background: This document updates previously published Clinical Practice Guidelines for the management of patients with acute respiratory distress syndrome (ARDS), incorporating new evidence addressing the use of corticosteroids, venovenous extracorporeal membrane oxygenation, neuromuscular blocking agents, and positive end-expiratory pressure (PEEP). Methods: We summarized evidence addressing four \"PICO questions\" (patient, intervention, comparison, and outcome). A multidisciplinary panel with expertise in ARDS used the Grading of Recommendations, Assessment, Development, and Evaluation framework to develop clinical recommendations. Results: We suggest the use of: 1) corticosteroids for patients with ARDS (conditional recommendation, moderate certainty of evidence), 2) venovenous extracorporeal membrane oxygenation in selected patients with severe ARDS (conditional recommendation, low certainty of evidence), 3) neuromuscular blockers in patients with early severe ARDS (conditional recommendation, low certainty of evidence), and 4) higher PEEP without lung recruitment maneuvers as opposed to lower PEEP in patients with moderate to severe ARDS (conditional recommendation, low to moderate certainty), and 5) we recommend against using prolonged lung recruitment maneuvers in patients with moderate to severe ARDS (strong recommendation, moderate certainty). Conclusions: We provide updated evidence-based recommendations for the management of ARDS. Individual patient and illness characteristics should be factored into clinical decision making and implementation of these recommendations while additional evidence is generated from much-needed clinical trials.",
+        "sha256": "614d4e70c669a8616af22a44699518ec08a9be6be5d29c360c491030a9fdcf22",
+        "retrieved_at": "2026-09-18T23:56:33.714251+00:00",
+        "pmcid": "PMC10870893"
+      },
+      {
+        "id": "40838381",
+        "title": "Acute Respiratory Distress Syndrome in Veterinary Medicine-The ARDSVet Definitions.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40838381/",
+        "abstract": "To use a systematic, evidence-based consensus process to develop updated definitions for acute respiratory distress syndrome (ARDS) in veterinary medicine to facilitate its recognition and diagnosis.\nInternational consensus conference series involving 12 multidisciplinary international content experts from three countries, using consensus conference methodology and implementation science. A systematic review of the literature was carried out for ARDS and acute lung injury in veterinary medicine. Updated definitions of ARDS were generated based on synthesis of human and veterinary literature. Consensus on the definitions was achieved through Delphi-style surveys involving the above subject matter experts. Draft recommendations were made available through industry specialty listservs for feedback, which was incorporated in the final definitions.\nUpdated definitions were developed for Veterinary Acute Respiratory Distress Syndrome (ARDSVet) in small animals (dogs and cats) and large animals (equids). For small animals, 690 publications were identified for dogs and 99 were identified for cats in the initial literature search. Seventeen cats and 103 dogs with ARDS were represented across these publications. For the initial literature search in large animals, there were 83 equid, five camelid, 158 pig, 714 sheep and goat, and 270 cattle publications identified. Additionally, 1084 publications were found across all large animals that addressed interstitial lung disease. Five adult equids and 136 foals with ARDS were represented across these publications. The updated ARDSVet definitions incorporate criteria for risk factors, origin and timing of pulmonary edema, and impaired oxygenation, with severity stratified by oxygenation and definitions for both intubated and nonintubated animals.\nThe evidence review and consensus process resulted in updated definitions that can be used to improve the recognition of veterinary ARDS as well as facilitate and standardize future research, including the development of an ARDS registry and eventual treatment recommendations.",
+        "sha256": "cbaf1ab2f6339e09fdc1eb39feb5f63221769def4dc2fad1155f27b40149f645",
+        "retrieved_at": "2026-09-18T23:56:33.714251+00:00",
+        "pmcid": "PMC12491761"
+      },
+      {
+        "id": "31258917",
+        "title": "Guidelines on the management of acute respiratory distress syndrome.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31258917/",
+        "abstract": "The Faculty of Intensive Care Medicine and Intensive Care Society Guideline Development Group have used GRADE methodology to make the following recommendations for the management of adult patients with acute respiratory distress syndrome (ARDS). The British Thoracic Society supports the recommendations in this guideline. Where mechanical ventilation is required, the use of low tidal volumes (<6 ml/kg ideal body weight) and airway pressures (plateau pressure <30 cmH2O) was recommended. For patients with moderate/severe ARDS (PF ratio<20 kPa), prone positioning was recommended for at least 12 hours per day. By contrast, high frequency oscillation was not recommended and it was suggested that inhaled nitric oxide is not used. The use of a conservative fluid management strategy was suggested for all patients, whereas mechanical ventilation with high positive end-expiratory pressure and the use of the neuromuscular blocking agent cisatracurium for 48 hours was suggested for patients with ARDS with ratio of arterial oxygen partial pressure to fractional inspired oxygen (PF) ratios less than or equal to 27 and 20 kPa, respectively. Extracorporeal membrane oxygenation was suggested as an adjunct to protective mechanical ventilation for patients with very severe ARDS. In the absence of adequate evidence, research recommendations were made for the use of corticosteroids and extracorporeal carbon dioxide removal.",
+        "sha256": "e9de618d35d9aa4319b3a26aa416a7ba73242d94680b783e8cf1a03fa8d6f7fc",
+        "retrieved_at": "2026-09-18T23:56:33.714251+00:00",
+        "pmcid": "PMC6561387"
+      },
+      {
+        "id": "35180042",
+        "title": "Association of Positive End-Expiratory Pressure and Lung Recruitment Selection Strategies with Mortality in Acute Respiratory Distress Syndrome: A Systematic Review and Network Meta-analysis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35180042/",
+        "abstract": "Rationale: The most beneficial positive end-expiratory pressure (PEEP) selection strategy in patients with acute respiratory distress syndrome (ARDS) is unknown, and current practice is variable. Objectives: To compare the relative effects of different PEEP selection strategies on mortality in adults with moderate to severe ARDS. Methods: We conducted a network meta-analysis using a Bayesian framework. Certainty of evidence was evaluated using grading of recommendations assessment, development and evaluation methodology. Measurements and Main Results: We included 18 randomized trials (4,646 participants). Compared with a lower PEEP strategy, the posterior probability of mortality benefit from a higher PEEP without lung recruitment maneuver (LRM) strategy was 99% (risk ratio [RR], 0.77; 95% credible interval [CrI], 0.60-0.96, high certainty), the posterior probability of benefit of the esophageal pressure-guided strategy was 87% (RR, 0.77; 95% CrI, 0.48-1.22, moderate certainty), the posterior probability of benefit of a higher PEEP with brief LRM strategy was 96% (RR, 0.83; 95% CrI, 0.67-1.02, moderate certainty), and the posterior probability of increased mortality from a higher PEEP with prolonged LRM strategy was 77% (RR, 1.06; 95% CrI, 0.89-1.22, low certainty). Compared with a higher PEEP without LRM strategy, the posterior probability of increased mortality from a higher PEEP with prolonged LRM strategy was 99% (RR, 1.37; 95% CrI, 1.04-1.81, moderate certainty). Conclusions: In patients with moderate to severe ARDS, higher PEEP without LRM is associated with a lower risk of death than lower PEEP. A higher PEEP with prolonged LRM strategy is associated with increased risk of death when compared with higher PEEP without LRM.",
+        "sha256": "07fcdd92cc639de8aa18f6265eb7c97987ec97b4955d1f701fd3e1a4aeb0d747",
+        "retrieved_at": "2026-09-18T23:56:34.309789+00:00",
+        "pmcid": "PMC12042658"
+      },
+      {
+        "id": "38842731",
+        "title": "Comparison of venovenous extracorporeal membrane oxygenation, prone position and supine mechanical ventilation for severely hypoxemic acute respiratory distress syndrome: a network meta-analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38842731/",
+        "abstract": "Severe acute respiratory distress syndrome (ARDS) with PaO2/FiO2 < 80 mmHg is a life-threatening condition. The optimal management strategy is unclear. The aim of this meta-analysis was to compare the effects of low tidal volumes (Vt), moderate Vt, prone ventilation, and venovenous extracorporeal membrane oxygenation (VV-ECMO) on mortality in severe ARDS.\nWe performed a frequentist network meta-analysis of randomised controlled trials (RCTs) with participants who had severe ARDS and met eligibility criteria for VV-ECMO or had PaO2/FiO2 < 80 mmHg. We applied the Grades of Recommendation, Assessment, Development, and Evaluation (GRADE) methodology to discern the relative effect of interventions on mortality and the certainty of the evidence.\nTen RCTs including 812 participants with severe ARDS were eligible. VV-ECMO reduces mortality compared to low Vt (risk ratio [RR] 0.77, 95% confidence interval [CI] 0.59-0.99, moderate certainty) and compared to moderate Vt (RR 0.75, 95% CI 0.57-0.98, low certainty). Prone ventilation reduces mortality compared to moderate Vt (RR 0.78, 95% CI 0.66-0.93, high certainty) and compared to low Vt (RR 0.81, 95% CI 0.63-1.02, moderate certainty). We found no difference in the network comparison of VV-ECMO compared to prone ventilation (RR 0.95, 95% CI 0.72-1.26), but inferences were based solely on indirect comparisons with very low certainty due to very wide confidence intervals.\nIn adults with ARDS and severe hypoxia, both VV-ECMO (low to moderate certainty evidence) and prone ventilation (moderate to high certainty evidence) improve mortality relative to low and moderate Vt strategies. The impact of VV-ECMO versus prone ventilation remains uncertain.",
+        "sha256": "ae2a4c6e63d4f1677f96ccb4a56623815662e15fcc69830bed73f055e44533ea",
+        "retrieved_at": "2026-09-18T23:56:34.309789+00:00"
+      },
+      {
+        "id": "41325621",
+        "title": "Systemic Corticosteroids, Mortality, and Infections in Pneumonia and Acute Respiratory Distress Syndrome : A Systematic Review and Meta-analysis.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41325621/",
+        "abstract": "The benefit-risk profile of systemic corticosteroids in non-COVID-19 pneumonia and acute respiratory distress syndrome (ARDS) remains debated.\nTo assess corticosteroid effects on mortality and infection-related complications in adults with severe pneumonia or ARDS.\nMEDLINE, EMBASE, Cochrane Central Register of Controlled Trials, Web of Science, ClinicalTrials.gov, and World Health Organization International Clinical Trials Registry Platform through September 2025.\nRandomized controlled trials comparing systemic corticosteroids with placebo and usual care. Primary analysis: severe pneumonia or ARDS with corticosteroids 3 mg/kg-1 of body weight per day-1 or less (prednisone-equivalent) for 15 days or less, initiated within 7 days.\nPaired reviewers; consensus for disagreements.\nFrom 16 831 screened records, 20 studies (15 severe pneumonia, 5 ARDS) including 3459 participants met criteria. Low-dose, short-course corticosteroids probably reduce short-term mortality in severe pneumonia (15 studies, 2445 participants; risk ratio [RR], 0.73 [95% CI, 0.57 to 0.93]; I 2 = 14%; moderate certainty) and ARDS (5 studies, 1014 participants; RR, 0.77 [CI, 0.61 to 0.99]; I 2 = 23%; moderate certainty). Corticosteroids may reduce secondary shock in severe pneumonia (9 studies, 1690 participants; RR, 0.49 [CI, 0.26 to 0.92]; I 2 = 55%; low certainty). They probably result in little to no difference in hospital-acquired infections (severe pneumonia: 7 studies, 1665 participants; RR, 0.99 [CI, 0.82 to 1.20]; I 2 = 0%; moderate certainty; ARDS: 4 studies, 677 participants; RR, 0.97 [CI, 0.59 to 1.59]; I 2 = 0%; low certainty) or secondary pneumonia (severe pneumonia: 4 studies, 1011 participants; RR, 0.96 [CI, 0.66 to 1.39]; I 2 = 0%; ARDS: 4 studies, 677 participants; RR, 0.88 [CI, 0.43 to 1.79]; I 2 = 0%; both low certainty). Evidence is very uncertain for catheter-related and bloodstream infections. Long-term mortality evidence is very uncertain for severe pneumonia.\nHeterogeneous pneumonia severity classification limiting subgroup precision.\nIn severe pneumonia and ARDS, adjunct corticosteroids probably reduce short-term mortality. In severe pneumonia, they may reduce secondary shock. In both conditions, corticosteroids may have little or no effect on hospital-acquired infections.\nNone. (PROSPERO: CRD42024536301).",
+        "sha256": "798c26a1a204f4c957806c9ea0ef1a1d63078af361ddd1bf46105d5777b31560",
+        "retrieved_at": "2026-09-18T23:56:34.309789+00:00"
+      },
+      {
+        "id": "41199320",
+        "title": "Effectiveness and safety of prolonged prone positioning in adult patients with acute respiratory distress syndrome (ARDS): a systematic review and meta-analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41199320/",
+        "abstract": "Prolonged prone positioning (PPP) for ≥ 24 h may enhance outcomes in moderate to severe acute respiratory distress syndrome (ARDS), but may also increase risks such as pressure injuries and complications. Despite clinical rationale, high-quality evidence for PPP's safety and efficacy remains scarce.\nWe conducted a systematic review and meta-analysis of randomized controlled trials (RCT) and observational studies. Trials that compared two distinct treatment groups in adult patients with ARDS were included: prone position < 24 h (standard) and ≥ 24 h (prolonged). Databases searched included MEDLINE, CENTRAL, ClinicalTrials.gov, ISRCTN, ICTRP and the Cochrane Covid-19 Study Register (last search: 3 July 2025). Risk of bias was assessed using ROB-2 for RCTs, and the ROBINS-I V2 tool for non-randomised intervention studies (NRSI). The primary outcome was mortality. Secondary outcomes included improvement of oxygenation and adverse events. Outcomes (Risk ratios and hazard ratios) were calculated using a random-effect model with 95% confidence intervals (CI). The quality of evidence was evaluated using the GRADE assessment.\nOf 19,986 records, 9 (n = 1,045) were included in the qualitative and quantitative analysis. Four studies, including two small RCTs (n = 112) and two NRSIs (n = 581), had a low to moderate risk of bias. Most studies included patients with COVID-19 ARDS. Meta-analysis showed no significant effect on 90-day mortality (n = 641, HR 0.72; 95% CI 0.41-1.25). No heterogeneity was detected among studies (I² = 0%), but the confidence interval for I² was wide (95% CI: 0-89%), suggesting the possibility that substantial heterogeneity may exist. Similarly, no significant differences were found for secondary outcomes.\nCurrent evidence does not support the use of PPP outside of clinical studies. Pooled data from small trials and NRSIs reveal no significant effect of PPP on mortality, oxygenation, or safety outcomes. The evidence is of low to very low certainty, limited by inconsistency and imprecision. The wide confidence intervals indicate low statistical power, therefore both harm and benefit remain plausible on the basis of the available evidence. Well-powered RCTs are needed to clarify the potential benefits and risks of PPP in ARDS.",
+        "sha256": "f0aa3a17ee12684fd193b00299dad236e2e9b95356f974f77bf82562843f7d73",
+        "retrieved_at": "2026-09-18T23:56:34.850826+00:00",
+        "pmcid": "PMC12590638",
+        "body_excerpts": "Background\nProne positioning (PP) is a well-established therapeutic strategy in the management of moderate to severe acute respiratory distress syndrome (ARDS). Its physiological rationale lies in promoting a more homogeneous distribution of lung stress and strain [ 1 ]. By redistributing transpulmonary pressures, PP facilitates alveolar recruitment, reduces regional overdistension, and mitigates cyclic alveolar collapse - all of which contribute to minimizing ventilator-induced lung injury (VILI). Moreover, PP improves ventilation-perfusion matching, frequently resulting in enhanced gas exchange. Recent evidence suggests a potential dose response relationship, with clinical benefits such as improved oxygenation and reduced mortality being more pronounced when PP is initiated early and maintained for extended durations [ 2 , 3 ]. Randomized trials and prior meta-analyses support the efficacy of daily prone sessions lasting at least 16 h in improving survival among patients with moderate to severe ARDS [ 4 ]. Theoretical and physiological considerations further propose that extending proning sessions beyond 24 h may offer additional benefits, including sustained improvements in lung mechanics and gas exchange, fewer position-related interruptions, and more consistent prevention of VILI [ 5 ]. However, prolonged prone positioning may also be associated with an increased risk of certain complications. These include a higher incidence of pressure injuries, such as skin and soft tissue damage, particularly at bony prominences, and a greater need for sedation, which may contribute to longer durations of mechanical ventilation and intensive care unit (ICU) stay [ 5 ]. There may also be an increased risk of accidental extubation or displacement of vascular lines during repositioning maneuvers.\n\nMethods > Data items\nData extracted included study design (RCT or NRSI), study setting (single- or multi-center), geographic region, sample size, and, for NRSIs, the method of adjustment for baseline confounding. Patient characteristics comprised age, body mass index (BMI), severity of ARDS, and the PaO₂/FiO₂ ratio before the first prone session. Intervention variables included duration of the first prone session, average session duration, cumulative prone time, number of position changes, use of neuromuscular blockade, use of adjunctive ECMO therapy, and specification of predefined criteria for discontinuation of prone positioning. Primary outcomes comprised short-term mortality (10–30 days or ICU mortality) and long-term mortality (> 30 days), chosen for their clinical relevance and consistent reporting. Secondary outcomes comprised improvement in gas exchange, cumulative prone time, number of sessions, ICU length of stay, duration of mechanical ventilation, and adverse events (e.g., pressure ulcers, accidental extubation, displacement of tubes/catheters, and changes in respiratory mechanics). For missing or unclear information, we inferred values from context, documenting such assumptions and accounting for them in risk-of-bias and certainty assessments. A detailed descriptions of all such assumptions is provided in the Supplement. Owing to substantial heterogeneity among eligible studies and limited data availability for several predefined endpoints specified in the study protocol, we were unable to collect sufficient data on these outcomes to permit quantitative synthesis. Specifically, only a small number of studies reported on changes in pulmonary carbon dioxide clearance, length of ICU and hospital stay, duration of mechanical ventilation, chest tube displacement, liver dysfunction, acute kidney injury, cardiovascular instability, ocular complications, ventilation distribution, and respiratory mechanics. Additionally, while the initial review protocol planned to compare a standard prone positioning group (≤ 24 h per session) with a prolonged prone positioning group (> 24 h per session), the majority of included studies utilized a cutoff of < 24 h versus ≥ 24 h per session. Accordingly, we adapted our analyses to ensure methodological consistency across comparisons.\n\nMethods > Certainty assessment\nWe assessed the certainty of the evidence using the Grading of Recommendations Assessment, Development, and Evaluation (GRADE) framework [ 10 , 11 ], which systematically evaluates multiple domains, including risk of bias, indirectness, imprecision, inconsistency, and the possibility of publication bias. The certainty of evidence was graded separately for each patient-important outcome, with ratings determined independently by two authors (CJ, TS). Any disagreements were resolved by consensus. Summary of Findings tables were prepared using GRADEpro GDT Software [ 11 ]. We restricted our certainty assessment to studies at low or moderate risk of bias, consistent with GRADE recommendations to minimize bias and enhance the reliability of evidence synthesis [ 12 ].\n\nResults > Study selection\nTable 1 Characteristics of included studies Study Publication date Design Study setting Region Population Baseline PaO₂/FiO₂ Age BMI Duration of PP /prolonged Duration of PP /standard Case number Outcomes Rezoagli et al. 2021 Retrospective NRSI Single-center Italy Moderate-to-severe ARDS, COVID-19 102 ± 43 vs. 119 ± 49 59 ± 11 vs. 65 ± 7 29* 39 ± 6 17 ± 3 38 (15 vs. 23) ICU mortality; Change in PaO₂/FiO₂ ratio, Change in PaCO 2 , Lung mechanics (∆P; C rs ; Standardized minute ventilation), pressure injuries, ICU LOS Shinner et al. 2021 Retrospective NRSI Single-center United Kingdom NA NA NA NA 73.6 (4 - 108) hours 18.2 (1 - 24) hours 103 (43 vs. 60) Mortality (without further specification), pressure injuries Lucchini et al. 2021 Retrospective NRSI Single-center Italy Moderate-to-severe ARDS, COVID-19 111 (71–145) vs. 120 (86–150) 58 (55–66) vs. 60 (53–68) 28 (26–33) vs. 28 (26–33) 34 (30–41) 16 (15–18) 96 (37 vs. 59) Pressure injuries; Total duration of proning Hafez et al. 2022 RCT Single-center Egypt Severe ARDS, COVID-19 79 ± 31 vs. 84 ± 31 51 ± 7 vs. 48 ± 10 31 ± 4 vs. 31 ± 4 24** 16** 52 (26 vs. 26) 28-day-Mortality, Change in PaO₂/FiO₂ ratio, Lung mechanics ( C rs ). pressure injuries, nerve injuries Page et al. 2022 RCT Single-center USA Moderate-to-severe ARDS, COVID-19 99 ± 27 vs. 93 ± 25 64 ± 14 vs. 62 ± 12 35 ± 9 vs. 32 ± 6 23 ± 6 15 ± 4 52 (26 vs. 26) 30 day-Mortality, Change in PaO₂/FiO₂ ratio; Lung mechanics (∆P; C rs ); pressure injuries; loss-of-catheters or -endotracheal tube: Total duration of proning Karlis et al. 2023 Retrospective NRSI Single-center Greece Moderate-to-severe ARDS, COVID-19 97.6 (27.4) vs. 103.4 (25.8) 61.5 (15.1) vs. 66.5 (9.7) 33 ± 7 vs. 31 ± 5.5) 46 (40 - 48) 20 (20 −22) 63 (37 vs. 26) 28-day-mortality; Change in PaO₂/FiO₂ ratio, Change in PaCO 2 , Lung mechanics (P plat , ∆P, C rs ;); number of prone sessions, Total duration of proning Okin et al. 2023 Retrospective NRSI; Adjustment for baseline confounding (IPTW) Multi-center USA Moderate-to-severe ARDS, COVID-19 158 (105 - 211) vs. 149 (99 - 211) 63 (52–70) vs. 60 (51–74) 30 (27–35) vs. 30 (26–36) 40 (27–55)*** 17 (14–20)*** 267 (157 vs. 110) 30-day and 90-day mortality; Change in PaO2/FIO2 ratio; Lung mechanics (∆P; C rs ; ventilatory ratio); adverse events (Arrhythmias, hypotension, Loss-of-catheters or endotracheal tube; Pressure injuries; rhabdomyolysis); hospital and ICU LOS; Total duration of proning Hochberg et al. 2024 Retrospective NRSI; Adjustement for baseline confounding (IPTW) Multi-center USA Moderate-to-severe ARDS, COVID-19 76 (65–96) vs. 82 (68–96) 60 (52–69) vs. 63 (48–73) 33 (28–40) vs. 32 (26–37) 45 (34–64)*** 19 (17–20)*** 314 (234 vs. 80) 90-day mortality; Change in PaO₂/FiO₂ ratio; Total duration of proning Saez de la Fuente et al. 2024 RCT Single-center Spain Moderate-to-severe ARDS, COVID-19 137 ± 64 vs. 119 ± 41 58 (46–65) vs. 50 (36–57) 34 ± 9 vs. 32 ± 6 48** 16** 60 (30 vs. 30) 90 day- and 28-day mortality; Change in PaO₂/FiO₂ ratio; Change in PaCO 2 ; lung mechanics (P plat , ∆P, C rs ; ventilatory ratio; mechanical power); Hospital and ICU LOS; Total duration of proning; adverse events (loss-of-catheters and endotracheal tube; pressure injuries) Data are presented as mean ± standard deviation or median (Q1–Q3). When two groups are compared (vs.), values for the prolonged group are listed first, followed by those for the standard group. *approximated by mean weight + height; **according to study protocol; ***first session C rs : static compliance of the respiratory system; ICU: intensive care unit; LOS: length of stay; ∆P: Driving pressure; NRSI: non-randomized study of interventions; PaO₂/FiO₂ ratio: ratio of arterial partial pressure of oxygen to fractional inspired oxygen; P plat : Plateau pressure; RCT: randomized controlled trial\n\nDiscussion\nProne positioning is a cornerstone therapy for patients with moderate to severe ARDS and one of the few interventions proven to improve survival in randomized trials. Early studies employing relatively short prone sessions reported no clinical benefit, whereas subsequent trials demonstrated that sessions of at least 16 h, in combination with lung-protective ventilation strategies, significantly reduce mortality. Nevertheless, the optimal duration of prone positioning remains uncertain. Prolongation of sessions may help sustain alveolar recruitment and mitigate ventilator-induced lung injury, potentially improving outcomes, but it may also increase the need for deeper sedation and the risk of complications such as pressure injuries, thereby offsetting potential benefits.\n\nDiscussion\nFor overall mortality, the point estimate from the sensitivity analysis, which included all eligible studies regardless of risk-of-bias, favored prolonged prone positioning. However, this analysis relied on unadjusted raw data and included studies with a high risk of bias, warranting cautious interpretation of the results. Similarly, the analysis of pressure injuries encompassing all eligible studies, suggested a trend toward increased risk in the prolonged prone group. Nonetheless, given the inclusion of numerous studies with high risk of bias and unadjusted data, all analyses that were not restricted to studies with low or moderate risk of bias should be interpreted with considerable caution due to its limited reliability.\n\nDiscussion\nIt remains uncertain whether patient outcomes are primarily influenced by the duration of individual prone positioning sessions or by the cumulative exposure to prone positioning over the entire treatment course. As ventilation in the prone position is considered more lung-protective than in the supine position, the overall proportion of time spent prone may be an important determinant of clinical benefit. However, longer cumulative prone positioning may also increase risks, including the need for deeper sedation and pressure-related injuries. Notably, total prone time differed substantially across included studies, which likely contributed to heterogeneity in the reported findings. To reduce heterogeneity and allow a clearer assessment of benefits and risks, future studies should consistently report and ideally standardize cumulative prone exposure, along with predefined criteria for discontinuation. This approach would enable a more accurate evaluation of its effect on clinically relevant outcomes.\n\nConclusion\nOur findings align with current international guidelines recommending prone positioning for at least 16 h per session, but do not support routine use of prolonged prone sessions outside clinical trials. Consistent with prior meta-analyses and large cohort studies, we found no clear evidence to support further extension beyond this duration. Future research should prioritize randomized controlled trials employing standardized definitions and protocols, with systematic reporting of both individual session length and cumulative prone time. Such studies are essential to determine whether particular patient subgroups may derive benefit from tailored proning strategies. Until such evidence emerges, adherence to current guideline recommendations remains the most appropriate clinical approach.",
+        "body_excerpts_sha256": "c290a67436bfde6f1477b9939fdcc55c85f5ff8b5626b0db94ff614b566f9911",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12590638/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "39165240",
+        "title": "Efficacy of corticosteroids in patients with acute respiratory distress syndrome: a meta-analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39165240/",
+        "abstract": "Acute respiratory distress syndrome (ARDS), are respiratory diseases with high morbidity and mortality. Clinical trials investigating the efficacy of corticosteroids in the treatment of ARDS often yield contradictory results. We hereby conducted a systematic review and meta-analysis to investigate the efficacy of corticosteroids in ARDS management.\nWe conducted a search for randomized clinical trials (RCT) and observational studies that utilized corticosteroids for patients with ARDS in Web of Science, PubMed, and Embase. The primary outcome was mortality. Risk of bias was assessed using Cochrane or NOS scales. Statistical effect size was analyzed using the Mantel-Haenszel method.\nA total of 20 studies, comprising 11 observational studies and 9 RCTs, were eligible for analysis. In RCTs, corticosteroids were associated with a reduction of mortality in ARDS patients (relative risk [RR] = 0.80, 95%CI: 0.71-0.91, p = 0.001). Further subgroup analysis indicated that specific variables, such as low-dose (RR = 0.81; 95%CI: 0.67-0.98; p = 0.034), methylprednisolone (RR = 0.70; 95%CI: 0.49-0.98; p = 0.035), and dexamethasone (RR = 0.82; 95%CI: 0.69-0.98; p = 0.029) were associated with mortality among patients receiving corticosteroids. However, in observational studies, corticosteroids increased the risk of death (RR = 1.16, 95%CI: 1.04-1.29; p = 0.001). Subgroup analysis showed that the use of high-dose corticosteroids was associated with higher patient mortality (RR = 1.20; 95%CI: 1.04-1.38; p = 0.001).\nThe efficacy of corticosteroids on the mortality of ARDS differed by the type and dosage of corticosteroids used, as well as the etiologies. Current data do not support routine use of corticosteroids in ARDS since protective effects were observed in RCTs but increased mortality was found in observational studies. More well designed and large clinical trials are needed to specify the favorable subgroups for corticosteroid therapy.",
+        "sha256": "53b2b060e1c7c8e9b8a4f4a758e84182ba60ac24caa6f0cee444890a04c43ef1",
+        "retrieved_at": "2026-09-18T23:56:34.850826+00:00",
+        "pmcid": "PMC11340212",
+        "body_excerpts": "Introduction\nAcute respiratory distress syndrome (ARDS) is a respiratory disease characterized by diffuse alveolar damage, hypoxemia, and poor lung compliance as a result of a severe inflammatory process [ 1 ]. Due to the heterogeneity of ARDS regarding to the causes, manifestations, and response to treatment, clinicians are challenged to provide impeccable supportive care. Therefore, ARDS remain associated with high morbidity and mortality. In intensive care units (ICUs) in Shanghai, ARDS occurs in 2% of patients older than 15 years with a 70% mortality rate [ 2 ]. According to a study conduceted across 459 ICUs in 50 countries, the period prevalence of ARDS was 10.4% of ICU admissions. Hospital mortality was 34.9% for those with mild, 40.3% for those with moderate, and 46.1% for those with severe ARDS [ 3 ]. Furthermore, as a result of the COVID-19 pandemic, many clinical settings have become overburdened with patients with severe ARDS. Early reports suggested that COVID-19-associated ARDS possesses distinct features compared with the classic ones [ 4 ]. Exploring effective treatments for ARDS is urgent and significant.\n\nIntroduction\nThe use of corticosteroids was considered as one of the potential treatments for ARDS by reducing systemic inflammatory response and accelerating the recovery of pulmonary infection. However, the results of clinical trials are often contradictory. In a random clinical trial (RCT) comparing dexamethasone with standard treatment for patients with moderate to severe ARDS, patients treated with dexamethasone had 4.8 more ventilator-free days and a 15% absolute risk reduction in 60-day mortality (21% vs 36%) than those who received standard care [ 5 ]. In another RCT, early administration of corticosteroids to patients with ARDS appeared promising, with significant reductions in mechanical ventilation, ICU stay, mortality, and infectious complications after receiving low-dose methylprednisolone [ 6 ]. However, the use of corticosteroids in patients with persistent ARDS did not yield encouraging results in a multi-center RCT. In the methylprednisolone-treated groups, 60- and 180-day mortality rates were similar, but after 14 days of ARDS onset, 60- and 180-day mortality rates were elevated [ 7 ]. Consequently, it is still unclear whether corticosteroids are effective for patients with ARDS.\n\nMaterials and methods > Search strategy\nUntil November 8, 2022, we searched Web of Science, PubMed, and Embase to identify randomized clinical trials (RCT) and observational studies pertaining to the use of corticosteroids in patients diagnosed with ARDS. Acute respiratory distress syndrome, ARDS, acute lung injury, corticosteroids, hydrocortisone, methylprednisolone, dexamethasone, randomized controlled trials, and clinical trials were all searched separately or in combination, with English as the only permitted language and only human studies were included. The full search strategy is detailed in the Table S1 .\n\nDiscussion\nAnother crucial factor influencing patient outcomes in ARDS is the dosage of corticosteroid therapy, which has undergone changes over recent decades. Pre-1990 studies predominantly employed a high daily dose (30 mg/kg) with a short duration (≤2 days) regimen for ARDS treatment, based on the equivalent doses of methylprednisolone. However, in the subsequent two decades, most studies adopted a protocol involving a daily dose of ≤2 mg/kg, with a gradual taper [ 30 ]. In the present study, both low-dose and regular-dose corticosteroid regimens demonstrated protective effects on patients with ARDS. These findings were corroborated by similar results reported by Cui et al. [ 32 ].\n\nDiscussion > Limitation of this study\nOur study has several strengths. Firstly, we implemented a comprehensive search strategy, which ensures a thorough investigation of the existing literature. Secondly, to address potential sources of inconsistency among previous studies and to offer more robust recommendations for the use of corticosteroids in ARDS, we conducted a rigorous subgroup analysis. Thirdly, we included both RCTs and observational studies. This inclusion has served to unveil the disparities between outcomes observed in clinical trials and real-world practice. However, we acknowledge the presence of certain limitations. Notably, the relatively small number of RCTs and the corresponding sample sizes may pose a limitation to the statistical power of our analyses. In certain subgroup analyses, the restricted number of studies, often reduced to only one, warrants cautious interpretation. Secondly, when assessing the etiology-specific response to corticosteroids, the classification of ARDS etiologies was limited due to the diverse mix of study populations across various studies. This could have impacted our ability to fully elucidate the role of corticosteroids in specific ARDS etiologies. Lastly, the quality of included studies might have acted as a confounding factor in our subgroup analysis, which was challenging to control adequately.\n\nConclusions\nIn conclusion, in RCTs, we observed protective effects of corticosteroids on ARDS mortality, suggesting potential benefits in certain subgroups. However, contrasting results were found in observational studies, where an association with increased mortality was evident. These disparate findings between study types underscore the need for caution in routinely administering corticosteroids in ARDS cases. Further research with comprehensive clinical trials is essential to better delineate the most suitable subgroups for corticosteroid therapy in ARDS, ultimately guiding more effective and personalized treatment strategies.",
+        "body_excerpts_sha256": "612a6459f512633db1b60f692314e2f9f65901e86ced9cd2086e7a7c943157c9",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11340212/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This patient meets Berlin criteria for moderate-to-severe ARDS: acute onset (2 days), bilateral opacities, non-cardiogenic edema by echo, and PaO2/FiO2 of 90 mm Hg (severe). Answer B reflects guideline-concordant lung-protective ventilation and severe-ARDS management. Low tidal volume (<6 mL/kg PBW; current 350 mL = 5.8 mL/kg for 60 kg PBW) and plateau pressure <30 cm H2O are foundational (FICM/ICS 2019, PMID 31258917). Prone positioning for ≥16 h/session reduces mortality in moderate-to-severe ARDS (PMID 38842731 high certainty; PMID 41199320 supporting the ≥16 h standard) and is strongly indicated at P/F ~90. A higher-PEEP strategy without recruitment maneuvers is favored (ATS 2024, PMID 38032683; network meta-analysis PMID 35180042 showing higher PEEP without LRM lowers mortality). Answer A is directly contraindicated: the ATS 2024 guideline issues a STRONG recommendation against prolonged lung recruitment maneuvers, and PMID 35180042 shows higher PEEP with prolonged LRM increases mortality; abandoning low tidal volumes for larger volumes violates lung-protective principles and risks ventilator-induced lung injury.",
+          "confidence": 0.96
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31258917"
+              ],
+              "reason": "The 2019 adult ARDS guideline abstract explicitly recommends low tidal volumes (<6 ml/kg ideal body weight) and plateau pressure <30 cmH2O when mechanical ventilation is required.",
+              "source_quotes": [
+                {
+                  "source_id": "31258917",
+                  "quote": "The Faculty of Intensive Care Medicine and Intensive Care Society Guideline Development Group have used GRADE methodology to make the following recommendations for the management of adult patients with acute respiratory distress syndrome (ARDS). The British Thoracic Society supports the recommendations in this guideline. Where mechanical ventilation is required, the use of low tidal volumes (<6 ml/kg ideal body weight) and airway pressures (plateau pressure <30 cmH2O) was recommended. For patients with moderate/severe ARDS (PF ratio<20 kPa), prone positioning was recommended for at least 12 hours per day. By contrast, high frequency oscillation was not recommended and it was suggested that inhaled nitric oxide is not used."
+                }
+              ],
+              "source_passage_ids": [
+                "31258917:p0"
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38032683"
+              ],
+              "reason": "The 2024 ATS guideline abstract states a suggestion for higher PEEP without lung recruitment maneuvers versus lower PEEP in moderate-to-severe ARDS.",
+              "source_quotes": [
+                {
+                  "source_id": "38032683",
+                  "quote": "Results: We suggest the use of: 1) corticosteroids for patients with ARDS (conditional recommendation, moderate certainty of evidence), 2) venovenous extracorporeal membrane oxygenation in selected patients with severe ARDS (conditional recommendation, low certainty of evidence), 3) neuromuscular blockers in patients with early severe ARDS (conditional recommendation, low certainty of evidence), and 4) higher PEEP without lung recruitment maneuvers as opposed to lower PEEP in patients with moderate to severe ARDS (conditional recommendation, low to moderate certainty), and 5) we recommend against using prolonged lung recruitment maneuvers in patients with moderate to severe ARDS (strong recommendation, moderate certainty). Conclusions: We provide updated evidence-based recommendations for the management of ARDS."
+                }
+              ],
+              "source_passage_ids": [
+                "38032683:p1"
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "38032683"
+              ],
+              "reason": "The 2024 ATS guideline abstract explicitly makes a strong recommendation against prolonged lung recruitment maneuvers in moderate-to-severe ARDS.",
+              "source_quotes": [
+                {
+                  "source_id": "38032683",
+                  "quote": "Results: We suggest the use of: 1) corticosteroids for patients with ARDS (conditional recommendation, moderate certainty of evidence), 2) venovenous extracorporeal membrane oxygenation in selected patients with severe ARDS (conditional recommendation, low certainty of evidence), 3) neuromuscular blockers in patients with early severe ARDS (conditional recommendation, low certainty of evidence), and 4) higher PEEP without lung recruitment maneuvers as opposed to lower PEEP in patients with moderate to severe ARDS (conditional recommendation, low to moderate certainty), and 5) we recommend against using prolonged lung recruitment maneuvers in patients with moderate to severe ARDS (strong recommendation, moderate certainty). Conclusions: We provide updated evidence-based recommendations for the management of ARDS."
+                }
+              ],
+              "source_passage_ids": [
+                "38032683:p1"
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "35180042"
+              ],
+              "reason": "The network meta-analysis found higher PEEP without LRM associated with lower mortality than lower PEEP in moderate-to-severe ARDS.",
+              "source_quotes": [
+                {
+                  "source_id": "35180042",
+                  "quote": "Compared with a lower PEEP strategy, the posterior probability of mortality benefit from a higher PEEP without lung recruitment maneuver (LRM) strategy was 99% (risk ratio [RR], 0.77; 95% credible interval [CrI], 0.60-0.96, high certainty), the posterior probability of benefit of the esophageal pressure-guided strategy was 87% (RR, 0.77; 95% CrI, 0.48-1.22, moderate certainty), the posterior probability of benefit of a higher PEEP with brief LRM strategy was 96% (RR, 0.83; 95% CrI, 0.67-1.02, moderate certainty), and the posterior probability of increased mortality from a higher PEEP with prolonged LRM strategy was 77% (RR, 1.06; 95% CrI, 0.89-1.22, low certainty). Compared with a higher PEEP without LRM strategy, the posterior probability of increased mortality from a higher PEEP with prolonged LRM strategy was 99% (RR, 1.37; 95% CrI, 1.04-1.81, moderate certainty)."
+                },
+                {
+                  "source_id": "35180042",
+                  "quote": "Conclusions: In patients with moderate to severe ARDS, higher PEEP without LRM is associated with a lower risk of death than lower PEEP. A higher PEEP with prolonged LRM strategy is associated with increased risk of death when compared with higher PEEP without LRM."
+                }
+              ],
+              "source_passage_ids": [
+                "35180042:p1",
+                "35180042:p2"
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "35180042"
+              ],
+              "reason": "The meta-analysis reports higher PEEP with prolonged LRM associated with increased mortality (RR 1.37) compared with higher PEEP without LRM.",
+              "source_quotes": [
+                {
+                  "source_id": "35180042",
+                  "quote": "Compared with a lower PEEP strategy, the posterior probability of mortality benefit from a higher PEEP without lung recruitment maneuver (LRM) strategy was 99% (risk ratio [RR], 0.77; 95% credible interval [CrI], 0.60-0.96, high certainty), the posterior probability of benefit of the esophageal pressure-guided strategy was 87% (RR, 0.77; 95% CrI, 0.48-1.22, moderate certainty), the posterior probability of benefit of a higher PEEP with brief LRM strategy was 96% (RR, 0.83; 95% CrI, 0.67-1.02, moderate certainty), and the posterior probability of increased mortality from a higher PEEP with prolonged LRM strategy was 77% (RR, 1.06; 95% CrI, 0.89-1.22, low certainty). Compared with a higher PEEP without LRM strategy, the posterior probability of increased mortality from a higher PEEP with prolonged LRM strategy was 99% (RR, 1.37; 95% CrI, 1.04-1.81, moderate certainty)."
+                },
+                {
+                  "source_id": "35180042",
+                  "quote": "Conclusions: In patients with moderate to severe ARDS, higher PEEP without LRM is associated with a lower risk of death than lower PEEP. A higher PEEP with prolonged LRM strategy is associated with increased risk of death when compared with higher PEEP without LRM."
+                }
+              ],
+              "source_passage_ids": [
+                "35180042:p1",
+                "35180042:p2"
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "41199320"
+              ],
+              "reason": "The 2025 systematic review body text confirms current international guidelines recommend prone positioning for at least 16 hours per session, supported by RCTs and prior meta-analyses.",
+              "source_quotes": [
+                {
+                  "source_id": "41199320",
+                  "quote": "By redistributing transpulmonary pressures, PP facilitates alveolar recruitment, reduces regional overdistension, and mitigates cyclic alveolar collapse - all of which contribute to minimizing ventilator-induced lung injury (VILI). Moreover, PP improves ventilation-perfusion matching, frequently resulting in enhanced gas exchange. Recent evidence suggests a potential dose response relationship, with clinical benefits such as improved oxygenation and reduced mortality being more pronounced when PP is initiated early and maintained for extended durations [ 2 , 3 ]. Randomized trials and prior meta-analyses support the efficacy of daily prone sessions lasting at least 16 h in improving survival among patients with moderate to severe ARDS [ 4 ]."
+                },
+                {
+                  "source_id": "41199320",
+                  "quote": "Notably, total prone time differed substantially across included studies, which likely contributed to heterogeneity in the reported findings. To reduce heterogeneity and allow a clearer assessment of benefits and risks, future studies should consistently report and ideally standardize cumulative prone exposure, along with predefined criteria for discontinuation. This approach would enable a more accurate evaluation of its effect on clinically relevant outcomes. Conclusion Our findings align with current international guidelines recommending prone positioning for at least 16 h per session, but do not support routine use of prolonged prone sessions outside clinical trials. Consistent with prior meta-analyses and large cohort studies, we found no clear evidence to support further extension beyond this duration."
+                }
+              ],
+              "source_passage_ids": [
+                "41199320:p3",
+                "41199320:p16"
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is an adult critical care ARDS case. The chart supports severe ARDS: acute bilateral opacities within a week, no primary cardiac cause on echo, PaO2 72 on FiO2 0.80 = P/F 90 (severe), tidal volume 350 mL for 60 kg PBW = 5.8 mL/kg (already lung-protective), plateau 27 (<30). Candidate B preserves lung-protective limits, uses higher PEEP without recruitment maneuver, and initiates prone positioning ≥16 h/session—each supported by the supplied evidence: 31258917 (low Vt/plateau, prone), 38032683 (higher PEEP without LRM; strong against prolonged LRM), 35180042 (mortality data favoring higher PEEP without LRM and harm from prolonged LRM), and 41199320 body excerpt (≥16 h prone sessions per current guidelines). Candidate A is the intended flawed option: it introduces a prolonged stepwise recruitment maneuver (strongly recommended against, RR 1.37 harm vs higher PEEP without LRM), reduces PEEP, permits larger-than-protective tidal volumes, and forgoes proning—consequentially unsafe and omitting supported protective care. The designated sound answer B is not merely less bad; it delivers the essential elements. Key answer B matches the chart and evidence. The visible note describes physiology and settings but does not disclose the intended management strategy, so no answer leakage. The decision (respiratory support strategy in severe ARDS) is distinct from the prior case (vasoactive agent choice in septic shock). No essential imaging or data missing (CXR and echo present, ABG present, PBW given). Minor observations that are not blocking: corticosteroid sources (41325621, 39165240) and ECMO/prone comparison (38842731) are present as distractor context but not needed for the claimed answer; the 2019 guideline states prone ≥12 h/day while newer evidence supports ≥16 h/session—these are consistent, not contradictory, and B's ≥16 h aligns with the newer source. Corticosteroids for pneumonia/ARDS could be considered adjunctively but are not part of the respiratory support strategy decision and their omission from the options does not render B unsafe."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The presentation is consistent with severe ARDS: acute bilateral noncardiogenic opacities with a PaO2/FiO2 ratio of 90 mm Hg while receiving PEEP. The current tidal volume is approximately 5.8 mL/kg predicted body weight (350 mL/60 kg), and plateau pressure is 27 cm H2O, already meeting lung-protective targets of less than 6 mL/kg and less than 30 cm H2O. For moderate-to-severe ARDS, guidelines support higher PEEP without a lung recruitment maneuver and recommend against prolonged recruitment maneuvers because of potential harm (sources 38032683, 35180042). Severe hypoxemia also supports early prone positioning for at least 16 hours per session alongside lung-protective ventilation (sources 31258917, 41199320). Option A conflicts with these recommendations by proposing prolonged recruitment, larger tidal volumes, and continued supine ventilation.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31258917"
+              ],
+              "reason": "The cited adult ARDS guideline explicitly recommends tidal volumes below 6 mL/kg ideal body weight and plateau pressure below 30 cm H2O.",
+              "source_passage_ids": [
+                "31258917:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31258917",
+                  "quote": "The Faculty of Intensive Care Medicine and Intensive Care Society Guideline Development Group have used GRADE methodology to make the following recommendations for the management of adult patients with acute respiratory distress syndrome (ARDS). The British Thoracic Society supports the recommendations in this guideline. Where mechanical ventilation is required, the use of low tidal volumes (<6 ml/kg ideal body weight) and airway pressures (plateau pressure <30 cmH2O) was recommended. For patients with moderate/severe ARDS (PF ratio<20 kPa), prone positioning was recommended for at least 12 hours per day. By contrast, high frequency oscillation was not recommended and it was suggested that inhaled nitric oxide is not used."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "38032683"
+              ],
+              "reason": "The updated ATS guideline directly suggests higher PEEP without recruitment maneuvers rather than lower PEEP for moderate-to-severe ARDS.",
+              "source_passage_ids": [
+                "38032683:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38032683",
+                  "quote": "Results: We suggest the use of: 1) corticosteroids for patients with ARDS (conditional recommendation, moderate certainty of evidence), 2) venovenous extracorporeal membrane oxygenation in selected patients with severe ARDS (conditional recommendation, low certainty of evidence), 3) neuromuscular blockers in patients with early severe ARDS (conditional recommendation, low certainty of evidence), and 4) higher PEEP without lung recruitment maneuvers as opposed to lower PEEP in patients with moderate to severe ARDS (conditional recommendation, low to moderate certainty), and 5) we recommend against using prolonged lung recruitment maneuvers in patients with moderate to severe ARDS (strong recommendation, moderate certainty). Conclusions: We provide updated evidence-based recommendations for the management of ARDS."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "38032683"
+              ],
+              "reason": "The updated ATS guideline gives a strong recommendation against prolonged lung recruitment maneuvers in moderate-to-severe ARDS.",
+              "source_passage_ids": [
+                "38032683:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38032683",
+                  "quote": "Results: We suggest the use of: 1) corticosteroids for patients with ARDS (conditional recommendation, moderate certainty of evidence), 2) venovenous extracorporeal membrane oxygenation in selected patients with severe ARDS (conditional recommendation, low certainty of evidence), 3) neuromuscular blockers in patients with early severe ARDS (conditional recommendation, low certainty of evidence), and 4) higher PEEP without lung recruitment maneuvers as opposed to lower PEEP in patients with moderate to severe ARDS (conditional recommendation, low to moderate certainty), and 5) we recommend against using prolonged lung recruitment maneuvers in patients with moderate to severe ARDS (strong recommendation, moderate certainty). Conclusions: We provide updated evidence-based recommendations for the management of ARDS."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "35180042"
+              ],
+              "reason": "The network meta-analysis reports lower mortality with higher PEEP without recruitment compared with lower PEEP in adults with moderate-to-severe ARDS.",
+              "source_passage_ids": [
+                "35180042:p1",
+                "35180042:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35180042",
+                  "quote": "Compared with a lower PEEP strategy, the posterior probability of mortality benefit from a higher PEEP without lung recruitment maneuver (LRM) strategy was 99% (risk ratio [RR], 0.77; 95% credible interval [CrI], 0.60-0.96, high certainty), the posterior probability of benefit of the esophageal pressure-guided strategy was 87% (RR, 0.77; 95% CrI, 0.48-1.22, moderate certainty), the posterior probability of benefit of a higher PEEP with brief LRM strategy was 96% (RR, 0.83; 95% CrI, 0.67-1.02, moderate certainty), and the posterior probability of increased mortality from a higher PEEP with prolonged LRM strategy was 77% (RR, 1.06; 95% CrI, 0.89-1.22, low certainty). Compared with a higher PEEP without LRM strategy, the posterior probability of increased mortality from a higher PEEP with prolonged LRM strategy was 99% (RR, 1.37; 95% CrI, 1.04-1.81, moderate certainty)."
+                },
+                {
+                  "source_id": "35180042",
+                  "quote": "Conclusions: In patients with moderate to severe ARDS, higher PEEP without LRM is associated with a lower risk of death than lower PEEP. A higher PEEP with prolonged LRM strategy is associated with increased risk of death when compared with higher PEEP without LRM."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "35180042"
+              ],
+              "reason": "The network meta-analysis directly reports increased mortality with higher PEEP plus prolonged recruitment compared with higher PEEP without recruitment.",
+              "source_passage_ids": [
+                "35180042:p1",
+                "35180042:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35180042",
+                  "quote": "Compared with a lower PEEP strategy, the posterior probability of mortality benefit from a higher PEEP without lung recruitment maneuver (LRM) strategy was 99% (risk ratio [RR], 0.77; 95% credible interval [CrI], 0.60-0.96, high certainty), the posterior probability of benefit of the esophageal pressure-guided strategy was 87% (RR, 0.77; 95% CrI, 0.48-1.22, moderate certainty), the posterior probability of benefit of a higher PEEP with brief LRM strategy was 96% (RR, 0.83; 95% CrI, 0.67-1.02, moderate certainty), and the posterior probability of increased mortality from a higher PEEP with prolonged LRM strategy was 77% (RR, 1.06; 95% CrI, 0.89-1.22, low certainty). Compared with a higher PEEP without LRM strategy, the posterior probability of increased mortality from a higher PEEP with prolonged LRM strategy was 99% (RR, 1.37; 95% CrI, 1.04-1.81, moderate certainty)."
+                },
+                {
+                  "source_id": "35180042",
+                  "quote": "Conclusions: In patients with moderate to severe ARDS, higher PEEP without LRM is associated with a lower risk of death than lower PEEP. A higher PEEP with prolonged LRM strategy is associated with increased risk of death when compared with higher PEEP without LRM."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "41199320"
+              ],
+              "reason": "The supplied full-text excerpts state that trials support daily prone sessions of at least 16 hours and that current international guidelines recommend at least 16 hours per session for moderate-to-severe ARDS.",
+              "source_passage_ids": [
+                "41199320:p3",
+                "41199320:p13",
+                "41199320:p16"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41199320",
+                  "quote": "By redistributing transpulmonary pressures, PP facilitates alveolar recruitment, reduces regional overdistension, and mitigates cyclic alveolar collapse - all of which contribute to minimizing ventilator-induced lung injury (VILI). Moreover, PP improves ventilation-perfusion matching, frequently resulting in enhanced gas exchange. Recent evidence suggests a potential dose response relationship, with clinical benefits such as improved oxygenation and reduced mortality being more pronounced when PP is initiated early and maintained for extended durations [ 2 , 3 ]. Randomized trials and prior meta-analyses support the efficacy of daily prone sessions lasting at least 16 h in improving survival among patients with moderate to severe ARDS [ 4 ]."
+                },
+                {
+                  "source_id": "41199320",
+                  "quote": "*approximated by mean weight + height; **according to study protocol; ***first session C rs : static compliance of the respiratory system; ICU: intensive care unit; LOS: length of stay; ∆P: Driving pressure; NRSI: non-randomized study of interventions; PaO₂/FiO₂ ratio: ratio of arterial partial pressure of oxygen to fractional inspired oxygen; P plat : Plateau pressure; RCT: randomized controlled trial Discussion Prone positioning is a cornerstone therapy for patients with moderate to severe ARDS and one of the few interventions proven to improve survival in randomized trials. Early studies employing relatively short prone sessions reported no clinical benefit, whereas subsequent trials demonstrated that sessions of at least 16 h, in combination with lung-protective ventilation strategies, significantly reduce mortality."
+                },
+                {
+                  "source_id": "41199320",
+                  "quote": "Notably, total prone time differed substantially across included studies, which likely contributed to heterogeneity in the reported findings. To reduce heterogeneity and allow a clearer assessment of benefits and risks, future studies should consistently report and ideally standardize cumulative prone exposure, along with predefined criteria for discontinuation. This approach would enable a more accurate evaluation of its effect on clinically relevant outcomes. Conclusion Our findings align with current international guidelines recommending prone positioning for at least 16 h per session, but do not support routine use of prolonged prone sessions outside clinical trials. Consistent with prior meta-analyses and large cohort studies, we found no clear evidence to support further extension beyond this duration."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The chart supports acute severe ARDS physiology: pneumonia is a qualifying acute insult, bilateral opacities arose within one week, echocardiography provides no primary cardiogenic explanation, and PaO2/FiO2 is 90 mm Hg while receiving PEEP 10 cm H2O. Current tidal volume is approximately 5.8 mL/kg predicted body weight and plateau pressure is 27 cm H2O, so preserving lung-protective limits is appropriate. Candidate B adds the supported higher-PEEP-without-recruitment approach and prone positioning for at least 16 hours per session. Candidate A is intentionally unsafe because it proposes a prolonged recruitment maneuver, subsequent PEEP reduction, larger tidal volumes, and continued supine ventilation. The title and visible note describe severity but do not disclose the intended management. The decision is distinct from the previous septic-shock vasopressor case."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "399556b8c7dfddf15766739da2dbb7f97f54524582a12e17fa6154210868dc19"
+  }
+}

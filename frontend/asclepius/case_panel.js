@@ -453,6 +453,9 @@
           h('span', { class: 'asc-badge asc-badge-accent' }, 'Multimodal case'),
           h('span', { class: 'asc-case-source' },
             (c.case_source === 'real_deid' ? 'Real (de-identified)' : 'Synthetic'))),
+        ((c.case_provenance || {}).disclaimers || []).length
+          ? h('div', { class: 'asc-muted', style: 'padding:12px 16px' },
+              ((c.case_provenance || {}).disclaimers || []).join(' ')) : null,
         tabRow, bodyHost);
       paint();
       return el;

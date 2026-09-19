@@ -1,0 +1,568 @@
+{
+  "task_id": "onboarding-practice-v1-8e91610afd9fe9c9d129-1",
+  "specialty": "infectious diseases",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Repeated bacteriuria during routine antenatal screening",
+    "question": "What is the most appropriate management of the urine culture findings at this point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "infectious diseases",
+      "demographics": {
+        "age_band": "20-29",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Second-trimester pregnancy",
+          "since": "current pregnancy",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Prenatal vitamin",
+          "dose": null,
+          "route": "oral",
+          "freq": "daily",
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "temperature_c": 36.8,
+        "heart_rate_bpm": 78,
+        "blood_pressure_mmHg": "112/68",
+        "respiratory_rate_per_min": 14
+      },
+      "lab_panels": [
+        {
+          "panel": "Urine culture",
+          "collected_offset_days": -7,
+          "results": [
+            {
+              "analyte": "Cultured organism",
+              "loinc": null,
+              "value": "Escherichia coli",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "positive",
+              "ref_range_unusable": true
+            },
+            {
+              "analyte": "Colony count",
+              "loinc": null,
+              "value": "at least 100000",
+              "unit": "CFU/mL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "positive",
+              "ref_range_unusable": true
+            }
+          ]
+        },
+        {
+          "panel": "Repeat urine culture",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Cultured organism",
+              "loinc": null,
+              "value": "Escherichia coli with the same susceptibility profile",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "positive",
+              "ref_range_unusable": true
+            },
+            {
+              "analyte": "Colony count",
+              "loinc": null,
+              "value": "at least 100000",
+              "unit": "CFU/mL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "positive",
+              "ref_range_unusable": true
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Infectious diseases consultation",
+          "author_role": "infectious diseases",
+          "text": "A pregnant adult in the second trimester was referred after routine antenatal screening yielded two voided urine cultures, collected seven days apart, each growing at least 100,000 CFU/mL of the same Escherichia coli isolate. She reports no dysuria, urinary frequency, urgency, suprapubic discomfort, flank pain, fever, chills, nausea, or vomiting. She is afebrile and clinically well, with no indwelling urinary catheter and no planned invasive urologic procedure. She has not received an antibiotic during the current pregnancy.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional onboarding case; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "moderate",
+      "required_modalities": [
+        "clinical_note",
+        "laboratory"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the management decision",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The repeated high-count growth of the same organism without urinary symptoms meets the supplied definition of asymptomatic bacteriuria. Pregnancy is an explicit exception to the general stewardship rule against treating asymptomatic bacteriuria. Antibiotic treatment is indicated rather than observation because evidence suggests it may reduce maternal pyelonephritis, although certainty regarding effect size is limited. Agent selection should account for the isolate's susceptibility profile and pregnancy considerations; the supplied evidence does not support prescribing a specific regimen or dose.",
+        "evidence": null,
+        "key_data": [
+          "The patient is pregnant and in the second trimester.",
+          "Two consecutive voided cultures grew the same organism at at least 100,000 CFU/mL.",
+          "She has no typical urinary or systemic infection symptoms.",
+          "Pregnancy is a guideline-supported indication to treat asymptomatic bacteriuria.",
+          "No exact antibiotic dose or regimen is supported by the supplied evidence."
+        ]
+      },
+      "hard_hook": "Pregnancy changes the stewardship decision despite the complete absence of urinary symptoms.",
+      "reasoning_divergence": "The flawed response overgeneralizes the usual recommendation not to treat asymptomatic bacteriuria and misses the pregnancy exception."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Do not prescribe an antibiotic because she has no urinary symptoms or systemic illness. Document likely colonization and provide observation alone unless dysuria, fever, flank pain, or another localizing feature develops."
+      },
+      {
+        "id": "B",
+        "text": "Initiate antibiotic treatment for asymptomatic bacteriuria in pregnancy rather than observation alone. Select a pregnancy-appropriate agent using the organism's susceptibility results; the supplied information does not justify a specific drug dose or duration."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "pregnancy",
+      "asymptomatic bacteriuria",
+      "pyelonephritis",
+      "antibiotic stewardship",
+      "antimicrobial resistance"
+    ],
+    "evidence_keywords": [
+      "antenatal screening",
+      "urine culture",
+      "Escherichia coli",
+      "colony count",
+      "susceptibility testing"
+    ],
+    "error_tags": [
+      "omission",
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "Asymptomatic bacteriuria denotes bacteriuria occurring without the typical symptoms of urinary infection.",
+        "source_ids": [
+          "31765489"
+        ]
+      },
+      {
+        "statement": "Two consecutive voided cultures with at least 100,000 CFU/mL of the same organism support the supplied definition of asymptomatic bacteriuria in pregnancy.",
+        "source_ids": [
+          "39255721"
+        ]
+      },
+      {
+        "statement": "Guideline evidence identifies pregnancy as an indication to screen for and treat asymptomatic bacteriuria.",
+        "source_ids": [
+          "30895288"
+        ]
+      },
+      {
+        "statement": "In pregnant patients, antibiotic treatment may reduce pyelonephritis compared with placebo or no treatment, although the evidence is low certainty.",
+        "source_ids": [
+          "31765489"
+        ]
+      },
+      {
+        "statement": "A recent systematic review found significantly increased odds of pyelonephritis among pregnant patients with untreated asymptomatic bacteriuria.",
+        "source_ids": [
+          "39255721"
+        ]
+      },
+      {
+        "statement": "Variable resistance among urinary isolates makes susceptibility information relevant and argues against unsupported empirical antibiotic selection.",
+        "source_ids": [
+          "32321329"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:38:26.808343+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "30895288",
+        "title": "Clinical Practice Guideline for the Management of Asymptomatic Bacteriuria: 2019 Update by the Infectious Diseases Society of America.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30895288/",
+        "abstract": "Asymptomatic bacteriuria (ASB) is a common finding in many populations, including healthy women and persons with underlying urologic abnormalities. The 2005 guideline from the Infectious Diseases Society of America recommended that ASB should be screened for and treated only in pregnant women or in an individual prior to undergoing invasive urologic procedures. Treatment was not recommended for healthy women; older women or men; or persons with diabetes, indwelling catheters, or spinal cord injury. The guideline did not address children and some adult populations, including patients with neutropenia, solid organ transplants, and nonurologic surgery. In the years since the publication of the guideline, further information relevant to ASB has become available. In addition, antimicrobial treatment of ASB has been recognized as an important contributor to inappropriate antimicrobial use, which promotes emergence of antimicrobial resistance. The current guideline updates the recommendations of the 2005 guideline, includes new recommendations for populations not previously addressed, and, where relevant, addresses the interpretation of nonlocalizing clinical symptoms in populations with a high prevalence of ASB.",
+        "sha256": "ec588924e5449390120c68c6d98ae144706d2eac03319c347a04fa2994b93af3",
+        "retrieved_at": "2026-09-18T23:36:39.983981+00:00"
+      },
+      {
+        "id": "31765489",
+        "title": "Antibiotics for asymptomatic bacteriuria in pregnancy.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31765489/",
+        "abstract": "Asymptomatic bacteriuria is a bacterial infection of the urine without any of the typical symptoms that are associated with a urinary infection, and occurs in 2% to 15% of pregnancies. If left untreated, up to 30% of mothers will develop acute pyelonephritis. Asymptomatic bacteriuria has been associated with low birthweight and preterm birth. This is an update of a review last published in 2015.\nTo assess the effect of antibiotic treatment for asymptomatic bacteriuria on the development of pyelonephritis and the risk of low birthweight and preterm birth.\nFor this update, we searched the Cochrane Pregnancy and Childbirth's Trials Register, ClinicalTrials.gov, the WHO International Clinical Trials Registry Platform (ICTRP) on 4 November 2018, and reference lists of retrieved studies.\nRandomised controlled trials (RCT) comparing antibiotic treatment with placebo or no treatment in pregnant women with asymptomatic bacteriuria found on antenatal screening. Trials using a cluster-RCT design and quasi-RCTs were eligible for inclusion, as were trials published in abstract or letter form, but cross-over studies were not.\nTwo review authors independently assessed trials for inclusion and risk of bias, extracted data, and checked for accuracy. We assessed the quality of the evidence using the GRADE approach.\nWe included 15 studies, involving over 2000 women. Antibiotic treatment compared with placebo or no treatment may reduce the incidence of pyelonephritis (average risk ratio (RR) 0.24, 95% confidence interval (CI) 0.13 to 0.41; 12 studies, 2017 women; low-certainty evidence). Antibiotic treatment may be associated with a reduction in the incidence of preterm birth (RR 0.34, 95% CI 0.13 to 0.88; 3 studies, 327 women; low-certainty evidence), and low birthweight babies (average RR 0.64, 95% CI 0.45 to 0.93; 6 studies, 1437 babies; low-certainty evidence). There may be a reduction in persistent bacteriuria at the time of delivery (average RR 0.30, 95% CI 0.18 to 0.53; 4 studies; 596 women), but the results were inconclusive for serious adverse neonatal outcomes (average RR 0.64, 95% CI 0.23 to 1.79, 3 studies; 549 babies). There were very limited data on which to estimate the effect of antibiotics on other infant outcomes, and maternal adverse effects were rarely described. Overall, we judged only one trial at low risk of bias across all domains; the other 14 studies were assessed as high or unclear risk of bias. Many studies lacked an adequate description of methods, and we could only judge the risk of bias as unclear, but in most studies, we assessed at least one domain at high risk of bias. We assessed the quality of the evidence for the three primary outcomes with GRADE software, and found low-certainty evidence for pyelonephritis, preterm birth, and birthweight less than 2500 g.\nAntibiotic treatment may be effective in reducing the risk of pyelonephritis in pregnancy, but our confidence in the effect estimate is limited given the low certainty of the evidence. There may be a reduction in preterm birth and low birthweight with antibiotic treatment, consistent with theories about the role of infection in adverse pregnancy outcomes, but again, the confidence in the effect is limited given the low certainty of the evidence. Research implications identified in this review include the need for an up-to-date cost-effectiveness evaluation of diagnostic algorithms, and more evidence to learn whether there is a low-risk group of women who are unlikely to benefit from treatment of asymptomatic bacteriuria.",
+        "sha256": "836dd1fdf94ff2972b9ca6e1965c0d66be9b74414650a1a4bc442595dd55ec43",
+        "retrieved_at": "2026-09-18T23:36:39.983981+00:00",
+        "pmcid": "PMC6953361"
+      },
+      {
+        "id": "34448496",
+        "title": "Associations of delirium with urinary tract infections and asymptomatic bacteriuria in adults aged 65 and older: A systematic review and meta-analysis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34448496/",
+        "abstract": "To determine the associations of delirium with urinary tract infection (UTI) and asymptomatic bacteriuria (AB) in individuals aged 65 and older.\nThe protocol for this systematic review and meta-analysis was published on PROSPERO (CRD42020164341). Electronic databases were searched for relevant studies, professional associations and experts in the field were additionally contacted. Studies with control groups reporting associations between delirium and UTI as well as delirium and AB in older adults were included. The random effects model meta-analysis was conducted using odds ratios (ORs) with 95% confidence intervals (CIs) as effect size measures. The Newcastle-Ottawa scale was used to rate the studies' quality. Heterogeneity was assessed using the Q and I2 tests. The effects of potential moderators were investigated by both subgroup and meta-regression analyses. The risk of publication bias was evaluated using the funnel plot and Egger's test.\nTwenty nine relevant studies (16,618 participants) examining the association between delirium and UTI in older adults were identified. The association between delirium and UTI was found to be significant (OR 2.67; 95% CI 2.12-3.36; p < 0.001) and persisted regardless of potential confounders. The association between delirium and AB in older adults in the only eligible study found (192 participants) was insignificant (OR 1.62; 95% CI 0.57-4.65; p = 0.37). All included studies were of moderate quality.\nThe results of this study support the association between delirium and UTI in older adults. Insufficient evidence was found to conclude on an association between delirium and AB in this age group. These findings are limited due to the moderate quality of the included studies and a lack of available research on the association between delirium and AB. Future studies should use the highest quality approaches for defining both delirium and UTI and consider AB in their investigations.",
+        "sha256": "8e8e7e8b7c30f7f105869607e4634d0b5bdf2662a380305788e9774e3b7023d3",
+        "retrieved_at": "2026-09-18T23:36:39.983981+00:00",
+        "pmcid": "PMC9292354"
+      },
+      {
+        "id": "31787323",
+        "title": "Prevalence of Asymptomatic Bacteriuria in Children: A Meta-Analysis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31787323/",
+        "abstract": "To determine the point prevalence of bacteriuria and bacteriuria without pyuria in asymptomatic children by a systematic review of the literature.\nWe searched MEDLINE and EMBASE for English-, French-, German-, Italian-, and Spanish-language articles. We included articles reporting data on bacteriuria in asymptomatic children up to 19 years of age who had urine collected by suprapubic bladder aspiration, bladder catheterization, or by 3 consecutive clean catch samples. Two independent reviewers assessed studies for inclusion and abstracted data.\nFourteen studies (49 806 children) were included. The prevalence of asymptomatic bacteriuria was 0.37% (95% CI, 0.09-0.82) in boys and 0.47% (95% CI, 0.36-0.59) in girls. The corresponding values for asymptomatic bacteriuria without pyuria were 0.18% (95% CI, 0.02-0.51) and 0.38% (95% CI, 0.22-0.58), respectively. The subgroups with the highest prevalence of asymptomatic bacteriuria were uncircumcised males <1 year of age and females >2 years of age. In males, the prevalence of asymptomatic bacteriuria after infancy was 0.08% (95% CI, 0.01-0.37). The median duration of asymptomatic bacteriuria in untreated boys and girls, from the one study reporting this outcome, was 1.5 and 2 months, respectively.\nSome clinicians are concerned that when a preverbal child with asymptomatic bacteriuria develops a nonlocalizing febrile illness and presents for evaluation, they may be mistakenly diagnosed as having a urinary tract infection (UTI). Given that the prevalence of asymptomatic bacteriuria is considerably lower than the prevalence of UTI in most subgroups examined, this will occur extremely rarely. These data suggest that the current definition of UTI should be revisited.",
+        "sha256": "dfb5366d7dc52c5f8a646e89100f01a4bbfb3d2e8292a2a9b99b2452d83b5fe0",
+        "retrieved_at": "2026-09-18T23:36:40.629013+00:00"
+      },
+      {
+        "id": "31782870",
+        "title": "Systematic review and meta-analysis of asymptomatic bacteriuria after renal transplantation: incidence, risk of complications, and treatment outcomes.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31782870/",
+        "abstract": "Routine treatment for asymptomatic bacteriuria (ASB) after renal transplantation (RT) represents nowadays a controversial topic, being unknown its impact on the overall prognosis of the transplanted patient.\nStudies published during 1970-2019 that evaluated the benefit of treating ASB after RT regarding the risk of renal complications were included. The primary outcome was to assess whether the treatment is associated with a lower risk of symptomatic urinary tract infection (UTI) or an improved renal function at the end of the follow-up period. The secondary outcome was the risk of acute graft rejection (AGR). A meta-analysis with a random-effect model was performed. Heterogeneity was assessed with the I2 measure.\nFifteen studies were included. The incidence of ASB in the first month and the first year after RT was 22% and 30%, respectively. ASB was not correlated to AGR (OR 1.18; 95% CI, 0.78-1.79). Eight studies compared the outcomes of ASB treatment, finding no benefit of treating regarding the risk of symptomatic UTI (OR 1.08; 95% CI, 0.63-1.84; I2  = 35%) or the change in renal function (mean difference in serum creatinine concentration-0.03 mg/dL,95% CI-0.15-0.10; I2  = 53%).\nAsymptomatic bacteriuria represents a frequent finding after RT, highlighting the need for appropriate management of this condition. Considering that its treatment did not decrease the risk of the studied complications, antibiotic therapy should start to be questioned, as it has been related to higher rates of antimicrobial resistance and high economic costs.",
+        "sha256": "3acbc0328d5ff41237729468bd82c20c227dfe33c57f66abd7ab2de351fbc06e",
+        "retrieved_at": "2026-09-18T23:36:40.629013+00:00"
+      },
+      {
+        "id": "39255721",
+        "title": "Association between asymptomatic bacteriuria in pregnancy and adverse pregnancy- and births outcomes. A systematic review.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39255721/",
+        "abstract": "Existing guidelines for screening and treatment of asymptomatic bacteriuria (ASB) in pregnancy are based on studies completed more than 30 years ago. This evidence is characterized by a lack of consensus on the association between ASB and adverse pregnancy- and birth outcomes.\nThis systematic review aimed to investigate the association between untreated/treated ASB (≥105 colony-forming units (cfu) of the same bacteria per ml urine in two consecutive voided cultures without any symptoms) and pregnancy outcomes (pyelonephritis, chorioamnionitis, prelabour rupture of membranes (PROM)), and birth outcomes (preterm birth (PTB), low birth weight (LBW) and small for gestational age (SGA)). The impact of the most serious pathogens E. coli and Group B streptococci (GBS) on these outcomes was also examined.\nA systematic literature search was prepared according to the guideline Preferred Reporting Items for Systematic Reviews and Meta-analysis (PRISMA). The search was conducted in the databases Medline, Embase, and Cochrane Library, with a systematic strategy based on the PICO acronym (Population, Intervention, Comparison, Outcome). Covidence was used as a screening- and data extraction tool. Randomized trials and observational studies published between, January 01, 2005-February 10, 2023, were identified. The Cochrane Collaboration risk of bias tool 2 and the Newcastle-Ottawa Quality Assessment Scale were applied to assess the quality of the included studies. A protocol was published prior to this review, at the international prospective register of systematic reviews (PROSPERO).\nThe database search yielded 3029 records. Fourteen studies were included. Untreated pregnant women with ASB had significantly increased odds of pyelonephritis. Most of the studies showed no significant association between treated ASB and pyelonephritis. In treated ASB, an increased risk of both chorioamnionitis and PROM was found. Divergent results were found in the association between ASB and PTB, as well as in the association between untreated ASB and LBW. Most of the studies showed no significant association between treated ASB and LBW. One study found no significant association between untreated/treated ASB and SGA. No studies were identified that addressed the association between ASB with E. coli/GBS and the outcomes examined.\nThere is a need for more recent high-quality studies to investigate the association between untreated/treated ASB and pregnancy- and birth outcomes, and to assess the impact of E. coli/GBS on these outcomes.",
+        "sha256": "f0010b7e1145ce2771509b46bf7267f892c9015d5168f2952800f95f8b144e8c",
+        "retrieved_at": "2026-09-18T23:36:40.629013+00:00"
+      },
+      {
+        "id": "31506700",
+        "title": "Clinical Practice Guideline for the Management of Asymptomatic Bacteriuria: 2019 Update by the Infectious Diseases Society of America.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31506700/",
+        "abstract": "Asymptomatic bacteriuria (ASB) is a common finding in many populations, including healthy women and persons with underlying urologic abnormalities. The 2005 guideline from the Infectious Diseases Society of America recommended that ASB should be screened for and treated only in pregnant women or in an individual prior to undergoing invasive urologic procedures. Treatment was not recommended for healthy women; older women or men; or persons with diabetes, indwelling catheters, or spinal cord injury. The guideline did not address children and some adult populations, including patients with neutropenia, solid organ transplants, and nonurologic surgery. In the years since the publication of the guideline, further information relevant to ASB has become available. In addition, antimicrobial treatment of ASB has been recognized as an important contributor to inappropriate antimicrobial use, which promotes emergence of antimicrobial resistance. The current guideline updates the recommendations of the 2005 guideline, includes new recommendations for populations not previously addressed, and, where relevant, addresses the interpretation of nonlocalizing clinical symptoms in populations with a high prevalence of ASB.",
+        "sha256": "ec588924e5449390120c68c6d98ae144706d2eac03319c347a04fa2994b93af3",
+        "retrieved_at": "2026-09-18T23:36:41.112331+00:00"
+      },
+      {
+        "id": "32321329",
+        "title": "Antibiotic resistant profile of asymptomatic bacteriuria in pregnant women: a systematic review and meta-analysis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32321329/",
+        "abstract": "Different microorganisms contribute in the pregnancy bacteriuria, which resistance microorganisms limited the therapeutic options for the treatment and increasing the related risks to pregnant women and their pregnancy. Based on this, asymptomatic bacteriuria and the use of inappropriate empirical antibiotics are dangerous in the emergence of pregnancy complications and the incidence of drug resistant.\nA comprehensive systematic search was performed on all international databases including Scopus, PubMed, Web of Science, Medline, Cochrane library during 2000 - June 2019. This meta-analysis, which was registered by a pre-defined protocol in PROSPRO, carried out in accordance with PRISMA guideline. Relevant articles were included in the analysis if reported the susceptibility pattern of antimicrobial resistance related to asymptomatic bacteria in pregnant women with no acute diseases. Overall prevalence and related 95% confidence interval for resistance in different asymptomatic infections were estimated by inverse variance method. The random effect model was used in case of considerable heterogeneity.\nResults of this analysis demonstrated different resistance rate against studied classes of antibiotics. Nitrofurantoin resistance in E. coli, Klebsiella sp, P. aeruginosa, and Staphylococcus aureus isolates were estimated 0.22 (95%CI: 0.15-0.30), 0.40 (95%CI: 0.26-0.54), 0.81 (95%CI: 0.59-0.97), 0.34 (0.11-0.63), respectively. Subgroups analysis showed highest resistance in E. coli isolates, in Asia and Africa against Cefotaxime and Ampicillin, respectively.\nIn summary, increasing resistance rate in urinary tract infection (UTI)-related agents is a risk factor that endangers both mother and fetus. Health care providers should consider screening as the radical part of infection control strategies. Due to low resistance rate to Nitrofurantoin, this drug can be a good choice for UTI treatment in pregnancies, but it should use with caution.",
+        "sha256": "20ffc489384ad17fb84be2331a1c6f06ff084b0a7d6ec7a3821282ea487941b6",
+        "retrieved_at": "2026-09-18T23:36:41.112331+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Pregnancy is a well-established exception to the general recommendation against treating asymptomatic bacteriuria. The IDSA 2019 guideline (30895288/31506700) specifically recommends screening for and treating ASB in pregnant women, unlike healthy nonpregnant women. This case meets the standard microbiologic definition of ASB in pregnancy: two consecutive voided cultures growing >=100,000 CFU/mL of the same organism (E. coli, same susceptibility profile) in a patient without urinary or systemic symptoms. The Cochrane review (31765489) supports antibiotic treatment as reducing the risk of pyelonephritis, preterm birth, and low birthweight, though with low-certainty evidence. Answer B correctly recommends treatment with a pregnancy-appropriate, susceptibility-guided agent and appropriately declines to specify drug/dose/duration because susceptibility results are not provided. Answer A applies the nonpregnant management approach and is incorrect for a pregnant patient. Confidence is high but not maximal given the acknowledged low certainty of the underlying trial evidence and recent calls for updated studies (39255721).",
+          "confidence": 0.9
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31765489"
+              ],
+              "source_passage_ids": [
+                "31765489:p0"
+              ],
+              "reason": "The Cochrane review defines asymptomatic bacteriuria as bacteriuria of the urine without any typical UTI symptoms.",
+              "source_quotes": [
+                {
+                  "source_id": "31765489",
+                  "quote": "Asymptomatic bacteriuria is a bacterial infection of the urine without any of the typical symptoms that are associated with a urinary infection, and occurs in 2% to 15% of pregnancies. If left untreated, up to 30% of mothers will develop acute pyelonephritis. Asymptomatic bacteriuria has been associated with low birthweight and preterm birth. This is an update of a review last published in 2015. To assess the effect of antibiotic treatment for asymptomatic bacteriuria on the development of pyelonephritis and the risk of low birthweight and preterm birth. For this update, we searched the Cochrane Pregnancy and Childbirth's Trials Register, ClinicalTrials.gov, the WHO International Clinical Trials Registry Platform (ICTRP) on 4 November 2018, and reference lists of retrieved studies."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39255721"
+              ],
+              "source_passage_ids": [
+                "39255721:p0"
+              ],
+              "reason": "The 2024 systematic review defines ASB in pregnancy as ≥105 CFU of the same bacteria per ml in two consecutive voided cultures without symptoms — exactly matching the patient's two cultures.",
+              "source_quotes": [
+                {
+                  "source_id": "39255721",
+                  "quote": "Existing guidelines for screening and treatment of asymptomatic bacteriuria (ASB) in pregnancy are based on studies completed more than 30 years ago. This evidence is characterized by a lack of consensus on the association between ASB and adverse pregnancy- and birth outcomes. This systematic review aimed to investigate the association between untreated/treated ASB (≥105 colony-forming units (cfu) of the same bacteria per ml urine in two consecutive voided cultures without any symptoms) and pregnancy outcomes (pyelonephritis, chorioamnionitis, prelabour rupture of membranes (PROM)), and birth outcomes (preterm birth (PTB), low birth weight (LBW) and small for gestational age (SGA)). The impact of the most serious pathogens E. coli and Group B streptococci (GBS) on these outcomes was also examined."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "30895288"
+              ],
+              "source_passage_ids": [
+                "30895288:p0"
+              ],
+              "reason": "The IDSA guideline abstract states ASB should be screened for and treated in pregnant women.",
+              "source_quotes": [
+                {
+                  "source_id": "30895288",
+                  "quote": "Asymptomatic bacteriuria (ASB) is a common finding in many populations, including healthy women and persons with underlying urologic abnormalities. The 2005 guideline from the Infectious Diseases Society of America recommended that ASB should be screened for and treated only in pregnant women or in an individual prior to undergoing invasive urologic procedures. Treatment was not recommended for healthy women; older women or men; or persons with diabetes, indwelling catheters, or spinal cord injury. The guideline did not address children and some adult populations, including patients with neutropenia, solid organ transplants, and nonurologic surgery. In the years since the publication of the guideline, further information relevant to ASB has become available."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "31765489"
+              ],
+              "source_passage_ids": [
+                "31765489:p1",
+                "31765489:p3"
+              ],
+              "reason": "Cochrane review reports antibiotic treatment may reduce pyelonephritis (RR 0.24) with low-certainty evidence versus placebo/no treatment in pregnant women.",
+              "source_quotes": [
+                {
+                  "source_id": "31765489",
+                  "quote": "Randomised controlled trials (RCT) comparing antibiotic treatment with placebo or no treatment in pregnant women with asymptomatic bacteriuria found on antenatal screening. Trials using a cluster-RCT design and quasi-RCTs were eligible for inclusion, as were trials published in abstract or letter form, but cross-over studies were not. Two review authors independently assessed trials for inclusion and risk of bias, extracted data, and checked for accuracy. We assessed the quality of the evidence using the GRADE approach. We included 15 studies, involving over 2000 women. Antibiotic treatment compared with placebo or no treatment may reduce the incidence of pyelonephritis (average risk ratio (RR) 0.24, 95% confidence interval (CI) 0.13 to 0.41; 12 studies, 2017 women; low-certainty evidence)."
+                },
+                {
+                  "source_id": "31765489",
+                  "quote": "Many studies lacked an adequate description of methods, and we could only judge the risk of bias as unclear, but in most studies, we assessed at least one domain at high risk of bias. We assessed the quality of the evidence for the three primary outcomes with GRADE software, and found low-certainty evidence for pyelonephritis, preterm birth, and birthweight less than 2500 g. Antibiotic treatment may be effective in reducing the risk of pyelonephritis in pregnancy, but our confidence in the effect estimate is limited given the low certainty of the evidence. There may be a reduction in preterm birth and low birthweight with antibiotic treatment, consistent with theories about the role of infection in adverse pregnancy outcomes, but again, the confidence in the effect is limited given the low certainty of the evidence."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "39255721"
+              ],
+              "source_passage_ids": [
+                "39255721:p2"
+              ],
+              "reason": "The 2024 review found untreated pregnant women with ASB had significantly increased odds of pyelonephritis.",
+              "source_quotes": [
+                {
+                  "source_id": "39255721",
+                  "quote": "Untreated pregnant women with ASB had significantly increased odds of pyelonephritis. Most of the studies showed no significant association between treated ASB and pyelonephritis. In treated ASB, an increased risk of both chorioamnionitis and PROM was found. Divergent results were found in the association between ASB and PTB, as well as in the association between untreated ASB and LBW. Most of the studies showed no significant association between treated ASB and LBW. One study found no significant association between untreated/treated ASB and SGA. No studies were identified that addressed the association between ASB with E. coli/GBS and the outcomes examined. There is a need for more recent high-quality studies to investigate the association between untreated/treated ASB and pregnancy- and birth outcomes, and to assess the impact of E. coli/GBS on these outcomes."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "32321329"
+              ],
+              "source_passage_ids": [
+                "32321329:p0",
+                "32321329:p1"
+              ],
+              "reason": "The resistance meta-analysis shows variable resistance across isolates/agents and warns that inappropriate empirical antibiotics are dangerous, supporting susceptibility-guided selection.",
+              "source_quotes": [
+                {
+                  "source_id": "32321329",
+                  "quote": "Different microorganisms contribute in the pregnancy bacteriuria, which resistance microorganisms limited the therapeutic options for the treatment and increasing the related risks to pregnant women and their pregnancy. Based on this, asymptomatic bacteriuria and the use of inappropriate empirical antibiotics are dangerous in the emergence of pregnancy complications and the incidence of drug resistant. A comprehensive systematic search was performed on all international databases including Scopus, PubMed, Web of Science, Medline, Cochrane library during 2000 - June 2019. This meta-analysis, which was registered by a pre-defined protocol in PROSPRO, carried out in accordance with PRISMA guideline. Relevant articles were included in the analysis if reported the susceptibility pattern of antimicrobial resistance related to asymptomatic bacteria in pregnant women with no acute diseases."
+                },
+                {
+                  "source_id": "32321329",
+                  "quote": "Overall prevalence and related 95% confidence interval for resistance in different asymptomatic infections were estimated by inverse variance method. The random effect model was used in case of considerable heterogeneity. Results of this analysis demonstrated different resistance rate against studied classes of antibiotics. Nitrofurantoin resistance in E. coli, Klebsiella sp, P. aeruginosa, and Staphylococcus aureus isolates were estimated 0.22 (95%CI: 0.15-0.30), 0.40 (95%CI: 0.26-0.54), 0.81 (95%CI: 0.59-0.97), 0.34 (0.11-0.63), respectively. Subgroups analysis showed highest resistance in E. coli isolates, in Asia and Africa against Cefotaxime and Ampicillin, respectively. In summary, increasing resistance rate in urinary tract infection (UTI)-related agents is a risk factor that endangers both mother and fetus."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is an on-specialty infectious diseases stewardship problem. A pregnant second-trimester patient has two consecutive voided cultures growing ≥100,000 CFU/mL of the same E. coli without any urinary or systemic symptoms — this precisely matches the ASB-in-pregnancy definition from source 39255721 (≥105 CFU same bacteria in two consecutive voided cultures without symptoms) and 31765489 (bacteriuria without typical UTI symptoms). Solving independently from the data: pregnancy is a recognized exception to the general 'do not treat ASB' stewardship rule; IDSA (30895288) explicitly recommends screening and treatment in pregnant women, Cochrane (31765489) shows treatment may reduce pyelonephritis, and the 2024 review (39255721) shows untreated ASB increases pyelonephritis odds. Therefore treatment (B) is correct and A (observation only) would be unsafe by omitting indicated care. The sound answer B appropriately declines to specify a drug/dose since the supplied evidence supports susceptibility-guided selection (32321329 warns against inappropriate empirical selection; nitrofurantoin caveat noted) without a specific regimen. The intended flawed answer A overgeneralizes the ASB non-treatment rule and misses the pregnancy exception — this is the case working as designed. The question does not disclose the answer; it asks 'most appropriate management' neutrally. Decision is distinct (treat vs observe), no previous cases to overlap. All six claims are supported by the cited passages. Minor note: no antibiotic drug/dose is specified, but this is a deliberate and defensible feature since the evidence base does not establish a specific regimen and the isolate's actual susceptibility profile is not given in detail; observation-only care would be the essential omission, which B correctly avoids. No blocking defects found."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Two consecutive voided cultures growing the same E. coli isolate at at least 100,000 CFU/mL in a patient without urinary symptoms establish asymptomatic bacteriuria. Pregnancy is a key exception to the general recommendation not to treat asymptomatic bacteriuria. IDSA guidance recommends treatment in pregnant patients, and evidence suggests that therapy reduces maternal pyelonephritis risk and may reduce preterm birth and low birth weight. Treatment should be selected according to susceptibility and pregnancy safety; the available data are insufficient to specify a particular regimen.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31765489"
+              ],
+              "reason": "The source directly defines asymptomatic bacteriuria as bacteriuria without typical urinary-infection symptoms.",
+              "source_passage_ids": [
+                "31765489:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31765489",
+                  "quote": "Asymptomatic bacteriuria is a bacterial infection of the urine without any of the typical symptoms that are associated with a urinary infection, and occurs in 2% to 15% of pregnancies. If left untreated, up to 30% of mothers will develop acute pyelonephritis. Asymptomatic bacteriuria has been associated with low birthweight and preterm birth. This is an update of a review last published in 2015. To assess the effect of antibiotic treatment for asymptomatic bacteriuria on the development of pyelonephritis and the risk of low birthweight and preterm birth. For this update, we searched the Cochrane Pregnancy and Childbirth's Trials Register, ClinicalTrials.gov, the WHO International Clinical Trials Registry Platform (ICTRP) on 4 November 2018, and reference lists of retrieved studies."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39255721"
+              ],
+              "reason": "The review expressly uses at least 10^5 CFU/mL of the same organism in two consecutive voided cultures without symptoms as its pregnancy ASB definition, matching the case.",
+              "source_passage_ids": [
+                "39255721:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39255721",
+                  "quote": "Existing guidelines for screening and treatment of asymptomatic bacteriuria (ASB) in pregnancy are based on studies completed more than 30 years ago. This evidence is characterized by a lack of consensus on the association between ASB and adverse pregnancy- and birth outcomes. This systematic review aimed to investigate the association between untreated/treated ASB (≥105 colony-forming units (cfu) of the same bacteria per ml urine in two consecutive voided cultures without any symptoms) and pregnancy outcomes (pyelonephritis, chorioamnionitis, prelabour rupture of membranes (PROM)), and birth outcomes (preterm birth (PTB), low birth weight (LBW) and small for gestational age (SGA)). The impact of the most serious pathogens E. coli and Group B streptococci (GBS) on these outcomes was also examined."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "30895288"
+              ],
+              "reason": "The guideline abstract explicitly reports pregnancy as a population for which screening and treatment of ASB were recommended.",
+              "source_passage_ids": [
+                "30895288:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "30895288",
+                  "quote": "Asymptomatic bacteriuria (ASB) is a common finding in many populations, including healthy women and persons with underlying urologic abnormalities. The 2005 guideline from the Infectious Diseases Society of America recommended that ASB should be screened for and treated only in pregnant women or in an individual prior to undergoing invasive urologic procedures. Treatment was not recommended for healthy women; older women or men; or persons with diabetes, indwelling catheters, or spinal cord injury. The guideline did not address children and some adult populations, including patients with neutropenia, solid organ transplants, and nonurologic surgery. In the years since the publication of the guideline, further information relevant to ASB has become available."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "31765489"
+              ],
+              "reason": "The pregnancy-specific randomized-trial review found fewer episodes of pyelonephritis with antibiotics versus placebo or no treatment and graded the evidence as low certainty.",
+              "source_passage_ids": [
+                "31765489:p1",
+                "31765489:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31765489",
+                  "quote": "Randomised controlled trials (RCT) comparing antibiotic treatment with placebo or no treatment in pregnant women with asymptomatic bacteriuria found on antenatal screening. Trials using a cluster-RCT design and quasi-RCTs were eligible for inclusion, as were trials published in abstract or letter form, but cross-over studies were not. Two review authors independently assessed trials for inclusion and risk of bias, extracted data, and checked for accuracy. We assessed the quality of the evidence using the GRADE approach. We included 15 studies, involving over 2000 women. Antibiotic treatment compared with placebo or no treatment may reduce the incidence of pyelonephritis (average risk ratio (RR) 0.24, 95% confidence interval (CI) 0.13 to 0.41; 12 studies, 2017 women; low-certainty evidence)."
+                },
+                {
+                  "source_id": "31765489",
+                  "quote": "Many studies lacked an adequate description of methods, and we could only judge the risk of bias as unclear, but in most studies, we assessed at least one domain at high risk of bias. We assessed the quality of the evidence for the three primary outcomes with GRADE software, and found low-certainty evidence for pyelonephritis, preterm birth, and birthweight less than 2500 g. Antibiotic treatment may be effective in reducing the risk of pyelonephritis in pregnancy, but our confidence in the effect estimate is limited given the low certainty of the evidence. There may be a reduction in preterm birth and low birthweight with antibiotic treatment, consistent with theories about the role of infection in adverse pregnancy outcomes, but again, the confidence in the effect is limited given the low certainty of the evidence."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "39255721"
+              ],
+              "reason": "The recent systematic review directly reports significantly increased odds of pyelonephritis in untreated pregnant patients with ASB.",
+              "source_passage_ids": [
+                "39255721:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39255721",
+                  "quote": "Untreated pregnant women with ASB had significantly increased odds of pyelonephritis. Most of the studies showed no significant association between treated ASB and pyelonephritis. In treated ASB, an increased risk of both chorioamnionitis and PROM was found. Divergent results were found in the association between ASB and PTB, as well as in the association between untreated ASB and LBW. Most of the studies showed no significant association between treated ASB and LBW. One study found no significant association between untreated/treated ASB and SGA. No studies were identified that addressed the association between ASB with E. coli/GBS and the outcomes examined. There is a need for more recent high-quality studies to investigate the association between untreated/treated ASB and pregnancy- and birth outcomes, and to assess the impact of E. coli/GBS on these outcomes."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "32321329"
+              ],
+              "reason": "The pregnancy-specific resistance review reports materially different resistance rates by organism and antibiotic and warns about inappropriate empirical antibiotics, supporting susceptibility-guided rather than unsupported empirical selection.",
+              "source_passage_ids": [
+                "32321329:p0",
+                "32321329:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32321329",
+                  "quote": "Different microorganisms contribute in the pregnancy bacteriuria, which resistance microorganisms limited the therapeutic options for the treatment and increasing the related risks to pregnant women and their pregnancy. Based on this, asymptomatic bacteriuria and the use of inappropriate empirical antibiotics are dangerous in the emergence of pregnancy complications and the incidence of drug resistant. A comprehensive systematic search was performed on all international databases including Scopus, PubMed, Web of Science, Medline, Cochrane library during 2000 - June 2019. This meta-analysis, which was registered by a pre-defined protocol in PROSPRO, carried out in accordance with PRISMA guideline. Relevant articles were included in the analysis if reported the susceptibility pattern of antimicrobial resistance related to asymptomatic bacteria in pregnant women with no acute diseases."
+                },
+                {
+                  "source_id": "32321329",
+                  "quote": "Overall prevalence and related 95% confidence interval for resistance in different asymptomatic infections were estimated by inverse variance method. The random effect model was used in case of considerable heterogeneity. Results of this analysis demonstrated different resistance rate against studied classes of antibiotics. Nitrofurantoin resistance in E. coli, Klebsiella sp, P. aeruginosa, and Staphylococcus aureus isolates were estimated 0.22 (95%CI: 0.15-0.30), 0.40 (95%CI: 0.26-0.54), 0.81 (95%CI: 0.59-0.97), 0.34 (0.11-0.63), respectively. Subgroups analysis showed highest resistance in E. coli isolates, in Asia and Africa against Cefotaxime and Ampicillin, respectively. In summary, increasing resistance rate in urinary tract infection (UTI)-related agents is a risk factor that endangers both mother and fetus."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent review favors B. This clinically well pregnant patient has asymptomatic bacteriuria by the supplied definition: two consecutive voided cultures grew the same E. coli isolate at at least 100,000 CFU/mL, with no urinary or systemic symptoms. Pregnancy is the relevant exception to the usual stewardship rule against treating ASB. Pregnancy-specific evidence supports antibiotic treatment over observation because it may reduce pyelonephritis, while appropriately acknowledging low certainty. B does not invent a drug, dose, or duration that the supplied evidence cannot establish and safely directs selection according to susceptibility and pregnancy considerations. The missing numerical susceptibility panel prevents a specific prescription but does not prevent the treatment-versus-observation decision asked here. A is the intentionally unsafe option because it overlooks the pregnancy exception. The title, clinical note, and question do not themselves disclose the management answer. There are no previous cases against which this decision duplicates another exercise."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "34ab9a6de9e98cf3a1b18f2f79ed13b101b3c8749cc8010a933f7fef6ffffbdd"
+  }
+}

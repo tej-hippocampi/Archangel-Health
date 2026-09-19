@@ -49,12 +49,13 @@ def test_legacy_advisor_migration_preserves_all_other_data_and_restores(setup, t
     store, _, _, advisor = setup
     physician = A.make_user(store, specialty="nephrology")
     task = store.insert_task(prompt="Original synthetic clinical source", specialty="nephrology")
-    store.record_credentialing_exam(user_id=physician["id"], task_id=task["task_id"],
-        specialty="nephrology", attempt=1, payload={"original_answer": "Preserve exactly."})
     store.insert_submission(submission_id="original-submission", task_id=task["task_id"],
         evaluator_id=physician["id"], verdict="accept", chosen_id=None, rejected_id=None,
         confidence="high", time_spent_sec=180, payload={"original": "physician annotation"},
         annotator={"id": physician["id"]}, dedupe_hash="original-evidence")
+    # Recreate legacy coexistence before the new exam-to-paid-write guard.
+    store.record_credentialing_exam(user_id=physician["id"], task_id=task["task_id"],
+        specialty="nephrology", attempt=1, payload={"original_answer": "Preserve exactly."})
     store._init_schema()
     # Match the old production state, including accidental startup assignment.
     with store._conn() as conn:

@@ -61,6 +61,7 @@ def client():
 def _applicant(store, **kw):
     """An account in the state the wizard leaves behind: pending, no password."""
     kw.setdefault("role", "evaluator")
+    kw.setdefault("specialty", "nephrology")
     u = make_user(store, **kw)
     with store._conn() as conn:
         conn.execute(

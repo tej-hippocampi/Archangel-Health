@@ -1,0 +1,440 @@
+{
+  "task_id": "onboarding-practice-v1-ca25a37ef4cffb536a33-1",
+  "specialty": "pediatrics",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Four-month-old infant with worsening respiratory symptoms",
+    "question": "Which respiratory support strategy is most appropriate at this point in the infant's hospital care?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "pediatrics",
+      "demographics": {
+        "age_band": "0-1",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Acute cough and nasal congestion",
+          "since": "3 days",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Increased work of breathing",
+          "since": "1 day",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Reduced oral intake",
+          "since": "1 day",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Persistent hypoxaemia on room air",
+          "since": "At presentation",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "temperature_c": 37.6,
+        "heart_rate_per_min": 156,
+        "respiratory_rate_per_min": 58,
+        "spo2_room_air_percent": "87-89 persistently during calm observation"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Emergency assessment",
+          "author_role": "pediatric clinician",
+          "text": "A previously healthy 4-month-old term infant presents after three days of rhinorrhoea and cough, followed by one day of faster breathing and feeding at about two-thirds of usual volume. There has been no apnoea, cyanotic episode, or choking event. Examination shows an alert infant with moderate subcostal recession, diffuse bilateral crackles and wheeze, and no focal reduction in air entry. Room-air oxygen saturation remains 87% to 89% during calm observation with a reliable waveform. Perfusion is normal, mucous membranes are moist, and there are no findings of exhaustion, altered mental state, or impending respiratory failure. No respiratory support has yet been given.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for respiratory support decision",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "Begin supplemental oxygen using conventional low-flow therapy and reassess oxygenation and clinical status. This infant is older than 6 weeks and has persistent oxygen saturation below 90%, which supports oxygen treatment. Humidified high-flow therapy should not routinely be used as first-line oxygen support for moderate hypoxaemic bronchiolitis; it is reserved for failure of low-flow oxygen. Although randomized-trial synthesis suggests high-flow therapy can reduce subsequent treatment escalation compared with low-flow therapy, the updated guideline reconciles the broader evidence and recommends high flow as rescue rather than initial therapy in this setting.",
+        "evidence": {
+          "decision_scope": "Hospital respiratory support for an infant with moderate hypoxaemic bronchiolitis"
+        },
+        "key_data": [
+          "The infant is 4 months old and therefore at least 6 weeks of age.",
+          "Room-air oxygen saturation is persistently 87% to 89%, below the supported 90% treatment threshold.",
+          "Moderate work of breathing is present without exhaustion, apnoea, altered mental state, or impending respiratory failure.",
+          "No trial of conventional low-flow oxygen has yet occurred."
+        ]
+      },
+      "hard_hook": "Persistent hypoxaemia warrants oxygen, but the choice between conventional low-flow and immediate high-flow support depends on whether low-flow therapy has already failed.",
+      "reasoning_divergence": "The flawed approach overinterprets evidence that high flow can reduce escalation and uses it immediately, overlooking the guideline's recommendation to use low-flow oxygen first and reserve high flow for rescue."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Start supplemental oxygen with conventional low-flow nasal therapy and reassess the infant's saturation and clinical status. Escalate to humidified high-flow therapy only if low-flow oxygen fails to maintain oxygenation above the recommended level."
+      },
+      {
+        "id": "B",
+        "text": "Start humidified high-flow nasal cannula therapy immediately because the infant is hypoxaemic and has moderate retractions. High flow should replace an initial low-flow oxygen trial to reduce the likelihood that respiratory support will later require escalation."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "bronchiolitis",
+      "hypoxaemia",
+      "low-flow oxygen",
+      "high-flow nasal cannula",
+      "respiratory distress"
+    ],
+    "evidence_keywords": [
+      "oxygen saturation threshold",
+      "infant age",
+      "first-line oxygen",
+      "rescue therapy",
+      "treatment escalation"
+    ],
+    "error_tags": [
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "For infants with bronchiolitis aged at least 6 weeks, supplemental oxygen is recommended when oxygen saturation is persistently below 90%.",
+        "source_ids": [
+          "40685806"
+        ]
+      },
+      {
+        "statement": "Supplemental oxygen should be used for hypoxaemia rather than for increased work of breathing alone.",
+        "source_ids": [
+          "40685806"
+        ]
+      },
+      {
+        "statement": "High-flow therapy should not routinely be first-line oxygen therapy for moderate hypoxaemic bronchiolitis and should be considered after low-flow oxygen fails.",
+        "source_ids": [
+          "40685806"
+        ]
+      },
+      {
+        "statement": "A systematic review of randomized trials found that high-flow therapy probably reduced treatment escalation compared with low-flow oxygen, although several other outcomes had low-certainty evidence.",
+        "source_ids": [
+          "38506440"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:30:00.989739+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "40685806",
+        "title": "Australasian Bronchiolitis Guideline: 2025 Update.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40685806/",
+        "abstract": "To provide updated evidence-based clinical guidance in the management of infants with bronchiolitis presenting to emergency departments (EDs), general paediatric, or intensive care units (ICUs) in Australia and Aotearoa New Zealand (AoNZ) following the first publication in 2016.\nThe Paediatric Research in Emergency Departments International Collaborative (PREDICT) network guideline working group appraised, summarised, and updated evidence from 1 January 2000 to 24 January 2024 addressing 41 questions (30 from the 2016 guideline and 11 new questions for 2025). Recommendations were developed using GRADE methodology and revised after a period of external consultation.\nThe literature search identified 26 467 citations with 431 included in 41 recommendations providing 11 new and 7 key updates. The key changes included: (i) refinement of the clinical features of bronchiolitis, (ii) addition of new risk factors for severity of illness, (iii) advice on the role of biomarkers for unexpected deterioration or admission to ICU, (iv) guidance on glucocorticoids in SARS-CoV-2 co-infection, (v) guidance on combined glucocorticoids/inhaled epinephrine in severe bronchiolitis requiring ICU level care, (vi) refinement of oxygen saturation targets, (vii) guidance on humidified high flow therapy and continuous positive airway pressure, (viii) recommendation on use of RSV prevention therapies/immunisations for babies and mothers.\nThe updated Australasian Bronchiolitis Guideline provides clinicians across Australasian settings with the latest evidence-based guidance on the management of the commonest condition in infancy requiring hospital admission.",
+        "sha256": "a284e47b36191affd77b4276614116c0a96f3f3138f3748c4c410bee58c09d8d",
+        "retrieved_at": "2026-09-18T23:28:47.444974+00:00",
+        "pmcid": "PMC12397848",
+        "body_excerpts": "Introduction\nBronchiolitis is one of the most common reasons for hospital admission in Australian and Aotearoa New Zealand (AoNZ) infants [ 1 , 2 ]. It is an acute respiratory condition generally occurring seasonally in winter months, most often associated with a Respiratory Syncytial Virus (RSV) infection [ 3 ] and typically affects infants < 12 months of age [ 4 ]. The condition begins with signs of an upper respiratory tract infection (e.g., rhinorrhoea, nasal congestion, cough), followed by signs of a lower respiratory tract infection, including respiratory distress and the presence of diffuse crackles and/or wheeze. Bronchiolitis may also involve hypoxaemia, apnoea, increased respiratory and heart rate, the use of accessory muscles, feeding difficulties, irritability and/or lethargy [ 4 ].\n\nIntroduction\nTo inform the management of infants presenting to hospital or hospitalised with bronchiolitis in Australia and AoNZ, the Paediatric Research in Emergency Departments International Collaborative (PREDICT) formed a Guideline Development Committee to develop the first Australasian Bronchiolitis Guideline published online in 2016 [ 5 , 6 ]. The guideline was prompted by the lack of Australasian‐specific, evidence‐based guidance on the management of bronchiolitis in infants, with data indicating variation in clinical practice in this acute setting [ 7 , 8 ]. It provided 31 recommendations covering 22 investigations and therapies.\n\nIntroduction\nIn 2022, PREDICT commenced a planned update of the Australasian bronchiolitis guideline, to incorporate evidence since the first guideline. The scope was expanded to include new topics on preventative therapies for RSV, treatment of SARS‐CoV‐2 co‐infection, as well as broadening the recommendations to high dependency (HDU)/intensive care (ICU) level care.\n\nIntroduction > Aims and Objectives\nThe 2025 guideline update aims to provide evidence‐based guidance for a target audience of clinicians managing infants (aged < 12 months) with bronchiolitis, who have presented to an emergency department (ED), admitted to a general paediatric ward or an ICU/HDU (requiring treatment up to the point of intubation and mechanical ventilation) in the Australasian setting. This article reports on the update of the original 2016 guideline [ 6 ].\n\nMaterials and Methods\nThe Australasian Bronchiolitis Guideline was prospectively registered on the Guideline International Network (GIN) library [ 9 ], and PROSPERO (CRD42023463917) [ 10 ]. The Appraisal of Guidelines Research and Evaluation (AGREE) and Check‐Up reporting checklists were followed. Extensive details of the methodology, including lessons learned for guideline developers and reporting checklists, are available in a companion article [ 11 ]. The full guideline report and evidence profiles are freely available on the PREDICT website [ 12 , 13 ].\n\nMaterials and Methods\nThe PREDICT Bronchiolitis Guideline Advisory Group (GAG), consisting of five medical (MLB, SRD, FEB, EC, EO) and two nursing specialists (LH, SO) in general paediatrics and paediatric emergency medicine (PEM), plus three methodology experts (KL, EJT, CW), from Australia and AoNZ, was established to have overall responsibility for determining the updated guideline strategy and process, overseeing the evidence review, and managing the development of recommendations through to publication. In addition, 19 clinical and academic experts in paediatric emergency medicine, immunology, neonatology, intensive care, general paediatrics, and primary care were invited to form the Guideline Development Committee (GDC) whose role was to determine the scope, provide feedback during the evidence review, develop the recommendations, and vote to finalise the recommendations.\n\nMaterials and Methods > Scope and Process\nInterest‐holder consultation was performed over 8 weeks to gain feedback on the recommendations and ensure the acceptability, feasibility, and applicability of the recommendations to Australasian consumers of the guideline (clinicians, policymakers, patients and families). This process is described in detail in our companion methodology paper [ 11 ]. Ten colleges, five societies, and 13 hospitals and local governance groups in Australia and AoNZ were invited to provide consultation. Formal endorsement was sought from the two specialist colleges credentialing care in Australia and AoNZ hospitals (Australasian College for Emergency Medicine and Royal Australasian College of Physicians). All organisations approached focused on paediatrics, emergency medicine, intensive care, and primary care in Australia and AoNZ. This process was supplemented by in‐depth interviews of families with a recent hospital experience of bronchiolitis in metropolitan and rural hospitals in Australasia to understand values and preferences for bronchiolitis care, and inform the recommendations [ 11 ].\n\nResults\nThe updated literature search was conducted on two occasions (19 and 21 June 2023, and 24 January 2024) and identified 13 932 new manuscripts, in addition to the 12 535 manuscripts from 2016, giving a total of 26 467 manuscripts screened, of which 431 studies (265 new, 166 from 2016) were included (Figure 1 ). Evidence tables were prepared for the 25 questions that informed evidence summaries and recommendations. Nine recommendations were made relating to diagnosis and 32 relating to management, with nine strong, 22 conditional, 15 weak, and eight consensus‐based recommendations (Table 1 ). The full guideline is available at https://www.predict.org.au/bronchiolitis‐guideline/ with the additional Bedside Guideline aid for busy clinicians developed [ 12 ].\n\nResults > Key Changes Between the 2016 and 2025 Guidance\nTABLE 2 A summary of key changes in the recommendations between the initial and updated guideline. Topic No. Change Summary of changes 2016 Recommendation Physical exam and history 1 ✓ The key clinical signs and symptoms of bronchiolitis have not changed. However, additional clinical signs and symptoms have been added to the recommendation: feeding difficulties, vomiting, dehydration, hypoxaemia, lethargy, uncommonly (< 5%) diarrhoea, and rarely (< 2%) apnoea. Infants can be diagnosed with bronchiolitis if they have an upper respiratory tract infection followed by onset of respiratory distress with fever, and one or more of: cough, tachypnoea, retractions and diffuse crackles or wheeze on auscultation. (NHMRC: C, GRADE: Weak) Risk factors 2 ✓ Additional risk factors have been added to the recommendation, including the presence of trisomy 21, economic disadvantage, CDH, other genetic disorders, and the timing of illness onset at hospital presentation. In the 2025 update, clinicians are encouraged to view gestational age, chronological age, breastfeeding and tobacco smoke exposure (pre and postnatal) as continuous risk factors (where risk of serious illness is increased with lower gestational or chronological age, less breastfeeding exposure, and more tobacco smoke exposure). Clinicians should consider as risk factors for more serious illness: gestational age < 37 weeks; chronological age at presentation < 10 weeks; exposure to cigarette smoke; breastfeeding for < 2 months; failure to thrive; having chronic lung disease; having chronic heart and/or chronic neurological conditions; being Indigenous ethnicity, and should take these into account when managing infants with bronchiolitis. (NHMRC: C, GRADE: Conditional) CXR 3b NA New topic to the 2025 guideline update. NA 3c NA New topic to the 2025 guideline update. NA Laboratory tests 4a ✓ The recommendation to perform urine testing for suspected urinary tract infection in infants with bronchiolitis and a fever was removed to reflect the updated evidence. However, urine tests may be considered to inform diagnoses of serious bacterial co‐infection in infants with unexpected deterioration (see R4b). The recommendation was updated to report that glucose and/or sodium levels may be considered during assessment in infants with bronchiolitis and poor feeding, evidence of dehydration or altered mental state. There is no role for blood tests in managing infants presenting to hospital and hospitalised with bronchiolitis. Routine bacteriological testing of blood and urine is not recommended. In infants < 2 months of age presenting to hospital or hospitalised with bronchiolitis with a temperature > 38°, there is a low risk of UTI. If clinical uncertainty exists, clinicians may consider collecting a urine sample for microscopy, culture, and sensitivity looking for the concurrent presence of UTI. (NHMRC: D, GRADE: Conditional) 4b NA New topic to the 2025 guideline update. NA 4c NA New topic to the 2025 guideline update. NA Criteria for safe discharge 7 ✓ In the 2025 update, a prescriptive discharge criteria and flow chart was developed. The criteria for safe discharge were revised to include specific oxygen saturation targets and indicators of adequate feeding, and the criteria were tailored to ED and ward discharge. Additional detail on the social factors surrounding discharge, such as parent/caregiver education on bronchiolitis and confidence to manage bronchiolitis from home, transport, and arrangement of local follow‐up (if needed) were added. Oxygen saturations, adequacy of feeding, age (infants < 8 weeks), and lack of social support should be considered at the time of discharge as a risk for representation. There is insufficient evidence to recommend absolute discharge criteria for infants attending the ED, or hospitalised with bronchiolitis (NHMRC: Practice Point, GRADE: Weak) Glucocorticoids 11c ✓ The 2025 update states that combined glucocorticoid and adrenaline/epinephrine therapy may be considered in infants with severe bronchiolitis who are requiring ICU level care. The 2025 guidance is otherwise consistent with the 2016 guideline in advising against the routine use of combined therapy in infants with moderate bronchiolitis outside of the ICU setting. Do not administer a combination of systemic or local glucocorticoids and adrenaline/epinephrine to infants presenting to hospital or hospitalised with bronchiolitis. (NHMRC: D, GRADE: Weak) Saturation targets 12b ✓ In the 2025 update, it is recommended to use supplemental oxygen in infants with bronchiolitis if SpO 2 is persistently < 90% in infants aged ≥ 6 weeks. For infants < 6 weeks of age, or < 12 months of age with an underlying health condition, supplemental oxygen should be used if SpO 2 is persistently < 92%. In uncomplicated bronchiolitis oxygen supplementation should be commenced if the oxygen saturation level is sustained at a level < 92%. At oxygen saturation levels of 92% or greater, oxygen therapy should be discontinued. (NHMRC: C, GRADE: Conditional) Non‐oral hydration 20b ✓ In the updated recommendation, further detail was provided on the types of NG hydration that may be given. Clinicians can consider either continuous or bolus methods of NG non‐oral hydration with oral rehydration solution, breast milk, or formula in infants admitted to hospital with bronchiolitis requiring an NG. NG is the preferred first method of non‐oral hydration in infants with moderate bronchiolitis requiring supplemental hydration. Both NG and IV routes are acceptable means for non‐oral hydration in infants admitted to hospital with bronchiolitis. (NHMRC: B, GRADE: Strong). 20c ✓ The recommendation has been updated to provide more specific guidance on fluid restriction. Clinicians can consider fluid restriction at 50%–75% of recommended maintenance due to the risk of fluid overload from syndrome of inappropriate antidiuretic hormone secretion (SiADH), and hyponatremia in bronchiolitis. Clinicians are also encouraged to monitor for signs of overhydration. There is insufficient evidence to recommend a specific proportion of maintenance fluid. There is a risk of fluid overload therefore judicious and vigilant use of hydration fluid is required and regular review is recommended (NHMRC: Practice point, GRADE: Weak). 20d NA New topic to the 2025 guideline update. NA 20e NA New topic to the 2025 guideline update. NA Infection control practises 21 ✓ In addition to hand hygiene practises and cohorting of patients in wards, the 2025 update recommends that multicomponent infection control measures may be considered whilst managing infants with bronchiolitis (e.g., use of gowns, masks). Hand hygiene is the most effective intervention to reduce hospital acquired infections and is recommended. There is inadequate evidence for benefits in cohorting infants with bronchiolitis. (NHMRC: D, GRADE: Weak) SARS‐CoV‐2 co‐infection 22a NA New topic to the 2025 guideline update. NA SARS‐CoV‐2 treatment 22b NA New topic to the 2025 guideline update. NA Monoclonal antibody therapy 23 NA New topic to the 2025 guideline update. NA Maternal RSV immunisation 24 NA New topic to the 2025 guideline update. NA Infant RSV immunisation 25 NA New topic to the 2025 guideline update. NA Note: The recommendations were not reported as changed in instances where there were minor changes to the wording of the recommendation, but the recommended action had not changed.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Risk Factors for More Severe Disease\nThere is no role for the routine use of a formal bronchiolitis severity scoring system to predict the need for hospital admission or length of stay in infants presenting or admitted to hospital with bronchiolitis. New additional risk factors in 2025 include the presence of trisomy 21, economic disadvantage, pre‐natal exposure to cigarette smoke, congenital diaphragmatic hernia, unspecified genetic disorders, and the timing of the hospital presentation in relation to the duration of illness symptoms. Clinicians should judge these as continuous risk factors with the greater the risk of poorer outcomes from bronchiolitis.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Risk Factors for More Severe Disease\nIndigenous status, in itself, is unlikely to confer risk but there remains a correlation in Australia and AoNZ between ethnicity and severe bronchiolitis outcomes, independent of socioeconomic status, potentially reflecting the ongoing impacts of colonisation, remote geographical isolation, and the institutional racism in our health systems.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Laboratory (Blood, Urine) Testing\nIn assessing an infant < 12 months of age with bronchiolitis and fever, the revised recommendation has removed the component of the 2016 guideline advising consideration of performing a urine test for suspected urinary tract infection (UTI), reflecting updated evidence [ 17 ]. The 2025 recommendation reiterates that there is no role for routine blood tests in managing infants presenting to hospital and/or hospitalised with bronchiolitis. Glucose and/or sodium levels may be considered during assessment in infants with bronchiolitis with poor feeding, evidence of dehydration, or altered mental state. Routine bacteriological testing of blood and urine is not recommended.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Laboratory (Blood, Urine) Testing\nWith the expanded scope of the guideline to infants with unexpected deterioration and/or admission to ICU, there is a recommendation to consider obtaining blood tests (e.g., Full Blood Count (FBC), C‐Reactive Protein (CRP), Procalcitonin (PCT) and blood cultures) for the diagnosis of serious bacterial co‐infection for infants with unexpected deterioration during hospitalisation or being admitted to ICU with bronchiolitis.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Criteria for Safe Discharge\nRecommendations relating to safe discharge from the ED and inpatient services were revised to include specific oxygen saturation targets and indicators of adequate feeding, with criteria tailored to reflect differences between ED and inpatient ward discharge (Figure 2 ). Additional detail on the social factors surrounding discharge, including the need to provide parent/caregiver education on bronchiolitis and take into consideration factors including parental/caregiver health literacy, their confidence in managing bronchiolitis at home, access to appropriate transport, and capacity for local follow‐up has been incorporated.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Glucocorticoids\nRecommendation against the use of systemic glucocorticoids for infants presenting to hospital or hospitalised with bronchiolitis remains in the revised guideline. However, recommendations have been made for consideration of single therapy systemic glucocorticoids in those infants with SARS‐CoV‐2 co‐infection, as well as consideration of combination therapy of glucocorticoids with inhaled epinephrine/adrenaline in “infants with severe bronchiolitis requiring ICU level care” based on recent evidence [ 18 , 19 ].\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Oxygen Saturation Targets\nConsider use of supplemental oxygen in the treatment of hypoxaemic infants with bronchiolitis. Supplementary oxygen should not be used for work of breathing alone. Do not routinely use continuous pulse oximetry for medical management of non‐hypoxaemic infants with bronchiolitis who are not receiving supplemental oxygen, or in stable infants receiving low flow oxygen therapy. Continuous pulse oximetry should be considered with the presence of apnoeas, or risk factors for apnoea, in this disease setting.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Oxygen Saturation Targets\nThe recommendation for the commencement of supplemental oxygen therapy has been updated for hypoxaemic infants with bronchiolitis [ 20 , 21 ].\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Oxygen Saturation Targets\nIn infants ≥ 6 weeks, it is recommended to use supplemental oxygen in infants with bronchiolitis if SpO 2 is persistently < 90%.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Humidified High Flow Therapy\nWhilst there are no changes in the recommendations for the use of humidified high flow (HF) therapy in 2025, there has been a substantial maturing of the evidence, and we emphasise not to routinely use HF therapy in non‐hypoxaemic infants with mild or moderate bronchiolitis. In addition, we do not recommend the routine use of HF therapy as the first‐line oxygen therapy in infants with moderate bronchiolitis who are hypoxaemic but to consider HF use when infants have failed low flow oxygen therapy (Figure 3 ).\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Continuous Positive Airway Pressure (CPAP)\nA new conditional recommendation for the use of CPAP in infants with bronchiolitis has been formulated to include those with impending respiratory failure, and/or with severe disease.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Hydration\nHydration status may be considered inadequate if there is < 50% of normal intake or evidenced by 5% weight loss or hypernatremia (if tested). After treatment of hypoxaemia, feeding is often improved. Supplemental hydration should be provided to infants with bronchiolitis who cannot maintain hydration orally.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Hydration\nThe NG route should be the preferred first method in infants with moderate bronchiolitis requiring supplemental hydration with consideration of either continuous or bolus methods of NG hydration using oral rehydration solution/breast milk or formula.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Hydration\nWhilst enteral feeding (oral or NG) is still the first option, clinicians may consider using either 0.9% sodium chloride or balanced intravenous fluid with 5% glucose for non‐enteral hydration in infants with bronchiolitis who require intravenous hydration. For younger infants aged 4 to 8 weeks, consider monitoring blood sugar levels or increasing to 10% glucose.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Infection Control\nThe 2025 recommendation continues to recommend the use of hand hygiene practises, with the addition of recommendations to cohort patients with bronchiolitis and to consider multicomponent infection control measures such as gowns and/or masks.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Discharge Planning and Community‐Based Management\nFor infants with bronchiolitis, safe discharge from the hospital (ED or ward) should consider risk factors for severe illness, the distance of the family's residence from the hospital, their ability to return, their health literacy, and the timing of the hospital presentation relative to the natural history of bronchiolitis.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > Discharge Planning and Community‐Based Management\nParents and caregivers should be educated about the illness, the expected progression, and when and where to seek further medical care if needed. Written Bronchiolitis Discharge Information (hard copy and/or electronic) should be provided to parents and caregivers.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > SARS‐CoV‐2 Co‐Infection and Treatment\nThe 2025 guideline recommends that for situations where virological testing has been performed and the infant with bronchiolitis is found to be positive for SARS‐CoV‐2 infection, SARS‐CoV‐2 infection or co‐infection does not appear to place infants at increased risk of severe outcome from bronchiolitis. In subgroups of infants with bronchiolitis associated with SARS‐CoV‐2 infection:\n\nResults > Key Changes Between the 2016 and 2025 Guidance > SARS‐CoV‐2 Co‐Infection and Treatment\nConsider the use of dexamethasone in hypoxaemic patients presenting with bronchiolitis who are also positive for SARS‐CoV‐2 co‐infection.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > SARS‐CoV‐2 Co‐Infection and Treatment\nNote that the guideline does not make a recommendation to perform viral testing for the purpose of assessing for a SARS‐CoV‐2 infection in infants with bronchiolitis. Rather, this guidance is to inform the hospital management of infants in situations where SARS‐CoV‐2 infection has been detected from viral testing that may have been performed for other reasons (e.g., local hospital requirements).\n\nResults > Key Changes Between the 2016 and 2025 Guidance > RSV Prevention\nDuring the RSV season: (a) Consider the use of monoclonal antibodies (palivizumab or nirsevimab) in infants at increased risk of severe complications with bronchiolitis including those with; (i) chronic lung disease; (ii) congenital heart disease; or (iii) infants born very pre‐term (< 32 weeks gestational age), (b) Consider universal nirsevimab as a population‐based approach to reduce morbidity due to RSV bronchiolitis, c. Consider universal maternal antenatal immunisation with an RSV prefusion F protein‐based vaccine as a population‐based approach to reduce morbidity due to RSV bronchiolitis, d. Do not routinely use universal infant RSV immunisation. To date, there are no approved active vaccines for RSV in infants. Routine interventions in Australia and AoNZ should be approved by the Therapeutic Goods Administration and Medsafe prior to consideration in a universal immunisation programme.\n\nResults > Key Changes Between the 2016 and 2025 Guidance > RSV Prevention\nWithin Australia and AoNZ, most infants with bronchiolitis requiring hospital care are seen in metropolitan, regional and rural centres. In these hospitals, infants with severe disease may need to be managed for some time in an ED or inpatient paediatric ward, prior to transfer to a tertiary children's hospital ICU or managed in an adult ICU without transfer. The appropriate setting for delivery of care should reflect resources and skills that are available at a given centre, rather than a specific physical location or label. For mild disease, where no hydration or respiratory support is required, the infants are usually managed in ED and/or in primary care. For moderate disease where hydration support and/or oxygen therapy (low flow or HF oxygen) are required, care can be safely delivered in a ward environment. An infant with severe bronchiolitis requires a higher nursing ratio (e.g., 1:1 or 1:2). This generally requires transport to HDU/ICU care or a higher‐level facility with these resources.\n\nDiscussion\nThe 2025 PREDICT Australasian Bronchiolitis GDC has reviewed and revised the inaugural 2016 Australasian Bronchiolitis Guideline to ensure that recommendations and practises align with an expanding and extensive literature base. We have made 41 recommendations for the management of infants with bronchiolitis in Australia and AoNZ supported by the current evidence base. All our recommendations are developed using GRADE methodology after an extensive literature search. Despite this, there remain many areas where there are conditional, weak, or consensus‐based recommendations supported by low‐quality evidence at best.\n\nDiscussion\nAreas in the previous guideline which left some uncertainty for clinicians related to the initiation of oxygen therapy based on oxygen saturation level and guidance on the use of HF and CPAP therapy for supportive care. Recent studies [ 21 , 22 ] have reassured clinicians that a more lenient use of oxygen supplementation for infants with bronchiolitis is safe. The use of HF therapy at the time of the previous guideline was based on low‐quality evidence from observational studies mainly conducted in ICU settings. Subsequently [ 23 , 24 ] large RCTs in Australasian EDs and inpatient wards have demonstrated that HF therapy is an appropriate therapy after failure of low‐flow oxygen therapy to maintain saturations above the recommended level [ 25 , 26 ]. Our literature review identified two systematic reviews of HF therapy in bronchiolitis [ 27 , 28 ], of apparent acceptable quality, undertaken at similar times, but with conflicting results (one supported early use of HF therapy, whilst one did not). These differences appeared driven by methodological decisions, including differences in included and excluded articles. On review, the GAG had additional concerns with both systematic reviews and an additional RCT had subsequently been published which was excluded from both. As the GAG did not have confidence in either of the published systematic reviews, we undertook an up‐to‐date independent systematic review and meta‐analysis of the primary articles in both systematic reviews to robustly inform our recommendations: that HF therapy should be used as rescue therapy in hypoxaemic infants who have failed low‐flow oxygen therapy.\n\nDiscussion\nOur 2025 recommendations are in keeping with an update to the UK NICE guideline in 2021, which outlines oxygen saturation targets and the provision of oxygen therapy consistent with our recommendations [ 20 ]. In addition, a recent literature review evaluating the evidence since the 2014 American Academy of Paediatrics (AAP) Bronchiolitis guideline also confirmed the themes of our update [ 29 ]. This review highlighted that there are many areas in development for the management of bronchiolitis, including the combined use of dexamethasone/inhaled epinephrine/adrenaline [ 19 ] and the use of hypertonic saline/albuterol (salbutamol) [ 30 , 31 ].\n\nDiscussion > Strengths and Limitations\nThe scope of the revised 2025 guideline was broadened to include patients requiring intensive care management up to (but not including) intubation and mechanical ventilation. We have also included preventative therapies for RSV, including immunotherapy and vaccinations as well as exploring the impact of SARS‐CoV‐2 co‐infection on the management of bronchiolitis. These changes have resulted in the subsequent recommendations being highly generalisable to all infants with bronchiolitis managed in primary care, EDs and throughout inpatient areas. The recommendations were developed through a rigorous methodological process consisting of systematic reviews, GRADE methodology, interest‐holder consultation and interviews, and the involvement of a diverse guideline development panel of 29 interest‐holders from varied healthcare settings in Australasia [ 11 ]. An in‐depth reflection on our methodology and lessons learned for national guideline developers and methodologists is included in our companion paper [ 11 ]. As part of the GRADE evidence‐to‐decision framework, the cost and resourcing associated with the proposed action informed the recommendation strength and were documented in evidence profiles [ 13 ]. Where appropriate, some topics further included cost‐effectiveness as a systematic review outcome. A monitoring and evaluation framework, including key clinical indicators and an audit tool, is being developed to measure hospital performance against the recommendations. These will be made freely available to all hospitals in Australia and AoNZ through the PREDICT website ( https://www.predict.org.au/bronchiolitis‐guideline/ ).\n\nDiscussion > Strengths and Limitations\nA limitation of the guideline is that the scope was restricted to hospital management of bronchiolitis. As a result, it does not include recommendations for bronchiolitis management in primary care or telehealth, or guidance for long‐term follow‐up of infants after discharge. However, bronchiolitis remains the most common reason for infants to be admitted to hospital, and clear evidence management is required in this environment as the majority of healthcare costs associated with bronchiolitis occur in hospital. Regardless, the evidence present is likely highly relevant to primary care and telehealth. Local healthcare providers may be best placed to develop the most appropriate follow‐up protocols for their setting, due to variation in the availability of healthcare resources, practices, and population characteristics (e.g., cultural background). The guideline scope did not cover ipratropium bromide. Although it is commonly used in older infants with viral‐induced wheeze or asthma, there is evidence that it is not often used (2.2%; less than use of salbutamol, adrenaline, corticosteroids, and antibiotics) for infants aged < 12 months with bronchiolitis in Australasian settings [ 32 ]. However, it may be worthwhile considering the evidence for ipratropium bromide in a future guideline update for the purposes of preventing inappropriate use. Lastly, the guideline scope only covered infants aged under 12 months with bronchiolitis, whilst bronchiolitis occurs after this age, and the evidence presented is relevant to this age group; there is greater diagnostic uncertainty for bronchiolitis in infants aged 12–24 months, and the evidence should be interpreted with increased caution.\n\nConflicts of Interest\nD.A., D.C., E.C., N.C., S.C., T.D., S.C., L.H., C.J.S., N.K., A.L., K.L., K.P., T.R., A.S., R.S., D.T., E.T., A.W., C.W., M.Z. have no conflicts of interest to declare. M.L.B., S.R.D., F.E.B., S.O., and E.O.’s institutions have received equipment from Fisher and Paykel Healthcare to support bronchiolitis research. S.R.D. has received funding from Fisher and Paykel Healthcare for travel to an international meeting discussing high flow therapy. P.R.’s institution has received funding for (i) R.S.V. maternal and paediatric vaccination research, (ii) RSV monoclonal antibodies research in infants and high‐risk children, (iii) development of a live commensal bacteria for the prevention of otitis media and viral respiratory infections and (iv) Virtual Lectures to RSV investigators in Merck monoclonal antibody trial (Merck) and Canadian health care workers on RSV prevention (Astra Zeneca). S.G.’s institution has received funding from Fisher and Paykel Healthcare to support bronchiolitis research. J.A.’s institution has received funding for R.S.V. monoclonal antibodies research in infants and high‐risk children. None of the authors receive any personal financial benefits from industry sponsors.",
+        "body_excerpts_sha256": "b1f3551605742ecac3c7bd4cdbd5398f862aeef0a053944eea7d852aea20da82",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12397848/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "38506440",
+        "title": "High-flow nasal cannula therapy for infants with bronchiolitis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38506440/",
+        "abstract": "Bronchiolitis is a common lower respiratory tract illness, usually of viral aetiology, affecting infants younger than 24 months of age and is the most common cause of hospitalisation of infants. It causes airway inflammation, mucus production and mucous plugging, resulting in airway obstruction. Effective pharmacotherapy is lacking and bronchiolitis is a major cause of morbidity and mortality. Conventional treatment consists of supportive therapy in the form of fluids, supplemental oxygen, and respiratory support. Traditionally, oxygen delivery is as a dry gas at 100% concentration via low-flow nasal prongs. However, the use of heated, humidified, high-flow nasal cannula (HFNC) therapy enables delivery of higher inspired gas flows of an air/oxygen blend, at 2 to 3 L/kg per minute up to 60 L/min in children. It can provide some level of continuous positive airway pressure (CPAP) to improve ventilation in a minimally invasive manner. This may reduce the need for invasive respiratory support, thus potentially lowering costs, with clinical advantages and fewer adverse effects.\nTo assess the effects of HFNC therapy compared with conventional respiratory support in the treatment of infants with bronchiolitis.\nWe searched CENTRAL, MEDLINE, Embase, CINAHL, LILACS, and Web of Science (from June 2013 to December 2022). In addition, we consulted ongoing trial registers and experts in the field to identify ongoing studies, checked reference lists of relevant articles, and searched for conference abstracts. Date restrictions were imposed such that we only searched for studies published after the original version of this review.\nWe included randomised controlled trials (RCTs) or quasi-RCTs that assessed the effects of HFNC (delivering oxygen or oxygen/room air blend at flow rates greater than 4 L/minute) compared to conventional treatment in infants (< 24 months) with a clinical diagnosis of bronchiolitis.\nTwo review authors independently used a standard template to assess trials for inclusion and extract data on study characteristics, risk of bias elements, and outcomes. We contacted trial authors to request missing data. Outcome measures included the need for invasive respiratory support and time until discharge, clinical severity measures, oxygen saturation, duration of oxygen therapy, and adverse events.\nIn this update we included 15 new RCTs (2794 participants), bringing the total number of RCTs to 16 (2813 participants). Of the 16 studies, 11 compared high-flow to low-flow, and five compared high-flow to CPAP. These studies included infants less than 24 months of age as stated in our selection criteria. There were no significant differences in sex. We found that when comparing high-flow to low-flow oxygen therapy for infants with bronchiolitis there may be a reduction in the total length of hospital stay (mean difference (MD) -0.65 days, 95% confidence interval (CI) -1.23 to -0.06; P < 0.00001, I2 = 89%; 7 studies, 1951 participants; low-certainty evidence). There may also be a reduction in the duration of oxygen therapy (MD -0.59 days, 95% CI -1 to -0.18; P < 0.00001, I2 = 86%; 7 studies, 2132 participants; low-certainty evidence). We also found that there was probably an improvement in respiratory rate at one and 24 hours, and heart rate at one, four to six, and 24 hours in those receiving high-flow oxygen therapy when compared to pre-intervention baselines. There was also probably a reduced risk of treatment escalation in those receiving high-flow when compared to low-flow oxygen therapy (risk ratio (RR) 0.55, 95% CI 0.39 to 0.79; P = 0.001, I2 = 43%; 8 studies, 2215 participants; moderate-certainty evidence). We found no difference in the incidence of adverse events (RR 1.2, 95% CI 0.38 to 3.74; P = 0.76, I2 = 26%; 4 studies, 1789 participants; low-certainty evidence) between the two groups. The lack of comparable outcomes in studies comparing high-flow and CPAP, as well as the small numbers of participants, limited our ability to perform meta-analysis on this group.\nHigh-flow nasal cannula therapy may have some benefits over low-flow oxygen for infants with bronchiolitis in terms of a greater improvement in respiratory and heart rates, as well as a modest reduction in the length of hospital stay and duration of oxygen therapy, with a reduced incidence of treatment escalation. There does not appear to be a difference in the number of adverse events. Further studies comparing high-flow nasal cannula therapy and CPAP are required to demonstrate the efficacy of one modality over the other. A standardised clinical definition of bronchiolitis, as well as the use of a validated clinical severity score, would allow for greater and more accurate comparison between studies.",
+        "sha256": "57127d814d27a777f02871df9000222c0dfe579782e7e9b96839da554b4ea4cc",
+        "retrieved_at": "2026-09-18T23:28:47.444974+00:00",
+        "pmcid": "PMC10953464"
+      },
+      {
+        "id": "33893229",
+        "title": "Comparative Efficacy of Bronchiolitis Interventions in Acute Care: A Network Meta-analysis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33893229/",
+        "abstract": "Uncertainty exists as to which treatments are most effective for bronchiolitis, with considerable practice variation within and across health care sites.\nA network meta-analysis to compare the effectiveness of common treatments for bronchiolitis in children aged ≤2 years.\nMedline, Embase, Cochrane Central Register of Controlled Trials, Cumulative Index to Nursing and Allied Health Literature, ClinicalTrials.gov, and the World Health Organization International Clinical Trials Registry Platform were searched from inception to September 1, 2019.\nA total 150 randomized controlled trials comparing a placebo or active comparator with any bronchodilator, glucocorticoid steroid, hypertonic saline solution, antibiotic, helium-oxygen therapy, or high-flow oxygen therapy were included.\nData were extracted by 1 reviewer and independently verified. Primary outcomes were admission rate on day 1 and by day 7 and hospital length of stay. Strength of evidence was assessed by using Confidence in Network Meta-Analysis .\nNebulized epinephrine (odds ratio: 0.64, 95% confidence interval [CI]: 0.44 to 0.93, low confidence) and nebulized hypertonic saline plus salbutamol (odds ratio: 0.44, 95% CI: 0.23 to 0.84, low confidence) reduced the admission rate on day 1. No treatment significantly reduced the admission rate on day 7. Nebulized hypertonic saline (mean difference: -0.64 days, 95% CI: -1.01 to -0.26, low confidence) and nebulized hypertonic saline plus epinephrine (mean difference: -0.91 days, 95% CI: -1.14 to -0.40, low confidence) reduced hospital length of stay.\nBecause we did not report adverse events in this analysis, we cannot make inferences about the safety of these treatments.\nAlthough hypertonic saline alone, or combined with epinephrine, may reduce an infant's stay in the hospital, poor strength of evidence necessitates additional rigorous trials.",
+        "sha256": "862e0a903187ff089df93fdbc58fc76183949b585dc45b7faf0c0705da36e4ee",
+        "retrieved_at": "2026-09-18T23:28:47.444974+00:00"
+      },
+      {
+        "id": "31541233",
+        "title": "A Systematic Review of Clinical Practice Guidelines for the Diagnosis and Management of Bronchiolitis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31541233/",
+        "abstract": "Bronchiolitis is the leading cause of hospital admission for respiratory disease among infants aged <1 year. Clinical practice guidelines can benefit patients by reducing the performance of unnecessary tests, hospital admissions, and treatment with lack of a supportive evidence base. This review aimed to identify current clinical practice guidelines worldwide, appraise their methodological quality, and discuss variability across guidelines for the diagnosis and management of bronchiolitis.\nA systematic literature review of electronic databases EMBASE, Global Health, and Medline was performed. Manual searches of the gray literature, national pediatric society websites, and guideline-focused databases were performed, and select international experts were contacted to identify additional guidelines. The Appraisal of Guidelines for Research and Evaluation assessment tool was used by 2 independent reviewers to appraise each guideline.\nThirty-two clinical practice guidelines met the selection criteria. Quality assessment revealed significant shortcomings in a number of guidelines, including lack of systematic processes in formulating guidelines, failure to state conflicts of interest, and lack of consultation with families of affected children. There was widespread agreement about a number of aspects, such as avoidance of the use of unnecessary diagnostic tests, risk factors for severe disease, indicators for hospital admission, discharge criteria, and nosocomial infection control. However, there was variability, even within areas of consensus, over specific recommendations, such as variable thresholds for oxygen therapy. Guidelines showed significant variability in recommendations for the pharmacological management of bronchiolitis, with conflicting recommendations over whether use of nebulized epinephrine, hypertonic saline, or bronchodilators should be routinely trialled.\nFuture guidelines should aim to be compliant with international standards for clinical guidelines to improve their quality and clarity and to promote their adoption into practice. Variable recommendations between guidelines may reflect the evolving evidence base for bronchiolitis management, and platforms should be created to understand this variability and promote evidence-based recommendations.",
+        "sha256": "9b75d264bb2a4e63500b21238ef435e04e242e3f906652b3f9c4abed12219580",
+        "retrieved_at": "2026-09-18T23:28:48.049787+00:00"
+      },
+      {
+        "id": "30009459",
+        "title": "Australasian bronchiolitis guideline.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30009459/",
+        "abstract": "Bronchiolitis is the most common lower respiratory tract disorder in infants aged less than 12 months, and research has demonstrated that there is substantial variation in practice patterns despite treatment being well defined. In order to align and improve the consistency of the management of bronchiolitis, an evidence-based guideline was developed for the Australasian population.\nThe guideline development committee included representation from emergency and paediatric specialty medical and nursing personnel in addition to geographical representation across Australia and New Zealand - rural, remote and metropolitan. Formulation of the guideline included identification of population, intervention, comparator, outcomes and time questions and was associated with an extensive literature search from 2000 to 2015. Evidence was summarised and graded using the National Health and Medical Research Council and Grading of Recommendations Assessment, Development and Evaluation methodology, and consensus within the guideline group was sought using nominal group technique principles to formulate the clinical practice recommendations. The guideline was reviewed and endorsed by key paediatric health bodies.\nThe guideline consists of a usable clinical interface for bedside functionality supported by evidence summary and tables. The Grading of Recommendations Assessment, Development and Evaluation and National Health and Medical Research Council processes provided a systematic and transparent process to review and assess the literature, resulting in a guideline that is relevant to the management of bronchiolitis in the Australasian setting.\nThis is the first robust Australasian acute paediatric guideline and provides clear guidance for the management of the vast majority of patients seen in Australasian emergency departments and general paediatric wards with bronchiolitis.",
+        "sha256": "6f3748c02a627ecb83e9716bde0a5c18091ba25fec71808063662dc461659c6f",
+        "retrieved_at": "2026-09-18T23:28:48.049787+00:00"
+      },
+      {
+        "id": "38889365",
+        "title": "Detection of Bronchiolitis Obliterans Syndrome after Pediatric Hematopoietic Stem Cell Transplantation: An Official American Thoracic Society Clinical Practice Guideline.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38889365/",
+        "abstract": "Background: Many children undergo allogeneic hematopoietic stem cell transplantation (HSCT) for the treatment of malignant and nonmalignant conditions. Unfortunately, pulmonary complications occur frequently post-HSCT, with bronchiolitis obliterans syndrome (BOS) being the most common noninfectious pulmonary complication. Current international guidelines contain conflicting recommendations regarding post-HSCT surveillance for BOS, and a recent NIH workshop highlighted the need for a standardized approach to post-HSCT monitoring. As such, this guideline provides an evidence-based approach to detection of post-HSCT BOS in children. Methods: A multinational, multidisciplinary panel of experts identified six questions regarding surveillance for, and evaluation of, post-HSCT BOS in children. A systematic review of the literature was undertaken to answer each question. The Grading of Recommendations, Assessment, Development, and Evaluation approach was used to rate the quality of evidence and the strength of recommendations. Results: The panel members considered the strength of each recommendation and evaluated the benefits and risks of applying the intervention. In formulating the recommendations, the panel considered patient and caregiver values, the cost of care, and feasibility. Recommendations addressing the role of screening pulmonary function testing and diagnostic tests in children with suspected post-HSCT BOS were made. Following a Delphi process, new diagnostic criteria for pediatric post-HSCT BOS were also proposed. Conclusions: This document provides an evidence-based approach to the detection of post-HSCT BOS in children while also highlighting considerations for the implementation of each recommendation. Further, the document describes important areas for future research.",
+        "sha256": "4323daf39134fd343c753b1b1707a5dfe04c4f5ec7ed10e68ea11af7c51b4eec",
+        "retrieved_at": "2026-09-18T23:28:48.049787+00:00"
+      },
+      {
+        "id": "35338734",
+        "title": "The role of respiratory syncytial virus- and rhinovirus-induced bronchiolitis in recurrent wheeze and asthma-A systematic review and meta-analysis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35338734/",
+        "abstract": "Respiratory syncytial virus (RSV) is the most common cause of bronchiolitis. RSV-induced bronchiolitis has been associated with preschool wheeze and asthma in cohort studies where the comparison groups consist of healthy infants. However, recent studies identify rhinovirus (RV)-induced bronchiolitis as a potentially stronger risk factor for recurrent wheeze and asthma.\nThis systematic review and meta-analysis aimed to compare the associations of RSV- and RV-induced bronchiolitis with the development of preschool wheeze and childhood asthma.\nWe performed a systematic search of the published literature in five databases by using a MeSH term-based algorithm. Cohort studies that enrolled infants with bronchiolitis were included. The primary outcomes were recurrent wheeze and asthma diagnosis. Wald risk ratios and odds ratios (ORs) were estimated, along with their 95% confidence intervals (CIs). Individual and summary ORs were visualized with forest plots.\nThere were 38 studies included in the meta-analysis. Meta-analysis of eight studies that had data on the association between infant bronchiolitis and recurrent wheeze showed that the RV-bronchiolitis group were more likely to develop recurrent wheeze than the RSV-bronchiolitis group (OR 4.11; 95% CI 2.24-7.56). Similarly, meta-analysis of the nine studies that had data on asthma development showed that the RV-bronchiolitis group were more likely to develop asthma (OR 2.72; 95% CI 1.48-4.99).\nThis is the first meta-analysis that directly compares between-virus differences in the magnitude of virus-recurrent wheeze and virus-childhood asthma outcomes. RV-induced bronchiolitis was more strongly associated with the risk of developing wheeze and childhood asthma.",
+        "sha256": "89a5d6a62bdca653bc739bb6feaeef8c74902e73e0bfb5a1271c8c2f012a259c",
+        "retrieved_at": "2026-09-18T23:28:48.642891+00:00"
+      },
+      {
+        "id": "35297227",
+        "title": "Helium-oxygen in bronchiolitis-A systematic review and meta-analysis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35297227/",
+        "abstract": "Bronchiolitis is common reason for infant hospitalization. The aim of our systematic review and meta-analysis was to evaluate helium-oxygen (heliox) in bronchiolitis.\nWe screened 463 studies, assessed 22 of them, and included six randomized controlled trials. Primary outcomes were the need for continuous positive airway pressure (CPAP) or intubation, hospitalization duration, and change in the modified Woods Clinical Asthma Scale (M-WCAS). We calculated mean differences with 95% confidence intervals (CIs) for continuous outcomes and risk ratios (RRs) for dichotomous outcomes.\nSix studies (five double- and one single-blinded) with 560 infants were included. The risk of bias was high in one, moderate in four, and low in one. The RR for the need for CPAP (three studies) was 0.87 (CI: 0.56-1.35), and for intubation (four studies) was 1.39 (CI: 0.53-3.63), heliox compared to air-oxygen. The hospital stay (four studies) was 0.25 days longer (CI: -0.22 to 0.71) in the heliox group. The mean decrease in M-WCAS from the baseline (three studies) was 1.90 points (CI: 1.46-2.34) greater in the heliox group.\nWe found low-quality evidence that heliox does not reduce the need for CPAP, intubation, or length of hospitalization for bronchiolitis. Based on the M-WCAS scores, heliox seems to relieve respiratory distress symptoms rapidly after its initiation. The included studies had high heterogeneity in their methods and included relatively mild cases of bronchiolitis. A larger randomized controlled trial with more severe cases of bronchiolitis with enough power to analyze the need for intubation is needed in the future.",
+        "sha256": "306904f5825c92047f0d392c30d97713042ad90ee0a3053ac394c71fca66c42e",
+        "retrieved_at": "2026-09-18T23:28:48.642891+00:00",
+        "pmcid": "PMC9313870"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "This is a 4-month-old (≥6 weeks) term, previously healthy infant with a classic clinical picture of moderate bronchiolitis: preceding URTI, then increased work of breathing, moderate subcostal recession, diffuse crackles and wheeze, reduced feeding, and persistent hypoxaemia (SpO2 87-89% on room air). There are no features of severe disease, exhaustion, apnoea, or impending respiratory failure. Per the 2025 PREDICT Australasian Bronchiolitis Guideline (source 40685806), supplemental oxygen is indicated when SpO2 is persistently <90% in infants ≥6 weeks, which this infant meets. Critically, the guideline explicitly states clinicians should 'not recommend the routine use of HF therapy as the first-line oxygen therapy in infants with moderate bronchiolitis who are hypoxaemic but to consider HF use when infants have failed low flow oxygen therapy.' The guideline's discussion, informed by large Australasian RCTs, concludes that high-flow therapy should be used as rescue therapy after failure of low-flow oxygen to maintain saturations above target. Answer A matches this stepwise strategy exactly: start low-flow oxygen, reassess, and escalate to HFNC only if low-flow fails. Answer B (immediate HFNC as first-line to pre-empt escalation) is directly contrary to the guideline recommendation. While the Cochrane review (38506440) shows some benefit of HFNC over low-flow (reduced treatment escalation, modestly shorter stay), this is low-to-moderate certainty evidence and the guideline development group performed their own meta-analysis and concluded against routine first-line HFNC. CPAP/high-level support is reserved for severe disease or impending respiratory failure, which is not present here.",
+          "confidence": 0.9
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "40685806"
+              ],
+              "source_passage_ids": [
+                "40685806:p15",
+                "40685806:p24"
+              ],
+              "reason": "The guideline explicitly states that for infants aged >=6 weeks, supplemental oxygen is recommended if SpO2 persistently <90%. The 4-month-old is >=6 weeks and has persistent SpO2 87-89%.",
+              "source_quotes": [
+                {
+                  "source_id": "40685806",
+                  "quote": "(NHMRC: D, GRADE: Weak) Saturation targets 12b ✓ In the 2025 update, it is recommended to use supplemental oxygen in infants with bronchiolitis if SpO 2 is persistently < 90% in infants aged ≥ 6 weeks. For infants < 6 weeks of age, or < 12 months of age with an underlying health condition, supplemental oxygen should be used if SpO 2 is persistently < 92%. In uncomplicated bronchiolitis oxygen supplementation should be commenced if the oxygen saturation level is sustained at a level < 92%. At oxygen saturation levels of 92% or greater, oxygen therapy should be discontinued. (NHMRC: C, GRADE: Conditional) Non‐oral hydration 20b ✓ In the updated recommendation, further detail was provided on the types of NG hydration that may be given."
+                },
+                {
+                  "source_id": "40685806",
+                  "quote": "Continuous pulse oximetry should be considered with the presence of apnoeas, or risk factors for apnoea, in this disease setting. Results > Key Changes Between the 2016 and 2025 Guidance > Oxygen Saturation Targets The recommendation for the commencement of supplemental oxygen therapy has been updated for hypoxaemic infants with bronchiolitis [ 20 , 21 ]. Results > Key Changes Between the 2016 and 2025 Guidance > Oxygen Saturation Targets In infants ≥ 6 weeks, it is recommended to use supplemental oxygen in infants with bronchiolitis if SpO 2 is persistently < 90%."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "40685806"
+              ],
+              "source_passage_ids": [
+                "40685806:p23"
+              ],
+              "reason": "The guideline states oxygen should be used for hypoxaemia in the treatment of hypoxaemic infants, and explicitly that supplementary oxygen should not be used for work of breathing alone.",
+              "source_quotes": [
+                {
+                  "source_id": "40685806",
+                  "quote": "However, recommendations have been made for consideration of single therapy systemic glucocorticoids in those infants with SARS‐CoV‐2 co‐infection, as well as consideration of combination therapy of glucocorticoids with inhaled epinephrine/adrenaline in “infants with severe bronchiolitis requiring ICU level care” based on recent evidence [ 18 , 19 ]. Results > Key Changes Between the 2016 and 2025 Guidance > Oxygen Saturation Targets Consider use of supplemental oxygen in the treatment of hypoxaemic infants with bronchiolitis. Supplementary oxygen should not be used for work of breathing alone. Do not routinely use continuous pulse oximetry for medical management of non‐hypoxaemic infants with bronchiolitis who are not receiving supplemental oxygen, or in stable infants receiving low flow oxygen therapy."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "40685806"
+              ],
+              "source_passage_ids": [
+                "40685806:p25",
+                "40685806:p36"
+              ],
+              "reason": "The guideline explicitly recommends against routine use of HF as first-line oxygen therapy in moderate hypoxaemic bronchiolitis and to consider HF only after failure of low-flow oxygen, i.e., as rescue therapy.",
+              "source_quotes": [
+                {
+                  "source_id": "40685806",
+                  "quote": "Results > Key Changes Between the 2016 and 2025 Guidance > Humidified High Flow Therapy Whilst there are no changes in the recommendations for the use of humidified high flow (HF) therapy in 2025, there has been a substantial maturing of the evidence, and we emphasise not to routinely use HF therapy in non‐hypoxaemic infants with mild or moderate bronchiolitis. In addition, we do not recommend the routine use of HF therapy as the first‐line oxygen therapy in infants with moderate bronchiolitis who are hypoxaemic but to consider HF use when infants have failed low flow oxygen therapy (Figure 3 ). Results > Key Changes Between the 2016 and 2025 Guidance > Continuous Positive Airway Pressure (CPAP) A new conditional recommendation for the use of CPAP in infants with bronchiolitis has been formulated to include those with impending respiratory failure, and/or with severe disease."
+                },
+                {
+                  "source_id": "40685806",
+                  "quote": "As the GAG did not have confidence in either of the published systematic reviews, we undertook an up‐to‐date independent systematic review and meta‐analysis of the primary articles in both systematic reviews to robustly inform our recommendations: that HF therapy should be used as rescue therapy in hypoxaemic infants who have failed low‐flow oxygen therapy. Discussion Our 2025 recommendations are in keeping with an update to the UK NICE guideline in 2021, which outlines oxygen saturation targets and the provision of oxygen therapy consistent with our recommendations [ 20 ]. In addition, a recent literature review evaluating the evidence since the 2014 American Academy of Paediatrics (AAP) Bronchiolitis guideline also confirmed the themes of our update [ 29 ]."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "38506440"
+              ],
+              "source_passage_ids": [
+                "38506440:p4"
+              ],
+              "reason": "The Cochrane review found a probably reduced risk of treatment escalation with high-flow vs low-flow (RR 0.55, moderate-certainty), while other outcomes such as length of stay and duration of oxygen were low-certainty.",
+              "source_quotes": [
+                {
+                  "source_id": "38506440",
+                  "quote": "We also found that there was probably an improvement in respiratory rate at one and 24 hours, and heart rate at one, four to six, and 24 hours in those receiving high-flow oxygen therapy when compared to pre-intervention baselines. There was also probably a reduced risk of treatment escalation in those receiving high-flow when compared to low-flow oxygen therapy (risk ratio (RR) 0.55, 95% CI 0.39 to 0.79; P = 0.001, I2 = 43%; 8 studies, 2215 participants; moderate-certainty evidence). We found no difference in the incidence of adverse events (RR 1.2, 95% CI 0.38 to 3.74; P = 0.76, I2 = 26%; 4 studies, 1789 participants; low-certainty evidence) between the two groups. The lack of comparable outcomes in studies comparing high-flow and CPAP, as well as the small numbers of participants, limited our ability to perform meta-analysis on this group."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is on-specialty (pediatric bronchiolitis supportive care) and the clinical decision is well-supported. The infant is a previously healthy 4-month-old (well above 6 weeks) with persistent room-air SpO2 87-89%, which meets the <90% threshold for supplemental oxygen in the 2025 Australasian guideline. There is no exhaustion, apnoea, altered mental state, or impending respiratory failure, so this is moderate hypoxaemic bronchiolitis rather than severe disease requiring CPAP/ICU. Candidate A (start conventional low-flow oxygen, escalate to HF only if low-flow fails) matches the guideline's explicit recommendation not to use HF as first-line and to reserve it for low-flow failure (rescue). Candidate B (immediate HF replacing an initial low-flow trial) directly contradicts the guideline recommendation and overinterprets the Cochrane escalation finding; this is the intended flawed answer and is working as designed. The key rationale accurately reconciles that although the Cochrane review found a probable reduction in treatment escalation with HF (moderate-certainty), the guideline nonetheless recommends HF as rescue rather than initial therapy in this population. All four claims are verified against the supplied evidence text. The answer key (A) does not omit essential care for this specific respiratory-support decision: oxygen is initiated appropriately with reassessment and a clear escalation trigger. I checked and cleared: the guideline population (infants <12 months, ED/ward/ICU hospital setting) matches; the age threshold (>=6 weeks vs <6 weeks/<92%) is correctly applied since the infant is 4 months; the oxygen-not-for-work-of-breathing caveat is respected; and CPAP is appropriately not invoked since there is no impending respiratory failure. The two candidate answers differ in a genuine clinical decision (first-line low-flow with rescue HF vs immediate HF), not merely wording. No decisive data are missing for the respiratory-support decision. The visible note describes clinical findings but does not disclose the intended management answer. Minor observation: hydration is reduced (two-thirds intake, still above the <50% inadequacy threshold), which does not yet mandate supplemental hydration and is not part of the asked decision, so it does not constitute a gap."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The presentation is consistent with moderate bronchiolitis with persistent hypoxaemia but no exhaustion, apnoea, altered mental status, or impending respiratory failure. At 4 months of age, persistent SpO2 below 90% warrants supplemental oxygen. The 2025 Australasian Bronchiolitis Guideline recommends conventional low-flow oxygen as first-line therapy for hypoxaemic infants with moderate bronchiolitis and reserves humidified high-flow therapy as rescue support when low-flow oxygen fails to maintain the recommended saturation. Moderate retractions alone do not justify immediate high-flow therapy.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.99,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "40685806"
+              ],
+              "reason": "The updated guideline explicitly recommends supplemental oxygen for infants aged at least 6 weeks when SpO2 is persistently below 90%; the patient is 4 months old with persistent SpO2 of 87%–89%.",
+              "source_passage_ids": [
+                "40685806:p24"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40685806",
+                  "quote": "Continuous pulse oximetry should be considered with the presence of apnoeas, or risk factors for apnoea, in this disease setting. Results > Key Changes Between the 2016 and 2025 Guidance > Oxygen Saturation Targets The recommendation for the commencement of supplemental oxygen therapy has been updated for hypoxaemic infants with bronchiolitis [ 20 , 21 ]. Results > Key Changes Between the 2016 and 2025 Guidance > Oxygen Saturation Targets In infants ≥ 6 weeks, it is recommended to use supplemental oxygen in infants with bronchiolitis if SpO 2 is persistently < 90%."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "40685806"
+              ],
+              "reason": "The guideline expressly limits supplemental oxygen to hypoxaemia and states that it should not be used for work of breathing alone.",
+              "source_passage_ids": [
+                "40685806:p23"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40685806",
+                  "quote": "However, recommendations have been made for consideration of single therapy systemic glucocorticoids in those infants with SARS‐CoV‐2 co‐infection, as well as consideration of combination therapy of glucocorticoids with inhaled epinephrine/adrenaline in “infants with severe bronchiolitis requiring ICU level care” based on recent evidence [ 18 , 19 ]. Results > Key Changes Between the 2016 and 2025 Guidance > Oxygen Saturation Targets Consider use of supplemental oxygen in the treatment of hypoxaemic infants with bronchiolitis. Supplementary oxygen should not be used for work of breathing alone. Do not routinely use continuous pulse oximetry for medical management of non‐hypoxaemic infants with bronchiolitis who are not receiving supplemental oxygen, or in stable infants receiving low flow oxygen therapy."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "40685806"
+              ],
+              "reason": "The guideline directly advises against routine first-line high-flow therapy in moderate hypoxaemic bronchiolitis and recommends considering it after failure of low-flow oxygen.",
+              "source_passage_ids": [
+                "40685806:p25",
+                "40685806:p36"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "40685806",
+                  "quote": "Results > Key Changes Between the 2016 and 2025 Guidance > Humidified High Flow Therapy Whilst there are no changes in the recommendations for the use of humidified high flow (HF) therapy in 2025, there has been a substantial maturing of the evidence, and we emphasise not to routinely use HF therapy in non‐hypoxaemic infants with mild or moderate bronchiolitis. In addition, we do not recommend the routine use of HF therapy as the first‐line oxygen therapy in infants with moderate bronchiolitis who are hypoxaemic but to consider HF use when infants have failed low flow oxygen therapy (Figure 3 ). Results > Key Changes Between the 2016 and 2025 Guidance > Continuous Positive Airway Pressure (CPAP) A new conditional recommendation for the use of CPAP in infants with bronchiolitis has been formulated to include those with impending respiratory failure, and/or with severe disease."
+                },
+                {
+                  "source_id": "40685806",
+                  "quote": "As the GAG did not have confidence in either of the published systematic reviews, we undertook an up‐to‐date independent systematic review and meta‐analysis of the primary articles in both systematic reviews to robustly inform our recommendations: that HF therapy should be used as rescue therapy in hypoxaemic infants who have failed low‐flow oxygen therapy. Discussion Our 2025 recommendations are in keeping with an update to the UK NICE guideline in 2021, which outlines oxygen saturation targets and the provision of oxygen therapy consistent with our recommendations [ 20 ]. In addition, a recent literature review evaluating the evidence since the 2014 American Academy of Paediatrics (AAP) Bronchiolitis guideline also confirmed the themes of our update [ 29 ]."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "38506440"
+              ],
+              "reason": "The systematic review included randomized or quasi-randomized trials and found a moderate-certainty reduction in treatment escalation with high flow, while length of stay, oxygen duration, and adverse-event findings were low certainty.",
+              "source_passage_ids": [
+                "38506440:p2",
+                "38506440:p3",
+                "38506440:p4"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38506440",
+                  "quote": "We included randomised controlled trials (RCTs) or quasi-RCTs that assessed the effects of HFNC (delivering oxygen or oxygen/room air blend at flow rates greater than 4 L/minute) compared to conventional treatment in infants (< 24 months) with a clinical diagnosis of bronchiolitis. Two review authors independently used a standard template to assess trials for inclusion and extract data on study characteristics, risk of bias elements, and outcomes. We contacted trial authors to request missing data. Outcome measures included the need for invasive respiratory support and time until discharge, clinical severity measures, oxygen saturation, duration of oxygen therapy, and adverse events. In this update we included 15 new RCTs (2794 participants), bringing the total number of RCTs to 16 (2813 participants)."
+                },
+                {
+                  "source_id": "38506440",
+                  "quote": "Of the 16 studies, 11 compared high-flow to low-flow, and five compared high-flow to CPAP. These studies included infants less than 24 months of age as stated in our selection criteria. There were no significant differences in sex. We found that when comparing high-flow to low-flow oxygen therapy for infants with bronchiolitis there may be a reduction in the total length of hospital stay (mean difference (MD) -0.65 days, 95% confidence interval (CI) -1.23 to -0.06; P < 0.00001, I2 = 89%; 7 studies, 1951 participants; low-certainty evidence). There may also be a reduction in the duration of oxygen therapy (MD -0.59 days, 95% CI -1 to -0.18; P < 0.00001, I2 = 86%; 7 studies, 2132 participants; low-certainty evidence)."
+                },
+                {
+                  "source_id": "38506440",
+                  "quote": "We also found that there was probably an improvement in respiratory rate at one and 24 hours, and heart rate at one, four to six, and 24 hours in those receiving high-flow oxygen therapy when compared to pre-intervention baselines. There was also probably a reduced risk of treatment escalation in those receiving high-flow when compared to low-flow oxygen therapy (risk ratio (RR) 0.55, 95% CI 0.39 to 0.79; P = 0.001, I2 = 43%; 8 studies, 2215 participants; moderate-certainty evidence). We found no difference in the incidence of adverse events (RR 1.2, 95% CI 0.38 to 3.74; P = 0.76, I2 = 26%; 4 studies, 1789 participants; low-certainty evidence) between the two groups. The lack of comparable outcomes in studies comparing high-flow and CPAP, as well as the small numbers of participants, limited our ability to perform meta-analysis on this group."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The presentation is clinically consistent with moderate bronchiolitis with persistent hypoxaemia but no apnoea, exhaustion, altered mental state, or impending respiratory failure. Because the infant is older than 6 weeks and has sustained room-air SpO2 below 90%, supplemental oxygen is indicated. No low-flow oxygen trial has occurred, and the current guideline recommends conventional low-flow oxygen first, with humidified high flow reserved for failure of low-flow therapy. Thus A is appropriate and safe, while B incorrectly converts evidence of reduced subsequent escalation into a recommendation for routine immediate high-flow treatment. No imaging, laboratory testing, weight-based dosing, or additional respiratory data are required for this specific support decision. There are no previous cases against which this decision would duplicate another item."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "ea15e0aa9c43e9ce29350c805c1ba749f749fab9de4df1d9f464aa676ec82fcc"
+  }
+}

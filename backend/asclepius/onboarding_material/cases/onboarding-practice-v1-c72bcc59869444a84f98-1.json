@@ -1,0 +1,465 @@
+{
+  "task_id": "onboarding-practice-v1-c72bcc59869444a84f98-1",
+  "specialty": "critical care",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Persistent hypotension during critical illness",
+    "question": "Which vasoactive approach is more appropriate at this point in the patient's critical care?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "critical care",
+      "demographics": {
+        "age_band": "60-69",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Persistent hypotension after initial crystalloid administration",
+          "since": "Index presentation",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Suspected lower respiratory tract infection",
+          "since": "Index presentation",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Acute hypoxemia",
+          "since": "Index presentation",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Empiric broad-spectrum beta-lactam antibiotic",
+          "dose": null,
+          "route": "intravenous",
+          "freq": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "temperature_c": 39.1,
+        "heart_rate_bpm": 124,
+        "respiratory_rate_per_min": 30,
+        "blood_pressure_mm_hg": "78/44",
+        "mean_arterial_pressure_mm_hg": 55,
+        "oxygen_saturation_percent": 91,
+        "oxygen_support": "supplemental oxygen"
+      },
+      "lab_panels": [
+        {
+          "panel": "Initial critical care laboratory assessment",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Lactate",
+              "loinc": null,
+              "value": 4.8,
+              "unit": "mmol/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "elevated",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Creatinine",
+              "loinc": null,
+              "value": 1.9,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "elevated from prior baseline",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Critical care admission",
+          "author_role": "ICU",
+          "text": "An adult in her sixties presented with fever, productive cough, confusion, tachycardia, hypoxemia, and marked hypotension. Blood cultures were collected and an intravenous broad-spectrum beta-lactam was administered. She has received an initial crystalloid resuscitation, but her blood pressure remains 78/44 mm Hg with a mean arterial pressure of 55 mm Hg. Extremities are warm, capillary refill is delayed, and urine output has been minimal since arrival. No vasoactive medication has yet been administered.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Chest radiograph report",
+          "label": "Portable chest radiograph",
+          "findings": "Focal right lower lung airspace opacity. No pneumothorax or large pleural effusion.",
+          "measurements": [],
+          "impression": "Right lower lung airspace disease compatible with the suspected infectious presentation.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the vasoactive-treatment decision",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "Persistent hypotension after initial fluid resuscitation requires vasoactive support. Norepinephrine is the guideline-recommended first-line vasopressor for septic shock. Methylene blue has been evaluated mainly as an adjunct in refractory shock, and its effects on patient-important outcomes remain supported only by low-certainty evidence; it should not replace norepinephrine as the initial vasoactive agent. Candidate A therefore delays established first-line support in favor of an inadequately supported initial strategy.",
+        "evidence": null,
+        "key_data": [
+          "Mean arterial pressure remains 55 mm Hg after initial crystalloid administration.",
+          "The presentation includes suspected infection with elevated lactate and acute organ dysfunction.",
+          "No vasoactive medication has yet been administered.",
+          "The patient is an adult, matching the population addressed by the supporting vasopressor evidence."
+        ]
+      },
+      "hard_hook": "Distinguishing an investigational or adjunctive vasodilatory-shock therapy from the recommended initial vasopressor.",
+      "reasoning_divergence": "The flawed response overinterprets low-certainty methylene-blue findings and applies them as first-line therapy, whereas the sound response follows the explicit first-line norepinephrine recommendation."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Use methylene blue as the initial vasoactive treatment because it can increase mean arterial pressure within hours and may shorten vasopressor exposure; defer norepinephrine unless hypotension persists afterward."
+      },
+      {
+        "id": "B",
+        "text": "Start norepinephrine as the first-line vasopressor for the persistent hypotension after initial fluid resuscitation. Methylene blue should not replace norepinephrine as the initial vasoactive agent in this setting."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "septic shock",
+      "persistent hypotension",
+      "norepinephrine",
+      "methylene blue",
+      "vasopressor",
+      "mean arterial pressure"
+    ],
+    "evidence_keywords": [
+      "first-line vasopressor",
+      "adult septic shock",
+      "refractory shock",
+      "low-certainty evidence",
+      "vasoactive therapy"
+    ],
+    "error_tags": [
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "Current guidelines identify norepinephrine as the first-line vasopressor for septic shock.",
+        "source_ids": [
+          "37548686"
+        ]
+      },
+      {
+        "statement": "Dopamine was associated with a higher risk of 28-day mortality than norepinephrine in the network meta-analysis.",
+        "source_ids": [
+          "37548686"
+        ]
+      },
+      {
+        "statement": "Methylene blue has been used in refractory septic shock, but its effects on patient-important outcomes remain uncertain.",
+        "source_ids": [
+          "38904978"
+        ]
+      },
+      {
+        "statement": "Reported mortality, vasopressor-duration, and length-of-stay benefits from methylene blue were based on low-certainty evidence from six small randomized trials.",
+        "source_ids": [
+          "38904978"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:53:59.984441+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "41869844",
+        "title": "Surviving Sepsis Campaign International Guidelines for the Management of Sepsis and Septic Shock in Children 2026.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41869844/",
+        "abstract": "To update evidence-based management recommendations for clinicians caring for children (including infants, school-aged children, and adolescents) with sepsis or septic shock.\nA panel of 68 international experts, representing 13 international organizations, as well as six methodologists, was convened. A formal conflict-of-interest policy was developed at the onset of the process and applied throughout. Teleconferences and electronic-based discussion among the chairs, co-chairs, methodologists, and subgroup leads as well as within subgroups, served as an integral part of the guideline development process.\nNew priority topics and recommendations from the prior guideline iteration were used to identify Population, Intervention, Control, and Outcomes (PICO) questions likely to have new or updated evidence. We conducted a systematic review to identify the best available evidence, summarized the evidence, and then assessed the quality of evidence using the Grading of Recommendations, Assessment, Development, and Evaluation approach. We used the evidence-to-decision framework to formulate recommendations as strong or conditional, or as a good practice statement. \"In our practice,\" statements were included when evidence was inconclusive to issue a recommendation but the panel felt that some guidance based on practice patterns may be appropriate.\nThe panel provided 61 statements on the management of children with sepsis or septic shock. Overall, five were strong recommendations, 24 were conditional recommendations, and ten were good practice statements. For 22 PICO questions, no recommendations could be made, but, for seven of these, \"in our practice\" statements were provided. Compared with the 2020 guidelines, 20 recommendations were new, 13 were updated for clarity and/or new evidence, six were reviewed but not changed, and 22 were carried forward based on consensus of the panel that new evidence was not available. Only three recommendations were based on high or moderate certainty of evidence.\nUpdated management guidelines were issued by a panel of international experts for the best care of children with sepsis or septic shock, acknowledging that most aspects of care continue to have relatively low quality of evidence.",
+        "sha256": "2f06e0765b53132476e707a1788d43303faf1b2328848330a78c396a383e1ab9",
+        "retrieved_at": "2026-09-18T23:52:39.261024+00:00"
+      },
+      {
+        "id": "38864162",
+        "title": "Prolonged vs Intermittent Infusions of β-Lactam Antibiotics in Adults With Sepsis or Septic Shock: A Systematic Review and Meta-Analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38864162/",
+        "abstract": "There is uncertainty about whether prolonged infusions of β-lactam antibiotics improve clinically important outcomes in critically ill adults with sepsis or septic shock.\nTo determine whether prolonged β-lactam antibiotic infusions are associated with a reduced risk of death in critically ill adults with sepsis or septic shock compared with intermittent infusions.\nThe primary search was conducted with MEDLINE (via PubMed), CINAHL, Embase, Cochrane Central Register of Controlled Trials (CENTRAL), and ClinicalTrials.gov from inception to May 2, 2024.\nRandomized clinical trials comparing prolonged (continuous or extended) and intermittent infusions of β-lactam antibiotics in critically ill adults with sepsis or septic shock.\nData extraction and risk of bias were assessed independently by 2 reviewers. Certainty of evidence was evaluated with the Grading of Recommendations Assessment, Development and Evaluation approach. A bayesian framework was used as the primary analysis approach and a frequentist framework as the secondary approach.\nThe primary outcome was all-cause 90-day mortality. Secondary outcomes included intensive care unit (ICU) mortality and clinical cure.\nFrom 18 eligible randomized clinical trials that included 9108 critically ill adults with sepsis or septic shock (median age, 54 years; IQR, 48-57; 5961 men [65%]), 17 trials (9014 participants) contributed data to the primary outcome. The pooled estimated risk ratio for all-cause 90-day mortality for prolonged infusions of β-lactam antibiotics compared with intermittent infusions was 0.86 (95% credible interval, 0.72-0.98; I2 = 21.5%; high certainty), with a 99.1% posterior probability that prolonged infusions were associated with lower 90-day mortality. Prolonged infusion of β-lactam antibiotics was associated with a reduced risk of intensive care unit mortality (risk ratio, 0.84; 95% credible interval, 0.70-0.97; high certainty) and an increase in clinical cure (risk ratio, 1.16; 95% credible interval, 1.07-1.31; moderate certainty).\nAmong adults in the intensive care unit who had sepsis or septic shock, the use of prolonged β-lactam antibiotic infusions was associated with a reduced risk of 90-day mortality compared with intermittent infusions. The current evidence presents a high degree of certainty for clinicians to consider prolonged infusions as a standard of care in the management of sepsis and septic shock.\nPROSPERO Identifier: CRD42023399434.",
+        "sha256": "70eae920a14de45ee0aa165674e22d8d73bc799128ecb9aa5cfc33330befb74a",
+        "retrieved_at": "2026-09-18T23:52:39.261024+00:00",
+        "pmcid": "PMC11170459"
+      },
+      {
+        "id": "32032273",
+        "title": "Surviving Sepsis Campaign International Guidelines for the Management of Septic Shock and Sepsis-Associated Organ Dysfunction in Children.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32032273/",
+        "abstract": "To develop evidence-based recommendations for clinicians caring for children (including infants, school-aged children, and adolescents) with septic shock and other sepsis-associated organ dysfunction.\nA panel of 49 international experts, representing 12 international organizations, as well as three methodologists and three public members was convened. Panel members assembled at key international meetings (for those panel members attending the conference), and a stand-alone meeting was held for all panel members in November 2018. A formal conflict-of-interest policy was developed at the onset of the process and enforced throughout. Teleconferences and electronic-based discussion among the chairs, co-chairs, methodologists, and group heads, as well as within subgroups, served as an integral part of the guideline development process.\nThe panel consisted of six subgroups: recognition and management of infection, hemodynamics and resuscitation, ventilation, endocrine and metabolic therapies, adjunctive therapies, and research priorities. We conducted a systematic review for each Population, Intervention, Control, and Outcomes question to identify the best available evidence, statistically summarized the evidence, and then assessed the quality of evidence using the Grading of Recommendations Assessment, Development, and Evaluation approach. We used the evidence-to-decision framework to formulate recommendations as strong or weak, or as a best practice statement. In addition, \"in our practice\" statements were included when evidence was inconclusive to issue a recommendation, but the panel felt that some guidance based on practice patterns may be appropriate.\nThe panel provided 77 statements on the management and resuscitation of children with septic shock and other sepsis-associated organ dysfunction. Overall, six were strong recommendations, 52 were weak recommendations, and nine were best-practice statements. For 13 questions, no recommendations could be made; but, for 10 of these, \"in our practice\" statements were provided. In addition, 49 research priorities were identified.\nA large cohort of international experts was able to achieve consensus regarding many recommendations for the best care of children with sepsis, acknowledging that most aspects of care had relatively low quality of evidence resulting in the frequent issuance of weak recommendations. Despite this challenge, these recommendations regarding the management of children with septic shock and other sepsis-associated organ dysfunction provide a foundation for consistent care to improve outcomes and inform future research.",
+        "sha256": "dfbc3b6108ca9e96084e8548d4673b26cb5d6b4395fd197aaedf5ef59162139e",
+        "retrieved_at": "2026-09-18T23:52:39.261024+00:00"
+      },
+      {
+        "id": "32030529",
+        "title": "Surviving sepsis campaign international guidelines for the management of septic shock and sepsis-associated organ dysfunction in children.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32030529/",
+        "abstract": "To develop evidence-based recommendations for clinicians caring for children (including infants, school-aged children, and adolescents) with septic shock and other sepsis-associated organ dysfunction.\nA panel of 49 international experts, representing 12 international organizations, as well as three methodologists and three public members was convened. Panel members assembled at key international meetings (for those panel members attending the conference), and a stand-alone meeting was held for all panel members in November 2018. A formal conflict-of-interest policy was developed at the onset of the process and enforced throughout. Teleconferences and electronic-based discussion among the chairs, co-chairs, methodologists, and group heads, as well as within subgroups, served as an integral part of the guideline development process.\nThe panel consisted of six subgroups: recognition and management of infection, hemodynamics and resuscitation, ventilation, endocrine and metabolic therapies, adjunctive therapies, and research priorities. We conducted a systematic review for each Population, Intervention, Control, and Outcomes question to identify the best available evidence, statistically summarized the evidence, and then assessed the quality of evidence using the Grading of Recommendations Assessment, Development, and Evaluation approach. We used the evidence-to-decision framework to formulate recommendations as strong or weak, or as a best practice statement. In addition, \"in our practice\" statements were included when evidence was inconclusive to issue a recommendation, but the panel felt that some guidance based on practice patterns may be appropriate.\nThe panel provided 77 statements on the management and resuscitation of children with septic shock and other sepsis-associated organ dysfunction. Overall, six were strong recommendations, 49 were weak recommendations, and nine were best-practice statements. For 13 questions, no recommendations could be made; but, for 10 of these, \"in our practice\" statements were provided. In addition, 52 research priorities were identified.\nA large cohort of international experts was able to achieve consensus regarding many recommendations for the best care of children with sepsis, acknowledging that most aspects of care had relatively low quality of evidence resulting in the frequent issuance of weak recommendations. Despite this challenge, these recommendations regarding the management of children with septic shock and other sepsis-associated organ dysfunction provide a foundation for consistent care to improve outcomes and inform future research.",
+        "sha256": "0c02673b1fe0113eee6028d42a0afcda7c7c1deca3ec077dd3ea9dba698e2691",
+        "retrieved_at": "2026-09-18T23:52:39.882297+00:00",
+        "pmcid": "PMC7095013"
+      },
+      {
+        "id": "38904978",
+        "title": "Methylene Blue in Septic Shock: A Systematic Review and Meta-Analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38904978/",
+        "abstract": "Although clinicians may use methylene blue (MB) in refractory septic shock, the effect of MB on patient-important outcomes remains uncertain. We conducted a systematic review and meta-analysis to investigate the benefits and harms of MB administration in patients with septic shock.\nWe searched six databases (including PubMed, Embase, and Medline) from inception to January 10, 2024.\nWe included randomized clinical trials (RCTs) of critically ill adults comparing MB with placebo or usual care without MB administration.\nTwo reviewers performed screening, full-text review, and data extraction. We pooled data using a random-effects model, assessed the risk of bias using the modified Cochrane tool, and used Grading of Recommendations Assessment, Development, and Evaluation to rate certainty of effect estimates.\nWe included six RCTs (302 patients). Compared with placebo or no MB administration, MB may reduce short-term mortality (RR [risk ratio] 0.66 [95% CI, 0.47-0.94], low certainty) and hospital length of stay (mean difference [MD] -2.1 d [95% CI, -1.4 to -2.8], low certainty). MB may also reduce duration of vasopressors (MD -31.1 hr [95% CI, -16.5 to -45.6], low certainty), and increase mean arterial pressure at 6 hours (MD 10.2 mm Hg [95% CI, 6.1-14.2], low certainty) compared with no MB administration. The effect of MB on serum methemoglobin concentration was uncertain (MD 0.9% [95% CI, -0.2% to 2.0%], very low certainty). We did not find any differences in adverse events.\nAmong critically ill adults with septic shock, based on low-certainty evidence, MB may reduce short-term mortality, duration of vasopressors, and hospital length of stay, with no evidence of increased adverse events. Rigorous randomized trials evaluating the efficacy of MB in septic shock are needed.\nCenter for Open Science (https://osf.io/hpy4j).",
+        "sha256": "bb045306202e3c4a71eb31e365cdc91511e457ce0367e7fc2411f11109c2b04b",
+        "retrieved_at": "2026-09-18T23:52:39.882297+00:00",
+        "pmcid": "PMC11196076"
+      },
+      {
+        "id": "41870559",
+        "title": "Surviving Sepsis Campaign International Guidelines for the Management of Sepsis and Septic Shock in Children 2026.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41870559/",
+        "abstract": "To update evidence-based management recommendations for clinicians caring for children (including infants, school-aged children, and adolescents) with sepsis or septic shock.\nA panel of 68 international experts, representing 13 international organizations, as well as six methodologists, was convened. A formal conflict-of-interest policy was developed at the onset of the process and applied throughout. Teleconferences and electronic-based discussion among the chairs, co-chairs, methodologists, and subgroup leads, as well as within subgroups, served as an integral part of the guideline development process.\nNew priority topics and recommendations from the prior guideline iteration were used to identify Population, Intervention, Control, and Outcomes (PICO) questions likely to have new or updated evidence. We conducted a systematic review to identify the best available evidence, summarized the evidence, and then assessed the quality of evidence using the Grading of Recommendations, Assessment, Development, and Evaluation approach. We used the evidence-to-decision framework to formulate recommendations as strong or conditional, or as a good practice statement. \"In our practice,\" statements were included when evidence was inconclusive to issue a recommendation, but the panel felt that some guidance based on practice patterns may be appropriate.\nThe panel provided 61 statements on the management of children with sepsis or septic shock. Overall, five were strong recommendations, 24 were conditional recommendations, and ten were good practice statements. For 22 PICO questions, no recommendations could be made, but for seven of these, \"in our practice\" statements were provided. Compared with the 2020 guidelines, 20 recommendations were new, 13 were updated for clarity and/or new evidence, six were reviewed but not changed, and 22 were carried forward based on consensus of the panel that new evidence was not available. Only three recommendations were based on high or moderate certainty of evidence.\nUpdated management guidelines were issued by a panel of international experts for the best care of children with sepsis or septic shock, acknowledging that most aspects of care continue to have relatively low quality of evidence.",
+        "sha256": "682963b36392e8d784f3617d89ba30de2c9a4b638e82a1f872aad7aeaec7ef8b",
+        "retrieved_at": "2026-09-18T23:52:39.882297+00:00"
+      },
+      {
+        "id": "37548686",
+        "title": "THE EFFICACY AND SAFETY OF VASOPRESSORS FOR SEPTIC SHOCK PATIENTS: A SYSTEMIC REVIEW AND NETWORK META-ANALYSIS.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37548686/",
+        "abstract": "Background: Septic shock is a distributive shock with decreased systemic vascular resistance and MAP. Septic shock contributes to the most common causes of death in the intensive care unit (ICU). Current guidelines recommend the use of norepinephrine as the first-line vasopressor, whereas adrenergic agonists and vasopressin analogs are also commonly used by physicians. To date, very few studies have synthetically compared the effects of multiple types of vasoactive medications. The aim of this study was to systemically evaluate the efficacy of vasoactive agents both individually and in combination to treat septic shock. Methods: The PubMed, MEDLINE, Embase, Web of Science, and Cochrane Central Register for Controlled Trials (CENTRAL) were searched up to May 12, 2022, to identify relevant randomized controlled trials. A network meta-analysis was performed to evaluate the effect of different types of vasopressors. The primary outcome was 28-day all-cause mortality. The secondary outcome was the ICU length of stay. Adverse events are defined as any undesirable outcomes, including myocardial infarction, cardiac arrhythmia, peripheral ischemia, or stroke and cerebrovascular events. Findings: Thirty-three randomized controlled trials comprising 4,966 patients and assessing 8 types of vasoactive treatments were included in the network meta-analysis. The surface under the cumulative ranking curve provided a ranking of vasoactive medications in terms of 28-day all-cause mortality from most effective to least effective: norepinephrine plus dobutamine, epinephrine, vasopressin, terlipressin, norepinephrine, norepinephrine plus vasopressin, dopamine, and dobutamine. Dopamine was associated with a significantly shorter ICU stay than norepinephrine, terlipressin, and vasopressin, whereas other vasoactive medications showed no definite difference in ICU length of stay. Regarding adverse events, norepinephrine was associated with the highest incidences of myocardial infarction and peripheral ischemia. Dopamine was associated with the highest incidence of cardiac arrhythmia. Epinephrine and terlipressin were associated with the highest incidences of myocardial infarction and peripheral ischemia. Interpretation: The results of this network meta-analysis suggest that norepinephrine plus dobutamine is associated with a lower risk of 28-day mortality in septic shock patients than other vasoactive medications, and the use of dopamine is associated with a higher risk of 28-day mortality due to septic shock than norepinephrine, terlipressin, and vasopressin.",
+        "sha256": "36d3150a5ede6361d2102a31d11679ddfb51555ff7e50718af9286a5609ed578",
+        "retrieved_at": "2026-09-18T23:52:40.433379+00:00"
+      },
+      {
+        "id": "39961104",
+        "title": "The Effect of Severe Sepsis and Septic Shock Management Bundle (SEP-1) Compliance and Implementation on Mortality Among Patients With Sepsis : A Systematic Review.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39961104/",
+        "abstract": "The Centers for Medicare & Medicaid Services (CMS) Severe Sepsis and Septic Shock Management Bundle (SEP-1) is now included in the Hospital Value-Based Purchasing (VBP) Program.\nTo assess the evidence supporting SEP-1 compliance or SEP-1 implementation in improving sepsis mortality.\nPubMed, Web of Science, EMBASE, CINAHL Complete, and Cochrane Library from inception to 26 November 2024.\nStudies of adults with sepsis that included 3- or 6-hour sepsis bundles defined by SEP-1 specifications.\nArticle screening, full-text review, data extraction, and risk-of-bias assessment were independently performed by 2 authors. Level of evidence was determined using GRADE (Grading of Recommendations Assessment, Development and Evaluation) criteria and National Quality Forum criteria.\nA total of 4403 unique references were screened, and 17 studies were included. Twelve studies assessed the relationship between SEP-1 compliance and mortality; 5 showed statistically significant benefit, whereas 7 did not. Among studies showing benefit, 1 did not adjust for confounders, 1 found benefit only among patients with severe sepsis, 1 included only patients with septic shock, and 1 included only Medicare beneficiaries. Five studies assessed the relationship between SEP-1 implementation and sepsis mortality; only 1 showed significant benefit, but it did not adjust for mortality trends before SEP-1 implementation. All 17 studies were observational, and none had low risk of bias.\nThe conclusions are limited by the underlying quality of the available studies, as all were observational. Because there was considerable methodologic heterogeneity among the included studies, a meta-analysis was not performed as the results could have been misleading.\nThis review found no moderate- or high-level evidence to support that compliance with or implementation of SEP-1 was associated with sepsis mortality. CMS should reconsider the addition of SEP-1 to the Hospital VBP Program.\nNone. (PROSPERO: CRD42023482787).",
+        "sha256": "3672a4cab8ed7bad667ddaa634225e479a893798f7f812c4528f6c4110cbfe09",
+        "retrieved_at": "2026-09-18T23:52:40.433379+00:00",
+        "pmcid": "PMC12015987"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This is an adult woman with septic shock (suspected pneumonia, fever, tachycardia, lactate 4.8 mmol/L, MAP 55 mm Hg persisting after initial crystalloid resuscitation, warm extremities consistent with distributive/vasodilatory shock, and end-organ dysfunction). Standard critical care practice, reflected in the network meta-analysis (37548686), establishes norepinephrine as the first-line vasopressor for septic shock after fluid resuscitation. Methylene blue is an adjunct with only low-certainty evidence, studied largely in refractory shock (38904978); the meta-analysis reports possible benefits but explicitly calls for rigorous trials and does not support MB as a first-line replacement for norepinephrine. Therefore option B correctly initiates norepinephrine now and appropriately positions methylene blue as a non-substitute for first-line therapy. Option A inverts the evidence hierarchy by deferring the guideline-supported agent in favor of a low-certainty adjunct.",
+          "confidence": 0.9
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.92,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37548686"
+              ],
+              "source_passage_ids": [
+                "37548686:p0"
+              ],
+              "reason": "Source 37548686 states explicitly that current guidelines recommend norepinephrine as the first-line vasopressor for septic shock.",
+              "source_quotes": [
+                {
+                  "source_id": "37548686",
+                  "quote": "Background: Septic shock is a distributive shock with decreased systemic vascular resistance and MAP. Septic shock contributes to the most common causes of death in the intensive care unit (ICU). Current guidelines recommend the use of norepinephrine as the first-line vasopressor, whereas adrenergic agonists and vasopressin analogs are also commonly used by physicians. To date, very few studies have synthetically compared the effects of multiple types of vasoactive medications. The aim of this study was to systemically evaluate the efficacy of vasoactive agents both individually and in combination to treat septic shock. Methods: The PubMed, MEDLINE, Embase, Web of Science, and Cochrane Central Register for Controlled Trials (CENTRAL) were searched up to May 12, 2022, to identify relevant randomized controlled trials."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37548686"
+              ],
+              "source_passage_ids": [
+                "37548686:p2"
+              ],
+              "reason": "The network meta-analysis interpretation states dopamine is associated with a higher risk of 28-day mortality than norepinephrine (and terlipressin, vasopressin).",
+              "source_quotes": [
+                {
+                  "source_id": "37548686",
+                  "quote": "Dopamine was associated with a significantly shorter ICU stay than norepinephrine, terlipressin, and vasopressin, whereas other vasoactive medications showed no definite difference in ICU length of stay. Regarding adverse events, norepinephrine was associated with the highest incidences of myocardial infarction and peripheral ischemia. Dopamine was associated with the highest incidence of cardiac arrhythmia. Epinephrine and terlipressin were associated with the highest incidences of myocardial infarction and peripheral ischemia. Interpretation: The results of this network meta-analysis suggest that norepinephrine plus dobutamine is associated with a lower risk of 28-day mortality in septic shock patients than other vasoactive medications, and the use of dopamine is associated with a higher risk of 28-day mortality due to septic shock than norepinephrine, terlipressin, and vasopressin."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "38904978"
+              ],
+              "source_passage_ids": [
+                "38904978:p0"
+              ],
+              "reason": "Source 38904978 states MB is used in refractory septic shock and that its effect on patient-important outcomes remains uncertain.",
+              "source_quotes": [
+                {
+                  "source_id": "38904978",
+                  "quote": "Although clinicians may use methylene blue (MB) in refractory septic shock, the effect of MB on patient-important outcomes remains uncertain. We conducted a systematic review and meta-analysis to investigate the benefits and harms of MB administration in patients with septic shock. We searched six databases (including PubMed, Embase, and Medline) from inception to January 10, 2024. We included randomized clinical trials (RCTs) of critically ill adults comparing MB with placebo or usual care without MB administration. Two reviewers performed screening, full-text review, and data extraction. We pooled data using a random-effects model, assessed the risk of bias using the modified Cochrane tool, and used Grading of Recommendations Assessment, Development, and Evaluation to rate certainty of effect estimates. We included six RCTs (302 patients)."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "38904978"
+              ],
+              "source_passage_ids": [
+                "38904978:p0",
+                "38904978:p1"
+              ],
+              "reason": "Source reports six RCTs (302 patients) and low-certainty benefits in mortality, vasopressor duration, and hospital length of stay.",
+              "source_quotes": [
+                {
+                  "source_id": "38904978",
+                  "quote": "Although clinicians may use methylene blue (MB) in refractory septic shock, the effect of MB on patient-important outcomes remains uncertain. We conducted a systematic review and meta-analysis to investigate the benefits and harms of MB administration in patients with septic shock. We searched six databases (including PubMed, Embase, and Medline) from inception to January 10, 2024. We included randomized clinical trials (RCTs) of critically ill adults comparing MB with placebo or usual care without MB administration. Two reviewers performed screening, full-text review, and data extraction. We pooled data using a random-effects model, assessed the risk of bias using the modified Cochrane tool, and used Grading of Recommendations Assessment, Development, and Evaluation to rate certainty of effect estimates. We included six RCTs (302 patients)."
+                },
+                {
+                  "source_id": "38904978",
+                  "quote": "Compared with placebo or no MB administration, MB may reduce short-term mortality (RR [risk ratio] 0.66 [95% CI, 0.47-0.94], low certainty) and hospital length of stay (mean difference [MD] -2.1 d [95% CI, -1.4 to -2.8], low certainty). MB may also reduce duration of vasopressors (MD -31.1 hr [95% CI, -16.5 to -45.6], low certainty), and increase mean arterial pressure at 6 hours (MD 10.2 mm Hg [95% CI, 6.1-14.2], low certainty) compared with no MB administration. The effect of MB on serum methemoglobin concentration was uncertain (MD 0.9% [95% CI, -0.2% to 2.0%], very low certainty). We did not find any differences in adverse events. Among critically ill adults with septic shock, based on low-certainty evidence, MB may reduce short-term mortality, duration of vasopressors, and hospital length of stay, with no evidence of increased adverse events."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is an adult septic shock scenario: 60s female with pneumonia, fever, tachycardia, hypoxemia, lactate 4.8, AKI, and persistent MAP 55 after crystalloid with no vasopressor started. This is a textbook indication for initiating norepinephrine as first-line vasopressor. Candidate B (norepinephrine first-line, MB should not replace it) is the safe, guideline-supported answer. Candidate A (methylene blue as initial vasoactive agent, defer norepinephrine) is unsafe: it substitutes an adjunct supported only by low-certainty evidence from six small RCTs (302 patients) for the established first-line agent, delaying effective therapy in shock. This is the intended flaw and works as designed.\n\nEvidence check: Source 37548686 directly supports norepinephrine as guideline first-line vasopressor and the dopamine mortality claim. Source 38904978 supports the uncertainty/low-certainty status of methylene blue and the six-RCT/302-patient basis. Note that the pediatric SSC guideline sources (41869844, 41870559, 32032273, 32030529) are off-population (children) and the beta-lactam infusion (38864162) and SEP-1 (39961104) sources are not needed for the decisive vasopressor decision; none are cited to establish the key claims, so no misattribution occurs. The two decisive claims rely on adult-population sources.\n\nThe question asks which vasoactive approach is more appropriate and does not name the answer; the visible note states \"No vasoactive medication has yet been administered\" which sets up the decision without disclosing the specific agent. The ground truth (B) is not revealed in title or visible notes. Data are sufficient for the vasopressor decision (MAP after fluids, lactate, organ dysfunction, infection source all present). The decision is a distinct clinical decision (first-line vasopressor selection vs. an adjunct). All checks clear; no blocking defects."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient has septic shock with persistent hypotension (MAP 55 mm Hg) and hypoperfusion despite initial crystalloid resuscitation. Norepinephrine is the guideline-supported first-line vasopressor and should be started promptly, generally targeting an initial MAP near 65 mm Hg. Methylene blue has only low-certainty evidence from small trials and is considered an adjunct in refractory vasoplegic shock, not a replacement for initial norepinephrine therapy. The supplied adult vasopressor review explicitly notes that current guidelines recommend norepinephrine first-line (PMID 37548686), while the methylene-blue meta-analysis describes its use in refractory septic shock and emphasizes uncertainty in patient-important outcomes (PMID 38904978).",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37548686"
+              ],
+              "reason": "The source text explicitly states that current guidelines recommend norepinephrine as the first-line vasopressor for septic shock.",
+              "source_passage_ids": [
+                "37548686:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37548686",
+                  "quote": "Background: Septic shock is a distributive shock with decreased systemic vascular resistance and MAP. Septic shock contributes to the most common causes of death in the intensive care unit (ICU). Current guidelines recommend the use of norepinephrine as the first-line vasopressor, whereas adrenergic agonists and vasopressin analogs are also commonly used by physicians. To date, very few studies have synthetically compared the effects of multiple types of vasoactive medications. The aim of this study was to systemically evaluate the efficacy of vasoactive agents both individually and in combination to treat septic shock. Methods: The PubMed, MEDLINE, Embase, Web of Science, and Cochrane Central Register for Controlled Trials (CENTRAL) were searched up to May 12, 2022, to identify relevant randomized controlled trials."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37548686"
+              ],
+              "reason": "The network meta-analysis interpretation explicitly associates dopamine with greater 28-day mortality risk than norepinephrine.",
+              "source_passage_ids": [
+                "37548686:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37548686",
+                  "quote": "Dopamine was associated with a significantly shorter ICU stay than norepinephrine, terlipressin, and vasopressin, whereas other vasoactive medications showed no definite difference in ICU length of stay. Regarding adverse events, norepinephrine was associated with the highest incidences of myocardial infarction and peripheral ischemia. Dopamine was associated with the highest incidence of cardiac arrhythmia. Epinephrine and terlipressin were associated with the highest incidences of myocardial infarction and peripheral ischemia. Interpretation: The results of this network meta-analysis suggest that norepinephrine plus dobutamine is associated with a lower risk of 28-day mortality in septic shock patients than other vasoactive medications, and the use of dopamine is associated with a higher risk of 28-day mortality due to septic shock than norepinephrine, terlipressin, and vasopressin."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "38904978"
+              ],
+              "reason": "The review states that methylene blue may be used in refractory septic shock while its effects on patient-important outcomes remain uncertain.",
+              "source_passage_ids": [
+                "38904978:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38904978",
+                  "quote": "Although clinicians may use methylene blue (MB) in refractory septic shock, the effect of MB on patient-important outcomes remains uncertain. We conducted a systematic review and meta-analysis to investigate the benefits and harms of MB administration in patients with septic shock. We searched six databases (including PubMed, Embase, and Medline) from inception to January 10, 2024. We included randomized clinical trials (RCTs) of critically ill adults comparing MB with placebo or usual care without MB administration. Two reviewers performed screening, full-text review, and data extraction. We pooled data using a random-effects model, assessed the risk of bias using the modified Cochrane tool, and used Grading of Recommendations Assessment, Development, and Evaluation to rate certainty of effect estimates. We included six RCTs (302 patients)."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "38904978"
+              ],
+              "reason": "The review included six RCTs totaling 302 patients and rated the reported mortality, vasopressor-duration, and hospital-length-of-stay effects as low-certainty evidence.",
+              "source_passage_ids": [
+                "38904978:p0",
+                "38904978:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38904978",
+                  "quote": "Although clinicians may use methylene blue (MB) in refractory septic shock, the effect of MB on patient-important outcomes remains uncertain. We conducted a systematic review and meta-analysis to investigate the benefits and harms of MB administration in patients with septic shock. We searched six databases (including PubMed, Embase, and Medline) from inception to January 10, 2024. We included randomized clinical trials (RCTs) of critically ill adults comparing MB with placebo or usual care without MB administration. Two reviewers performed screening, full-text review, and data extraction. We pooled data using a random-effects model, assessed the risk of bias using the modified Cochrane tool, and used Grading of Recommendations Assessment, Development, and Evaluation to rate certainty of effect estimates. We included six RCTs (302 patients)."
+                },
+                {
+                  "source_id": "38904978",
+                  "quote": "Compared with placebo or no MB administration, MB may reduce short-term mortality (RR [risk ratio] 0.66 [95% CI, 0.47-0.94], low certainty) and hospital length of stay (mean difference [MD] -2.1 d [95% CI, -1.4 to -2.8], low certainty). MB may also reduce duration of vasopressors (MD -31.1 hr [95% CI, -16.5 to -45.6], low certainty), and increase mean arterial pressure at 6 hours (MD 10.2 mm Hg [95% CI, 6.1-14.2], low certainty) compared with no MB administration. The effect of MB on serum methemoglobin concentration was uncertain (MD 0.9% [95% CI, -0.2% to 2.0%], very low certainty). We did not find any differences in adverse events. Among critically ill adults with septic shock, based on low-certainty evidence, MB may reduce short-term mortality, duration of vasopressors, and hospital length of stay, with no evidence of increased adverse events."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The patient has suspected infection, acute organ dysfunction, lactate elevation, and persistent profound hypotension with MAP 55 mm Hg after initial crystalloid administration. Immediate vasopressor support is therefore appropriate. Candidate B correctly selects norepinephrine as first-line therapy. The supplied evidence directly reports the current guideline preference for norepinephrine, while the methylene-blue review describes use in refractory shock and only low-certainty findings from six small RCTs; it does not establish methylene blue as a replacement for initial norepinephrine. Candidate A would inappropriately defer established first-line support. The focused question does not require a complete sepsis bundle, dosing protocol, or discharge plan, and the available clinical information is sufficient for this vasoactive-treatment decision. No previous cases were supplied, so there is no detected duplication of the clinical decision."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "233590f34a42a5ea895c5e5ef608b8f8d80772585cb36bf6d204c3c520749358"
+  }
+}

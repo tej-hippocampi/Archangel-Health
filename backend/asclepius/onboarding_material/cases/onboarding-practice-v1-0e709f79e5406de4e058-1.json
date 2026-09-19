@@ -1,0 +1,481 @@
+{
+  "task_id": "onboarding-practice-v1-0e709f79e5406de4e058-1",
+  "specialty": "internal medicine",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Adult with confirmed iron deficiency anemia and no overt bleeding symptoms",
+    "question": "In an adult man with confirmed iron deficiency anemia and no overt GI symptoms, what is the most appropriate next diagnostic step to identify the source?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "internal medicine",
+      "demographics": {
+        "age_band": "50-59",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Fatigue",
+          "since": null,
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Microcytic anemia",
+          "since": null,
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Confirmed iron deficiency",
+          "since": null,
+          "collected_offset_days": null
+        }
+      ],
+      "medications": [
+        {
+          "drug": "ibuprofen",
+          "dose": null,
+          "route": null,
+          "freq": "as needed",
+          "collected_offset_days": null
+        }
+      ],
+      "vitals": {
+        "bp": "126/78",
+        "hr": 78,
+        "rr": 14,
+        "temp_c": 36.8,
+        "spo2": "99% RA",
+        "bmi": 27.1
+      },
+      "lab_panels": [
+        {
+          "panel": "Complete blood count",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Hemoglobin",
+              "loinc": null,
+              "value": 9.2,
+              "unit": "g/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "low",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "MCV",
+              "loinc": null,
+              "value": 72,
+              "unit": "fL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "low",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "MCH",
+              "loinc": null,
+              "value": 23,
+              "unit": "pg",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "low",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "RDW",
+              "loinc": null,
+              "value": 17,
+              "unit": "%",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "WBC",
+              "loinc": null,
+              "value": 6.1,
+              "unit": "x10^9/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Platelets",
+              "loinc": null,
+              "value": 410,
+              "unit": "x10^9/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Iron studies",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Ferritin",
+              "loinc": null,
+              "value": 8,
+              "unit": "µg/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "low",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Serum iron",
+              "loinc": null,
+              "value": 20,
+              "unit": "µg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "low",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "TIBC",
+              "loinc": null,
+              "value": 420,
+              "unit": "µg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Transferrin saturation",
+              "loinc": null,
+              "value": 5,
+              "unit": "%",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "low",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Reticulocyte and inflammation",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Reticulocyte percentage",
+              "loinc": null,
+              "value": 0.6,
+              "unit": "%",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "CRP",
+              "loinc": null,
+              "value": 1.2,
+              "unit": "mg/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Progress",
+          "author_role": "clinician",
+          "text": "A man in the 50–59 age band presents with 2–3 months of progressive fatigue and decreased exercise tolerance. No chest pain, dyspnea at rest, melena, hematochezia, hematemesis, or visible blood in stool. Bowel habits unchanged. Denies weight loss, fever, night sweats, or change in appetite. Eats a mixed diet with occasional red meat. No history of inflammatory bowel disease or prior gastrointestinal surgery. Reports intermittent use of over-the-counter ibuprofen for knee discomfort, a few tablets per week, and no regular aspirin or anticoagulant use. No known history of celiac disease. No heavy alcohol use. Physical exam shows pale conjunctivae without icterus, normal cardiopulmonary exam, soft nontender abdomen without masses or organomegaly, and no edema. No skin telangiectasias noted. Laboratory testing today demonstrates microcytic, hypochromic anemia with elevated RDW. Iron studies show low ferritin and low transferrin saturation with elevated TIBC, consistent with iron deficiency. CRP is low. There is no documentation of prior gastrointestinal evaluation. The patient has not received iron therapy yet. He remains hemodynamically stable and is able to ambulate without dyspnea, but reports increasing fatigue affecting daily activities.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "In adult men and postmenopausal women, confirmed iron deficiency anemia warrants prompt investigation for gastrointestinal sources, including malignancy. Guidelines recommend bidirectional GI endoscopy as the standard diagnostic evaluation rather than delaying investigation to assess response to iron replacement alone. The very low ferritin confirms iron deficiency, and low CRP reduces concern for inflammatory confounding.",
+        "evidence": null,
+        "key_data": [
+          "Adult male with microcytic anemia and ferritin 8 µg/L, transferrin saturation 5%, confirming iron deficiency.",
+          "Men with IDA have a substantial risk of GI pathology; guideline standard is bidirectional endoscopy.",
+          "No overt bleeding or prior GI evaluation documented; delaying investigation could miss malignancy.",
+          "CRP is low, supporting the reliability of low ferritin to indicate iron deficiency."
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Begin oral iron supplementation now and defer any endoscopic evaluation for 2–3 months. If hemoglobin rises, no further workup is needed; proceed with investigations only if anemia fails to improve, as serious GI pathology is unlikely in an asymptomatic adult male."
+      },
+      {
+        "id": "B",
+        "text": "Arrange prompt bidirectional gastrointestinal endoscopy (upper endoscopy and colonoscopy) to evaluate for occult upper and lower GI sources of blood loss in this adult with confirmed iron deficiency anemia, without waiting to see a response to iron therapy."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "iron deficiency anemia",
+      "bidirectional endoscopy",
+      "occult gastrointestinal bleeding",
+      "gastric cancer risk",
+      "ferritin",
+      "Helicobacter pylori",
+      "atrophic gastritis"
+    ],
+    "evidence_keywords": [
+      "British Society of Gastroenterology IDA guideline",
+      "bidirectional endoscopy standard",
+      "ferritin threshold 30 µg/L",
+      "diagnosis of iron deficiency",
+      "unexplained IDA referral",
+      "atrophic gastritis evaluation"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "In adult men and postmenopausal women with iron deficiency anemia, a substantial proportion have underlying GI pathology; standard evaluation is bidirectional endoscopy.",
+        "source_ids": [
+          "34497146"
+        ]
+      },
+      {
+        "statement": "Unexplained iron deficiency anemia is an accepted indication for expedited secondary care referral because GI cancers can present with IDA, often without specific symptoms.",
+        "source_ids": [
+          "34497146"
+        ]
+      },
+      {
+        "statement": "At a threshold of about 30 µg/L, serum ferritin is a reasonably sensitive and very specific test for iron deficiency in people presenting for medical care.",
+        "source_ids": [
+          "34028001"
+        ]
+      },
+      {
+        "statement": "In patients with unexplained iron deficiency, atrophic gastritis should be considered and appropriate diagnostic evaluation pursued when suspected.",
+        "source_ids": [
+          "34454714"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T22:21:55.238125+00:00",
+    "author_model": "gpt-5",
+    "sources": [
+      {
+        "id": "34454714",
+        "title": "AGA Clinical Practice Update on the Diagnosis and Management of Atrophic Gastritis: Expert Review.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34454714/",
+        "abstract": "The purpose of this Clinical Practice Update Expert Review is to provide clinicians with guidance on the diagnosis and management of atrophic gastritis, a common preneoplastic condition of the stomach, with a primary focus on atrophic gastritis due to chronic Helicobacter pylori infection-the most common etiology-or due to autoimmunity. To date, clinical guidance for best practices related to the diagnosis and management of atrophic gastritis remains very limited in the United States, which leads to poor recognition of this preneoplastic condition and suboptimal risk stratification. In addition, there is heterogeneity in the definitions of atrophic gastritis, autoimmune gastritis, pernicious anemia, and gastric neoplasia in the literature, which has led to confusion in clinical practice and research. Accordingly, the primary objective of this Clinical Practice Update is to provide clinicians with a framework for the diagnosis and management of atrophic gastritis. By focusing on atrophic gastritis, this Clinical Practice Update is intended to complement the 2020 American Gastroenterological Association Institute guidelines on the management of gastric intestinal metaplasia. These recent guidelines did not specifically discuss the diagnosis and management of atrophic gastritis. Providers should recognize, however, that a diagnosis of intestinal metaplasia on gastric histopathology implies the diagnosis of atrophic gastritis because intestinal metaplasia occurs in underlying atrophic mucosa, although this is often not distinctly noted on histopathologic reports. Nevertheless, atrophic gastritis represents an important stage with distinct histopathologic alterations in the multistep cascade of gastric cancer pathogenesis.\nThe Best Practice Advice statements presented herein were developed from a combination of available evidence from published literature and consensus-based expert opinion. No formal rating of the strength or quality of the evidence was carried out. These statements are meant to provide practical advice to clinicians practicing in the United States. Best Practice Advice Statements BEST PRACTICE ADVICE 1: Atrophic gastritis is defined as the loss of gastric glands, with or without metaplasia, in the setting of chronic inflammation mainly due to Helicobacter pylori infection or autoimmunity. Regardless of the etiology, the diagnosis of atrophic gastritis should be confirmed by histopathology. BEST PRACTICE ADVICE 2: Providers should be aware that the presence of intestinal metaplasia on gastric histology almost invariably implies the diagnosis of atrophic gastritis. There should be a coordinated effort between gastroenterologists and pathologists to improve the consistency of documenting the extent and severity of atrophic gastritis, particularly if marked atrophy is present. BEST PRACTICE ADVICE 3: Providers should recognize typical endoscopic features of atrophic gastritis, which include pale appearance of gastric mucosa, increased visibility of vasculature due to thinning of the gastric mucosa, and loss of gastric folds, and, if with concomitant intestinal metaplasia, light blue crests and white opaque fields. Because these mucosal changes are often subtle, techniques to optimize evaluation of the gastric mucosa should be performed. BEST PRACTICE ADVICE 4: When endoscopic features of atrophic gastritis are present, providers should assess the extent endoscopically. Providers should obtain biopsies from the suspected atrophic/metaplastic areas for histopathological confirmation and risk stratification; at a minimum, biopsies from the body and antrum/incisura should be obtained and placed in separately labeled jars. Targeted biopsies should additionally be obtained from any other mucosal abnormalities. BEST PRACTICE ADVICE 5: In patients with histology compatible with autoimmune gastritis, providers should consider checking antiparietal cell antibodies and anti-intrinsic factor antibodies to assist with the diagnosis. Providers should also evaluate for anemia due to vitamin B-12 and iron deficiencies. BEST PRACTICE ADVICE 6: All individuals with atrophic gastritis should be assessed for H pylori infection. If positive, treatment of H pylori should be administered and successful eradication should be confirmed using nonserological testing modalities. BEST PRACTICE ADVICE 7: The optimal endoscopic surveillance interval for patients with atrophic gastritis is not well-defined and should be decided based on individual risk assessment and shared decision making. A surveillance endoscopy every 3 years should be considered in individuals with advanced atrophic gastritis, defined based on anatomic extent and histologic grade. BEST PRACTICE ADVICE 8: The optimal surveillance interval for individuals with autoimmune gastritis is unclear. Interval endoscopic surveillance should be considered based on individualized assessment and shared decision making. BEST PRACTICE ADVICE 9: Providers should recognize pernicious anemia as a late-stage manifestation of autoimmune gastritis that is characterized by vitamin B-12 deficiency and macrocytic anemia. Patients with a new diagnosis of pernicious anemia who have not had a recent endoscopy should undergo endoscopy with topographical biopsies to confirm corpus-predominant atrophic gastritis for risk stratification and to rule out prevalent gastric neoplasia, including neuroendocrine tumors. BEST PRACTICE ADVICE 10: Individuals with autoimmune gastritis should be screened for type 1 gastric neuroendocrine tumors with upper endoscopy. Small neuroendocrine tumors should be removed endoscopically, followed by surveillance endoscopy every 1-2 years, depending on the burden of neuroendocrine tumors. BEST PRACTICE ADVICE 11: Providers should evaluate for iron and vitamin B-12 deficiencies in patients with atrophic gastritis irrespective of etiology, especially if corpus-predominant. Likewise, in patients with unexplained iron or vitamin B-12 deficiency, atrophic gastritis should be considered in the differential diagnosis and appropriate diagnostic evaluation pursued. BEST PRACTICE ADVICE 12: In patients with autoimmune gastritis, providers should recognize that concomitant autoimmune disorders, particularly autoimmune thyroid disease, are common. Screening for autoimmune thyroid disease should be performed.",
+        "sha256": "439f3a897c793f1a979e5a2dbf732593a4b2d44908c50090dfd18be434cd1a50",
+        "retrieved_at": "2026-09-18T22:19:44.257067+00:00"
+      },
+      {
+        "id": "36728680",
+        "title": "The effects of oral ferrous bisglycinate supplementation on hemoglobin and ferritin concentrations in adults and children: a systematic review and meta-analysis of randomized controlled trials.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36728680/",
+        "abstract": "Iron deficiency and anemia have serious consequences, especially for children and pregnant women. Iron salts are commonly provided as oral supplements to prevent and treat iron deficiency, despite poor bioavailability and frequently reported adverse side effects. Ferrous bisglycinate is a novel amino acid iron chelate that is thought to be more bioavailable and associated with fewer gastrointestinal (GI) adverse events as compared with iron salts.\nA systematic review and meta-analysis of randomized controlled trials (RCTs) was conducted to evaluate the effects of ferrous bisglycinate supplementation compared with other iron supplements on hemoglobin and ferritin concentrations and GI adverse events.\nA systematic search of electronic databases and grey literature was performed up to July 17, 2020, yielding 17 RCTs that reported hemoglobin or ferritin concentrations following at least 4 weeks' supplementation of ferrous bisglycinate compared with other iron supplements in any dose or frequency.\nRandom-effects meta-analyses were conducted among trials of pregnant women (n = 9) and children (n = 4); pooled estimates were expressed as standardized mean differences (SMDs). Incidence rate ratios (IRRs) were estimated for GI adverse events, using Poisson generalized linear mixed-effects models. The remaining trials in other populations (n = 4; men and nonpregnant women) were qualitatively evaluated.\nCompared with other iron supplements, supplementation with ferrous bisglycinate for 4-20 weeks resulted in higher hemoglobin concentrations in pregnant women (SMD, 0.54 g/dL; 95% confidence interval [CI], 0.15-0.94; P < 0.01) and fewer reported GI adverse events (IRR, 0.36; 95%CI, 0.17-0.76; P < 0.01). We observed a non-significant trend for higher ferritin concentrations in pregnant women supplemented with ferrous bisglycinate. No significant differences in hemoglobin or ferritin concentrations were detected among children.\nFerrous bisglycinate shows some benefit over other iron supplements in increasing hemoglobin concentration and reducing GI adverse events among pregnant women. More trials are needed to assess the efficacy of ferrous bisglycinate against other iron supplements in other populations.\nCRD42020196984.",
+        "sha256": "7e0f2aad0abe3bfbe9e30a16036af464817bbd245aaa3c68535f731087f0a264",
+        "retrieved_at": "2026-09-18T22:19:44.257067+00:00"
+      },
+      {
+        "id": "34497146",
+        "title": "British Society of Gastroenterology guidelines for the management of iron deficiency anaemia in adults.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34497146/",
+        "abstract": "Iron deficiency anaemia (IDA) is a major cause of morbidity and burden of disease worldwide. It can generally be diagnosed by blood testing and remedied by iron replacement therapy (IRT) using the oral or intravenous route. The many causes of iron deficiency include poor dietary intake and malabsorption of dietary iron, as well as a number of significant gastrointestinal (GI) pathologies. Because blood is iron-rich it can result from chronic blood loss, and this is a common mechanism underlying the development of IDA-for example, as a consequence of menstrual or GI blood loss.Approximately a third of men and postmenopausal women presenting with IDA have an underlying pathological abnormality, most commonly in the GI tract. Therefore optimal management of IDA requires IRT in combination with appropriate investigation to establish the underlying cause. Unexplained IDA in all at-risk individuals is an accepted indication for fast-track secondary care referral in the UK because GI malignancies can present in this way, often in the absence of specific symptoms. Bidirectional GI endoscopy is the standard diagnostic approach to examination of the upper and lower GI tract, though radiological scanning is an alternative in some situations for assessing the large bowel. In recurrent or refractory IDA, wireless capsule endoscopy plays an important role in assessment of the small bowel.IDA may present in primary care or across a range of specialties in secondary care, and because of this and the insidious nature of the condition it has not always been optimally managed despite the considerable burden of disease- with investigation sometimes being inappropriate, incorrectly timed or incomplete, and the role of IRT for symptom relief neglected. It is therefore important that contemporary guidelines for the management of IDA are available to all clinicians. This document is a revision of previous British Society of Gastroenterology guidelines, updated in the light of subsequent evidence and developments.",
+        "sha256": "519b18cb30ee8f2d1d1ba64ac395e073dcb236e428475cb18ddf68c3fa3dd07e",
+        "retrieved_at": "2026-09-18T22:19:44.257067+00:00"
+      },
+      {
+        "id": "39536912",
+        "title": "Iron deficiency, supplementation, and sports performance in female athletes: A systematic review.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39536912/",
+        "abstract": "Iron facilitates key biological functions underpinning sports performance, and up to 60% of female athletes experience iron deficiency. However, the effects of iron deficiency on sports performance in female athletes is unclear, as are the degree of benefits of iron supplementation (FeSup). This study characterizes the effects of iron deficiency and FeSup on sports performance in high-level female athletes.\nSearches of the electronic databases MEDLINE, SPORTDiscus, Web of Science, Scopus, and CINAHL were performed in July 2023. Studies were included that evaluated the effects of iron deficiency or FeSup on sports performance in high-level (maximal oxygen uptake (VO2max) > 45 mL/kg/min, or trained > 5 h/week) iron deficient (ID) (serum ferritin (sFer) < 40 µg/L) female athletes. Studies were assessed using a modified Downs and Black Quality Assessment Checklist.\nA total of 23 studies comprising 669 athletes (age range: 13-47 years) across 16 sports were included in the review. Iron deficiency negatively affects endurance performance by 3%-4%. However, endurance performance improved by 2%-20% when ID athletes were treated with 100 mg/day of elemental iron for up to 56 days via oral supplementation, or bi-daily via parenteral administration over 8-10 days. ID non-anemic athletes with low sFer stores may be predisposed to reduced maximal aerobic capacity. However, maximal aerobic capacity improved by 6%-15% following 16 mg/day-100 mg/day of elemental iron for 36-126 days. Isokinetic strength and anaerobic power performance may be impeded (-23% to +4%) among ID athletes, but the effect of FeSup on anaerobic power varied markedly (-5% to +9%) following 100 mg/day of elemental iron over 42-56 days, or 100 mg of elemental iron bi-daily over 8-10 days. The quality of studies was moderate (77%), ranging from low (57%) to high (100%). Moststudies (n = 18) contained group sizes ≤ 20 athletes, thus limiting the likelihood of detecting significant effects (statistical power > 0.80).\nHigh-level ID female athletes experience a negative impact on endurance performance, which can be improved by supplementing with ∼100 mg of elemental iron per day or bi-daily. The decrements in other performance parameters characterizing a range of sports coincide with the severity of iron deficiency.",
+        "sha256": "bb04970fbdb9c373f4bf8ed55bc4d962a866ae63ac942bd3621cbc2dcd64fe69",
+        "retrieved_at": "2026-09-18T22:19:44.746629+00:00"
+      },
+      {
+        "id": "32894695",
+        "title": "Second International Guidelines for the Diagnosis and Management of Hereditary Hemorrhagic Telangiectasia.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32894695/",
+        "abstract": "Hereditary hemorrhagic telangiectasia (HHT) is an autosomal dominant disease with an estimated prevalence of 1 in 5000 that is characterized by the presence of vascular malformations (VMs). These result in chronic bleeding, acute hemorrhage, and complications from shunting through VMs. The goal of the Second International HHT Guidelines process was to develop evidence-based consensus guidelines for the management and prevention of HHT-related symptoms and complications.\nThe guidelines were developed using the AGREE II (Appraisal of Guidelines for Research and Evaluation II) framework and GRADE (Grading of Recommendations Assessment, Development and Evaluation) methodology. The guidelines expert panel included expert physicians (clinical and genetic) in HHT from 15 countries, guidelines methodologists, health care workers, health care administrators, patient advocacy representatives, and persons with HHT. During the preconference process, the expert panel generated clinically relevant questions in 6 priority topic areas. A systematic literature search was done in June 2019, and articles meeting a priori criteria were included to generate evidence tables, which were used as the basis for recommendation development. The expert panel subsequently convened during a guidelines conference to conduct a structured consensus process, during which recommendations reaching at least 80% consensus were discussed and approved.\nThe expert panel generated and approved 6 new recommendations for each of the following 6 priority topic areas: epistaxis, gastrointestinal bleeding, anemia and iron deficiency, liver VMs, pediatric care, and pregnancy and delivery (36 total). The recommendations highlight new evidence in existing topics from the first International HHT Guidelines and provide guidance in 3 new areas: anemia, pediatrics, and pregnancy and delivery. These recommendations should facilitate implementation of key components of HHT care into clinical practice.",
+        "sha256": "aeca01befe23ecbdb8bfa81ddbec04bdbc596878c3d6f2972d0b286e5c13fb0b",
+        "retrieved_at": "2026-09-18T22:19:44.746629+00:00"
+      },
+      {
+        "id": "30121943",
+        "title": "Treatment of Iron Deficiency Anemia in Pregnancy with Intravenous versus Oral Iron: Systematic Review and Meta-Analysis.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30121943/",
+        "abstract": "To perform a systematic review and meta-analysis of randomized controlled trials (RCTs) to assess the benefits of intravenous (IV) iron in pregnancy.\nSystematic review was registered with PROSPERO and performed using PRISMA guidelines. PubMed, MEDLINE, Web of Science, ClinicalTrials.gov, Cochrane Library, and Google Scholar were searched. Eleven RCTs, comparing IV to oral iron for treatment of iron-deficiency anemia in pregnancy, were included. Meta-analyses were performed with Stata software (College Station, TX), utilizing random effects model and method of DerSimonian and Laird. Outcomes were assessed by pooled odds ratios (OR) or pooled weighted mean difference (WMD). Sensitivity analyses were performed for heterogeneity.\nWe found that pregnant women receiving IV iron, compared with oral iron, had the following benefits: (1) Achieved target hemoglobin more often, pooled OR 2.66 (95% confidence interval [CI]: 1.71-4.15), p < 0.001; (2) Increased hemoglobin level after 4 weeks, pooled WMD 0.84 g/dL (95% CI: 0.59-1.09), p < 0.001; (3) Decreased adverse reactions, pooled OR 0.35 (95% CI: 0.18-0.67), p = 0.001. Results were unchanged following sensitivity analyses.\nIn this meta-analysis, IV iron is superior to oral iron for treatment of iron-deficiency anemia in pregnancy. Women receiving IV iron more often achieve desired hemoglobin targets, faster and with fewer side effects.",
+        "sha256": "1cbde7c8108d25baf32bd461abbfe67a93dc555f4a6d8b3ae107b8a9c7c72a3a",
+        "retrieved_at": "2026-09-18T22:19:44.746629+00:00"
+      },
+      {
+        "id": "32635675",
+        "title": "The Role of Iron in Brain Development: A Systematic Review.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32635675/",
+        "abstract": "One-third of children falter in cognitive development by pre-school age. Iron plays an important role in many neurodevelopmental processes, and animal studies suggest that iron sufficiency in pregnancy and infancy is particularly important for neurodevelopment. However, it is not clear whether iron deficiency directly impacts developmental outcomes, and, if so, whether impact differs by timing of exposure or developmental domain. We searched four databases for studies on iron deficiency or iron supplementation in pregnancy, or at 0-6 months, 6-24 months, or 2-4 years of age. All studies included neurodevelopmental assessments in infants or children up to 4 years old. We then qualitatively synthesized the literature. There was no clear relationship between iron status and developmental outcomes across any of the time windows or domains included. We identified a large quantity of low-quality studies, significant heterogeneity in study design and a lack of research focused on pregnancy and early infancy. In summary, despite good mechanistic evidence for the role of iron in brain development, evidence for the impact of iron deficiency or iron supplementation on early development is inconsistent. Further high-quality research is needed, particularly within pregnancy and early infancy, which has previously been neglected.",
+        "sha256": "beaeb0d47d6740a98ddede479608c7bf1d4e4528a48a9b66aecf8c47e58a4af7",
+        "retrieved_at": "2026-09-18T22:19:45.260572+00:00"
+      },
+      {
+        "id": "34028001",
+        "title": "Serum or plasma ferritin concentration as an index of iron deficiency and overload.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34028001/",
+        "abstract": "Reference standard indices of iron deficiency and iron overload are generally invasive, expensive, and can be unpleasant or occasionally risky. Ferritin is an iron storage protein and its concentration in the plasma or serum reflects iron stores; low ferritin indicates iron deficiency, while elevated ferritin reflects risk of iron overload. However, ferritin is also an acute-phase protein and its levels are elevated in inflammation and infection. The use of ferritin as a diagnostic test of iron deficiency and overload is a common clinical practice.\nTo determine the diagnostic accuracy of ferritin concentrations (serum or plasma) for detecting iron deficiency and risk of iron overload in primary and secondary iron-loading syndromes.\nWe searched the following databases (10 June 2020): DARE (Cochrane Library) Issue 2 of 4 2015, HTA (Cochrane Library) Issue 4 of 4 2016, CENTRAL (Cochrane Library) Issue 6 of 12 2020, MEDLINE (OVID) 1946 to 9 June 2020, Embase (OVID) 1947 to week 23 2020, CINAHL (Ebsco) 1982 to June 2020, Web of Science (ISI) SCI, SSCI, CPCI-exp & CPCI-SSH to June 2020, POPLINE 16/8/18, Open Grey (10/6/20), TRoPHI (10/6/20), Bibliomap (10/6/20), IBECS (10/6/20), SCIELO (10/6/20), Global Index Medicus (10/6/20) AIM, IMSEAR, WPRIM, IMEMR, LILACS (10/6/20), PAHO (10/6/20), WHOLIS 10/6/20, IndMED (16/8/18) and Native Health Research Database (10/6/20). We also searched two trials registers and contacted relevant organisations for unpublished studies.\nWe included all study designs seeking to evaluate serum or plasma ferritin concentrations measured by any current or previously available quantitative assay as an index of iron status in individuals of any age, sex, clinical and physiological status from any country.\nWe followed standard Cochrane methods. We designed the data extraction form to record results for ferritin concentration as the index test, and bone marrow iron content for iron deficiency and liver iron content for iron overload as the reference standards. Two other authors further extracted and validated the number of true positive, true negative, false positive, false negative cases, and extracted or derived the sensitivity, specificity, positive and negative predictive values for each threshold presented for iron deficiency and iron overload in included studies. We assessed risk of bias and applicability using the Quality Assessment of Diagnostic Accuracy Studies (QUADAS)-2 tool. We used GRADE assessment to enable the quality of evidence and hence strength of evidence for our conclusions.\nOur search was conducted initially in 2014 and updated in 2017, 2018 and 2020 (10 June). We identified 21,217 records and screened 14,244 records after duplicates were removed. We assessed 316 records in full text. We excluded 190 studies (193 records) with reasons and included 108 studies (111 records) in the qualitative and quantitative analysis. There were 11 studies (12 records) that we screened from the last search update and appeared eligible for a future analysis. We decided to enter these as awaiting classification. We stratified the analysis first by participant clinical status: apparently healthy and non-healthy populations. We then stratified by age and pregnancy status as: infants and children, adolescents, pregnant women, and adults. Iron deficiency We included 72 studies (75 records) involving 6059 participants. Apparently healthy populations Five studies screened for iron deficiency in people without apparent illness. In the general adult population, three studies reported sensitivities of 63% to 100% at the optimum cutoff for ferritin, with corresponding specificities of 92% to 98%, but the ferritin cutoffs varied between studies. One study in healthy children reported a sensitivity of 74% and a specificity of 77%. One study in pregnant women reported a sensitivity of 88% and a specificity of 100%. Overall confidence in these estimates was very low because of potential bias, indirectness, and sparse and heterogenous evidence. No studies screened for iron overload in apparently healthy people. People presenting for medical care There were 63 studies among adults presenting for medical care (5042 participants). For a sample of 1000 subjects with a 35% prevalence of iron deficiency (of the included studies in this category) and supposing a 85% specificity, there would be 315 iron-deficient subjects correctly classified as having iron deficiency and 35 iron-deficient subjects incorrectly classified as not having iron deficiency, leading to a 90% sensitivity. Thresholds proposed by the authors of the included studies ranged between 12 to 200 µg/L. The estimated diagnostic odds ratio was 50. Among non-healthy adults using a fixed threshold of 30 μg/L (nine studies, 512 participants, low-certainty evidence), the pooled estimate for sensitivity was 79% with a 95% confidence interval of (58%, 91%) and specificity of 98%, with a 95% confidence interval of (91%, 100%). The estimated diagnostic odds ratio was 140, a relatively highly informative test. Iron overload We included 36 studies (36 records) involving 1927 participants. All studies concerned non-healthy populations. There were no studies targeting either infants, children, or pregnant women. Among all populations (one threshold for males and females; 36 studies, 1927 participants, very low-certainty evidence): for a sample of 1000 subjects with a 42% prevalence of iron overload (of the included studies in this category) and supposing a 65% specificity, there would be 332 iron-overloaded subjects correctly classified as having iron overload and 85 iron-overloaded subjects incorrectly classified as not having iron overload, leading to a 80% sensitivity. The estimated diagnostic odds ratio was 8.\nAt a threshold of 30 micrograms/L, there is low-certainty evidence that blood ferritin concentration is reasonably sensitive and a very specific test for iron deficiency in people presenting for medical care. There is very low certainty that high concentrations of ferritin provide a sensitive test for iron overload in people where this condition is suspected. There is insufficient evidence to know whether ferritin concentration performs similarly when screening asymptomatic people for iron deficiency or overload.",
+        "sha256": "0972a99f2f74c8b5a9a3b53cfc6be6f6729f4d3a21cd3d69e9ee528f1b195cdb",
+        "retrieved_at": "2026-09-18T22:19:45.260572+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This is a 50-59 year old man with confirmed iron deficiency anemia (low ferritin 8 µg/L, low transferrin saturation 5%, high TIBC, microcytic hypochromic indices, elevated RDW, low CRP excluding inflammation). Per the British Society of Gastroenterology guidelines (PMID 34497146), approximately one-third of men and postmenopausal women with IDA have an underlying pathological GI abnormality, most commonly in the GI tract, and unexplained IDA in at-risk individuals is an accepted indication for prompt secondary-care referral because GI malignancies can present without specific symptoms. Bidirectional endoscopy (upper endoscopy plus colonoscopy) is the standard diagnostic approach. Absence of overt GI symptoms does NOT exclude serious pathology and should not defer evaluation. NSAID (ibuprofen) use may cause upper GI blood loss but does not obviate the need to exclude malignancy and other lesions. Option A (empiric iron and defer endoscopy) is unsafe—it risks delayed diagnosis of colorectal or upper GI cancer in a high-risk demographic and contradicts guideline recommendations to investigate the cause concurrent with iron replacement. Therefore option B is correct.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34497146"
+              ],
+              "reason": "BSG IDA guideline abstract states ~1/3 of men and postmenopausal women with IDA have underlying pathology, most commonly GI, and bidirectional endoscopy is the standard diagnostic approach."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34497146"
+              ],
+              "reason": "Abstract states unexplained IDA is an accepted indication for fast-track secondary care referral because GI malignancies can present this way, often without specific symptoms."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34028001"
+              ],
+              "reason": "Cochrane review concludes ferritin at a 30 µg/L threshold is reasonably sensitive and very specific for iron deficiency in people presenting for medical care."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34454714"
+              ],
+              "reason": "AGA atrophic gastritis update Best Practice Advice 11 states that in patients with unexplained iron deficiency, atrophic gastritis should be considered and appropriate diagnostic evaluation pursued."
+            }
+          ],
+          "issues": [],
+          "rationale": "This is an internal medicine / GI IDA workup case. A 50-59yo man has unambiguously confirmed iron deficiency anemia (Hb 9.2, MCV 72, ferritin 8, TSAT 5%, high TIBC, elevated RDW, thrombocytosis 410, low reticulocyte, normal CRP excluding inflammatory ferritin confounding). Chart shows no prior GI evaluation and no overt bleeding. Per the BSG IDA guideline, an adult male with unexplained/confirmed IDA warrants prompt bidirectional endoscopy without waiting for iron therapy response, given ~1/3 have GI pathology including malignancy. Answer B matches this standard of care and is the safe choice. Answer A (defer endoscopy, treat empirically with iron and only investigate if no response, claiming serious pathology is unlikely) is the intended flawed option: it risks missing GI malignancy and is unsafe — working as designed. Distinctness: previous case concerned DVT D-dimer/ultrasound decision, an entirely different clinical decision. The visible note does not disclose the answer — it presents data and explicitly notes 'no documentation of prior GI evaluation' and 'has not received iron therapy yet' without stating the management plan, so no answer leakage. All four claims verify against actual source text (BSG guideline, Cochrane ferritin review, AGA atrophic gastritis update). Ferritin 8 is well below the 30 µg/L threshold, and CRP is low, so iron deficiency is reliably established; no additional imaging needed to choose the next diagnostic step. Ibuprofen use is a mild potential contributor but does not obviate the need for GI evaluation in a man of this age. Minor observation: reference ranges are null but flags and values are clinically unambiguous. Case is acceptable."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This adult man has confirmed iron deficiency anemia (very low ferritin and transferrin saturation). In men and postmenopausal women, unexplained IDA warrants prompt evaluation for gastrointestinal sources, including malignancy, even without GI symptoms. The British Society of Gastroenterology guideline states that about one-third of such patients have underlying pathology—most commonly GI—and recommends bidirectional endoscopy as the standard diagnostic approach, with fast-track referral because cancers may present asymptomatically. Deferring endoscopy to assess response to iron risks delaying diagnosis and is not recommended (PMID 34497146). Additional expert guidance supports pursuing appropriate GI evaluation in unexplained iron deficiency to assess for causes such as atrophic gastritis (PMID 34454714).",
+          "confidence": 0.93
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.92,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34497146"
+              ],
+              "reason": "The BSG guideline states that ~1/3 of men and postmenopausal women with IDA have underlying GI pathology and that bidirectional GI endoscopy is the standard diagnostic approach."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34497146"
+              ],
+              "reason": "The BSG guideline notes that unexplained IDA is an accepted indication for fast-track secondary care referral because GI malignancies can present as IDA, often without specific symptoms."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34028001"
+              ],
+              "reason": "The Cochrane review reports that at a 30 µg/L threshold, serum ferritin is reasonably sensitive and very specific for iron deficiency in people presenting for medical care."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34454714"
+              ],
+              "reason": "AGA Best Practice Advice indicates that in patients with unexplained iron deficiency, atrophic gastritis should be considered and appropriate diagnostic evaluation pursued."
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent assessment: This 50–59-year-old man has confirmed iron deficiency anemia (Hgb 9.2 g/dL, microcytosis, ferritin 8 µg/L, transferrin saturation 5%, high TIBC), and no overt bleeding. Low CRP reduces concern for inflammatory elevation of ferritin; thus the very low ferritin reliably indicates true iron deficiency. In adult men and postmenopausal women, unexplained IDA warrants prompt evaluation for GI sources, including malignancy, even without GI symptoms. Current guidelines identify bidirectional endoscopy (EGD and colonoscopy) as the standard first-line diagnostic evaluation, and emphasize expedited referral given that GI cancers may present solely with IDA. Therefore the most appropriate next diagnostic step is prompt bidirectional endoscopy without delaying to assess response to iron therapy. Candidate B aligns with this. Candidate A is unsafe: it defers necessary endoscopic evaluation, incorrectly asserting serious GI pathology is unlikely in an asymptomatic adult male, contradicting guideline data (~1/3 have underlying GI pathology) and risking delayed cancer diagnosis. Additional considerations (e.g., celiac serology, evaluation for atrophic gastritis or H. pylori) can be pursued in conjunction with or based on endoscopic findings, but do not replace initial bidirectional endoscopy. The case is within internal medicine scope, provides sufficient data to make the decision, and the key matches contemporary evidence."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "71fd3b758ad7e93d19cc953874f357a74e38d678129733249b59d9648a62be5f"
+  }
+}

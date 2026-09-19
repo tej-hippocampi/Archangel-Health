@@ -1,0 +1,502 @@
+{
+  "task_id": "onboarding-examination-v1-306f5a139a55f0c90a72-1",
+  "specialty": "orthopedic surgery",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Escalating forearm pain after blunt trauma",
+    "question": "Which interpretation and immediate response are most appropriate for this worsening presentation?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "orthopedic surgery",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Closed both-bone forearm fracture",
+          "since": "Index injury",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Rapidly worsening forearm pain and swelling",
+          "since": "Two hours after injury",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "hemodynamic_status": "stable",
+        "mental_status": "alert and able to report symptoms"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Emergency orthopedic assessment",
+          "author_role": "orthopedic surgery",
+          "text": "An adult sustained a high-energy blunt injury to the nondominant forearm. Radiographs demonstrated closed fractures of the radial and ulnar shafts. During two hours of observation after initial immobilization, the forearm became progressively more swollen and the patient reported rapidly escalating, severe pain that appeared disproportionate to the documented injury. The patient remains alert and provides a consistent history; no peripheral nerve block or other communication-limiting intervention has been administered.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Radiography",
+          "label": "Forearm radiographs",
+          "findings": "Displaced fractures of the radial and ulnar shafts without an identified retained foreign body.",
+          "measurements": [],
+          "impression": "Closed both-bone forearm fracture.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [
+        "radiography"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for decision",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The fracture mechanism, progressive swelling, and rapidly escalating pain disproportionate to the injury support clinical recognition of acute forearm compartment syndrome. Acute compartment syndrome is primarily a clinical diagnosis, while intracompartmental pressure measurement is reserved for equivocal cases. Because it is an orthopedic emergency requiring immediate surgical intervention, waiting for a pressure threshold would create a consequential delay.",
+        "evidence": {
+          "decision": "Clinical recognition with immediate surgical intervention rather than delayed pressure confirmation"
+        },
+        "key_data": [
+          "High-energy blunt forearm trauma with both-bone fracture",
+          "Rapidly progressive forearm swelling during observation",
+          "Severe escalating pain disproportionate to the documented injury",
+          "Alert patient able to provide a reliable clinical history"
+        ]
+      },
+      "hard_hook": "Distinguishes a sufficiently convincing clinical presentation from an equivocal presentation requiring pressure measurement.",
+      "reasoning_divergence": "The flawed response treats intracompartmental pressure measurement as mandatory confirmation and delays emergency intervention."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Interpret the findings as expected fracture-related pain and swelling. Continue observation and obtain intracompartmental pressure measurements; surgical intervention should be deferred unless a diagnostic pressure threshold is documented."
+      },
+      {
+        "id": "B",
+        "text": "Recognize the presentation as acute forearm compartment syndrome on clinical grounds and initiate immediate surgical intervention for compartment decompression rather than delaying care to obtain confirmatory pressure measurements."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "acute compartment syndrome",
+      "forearm fracture",
+      "limb ischemia",
+      "surgical emergency",
+      "treatment delay"
+    ],
+    "evidence_keywords": [
+      "clinical diagnosis",
+      "disproportionate pain",
+      "intracompartmental pressure",
+      "forearm trauma",
+      "surgical intervention"
+    ],
+    "error_tags": [
+      "wrong_diagnosis",
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "Acute compartment syndrome is primarily a clinical diagnosis, with intracompartmental pressure measurement used in equivocal cases.",
+        "source_ids": [
+          "31042278"
+        ]
+      },
+      {
+        "statement": "Traumatic forearm compartment syndrome is an orthopedic emergency requiring immediate diagnosis and surgical intervention.",
+        "source_ids": [
+          "35794574"
+        ]
+      },
+      {
+        "statement": "Pain disproportionate to the size of the injury is a recognized hallmark of forearm acute compartment syndrome.",
+        "source_ids": [
+          "35794574"
+        ]
+      },
+      {
+        "statement": "Delay in treating forearm compartment syndrome can cause neurological deficits, muscle necrosis, chronic pain, and contracture.",
+        "source_ids": [
+          "35794574"
+        ]
+      },
+      {
+        "statement": "Fracture-related injuries are the most commonly represented traumatic cause of acute forearm compartment syndrome.",
+        "source_ids": [
+          "35794574"
+        ]
+      },
+      {
+        "statement": "Early recognition and prompt surgical treatment reduce the complications associated with untreated traumatic leg compartment syndrome.",
+        "source_ids": [
+          "30772051"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:50:55.276473+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "30688754",
+        "title": "Pediatric acute compartment syndrome: a systematic review and meta-analysis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30688754/",
+        "abstract": "Acute compartment syndrome (ACS) is an emergency with potentially devastating consequences. Delayed recognition may be especially concerning for the pediatric population, as children present with a wide variety of etiologies, symptoms, and levels of communication. We sought to determine the average time from injury to diagnosis, most common presentations, the degree to which providers obtained pressure measurements, and outcomes of ACS in the pediatric population. We performed a systematic review of multiple databases to include English-language clinical studies reporting ACS of the extremity in pediatric patients. Review articles, studies lacking statistical data, single case reports, and other evidence level V studies were excluded. Twelve studies were included, with all reporting clinical outcomes following diagnosis and intervention of ACS in children. There were 233 children with an average age of 9.7 years (SD: 5.9 years, range: 0-18 years). The most common causes were trauma-related: pedestrian versus motor vehicles (21%), motor vehicle accidents (12%), falls (12%), and sports/exercise-related injuries (12%). ACS occurred in all extremities, with lower leg (60%) and forearm (27%) being most common. Seventy-five percent of patients had concomitant fractures. Compartment pressures were measured in 68% of patients to aid diagnosis. Pain was the most common presenting symptom (88%) followed by paresthesias (32%). The mean time from injury to fasciotomy was 25.4 h. Patients had good outcomes, with 85% achieving full functional recovery. Range of motion deficit (10%) was the most common complication. We detected no significant difference in time from injury to fasciotomy, age, sex, the presence of a fracture, or anatomic location in those patients who achieved full functional recovery compared with patients who did not. Pediatric ACS occurs most often in the setting of trauma. Intracompartmental pressure measurements can aid diagnosis. Pediatric ACS differs from adult ACS, as pediatric patients generally achieve good outcomes even when presenting in delayed fashion and undergoing fasciotomies for at least 24 h. We recommend considering decompressive fasciotomy in children even if there is prolonged time from injury to diagnosis. Level of evidence: IV.",
+        "sha256": "c28b5e02e8da0ad205c37e3d0af6a2929540646f35bce7669c58262f0adc0318",
+        "retrieved_at": "2026-09-18T23:49:27.064845+00:00"
+      },
+      {
+        "id": "31042278",
+        "title": "Diagnostic Modalities for Acute Compartment Syndrome of the Extremities: A Systematic Review.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31042278/",
+        "abstract": "Acute compartment syndrome (ACS) can cause catastrophic tissue damage leading to permanent muscle and nerve loss. Acute compartment syndrome is a clinical diagnosis, with intracompartmental pressure (ICP) used in equivocal cases. There are no reliable diagnostic methods. The clinical evaluation is impossible to standardize, and the threshold for ICP has been known to be unreliable; thus, guidelines for diagnosis can result in overtreatment or delayed diagnosis.\nTo present and review the advantages and disadvantages of each diagnostic modality and identify gaps that need to be addressed in the future and to review the most used and appropriate animal and human ACS models.\nWe included clinical studies and animal models investigating diagnostic modalities for ACS of the extremities. A MEDLINE and Web of Science search was performed. The protocol for the study was registered on PROSPERO (CRD42017079266). We assessed the quality of the clinical studies with Newcastle-Ottawa scale and reported level of evidence for each article.\nFifty-one articles were included in this study, reporting on 38 noninvasive and 35 invasive modalities. Near-infrared spectroscopy and direct ICP measurement using a Stryker device were the most common, respectively. Cadaveric studies used saline infusions to create an ACS model. Most studies with human participants included injured patients with acquired ACS or at risk of developing ACS. In healthy human participants, tourniquets formed the most commonly used ACS model. Application of tourniquets and infusion of saline or albumin were the most used ACS models among animal studies.\nThis article reports on the most common as well as many new and modified diagnostic modalities, which can serve as inspiration for future investigations to develop more effective and efficient diagnostic techniques for ACS. Future studies on diagnostic modalities should include the development of tools for continuous assessment of ICP to better identify the earliest alterations suggestive of impending ACS. With the advent of such technologies, it may be possible to develop far less aggressive and more effective approaches for early detection of ACS.",
+        "sha256": "1d9bed1965573606f213b89f37d834022724fb95a2ff2ae99e382a7de5609078",
+        "retrieved_at": "2026-09-18T23:49:27.064845+00:00"
+      },
+      {
+        "id": "35794574",
+        "title": "Etiology of trauma-related acute compartment syndrome of the forearm: a systematic review.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35794574/",
+        "abstract": "Acute compartment syndrome (ACS) can be caused by multiple causes that affect people of different ages. It is considered an orthopedic emergency condition that requires immediate diagnosis and surgical intervention to avoid devastating complications and irreversible damages. This systematic review aimed to present the etiology of trauma-related forearm ACS.\nA systematic review was performed on four different databases: Embase, Medline, Cochrane Central Register of Controlled Trials (CENTRAL) and Cochrane Database of systematic review register databases via Ovid, with no restriction on dates (last date was June 30, 2021). It included all the studies containing data about the etiology of trauma-related forearm ACS.\nA total of 4893 articles were retrieved: 122 met the inclusion criteria, 39 were excluded, 25 were out of scope and 14 had insufficient details. Hence, this review constituted 83 articles and 684 patients. The etiology of ACS causing forearm ACS was classified into three groups: fracture-related, soft tissue injury-related and vascular injury-related. The fracture-related group was the most common group (65.4%), followed by soft tissue injury (30.7%), then vascular injuries (3.9%). Furthermore, supracondylar humerus fractures were the most common cause of fractures related to forearm ACS. Blunt traumas were the most common cause of soft tissue injuries-related forearm ACS, and brachial artery injuries were the most common cause of vascular-related forearm ACS.\nFrequent assessment of patients with the most prevalent etiologies of forearm ACS is recommended for early detection of forearm ACS and to save limbs.",
+        "sha256": "fc88bfefc88c58edcde8eb531735c085ec77d1896b132565a8105a3a4adc868d",
+        "retrieved_at": "2026-09-18T23:49:27.064845+00:00",
+        "pmcid": "PMC9258104",
+        "body_excerpts": "Introduction\nAcute compartment syndrome (ACS) of the forearm is defined as increased pressure in the closed osteofascial compartment of the forearm with a compromised microcirculation leading to ischemia and tissue damage [ 1 ]. The myofascial compartments of the upper extremity are divided into the shoulder and arm, the forearm and the hand based on the anatomic region [ 2 ]. Forearm is the most common site for ACS in the upper extremity and the second most common site for ACS in the body after the leg [ 3 ]. The diagnosis of ACS is mainly clinical, with pain that is disproportionate to the size of injury, being a known hallmark component of the clinical presentation. However, the patient may not exhibit clinical signs, which makes this a challenging task for the on-call trauma surgeon to diagnose and eventually increase the risk of late or misdiagnosis of this pathology [ 4 , 5 ]. Thus, a high index of clinical suspicion is needed when treating ACS. A delay in the treatment could lead to complications including neurological deficits, fracture nonunion, muscle necrosis, chronic pain, and forearm contractures [ 6 – 9 ].\n\nIntroduction\nTo our knowledge, there have been no previous systematic reviews that have focused on the possible etiologies of acute trauma-related forearm compartment syndrome, except for the Kalyani et al. [ 6 ] study in 2011. They have discussed both traumatic and non-traumatic etiologies of ACS. In addition, various studies have been presented to the literature since then, which contain additional information about the etiologies of ACS. Finally, understanding the causes of this devastating condition allows us to categorize the risk by identifying the group of high-risk patients, and the most common traumatic etiologies associated with them, leading to early diagnosis and intervention, fewer complications and overall better outcome.\n\nIntroduction\nTherefore, the aim of this systematic review was to identify the most prevalent etiologies in the literature regarding acute trauma-related compartment syndrome of the forearm.\n\nMaterials and methods > Search strategy\nThe Embase, Medline, Cochrane Central Register of Controlled Trials (CENTRAL) and Cochrane Database of systematic review register databases via Ovid were searched with no date restrictions, using the keywords: compartment syndrome AND forearm OR vascular OR trauma OR radius fracture OR forearm fracture OR ulna fracture OR humeral supracondylar fracture. The last date of the systematic search was on June 30, 2021. A search through the reference lists of the included studies was carried out for any potentially missed articles that fit the study criteria.\n\nResults\nThe etiology of the forearm ACS was classified into three groups according to the affected anatomical structure that caused the compartment syndrome: fracture-related, soft tissue injury-related and vascular injury-related causes.\n\nFracture-related ACS\nTable 1 Fracture-related acute compartment syndrome N Type of fracture Number out of 447 fractured patients Percentage out of 447 fractured patients 1 Supracondylar humerus fracture [ 7 , 10 , 11 , 14 , 15 , 19 , 22 , 26 , 52 , 57 , 58 ] 152 34.0 2 Both-bone forearm fracture [ 10 , 16 , 17 , 20 , 26 , 29 , 33 , 34 , 40 , 44 , 45 , 50 – 53 , 55 , 56 , 58 ] 123 27.5 3 Distal radial fractures [ 10 , 12 , 18 , 24 , 26 , 29 , 30 , 32 , 39 , 41 , 43 , 45 – 49 , 51 – 53 , 58 ] 99 22.1 4 Forearm bone fracture without identification of fractured segment [ 21 , 25 , 27 , 42 , 51 , 52 ] 16 3.6 5 Distal radius fracture with elbow fracture [ 29 ] 9 2.0 6 Proximal third of forearm [ 54 ] 8 1.8 7 Monteggia equivalents [ 11 ] 7 1.6 8 Supracondylar humerus fracture and both-bone forearm fracture [ 7 , 26 , 38 ] 7 1.6 9 Radial neck fractures [ 26 , 36 , 56 , 58 ] 4 0.9 10 Unspecified radius fracture [ 16 , 50 ] 4 0.9 11 Olecranon fracture [ 10 , 27 ] 3 0.7 12 Monteggia fractures [ 11 ] 2 0.4 13 Radial shaft fracture [ 59 ] 2 0.4 14 Unspecified ulna fracture [ 16 , 58 ] 2 0.4 15 Proximal ulna fracture [ 10 ] 1 0.2 16 Ulna diaphyseal fracture [ 40 ] 1 0.2 17 Distal ulna fracture [ 43 ] 1 0.2 18 Ulnar diaphyseal fracture and fracture of radius in distal one-fourth and dislocation of radial head [ 13 ] 1 0.2 19 Ulnar shaft fracture and supracondylar humerus fracture [ 23 ] 1 0.2 20 Supracondylar humerus fracture, ulnar shaft fracture and distal both-bone forearm fracture [ 26 ] 1 0.2 21 Anterior elbow dislocation with ulnar shaft and radial styloid fracture [ 31 ] 1 0.2 22 Distal radial fracture with basi-styloid fracture of the ulna [ 35 ] 1 0.2 23 Supracondylar humerus fracture and distal radius fracture [ 37 ] 1 0.2\n\nSoft tissue injury-related ACS\nTable 2 Soft tissue-related acute compartment syndrome N Name of soft tissue injury Number out of 210 soft tissue injury patients Percentage out of 210 soft tissue injury patients 1 Blunt trauma [ 57 , 69 , 75 , 82 , 85 , 87 ] 44 20.9 2 Burn injuries [ 61 , 76 , 85 ] 39 18.5 3 Not reported by the authors [ 51 , 53 ] 37 17.6 4 Crush injury [ 65 , 73 , 74 , 80 , 85 , 86 ] 36 17 5 Penetrating trauma [ 7 , 54 , 73 ] 22 10.5 6 Forearm caught in a machine [ 50 , 56 , 58 , 62 , 66 ] 10 4.7 7 Snake bites [ 60 , 63 , 81 ] 4 1.9 8 Suction injuries [ 70 , 72 , 78 ] 4 1.9 9 Traction injury [ 67 , 71 ] 2 1.0 10 Increased intrauterine pressure [ 79 , 84 ] 2 1.0 11 Fall injuries [ 55 , 77 ] 2 1.0 12 Spider bite [ 68 ] 1 0.5 13 Flying insect bite [ 64 ] 1 0.5 14 Compression trauma [ 79 ] 1 0.5 15 Electrical injury [ 50 ] 1 0.5 16 Caught by a wall [ 50 ] 1 0.5 17 Carving fork wound [ 7 ] 1 0.5 18 Dog bite [ 52 ] 1 0.5 19 Roller injury [ 86 ] 1 0.5\n\nVascular injury-related ACS\nTable 3 Vascular injury-related acute compartment syndrome N Name of the vessel Number of patients out of 27 patients with vascular injury Percentage out of 27 patients with vascular injury 1 Not reported by the authors [ 85 , 89 , 90 ] 13 48.1 2 Brachial artery [ 59 , 91 ] 7 25.9 3 Radial artery [ 59 ] 3 11.1 4 Anterior interosseous artery [ 59 , 87 ] 2 7.4 5 Ulnar artery [ 59 , 88 ] 2 7.4\n\nDiscussion\nIn the current systemic review, the etiologies of traumatic forearm compartment syndrome were evaluated, revealing that fractures were the most common etiology leading to forearm ACS, in particular supracondylar humerus fractures. In addition, soft tissue injuries (blunt trauma) following fractures showed higher rates of forearm ACS than any other soft tissue injuries. Finally, vascular injuries were the least to cause forearm ACS.\n\nDiscussion\nFurthermore, fractures were the most common etiology of forearm ACS (65.3%), revealing that supracondylar humerus fractures were the most prevalent sites of fractures, occurring in 34% of fracture cases causing ACS, followed by both-bone forearm fractures (27.5%), followed by distal radius fractures (22.1%). Though supracondylar fractures were the most prevalent fracture causing forearm ACS, this should be looked at in view of Robertson et al. [ 15 ] study that described an incidence of 0.2% of ACS in supracondylar humeral fractures (67 cases of ACS out of 31,234 supracondylar fracture cases). This shows that supracondylar fractures are a common cause of forearm ACS, but ACS is not that common in supracondylar fractures. In addition, supracondylar humerus fractures were the most prevalent in the current review, which could be attributable to the vast pediatric population in this study. In line with the results, fractures were also the most common cause leading to 70% of ACS cases in Stella et al.’s systemic review of 95 articles on leg ACS [ 4 ].\n\nDiscussion\nAnother finding to consider is that the second most common cause of forearm ACS is soft tissue injury: Increased pressure within the compartment is associated with any injury to the surroundings or inside the compartment leading to ACS [ 53 ]. This injury can be secondary to either minor or major injuries, which have been observed to be blunt trauma in this study. Similarly, Stella et al. reported that soft tissue injuries were the second most common cause of leg ACS [ 4 ], and crush injuries were the most common cause of soft tissue injuries-related ACS.\n\nDiscussion\nMoreover, Kalyani et al.[ 6 ] (80 cases) reported a prevalence of 33.3% forearm ACS due to soft tissue injury, making it the most common cause of ACS. The differences between this study and theirs could be attributed to the fact that our study only focused on traumatic etiologies. In contrast, their study included all possible etiologies of forearm ACS regardless they were traumatic or not. Furthermore, Zhang et al. [ 85 ] study of 130 patients who underwent forearm fasciotomies 66% (86 patients) resulted from soft tissue injuries. Meanwhile, Özkan et al. [ 61 ] reported 43 fasciotomies in their study of 35 patients (81%) who had forearm ACS due to soft tissue injuries, indicating that even minimal injuries to soft tissues could lead to compartment syndrome. Thus, it is important not to underestimate any injuries, as forearm ACS was noticed to be caused by snakes, insects and spider bites [ 6 , 60 , 63 , 64 , 68 , 81 ].\n\nDiscussion\nResults also revealed that forearm vascular-related ACS was mainly associated with trauma that could penetrate the skin and cause damage to the underlying vessels. Brachial artery was the most frequently affected artery causing ACS. Also, an increased pressure within a confined compartment by bleeding and local edema was the mechanism by which arterial injuries lead to ACS. Morin et al. [ 59 ] (2009) reported 3.8% cases of forearm ACS (5 out of 129) that were attributed to vascular trauma secondary to penetrating trauma. Similarly, Lagerstrom et al. [ 91 ] reported 32 cases of ACS, where 9 were in the forearm and 5 (15.6%) were due to brachial artery injury. Furthermore, Kalyani et al. [ 6 ] reported cases of forearm ACS (10.7%) that were attributed to vascular injuries.\n\nDiscussion\nThe strength of this review is the diversity and number of cases, which gave it a better estimate of the general population, although one of the limitations of this review was the incomplete information in many of the articles reviewed. In addition, 45 studies (53.6%) were case reports and retrospective case series, 32 (38.1%) level IV evidence, and several studies were conducted before 20 years or more. Thus, the need for more studies discussing the etiology of forearm ACS in a multicenter and prospective setting is recommended. We also acknowledge that this review was limited to studies written in English.",
+        "body_excerpts_sha256": "5fcca1bb5e75ec71f392b950abee2995b682a79c348738e24a192b08de5f4935",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC9258104/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "30772051",
+        "title": "Aetiology of trauma-related acute compartment syndrome of the leg: A systematic review.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30772051/",
+        "abstract": "Acute compartment syndrome (ACS) is characterised by abnormal pressure inside a compartment, resulting in ischemia of muscles and nerves. Most orthopaedic surgeons, especially those who work in major trauma centres, have been or will be facing a case of ACS in their clinical activity. Fortunately, complications related to untreated compartment syndrome have become less frequent thanks to a better understanding of pathogenesis and to early recognition and prompt surgical treatment. The aim of this study is to identify the existing evidence regarding aetiology of trauma-related ACS of the leg.\nA systematic review of the literature was undertaken using PubMed Medline, Ovid Medline and the Cochrane library, extended by a manual search of bibliographies. Retrieved articles were eligible for inclusion if they reported data about aetiology of trauma-related compartment syndrome of the tibia.\nNinety-five studies that fulfilled the inclusion criteria were identified. By dividing the studies into three groups according to the traumatic aetiology, we were able to classify traumatic ACS as fracture related, soft tissue injury related and vascular injury related. Fracture related was the most represented group, comprising 58 papers, followed by the soft tissue injury related group which includes 44 articles and vascular injury related group with 24 papers.\nAlthough traditionally ACS has been associated mainly with fractures of tibial diaphysis, literature demonstrates that other localisations, in particular in the proximal tibia, are associated with an increased incidence of this serious condition. The forms of ACS secondary to soft tissues injuries represent an extremely variable spectrum of lesions with an insidious tendency for late diagnosis and consequently negative outcomes. In the case of vascular injury, ACS should always be carefully considered as a priority, given the high incidence reported in the literature, as a result of primitive vascular damage or as a result of revascularisation of the limb. Knowledge of aetiology of this serious condition allows us to stratify the risk by identifying a population of patients most at risk, together with the most frequently associated traumatic injuries.",
+        "sha256": "b018b5c083f69f42b2b3da64bb54b28d1fd6739adb2b0000a5ab9b674fd48ccf",
+        "retrieved_at": "2026-09-18T23:49:27.549699+00:00"
+      },
+      {
+        "id": "40181361",
+        "title": "Acute compartment syndrome in tibial fractures: a meta-analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40181361/",
+        "abstract": "Acute compartment syndrome (ACS) is a severe complication associated with tibial fractures, which can result in irreversible muscle and nerve damage if not promptly identified and treated.\nThis study systematically searched PubMed, EMBASE, the Cochrane Library, and Web of Science. Data on demographics, fracture attributes, injury mechanisms, and biomarkers were extracted. Meta-analyses were performed using both fixed- and random-effects models, depending on the degree of heterogeneity.\nA total of 17 studies were included. Younger adult age and older age in pediatric populations were both linked to higher ACS risk, depending on the age group. ale sex was strongly associated with ACS. High-energy traumaand polytrauma were also associated with a heightened risk. Delayed external fixation also showed a protective effect, albeit based on limited evidence. Biomarkers, including elevated monocyte count and creatine kinase-MB levels, were also significant predictors.\nYounger adult age, male sex, high-energy trauma, and polytrauma were identified as critical risk factors for ACS in tibial fractures. Findings emphasize the need for standardized definitions and prospective investigations. Further research addressing pediatric age ranges, fracture location, and biomarker validation is essential to refine risk assessment and optimize early interventions.",
+        "sha256": "6ff7f0b28dc5265dfb5eee81b3a7354f3f3db17acaf2b05189e3b60228a31f8d",
+        "retrieved_at": "2026-09-18T23:49:27.549699+00:00",
+        "pmcid": "PMC11966797"
+      },
+      {
+        "id": "31215795",
+        "title": "Clinical Case of Acute Non-Traumatic Hand Compartment Syndrome and Systematic Review for the Upper Extremity.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31215795/",
+        "abstract": "Background: While trauma to the upper extremity is known to cause acute compartment syndrome (ACS), nontraumatic causes of ACS of the upper extremity are rare. Nontraumatic ACS of the upper extremity can lead to adverse outcomes if not recognized early. There are limited reports of spontaneous ACS published in the literature. The aim of this comprehensive systematic review is to increase awareness among plastic surgeons and hand surgeons of this acute event and provide an algorithmic approach to management in the acute setting through an illustrative case example. Methods: A comprehensive systematic review of published literature was conducted in the Medline/PubMed database with the search terms, \"compartment syndrome,\" \"extremity,\" \"spontaneous,\" \"nontraumatic,\" and \"atraumatic\" without timeframe limitations. Articles were identified and included in this review based on ACS localization in the upper extremity and etiology of nontraumatic, spontaneous origin. Results: Sixteen publications and 19 total cases of nontraumatic ACS of the upper extremity from 1993 to 2016 met our search criteria. A bleeding disorder was the etiology in three cases, systemic anticoagulation in three cases, infection in six cases, and unknown in three cases. The remaining four cases included systemic sclerosis, Ehlers-Danlos syndrome, rhabdomyolysis, and McArdle disease. Conclusions: Nontraumatic causes of ACS of the upper extremity include infection, anticoagulation therapy, and bleeding disorders. Even though trauma is the most common cause of ACS, clinicians should be aware of these other potential causes of ACS in the nontraumatic setting. Appropriate medical and surgical intervention should be done to avoid potential adverse outcomes.",
+        "sha256": "23ab35ae3154ea278a59875c2272e6b332b875a8c58a18e06c135995fd0bad34",
+        "retrieved_at": "2026-09-18T23:49:27.549699+00:00",
+        "pmcid": "PMC8120590"
+      },
+      {
+        "id": "32107640",
+        "title": "Risk factors for developing acute compartment syndrome in the pediatric population: a systematic review and meta-analysis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32107640/",
+        "abstract": "Acute compartment syndrome (ACS) is often difficult to diagnose in pediatric patients due to their erratic symptomatology. Therefore, it is of paramount importance to identify at-risk patients to facilitate a prompt diagnosis. This study aims to identify risk factors for the development of ACS in the pediatric population.\nWe included studies comprised of pediatric patients with traumatic ACS. We excluded studies evaluating compartment syndrome secondary to exertion, vascular insult, abdominal processes, burns, and snake bites. Heterogeneity was addressed by subgroup analysis, and whenever it remained significant, we utilized a random-effects meta-analysis for data pooling. The protocol has been registered at PROSPERO (ID = CRD42019126603).\nWe included nine studies with 380,411 patients, of which 1144 patients were diagnosed with traumatic ACS. The average age was 10 years old, and 67% of patients were male. Factors that were significantly associated with ACS were: open radius/ulna fractures (OR 3.56 CI 1.52-8.33, p = 0.003), high-energy trauma (OR 3.51 CI 1.71-7.21, p = 0.001), humerus fractures occurring concurrently with forearm fractures (OR 3.49 CI 1.87-6.52, p < 0.001), open tibia fractures (OR 2.29 CI 1.47-3.55, p < 0.001), and male gender (OR 2.06 CI 1.70-2.51, p < 0.001).\nIn the present study, open fractures, high-energy trauma, concurrent humerus and forearm fractures, and male gender significantly increased the risk of developing ACS in the pediatric population. Clinicians should raise their suspicion for ACS when one or multiple of these factors are present in the right clinical context.\nSystematic review and meta-analysis.\nIII.",
+        "sha256": "5bb3404bd1dd840ad521165993041d779ad3f18ca59480bafcf9add0c7c01466",
+        "retrieved_at": "2026-09-18T23:49:28.053495+00:00"
+      },
+      {
+        "id": "32072224",
+        "title": "A systematic review of the effect of regional anesthesia on diagnosis and management of acute compartment syndrome in long bone fractures.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32072224/",
+        "abstract": "Peripheral nerve blockade (PNB) is a useful tool for pain control in the perioperative period. However, there are significant concerns about the use of PNBs following acute orthopaedic trauma due to the theoretical risk of masking acute compartment syndrome (ACS). This study aims to systematically review the effects of PNBs on diagnosis of ACS following long bone fractures.\nA systematic review of the literature was conducted according to Preferred Reporting Items for Systematic Reviews and Meta-Analyses (PRISMA) guidelines.\nSix studies, all of which were single-patient case reports, met criteria for inclusion in this review. Two studies reported a delay in diagnosis of ACS in the setting of PNB use, while four studies did not.\nDue to the low incidence of ACS, there is a paucity of literature available on ACS following PNB use in the setting of orthopedic trauma. There is no consensus in the literature about the safety of PNB use in the setting of acute long bone fractures, and this review could draw no conclusions from the literature, as the level of evidence is limited to case reports. PNBs should be administered to orthopedic trauma patients only in strictly controlled research environments, and surgeons should be highly cautious about using PNBs for orthopedic long bone fractures, particularly in cases at increased risk for developing ACS.",
+        "sha256": "3e65a26e3f213bc39a5158eda7d108261400819da941f9a7760f5a5050450547",
+        "retrieved_at": "2026-09-18T23:49:28.053495+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Acute compartment syndrome (ACS) is fundamentally a clinical diagnosis, and the retrieved sources support this directly. Source 31042278 states ACS 'is a clinical diagnosis, with intracompartmental pressure (ICP) used in equivocal cases,' noting that ICP thresholds are 'unreliable' and that rigid reliance on pressure guidelines 'can result in overtreatment or delayed diagnosis.' Source 35794574 identifies 'pain that is disproportionate to the size of injury' as a known hallmark of forearm ACS and emphasizes that delay in treatment leads to catastrophic complications (muscle necrosis, contractures, nerve deficits), recommending immediate diagnosis and surgical intervention. This case presents a classic high-risk scenario: high-energy blunt trauma, a both-bone forearm fracture (the second most common fracture-related cause of forearm ACS per 35794574), rapidly escalating pain disproportionate to injury, progressive swelling, and—importantly—an alert patient with no confounding factors like a nerve block (source 32072224 highlights the concern for masking ACS). Because the diagnosis is clinically clear in a communicative patient with the pathognomonic finding of disproportionate pain, delaying decompressive fasciotomy to obtain confirmatory pressure measurements (Answer A) risks irreversible ischemic damage. Answer A also inappropriately requires a 'diagnostic pressure threshold' before surgery, which the literature explicitly cautions against given the unreliability of those thresholds. Answer B correctly recognizes ACS on clinical grounds and proceeds to emergent decompression.",
+          "confidence": 0.9
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31042278"
+              ],
+              "source_passage_ids": [
+                "31042278:p0"
+              ],
+              "reason": "Abstract states ACS is a clinical diagnosis with ICP used in equivocal cases.",
+              "source_quotes": [
+                {
+                  "source_id": "31042278",
+                  "quote": "Acute compartment syndrome (ACS) can cause catastrophic tissue damage leading to permanent muscle and nerve loss. Acute compartment syndrome is a clinical diagnosis, with intracompartmental pressure (ICP) used in equivocal cases. There are no reliable diagnostic methods. The clinical evaluation is impossible to standardize, and the threshold for ICP has been known to be unreliable; thus, guidelines for diagnosis can result in overtreatment or delayed diagnosis. To present and review the advantages and disadvantages of each diagnostic modality and identify gaps that need to be addressed in the future and to review the most used and appropriate animal and human ACS models. We included clinical studies and animal models investigating diagnostic modalities for ACS of the extremities. A MEDLINE and Web of Science search was performed."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "35794574"
+              ],
+              "source_passage_ids": [
+                "35794574:p0"
+              ],
+              "reason": "States ACS is an orthopedic emergency requiring immediate diagnosis and surgical intervention.",
+              "source_quotes": [
+                {
+                  "source_id": "35794574",
+                  "quote": "Acute compartment syndrome (ACS) can be caused by multiple causes that affect people of different ages. It is considered an orthopedic emergency condition that requires immediate diagnosis and surgical intervention to avoid devastating complications and irreversible damages. This systematic review aimed to present the etiology of trauma-related forearm ACS. A systematic review was performed on four different databases: Embase, Medline, Cochrane Central Register of Controlled Trials (CENTRAL) and Cochrane Database of systematic review register databases via Ovid, with no restriction on dates (last date was June 30, 2021). It included all the studies containing data about the etiology of trauma-related forearm ACS. A total of 4893 articles were retrieved: 122 met the inclusion criteria, 39 were excluded, 25 were out of scope and 14 had insufficient details."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "35794574"
+              ],
+              "source_passage_ids": [
+                "35794574:p2"
+              ],
+              "reason": "Body excerpt names pain disproportionate to injury as a hallmark of forearm ACS.",
+              "source_quotes": [
+                {
+                  "source_id": "35794574",
+                  "quote": "Introduction Acute compartment syndrome (ACS) of the forearm is defined as increased pressure in the closed osteofascial compartment of the forearm with a compromised microcirculation leading to ischemia and tissue damage [ 1 ]. The myofascial compartments of the upper extremity are divided into the shoulder and arm, the forearm and the hand based on the anatomic region [ 2 ]. Forearm is the most common site for ACS in the upper extremity and the second most common site for ACS in the body after the leg [ 3 ]. The diagnosis of ACS is mainly clinical, with pain that is disproportionate to the size of injury, being a known hallmark component of the clinical presentation. However, the patient may not exhibit clinical signs, which makes this a challenging task for the on-call trauma surgeon to diagnose and eventually increase the risk of late or misdiagnosis of this pathology [ 4 , 5 ]."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "35794574"
+              ],
+              "source_passage_ids": [
+                "35794574:p3"
+              ],
+              "reason": "Body excerpt lists delay complications: neurological deficits, muscle necrosis, chronic pain, contracture.",
+              "source_quotes": [
+                {
+                  "source_id": "35794574",
+                  "quote": "Thus, a high index of clinical suspicion is needed when treating ACS. A delay in the treatment could lead to complications including neurological deficits, fracture nonunion, muscle necrosis, chronic pain, and forearm contractures [ 6 – 9 ]. Introduction To our knowledge, there have been no previous systematic reviews that have focused on the possible etiologies of acute trauma-related forearm compartment syndrome, except for the Kalyani et al. [ 6 ] study in 2011. They have discussed both traumatic and non-traumatic etiologies of ACS. In addition, various studies have been presented to the literature since then, which contain additional information about the etiologies of ACS."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "35794574"
+              ],
+              "source_passage_ids": [
+                "35794574:p1"
+              ],
+              "reason": "Fracture-related group was the most common (65.4%).",
+              "source_quotes": [
+                {
+                  "source_id": "35794574",
+                  "quote": "Hence, this review constituted 83 articles and 684 patients. The etiology of ACS causing forearm ACS was classified into three groups: fracture-related, soft tissue injury-related and vascular injury-related. The fracture-related group was the most common group (65.4%), followed by soft tissue injury (30.7%), then vascular injuries (3.9%). Furthermore, supracondylar humerus fractures were the most common cause of fractures related to forearm ACS. Blunt traumas were the most common cause of soft tissue injuries-related forearm ACS, and brachial artery injuries were the most common cause of vascular-related forearm ACS. Frequent assessment of patients with the most prevalent etiologies of forearm ACS is recommended for early detection of forearm ACS and to save limbs."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "30772051"
+              ],
+              "source_passage_ids": [
+                "30772051:p0"
+              ],
+              "reason": "States early recognition and prompt surgical treatment reduce untreated leg ACS complications.",
+              "source_quotes": [
+                {
+                  "source_id": "30772051",
+                  "quote": "Acute compartment syndrome (ACS) is characterised by abnormal pressure inside a compartment, resulting in ischemia of muscles and nerves. Most orthopaedic surgeons, especially those who work in major trauma centres, have been or will be facing a case of ACS in their clinical activity. Fortunately, complications related to untreated compartment syndrome have become less frequent thanks to a better understanding of pathogenesis and to early recognition and prompt surgical treatment. The aim of this study is to identify the existing evidence regarding aetiology of trauma-related ACS of the leg. A systematic review of the literature was undertaken using PubMed Medline, Ovid Medline and the Cochrane library, extended by a manual search of bibliographies. Retrieved articles were eligible for inclusion if they reported data about aetiology of trauma-related compartment syndrome of the tibia."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This adult orthopedic case describes a classic acute forearm compartment syndrome: high-energy blunt both-bone forearm fracture with progressive swelling and rapidly escalating pain disproportionate to injury in an alert patient over 2 hours. Answer B correctly recognizes ACS clinically and proceeds to emergent decompression rather than delaying for pressure thresholds. This is supported by 31042278 (clinical diagnosis, ICP reserved for equivocal cases) and 35794574 (orthopedic emergency requiring immediate surgical intervention; disproportionate pain is a hallmark). The presentation here is not equivocal—it is a convincing clinical picture in a communicative patient with no confounding nerve block—so pressure measurement (Answer A) would introduce a consequential and unsafe delay; A also mischaracterizes the findings as expected fracture pain. B omits nothing essential (fasciotomy is the definitive intervention). All six claims are entailed by exact supplied text. The case is on-specialty, coherent, and the visible note does not disclose the answer (it presents ambiguous features and states no nerve block, but does not name ACS or the plan). The decision (clinical recognition vs pressure-gated delay) is distinct. Minor observations: source 30772051 concerns leg ACS and pediatric sources are present but not relied upon for the adult decision; the disproportionate-pain hallmark and emergency status derive from the forearm-specific 35794574, which matches the population. No blocking defects found."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Rapidly escalating pain out of proportion to the injury with progressive swelling after a high-energy both-bone forearm fracture is a classic clinical presentation of acute compartment syndrome. The patient is alert and has no nerve block or other barrier that would make the examination unreliable. Acute compartment syndrome is primarily a clinical diagnosis; intracompartmental pressure measurement is an adjunct for equivocal or unreliable examinations and should not delay decompression when clinical suspicion is high. Forearm ACS is an orthopedic emergency requiring immediate fasciotomy to prevent irreversible muscle and nerve injury. The supplied reviews specifically identify fractures— including both-bone forearm fractures—and blunt trauma as major etiologies and emphasize prompt surgical treatment (sources 31042278 and 35794574).",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.96,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "31042278"
+              ],
+              "source_passage_ids": [
+                "31042278:p0"
+              ],
+              "reason": "The cited systematic review directly states that ACS is a clinical diagnosis and that intracompartmental pressure is used in equivocal cases.",
+              "source_quotes": [
+                {
+                  "source_id": "31042278",
+                  "quote": "Acute compartment syndrome (ACS) can cause catastrophic tissue damage leading to permanent muscle and nerve loss. Acute compartment syndrome is a clinical diagnosis, with intracompartmental pressure (ICP) used in equivocal cases. There are no reliable diagnostic methods. The clinical evaluation is impossible to standardize, and the threshold for ICP has been known to be unreliable; thus, guidelines for diagnosis can result in overtreatment or delayed diagnosis. To present and review the advantages and disadvantages of each diagnostic modality and identify gaps that need to be addressed in the future and to review the most used and appropriate animal and human ACS models. We included clinical studies and animal models investigating diagnostic modalities for ACS of the extremities. A MEDLINE and Web of Science search was performed."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "35794574"
+              ],
+              "source_passage_ids": [
+                "35794574:p0"
+              ],
+              "reason": "The forearm trauma systematic review directly characterizes ACS as an orthopedic emergency requiring immediate diagnosis and surgical intervention.",
+              "source_quotes": [
+                {
+                  "source_id": "35794574",
+                  "quote": "Acute compartment syndrome (ACS) can be caused by multiple causes that affect people of different ages. It is considered an orthopedic emergency condition that requires immediate diagnosis and surgical intervention to avoid devastating complications and irreversible damages. This systematic review aimed to present the etiology of trauma-related forearm ACS. A systematic review was performed on four different databases: Embase, Medline, Cochrane Central Register of Controlled Trials (CENTRAL) and Cochrane Database of systematic review register databases via Ovid, with no restriction on dates (last date was June 30, 2021). It included all the studies containing data about the etiology of trauma-related forearm ACS. A total of 4893 articles were retrieved: 122 met the inclusion criteria, 39 were excluded, 25 were out of scope and 14 had insufficient details."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "35794574"
+              ],
+              "source_passage_ids": [
+                "35794574:p2"
+              ],
+              "reason": "The source identifies pain disproportionate to the injury as a hallmark of forearm ACS.",
+              "source_quotes": [
+                {
+                  "source_id": "35794574",
+                  "quote": "Introduction Acute compartment syndrome (ACS) of the forearm is defined as increased pressure in the closed osteofascial compartment of the forearm with a compromised microcirculation leading to ischemia and tissue damage [ 1 ]. The myofascial compartments of the upper extremity are divided into the shoulder and arm, the forearm and the hand based on the anatomic region [ 2 ]. Forearm is the most common site for ACS in the upper extremity and the second most common site for ACS in the body after the leg [ 3 ]. The diagnosis of ACS is mainly clinical, with pain that is disproportionate to the size of injury, being a known hallmark component of the clinical presentation. However, the patient may not exhibit clinical signs, which makes this a challenging task for the on-call trauma surgeon to diagnose and eventually increase the risk of late or misdiagnosis of this pathology [ 4 , 5 ]."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "35794574"
+              ],
+              "source_passage_ids": [
+                "35794574:p3"
+              ],
+              "reason": "The source directly lists neurological deficits, muscle necrosis, chronic pain, and forearm contractures among complications of delayed treatment.",
+              "source_quotes": [
+                {
+                  "source_id": "35794574",
+                  "quote": "Thus, a high index of clinical suspicion is needed when treating ACS. A delay in the treatment could lead to complications including neurological deficits, fracture nonunion, muscle necrosis, chronic pain, and forearm contractures [ 6 – 9 ]. Introduction To our knowledge, there have been no previous systematic reviews that have focused on the possible etiologies of acute trauma-related forearm compartment syndrome, except for the Kalyani et al. [ 6 ] study in 2011. They have discussed both traumatic and non-traumatic etiologies of ACS. In addition, various studies have been presented to the literature since then, which contain additional information about the etiologies of ACS."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "35794574"
+              ],
+              "source_passage_ids": [
+                "35794574:p1",
+                "35794574:p10"
+              ],
+              "reason": "The forearm review reports fracture-related injuries as the most common traumatic etiology and specifically identifies both-bone forearm fractures as a prominent fracture cause.",
+              "source_quotes": [
+                {
+                  "source_id": "35794574",
+                  "quote": "Hence, this review constituted 83 articles and 684 patients. The etiology of ACS causing forearm ACS was classified into three groups: fracture-related, soft tissue injury-related and vascular injury-related. The fracture-related group was the most common group (65.4%), followed by soft tissue injury (30.7%), then vascular injuries (3.9%). Furthermore, supracondylar humerus fractures were the most common cause of fractures related to forearm ACS. Blunt traumas were the most common cause of soft tissue injuries-related forearm ACS, and brachial artery injuries were the most common cause of vascular-related forearm ACS. Frequent assessment of patients with the most prevalent etiologies of forearm ACS is recommended for early detection of forearm ACS and to save limbs."
+                },
+                {
+                  "source_id": "35794574",
+                  "quote": "Finally, vascular injuries were the least to cause forearm ACS. Discussion Furthermore, fractures were the most common etiology of forearm ACS (65.3%), revealing that supracondylar humerus fractures were the most prevalent sites of fractures, occurring in 34% of fracture cases causing ACS, followed by both-bone forearm fractures (27.5%), followed by distal radius fractures (22.1%). Though supracondylar fractures were the most prevalent fracture causing forearm ACS, this should be looked at in view of Robertson et al. [ 15 ] study that described an incidence of 0.2% of ACS in supracondylar humeral fractures (67 cases of ACS out of 31,234 supracondylar fracture cases). This shows that supracondylar fractures are a common cause of forearm ACS, but ACS is not that common in supracondylar fractures."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "30772051"
+              ],
+              "source_passage_ids": [
+                "30772051:p0"
+              ],
+              "reason": "The leg ACS review states that complications of untreated compartment syndrome have become less frequent with early recognition and prompt surgical treatment. This claim is correctly limited to traumatic leg compartment syndrome and is supplementary rather than the basis for extrapolating forearm management.",
+              "source_quotes": [
+                {
+                  "source_id": "30772051",
+                  "quote": "Acute compartment syndrome (ACS) is characterised by abnormal pressure inside a compartment, resulting in ischemia of muscles and nerves. Most orthopaedic surgeons, especially those who work in major trauma centres, have been or will be facing a case of ACS in their clinical activity. Fortunately, complications related to untreated compartment syndrome have become less frequent thanks to a better understanding of pathogenesis and to early recognition and prompt surgical treatment. The aim of this study is to identify the existing evidence regarding aetiology of trauma-related ACS of the leg. A systematic review of the literature was undertaken using PubMed Medline, Ovid Medline and the Cochrane library, extended by a manual search of bibliographies. Retrieved articles were eligible for inclusion if they reported data about aetiology of trauma-related compartment syndrome of the tibia."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The presentation is strongly consistent with acute forearm compartment syndrome: a high-energy both-bone forearm fracture is followed by rapidly progressive swelling and escalating pain disproportionate to the injury in an alert, communicative patient without a masking nerve block. The supplied evidence establishes that ACS is principally a clinical diagnosis, pressure measurement is used for equivocal cases, disproportionate pain is a hallmark of forearm ACS, and traumatic forearm ACS requires immediate surgical intervention. Thus B appropriately prioritizes urgent decompression rather than delaying treatment for a pressure threshold. A is intentionally unsafe because it misclassifies a worsening hallmark presentation as expected fracture pain and makes pressure confirmation mandatory before surgery. The title and visible note provide the clinical findings needed for diagnosis but do not explicitly name ACS or state the management plan. No previous cases were supplied, so no duplicated prior clinical decision is identifiable."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "02017525fd9a4bd3caeec07898161b160bc948405c3bc17fe16e33cf2bcd636e"
+  }
+}

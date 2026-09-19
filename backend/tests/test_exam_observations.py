@@ -146,26 +146,25 @@ def test_a_physician_who_types_their_specialty_the_way_physicians_do_gets_their_
     so every one of these fell past it to the nephrology fallback: a
     cardiologist was handed a nephrology case and told, correctly and
     uselessly, that we had no set for their specialty."""
-    for typed in ("interventional cardiology", "Pediatric Cardiology",
+    for typed in ("interventional cardiology",
                   "cardiologist", "Cardiology"):
         picked = exam_case.exam_specialty({"specialty": typed})
         assert picked["specialty"] == "cardiology", typed
         assert picked["is_own"] is True, typed
 
 
-def test_a_specialty_we_hold_no_cases_for_still_falls_back_and_says_so():
-    """Hepatology is enabled for generation and has no gold set. Matching it
-    and then failing to draw would 404 an applicant mid-examination."""
+def test_specialty_without_gold_cases_is_preserved_for_generation():
+    """An unauthored specialty awaits a validated case in that same specialty."""
     picked = exam_case.exam_specialty({"specialty": "hepatology"})
-    assert picked["specialty"] == exam_case.FALLBACK_SPECIALTY
-    assert picked["is_own"] is False
+    assert picked["specialty"] == "hepatology"
+    assert picked["is_own"] is True
 
 
 def test_an_unrelated_specialty_is_never_guessed_into_one_we_hold():
     """match_specialty returns None rather than guessing, and a WRONG specialty
     is worse than a missing one."""
     picked = exam_case.exam_specialty({"specialty": "orthopaedic surgery"})
-    assert picked["is_own"] is False
+    assert picked["is_own"] is True
 
 
 # ── The screen that makes any of it worth computing ─────────────────────────

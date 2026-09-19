@@ -448,10 +448,20 @@ async def run_prelabel(task: Dict[str, Any]) -> Dict[str, Any]:
         f"ANSWER B:\n{texts.get('B', '')}"
     )
     try:
+        messages = [{"role": "user", "content": user}]
+        if task.get("source") == "onboarding":
+            from asclepius import onboarding_media
+            assets = [s["asset"] for s in (task.get("case") or {}).get("studies", []) if s.get("asset")]
+            if assets:
+                # A morphology hint needs the same pinned pixels the applicant
+                # sees. The prompt stays blinded; no held-out case fields pass.
+                if len(assets) != 1:
+                    return {**empty, "error": "unsupported_onboarding_images"}
+                messages = onboarding_media.message({"task": user}, assets[0])
         resp, rec = await call_llm(
             role="asclepius_prelabel",
             system=ASCLEPIUS_PRELABEL_SYSTEM,
-            messages=[{"role": "user", "content": user}],
+            messages=messages,
             prompt_id="asclepius_prelabel",
             purpose="asclepius_prelabel_suggestion",
         )

@@ -1,0 +1,572 @@
+{
+  "task_id": "onboarding-practice-v1-558a055d93f6a8479019-1",
+  "specialty": "general surgery",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Adult with persistent right upper quadrant pain",
+    "question": "Which management strategy is most appropriate at this point in the admission?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "general surgery",
+      "demographics": {
+        "age_band": "40-49",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Right upper quadrant abdominal pain",
+          "since": "4 days",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Fever",
+          "since": "1 day",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "temperature_c": 38.1,
+        "heart_rate_per_min": 96,
+        "blood_pressure_mm_hg": "128/76",
+        "respiratory_rate_per_min": 17,
+        "oxygen_saturation_percent": 98
+      },
+      "lab_panels": [
+        {
+          "panel": "Admission blood tests",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "White blood cell count",
+              "loinc": null,
+              "value": 14.2,
+              "unit": "10^9/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "H",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Total bilirubin",
+              "loinc": null,
+              "value": 0.8,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Creatinine",
+              "loinc": null,
+              "value": 0.9,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Admission",
+          "author_role": "general surgery",
+          "text": "A woman in her forties reports four days of constant right upper quadrant pain that began after a meal, with nausea and fever during the past day. Examination shows focal right upper quadrant tenderness and an inspiratory arrest with palpation. There is no jaundice, generalized guarding, rebound tenderness, hypotension, confusion, respiratory compromise, or other organ dysfunction. She is independently mobile, has no major cardiopulmonary disease, and has previously tolerated general anesthesia. Experienced laparoscopic biliary surgeons and an operating theatre are available during this admission.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Ultrasound",
+          "label": "Right upper quadrant ultrasound",
+          "findings": "Multiple gallstones are present. One stone is lodged at the gallbladder neck. The gallbladder is distended, with wall thickening, a small amount of pericholecystic fluid, and focal tenderness during probe pressure. The common bile duct is not dilated.",
+          "measurements": [],
+          "impression": "Sonographic findings consistent with acute calculous cholecystitis.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional onboarding case; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [
+        "clinical history",
+        "laboratory results",
+        "ultrasound report"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for definitive management decision",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "This surgically fit adult has ultrasound-confirmed acute calculous cholecystitis, no organ dysfunction, and symptoms beginning four days ago. Early laparoscopic cholecystectomy during the current admission remains within the supported timing window of seven days from admission and ten days from symptom onset. It should be performed by an experienced surgical team, which is available. Percutaneous gallbladder drainage with delayed surgery would unnecessarily defer definitive treatment in a patient who is suitable for surgery; drainage is reserved principally for patients who cannot undergo surgery, particularly when gallbladder sepsis requires source control.",
+        "evidence": null,
+        "key_data": [
+          "Ultrasound demonstrates gallstones with inflammatory gallbladder changes.",
+          "Symptoms began four days before the current admission.",
+          "There is no cardiovascular, respiratory, renal, neurologic, hepatic, or hematologic organ dysfunction.",
+          "The patient has no major condition making surgery unsuitable.",
+          "Experienced laparoscopic biliary surgeons are available during this admission."
+        ]
+      },
+      "hard_hook": "Distinguishing a surgically high-risk patient from one who is genuinely unsuitable for surgery",
+      "reasoning_divergence": "Immediate definitive surgery versus nondefinitive gallbladder drainage followed by delayed surgery"
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Perform laparoscopic cholecystectomy during the current admission, within the supported early timing window, using the available experienced surgical team. Do not substitute percutaneous gallbladder drainage merely to delay definitive surgery in this otherwise suitable patient."
+      },
+      {
+        "id": "B",
+        "text": "Avoid cholecystectomy during this admission because symptoms have lasted longer than 72 hours. Perform percutaneous cholecystostomy now and schedule interval laparoscopic cholecystectomy six to eight weeks later after the inflammation has resolved."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "acute calculous cholecystitis",
+      "laparoscopic cholecystectomy",
+      "percutaneous cholecystostomy",
+      "organ dysfunction",
+      "bile duct injury"
+    ],
+    "evidence_keywords": [
+      "early laparoscopic cholecystectomy",
+      "index admission surgery",
+      "symptom duration",
+      "gallbladder drainage",
+      "ultrasound"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "outdated_guideline"
+    ],
+    "claims": [
+      {
+        "statement": "Early laparoscopic cholecystectomy should be standard care whenever possible for acute calculous cholecystitis.",
+        "source_ids": [
+          "33153472"
+        ]
+      },
+      {
+        "statement": "The supported early timing window is within seven days of admission and within ten days of symptom onset.",
+        "source_ids": [
+          "33153472"
+        ]
+      },
+      {
+        "statement": "When early surgery is undertaken, it should be attempted by experienced surgeons, with referral considered if expertise is unavailable.",
+        "source_ids": [
+          "33153472"
+        ]
+      },
+      {
+        "statement": "Index-admission laparoscopic cholecystectomy within one week is associated with fewer complications than delayed interval surgery beyond four weeks.",
+        "source_ids": [
+          "37109763"
+        ]
+      },
+      {
+        "statement": "Ultrasound has pooled sensitivity of 71 percent and specificity of 85 percent for diagnosing acute cholecystitis.",
+        "source_ids": [
+          "38037062"
+        ]
+      },
+      {
+        "statement": "Economic evaluations comparing early and delayed laparoscopic cholecystectomy generally favor the early approach.",
+        "source_ids": [
+          "30957060"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:40:27.574464+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "33153472",
+        "title": "2020 World Society of Emergency Surgery updated guidelines for the diagnosis and treatment of acute calculus cholecystitis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33153472/",
+        "abstract": "Acute calculus cholecystitis (ACC) has a high incidence in the general population. The presence of several areas of uncertainty, along with the availability of new evidence, prompted the current update of the 2016 WSES (World Society of Emergency Surgery) Guidelines on ACC.\nThe WSES president appointed four members as a scientific secretariat, four members as an organization committee and four members as a scientific committee, choosing them from the expert affiliates of WSES. Relevant key questions were constructed, and the task force produced drafts of each section based on the best scientific evidence from PubMed and EMBASE Library; recommendations were developed in order to answer these key questions. The quality of evidence and strength of recommendations were reviewed using the Grading of Recommendations Assessment, Development and Evaluation (GRADE) criteria (see https://www.gradeworkinggroup.org/ ). All the statements were presented, discussed and voted upon during the Consensus Conference at the 6th World Congress of the World Society of Emergency Surgery held in Nijmegen (NL) in May 2019. A revised version of the statements was voted upon via an online questionnaire until consensus was reached.\nThe pivotal role of surgery is confirmed, including in high-risk patients. When compared with the WSES 2016 guidelines, the role of gallbladder drainage is reduced, despite the considerable technical improvements available. Early laparoscopic cholecystectomy (ELC) should be the standard of care whenever possible, even in subgroups of patients who are considered fragile, such as the elderly; those with cardiac disease, renal disease and cirrhosis; or those who are generally at high risk for surgery. Subtotal cholecystectomy is safe and represents a valuable option in cases of difficult gallbladder removal.\nELC has a central role in the management of patients with ACC. The value of surgical treatment for high-risk patients should lead to a distinction between high-risk patients and patients who are not suitable for surgery. Further evidence on the role of clinical judgement and the use of clinical scores as adjunctive tools to guide treatment of high-risk patients and patients who are not suitable for surgery is required. The development of local policies for safe laparoscopic cholecystectomy is recommended.",
+        "sha256": "c95e49fbb6be7ec42b464053deb4113dc5e74ccf829eabe53a8e1ef2a33645d9",
+        "retrieved_at": "2026-09-18T23:38:51.847730+00:00",
+        "pmcid": "PMC7643471",
+        "body_excerpts": "Background\nThe estimated overall prevalence of gallstones is 10–15% in the general population, with some differences across countries. Between 20 and 40% of patients with gallstones will develop gallstone-related complications, with an incidence of 1–3% annually; acute calculus cholecystitis (ACC) is the first clinical presentation in 10–15% of the cases [ 1 – 6 ]. Cholecystectomy is the most common therapeutic approach for ACC and is considered the standard of care for gallstone disease for the majority of patients. However, considering the heterogeneity of clinical scenarios, the variability in hospital facilities and in the availability of expertise, the management of patients with right upper quadrant abdominal pain may vary.\n\nMaterials and methods\nIn 2018, the Scientific Board of the 6thWorld Congress of the WSES endorsed its president to organize a CC on ACC in order to update the previous WSES Guidelines. The WSES president appointed four members as a scientific secretariat, four members as an organization committee and four members as a scientific committee, choosing them from the expert affiliates of the WSES. Relevant key questions regarding the diagnosis and treatment of ACC were developed and divided into seven sections, in order to analyse the topic and update the guidelines with the currently available evidence. Under the supervision of the scientific secretariat, a bibliographic search related to these questions was performed, using electronic search of PubMed and EMBASE databases in May 2019, with no date or language restrictions. An additional manual search of the literature was performed by members of the working groups involved in the analysis of the papers and the development of the guidelines. The topics and sections, the key questions and the related key words used to develop the update on ACC are available in Table 1 . Table 1 Sections/topics, key questions and key words Section/topic Key questions Key words 1. Diagnosis of Acute Calculus Cholecystitis Which is the most reliable approach for the diagnosis of ACC? Which initial imaging technique should be used in case of a suspected diagnosis of ACC? Which is the role of other imaging techniques (e.g. Hepatobiliary iminodiacetic acid—HIDA scan, abdominal computed tomography—CT scan and magnetic resonance) in the diagnosis of ACC? Acute calculus cholecystitis Diagnosis, Ultrasound, Gallstones disease diagnosis 2. Associated common bile duct stones (CBDS) Are elevated LFTs or bilirubin sufficient for the diagnosis of CBDS in patients with ACC? Which imaging features are predictive of CBDS in patients with ACC? Which tests should be performed to assess the risk of CBDS in patients with ACC? Which is the best tool to stratify the risk for CBDS in patients with ACC? Which actions are warranted in patients with ACC and at moderate for CBDS? Which actions are warranted in patients with ACC and at high risk for CBDS? Which is the appropriate treatment of CBDS in patients with ACC? Common bile duct stone; choledocholithiasis; endoscopic ultrasound, MRCP, ERCP 3. Surgical treatment of acute calculus cholecystitis Which is the preferred first line of treatment for patients with ACC? When should laparoscopic cholecystectomy be avoided in patients with ACC? Is laparoscopic cholecystectomy safe and feasible for patients with ACC who have liver cirrhosis, who are older than 80 years and who are pregnant? Which surgical strategies should be adopted in case of difficult anatomic identification during cholecystectomy for ACC? When should conversion from laparoscopic to open cholecystectomy be considered in patients with ACC? Acute calculus cholecystitis, Surgery, Laparoscopy, Laparotomy, Cholecystectomy, Partial cholecystectomy, Subtotal cholecystectomy, Cirrhosis, Pregnancy 4. Timing of cholecystectomy in people with acute calculus cholecystitis Which is the optimal timing for laparoscopic cholecystectomy in patients with ACC? Acute calculus cholecystitis, acute cholecystitis 5.Risk prediction in patients with acute calculus cholecystitis How can the prognosis and surgical risk be assessed for patients with ACC? Acute calculus cholecystitis, Gallstone disease, Surgical risk score, High risk patient, old patient, PPossum score, Apache score 6. Alternative treatment for patients who are not suitable for surgery: non-operative management and gallbladder drainage techniques When should Non-Operative Management (NOM) be considered for patients with ACC? Which is the first-choice treatment for ACC in high risk patients? Which is the role of gallbladder drainage in patients with ACC who are not suitable for surgery? Should delayed cholecystectomy be offered to patients with ACC after the reduction of perioperative risk? Can endoscopic gallbladder drainage be considered an alternative to PTGBD in patients with ACC who are not suitable for surgery? Which is the role of endoscopic transmural ultrasound-guided gallbladder drainage (EUS-GBD) in patients with ACC who are not suitable for surgery? Gallstones Dissolution, No-surgery gallstones, Extra-corporeal shock wave lithotripsy, Acute calculus cholecystitis, Gallstone disease, Management Gallstones, Endoscopy, Gallstone removal, Observation cholecystitis, Non operative management cholecystitis, Gallbladder drainage Percutaneous gallbladder drainage, Cholecystostomy, High Risk Patient, Stent 7. Antibiotic treatment on acute calculus cholecystitis Which is the optimal antibiotic treatment for patients with uncomplicated ACC? Which is the optimal antibiotic treatment for patients with complicated ACC? Which is the role of microbiological cultures and sensitivities in patients with ACC? Antibiotics, Acute calculus cholecystitis, Gallstone disease, Management Gallstones\n\nMaterials and methods\nThese Guidelines should be considered an adjunctive tool for decision making, but they are not a substitute for the surgeon’s judgement in specific clinical situations.\n\nMaterials and methods\nIn Appendix 1 , the reader can find the summary of statements with short explanation of the supporting scientific evidence while details are in the body of the paper. Figure 1 represents the 2020 WSES flowchart for the management of ACC patients. Fig. 1 2020 WSES Flowchart for the management of patients with acute calcolus cholecystitis\n\nMaterials and methods\nThe WSES committee for guidelines development is responsible for the continuous evaluation of evidence available about acute cholecystitis. The present guidelines will be updated in case of significant changes based on new evidence.\n\nSection 1. Diagnosis of ACC\nThe paper by Trowbridge et al. [ 12 ] included 17 studies, which reported a quantitative assessment of history, physical examination and/or laboratory tests for the diagnosis of acute cholecystitis. The results showed that, with the exception of Murphy’s sign (positive likelihood ratio—LR 2.8; 95% CI 0.8–8.6) and right upper quadrant tenderness (negative LR0.4; 95% CI 0.2–1.1)—although the 95% confidence intervals included 1.0 in both cases, none of the clinical signs or laboratory tests showed LRs higher than 1.6 or negative LRs lower than 0.4. Limitations were identified in a possible selection bias, as patients with abdominal pain and patients with a suspected diagnosis of acute cholecystitis were included in the study, and in a heterogeneous definition of the diagnosis of acute cholecystitis.\n\nSection 1. Diagnosis of ACC\nThe TG criteria for the diagnosis of cholecystitis include clinical signs, laboratory tests and imaging features [ 14 ]. After the publication of the paper by Yokoe et al. in 2012 [ 15 ] reporting 91.2% sensitivity and 96.9% specificity, three studies reporting the validation of the TG diagnostic criteria were found. Although published in 2017, one study focused on the TG07 rather than the more recent TG13 [ 16 ]. A cross-sectional study [ 17 ] evaluated the validity of fever, inflammatory markers and US findings as a validation of the TG13 criteria. At multivariate analysis, only neutrophil count was statistically associated with the diagnosis of acute cholecystitis ( p <0.0001), with a 70% sensitivity and 65.8% specificity. Overall, accuracy of the TG13 criteria was low at 60.3%. The TG13 correctly predicted 83.1% of all confirmed ACC, but over-diagnosed ACC in 62.5% of normal gallbladders. More than half of eligible patients did not undergo US and were excluded from the study; this represents a major source of potential selection bias. A cross-sectional study on the possible limitations of the TG 13 has reported a 53.4% sensitivity in diagnosing acute cholecystitis [ 18 ]. However, some uncertainty regarding the sample population and the lack of detail in sensitivity calculation indicates that the data should be interpreted with caution. The revision of the TG criteria performed in 2018 did not include a clinical evaluation of the diagnostic criteria [ 14 ]. Considering the heterogeneity of these findings, the reliability of the TG13 criteria for the diagnosis of ACC appears to be limited.\n\nSection 1. Diagnosis of ACC\nIn one study, the absence of gallstones was used to rule out the diagnosis of acute cholecystitis in patients presenting to the emergency department for suspected cholecystitis [ 23 ]. Overall, the sensitivity of the simplified definition of a positive ultrasonography test was100%, as compared to the standard definition, i.e. the presence of gallstones and at least one of the ultrasonography signs of acute cholecystitis, which showed a sensitivity of 87% (95% CI 66–97%) and specificity of 82 (95% CI 74–88%); prevalence was less than 15%, NPV was 97% (95% CI 93–-99%) and PPV was low at 44% (95% CI 29–59%).\n\nSection 1. Diagnosis of ACC\nConsidering the limits of abdominal US, one study has evaluated new ultrasonography criteria for the diagnosis of acute cholecystitis. Kim et al. [ 26 ] evaluated the added value of point shear-wave elastography (pSWE) in the diagnostic performance of conventional US for the diagnosis of ACC. Based on the assumption that transient increase in hepatic blood flow observed in case of acute cholecystitis increases liver stiffness, the authors proposed to use a measure of liver stiffness by pSWE and to evaluate its diagnostic yield for ACC in a two-observer analysis. Compared to conventional US, pSWE significantly increased diagnostic accuracy (area under the curve—AUC from 79 to 96.3% and from 77 to 96.2%, p < 0.001) and specificity (from 62 to 95%, p < 0.001). The difference in sensitivity was not significant, being 88 versus 92% ( p = 0.45) in the US only group and 86–92% ( p = 0.26) in the US plus pSWE group. Although the results appear promising, the technique requires expertise; moreover, 18.5% of patients were excluded due to a potential limitation of the technique, therefore reducing the external validity of the study.\n\nSection 1. Diagnosis of ACC\nAnother study by Ra et al. [ 27 ] has reported the use of superb microvascular imaging (SMI) in the diagnosis of acute cholecystitis. The SMI technique is similar to Color-Doppler US and is used to detect the micro vasculature and slow flow of the liver, using a special filtering technique. The authors hypothesised that hyperaemic changes within the gallbladder bed of the liver, detected by SMI, and may be used for the diagnosis of acute cholecystitis. This inter-observer study on 54 patients showed a significant increase of the AUC from 72.9 to 85% ( p = 0.02) with the use of SMI. The need for specific expertise, the small number of patients and the poor reference standard limit the significance of this study.\n\nSection 1. Diagnosis of ACC\nA cross-sectional study [ 28 ] evaluated the incremental benefits of cystic duct enhancement detected by CT for the diagnosis of cholecystitis in patients without visibly impacted gallstones. When considering cystic duct enhancement, the accuracy and sensitivity of the diagnosis increased significantly, while no significant difference was reported for specificity. Interestingly, diagnostic accuracy increased for the less experienced radiologist, from 75.4 to 87.3% ( p = 0.015). However, this case control study has some methodological flaws limiting its quality.\n\nSection 1. Diagnosis of ACC\nA study considering only patients with a definitive diagnosis of acute cholecystitis compared the diagnostic sensitivities of US, CT and HIDA scan [ 20 ]. The results confirmed the higher sensitivity of HIDA over US and CT with respective values of 84.2%, 67.3% and 59.8% ( p = 0.017). No difference was found when comparing CT and US ( p = 0.09).\n\nSection 2. Associated common bile duct stones: which tools to use for suspicion and diagnosis at presentation?\nHistorically, LTFs have played a major role in determining the presence of CBDS. However, the majority of published studies did not consider patients with ACC and included asymptomatic gallstones. Normal LFTs have a NPV of 97%, whereas the PPV of any abnormal LFTs is only 15% [ 37 ]. The elevation of LFTs is a poor tool for the prediction of CBDS, even in patients without ACC; the literature ranging from 25 to 50% [ 30 , 38 , 39 ]. In patients with ACC, LFTs may be altered due to the acute inflammatory process of the gallbladder and the biliary tree, rather than direct biliary obstruction; a proportion ranging between 15 and 50% of patients with ACC show elevation in LFTs without CBDS. Song et al. demonstrated that 424 out of 1178 patients with ACC had increased LFTs, namely ALT and aspartate transaminase (AST) greater than twice reference levels. Of these, only 246 (58%) had CBDS [ 40 ]. Chang et al. showed that 51% and 41% of patients with ACC without CBDS had elevated ALT and AST, respectively. However, increased bilirubin levels with leucocytosis may predict gangrenous cholecystitis [ 41 ]. Padda et al. found that approximately 30% of patients with ACC without CBDS had abnormal alkaline phosphatase (ALP) and/or bilirubin, and 50% had abnormal ALT. Among patients with ACC and CBDS, 77% had raised ALP, 60% had abnormal bilirubin and 90% had elevated ALT; multivariate analysis showed that increased common bile duct size and elevated ALT and ALP were predictors of CBDS [ 42 ]. The diagnostic accuracy increases for cholestasis tests, such as serum bilirubin, with the duration and the severity of obstruction. Specificity of serum bilirubin levels for CBDS was 60% with a cut-off level of 1.7 mg/day and 75% with a cut-off level of 4 mg/dl [ 38 ]; however, mean level of bilirubin in patients with CBDS is generally lower (1.5 to 1.9 mg/dl) [ 30 , 39 ].\n\nSection 3. Surgical treatment of ACC > Patients with liver cirrhosis\nIn cases of liver cirrhosis, surgical dissection could be difficult and there is a higher risk of bleeding and other serious complications. Unfortunately, the available evidence on both open and laparoscopic cholecystectomy for ACC in patients with liver cirrhosis is limited. Therefore, we mainly accept evidence that comes from elective procedures performed for biliary colic or chronic cholecystitis. According to a meta-analysis published by de Goede et al., elective laparoscopic cholecystectomy in patients with child A or B cirrhosis was associated with significantly fewer postoperative complications, a shorter duration of hospitalisation and a shorter time to resume a normal diet, when compared to the open technique [ 79 ]. Lucidi et al. recommended laparoscopic cholecystectomy as the first-choice approach in cirrhotic patients. However, recommendation for laparoscopic cholecystectomy in patients with child C cirrhosis is unclear [ 80 ]. Nevertheless, other studies showed that laparoscopic cholecystectomy in these cirrhotic patients was associated with a significantly prolonged duration of surgery and an increase in operative blood loss, conversion rate, length of hospital stay and overall morbidity and mortality when compared with non-cirrhotic patients [ 81 ]. In cirrhotic patients, the morbidity associated with laparoscopic cholecystectomy is directly related to the Child-Pugh score [ 82 , 83 ].\n\nSection 4. Timing of cholecystectomy in people with ACC\nSurgery is currently the recommended treatment in people with acute cholecystitis. Conservative management with fluids, analgesia and antibiotics is an option for people with mildly symptomatic acute cholecystitis (i.e. people without peritonitis or those who have worsening clinical condition). In a RCT with long-term follow-up of 14 years, about 30% of patients treated conservatively developed recurrent gallstone-related complications and 60% of patients had undergone cholecystectomy subsequently [ 105 , 106 ]. The study included only 33 patients and had high risk of bias [ 105 , 106 ]. Therefore, until new high-quality evidence becomes available, laparoscopic cholecystectomy is considered the recommended treatment for patients who are fit to undergo surgery.\n\nSection 4. Timing of cholecystectomy in people with ACC\nIn patients with moderate or severely symptomatic cholecystitis or in those with mildly symptomatic acute cholecystitis who prefer surgery, laparoscopic cholecystectomy is preferred over open cholecystectomy [ 75 ]. The timing of laparoscopic cholecystectomy in these patients is controversial. A Cochrane review published in 2013 concluded that ELC for acute cholecystitis seems safe and may shorten the total hospital stay [ 107 ].\n\nSection 4. Timing of cholecystectomy in people with ACC\nAn update of the literature searches was performed for the purpose of this guideline. Sixteen trials were identified in the update (including the trials originally included in the systematic review) [ 108 – 123 ]. The number of participants with acute cholecystitis was not reported in one of the trials [ 121 ]. In the remaining 15 trials, 1240 participants were included in 14 trials comparing ELC versus DLC [ 108 – 115 , 117 – 120 , 122 , 123 ] and 618 participants were included in one trial comparing ELC versus intermediate laparoscopic cholecystectomy (ILC) [ 116 ]. The country; recruitment period; number of participants; the duration of symptoms; the timing of ELC, DLC and ILC; and the surgical experience are reported in Table 3 . Overall, it appears that ELC was performed within 10 days of onset of symptoms in most trials. Table 3 Timing of cholecystectomy in people with ACC Study name Timing of surgery in early group Number of participants in early group Timing of surgery in intermediate or delayed group Number of participants in intermediate or delayed group Risk of bias a Davila 1999 (1) < 4 days after diagnosis 27 2 months after discharge 36 Unclear Gul 2013 (2) < 72 h after hospital admission 30 6 to 12 weeks after initial conservative treatment 30 High Gutt 2013 (3) < 24 h after hospital admission 304 7 to 45 days after hospital admission 2 314 Low Johansson 2003 (4) < 7 days of diagnosis 74 6 to 8 weeks after discharge 71 Low Kolla 2004 (5) < 24 h after randomisation 20 6 to 12 weeks after the acute episode subsides 20 Low Lai 1998 (6) < 24 h after randomisation 53 6 to 8 weeks after the acute episode subsides 51 Low Lo 1998 (7) < 72 h after admission 45 8 to 12 weeks after discharge 41 High Macafee 2009 (8) < 72 h after recruitment Not stated 3 months after discharge Not stated High Mustafa 2016 (9) < 48 to 72 h of diagnosis 105 6 to 12 weeks after initial attack 105 High Ozkardes 2014 (10) < 24 h of admission 30 6 to 8 weeks after initial treatment 30 High Rajcok 2016 (11) < 72 h after occurrence of symptoms 32 6 to 8 weeks after acute cholecystitis 32 High Roulin 2016 (12) During day as soon as possible 42 6 weeks after initial diagnosis 44 High Saber 2014 (13) < 72 h of duration of symptoms 60 6 to 8 weeks from onset of symptoms 60 High Verma 2013 (14) < 72 h of admission 30 6 to 8 weeks from onset of symptoms 30 High Yadav 2009 (15) As soon as possible 25 6 to 8 weeks after discharge 25 High Zahur 2014 (16) < 24 to 48 h after hospital admission 47 6 to 8 weeks after initial conservative treatment 41 High Main reasons for unclear or high risk of bias High risk of bias: at least one of random sequence generation, allocation concealment, missing outcome bias or selective outcome reporting bias was classified as high risk of bias Unclear risk of bias: at least one of random sequence generation, allocation concealment, missing outcome bias or selective outcome reporting bias was classified as unclear risk of bias without any of the domains being classified as high risk of bias a All studies were at high risk of bias due to lack of blinding. The risk of bias classification stated here is for the remaining domains b This was the only study in which intermediate laparoscopic cholecystectomy was performed; delayed laparoscopic cholecystectomy was performed in the remaining studies\n\nSection 4. Timing of cholecystectomy in people with ACC\nOverall, it appears that ELC performed within 7 days of hospital admission and within 10 days of onset of symptoms is superior to either ILC performed between 7 days of hospital admission and 6 weeks or DLC performed between 6 weeks and 3 months of the initial hospital admission for acute cholecystitis. Since blinding cannot be achieved in these comparisons and the outcomes were subjective, all the trials were deemed to be at high risk of bias. However, trials with low risk of bias are difficult to conduct in this comparison. Since the evidence was consistent across trials and outcomes, it appears highly likely that ELC is superior to either ILC or DLC. Therefore, despite the moderate quality evidence (which is mainly because of the lack of blinding in the trials), the recommendation for ELC is strong. However, it should be noted that the study authors described that ELC was more complex; therefore, it should be attempted only by experienced surgeons. Referral to centres with high surgical expertise should be considered if adequate surgical expertise is not available. If ELC cannot be performed, DLC appears to be better than ILC. Although, there is no evidence of difference between DLC and ILC, the ACDC trial comparing ELC versus ILC showed that a significant proportion of patients undergoing ILC developed serious adverse events [ 116 ]. Therefore, DLC may be preferable when ELC is not possible, although a proportion of patients with planned DLC approach may need unplanned earlier surgery (see Fig. 1 ) [ 107 ]. There are no trials comparing ILC and DLC and it is unlikely that they will performed, given the results of the ACDC trial [ 116 ]. Therefore, there is significant uncertainty whether DLC is better than ILC when ELC is not possible and the recommendation to perform DLC when ELC is not possible is weak.\n\nSection 5. Risk prediction in ACC\nCholecystectomy is currently the recommended treatment for patients with acute cholecystitis. Laparoscopic cholecystectomy is preferred over open cholecystectomy in patients with acute cholecystitis, but it is a major surgical procedure. While it is considered relatively safe, it is associated with a mortality rate between 0.1 and 1% [ 124 – 126 ], a risk of bile duct injury in approximately 0.2% to 1.5% of cases [ 125 , 127 ] and a risk of major complications (such as myocardial infarction, heart failure, acute stroke, renal failure, pulmonary embolism, lung failure or postoperative shock) in between 6 and 9% of cases [ 124 ].\n\nSection 5. Risk prediction in ACC\nObservation is an alternative option for patients with mildly symptomatic ACC (i.e. in patients without peritonitis or in those who have worsening symptoms). After a long-term follow-up of 14 years, about 30% of patients with mildly symptomatic acute cholecystitis who did not undergo cholecystectomy developed recurrent gallstone-related complications, compared with 3% of patients who underwent cholecystectomy. These differences were not significant for recurrent disease or overall complications [ 128 ]. However, 60% of patients had undergone surgery, and the study was small and carried a high risk of bias; therefore, there is lot of uncertainty as to whether it is better to perform surgery or observation in patients with mildly symptomatic acute cholecystitis.\n\nSection 5. Risk prediction in ACC\nAmong the prognostic factors reported in at least two studies, TG13 grade 3 had an increased risk of all-cause mortality compared to grade 1. The risk increased from a median risk of 1.3% to 6.5% (95% CI 3.7–11.2). However, most studies included only people who underwent surgery, not all of whom were patients with ACC. There have been no RCTs of surgery versus observation in people with severe ACC. Laparoscopic cholecystectomy performed by experienced surgeons had lower major complication rates than percutaneous cholecystostomy with no planned cholecystectomy [ 11 ]. Therefore, it appears that, despite the increased risk of mortality in TG13 grade 3 compared to TG13 grade 1, surgery seems to be the preferred option when possible. However, referral to high volume centres and specialized centres may decrease the complications [ 129 , 130 ] and resulting mortality, and should be considered in people with TG13 grade 3 acute cholecystitis.\n\nSection 5. Risk prediction in ACC\nOverall, there is significant uncertainty in the ability of prognostic factors and risk prediction models in predicting outcomes in patients with ACC. TG13 grade 3 may be associated with greater mortality than grade 1 severity of acute cholecystitis. Despite the increased risk of mortality in TG13 grade 3 compared to TG13 grade 1, surgery seems to be the preferred option when possible. The TG18 adopted the TG13 severity grading criteria in predicting outcomes in patients with ACC [ 14 ].\n\nSection 5. Risk prediction in ACC\nHigh-quality studies are necessary to provide better information on the prognostic factors of patients with acute cholecystitis and to improve shared decision making.\n\nSection 6. Alternative treatment for patients with ACC who are not suitable for surgery: observation and techniques for gallbladder drainage\nSchimdt et al. [ 105 ] published an RCT comparing observation and surgery in cases of ACC, with a long median follow-up time of 14 years. In their analysis, about 30% of patients with mildly symptomatic acute cholecystitis who did not undergo cholecystectomy developed recurrent gallstone-related complications, as compared with 3% of patients who underwent cholecystectomy, but these differences were not significant for recurrent disease or complications. Overall, 60% of patients had undergone surgery, while 40% avoided surgery. There are significant limitations in the study, as recognized by the authors: firstly, a relevant percentage of eligible patients (41%) were excluded from randomization; secondly, the reasons for the exclusion were not stated in the paper; thirdly, the definitions of dropout and failure within the observation group were not clear. Brazzelli et al. [ 139 ] published a systematic review of two RCTs comparing observation with surgery in patients with symptomatic gallstone disease (in the first study) and patients with ACC (in the second study). From a total of 201 patients, the results confirmed the high rate of gallstone-related complications within the observation group (RR 6.63, 95% CI 1.57–28.51, p = 0.01).The authors, although noting the substantial lack of good quality evidence, reported that a policy of surgery for all patients with ACC, when compared to a policy of observation followed by surgery for symptomatic patients, represents a costly but more effective choice. In conclusion, relevant uncertainty exists regarding the best management between surgery or observation in cases of ACC, especially in uncomplicated disease; observation and best medical therapy are likely to be safe, but this latter approach is characterised by a high incidence of recurrent disease.\n\nSection 6. Alternative treatment for patients with ACC who are not suitable for surgery: observation and techniques for gallbladder drainage\nTG13 on ACC [ 140 ] considered gallbladder drainage as mandatory for patients with severe grade ACC (according to the Tokyo classification [ 10 ] of acute cholecystitis) and also suggested its use in the moderate grade if conservative treatment fail. The revised TG18, based on recent studies, proposed that severe-grade cholecystitis, under certain strict criteria, may be treated with laparoscopic cholecystectomy [ 10 , 140 ]. A systematic review published in 2016 comparing percutaneous transhepatic gallbladder drainage (PTGBD) and cholecystectomy in critically ill patients reported no benefit for the use of PTGBD over cholecystectomy [ 141 ]. Six studies were analysed with a total of 337,500 patients. Mortality rate, length of hospital stay and number of readmissions for gallstone-related diseases were all significantly higher in the PTGBD group than in the cholecystectomy group. It should be noted that all included studies had a retrospective design, which makes the results prone to bias. Recently, the first randomized trial on this subject was published (the CHOCOLATE trial). The results showed that laparoscopic cholecystectomy is superior to PTGBD [ 11 ] also in high-risk patients with ACC. PTGBD was compared with ELC in critically ill patients (APACHE score 7–14) with ACC, in terms of efficacy and safety. Patients who underwent ELC had significantly fewer major complications, which were mainly recurrent biliary events. Five percent of patients who underwent ELC had complications, compared with 53% of patients who underwent PTGBD. Mortality was low and remained the same in both groups.\n\nSection 6. Alternative treatment for patients with ACC who are not suitable for surgery: observation and techniques for gallbladder drainage\nPatients who are not suitable for surgery, but who are septic due to gallbladder empyema, are effectively treated by PTGBD, as shown in the CHOCOLATE trial [ 11 ]. Gallbladder drainage decompresses the infected bile or pus in the gallbladder, removing the infected collection without removing the gallbladder. The removal of the infected material can result in reduced inflammation and in improvement of the clinical conditions. Several case series, both retrospective and observational, exist on cholecystostomy. A systematic review of the literature included 53 studies with 1918 patients outlining a high success rate of the procedure (85.6%) with a low procedure-related mortality rate (0.36%); however, the 30-day mortality rate was high at 15.4% [ 142 ]. A major limitation of the study was the inclusion of patients with both acute acalculous cholecystitis and ACC. A review of additional 27observational studies on cholecystostomy [ 143 ] showed significant heterogeneity in terms of inclusion criteria, results and conclusions reached by different authors. Considering these limitations, the reported in-hospital mortality and morbidity rates for cholecystostomy range from 4 to 50 % and from 8.2 to 62%, respectively.\n\nSection 6. Alternative treatment for patients with ACC who are not suitable for surgery: observation and techniques for gallbladder drainage\nEUS-GBD has been compared, in terms of technical feasibility and efficacy, to PTGBD [ 151 ] inpatients with acute, high-risk or advanced stage cholecystitis who did not respond to initial medical treatment and could not undergo ELC. EUS-GBD and PTGBD showed similar technical (97% vs. 97%, p = 0.001) and clinical (100% vs. 96%, p = 0.0001) success rates, and similar rates of complications (7% vs. 1%, p = 0.492), indicating that EUS-GBD is a safe alternative to PTGBD in patients who are unsuitable for surgery.\n\nSection 6. Alternative treatment for patients with ACC who are not suitable for surgery: observation and techniques for gallbladder drainage\nIn a prospective study on long term-follow up after EUS-GBD [ 154 ], the recurrence of cholecystitis was observed in 7.7% of cases, suggesting that this endoscopic procedure is a safe alternative in the treatment of acute cholecystitis in high-risk patients.",
+        "body_excerpts_sha256": "24b1943cf79f9517de0bb94323e5ae4c6cf3e8203993c5492cb61783a6a73b4c",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC7643471/fullTextXML",
+        "body_license_url": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "38037062",
+        "title": "Diagnostic performance of ultrasound in acute cholecystitis: a systematic review and meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38037062/",
+        "abstract": "An updated overview of ultrasound (US) for diagnosis of acute cholecystitis (AC) remains lacking. This systematic review was conducted to evaluate the diagnostic performance of US for AC.\nA systematic review was conducted following PRISMA guidelines. We meticulously screened articles from MEDLINE, Embase, and the Cochrane Library, spanning from inception to August 2023. We employed the search strategy combining the keywords \"bedside US\", \"emergency US\" or \"point-of-care US\" with \"AC\". Two reviewers independently screened the titles and abstracts of the retrieved articles to identify suitable studies. The inclusion criteria encompassed articles investigating the diagnostic performance of US for AC. Data regarding diagnostic performance, sonographers, and sonographic findings including the presence of gallstone, gallbladder (GB) wall thickness, peri-GB fluid, or sonographic Murphy sign were extracted, and a meta-analysis was executed. Case reports, editorials, and review articles were excluded, as well as studies focused on acalculous cholecystitis. The study quality was assessed with the Quality Assessment of Diagnostic Accuracy Studies-2 (QUADAS-2) tool.\nForty studies with 8,652 patients were included. The majority of studies had a low risk of bias and applicability concerns. US had a pooled sensitivity of 71% (95% CI, 69-72%), a specificity of 85% (95% CI, 84-86%), and an accuracy of 0.83 (95% CI, 0.82-0.83) for the diagnosis of AC. The pooled sensitivity and specificity were 71% (95% CI, 67-74%) and 92% (95% CI, 90-93%) performed by emergency physicians (EPs), 79% (95% CI, 71-85%) and 76% (95% CI, 69-81%) performed by surgeons, and 68% (95% CI 66-71%) and 87% (95% CI, 86-88%) performed by radiologists, respectively. There were no statistically significant differences among the three groups.\nUS is a good imaging modality for the diagnosis of AC. EP-performed US has a similar diagnostic performance to radiologist-performed US. Further investigations would be needed to investigate the impact of US on expediting the management process and improving patient-centered outcomes.",
+        "sha256": "9282d76078500255e57aed44c843d2d78de50c19202b028fff901a5ee50b74c5",
+        "retrieved_at": "2026-09-18T23:38:51.847730+00:00",
+        "pmcid": "PMC10687940",
+        "body_excerpts": "Introduction\nAcute cholecystitis (AC) is one of the most common diseases in emergency departments (EDs), occurring in 3–10% of patients with acute abdominal pain [ 1 ]. It generally results from cystic duct obstruction by a gallstone, followed by inflammation of the gallbladder (GB) [ 2 ].\n\nMethods > Search strategy and study selection\nTo identify relevant articles for our study, we conducted a comprehensive search in three databases: MEDLINE, Embase, and Cochrane Library. The search included articles published before August 2023, without any language restrictions. We employed the search strategy combining the keywords \"bedside US\", \"emergency US\" or \"point-of-care US\" with \"AC\". Two reviewers (SSH and KWL) independently screened the titles and abstracts of the retrieved articles to identify suitable studies. The inclusion criteria encompassed articles investigating the diagnostic performance of US for AC. We excluded case reports, case series, editorials, and review articles from our search strategy, as well as studies focused on acalculous cholecystitis. The complete literature search strategy is available in Additional file 5 : Table S1.\n\nResults > Diagnostic performance of US\nTable 2 The pooled estimates of diagnostic performance of ultrasound for acute cholecystitis No. of studies Sensitivity (95% CI) Specificity (95% CI) PLR (95% CI) NLR (95% CI) Accuracy (95% CI) Pooled 40 0.71 (0.69–0.72) 0.85 (0.84–0.86) 4.80 (3.33–6.78) 0.33 (0.25–0.41) 82.5 (81.9–83.0) Emergency physician 14 0.71 (0.67–0.74) 0.92 (0.90–0.93) 10.40 (4.80–20.3) 0.32 (0.21–0.46) 84.3 (83.2–85.4) Surgeon 3 0.79 (0.71–0.85) 0.76 (0.69–0.81) 5.51 (1.58–16.40) 0.28 (0.17–0.48) 83.4 (79.7–87.3) Radiologist 18 0.68 (0.66–0.71) 0.87 (0.86–0.88) 4.50 (2.83–6.87) 0.35 (0.23–0.49) 77.4 (76.0–78.8) CI Confidence interval; PLR Positive likelihood ratio; NLR Negative likelihood ratio\n\nResults > Subgroup analysis of sonographic findings\nTable 3 The pooled estimates of the sonographic finding for the diagnosis of acute cholecystitis Sonographic finding No. of studies Sensitivity (95% CI) Specificity (95% CI) PLR (95% CI) NLR (95% CI) Accuracy (95% CI) GB wall thickness 8 0.45 (0.40–0.50) 0.84 (0.81–0.87) 3.29 (1.83–5.69) 0.52 (0.31–0.75) 59.0 (57.2–60.8) Gallstone 7 0.88 (0.84–0.91) 0.71 (0.65–0.76) 4.10 (1.46–11.5) 0.16 (0.08–0.29) 93.2 (92.3–94.2) Peri-GB fluid 7 0.26 (0.22–0.31) 0.92 (0.89–0.93) 5.62 (1.71–13.9) 0.72 (0.58–0.89) 63.9 (62.2–65.7) Sonographic Murphy sign 7 0.51 (0.46–0.56) 0.75 (0.72–0.78) 3.6 (1.07–9.74) 0.58 (0.32–0.96) 65.9 (63.9–68.0) GB Gallbladder; CI Confidence interval; PLR Positive likelihood ratio; NLR Negative likelihood ratio\n\nDiscussion\nThe American College of Emergency Physicians states that US is an essential skill in emergency practice, and GB-US is included in 12 core applications [ 51 , 52 ]. It also indicates that 25 sonographic examinations of GB should be performed as a minimum requirement for training and accreditation [ 51 ]. In recent years, US has broadly used and increased integration into emergency practice. There were also a rising number of studies regarding the EP-performed US.\n\nDiscussion\nThis study has several limitations. First, a high risk of bias and applicability concerns in patient selection existed in more than one-fourth of the studies, limiting the generalizability. However, our study is by far the most comprehensive systematic review regarding US for the diagnosis of AC. Second, the majority of studies were conducted in Western countries. The results would be extrapolated cautiously to Asian patients. Third, the details of comorbidities and body mass indexes were lacking across the studies; thus, factors associated with false-negative and false-positive cases could not be thoroughly analyzed. Fourth, acalculous cholecystitis accounts for approximately 10% of patients with AC [ 53 , 54 ]. However, AC was diagnosed in this review using criteria for the presence of gallstones. The extrapolation of the results should be cautioned for patients with acalculous cholecystitis. Last, patients have to fast for at least 6 h before US for a better illustration of the GB. However, most studies did not provide information on whether the patients were fasting or not. Also, ED patients would visit after a big meal. The diagnostic performance of US would be influenced by non-fasting patients.",
+        "body_excerpts_sha256": "1f798ce7bcf0f8916fda6ade327a80128fa7ef3198d85da287d80fc2a2bd97eb",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10687940/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "38963820",
+        "title": "2024 Clinical Practice Guideline Update by the Infectious Diseases Society of America on Complicated Intraabdominal Infections: Diagnostic Imaging of Suspected Acute Cholecystitis and Acute Cholangitis in Adults, Children, and Pregnant People.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38963820/",
+        "abstract": "This article is part of a clinical practice guideline update on the risk assessment, diagnostic imaging, and microbiological evaluation of complicated intraabdominal infections in adults, children, and pregnant people, developed by the Infectious Diseases Society of America. In this article, the panel provides recommendations for diagnostic imaging of suspected acute cholecystitis and acute cholangitis. The panel's recommendations are based on evidence derived from systematic literature reviews and adhere to a standardized methodology for rating the certainty of evidence and strength of recommendation according to the Grading of Recommendations Assessment, Development, and Evaluation (GRADE) approach.",
+        "sha256": "ab86f3790590644a3c0c1c384734055f77e13e3925d9d05f37acc328605504fb",
+        "retrieved_at": "2026-09-18T23:38:51.847730+00:00"
+      },
+      {
+        "id": "33793158",
+        "title": "Treatment of acute cholecystitis in high-risk surgical patients.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33793158/",
+        "abstract": "Acute cholecystitis (AC) is the most common biliary stone disease complication. While there is consensus regarding cholecystectomy for AC, gallbladder drainage is indicated in elderly or high-risk surgical patients.\nWe systematically reviewed available evidence in the field of EUS-guided gallbladder drainage (EUS-GBD) for AC in high-risk surgical patients. The studies were classified according to their level of evidence (LE) according to the Oxford Centre for Evidence Based Medicine classification.\nLiterature search retrieved 175 manuscripts; most of them were expert opinions (LE V, N.=53) or case-series (LE IV, N.=29). There was no meta-analysis of RCT (LE Ia), while two randomized controlled trials (LE Ib) demonstrated that EUS-GBD was superior to percutaneous transhepatic-GBD (PT-GBD) regarding long-term outcomes (adverse events, recurrent cholecystitis, and reintervention). Several meta-analyses of cohort studies (LE IIa, N.=11) were designed to compare the three available drainage strategies (endoscopic, echoendoscopic and percutaneous) and to assess the pooled risk of adverse events. Comparison between surgery and EUS-GBD was done in a single retrospective study with a propensity score analysis (LE III). The outcomes of conversion from PT-GBD to EUS-GBD were covered by few retrospective studies (LE III). Several manuscripts (N.=69) were published on EUS-GBD as a rescue strategy in case of malignant biliary obstruction.\nThe levels of evidence of EUS-GBD in the literature have evolved from initial descriptive studies to recent randomized controlled trials and meta-analysis of cohort studies. While several articles addressed the comparison among different techniques for GBD, in our opinion some topics and questions have not been adequately investigated. are still debated.",
+        "sha256": "e9f9e607f1b21597f0757bd6e824a47cce611a4b1973cd557267f3a9c71b4b7a",
+        "retrieved_at": "2026-09-18T23:38:52.543590+00:00"
+      },
+      {
+        "id": "38372956",
+        "title": "Percutaneous cholecystostomy in elderly patients with acute cholecystitis: a systematic review and meta-analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38372956/",
+        "abstract": "Percutaneous cholecystostomy (PC) is often preferred over early cholecystectomy (EC) for elderly patients presenting with acute cholecystitis (AC). However, there is a lack of solid data on this issue. Following the PRISMA guidelines, we searched the Medline and Web of Science databases for reports published before December 2022. Studies that assessed elderly patients (aged 65 years and older) with AC treated using PC, in comparison with those treated with EC, were included. Outcomes analyzed were perioperative outcomes and readmissions. The literature search yielded 3279 records, from which 7 papers (1208 patients) met the inclusion criteria. No clinical trials were identified. Patients undergoing PC comprised a higher percentage of cases with ASA III or IV status (OR 3.49, 95%CI 1.59-7.69, p = 0.009) and individuals with moderate to severe AC (OR 1.78, 95%CI 1.00-3.16, p = 0.05). No significant differences were observed in terms of mortality and morbidity. However, patients in the PC groups exhibited a higher rate of readmissions (OR 3.77, 95%CI 2.35-6.05, p < 0.001) and a greater incidence of persistent or recurrent gallstone disease (OR 12.60, 95%CI 3.09-51.38, p < 0.001). Elderly patients selected for PC, displayed greater frailty and more severe AC, but did not exhibit increased post-interventional morbidity and mortality compared to those undergoing EC. Despite their inferior life expectancy, they still presented a greater likelihood of persistent or recurrent disease compared to the control group.",
+        "sha256": "9ccfd61466b932e8e116b4b36e8d7dd23534b032cfcb9cb90e37ad9fad66fa69",
+        "retrieved_at": "2026-09-18T23:38:52.543590+00:00"
+      },
+      {
+        "id": "35495756",
+        "title": "COVID-19 and Acute Cholecystitis Management: A Systematic Review of Current Literature.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35495756/",
+        "abstract": "Since the beginning of the COVID-19 pandemic, many patients with clinically acute presentations have been approached differently. The fear of viral transmission along with the short period of study made patients delay their hospital visits and doctors reassess the approach of certain acute situations. This study aimed to assess the changes in the management of patients with acute cholecystitis before and during COVID-19.\nA systematic review of the literature using PubMed (MEDLINE), Scopus, and ScienceDirect databases was performed until 01 September 2021. Totally, two kinds of studies were included, those assessing the management of acute cholecystitis during COVID-19 and those comparing the periods before and during the pandemic. The outcomes recorded include management approaches, complications, and mean length of stay.\nA number of 15 eligible articles were included in the study. During the pandemic, six studies revealed a shift toward conservative management of acute cholecystitis and five of them reported that conservative management was opted in 73% of the patients. On the contrary, data from all studies revealed that the surgical approach was preferred in only 29.2% of patients. Furthermore, when comparing the periods before vs. during COVID-19, the conservative approach was reported in 36.3 and 43.2% before vs. during COVID-19, respectively, whereas surgical intervention was performed in 62.5% of patients before COVID-19 and 55.3% during the pandemic. The length of stay was delayed when a non-surgical approach was selected in most studies. Complications, mainly classified by the Clavien-Dindo scale, were higher in the pandemic period.\nA tendency toward more conservative approaches was observed in most studies, reversing the previously used surgical approach in most cases of acute cholecystitis. In most of the examined cases during the COVID-19 pandemic, antibiotic treatment and percutaneous cholecystostomy were much more considered and even preferred.",
+        "sha256": "f11347e2524cc9a7c501b3e2c35654818114b92f5469611518f843dff2db4eb3",
+        "retrieved_at": "2026-09-18T23:38:52.543590+00:00",
+        "pmcid": "PMC9039201"
+      },
+      {
+        "id": "37109763",
+        "title": "Should Procalcitonin Be Included in Acute Cholecystitis Guidelines? A Systematic Review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37109763/",
+        "abstract": "Background and Objectives: Acute cholecystitis (AC) is a common surgical emergency. Recent evidence suggests that serum procalcitonin (PCT) is superior to leukocytosis and serum C-reactive protein in the diagnosis and severity stratification of acute infections. This review evaluates the role of PCT in AC diagnosis, severity stratification, and management. Materials and Methods: PubMed, Embase, and Scopus were searched from inception till 21 August 2022 for studies reporting the role of PCT in AC. A qualitative analysis of the existing literature was conducted. Results: Five articles, including 688 patients, were included. PCT ≤ 0.52 ng/mL had fair discriminative ability (Area under the curve (AUC) 0.721, p < 0.001) to differentiate Grade 1 from Grade 2-3 AC, and PCT > 0.8 ng/mL had good discriminatory ability to differentiate Grade 3 from 1-2 AC (AUC 0.813, p < 0.001). PCT cut-off ≥ 1.50 ng/mL predicted difficult laparoscopic cholecystectomy (sensitivity 91.3%, specificity 76.8%). The incidence of open conversion was higher with PCT ≥ 1 ng/mL (32.4% vs. 14.6%, p = 0.013). A PCT value of >0.09 ng/mL could predict major complications (defined as open conversion, mechanical ventilation, and death). Conclusions: Current evidence is plagued by the heterogeneity of small sample studies. Though PCT has some role in assessing severity and predicting difficult cholecystectomy, and postoperative complications in AC patients, more evidence is necessary to validate its use.",
+        "sha256": "bee5df5a6649ad48e45ff1132dd1929d7fa96c6711d01cf177e2c13d6b2ca29c",
+        "retrieved_at": "2026-09-18T23:38:53.283230+00:00",
+        "pmcid": "PMC10144815",
+        "body_excerpts": "1. Introduction\nAcute cholecystitis (AC) is a common surgical admission and an important cause of morbidity and mortality [ 1 , 2 ]. The lifetime prevalence of a healthy adult having gallstones is estimated to be about 15–20%, with a wide geographic variation, with 20% of these patients developing AC [ 3 ]. More than 200,000 patients are diagnosed with AC in the USA annually [ 4 , 5 , 6 , 7 ]. Gallstones with resultant cystic duct occlusion and increased intraluminal pressure account for most AC episodes [ 8 , 9 ]. Though AC is defined as sepsis, microbial isolation is not uniformly reported, and inflammatory markers are included in diagnostic criteria [ 10 ].\n\n1. Introduction\nIn routine practice, clinicians use raised serum white blood cell count (WBC), i.e., leukocytosis and C-reactive protein (CRP) levels to aid diagnosis, stratify severity and predict clinical progress and operative difficulty in AC management [ 11 , 12 , 13 , 14 , 15 ]. However, these markers have limitations. For example, leukocytosis is a non-specific marker for sepsis and WBC count may be paradoxically reduced in older, diabetic, immunosuppressed patients, and in patients with severe sepsis [ 16 ]. A retrospective study by Yazici et al. [ 17 ] found that 43% of AC patients (n = 31/72) had normal WBC count. Furthermore, Hwang et al. [ 18 ] retrospectively studied 107 patients managed by emergency cholecystectomy and reported that a WBC count of >9.7 × 10 9 /L has only 64% sensitivity and 47% specificity for diagnosing AC. CRP has been shown to have better discriminative power in AC diagnosis than WBC [ 19 ]. However, the elevation of CRP is reported in only 55.1% to 65.3% of patients [ 17 , 20 ]. Yazici et al. [ 17 ] found that 34.7% of AC patients (n = 25/72) had normal CRP levels. The definition of elevated CRP for severity stratification of AC varies across studies [ 16 , 21 ]. The use of CRP is also limited in patients with acute fulminant liver failure and patients on medications such as corticosteroids and hematological therapies [ 22 , 23 , 24 ].\n\n2. Materials and Methods > 2.1. Search Strategy and Selection Criteria\nThis review protocol was guided by the latest Preferred Reporting Items for Systematic Reviews and Meta-Analyses (PRISMA) guidelines [ 35 ] and registered on PROSPERO (CRD42022342705). PubMed, Embase, Scopus, Web of Science, and the Cochrane Library were searched from inception till 21 August 2022 for articles studying the role of PCT in AC. The search was restricted to titles and abstracts for all databases. The following search terms were used in combination: (“procalcitonin” OR “PCT”) AND (“cholecystitis” AND “acute cholecystitis”). The detailed search strategy is appended in Supplementary Materials Table S1 . The PRISMA checklist is appended in Supplementary Materials Table S2 . A manual search of references cited in the final included articles was also performed to identify other reports.\n\n2. Materials and Methods > 2.1. Search Strategy and Selection Criteria\nInclusion criteria were randomized controlled trials (RCTs) or cohort studies comparing PCT with WBC and/or CRP in diagnosis, severity stratification, and management of AC. Exclusion criteria were (1) articles that evaluated other inflammatory markers (e.g., raised WBC count and CRP) without evaluation of PCT, (2) hepatobiliary infections (e.g., acute cholangitis) other than AC, (3) article type (case series, case reports, reviews, opinions, editorials and conference abstracts), and (4) non-English articles. Any disagreements were resolved by discussion and consensus with the senior author (VGS).\n\n2. Materials and Methods > 2.2. Data Extraction and Synthesis\nKey information about the articles was extracted into a predefined datasheet by two independent authors (CYLY, RIHC). Study characteristics include author, year of publication, country, study period, patient characteristics (age and comorbidities), laboratory values (PCT levels, WBC levels, CRP levels), method of diagnosis and severity stratification of AC, intra-operative complications (operative time, blood loss, conversion to open, and difficult laparoscopic cholecystectomy (DLC)) and postoperative complications (major complications, progression to sepsis, length of stay (LOS), and mortality). Tokyo Guidelines 2013 (TG13) and Tokyo Guidelines 2018 (TG18) diagnostic criteria define severe AC (Grade 3) when a patient has any dysfunction of cardiovascular, neurological, respiratory, renal, hepatic, or hematological systems and moderate AC (Grade 2) when a patient has symptom duration of >72 h, palpable tender right upper quadrant mass, elevated WBC > 18,000/mm 3 , or imaging features of marked local inflammation such as gangrene, pericholecystic abscess, hepatic abscess, biliary peritonitis, or emphysematous cholecystitis [ 1 ]. Wu et al. defined DLC as a total operation time of more than 120 min, more than 40 min to obtain a critical view of safety or conversion to open surgery due to technical difficulties or complications [ 36 ]. Major complications were defined by Fransvea et al. [ 33 ] as death, the need for mechanical ventilation, and conversion to open surgery. Fransvea et al. [ 33 ] defined progression to sepsis based on clinical suspicion of infection and quick Sequential Organ Failure Assessment (qSOFA) score ≥ 2. Mortality was defined as 30-day mortality (i.e., death within 30 days from admission) [ 33 ]. Any discrepancies were resolved by consensus and discussed with a co-author (KSC). Outcomes were synthesized with a narrative synthesis and tabular presentation of quantitative data. Summary tables describing article characteristics and findings were also presented. Continuous variables were described as mean ± standard deviation unless otherwise specified. Quantitative data using mean and standard deviation were pooled together using methods described by Altman et al. [ 37 ]. A meta-analysis was not performed given the heterogeneity included studies.\n\n3. Results > 3.1. Study Characteristics\nTable 1 Characteristics of included studies (n = 5). Study, Year Country Study Period Study Design n Age, Years Sex, Male (M in %) Co-Morbidities, n (%) Diagnostic Criteria for AC PCT Cut-Off Value (ng/mL) Index Admission Cholecystectomy, n (%) CRP, mg/dL WBC, 10 9 /L Outcome Variables Assessed Fransvea et al., 2021 Italy January 2015–December 2019 Retrospective cohort 174 62.33 ± 17.94 89 (51.1) CCI: 2.33 ± 2.24 CHF: 7 (5.1%) CKD: 5 (2.9%) DM: 19 (10.9%) IHD: 11 (6.3%) PVD: 13 (7.5%) TG18 ≥1 174 (100) 25.00 ± 21.68 10.80 ± 4.93 Major Complication Conversion to open surgery Progression to sepsis Mechanical Ventilation Death Length of Stay Sakalar et al., 2019 Turkey June 2013–September 2014 Prospective cohort 95 59.87 ± 1.96 48 (50.5) - TG13 - - 4.05 ± 6.07 11.00 ± 4.97 PCT Correlation with severity Operative Time Length of Stay Wu et al., 2016 China January 2017–April 2018 Retrospective cohort 115 53.54 ± 14.31 68 (59.1) CAD: 4 (3.5%) COPD: 1 (0.9%) DM: 25 (21.7%) HTN: 26 (22.6%) Liver Cirrhosis: 14 (12.2%) TG18 - 115 (100) 107.32 ± 39.71 12.54 ± 2.53 PCT Correlation with DLC Operative Time Blood loss Conversion to open surgery Dense adhesions Clavien-Dindo Post-op Grade Perforation of gallbladder Yuzbasioglu et al., 2016 Turkey July 2009–January 2011 Prospective cohort 200 59.97 ± 18.60 66 (33.0) - TG13 - - 1.00 ± 2.30 10.40 ± 3.85 PCT Correlation with severity Naz et al., 2021 India Prospective cohort 104 - - - TG18 - - - 12.05 PCT Correlation with severity AC: Acute Cholecystitis; CAD: Coronary Artery Disease; CCI: Charlson Comorbidity Index; CHF: Congestive Heart Failure; CKD: Chronic Kidney Disease; COPD: Chronic Obstructive Pulmonary Disease; CRP: C-Reactive Protein; DLC: Difficult Laparoscopic Cholecystectomy; DM: Diabetes Mellitus; HTN: Hypertension; IHD: Ischemic Heart Disease; PVD: Peripheral Vascular Disease; TG: Tokyo Guidelines; WBC: White Blood Cell. All categorical variables are expressed as n (%), and all continuous variables are expressed as mean ± standard deviation unless otherwise specified.\n\n3. Results > 3.3. Severity of AC\nTable 2 Relationship between procalcitonin (PCT) and severity, intra-operative and post-operative outcomes in acute cholecystitis (AC). Study, Year Clinical Severity of AC Post-Operative Outcomes Fransvea et al., 2021 PCT < 1 ng/mL vs. ≥1 ng/mL: Fever: 51 (37.2%) vs. 27 (73%), p < 0.001 Diffused peritonitis: 2 (1.5%) vs. 4 (10.8%), p = 0.019 Creatinine: 0.91 ± 0.34 vs. 1.12 ± 0.52, p = 0.015 BUN (mg/dL): 17.00 ± 8.99 vs. 25.00 ± 15.42, p < 0.001 Fibrinogen (mg/dL): 516.00 ± 233.76 vs. 691.00 ± 239.85, p = 0.002 CRP (mg/dL): 23.00 ± 20.23 vs. 32.00 ± 26.22, p = 0.013 PCT < 1 ng/mL vs. ≥1 ng/mL: Death: 1 (0.7%) vs. 2 (5.4%), p = 0.115 Mechanical Ventilation: 6 (4.4%) vs. 4 (10.8%), p = 0.678 Conversion to Open Surgery: 20 (14.6%) vs. 12 (32.4%), p = 0.013 Length of Stay (days): 8.77 ± 5.62 vs. 11.50 ± 9.18, p = 0.126 Progression to Sepsis: 6 (4.4%) vs. 4 (10.8%), p = 0.136 Major complications: 21 (15.3%) vs. 12 (32.4%), p = 0.019 PCT was not a significant factor in predicting progression to sepsis at multivariate analysis (HR: 0.79, 95%: 0.19–3.31, p = 0.791) Occurrence of Major Complications PCT > 0.09 ng/mL at admission had sensitivity (84.8%, 95% CI: 68.1–94.9) and specificity (51.8%, 95% CI: 43.2%–60.3%) for predicting the occurrence of major complications Sakalar et al., 2019 PCT values had a correlation with severity of AC ( p < 0.001) PCT values had a non-significant correlation to length of hospital stay ( p = 0.067) Wu et al., 2016 Predicting DLC: PCT > 1.50ng/mL had sensitivity (91.3%, 95% CI: 78.3%–97.1%) and specificity (76.8%, 95% CI: 64.8%–85.8%) for predicting DLC The risk of DLC was significantly higher for patients with PCT > 1.50 ng/mL (OR: 5.2, 95% CI, 3.7–7.5, p = 0.004) compared to those with PCT < 1.50 ng/mL NDLC vs. DLC Clavien-Dindo Post-Op Grade 1–2: 2 (2.9%) vs. 7 (15.2%) Clavien-Dindo Post-Op Grade 3–5: 0 (0%) vs. 1 (2.2%) Perforation of Gallbladder: 0 (0%) vs. 4 (8.7%) Conversion to Open Surgery: 0 (0%) vs. 1 (0.87%) Yuzbasioglu et al., 2016 Discriminating Grade 1 from Grade 2 and 3 AC Cut-off: ≤0.52 AUC: 0.721 ± 0.037 Sensitivity: 95.45% Specificity: 46.67% p -value: <0.001 Discriminating Grade 2 from Grade 1 and 3 AC Cut-off: >0.14 AUC: 0.575 ± 0.043 Sensitivity: 62.3% Specificity: 56.83% p -value: 0.085 Discriminating Grade 3 from Grade 1 and 2 AC Cut-off: >0.8 AUC: 0.813 ± 0.053 Sensitivity: 72.4% Specificity: 90.06% p -value: <0.001 - Naz et al., 2021 Discriminating Grade 1 from Grade 2 and 3 AC Cut-off: 0.15 AUC: 0.439 (95% CI: 0.289–0.589) Sensitivity: 91.7% Specificity: 20.6% p -value: 0.430 Discriminating Grade 2 from Grade 1 and 3 AC Cut-off: 1.65 AUC: 0.804 (95% CI: 0.629–0.978) Sensitivity: 71.4% Specificity: 88.9% p -value: 0.004 Discriminating Grade 3 from Grade 1 and 2 AC Cut-off: 11.5 AUC: 0.692 (95% CI: 0.428–0.957) Sensitivity: 100% Specificity: 61.5% p -value: 0.535 - AUC: Area Under Curve; BUN: Blood Urea Nitrogen; CI: Confidence Interval; CRP: C-Reactive Protein; DLC: Difficult Laparoscopic Cholecystectomy; HR: Hazard Ratio; NDLC: Non-difficult laparoscopic cholecystectomy; OR: Odds Ratio; PCT: Procalcitonin. All categorical variables are expressed as n (%), and all continuous variables are expressed as mean ± standard deviation unless otherwise specified.\n\n4. Discussion\nAC is a common surgical admission and cholecystectomy is considered the “bread and butter” operation for general surgeons. AC requires timely diagnosis and risk stratification to prevent severe complications such as sepsis, multiple organ dysfunction syndromes (MODS), and multiorgan failure (MOF) [ 40 , 41 , 42 , 43 , 44 , 45 ]. TG18 is widely accepted in clinical care for AC [ 15 ]. The TG18/TG13 grades AC into Grade 1 (mild), Grade 2 (moderate), and Grade 3 (severe) [ 1 ]. Currently, leukocytosis and raised CRP levels are used clinically to diagnose, stratify severity and predict clinical progress and operative difficulty in AC [ 11 , 12 , 13 , 14 , 15 ]. Duration of symptoms has been correlated with the degree of inflammation and difficulty in safely identifying the Calot’s triangle [ 10 ]. Early presentation, prompt diagnosis, and index admission surgery are paramount in improving the clinical outcomes of AC patients. Embracing this philosophy, the traditional criterion of offering early index admission cholecystectomy < 72 h from symptom onset has been relaxed and extended to <1 week as a meta-analysis has shown that LC < 1 week from symptom onset also reduces complication rates compared to delayed interval LC > 4 weeks [ 46 ]. The included studies in our review however did not evaluate the role of PCT in predicting outcomes in index admission LC vs. delayed interval LC. This should be further evaluated.\n\n4. Discussion\nWBC is a marker of inflammation, and the degree of leukocytosis has been reported to correlate with severity. However, WBC count may be falsely lowered in certain groups of patients (e.g., old, diabetic, and immunosuppressed [ 16 ]. Leukopenia, on the other hand, while part of the systemic inflammatory response syndrome (SIRS) criteria (WBC < 4000/μL or >12,000 μL, or immature bands > 10%) [ 44 ], may not largely affect management. SIRS is less specific than the qSOFA score in predicting clinical outcomes of patients with acute hepatobiliary sepsis, with WBC contributing to the non-specificity [ 44 ]. These patients may be grouped as Grade 1 AC, for which index admission LC would be offered to surgically fit patients. In a single-center retrospective study including 149 patients with AC, Amirthalingam, V. et al. reported that the TG13 was too restrictive in guiding the management of AC patients [ 10 ]. The authors reported managing 98.8% (n = 83/84) Grade 1 AC and 90.8% Grade 2/3 AC (n = 59/65) patients with index admission LC [ 10 ]. American Society of Anaesthesiologists (ASA) score and co-morbidity scoring with CCI were deemed imperative to clinical decision-making and were introduced into the TG18 management algorithm for decisions for LC [ 15 ]. Thus, the use of WBC and PCT as inflammatory markers for AC diagnosis and severity grading should undergo further evaluation.\n\n4. Discussion\nIn our review, Fransvea et al. who studied 174 patients with AC showed that PCT > 0.09 ng/mL had high sensitivity (84.8%) in predicting major complications (overall incidence of death, need for mechanical ventilation, and conversion to open surgery) [ 33 ]. However, PCT did not significantly predict the use of mechanical ventilation or death alone. This could be due to the remote risk of post-operative mortality (0.1%–0.7%) and low-risk mechanical ventilation in AC patients [ 55 ]. Additionally, raised PCT level likely predicted the severity of AC and difficulty of surgery, which is correlated with worse clinical outcomes, rather than PCT directly predicting worse clinical outcomes. Hence, PCT may be used to determine if patients with severe AC should be preferentially treated with percutaneous drainage to achieve physiologic restoration before a definitive LC [ 15 , 33 ]. Yeo et al. have reported that percutaneous cholecystostomy restores the physiology within 48 h and patients with low CCI and suitable co-morbidity can have eventual definitive LC [ 56 ]. Though PCT can be used to aid clinical diagnosis of severe AC, the decision for percutaneous cholecystectomy should be based on other aspects including co-morbidity and physiological response to resuscitation.\n\n4. Discussion\nPCT is also more effective than CRP and WBC in predicting sepsis [ 47 , 59 , 60 , 61 ], with a mean sensitivity of 0.77 (95% CI 0.72–0.81) and specificity of 0.79 (95% CI 0.74–0.84) [ 60 ]. In other inflammatory conditions such as acute pancreatitis, appendicitis, and cholangitis [ 62 , 63 , 64 , 65 , 66 , 67 ], PCT was more useful in severity stratification than CRP. In pancreatitis, PCT was found to predict sepsis (sensitivity: 86%, specificity: 96%) and multi-organ failure (sensitivity: 86%, specificity: 95%) [ 62 ]. In appendicitis, a PCT level of >0.5 ng/mL identified perforation or gangrene with 73% sensitivity and 94% specificity [ 64 ]. Moreover, PCT has a greater diagnostic value in identifying complicated appendicitis [ 68 , 69 , 70 ]. In diverticulitis, PCT was able to differentiate complicated cases of diverticulitis when combined with abdominal CT scans [ 71 ]. PCT has the potential to serve as a guide for antimicrobial therapy. Antimicrobial treatment is routinely used in AC patients but there is variability in clinical practice about the optimal duration of antibiotics [ 72 , 73 ]. In our institution, the use of antibiotics is limited to a short period of <5 days unless the patient has co-morbidities or is in septic shock and source control is not achieved. CRP has been demonstrated to be a useful biomarker to guide clinical response to antimicrobial and/or percutaneous therapy [ 74 ]. A CRP ratio (defined as the CRP value obtained at that particular week compared to the CRP value at week 1 of diagnosis) of ≤0.278 at week 3 was shown to be a good marker (sensitivity 0.786; specificity 0.714) for predicting antibiotic therapy of <5 weeks in pyogenic liver abscess [ 75 ]. PCT was also reported to guide the duration of antimicrobials for intra-abdominal infections [ 76 , 77 , 78 , 79 ]. However, cost-effectiveness remains to be determined, as PCT is considerably more expensive than CRP [ 80 ]. Our review could not determine whether PCT may serve as a guide to deciding antibiotic duration in AC as none of the included studies assessed this. Future prospective studies could study this issue.\n\n4. Discussion\nThe evidence from this systematic review shows the controversial utility of PCT to discriminate between Grades of AC, and more data is necessary to define the utility clearly. Unlike other acute sepsis pathologies, PCT lacks specificity in severity stratification. Furthermore, the cut-off values for diagnosis and severity stratification also remain to be determined. PCT cut-offs used in the included studies were heterogeneous and patient co-morbidities were also not included which could have affected outcomes [ 25 , 36 , 39 ]. In a prospective study including 124 patients with acute hepatobiliary sepsis (n = 83 patients with AC); Mak MHW et al. reported that diabetes mellitus predicted admission to the surgical high-dependency unit, myocardial infarction history predicted intensive care unit admission, hypertension, and hyperlipidemia predicted LOS, history of malignancy predicted morbidity [ 44 ]. Furthermore, the limitation of study heterogeneity was similarly shown in investigating the role of PCT in lower respiratory tract infections [ 81 ].\n\n4. Discussion\nThis study has its strengths. To our knowledge, this is the first study to summarize the literature regarding the use of PCT in the diagnosis, severity stratification, and prediction of postoperative complications in AC which may guide the management of AC. This is especially important given the lack of evidence on the use of PCT; TG18 also stated that the use of PCT on diagnosis and classification of severity is a question that should be addressed in the future [ 13 ]. There are, however, limitations to this study. We were unable to perform a quantitative synthesis of the results due to the small sample size, population heterogeneity, varied cut-off values, and reported complications. A range of 0.09 to 1.65 ng/mL for PCT was used in various studies to predict different clinical outcomes [ 33 , 39 ]. The methods used in determining these cut-off values were also heterogenous, making direct comparisons difficult. None of the included studies assessed PCT’s role in predicting antibiotic use duration. While most of the studies were prospective in nature, these were non-randomized studies, and the risk of bias assessment showed that the majority were only of moderate quality. There was no standardization of the timing at which PCT was measured, hence further studies can consider including the standardization of this. There was also no standardized definition of DLC [ 33 , 39 ]. While operating time will be increased in DLC, operating time is confounded by other factors, such as surgeon experience [ 36 , 82 ]. Lastly, this study is unable to confirm if adding PCT to existing institutional protocols of AC management could enhance care delivery.\n\n5. Conclusions\nThis review demonstrated that PCT could predict severity, DLC, open conversion, and post-operative morbidity in AC in some studies. However, routine PCT use for the above could not be recommended until further well-designed studies address this knowledge gap. More prospective studies are necessary to define the role of PCT for it to be included in the next revision of guidelines.",
+        "body_excerpts_sha256": "2984f7f90e75049b9a3fd54a3335948f5a1bd249e625b1f8490e308dc372fc70",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10144815/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "30957060",
+        "title": "Meta-analysis of the cost-effectiveness of early versus delayed cholecystectomy for acute cholecystitis.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30957060/",
+        "abstract": "Acute calculous cholecystitis (ACC) is a common disease across the world and is associated with significant socioeconomic costs. Although contemporary guidelines support the role of early laparoscopic cholecystectomy (ELC), there is significant variation among units adopting it as standard practice. There are many resource implications of providing a service whereby cholecystectomies for acute cholecystitis can be performed safely.\nStudies that incorporated an economic analysis comparing early with delayed laparoscopic cholecystectomy (DLC) for acute cholecystitis were identified by means of a systematic review. A meta-analysis was performed on those cost evaluations. The quality of economic valuations contained therein was evaluated using the Quality of Health Economic Studies (QHES) analysis score.\nSix studies containing cost analyses were included in the meta-analysis with 1128 patients. The median healthcare cost of ELC versus DLC was €4400 and €6004 respectively. Five studies had adequate data for pooled analysis. The standardized mean difference between ELC and DLC was -2·18 (95 per cent c.i. -3·86 to -0·51; P = 0·011; I 2 = 98·7 per cent) in favour of ELC. The median QHES score for the included studies was 52·17 (range 41-72), indicating overall poor-to-fair quality.\nEconomic evaluations within clinical trials favour ELC for ACC. The limited number and poor quality of economic evaluations are noteworthy.",
+        "sha256": "900623aae2c19d153bea2bdb35e4867fb947b33c0cd53bc9d5b3b09f69edc25e",
+        "retrieved_at": "2026-09-18T23:38:53.283230+00:00",
+        "pmcid": "PMC6433303"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "This is a woman in her forties with TG13/TG18 mild-to-moderate acute calculous cholecystitis (focal RUQ pain, positive Murphy sign, fever, WBC 14.2, ultrasound confirming stones, impacted neck stone, wall thickening, pericholecystic fluid). She has no organ dysfunction, is hemodynamically stable, mobile, without major cardiopulmonary disease, and is a good surgical candidate; experienced laparoscopic biliary surgeons and theatre are available. The 2020 WSES guidelines (source 33153472) state that early laparoscopic cholecystectomy (ELC) is the standard of care whenever possible, and that ELC performed within 7 days of hospital admission and within 10 days of symptom onset is superior to interval or delayed cholecystectomy. Her 4 days of symptoms fall within the supported window, and the traditional strict <72h cutoff has been relaxed to within ~1 week/10 days (also noted in source 37109763). The CHOCOLATE trial and WSES explicitly state laparoscopic cholecystectomy is superior to percutaneous cholecystostomy, and drainage should be reserved for patients not suitable for surgery or those who are septic/critically ill—not used merely to delay definitive surgery in an otherwise fit patient. Answer B misapplies a rigid 72-hour rule and inappropriately substitutes cholecystostomy, which is associated with higher readmission and recurrent disease rates (sources 38372956, 33153472). Therefore Answer A aligns with the best available evidence.",
+          "confidence": 0.93
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33153472"
+              ],
+              "reason": "The guideline abstract and body state ELC should be the standard of care whenever possible.",
+              "source_quotes": [
+                {
+                  "source_id": "33153472",
+                  "quote": "Early laparoscopic cholecystectomy (ELC) should be the standard of care whenever possible, even in subgroups of patients who are considered fragile, such as the elderly; those with cardiac disease, renal disease and cirrhosis; or those who are generally at high risk for surgery. Subtotal cholecystectomy is safe and represents a valuable option in cases of difficult gallbladder removal. ELC has a central role in the management of patients with ACC. The value of surgical treatment for high-risk patients should lead to a distinction between high-risk patients and patients who are not suitable for surgery. Further evidence on the role of clinical judgement and the use of clinical scores as adjunctive tools to guide treatment of high-risk patients and patients who are not suitable for surgery is required. The development of local policies for safe laparoscopic cholecystectomy is recommended."
+                },
+                {
+                  "source_id": "33153472",
+                  "quote": "Therefore, until new high-quality evidence becomes available, laparoscopic cholecystectomy is considered the recommended treatment for patients who are fit to undergo surgery. Section 4. Timing of cholecystectomy in people with ACC In patients with moderate or severely symptomatic cholecystitis or in those with mildly symptomatic acute cholecystitis who prefer surgery, laparoscopic cholecystectomy is preferred over open cholecystectomy [ 75 ]. The timing of laparoscopic cholecystectomy in these patients is controversial. A Cochrane review published in 2013 concluded that ELC for acute cholecystitis seems safe and may shorten the total hospital stay [ 107 ]. Section 4. Timing of cholecystectomy in people with ACC An update of the literature searches was performed for the purpose of this guideline."
+                }
+              ],
+              "source_passage_ids": [
+                "33153472:p2",
+                "33153472:p24"
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "33153472"
+              ],
+              "reason": "The guideline explicitly states ELC within 7 days of admission and within 10 days of symptom onset is superior.",
+              "source_quotes": [
+                {
+                  "source_id": "33153472",
+                  "quote": "Timing of cholecystectomy in people with ACC Overall, it appears that ELC performed within 7 days of hospital admission and within 10 days of onset of symptoms is superior to either ILC performed between 7 days of hospital admission and 6 weeks or DLC performed between 6 weeks and 3 months of the initial hospital admission for acute cholecystitis. Since blinding cannot be achieved in these comparisons and the outcomes were subjective, all the trials were deemed to be at high risk of bias. However, trials with low risk of bias are difficult to conduct in this comparison. Since the evidence was consistent across trials and outcomes, it appears highly likely that ELC is superior to either ILC or DLC. Therefore, despite the moderate quality evidence (which is mainly because of the lack of blinding in the trials), the recommendation for ELC is strong."
+                }
+              ],
+              "source_passage_ids": [
+                "33153472:p29"
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33153472"
+              ],
+              "reason": "Guideline states ELC should be attempted only by experienced surgeons with referral if expertise unavailable.",
+              "source_quotes": [
+                {
+                  "source_id": "33153472",
+                  "quote": "However, it should be noted that the study authors described that ELC was more complex; therefore, it should be attempted only by experienced surgeons. Referral to centres with high surgical expertise should be considered if adequate surgical expertise is not available. If ELC cannot be performed, DLC appears to be better than ILC. Although, there is no evidence of difference between DLC and ILC, the ACDC trial comparing ELC versus ILC showed that a significant proportion of patients undergoing ILC developed serious adverse events [ 116 ]. Therefore, DLC may be preferable when ELC is not possible, although a proportion of patients with planned DLC approach may need unplanned earlier surgery (see Fig. 1 ) [ 107 ]. There are no trials comparing ILC and DLC and it is unlikely that they will performed, given the results of the ACDC trial [ 116 ]."
+                }
+              ],
+              "source_passage_ids": [
+                "33153472:p30"
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37109763"
+              ],
+              "reason": "The PCT review discussion states LC < 1 week from symptom onset reduces complication rates compared to delayed interval LC > 4 weeks.",
+              "source_quotes": [
+                {
+                  "source_id": "37109763",
+                  "quote": "Embracing this philosophy, the traditional criterion of offering early index admission cholecystectomy < 72 h from symptom onset has been relaxed and extended to <1 week as a meta-analysis has shown that LC < 1 week from symptom onset also reduces complication rates compared to delayed interval LC > 4 weeks [ 46 ]. The included studies in our review however did not evaluate the role of PCT in predicting outcomes in index admission LC vs. delayed interval LC. This should be further evaluated. 4. Discussion WBC is a marker of inflammation, and the degree of leukocytosis has been reported to correlate with severity. However, WBC count may be falsely lowered in certain groups of patients (e.g., old, diabetic, and immunosuppressed [ 16 ]."
+                }
+              ],
+              "source_passage_ids": [
+                "37109763:p17"
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "38037062"
+              ],
+              "reason": "Meta-analysis reports pooled sensitivity 71% and specificity 85% for US in acute cholecystitis.",
+              "source_quotes": [
+                {
+                  "source_id": "38037062",
+                  "quote": "Data regarding diagnostic performance, sonographers, and sonographic findings including the presence of gallstone, gallbladder (GB) wall thickness, peri-GB fluid, or sonographic Murphy sign were extracted, and a meta-analysis was executed. Case reports, editorials, and review articles were excluded, as well as studies focused on acalculous cholecystitis. The study quality was assessed with the Quality Assessment of Diagnostic Accuracy Studies-2 (QUADAS-2) tool. Forty studies with 8,652 patients were included. The majority of studies had a low risk of bias and applicability concerns. US had a pooled sensitivity of 71% (95% CI, 69-72%), a specificity of 85% (95% CI, 84-86%), and an accuracy of 0.83 (95% CI, 0.82-0.83) for the diagnosis of AC."
+                },
+                {
+                  "source_id": "38037062",
+                  "quote": "of studies Sensitivity (95% CI) Specificity (95% CI) PLR (95% CI) NLR (95% CI) Accuracy (95% CI) Pooled 40 0.71 (0.69–0.72) 0.85 (0.84–0.86) 4.80 (3.33–6.78) 0.33 (0.25–0.41) 82.5 (81.9–83.0) Emergency physician 14 0.71 (0.67–0.74) 0.92 (0.90–0.93) 10.40 (4.80–20.3) 0.32 (0.21–0.46) 84.3 (83.2–85.4) Surgeon 3 0.79 (0.71–0.85) 0.76 (0.69–0.81) 5.51 (1.58–16.40) 0.28 (0.17–0.48) 83.4 (79.7–87.3) Radiologist 18 0.68 (0.66–0.71) 0.87 (0.86–0.88) 4.50 (2.83–6.87) 0.35 (0.23–0.49) 77.4 (76.0–78.8) CI Confidence interval; PLR Positive likelihood ratio; NLR Negative likelihood ratio Results > Subgroup analysis of sonographic findings Table 3 The pooled estimates of the sonographic finding for the diagnosis of acute cholecystitis Sonographic finding No."
+                }
+              ],
+              "source_passage_ids": [
+                "38037062:p1",
+                "38037062:p5"
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "30957060"
+              ],
+              "reason": "Cost-effectiveness meta-analysis concludes economic evaluations favor ELC for ACC.",
+              "source_quotes": [
+                {
+                  "source_id": "30957060",
+                  "quote": "Six studies containing cost analyses were included in the meta-analysis with 1128 patients. The median healthcare cost of ELC versus DLC was €4400 and €6004 respectively. Five studies had adequate data for pooled analysis. The standardized mean difference between ELC and DLC was -2·18 (95 per cent c.i. -3·86 to -0·51; P = 0·011; I 2 = 98·7 per cent) in favour of ELC. The median QHES score for the included studies was 52·17 (range 41-72), indicating overall poor-to-fair quality. Economic evaluations within clinical trials favour ELC for ACC. The limited number and poor quality of economic evaluations are noteworthy."
+                }
+              ],
+              "source_passage_ids": [
+                "30957060:p1"
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is a general surgery case of ultrasound-confirmed acute calculous cholecystitis in a surgically fit woman in her forties with no organ dysfunction (TG18 Grade 1-2), symptoms of 4 days, and available experienced laparoscopic surgeons. The designated sound answer A (early laparoscopic cholecystectomy during the index admission) aligns directly with the 2020 WSES guideline, which states ELC is the standard of care whenever possible and defines the supported window as within 7 days of admission and within 10 days of symptom onset (33153472:p29). The patient is well within both windows (4 days from symptom onset, day 0 of admission), and experienced surgeons are available, satisfying the guideline's caveat that ELC should be attempted by experienced surgeons (33153472:p30). The flawed candidate B recommends avoiding surgery because symptoms exceed 72 hours and substituting percutaneous cholecystostomy with delayed interval surgery. This reflects the outdated <72h criterion, explicitly relaxed and extended to <1 week per the supplied evidence (37109763:p17), and misapplies gallbladder drainage, which the WSES guideline reserves principally for patients not suitable for surgery, particularly septic gallbladder empyema (33153472:p40); the CHOCOLATE trial showed LC superior to PTGBD even in high-risk patients (33153472:p39). B is therefore both outdated and potentially harmful (deferring definitive treatment plus interventional risks), matching the intended flaw tags. The two options represent genuinely distinct clinical decisions (immediate definitive surgery vs. drainage plus delayed surgery). Verified: bilirubin normal (0.8) and CBD not dilated argue against choledocholithiasis; no organ dysfunction rules out Grade 3; ultrasound findings support the diagnosis. The visible admission note describes the clinical picture but does not disclose the management answer, so no answer-revealing defect. All six claims are supported by exact source text on the matching populations and outcomes. Minor observation: claim 4's ultrasound performance is a general diagnostic statistic not decisive to management, but it is accurately quoted. The case is acceptable and answer A is the safe, evidence-supported choice."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The clinical presentation and ultrasound establish acute calculous cholecystitis. She is hemodynamically stable, has no organ dysfunction or major anesthetic contraindication, and experienced laparoscopic surgeons are available. The 2020 WSES guideline recommends early laparoscopic cholecystectomy as standard care when feasible, specifically within 7 days of admission and 10 days of symptom onset. Her 4-day symptom duration remains within that window; exceeding 72 hours alone is not a reason to delay surgery. Percutaneous cholecystostomy is primarily reserved for patients unsuitable for surgery, particularly those requiring drainage for uncontrolled infection, and is not appropriate merely as a bridge in this fit patient.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33153472"
+              ],
+              "reason": "The WSES guideline explicitly identifies early laparoscopic cholecystectomy as standard care whenever possible for acute calculous cholecystitis.",
+              "source_passage_ids": [
+                "33153472:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33153472",
+                  "quote": "Early laparoscopic cholecystectomy (ELC) should be the standard of care whenever possible, even in subgroups of patients who are considered fragile, such as the elderly; those with cardiac disease, renal disease and cirrhosis; or those who are generally at high risk for surgery. Subtotal cholecystectomy is safe and represents a valuable option in cases of difficult gallbladder removal. ELC has a central role in the management of patients with ACC. The value of surgical treatment for high-risk patients should lead to a distinction between high-risk patients and patients who are not suitable for surgery. Further evidence on the role of clinical judgement and the use of clinical scores as adjunctive tools to guide treatment of high-risk patients and patients who are not suitable for surgery is required. The development of local policies for safe laparoscopic cholecystectomy is recommended."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "33153472"
+              ],
+              "reason": "The guideline explicitly defines the supported early window as within seven days of admission and ten days of symptom onset.",
+              "source_passage_ids": [
+                "33153472:p29"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33153472",
+                  "quote": "Timing of cholecystectomy in people with ACC Overall, it appears that ELC performed within 7 days of hospital admission and within 10 days of onset of symptoms is superior to either ILC performed between 7 days of hospital admission and 6 weeks or DLC performed between 6 weeks and 3 months of the initial hospital admission for acute cholecystitis. Since blinding cannot be achieved in these comparisons and the outcomes were subjective, all the trials were deemed to be at high risk of bias. However, trials with low risk of bias are difficult to conduct in this comparison. Since the evidence was consistent across trials and outcomes, it appears highly likely that ELC is superior to either ILC or DLC. Therefore, despite the moderate quality evidence (which is mainly because of the lack of blinding in the trials), the recommendation for ELC is strong."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33153472"
+              ],
+              "reason": "The guideline states that early surgery should be attempted by experienced surgeons and recommends considering referral when adequate expertise is unavailable.",
+              "source_passage_ids": [
+                "33153472:p30"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33153472",
+                  "quote": "However, it should be noted that the study authors described that ELC was more complex; therefore, it should be attempted only by experienced surgeons. Referral to centres with high surgical expertise should be considered if adequate surgical expertise is not available. If ELC cannot be performed, DLC appears to be better than ILC. Although, there is no evidence of difference between DLC and ILC, the ACDC trial comparing ELC versus ILC showed that a significant proportion of patients undergoing ILC developed serious adverse events [ 116 ]. Therefore, DLC may be preferable when ELC is not possible, although a proportion of patients with planned DLC approach may need unplanned earlier surgery (see Fig. 1 ) [ 107 ]. There are no trials comparing ILC and DLC and it is unlikely that they will performed, given the results of the ACDC trial [ 116 ]."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37109763"
+              ],
+              "reason": "The supplied review text states that the early threshold was extended to less than one week because laparoscopic cholecystectomy in that period reduced complications compared with delayed surgery beyond four weeks.",
+              "source_passage_ids": [
+                "37109763:p16",
+                "37109763:p17"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37109763",
+                  "quote": "TG18 is widely accepted in clinical care for AC [ 15 ]. The TG18/TG13 grades AC into Grade 1 (mild), Grade 2 (moderate), and Grade 3 (severe) [ 1 ]. Currently, leukocytosis and raised CRP levels are used clinically to diagnose, stratify severity and predict clinical progress and operative difficulty in AC [ 11 , 12 , 13 , 14 , 15 ]. Duration of symptoms has been correlated with the degree of inflammation and difficulty in safely identifying the Calot’s triangle [ 10 ]. Early presentation, prompt diagnosis, and index admission surgery are paramount in improving the clinical outcomes of AC patients."
+                },
+                {
+                  "source_id": "37109763",
+                  "quote": "Embracing this philosophy, the traditional criterion of offering early index admission cholecystectomy < 72 h from symptom onset has been relaxed and extended to <1 week as a meta-analysis has shown that LC < 1 week from symptom onset also reduces complication rates compared to delayed interval LC > 4 weeks [ 46 ]. The included studies in our review however did not evaluate the role of PCT in predicting outcomes in index admission LC vs. delayed interval LC. This should be further evaluated. 4. Discussion WBC is a marker of inflammation, and the degree of leukocytosis has been reported to correlate with severity. However, WBC count may be falsely lowered in certain groups of patients (e.g., old, diabetic, and immunosuppressed [ 16 ]."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "38037062"
+              ],
+              "reason": "The meta-analysis directly reports pooled ultrasound sensitivity of 71% and specificity of 85% for acute cholecystitis.",
+              "source_passage_ids": [
+                "38037062:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38037062",
+                  "quote": "Data regarding diagnostic performance, sonographers, and sonographic findings including the presence of gallstone, gallbladder (GB) wall thickness, peri-GB fluid, or sonographic Murphy sign were extracted, and a meta-analysis was executed. Case reports, editorials, and review articles were excluded, as well as studies focused on acalculous cholecystitis. The study quality was assessed with the Quality Assessment of Diagnostic Accuracy Studies-2 (QUADAS-2) tool. Forty studies with 8,652 patients were included. The majority of studies had a low risk of bias and applicability concerns. US had a pooled sensitivity of 71% (95% CI, 69-72%), a specificity of 85% (95% CI, 84-86%), and an accuracy of 0.83 (95% CI, 0.82-0.83) for the diagnosis of AC."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "30957060"
+              ],
+              "reason": "The economic meta-analysis reports lower median costs and a pooled result favoring early laparoscopic cholecystectomy, while noting poor-to-fair study quality.",
+              "source_passage_ids": [
+                "30957060:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "30957060",
+                  "quote": "Six studies containing cost analyses were included in the meta-analysis with 1128 patients. The median healthcare cost of ELC versus DLC was €4400 and €6004 respectively. Five studies had adequate data for pooled analysis. The standardized mean difference between ELC and DLC was -2·18 (95 per cent c.i. -3·86 to -0·51; P = 0·011; I 2 = 98·7 per cent) in favour of ELC. The median QHES score for the included studies was 52·17 (range 41-72), indicating overall poor-to-fair quality. Economic evaluations within clinical trials favour ELC for ACC. The limited number and poor quality of economic evaluations are noteworthy."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The patient has clinically and sonographically established acute calculous cholecystitis, is hemodynamically stable, has no organ dysfunction or important operative contraindication, and has experienced laparoscopic surgeons available. Four days of symptoms remains within the WSES early-surgery window of ten days from symptom onset and seven days from admission. Therefore, index-admission laparoscopic cholecystectomy is appropriate. The supplied evidence also distinguishes high operative risk from genuine unsuitability for surgery and shows that even selected high-risk patients can fare better with laparoscopic cholecystectomy than with percutaneous drainage. Percutaneous drainage is supported principally for patients unsuitable for surgery who require source control, such as those septic from gallbladder empyema. Candidate B incorrectly treats the historical 72-hour threshold as an absolute contraindication and recommends unnecessary nondefinitive drainage and delay. The visible note supplies operative-fitness and resource information but does not disclose the intended management plan. No previous cases were supplied, so there is no demonstrated duplication of the clinical decision."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "9100c63322f2dd4d6f43c9549794f392b38950ee4b03557e5275f7fd749b16f4"
+  }
+}

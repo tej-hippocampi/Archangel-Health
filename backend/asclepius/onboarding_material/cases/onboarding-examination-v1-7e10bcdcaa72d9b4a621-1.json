@@ -1,0 +1,498 @@
+{
+  "task_id": "onboarding-examination-v1-7e10bcdcaa72d9b4a621-1",
+  "specialty": "nephrology",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Adult with cirrhosis, ascites, and new AKI after large-volume paracentesis: choose the correct fluid and medication plan",
+    "question": "A hospitalized adult with decompensated cirrhosis and tense ascites underwent a large-volume paracentesis yesterday and now has a rising creatinine without shock. Which immediate fluid and vasoactive medication approach is most appropriate based on current evidence?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "nephrology",
+      "demographics": {
+        "age_band": "50-59",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Cirrhosis with refractory ascites",
+          "since": null,
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Acute kidney injury (AKI)",
+          "since": null,
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Recent large-volume paracentesis",
+          "since": null,
+          "collected_offset_days": null
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Lactulose",
+          "dose": null,
+          "route": null,
+          "freq": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "temp_c": 37.1,
+        "hr_bpm": 88,
+        "bp_mmHg": "102/64",
+        "rr_bpm": 16,
+        "spo2_pct": 96
+      },
+      "lab_panels": [
+        {
+          "panel": "Basic Metabolic Panel",
+          "collected_offset_days": -2,
+          "results": [
+            {
+              "analyte": "Sodium",
+              "loinc": null,
+              "value": 132,
+              "unit": "mmol/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Potassium",
+              "loinc": null,
+              "value": 4.2,
+              "unit": "mmol/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "BUN",
+              "loinc": null,
+              "value": 16,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Creatinine",
+              "loinc": null,
+              "value": 0.9,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Basic Metabolic Panel",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Sodium",
+              "loinc": null,
+              "value": 130,
+              "unit": "mmol/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Potassium",
+              "loinc": null,
+              "value": 4.3,
+              "unit": "mmol/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "BUN",
+              "loinc": null,
+              "value": 32,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Creatinine",
+              "loinc": null,
+              "value": 2.1,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Progress",
+          "author_role": "nephrology",
+          "text": "Consult requested for a middle-aged man with alcohol-related cirrhosis and tense ascites admitted for abdominal distension and early encephalopathy. He underwent therapeutic paracentesis yesterday with approximately 6.5 liters of ascitic fluid removed. Documentation indicates no intravenous albumin was administered at the time of the large-volume tap. Today his creatinine has risen from a known baseline of ~0.9 mg/dL two days prior to 2.1 mg/dL, with concurrent BUN increase. He is afebrile, without hematemesis or hypotensive episodes, and shows no signs of overt shock. Exam: distended abdomen with shifting dullness, mild peripheral edema, warm extremities, and no pulmonary crackles. Urine output has decreased modestly over the last 12 hours but he remains hemodynamically stable on room air. No recent contrast exposure is reported. The immediate question is the appropriate intravascular volume strategy and whether to begin vasoactive therapy. The team seeks guidance on fluid choice and any medication changes to prevent further kidney compromise while avoiding undue risk.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Procedure report",
+          "label": "Therapeutic paracentesis",
+          "findings": "Ultrasound-guided large-volume paracentesis performed for tense ascites. Approximately 6.5 L of clear straw-colored fluid removed. Ascitic PMN count 120 cells/µL. No immediate complications. No documentation of peri-procedural IV albumin infusion.",
+          "measurements": [
+            {
+              "analyte": "Ascitic fluid volume removed",
+              "loinc": null,
+              "value": 6.5,
+              "unit": "L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Ascitic PMN count",
+              "loinc": null,
+              "value": 120,
+              "unit": "cells/µL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ],
+          "impression": "Successful large-volume paracentesis (>5 L) without immediate complications.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -1
+        },
+        {
+          "modality": "Ultrasound",
+          "label": "Renal ultrasound",
+          "findings": "Normal-sized kidneys with preserved cortical thickness and echogenicity. No hydronephrosis or obstructing lesion identified.",
+          "measurements": [],
+          "impression": "No sonographic evidence of urinary obstruction.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [
+        "Procedure report",
+        "Ultrasound"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": null,
+      "ground_truth": {
+        "answer": "Administer IV albumin now as the volume expander of choice for cirrhosis with ascites and AKI after large-volume paracentesis, and do not start vasoconstrictors unless HRS-AKI is diagnosed.",
+        "rationale": "After removal of >5 L ascites, IV albumin is recommended and is the preferred volume expander in hospitalized cirrhotics with ascites who develop AKI. Vasoactive drugs are reserved for HRS-AKI and should not be used in other forms of AKI in cirrhosis. Crystalloid alone is suboptimal in this scenario.",
+        "evidence": null,
+        "key_data": [
+          "Cirrhosis with ascites and new AKI (creatinine 0.9 to 2.1 mg/dL)",
+          "Recent large-volume paracentesis of 6.5 L without albumin documented",
+          "Hemodynamically stable, no shock, no obstruction on ultrasound"
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Give repeated normal saline boluses for presumed intravascular depletion and begin midodrine plus octreotide now for presumed HRS-AKI; albumin is unnecessary unless there is proven SBP. Reassess kidney function after 24–48 hours of this approach before considering other steps."
+      },
+      {
+        "id": "B",
+        "text": "Administer intravenous albumin now as the preferred volume expander after >5 L paracentesis and in hospitalized cirrhosis with ascites and AKI, and withhold vasoconstrictors unless HRS-AKI criteria are met; continue close monitoring and reassess response."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "hepatorenal syndrome",
+      "albumin infusion",
+      "cirrhosis",
+      "ascites",
+      "acute kidney injury",
+      "large-volume paracentesis"
+    ],
+    "evidence_keywords": [
+      "IV albumin after paracentesis",
+      "AKI in cirrhosis",
+      "vasoconstrictors in HRS-AKI",
+      "volume expander of choice",
+      "nutrition in kidney disease"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "wrong_diagnosis"
+    ],
+    "claims": [
+      {
+        "statement": "At the time of large-volume paracentesis over 5 liters, intravenous albumin should be administered to support effective arterial blood volume.",
+        "source_ids": [
+          "37978969"
+        ]
+      },
+      {
+        "statement": "In hospitalized patients with cirrhosis and ascites who present with acute kidney injury, IV albumin is the volume expander of choice.",
+        "source_ids": [
+          "37978969"
+        ]
+      },
+      {
+        "statement": "Vasoactive drugs should be used to treat HRS-AKI but not other forms of AKI in cirrhosis; terlipressin is the preferred agent when HRS-AKI is diagnosed.",
+        "source_ids": [
+          "37978969"
+        ]
+      },
+      {
+        "statement": "Hospitalized patients with kidney disease have high nutritional risk and benefit from individualized nutritional assessment and monitoring.",
+        "source_ids": [
+          "39178492"
+        ]
+      },
+      {
+        "statement": "Combination therapy with vasoconstrictors and albumin is used for reversal of hepatorenal syndrome acute kidney injury.",
+        "source_ids": [
+          "37978969"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T22:11:26.332027+00:00",
+    "author_model": "gpt-5",
+    "sources": [
+      {
+        "id": "34599008",
+        "title": "Advances in Neonatal Acute Kidney Injury.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34599008/",
+        "abstract": "In this state-of-the-art review, we highlight the major advances over the last 5 years in neonatal acute kidney injury (AKI). Large multicenter studies reveal that neonatal AKI is common and independently associated with increased morbidity and mortality. The natural course of neonatal AKI, along with the risk factors, mitigation strategies, and the role of AKI on short- and long-term outcomes, is becoming clearer. Specific progress has been made in identifying potential preventive strategies for AKI, such as the use of caffeine in premature neonates, theophylline in neonates with hypoxic-ischemic encephalopathy, and nephrotoxic medication monitoring programs. New evidence highlights the importance of the kidney in \"crosstalk\" between other organs and how AKI likely plays a critical role in other organ development and injury, such as intraventricular hemorrhage and lung disease. New technology has resulted in advancement in prevention and improvements in the current management in neonates with severe AKI. With specific continuous renal replacement therapy machines designed for neonates, this therapy is now available and is being used with increasing frequency in NICUs. Moving forward, biomarkers, such as urinary neutrophil gelatinase-associated lipocalin, and other new technologies, such as monitoring of renal tissue oxygenation and nephron counting, will likely play an increased role in identification of AKI and those most vulnerable for chronic kidney disease. Future research needs to be focused on determining the optimal follow-up strategy for neonates with a history of AKI to detect chronic kidney disease.",
+        "sha256": "a1aa4ade7f5df69f8f7d485aeef22775c017d623b98a91f6a720ed1bee609343",
+        "retrieved_at": "2026-09-18T22:08:58.203283+00:00"
+      },
+      {
+        "id": "39178492",
+        "title": "ESPEN practical guideline on clinical nutrition in hospitalized patients with acute or chronic kidney disease.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39178492/",
+        "abstract": "Hospitalized patients often have acute kidney disease (AKD) or chronic kidney disease (CKD), with important metabolic and nutritional consequences. Moreover, in case kidney replacement therapy (KRT) is started, the possible impact on nutritional requirements cannot be neglected. On this regard, the present guideline aims to provide evidence-based recommendations for clinical nutrition in hospitalized patients with KD.\nThe standard operating procedure for ESPEN guidelines was used. Clinical questions were defined in both the PICO format, and organized in subtopics when needed, and in non-PICO questions for the more general topics. The literature search was from January 1st, 1999 until January 1st, 2020. Each question led to one or more recommendation/statement and related commentaries. Existing evidence was graded, as well as recommendations and statements were developed and agreed upon in a multistage consensus process.\nThe present guideline provides 32 evidence-based recommendations and 8 statements, defining how to assess nutritional status, how to define patients at risk, how to choose the route of feeding, and how to integrate nutrition with KRT. In the final online voting, a strong consensus was reached in 84% at least of recommendations and 100% of statements.\nThe presence of KD in hospitalized patients identifies a highly heterogeneous group of subjects with widely varying nutrient needs and intakes. Considering the high nutritional risk related with this clinical condition, an individualized approach consisting of nutritional status evaluation and monitoring, frequent evaluation of nutritional requirements, and careful integration with KRT should be planned to avoid both underfeeding and overfeeding. Practical recommendations and statements were developed, aiming at defining suggestions for everyday clinical practice in the individualization of nutritional support in this patient setting. Literature areas with scarce or without evidence were also identified, thus requiring further basic or clinical research.",
+        "sha256": "d428577dd02a67febfef11b34f84186c2e7a7c69ead649db5c84142cc2e35d2b",
+        "retrieved_at": "2026-09-18T22:08:58.203283+00:00"
+      },
+      {
+        "id": "30617905",
+        "title": "A systematic review on the definition of rhabdomyolysis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30617905/",
+        "abstract": "Rhabdomyolysis (RML) is an interdisciplinary condition due to muscle cell injury followed by the release of cell components into circulation. Etiology of RML has a broad range; a serious complication is acute kidney injury (AKI). Despite its high relevance, there is no established formal definition for RML.\nA systematic review, focusing on RML definition, providing a recommendation for clinicians.\nSystematic literature research in PubMed and Embase (1968-07/2018).\nThe database research presented 8136 articles in PubMed and 2151 in Embase. After screening, 614 papers were retained for statistical analysis. A retrospective study was the most used design (44%). A definition of RML was stated in 231 studies (37.6%), including a precise creatine kinase level (CK) cut-off most frequently (67.1%). In 53/231 (22.9%) studies the CK cut-off was > 5 × upper limit of normal (ULN), and in 64/231 (27.7%) studies > 1000 IU/L. Further components of definitions were elevated CK without specific thresholds, and clinical symptoms. Exclusion criteria referring to the definition of RML were established in 113 studies, including myocardial, renal, cerebral and neuromuscular characteristics.\nAt present, we recommend a clinical syndrome of acute muscle weakness, myalgia, and muscle swelling combined with a CK cut-off value of > 1000 IU/L/ or CK > 5 × ULN for the standard definition of a mild RML. Additionally measured myoglobinuria and AKI indicate a severe type of RML. Exclusion criteria as well as the chronological sequence need to be considered for a conclusive RML definition.",
+        "sha256": "23765d6aa3ea81cdce0d97f9f31e39d8ea3bbf021f4680d995775852b605a099",
+        "retrieved_at": "2026-09-18T22:08:58.203283+00:00"
+      },
+      {
+        "id": "38872621",
+        "title": "Acute Kidney Injury in Neonates: A Meta-Analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38872621/",
+        "abstract": "There is a paucity of pooled synthesized data on the epidemiology of neonatal acute kidney injury (AKI). Our objective with this study is to systematically assess the worldwide incidence of AKI in neonates.\nWe searched 3 electronic databases (Embase, PubMed, Web of Sciences) from January 2004 to December 2022 without language restrictions. We included cohort and cross-sectional studies that reported the incidence of AKI or associated mortality in neonates. Eligible studies had at least 10 participants and used standard criteria (Acute Kidney Injury Network/Pediatric Risk, Injury, Failure, Loss, End Stage Renal Disease (pRIFLE)/ Kidney Disease Improving Global Outcomes) to define AKI. Two authors independently retrieved data on demographic characteristics, clinical setting, and outcomes (incidence and AKI-associated mortality) using a semi-structured proforma and assessed the risk of bias. We used a random-effects meta-analysis to calculate pooled estimates with 95% confidence intervals.\nWe included 201 studies (98 228 participants) from 45 countries. The incidence of any stage AKI was 30% (95% confidence interval 28-32), and that of severe AKI was 15% (14-16). Overall, AKI-associated mortality was 30% (27-33). The odds of mortality were higher (odds ratio 3.4; 2.9-4.0) in neonates with AKI compared with those without AKI. We found that perinatal asphyxia, sepsis, patent ductus arteriosus, necrotizing enterocolitis, and nephrotoxic medications were significant risk factors for AKI. Significant heterogeneity in the pooled estimates was a limitation of this study.\nAKI was observed in one-third of the neonates and was associated with increased risk of mortality. The incidence of AKI was almost similar in neonates with perinatal asphyxia and sepsis, but mortality was higher in the former group.",
+        "sha256": "5683bc4cb1e7270fc45a07cfb2a16ebbcfddfc92f976e359f9308a641f19cace",
+        "retrieved_at": "2026-09-18T22:08:58.778322+00:00"
+      },
+      {
+        "id": "37978969",
+        "title": "AGA Clinical Practice Update on the Use of Vasoactive Drugs and Intravenous Albumin in Cirrhosis: Expert Review.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37978969/",
+        "abstract": "Cirrhosis is a major cause of morbidity and mortality in the United States and worldwide. It consists of compensated, decompensated, and further decompensated stages; median survival is more than 15 years, 2 years, and 9 months for each stage, respectively. With each stage, there is progressive worsening of portal hypertension and the vasodilatory-hyperdynamic circulatory state, resulting in a progressive decrease in effective arterial blood volume and renal perfusion. Vasoconstrictors reduce portal pressure via splanchnic vasoconstriction and are used in the management of variceal hemorrhage. Intravenous (IV) albumin increases effective arterial blood volume and is used in the prevention of acute kidney injury (AKI) and death after large-volume paracentesis and in patients with spontaneous bacterial peritonitis (SBP). The combination of vasoconstrictors and albumin is used in the reversal of hepatorenal syndrome (HRS-AKI), the most lethal complication of cirrhosis. Because a potent vasoconstrictor, terlipressin, was recently approved by the US Food and Drug Administration, and because recent trials have explored use of IV albumin in other settings, it was considered that a best practice update would be relevant regarding the use of vasoactive drugs and IV albumin in the following 3 specific scenarios: variceal hemorrhage, ascites and SBP, and HRS.\nThis expert review was commissioned and approved by the American Gastroenterological Association (AGA) Institute Clinical Practice Updates Committee and the AGA Governing Board to provide timely guidance on a topic of high clinical importance to the AGA membership. It underwent internal peer review through standard procedures of Gastroenterology. These Best Practice Advice statements were drawn from a review of the published literature and from expert opinion. Some of the statements are unchanged from published guidelines because of lack of new evidence in the literature. Because systematic reviews were not performed, these Best Practice Advice statements do not carry formal ratings regarding the quality and evidence or strength of the presented considerations. Best Practice Advice Statements BEST PRACTICE ADVICE 1: Vasoactive drugs should be initiated as soon as the diagnosis of variceal hemorrhage is suspected or confirmed, preferably before diagnostic and/or therapeutic endoscopy. BEST PRACTICE ADVICE 2: After initial endoscopic hemostasis, vasoactive drugs should be continued for 2-5 days to prevent early rebleeding. BEST PRACTICE ADVICE 3: Octreotide is the vasoactive drug of choice in the management of variceal hemorrhage based on its safety profile. BEST PRACTICE ADVICE 4: IV albumin should be administered at the time of large-volume (>5 L) paracentesis. BEST PRACTICE ADVICE 5: IV albumin may be considered in patients with SBP. BEST PRACTICE ADVICE 6: Albumin should not be used in patients (hospitalized or not) with cirrhosis and uncomplicated ascites. BEST PRACTICE ADVICE 7: Vasoconstrictors should not be used in the management of uncomplicated ascites, after large-volume paracentesis or in patients with SBP. BEST PRACTICE ADVICE 8: IV albumin is the volume expander of choice in hospitalized patients with cirrhosis and ascites presenting with AKI. BEST PRACTICE ADVICE 9: Vasoactive drugs (eg, terlipressin, norepinephrine, and combination of octreotide and midodrine) should be used in the treatment of HRS-AKI, but not in other forms of AKI in cirrhosis. BEST PRACTICE ADVICE 10: Terlipressin is the vasoactive drug of choice in the treatment of HRS-AKI and use of concurrent albumin can be considered when accounting for patient's volume status. BEST PRACTICE ADVICE 11: Terlipressin treatment does not require intensive care unit monitoring and can be administered intravenously through a peripheral line. BEST PRACTICE ADVICE 12: Terlipressin use is contraindicated in patients with hypoxemia and in patients with ongoing coronary, peripheral, or mesenteric ischemia, and should be used with caution in patients with acute-on-chronic liver failure grade 3. The benefits may not outweigh the risks in patients with serum creatinine >5 mg/dL and in patients listed for transplantation with a Model for End-stage Liver Disease ≥35.",
+        "sha256": "ef68b0046716cef75601ecefa73ba94e63e9bf12c3a839f3bbd8897b95cb8c53",
+        "retrieved_at": "2026-09-18T22:08:58.778322+00:00"
+      },
+      {
+        "id": "38442779",
+        "title": "International renal interest society best practice consensus guidelines for intermittent hemodialysis in dogs and cats.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38442779/",
+        "abstract": "Intermittent hemodialysis (IHD) is an advanced adjunctive standard of care for severe acute kidney injury (AKI) and other indications. Most animals with AKI are managed medically, however, when the disease is severe, medical management may not control the consequences of the disease, and animals with a potential for renal recovery may die from the consequences of uremia before recovery has occurred. Extracorporeal therapies aid the management of AKI by expanding the window of opportunity for recovery of sufficient kidney function to become dialysis independent. Intermittent hemodialysis (IHD) was introduced into veterinary medicine over 50 years ago, however, updated guidelines for the delivery of IHD have not been published for several decades. To that end, the International Renal Interest Society (IRIS) constituted a Working Group to establish best practice guidelines for the safe and effective delivery of IHD to animals with indications for dialytic intervention. The IRIS Working Group generated 60 consensus statements and supporting rational for a spectrum of prescription and management categories required for delivery of IHD on designated intermittent dialysis platforms (i.e., AKI, chronic hemodialysis and intoxications). A formal consensus method was used to validate the recommendations by a blinded jury of 12 veterinarians considered experts in extracorporeal therapies and actively performing IHD. Each vote provided a level of agreement for each recommendation proposed by the Working Group. To achieve a consensus, a minimum of 75% of the voting participants had to \"strongly agree\" or \"agree\" with the recommendation.",
+        "sha256": "00c46ad393933b95c029f7c59f967d1d7f419cf2139539d27eb3285c4354a932",
+        "retrieved_at": "2026-09-18T22:08:58.778322+00:00"
+      },
+      {
+        "id": "32709292",
+        "title": "Controversies in acute kidney injury: conclusions from a Kidney Disease: Improving Global Outcomes (KDIGO) Conference.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32709292/",
+        "abstract": "In 2012, Kidney Disease: Improving Global Outcomes (KDIGO) published a guideline on the classification and management of acute kidney injury (AKI). The guideline was derived from evidence available through February 2011. Since then, new evidence has emerged that has important implications for clinical practice in diagnosing and managing AKI. In April of 2019, KDIGO held a controversies conference entitled Acute Kidney Injury with the following goals: determine best practices and areas of uncertainty in treating AKI; review key relevant literature published since the 2012 KDIGO AKI guideline; address ongoing controversial issues; identify new topics or issues to be revisited for the next iteration of the KDIGO AKI guideline; and outline research needed to improve AKI management. Here, we present the findings of this conference and describe key areas that future guidelines may address.",
+        "sha256": "10ef68e34e3643e01d2130deab34cfa6c5131c3003cc20d1b85cea9e37ed2eaf",
+        "retrieved_at": "2026-09-18T22:08:59.297205+00:00"
+      },
+      {
+        "id": "39127297",
+        "title": "Persistent acute kidney injury biomarkers: A systematic review and meta-analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39127297/",
+        "abstract": "Various biomarkers reportedly predict persistent acute kidney injury (AKI) despite their varying predictive performance across clinical trials. This study aims to compare the accuracy of various biomarkers in predicting persistent AKI in different populations and regions.\nIn this meta-analysis, we searched for urinary C-C motif chemokine ligand 14 (CCL14), Tissue inhibitor of metalloproteinase-2&insulin-like growth factor-binding protein-7 (TIMP-2&IGFBP7), Neutrophil Gelatinase-Associated Lipocalin (NGAL), plasma Cystatin C (pCysC), Soluble urokinase plasminogen activator receptor (suPAR), Proenkephalin (PenK) and urinary dickkopf-3:urinary creatinine (uDKK3:uCr) from various databases including Medline, PubMed, Embase, and Cochrane. This was geared towards predicting persistent AKI in adults (>18 years). Hierarchically summarized subject work characteristic curves (HSROC) and diagnostic odds ratio (DOR) values were used to summarize the diagnostic accuracy of the biomarkers. Further, meta-regression and subgroup analyses were carried out to identify sources of heterogeneity as well as evaluate the best predictive biomarkers in different populations and regions.\nWe screened 31 studies from 2,356 studies and assessed the diagnostic value of 7 biomarkers for persistent AKI. Overall, CCL14 had the best diagnostic efficacy with an AUC of 0.79 (95 % CI 0.75-0.82), whereas TIMP-2 & IGFBP7, NGAL, and pCysC had diagnostic efficacy of 0.75 (95 % CI 0.71-0.79),0.71 (95 % CI 0.67-0.75), and 0.7007, respectively. Due to a limited number of studies, PenK, uDKK3:uCr, and suPAR were not subjected to meta-analysis; however, relevant literature reported diagnostic efficacy above 0.70. Subgroup analyses based on population, region, biomarker detection time, AKI onset time, and AKI duration revealed that in the intensive care unit (ICU) population, the AUC of CCL14 was 0.8070, the AUC of TIMP-2 & IGFBP7 was 0.726, the AUC of pCysC was 0.72, and the AUC of NGAL was 0.7344; in the sepsis population, the AUC of CCL14 was 0.85, the AUC of TIMP-2&IGFBP7 was 0.7438, and the AUC of NGAL was 0.544; in the post-operative population, the AUC of CCL14 was 0.83-0.93, the AUC of TIMP-2&IGFBP7 was 0.71, and the AUC of pCysC was 0.683. Regional differences were observed in biomarker prediction of persistent kidney injury, with AUCs of 0.8558 for CCL14, 0.7563 for TIMP-2 & IGFBP7, and 0.7116 for NGAL in the Eurasian American population. In the sub-African population, TIMP-2 & IGFBP7 had AUCs of 0.7945, 0.7418 for CCL14, 0.7097 for NGAL, and 0.7007 for pCysC. for TIMP-2 & IGFBP7 was 0.7945, AUC for CCL14 was 0.7418, AUC for NGAL was 0.7097, and AUC for pCysC was 0.7007 in the sub-African population. Duration of biomarker detection, AKI onset, and AKI did not influence the optimal predictive performance of CCL14. Subgroup analysis and meta-regression of CCL14-related studies revealed that CCL14 is the most appropriate biomarker for predicting persistent stage 2-3 AKI, with heterogeneity stemming from sample size and AKI staging.\nThis meta-analysis discovered CCL14 as the best biomarker to predict persistent AKI, specifically persistent stage 2-3 AKI.",
+        "sha256": "96ff96425d1c1e9ff816ea20b5ac03bb0f6e098c0ee98099c7627dfefb5e750f",
+        "retrieved_at": "2026-09-18T22:08:59.297205+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The AGA Clinical Practice Update on vasoactive drugs and IV albumin in cirrhosis (PMID 37978969) directly supports Answer B. This patient had a large-volume paracentesis (6.5 L, i.e., >5 L) without peri-procedural albumin and now has AKI (creatinine rose from 0.9 to 2.1 mg/dL), a classic setup for post-paracentesis circulatory dysfunction. Best Practice Advice 4 states IV albumin should be administered at the time of large-volume (>5 L) paracentesis, and Best Practice Advice 8 states IV albumin is the volume expander of choice in hospitalized patients with cirrhosis and ascites presenting with AKI. Answer A is wrong on multiple counts supported by the same source: (1) normal saline is not the preferred expander—albumin is (BPA 8); (2) vasoconstrictors (midodrine/octreotide) should NOT be used after large-volume paracentesis or for AKI unless HRS-AKI criteria are met (BPA 7 and BPA 9), and HRS-AKI cannot be diagnosed here without first excluding hypovolemia via albumin challenge; (3) octreotide is properly the drug of choice for variceal hemorrhage, not this scenario (BPA 3). The ascitic PMN count of 120 cells/µL is below the 250 threshold, so SBP is absent and albumin's indication rests on the paracentesis/AKI rationale, not SBP. The correct sequence is volume expansion with albumin first, reassess, and reserve vasoconstrictors for confirmed HRS-AKI.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37978969"
+              ],
+              "reason": "AGA Best Practice Advice 4 states IV albumin should be administered at the time of large-volume (>5 L) paracentesis."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37978969"
+              ],
+              "reason": "Best Practice Advice 8 states IV albumin is the volume expander of choice in hospitalized patients with cirrhosis and ascites presenting with AKI."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37978969"
+              ],
+              "reason": "Best Practice Advice 9 (vasoactive drugs for HRS-AKI but not other AKI in cirrhosis) and Advice 10 (terlipressin preferred for HRS-AKI) support this."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "39178492"
+              ],
+              "reason": "ESPEN guideline notes high nutritional risk in hospitalized KD patients and recommends individualized assessment and monitoring. Tangential to the case but accurately sourced."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37978969"
+              ],
+              "reason": "Abstract states combination of vasoconstrictors and albumin is used in the reversal of HRS-AKI."
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent analysis: This is a hospitalized adult with decompensated cirrhosis, tense ascites, LVP of 6.5 L (>5 L) with NO peri-procedural albumin documented, and a new AKI (Cr 0.9->2.1). He is hemodynamically stable, no shock, no obstruction on renal US, warm extremities, no crackles. The clinical picture is AKI in cirrhosis, likely post-paracentesis circulatory dysfunction/pre-renal, not yet established HRS-AKI (which requires failure to respond to albumin challenge + diuretic withdrawal). Per AGA Clinical Practice Update (37978969), the correct immediate step is IV albumin as the volume expander of choice, and vasoconstrictors should NOT be used except in diagnosed HRS-AKI. This exactly matches Answer B and the key. Answer A is the intentionally flawed option: it recommends normal saline boluses (crystalloid is suboptimal per the evidence), empirically starts midodrine+octreotide for 'presumed HRS-AKI' (vasoconstrictors are contraindicated in non-HRS AKI, and HRS cannot be diagnosed without an albumin challenge first), and wrongly withholds albumin unless SBP is present (ascitic PMN 120 <250, so no SBP, but albumin is still indicated for the LVP and AKI). A also delays reassessment 24-48h on an unsafe plan. Key is correct and safe; B is safe and evidence-supported. Specialty is nephrology and the case is squarely nephrology/hepatology overlap appropriate for AKI volume assessment. Coherence: chart data are internally consistent (Cr rise, BUN rise, stable vitals, US findings). No decisive imaging or labs missing; renal US present, ascitic PMN present to exclude SBP. Claim checks: all five claims verified against the actual AGA abstract text (Best Practice Advice statements 4, 8, 9, 10) and the ESPEN nutrition guideline; claim 3 is tangential nutrition padding but accurately sourced. Practice/exam independence: the prior cirrhosis case in previous_cases involves HRS-AKI diagnosed AFTER a FAILED albumin+diuretic challenge, requiring vasoconstrictors; this case is the opposite decision point—initial albumin administration before HRS can be diagnosed. This is a genuinely distinct clinical decision, not merely reworded. Minor observation: the neonatal/rhabdomyolysis/veterinary sources are distractors and irrelevant, which is expected. No blocking defects identified."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "After large-volume paracentesis (>5 L), intravenous albumin should be administered to prevent circulatory dysfunction and AKI, and in hospitalized cirrhosis with ascites and AKI, albumin is the volume expander of choice. Vasoactive drugs should be withheld unless hepatorenal syndrome–AKI criteria are met; vasoconstrictors are reserved for HRS-AKI and not for other AKI etiologies or routine post-paracentesis use. This aligns with AGA Best Practice Advice: give IV albumin at large-volume paracentesis and for AKI in cirrhosis; do not use vasoconstrictors after paracentesis or for non–HRS AKI; use vasoconstrictors only when HRS-AKI is diagnosed. (AGA Clinical Practice Update 2024, PMID 37978969)",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37978969"
+              ],
+              "reason": "AGA Best Practice Advice 4 explicitly recommends IV albumin at the time of large-volume (>5 L) paracentesis."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37978969"
+              ],
+              "reason": "AGA Best Practice Advice 8 states IV albumin is the volume expander of choice in hospitalized cirrhotics with ascites presenting with AKI."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37978969"
+              ],
+              "reason": "AGA Best Practice Advice 9 and 10: vasoactive drugs are for HRS-AKI (not other AKI); terlipressin is the preferred agent when HRS-AKI is diagnosed."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "39178492"
+              ],
+              "reason": "ESPEN guideline emphasizes high nutritional risk in hospitalized patients with kidney disease and recommends individualized assessment and monitoring."
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37978969"
+              ],
+              "reason": "AGA review notes that combination therapy with vasoconstrictors and albumin is used for reversal of HRS-AKI."
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent solution: The patient has decompensated cirrhosis with tense ascites, underwent large-volume paracentesis (6.5 L) without albumin, and now has AKI (Cr 0.9→2.1) without shock. Per AGA 2024 Best Practice Advice, IV albumin should be administered after >5 L paracentesis and is the volume expander of choice in hospitalized cirrhotics with ascites who develop AKI. Vasoactive drugs are reserved for confirmed HRS-AKI and are not recommended after paracentesis or for other AKI etiologies in cirrhosis. Thus, the immediate, evidence-based approach is IV albumin now and withholding vasoconstrictors unless HRS-AKI criteria are subsequently met. Candidate assessment: A is unsafe/unsupported—normal saline boluses as primary therapy are suboptimal in this setting, it advises starting midodrine+octreotide presumptively for HRS without diagnostic criteria, and incorrectly claims albumin is unnecessary unless SBP. AGA guidance explicitly recommends albumin after large-volume paracentesis and for AKI in cirrhosis, and advises against vasoconstrictors outside HRS-AKI. Candidate B aligns with current evidence and is safe. Key scrutiny: The key matches AGA 2024 guidance and the clinical data (LVP >5 L without albumin; stable hemodynamics; new AKI), with no contradictions. Specialty and coherence: The case belongs to nephrology (AKI volume assessment/medication review) and is internally consistent. Distinct decision: This case’s recommendation (albumin now, no vasoconstrictor) is clinically distinct from a prior case in which HRS-AKI criteria were met and vasoconstrictors plus albumin were indicated. Decisive data are present (paracentesis volume, lack of albumin, AKI, no shock), and required imaging (renal ultrasound) excludes obstruction. No blocking defects identified."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "6af7cd0777b264e1bc517dc171ed0908a84ad89fe4b37620da615d5ecf752dc1"
+  }
+}

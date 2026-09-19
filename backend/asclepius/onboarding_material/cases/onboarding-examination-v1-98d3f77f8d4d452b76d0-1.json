@@ -1,0 +1,618 @@
+{
+  "task_id": "onboarding-examination-v1-98d3f77f8d4d452b76d0-1",
+  "specialty": "vascular surgery",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Vascular surgery review after a transient neurologic event",
+    "question": "Which management approach is most appropriate based on the completed assessment?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "vascular surgery",
+      "demographics": {
+        "age_band": "80-89",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Transient painless loss of vision in the right eye",
+          "since": "4 days",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Right carotid bruit",
+          "since": "Current assessment",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Hypertension",
+          "since": "Long-standing",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Hyperlipidemia",
+          "since": "Long-standing",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Aspirin",
+          "dose": null,
+          "route": "oral",
+          "freq": null,
+          "collected_offset_days": 0
+        },
+        {
+          "drug": "Statin therapy",
+          "dose": null,
+          "route": "oral",
+          "freq": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Vascular surgery assessment",
+          "author_role": "vascular surgery",
+          "text": "An independent 82-year-old woman was assessed four days after a 12-minute episode of painless right-eye visual loss that resolved completely. She has had no recurrent symptoms, limb weakness, speech disturbance, or persistent neurologic deficit. Examination shows normal speech, visual fields, and limb power, with a right carotid bruit. She remains independently mobile and has no history of myocardial infarction, heart failure, severe pulmonary disease, or major frailty. Duplex ultrasound was followed by computed tomography angiography because definitive anatomic grading was required. The completed cardiopulmonary review identified no major cardiac comorbidity.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Duplex ultrasound",
+          "label": "Carotid duplex",
+          "findings": "Validated duplex velocity criteria indicate severe stenosis of the proximal right internal carotid artery. The left internal carotid artery has less than 50% stenosis.",
+          "measurements": [],
+          "impression": "Severe right internal carotid artery stenosis; confirmatory cross-sectional angiography completed.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -2
+        },
+        {
+          "modality": "Computed tomography angiography",
+          "label": "Head and neck angiography",
+          "findings": "NASCET-method measurement shows 78% stenosis of the proximal right internal carotid artery. The distal vessel remains patent, without near-occlusion. There is no right internal carotid artery occlusion.",
+          "measurements": [
+            {
+              "analyte": "Right internal carotid artery stenosis by NASCET method",
+              "loinc": null,
+              "value": 78,
+              "unit": "%",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": true
+            }
+          ],
+          "impression": "Severe right internal carotid artery stenosis without near-occlusion.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -1
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [
+        "clinical history",
+        "duplex ultrasound",
+        "computed tomography angiography"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The transient ipsilateral monocular visual event and confirmed 78% right internal carotid stenosis establish recent severe symptomatic carotid disease without near-occlusion. Carotid endarterectomy added to best medical management substantially reduces five-year stroke or operative-death risk in symptomatic 70% to 99% stenosis without near-occlusion. Although perioperative risk rises modestly with age, evidence supports selective urgent intervention in fit symptomatic older adults and specifically cautions against exclusion based solely on age. The error in candidate A is withholding a beneficial intervention solely because the patient is an octogenarian, leaving her exposed to recurrent stroke risk despite favorable anatomy and no major cardiac comorbidity.",
+        "evidence": null,
+        "key_data": [
+          "Transient right-eye visual loss occurred four days before assessment and resolved completely.",
+          "Computed tomography angiography confirms 78% right internal carotid stenosis by the NASCET method.",
+          "The distal internal carotid artery is patent and there is no near-occlusion.",
+          "The patient is independent and has no major cardiac comorbidity or major frailty.",
+          "Age is 82 years, but age alone is not a sufficient reason to exclude a fit symptomatic patient from carotid endarterectomy."
+        ]
+      },
+      "hard_hook": "The patient is an octogenarian, creating a risk of incorrectly treating age alone as a contraindication despite severe recent symptomatic stenosis and no major cardiac comorbidity.",
+      "reasoning_divergence": "The candidates differ on whether advanced age alone justifies medical management without carotid endarterectomy."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Continue best medical management alone and do not offer carotid endarterectomy because the patient is older than 80 years and therefore has excessive operative risk."
+      },
+      {
+        "id": "B",
+        "text": "Offer expedited carotid endarterectomy in addition to ongoing best medical management after individualized perioperative assessment; her age alone should not exclude intervention."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "symptomatic carotid stenosis",
+      "carotid endarterectomy",
+      "transient ischemic attack",
+      "perioperative stroke",
+      "octogenarian",
+      "near-occlusion"
+    ],
+    "evidence_keywords": [
+      "NASCET 70% to 99%",
+      "duplex ultrasound",
+      "computed tomography angiography",
+      "early intervention",
+      "best medical management",
+      "age-related operative risk"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "For recent symptomatic 70% to 99% carotid stenosis without near-occlusion, endarterectomy reduced five-year stroke or operative death compared with medical management alone.",
+        "source_ids": [
+          "32918282"
+        ]
+      },
+      {
+        "statement": "The pooled randomized evidence found a risk ratio of 0.53 for five-year stroke or operative death in symptomatic 70% to 99% stenosis without near-occlusion.",
+        "source_ids": [
+          "32918282"
+        ]
+      },
+      {
+        "statement": "Perioperative stroke, myocardial infarction, and death increase modestly with age among symptomatic patients undergoing carotid endarterectomy.",
+        "source_ids": [
+          "36647921"
+        ]
+      },
+      {
+        "statement": "Evidence supports selective urgent carotid endarterectomy in fit symptomatic elderly patients, particularly those without major cardiac comorbidity.",
+        "source_ids": [
+          "36647921"
+        ]
+      },
+      {
+        "statement": "Symptomatic elderly patients should not be excluded from carotid endarterectomy solely because of advanced age.",
+        "source_ids": [
+          "36647921"
+        ]
+      },
+      {
+        "statement": "Expedited carotid endarterectomy within the early symptomatic period had acceptable absolute procedural event rates in the timing meta-analysis.",
+        "source_ids": [
+          "34953681"
+        ]
+      },
+      {
+        "statement": "Duplex ultrasound supports early detection of significant symptomatic carotid stenosis, but caution is warranted when it is used as the sole preoperative test.",
+        "source_ids": [
+          "35815652"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:52:44.896429+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "32918282",
+        "title": "Carotid endarterectomy for symptomatic carotid stenosis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32918282/",
+        "abstract": "Stroke is the third leading cause of death and the most common cause of long-term disability. Severe narrowing (stenosis) of the carotid artery is an important cause of stroke. Surgical treatment (carotid endarterectomy) may reduce the risk of stroke, but carries a risk of operative complications. This is an update of a Cochrane Review, originally published in 1999, and most recently updated in 2017.\nTo determine the balance of benefit versus risk of endarterectomy plus best medical management compared with best medical management alone, in people with a recent symptomatic carotid stenosis (i.e. transient ischaemic attack (TIA) or non-disabling stroke).\nWe searched the Cochrane Stroke Group Trials Register, CENTRAL, MEDLINE Ovid, Embase Ovid, Web of Science Core Collection, ClinicalTrials.gov, and the WHO International Clinical Trials Registry Platform (ICTRP) portal to October 2019. We also reviewed the reference lists of all relevant studies and abstract books from research proceedings.\nWe included randomised controlled trials (RCTs) comparing carotid artery surgery plus best medical treatment with best medical treatment alone.  DATA COLLECTION AND ANALYSIS: Two review authors independently selected studies, assessed risk of bias, and extracted the data. We assessed the results and the quality of the evidence of the primary and secondary outcomes by the GRADE method, which classifies the quality of evidence as high, moderate, low, or very low.\nWe included three trials involving 6343 participants. The trials differed in the methods of measuring carotid stenosis and in the definition of stroke. Using the primary electronic data files, we pooled and analysed individual patient data on 6092 participants (35,000 patient-years of follow-up), after reassessing the carotid angiograms and outcomes from all three trials, and redefining outcome events where necessary, to achieve comparability. Surgery increased the five-year risk of any stroke or operative death in participants with less than 30% stenosis (risk ratio (RR) 1.25, 95% confidence interval (CI) 0.99 to 1.56; 2 studies, 1746 participants; high-quality evidence). Surgery decreased the five-year risk of any stroke or operative death in participants with 30% to 49% stenosis (RR 0.97, 95% CI 0.79 to 1.19; 2 studies, 1429 participants; high-quality evidence), was of benefit in participants with 50% to 69% stenosis (RR 0.77, 95% CI 0.63 to 0.94; 3 studies, 1549 participants; moderate-quality evidence), and was highly beneficial in participants with 70% to 99% stenosis without near-occlusion (RR 0.53, 95% CI 0.42 to 0.67; 3 studies, 1095 participants; moderate-quality evidence). However, surgery decreased the five-year risk of any stroke or operative death in participants with near-occlusions (RR 0.95, 95% CI 0.59 to 1.53; 2 studies, 271 participants; moderate-quality evidence).\nCarotid endarterectomy reduced the risk of recurrent stroke for people with significant stenosis. Endarterectomy might be of some benefit for participants with 50% to 69% symptomatic stenosis (moderate-quality evidence) and highly beneficial for those with 70% to 99% stenosis (moderate-quality evidence).",
+        "sha256": "ef99bcf06e6fbd5ba6a2cf94905493c23a8a13a33e1fbfe08775abaca129d1a7",
+        "retrieved_at": "2026-09-18T23:51:06.497702+00:00",
+        "pmcid": "PMC8536099"
+      },
+      {
+        "id": "36647921",
+        "title": "Safety of Carotid Endarterectomy for Symptomatic Stenosis by Age: Meta-Analysis With Individual Patient Data.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36647921/",
+        "abstract": "There is uncertainty whether elderly patients with symptomatic carotid stenosis have higher rates of adverse events following carotid endarterectomy. In trials, recurrent stroke risk on medical therapy alone increased with age, whereas operative stroke risk was not related. Few octogenarians were included in trials and there has been no systematic analysis of all study types. We aimed to evaluate the safety of carotid endarterectomy in symptomatic elderly patients, particularly in octogenarians.\nWe did a systematic review and meta-analysis of studies (from January 1, 1980 through March 1, 2022) reporting post carotid endarterectomy risk of stroke, myocardial infarction, and death in patients with symptomatic carotid stenosis. We included observational studies and interventional arms of randomized trials if the outcome rates (or the raw data to calculate these) were provided. Individual patient data from 4 prospective cohorts enabled multivariate analysis.\nOf 47 studies (107 587 patients), risk of perioperative stroke was 2.04% (1.94-2.14) in octogenarians (390 strokes/19 101 patients) and 1.85% (1.75-1.95) in nonoctogenarians (1395/75 537); P=0.046. Perioperative death was 1.09% (0.94-1.25) in octogenarians (203/18 702) and 0.53% (0.48-0.59) in nonoctogenarians (392/73 327); P<0.001. Per 5-year age increment, a linear increase in perioperative stroke, myocardial infarction, and death were observed; P=0.04 to 0.002. However, during the last 3 decades, perioperative stroke±death has declined significantly in octogenarians (7.78% [5.58-10.55] before year 2000 to 2.80% [2.56-3.04] after 2010); P<0.001. In Individual patient data multivariate-analysis (5111 patients), age ≥85 years was independently associated with perioperative stroke (P<0.001) and death (P=0.005). Yet, survival was similar for octogenarians versus nonoctogenarians at 1-year (95.0% [93.2-96.5] versus 97.5% [96.4-98.6]; P=0.08), as was 5-year stroke risk (11.93% [9.98-14.16]) versus 12.78% [11.65-13.61]; P=0.24).\nWe found a modest increase in perioperative risk with age in symptomatic patients undergoing carotid endarterectomy. As stroke risk increases with age when on medical therapy alone, our findings support selective urgent intervention in symptomatic elderly patients.",
+        "sha256": "8c96b8c466d74617fea281cfdf9b7c51223ea40684bd39b5c76f191d5ac9b2b3",
+        "retrieved_at": "2026-09-18T23:51:06.497702+00:00",
+        "pmcid": "PMC9855737",
+        "body_excerpts": "Carotid endarterectomy (CEA) has been shown to reduce the risk of ischemic stroke in patients with significant recent symptomatic carotid stenosis. 1 , 2 However, CEA is associated with perioperative morbidity, including stroke, myocardial infarction (MI), and death, which may offset benefit in high-risk patients. Several clinical characteristics, including age, may be associated with increased perioperative risk, 3 , 4 but there has been no systematic analysis of risk associations in symptomatic patients. Determining the risks associated with surgical intervention for symptomatic elderly patients is of great clinical importance as they now represent a significant proportion of patients undergoing CEA in routine clinical practice, and they were largely excluded from previous clinical trials.\n\nAnalyses of randomized trials have shown that for patients with symptomatic carotid stenosis on medical therapy alone, recurrent ipsilateral carotid territory stroke rates increase significantly with age; approximately double in patients >75 years (5-year risk of 30.5% [95% CI, 22.5–38.5]) versus <65 years (5-year risk of 18.0% [95% CI, 14.6–21.3]), 5 whereas operative risks appear to be unrelated. 5 – 9 However, even the largest trials have very few outcome events with limited follow-up, and few elderly patients were recruited; therefore, precise estimates of risk, stratified by age, have not been feasible and age-related recruitment bias may undermine any age-risk association.\n\nObservational studies may offer better representative data of procedural outcomes in relation to age; however, individual studies often report conflicting results, and previous systematic reviews of observational studies have included both asymptomatic and symptomatic patients with no individual patient data (IPD) available for multivariate analysis. 10 – 15 Very elderly patients seldom require surgical intervention for asymptomatic carotid disease and there is limited evidence to support this. However, those with symptomatic disease often warrant urgent intervention and they reflect real-life practice concerns due to their increased burden of comorbidity, frailty, and cognitive decline. We aimed to determine the safety of CEA for symptomatic patients by age, particularly for octogenarians, by performing the first systematic review of all study types, together with IPD meta-analysis. We included observational studies, registries, and trial cohorts considering potentially confounding factors, including the presence of cardiovascular risk factors, sex, and type of index cerebrovascular event.\n\nMethods > Search Strategy and Selection Criteria\nWe did a systematic review and meta-analysis (PROSPERO ID: CRD42021285266) of studies reporting the post-CEA stroke risk in patients with symptomatic carotid stenosis, with reference to the participant’s age. We also performed IPD meta-analysis on 4 included studies.\n\nMethods > Search Strategy and Selection Criteria\nIn electronic database searches, we used combinations of search terms for carotid stenosis, relevant carotid interventions, and outcome ( List S1 ). We reviewed the bibliographies of all articles identified and relevant systematic and narrative reviews. In cases of multiple publications from the same cohort, the first published study reporting the required data was used, unless the number of patients increased in a later publication, in which case the study reporting the larger cohort was used.\n\nMethods > Search Strategy and Selection Criteria\nTwo reviewers (Y.Y.R.L. and K.B.) independently searched, screened, and selected all studies. Full text of abstracts considered potentially relevant by any reviewer were retrieved. Studies reporting mixed cohorts of patients (with symptomatic and asymptomatic carotid stenosis) were included only if results were stratified by symptom status. Discrepancies were resolved by consensus with a third investigator (D.P.J.H.). The agreement between these observers in their independent assessments of study eligibility of was high (90%; kappa=0.102; SE: 0.04; P <0.001).\n\nMethods > Search Strategy and Selection Criteria\nY.Y.R.L. extracted data from each study into electronic tables, including study design, funding, setting, population characteristics, index event of symptomatic stenosis, and operation setting. For each outcome of interest, we recorded the outcome definitions, baseline screening methods, follow-up frequency and duration, and outcome ascertainment methods. We assessed the risk of bias and the quality of reporting of individual studies with STROBE (Strengthening the Reporting of Observational Studies in Epidemiology) and ROB2 (A Revised Cochrane Risk-of-Bias Tool for Randomized Trials) criteria.\n\nMethods > Individual Patient Data\nAll corresponding authors of included studies were contacted to obtain the IPD for multivariate analysis to investigate risk factors associated with postoperative morbidities. Four IPD from Umbria, Italy, the UK National Vascular Registry, EVA-3S trial (Endarterectomy Versus Angioplasty in Patients with Symptomatic Severe Carotid Stenosis), and the Connecticut Hospital Association Chime Data Program were obtained. Principal investigators of these studies coauthor the present report and shared anonymized data on each randomized patient. Baseline data on age, sex, and medical history included the index events of symptomatic stenosis, assessed by local criteria were recorded. Follow-up data included 30-day outcome, the start and end dates of follow-up (or date of death), and nonprocedural stroke incidence, etiology, and severity. To identify factors associated with post-CEA morbidities, pooled odds ratio (OR) from demographic variables, vascular risk factors, and index event of symptomatic stenosis were calculated for patients in the IPD, with logistics regression. IPD were reconstructed from 6 included studies, which provided Kaplan-Meier survival curves or crude stroke and death rates. 17\n\nMethods > Statistical Analysis: IPD and Meta-Analysis\nIn the event of heterogeneity between studies in the association of age with stroke risks, further sensitivity analyses were based on year of study (by decade), study type, and grading of study quality based on STROBE criteria and key criteria required for meta-analysis, which includes the following: study objectives stated clearly; patient selection criteria stated clearly; patients enrolled consecutively without predetermined selection; interventions adequately described; outcome definitions provided; rate of dropout or crossover to endarterectomy or stenting of <20%; and outcome ascertainment by a neurologist. We graded each study as low, medium, or high based on these criteria. Potential publication bias in relation to the association of stenosis with stroke risk was assessed with an Egger funnel plot. Analysis was performed using R version 4.1.1 and Review Manager (RevMan, computer program, version 5.4, The Cochrane Collaboration, 2020).\n\nDiscussion\nThis is the first meta-analysis of safety of CEA by age for patients with symptomatic carotid stenosis, which includes all study types and individual patient-level data analysis. We have shown that age is linearly associated with risk of perioperative stroke, MI, and death; however, for elderly patients undergoing urgent CEA, risks have significantly declined over the last 3 decades. In IPD multivariate analysis, age and type of index cerebrovascular event were independently associated with risk of perioperative morbidity when adjusting for other key risk factors. Although symptom status is known to be strongly associated with recurrent stroke risk and post-CEA morbidity, 3 , 59 this is the first study to confirm the association of age with both short- and long-term outcome in symptomatic patients.\n\nDiscussion\nOur analysis has revealed that the periprocedural period accounts of a majority of the postoperative adverse events, and the long-term risks of stroke and MI in octogenarians were similar to that of nonoctogenarians. Previous trials had confirmed that the risk of recurrent stroke increases significantly with age in recently symptomatic patients on best medical therapy alone. 9 As our study found a modest increase in risk of perioperative morbidities in older patients, it would appear that selective early intervention in elderly symptomatic patients, particularly those without major comorbidity, will have an overall benefit in stroke risk reduction, comparable to that in younger patients. Although the 5-year survival was lower in octogenarians, the 1-year and 2-year survival did not differ, suggesting that the difference in long-term survival between older and younger patients is not related with the operative intervention.\n\nDiscussion\nOur findings have implications for clinical practice. First, the effect of age on perioperative morbidity was linear without a clear step-change in risk. This contrasts with the current notion of higher perioperative morbidity in the elderly once they reach a certain age. Although perioperative risk increased modestly with age, 1- and 2-year stroke risk were similar across age groups, suggesting that overall, the safety of CEA in older patients is acceptable. Second, the 1- and 2-year survival was comparable across age groups, which is compatible with the notion that the lower 5-year survival in octogenarians is unrelated to procedural risk and simply reflects life expectancy. Third, perioperative and annual stroke and death rates have declined over the last 3 decades, with steep declines found for older patients. This may be due to higher compliance rates with medical therapy in the elderly compared to younger patients, and safer anesthetic and procedural techniques in the current era. This data again supports appropriate intervention in elderly symptomatic patients who are fit for surgery. Fourth, cardiac risk is a major concern for elderly patients undergoing any intervention. We have confirmed that perioperative risk of MI increases modestly for older patients undergoing CEA. We also confirm that in pooled analysis of studies with a high prevalence of coronary artery disease, elderly patients have a higher annual risk of stroke and death post-CEA compared to younger patients. This key finding supports clinical caution in selecting elderly patients with significant coronary artery disease for CEA. Conversely, it also provides reassurance that for elderly patients without major cardiac comorbidity, outcome following CEA is similar to that of younger patients. In routine clinical practice, some elderly patients without significant comorbidity are excluded from surgery purely due to their age. This meta-analysis reveals that CEA is safe in symptomatic elderly patients who are selected for intervention, and therefore a key message is not to exclude symptomatic elderly patients from CEA just because of their age.\n\nDiscussion\nOur study is the first systematic review and meta-analysis of all study types focusing solely on symptomatic patients. Previous reviews of outcome by age have either focused largely on asymptomatic carotid disease or included only trial data. Investigating the safety of CEA in elderly asymptomatic patients is of more debatable clinical importance as intervention may confer less benefit due to limited life expectancy. Including only trial data in meta-analysis also has major limitations due to the few outcome events available in the elderly with limited follow-up, and few elderly patients being recruited into trials with age-related recruitment bias potentially undermining any age-risk association. 7 Our focus purely on symptomatic carotid disease, with the inclusion of all published studies, enables detailed outcome analysis providing precise estimates of risk stratified by age, and guidance for contemporary clinical practice. Although this meta-analysis reveals the safety of selective surgery for elderly symptomatic patients without major comorbidities, there is a paucity of data on the effect of, and compliance with, contemporary best medical therapy in the elderly. Future clinical trials investigating the efficacy of surgery versus best medical therapy alone for very elderly symptomatic patients would be of clinical interest. However, eliminating selective recruitment bias in such trials would be very challenging and, therefore, interpreting results would require great caution.\n\nDiscussion\nSeveral limitations of this study should be noted. First, patients in studies published before 2010 may not be on contemporary intensive medical therapy for control of vascular risk factors. This may contribute to an overall higher risk of stroke and death than that found in current clinical practice. To account for this, our time-trend analyses have confirmed the changes in risk following surgery over the last 3 decades. Second, perioperative stroke as the study outcome was defined as all stroke, which included hemorrhagic stroke and contralateral stroke. Third, perioperative outcomes stratified by vascular risk factors were not available for all studies. Fourth, there are potential selection biases in which patients are offered intervention across all age groups in observational studies, randomized trials, and also routine clinical practice. Some patients, at any age, are turned down for intervention due to a spectrum of reasons including, adverse anatomy, delayed presentation, low-risk features such as borderline stenosis, high surgical risk, and patient choice. Although this meta-analysis cannot analyze the outcome of patients who are turned down for intervention and so not included in published studies, the results should be robust and representative of patients who are offered intervention in clinical practice. The inclusion of all identified published observational studies, rather than just trial data, is an important strength of this meta-analysis in this regard. In addition, we have performed sensitivity analyses of perioperative risk by study type. This revealed higher perioperative stroke risk in elderly patients included in registries compared to trials and cohort studies. Registries are generally agreed to be more inclusive and less selective than trials and so this analysis provides some insight on this subject area. Fifth, postoperative examination by a neurologist is not routine in some observational studies, which may contribute to under-detection of postoperative stroke in this meta-analysis. In sensitivity analysis, observational studies that were conducted with postoperative neurologist examination were graded as higher quality than those without. Analysis by study quality showed that the association of older age with higher perioperative stroke risk was preserved only in high-quality studies.\n\nDiscussion\nIn conclusion, we found a linear increase in perioperative risk of stroke, MI, and death with age in symptomatic patients undergoing CEA. The 1- and 2-year mortality, and postoperative stroke rates up to 5 years postsurgery were comparable between older and younger patients. As stroke risk increases with age when on medical therapy alone, our findings support selective urgent intervention in symptomatic elderly patients, particularly those without major cardiac comorbidity.",
+        "body_excerpts_sha256": "f34eab47b19ec84e98c6d846dfbce19bddb8888b517c5d100fb82f37e529a9e0",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC9855737/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "35815652",
+        "title": "Duplex ultrasound for diagnosing symptomatic carotid stenosis in the extracranial segments.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35815652/",
+        "abstract": "Carotid artery stenosis is an important cause of stroke and transient ischemic attack. Correctly and rapidly identifying patients with symptomatic carotid artery stenosis is essential for adequate treatment with early cerebral revascularization. Doubts about the diagnostic value regarding the accuracy of duplex ultrasound (DUS) and the possibility of using DUS as the single diagnostic test before carotid revascularization are still debated.\nTo estimate the accuracy of DUS in individuals with symptomatic carotid stenosis verified by either digital subtraction angiography (DSA), computed tomography angiography (CTA), or magnetic resonance angiography (MRA).\nWe searched CRDTAS, CENTRAL, MEDLINE (Ovid), Embase (Ovid), ISI Web of Science, HTA, DARE, and LILACS up to 15 February 2021. We handsearched the reference lists of all included studies and other relevant publications and contacted experts in the field to identify additional studies or unpublished data.\nWe included studies assessing DUS accuracy against an acceptable reference standard (DSA, MRA, or CTA) in symptomatic patients. We considered the classification of carotid stenosis with DUS defined with validated duplex velocity criteria, and the NASCET criteria for carotid stenosis measures on DSA, MRA, and CTA. We excluded studies that included < 70% of symptomatic patients; the time between the index test and the reference standard was longer than four weeks or not described, or that presented no objective criteria to estimate carotid stenosis.\nThe review authors independently screened articles, extracted data, and assessed the risk of bias and applicability concerns using the QUADAS-2 domain list. We extracted data with an effort to complete a 2 × 2 table (true positives, true negatives, false positives, and false negatives) for each of the different categories of carotid stenosis and reference standards. We produced forest plots and summary receiver operating characteristic (ROC) plots to summarize the data. Where meta-analysis was possible, we used a bivariate meta-analysis model.\nWe identified 25,087 unique studies, of which 22 were deemed eligible for inclusion (4957 carotid arteries). The risk of bias varied considerably across the studies, and studies were generally of moderate to low quality. We narratively described the results without meta-analysis in seven studies in which the criteria used to determine stenosis were too different from the duplex velocity criteria proposed in our protocol or studies that provided insufficient data to complete a 2 × 2 table for at least in one category of stenosis. Nine studies (2770 carotid arteries) presented DUS versus DSA results for 70% to 99% carotid artery stenosis, and two (685 carotid arteries) presented results from DUS versus CTA in this category. Seven studies presented results for occlusion with DSA as the reference standard and three with CTA as the reference standard. Five studies compared DUS versus DSA for 50% to 99% carotid artery stenosis. Only one study presented results from 50% to 69% carotid artery stenosis. For DUS versus DSA, for < 50% carotid artery stenosis, the summary sensitivity was 0.63 (95% confidence interval [CI] 0.48 to 0.76) and the summary specificity was 0.99 (95% CI 0.96 to 0.99); for the 50% to 69% range, only one study was included and meta-analysis not performed; for the 50% to 99% range, the summary sensitivity was 0.97 (95% CI 0.95 to 0.98) and the summary specificity was 0.70 (95% CI 0.67 to 0.73); for the 70% to 99% range, the summary sensitivity was 0.85 (95% CI 0.77 to 0.91) and the summary specificity was 0.98 (95% CI 0.74 to 0.90); for occlusion, the summary sensitivity was 0.91 (95% CI 0.81 to 0.97) and the summary specificity was 0.95 (95% CI 0.76 to 0.99). For sensitivity analyses, excluding studies in which participants were selected based on the presence of occlusion on DUS had an impact on specificity: 0.98 (95% CI 0.97 to 0.99). For DUS versus CTA, we found two studies in the range of 70% to 99%; the sensitivity varied from 0.57 to 0.94 and the specificity varied from 0.87 to 0.98. For occlusion, the summary sensitivity was 0.95 (95% CI 0.80 to 0.99) and the summary specificity was 0.91 (95% CI 0.09 to 0.99). For DUS versus MRA, there was one study with results for 50% to 99% carotid artery stenosis, with a sensitivity of 0.88 (95% CI 0.70 to 0.98) and specificity of 0.60 (95% CI 0.15 to 0.95); in the 70% to 99% range, two studies were included, with sensitivity that varied from 0.54 to 0.99 and specificity that varied from 0.78 to 0.89. We could perform only a few of the proposed sensitivity analyses because of the small number of studies included.\nThis review provides evidence that the diagnostic accuracy of DUS is high, especially at discriminating between the presence or absence of significant carotid artery stenosis (< 50% or 50% to 99%). This evidence, plus its less invasive nature, supports the early use of DUS for the detection of carotid artery stenosis. The accuracy for 70% to 99% carotid artery stenosis and occlusion is high. Clinicians should exercise caution when using DUS as the single preoperative diagnostic method, and the limitations should be considered. There was little evidence of the accuracy of DUS when compared with CTA or MRA. The results of this review should be interpreted with caution because they are based on studies of low methodological quality, mainly due to the patient selection method. Methodological problems in participant inclusion criteria from the studies discussed above apparently influenced an overestimated estimate of prevalence values. Most of the studies included failed to precisely describe inclusion criteria and previous testing. Future diagnostic accuracy studies should include direct comparisons of the various modalities of diagnostic tests (mainly DUS, CTA, and MRA) for carotid artery stenosis since DSA is no longer considered to be the best method for diagnosing carotid stenosis and less invasive tests are now used as reference standards in clinical practice. Also, for future studies, the participant inclusion criteria require careful attention.",
+        "sha256": "30a4c9f48f1612873b44777a1f9b12c1b2aa2a5e28bbd13e511616df47e6ad27",
+        "retrieved_at": "2026-09-18T23:51:06.497702+00:00",
+        "pmcid": "PMC9272405"
+      },
+      {
+        "id": "40047790",
+        "title": "Transcarotid artery revascularization in symptomatic carotid stenosis: a systematic review.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40047790/",
+        "abstract": "Carotid endarterectomy is currently the gold standard treatment option for significant symptomatic carotid stenosis. Carotid artery stenting can be an alternative in selected patients, although with inferior results when compared with its open counterpart. Transcarotid artery revascularization (TCAR) emerged as a new option, with promising results. This study aims to systematically review current evidence of the safety of TCAR in patients with symptomatic carotid artery stenosis.\nA systematic review of the literature was performed, according to PRISMA guidelines. Literature search was performed on the PubMed and Web of Science databases, which returned 178 studies. Eleven studies were selected. Data were extracted using predefined forms.\nA total of 28326 symptomatic patients undergoing TCAR were included for analysis. Reported TIA/stroke rates after TCAR ranged between 2.3-3.3% in-hospital and 1.2-4.3% at 30-days. Similarly, in-hospital post-operative mortality was reported in 0.5-0.7% of the cases, and 1-4.9% at 30 days. After 1 year, TIA/Stroke and death rates ranged between 3.5-3.7% and 2.5-13%, respectively. Postoperative cardiovascular events were observed in up to 2.9% of the patients among the included studies. Cranial nerve injuries were reported in up to 0.7% of the cases, while surgical and vascular access complications ranged between 1.2-6.1%.\nTCAR has shown promising results for significant symptomatic carotid stenosis treatment, and may be a relevant alternative to carotid endarterectomy, especially in high-risk patients. Further studies are required to assess the effectiveness of TCAR and its comparability with carotid endarterectomy.",
+        "sha256": "7ec28a363fdb746d1f5e07a1c8a2f2bd3261f569334bdc978bb95ea7bd4bd2be",
+        "retrieved_at": "2026-09-18T23:51:06.971317+00:00"
+      },
+      {
+        "id": "37055001",
+        "title": "Sex differences in outcome after carotid revascularization in symptomatic and asymptomatic carotid artery stenosis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37055001/",
+        "abstract": "Sex differences regarding the safety and efficacy of carotid revascularization in carotid artery stenosis have been addressed in several studies with conflicting results. Moreover, women are underrepresented in clinical trials, leading to limited conclusions regarding the safety and efficacy of acute stroke treatments.\nA systematic review and meta-analysis was performed by literature search including four databases from January 1985 to December 2021. Sex differences in the efficacy and safety of revascularization procedures, including carotid endarterectomy (CEA) and carotid artery stenting (CAS), for symptomatic and asymptomatic carotid artery stenoses were analyzed.\nRegarding CEA in symptomatic carotid artery stenosis, the stroke risk in men (3.6%) and women (3.9%) based on 99,495 patients (30 studies) did not differ (P = .16). There was also no difference in the stroke risk by different time frames up to 10 years. Compared with men, women treated with CEA had a significantly higher stroke or death rate at 4 months (2 studies, 2565 patients; 7.2% vs 5.0%; odds ratio [OR], 1.49; 95% confidence interval [CI], 1.04-2.12; I2 = 0%; P = .03), and a significantly higher rate of restenosis (1 study, 615; 17.2% vs 6.7%; OR, 2.81; 95% CI, 1.66-4.75; P = .0001). For CAS in symptomatic artery stenosis, data showed a non-significant tendency toward higher peri-procedural stroke in women, whereas for asymptomatic carotid artery stenosis, data based on 332,344 patients showed that women (compared with men) after CEA had similar rates of stroke, stroke or death, and the composite outcome stroke/death/myocardial infarction. The rate of restenosis at 1 year was significantly higher in women compared with men (1 study, 372 patients; 10.8% vs 3.2%; OR, 3.71; 95% CI, 1.49-9.2; P = .005). Furthermore, CAS in asymptomatic patients was associated with low risk of a postprocedural stroke in both sexes, but a significantly higher risk of in-hospital myocardial infarction in women than men (8445 patients, 1.2% vs 0.6%; OR, 2.01; 95% CI, 1.23-3.28; I2 = 0%; P = .005).\nA few sex-differences in short-term outcomes after carotid revascularization for symptomatic and asymptomatic carotid artery stenosis were found, although there were no significant differences in the overall stroke. This indicates a need for larger multicenter prospective studies to evaluate these sex-specific differences. More women, including those aged over 80 years, need to be enrolled in randomized controlled trials, to better understand if sex differences exist and to tailor carotid revascularization accordingly.",
+        "sha256": "6719aff0477473edb3b594731c52ef19c718c428e8e4f261db074bf33a3fc0de",
+        "retrieved_at": "2026-09-18T23:51:06.971317+00:00"
+      },
+      {
+        "id": "40172321",
+        "title": "Medical treatment versus endarterectomy for symptomatic carotid stenosis: systematic review and meta-analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40172321/",
+        "abstract": "The treatment of symptomatic carotid stenosis traditionally relies on revascularization procedures. However, evolution of medical treatment over the last decades, prompted the possibility to consider a best medical treatment approach as viable for the management of low-risk symptomatic patients. Nevertheless, there is limited evidence on the long-term outcomes of symptomatic patients treated medically, being critical to reassess the risk-benefit balance of invasive procedures in addition to best medical treatment. This study aims to review evidence on long-term outcomes of symptomatic carotid stenosis patients treated with best medical treatment alone and assess whether additional revascularization offers any beneficial effects.\nA systematic review was performed according to the recommendations of the Preferred Reporting Items for Systematic reviews and Meta-analysis statement and guidelines.\nThere was a trend for a higher risk of stroke (pooled risk of 6.96% [95% confidence interval (CI): 4.76-9.15%]), death (pooled risk of 3.14% [95% CI: 1.64-4.64%]), and the combined outcome of stroke or death (pooled risk of 8.91% [95% CI: 6.49-11.33%]) in the medical group compared to patients undergoing revascularization procedures: 4.51% (95% CI: 2.67-6.35%), 2.65% (95% CI: 1.23-4.08%), and 6.56% (95% CI: 4.37-8.76%), respectively.\nWhile best medical treatment has undergone significant advancements in recent decades, there is scarce data regarding the long-term outcomes of symptomatic patients receiving such treatment. Future research investigating the treatment of symptomatic carotid stenosis by surgery or endovascular methods should incorporate medical treatment arms to accurately assess the incidence of recurrent events in patients undergoing best medical treatment in the long-term.",
+        "sha256": "09f87be35da8c83061b9eb8941314dc8c128e9a0691726696d3c2b9839adb79f",
+        "retrieved_at": "2026-09-18T23:51:06.971317+00:00"
+      },
+      {
+        "id": "30799491",
+        "title": "Timing of Carotid Endarterectomy for Symptomatic Carotid Stenosis: A Snapshot of Current Trends and Systematic Review of Literature on Changing Paradigm towards Early Surgery.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30799491/",
+        "abstract": "Carotid revascularization has been recommended as the maximally beneficial treatment for stroke prevention in patients with recently symptomatic carotid stenosis (SCS). The appropriate timing for performing carotid endarterectomy (CEA) within the first 14 d after the occurrence of the index event remains controversial. We aim to provide a snapshot of the pertinent current literature related to the timing of CEA for patients with SCS. A systematic review of literature was conducted to study the timing of CEA for SCS. The guidelines of the Preferred Reporting Items for Systematic Reviews and Meta-analysis (PRISMA) were followed. A total of 63 articles were identified as relevant to this topic. A summary of 15 articles favoring urgent CEA (within 48 h) for SCS within 48 h of index event and 9 articles not favoring urgent CEA is presented. A consensus is still to be achieved on the ideal timing of CEA for SCS within the 14-d window presently prescribed. The current literature suggests that patients who undergo urgent CEA (within 48 h) after nondisabling stroke as the index event have an increased periprocedural risk as compared to those who had transient ischemic attack (TIA) as the index event. Further prospective studies and clinical trials studying this question with separate groups classified as per the index event are required to shed more light on the subject. The current literature points to a changing paradigm towards early carotid surgery, specifically targeted within 48 h if the index event is TIA, and within 7 d if the index event is stroke.",
+        "sha256": "7f07f9e613411d45e32410b4da1c4f7b58534b05f6a7fb454790b9289a60b651",
+        "retrieved_at": "2026-09-18T23:51:07.795602+00:00"
+      },
+      {
+        "id": "34953681",
+        "title": "Editor's Choice - Timing of Carotid Intervention in Symptomatic Carotid Artery Stenosis: A Systematic Review and Meta-Analysis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34953681/",
+        "abstract": "This review aimed to analyse the timing of carotid endarterectomy (CEA) and carotid artery stenting (CAS) after the index event as well as 30 day outcomes at varying time periods within 14 days of symptom onset.\nA systematic review was performed according to the Preferred Reporting Items for Systematic reviews and Meta-analysis statement, comprising an online search of the Medline and Cochrane databases. Methodical quality assessment of the included studies was performed. Endpoints included procedural stroke and/or death stratified by delay from the index event and surgical technique (CEA/CAS).\nSeventy-one studies with 232 952 symptomatic patients were included. Overall, 34 retrospective analyses of prospective databases, nine prospective, three RCT, three case control, and 22 retrospective studies were included. Compared with CEA, CAS was associated with higher 30 day stroke (OR 0.70; 95% CI 0.58 - 0.85) and mortality rates (OR 0.41; 95% CI 0.31 - 0.53) when performed ≤ 2 days of symptom onset. Patients undergoing CEA/CAS were analysed in different time frames (≤ 2 vs. 3 - 14 and ≤ 7 vs. 8 - 14 days). Expedited CEA (vs. 3 - 14 days) presented a sampled 30 day stroke rate of 1.4%; 95% CI 0.9 - 1.8 vs. 1.8%; 95% CI 1.8 - 2.0, with no statistically significant difference. Expedited CAS (vs. 3 - 14 days) was associated with no difference in stroke rate but statistically significantly higher mortality rate (OR 2.76; 95% CI 1.39 - 5.50).\nAt present, CEA is safer than transfemoral CAS within 2/7 days of symptom onset. Also, considering absolute rates, expedited CEA complies with the accepted thresholds in international guidelines. The ideal timing for performing CAS (when indicated against CEA) is not yet defined. Additional granular data and standard reporting of timing of intervention will facilitate future monitoring.",
+        "sha256": "55f3cac50ee9c8319c6ccb7a2da8411741a7a5b976308e49d29cb4706a0832f8",
+        "retrieved_at": "2026-09-18T23:51:07.795602+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient had a symptomatic event (transient monocular blindness / amaurosis fugax in the right eye) 4 days ago with a confirmed severe ipsilateral (right) ICA stenosis of 78% by NASCET on CTA, without near-occlusion or occlusion. Per the Cochrane review (32918282), carotid endarterectomy plus best medical therapy is highly beneficial for symptomatic 70-99% stenosis without near-occlusion (RR 0.53). The individual-patient-data meta-analysis on octogenarians (36647921) explicitly concludes that CEA is safe in symptomatic elderly patients selected for intervention, that recurrent stroke risk on medical therapy alone increases with age, and that patients should not be excluded from CEA solely because of age—particularly those without major cardiac comorbidity, matching this independent, non-frail 82-year-old whose cardiopulmonary review found no major cardiac comorbidity. Timing evidence (30799491, 34953681) supports expedited CEA after a TIA-type index event. Answer A incorrectly uses age alone as an absolute exclusion, directly contradicted by the evidence. Answer B—offer expedited CEA plus best medical management after individualized perioperative assessment—is the supported approach.",
+          "confidence": 0.9
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "32918282"
+              ],
+              "source_passage_ids": [
+                "32918282:p3",
+                "32918282:p4"
+              ],
+              "reason": "Cochrane review reports CEA highly beneficial in 70-99% stenosis without near-occlusion (RR 0.53) for five-year stroke or operative death.",
+              "source_quotes": [
+                {
+                  "source_id": "32918282",
+                  "quote": "Surgery decreased the five-year risk of any stroke or operative death in participants with 30% to 49% stenosis (RR 0.97, 95% CI 0.79 to 1.19; 2 studies, 1429 participants; high-quality evidence), was of benefit in participants with 50% to 69% stenosis (RR 0.77, 95% CI 0.63 to 0.94; 3 studies, 1549 participants; moderate-quality evidence), and was highly beneficial in participants with 70% to 99% stenosis without near-occlusion (RR 0.53, 95% CI 0.42 to 0.67; 3 studies, 1095 participants; moderate-quality evidence). However, surgery decreased the five-year risk of any stroke or operative death in participants with near-occlusions (RR 0.95, 95% CI 0.59 to 1.53; 2 studies, 271 participants; moderate-quality evidence). Carotid endarterectomy reduced the risk of recurrent stroke for people with significant stenosis."
+                },
+                {
+                  "source_id": "32918282",
+                  "quote": "Endarterectomy might be of some benefit for participants with 50% to 69% symptomatic stenosis (moderate-quality evidence) and highly beneficial for those with 70% to 99% stenosis (moderate-quality evidence)."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "32918282"
+              ],
+              "source_passage_ids": [
+                "32918282:p3"
+              ],
+              "reason": "The abstract explicitly gives RR 0.53 for 70-99% stenosis without near-occlusion.",
+              "source_quotes": [
+                {
+                  "source_id": "32918282",
+                  "quote": "Surgery decreased the five-year risk of any stroke or operative death in participants with 30% to 49% stenosis (RR 0.97, 95% CI 0.79 to 1.19; 2 studies, 1429 participants; high-quality evidence), was of benefit in participants with 50% to 69% stenosis (RR 0.77, 95% CI 0.63 to 0.94; 3 studies, 1549 participants; moderate-quality evidence), and was highly beneficial in participants with 70% to 99% stenosis without near-occlusion (RR 0.53, 95% CI 0.42 to 0.67; 3 studies, 1095 participants; moderate-quality evidence). However, surgery decreased the five-year risk of any stroke or operative death in participants with near-occlusions (RR 0.95, 95% CI 0.59 to 1.53; 2 studies, 271 participants; moderate-quality evidence). Carotid endarterectomy reduced the risk of recurrent stroke for people with significant stenosis."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "36647921"
+              ],
+              "source_passage_ids": [
+                "36647921:p1",
+                "36647921:p22"
+              ],
+              "reason": "Meta-analysis found linear/modest increase in perioperative stroke, MI, and death with age.",
+              "source_quotes": [
+                {
+                  "source_id": "36647921",
+                  "quote": "Individual patient data from 4 prospective cohorts enabled multivariate analysis. Of 47 studies (107 587 patients), risk of perioperative stroke was 2.04% (1.94-2.14) in octogenarians (390 strokes/19 101 patients) and 1.85% (1.75-1.95) in nonoctogenarians (1395/75 537); P=0.046. Perioperative death was 1.09% (0.94-1.25) in octogenarians (203/18 702) and 0.53% (0.48-0.59) in nonoctogenarians (392/73 327); P<0.001. Per 5-year age increment, a linear increase in perioperative stroke, myocardial infarction, and death were observed; P=0.04 to 0.002. However, during the last 3 decades, perioperative stroke±death has declined significantly in octogenarians (7.78% [5.58-10.55] before year 2000 to 2.80% [2.56-3.04] after 2010); P<0.001."
+                },
+                {
+                  "source_id": "36647921",
+                  "quote": "Analysis by study quality showed that the association of older age with higher perioperative stroke risk was preserved only in high-quality studies. Discussion In conclusion, we found a linear increase in perioperative risk of stroke, MI, and death with age in symptomatic patients undergoing CEA. The 1- and 2-year mortality, and postoperative stroke rates up to 5 years postsurgery were comparable between older and younger patients. As stroke risk increases with age when on medical therapy alone, our findings support selective urgent intervention in symptomatic elderly patients, particularly those without major cardiac comorbidity."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "36647921"
+              ],
+              "source_passage_ids": [
+                "36647921:p22",
+                "36647921:p16"
+              ],
+              "reason": "Conclusion supports selective urgent intervention in symptomatic elderly, particularly those without major cardiac comorbidity.",
+              "source_quotes": [
+                {
+                  "source_id": "36647921",
+                  "quote": "Analysis by study quality showed that the association of older age with higher perioperative stroke risk was preserved only in high-quality studies. Discussion In conclusion, we found a linear increase in perioperative risk of stroke, MI, and death with age in symptomatic patients undergoing CEA. The 1- and 2-year mortality, and postoperative stroke rates up to 5 years postsurgery were comparable between older and younger patients. As stroke risk increases with age when on medical therapy alone, our findings support selective urgent intervention in symptomatic elderly patients, particularly those without major cardiac comorbidity."
+                },
+                {
+                  "source_id": "36647921",
+                  "quote": "Fourth, cardiac risk is a major concern for elderly patients undergoing any intervention. We have confirmed that perioperative risk of MI increases modestly for older patients undergoing CEA. We also confirm that in pooled analysis of studies with a high prevalence of coronary artery disease, elderly patients have a higher annual risk of stroke and death post-CEA compared to younger patients. This key finding supports clinical caution in selecting elderly patients with significant coronary artery disease for CEA. Conversely, it also provides reassurance that for elderly patients without major cardiac comorbidity, outcome following CEA is similar to that of younger patients. In routine clinical practice, some elderly patients without significant comorbidity are excluded from surgery purely due to their age."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "36647921"
+              ],
+              "source_passage_ids": [
+                "36647921:p17"
+              ],
+              "reason": "Explicit key message not to exclude symptomatic elderly from CEA just because of age.",
+              "source_quotes": [
+                {
+                  "source_id": "36647921",
+                  "quote": "This meta-analysis reveals that CEA is safe in symptomatic elderly patients who are selected for intervention, and therefore a key message is not to exclude symptomatic elderly patients from CEA just because of their age. Discussion Our study is the first systematic review and meta-analysis of all study types focusing solely on symptomatic patients. Previous reviews of outcome by age have either focused largely on asymptomatic carotid disease or included only trial data. Investigating the safety of CEA in elderly asymptomatic patients is of more debatable clinical importance as intervention may confer less benefit due to limited life expectancy."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "34953681"
+              ],
+              "source_passage_ids": [
+                "34953681:p1"
+              ],
+              "reason": "Timing meta-analysis shows expedited CEA has acceptable absolute event rates compliant with guideline thresholds.",
+              "source_quotes": [
+                {
+                  "source_id": "34953681",
+                  "quote": "Compared with CEA, CAS was associated with higher 30 day stroke (OR 0.70; 95% CI 0.58 - 0.85) and mortality rates (OR 0.41; 95% CI 0.31 - 0.53) when performed ≤ 2 days of symptom onset. Patients undergoing CEA/CAS were analysed in different time frames (≤ 2 vs. 3 - 14 and ≤ 7 vs. 8 - 14 days). Expedited CEA (vs. 3 - 14 days) presented a sampled 30 day stroke rate of 1.4%; 95% CI 0.9 - 1.8 vs. 1.8%; 95% CI 1.8 - 2.0, with no statistically significant difference. Expedited CAS (vs. 3 - 14 days) was associated with no difference in stroke rate but statistically significantly higher mortality rate (OR 2.76; 95% CI 1.39 - 5.50). At present, CEA is safer than transfemoral CAS within 2/7 days of symptom onset. Also, considering absolute rates, expedited CEA complies with the accepted thresholds in international guidelines."
+                }
+              ]
+            },
+            {
+              "index": 6,
+              "supported": true,
+              "source_ids": [
+                "35815652"
+              ],
+              "source_passage_ids": [
+                "35815652:p6"
+              ],
+              "reason": "DUS supports early detection but caution warranted when used as sole preoperative test.",
+              "source_quotes": [
+                {
+                  "source_id": "35815652",
+                  "quote": "This review provides evidence that the diagnostic accuracy of DUS is high, especially at discriminating between the presence or absence of significant carotid artery stenosis (< 50% or 50% to 99%). This evidence, plus its less invasive nature, supports the early use of DUS for the detection of carotid artery stenosis. The accuracy for 70% to 99% carotid artery stenosis and occlusion is high. Clinicians should exercise caution when using DUS as the single preoperative diagnostic method, and the limitations should be considered. There was little evidence of the accuracy of DUS when compared with CTA or MRA. The results of this review should be interpreted with caution because they are based on studies of low methodological quality, mainly due to the patient selection method."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is an on-specialty vascular surgery case. An 82-year-old independent woman presents 4 days after a 12-minute episode of amaurosis fugax (transient monocular vision loss) in the right eye — a symptomatic ipsilateral event. Duplex and confirmatory CTA establish 78% right ICA stenosis by NASCET method, without near-occlusion or occlusion. This falls squarely in the 70-99% symptomatic-without-near-occlusion category for which the Cochrane review shows CEA is highly beneficial (RR 0.53). Candidate B (offer expedited CEA plus best medical management after individualized perioperative assessment; age alone should not exclude) is directly supported by the age-safety meta-analysis (36647921), which concludes selective urgent intervention benefits fit symptomatic elderly, especially those without major cardiac comorbidity, and explicitly cautions against exclusion by age. The chart states no MI/heart failure/severe pulmonary disease/frailty and preserved independence, consistent with the 'fit, no major cardiac comorbidity' population. Candidate A (withhold CEA solely due to age >80) is the intended flawed option and is contradicted by the evidence and would leave the patient exposed to a high recurrent-stroke risk (5-year risk doubling in the elderly on medical therapy alone). The two candidates present a genuine distinct clinical decision. Timing evidence (34953681) supports expedited surgery within the early symptomatic window with acceptable absolute event rates. DUS-plus-CTA workup aligns with 35815652's caution about DUS as sole test. All seven claims are supported by the cited passages against the actual source text. The visible note does not disclose the intended management answer — it describes the completed assessment/anatomy but does not state the recommended plan. Minor observations (cleared, not blocking): the note describes a 'right carotid bruit' with right-sided symptoms, consistent; NASCET 78% correctly excludes near-occlusion; no imaging is missing since both duplex and CTA are provided. The key and designated sound candidate are safe and evidence-supported; no essential care is omitted (best medical management continues alongside surgery). No blocking defects identified."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The transient monocular visual loss is a recent ipsilateral carotid-territory ischemic event, making the CTA-confirmed 78% right internal carotid stenosis symptomatic. It is severe (70–99%), patent, and not a near-occlusion—the group in which carotid endarterectomy plus best medical therapy provides substantial stroke-prevention benefit compared with medical therapy alone (RR 0.53 for 5-year stroke or operative death in the cited Cochrane review). Intervention should be expedited because benefit is greatest soon after symptoms. Although octogenarians have a modestly increased perioperative risk, contemporary evidence supports selective urgent CEA in fit symptomatic elderly patients, especially those without major cardiac comorbidity; age alone is not a contraindication. Her independence, lack of major frailty or cardiopulmonary disease, and completed anatomic assessment favor offering CEA after individualized perioperative assessment while continuing antiplatelet, statin, and vascular risk-factor management.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "32918282"
+              ],
+              "reason": "The pooled randomized evidence directly compares endarterectomy plus medical management with medical management alone and reports reduced five-year stroke or operative death for symptomatic 70%–99% stenosis without near-occlusion.",
+              "source_passage_ids": [
+                "32918282:p1",
+                "32918282:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32918282",
+                  "quote": "We also reviewed the reference lists of all relevant studies and abstract books from research proceedings. We included randomised controlled trials (RCTs) comparing carotid artery surgery plus best medical treatment with best medical treatment alone. DATA COLLECTION AND ANALYSIS: Two review authors independently selected studies, assessed risk of bias, and extracted the data. We assessed the results and the quality of the evidence of the primary and secondary outcomes by the GRADE method, which classifies the quality of evidence as high, moderate, low, or very low. We included three trials involving 6343 participants. The trials differed in the methods of measuring carotid stenosis and in the definition of stroke."
+                },
+                {
+                  "source_id": "32918282",
+                  "quote": "Surgery decreased the five-year risk of any stroke or operative death in participants with 30% to 49% stenosis (RR 0.97, 95% CI 0.79 to 1.19; 2 studies, 1429 participants; high-quality evidence), was of benefit in participants with 50% to 69% stenosis (RR 0.77, 95% CI 0.63 to 0.94; 3 studies, 1549 participants; moderate-quality evidence), and was highly beneficial in participants with 70% to 99% stenosis without near-occlusion (RR 0.53, 95% CI 0.42 to 0.67; 3 studies, 1095 participants; moderate-quality evidence). However, surgery decreased the five-year risk of any stroke or operative death in participants with near-occlusions (RR 0.95, 95% CI 0.59 to 1.53; 2 studies, 271 participants; moderate-quality evidence). Carotid endarterectomy reduced the risk of recurrent stroke for people with significant stenosis."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "32918282"
+              ],
+              "reason": "The source explicitly reports RR 0.53 with a 95% CI of 0.42–0.67 for the stated population and outcome.",
+              "source_passage_ids": [
+                "32918282:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32918282",
+                  "quote": "Surgery decreased the five-year risk of any stroke or operative death in participants with 30% to 49% stenosis (RR 0.97, 95% CI 0.79 to 1.19; 2 studies, 1429 participants; high-quality evidence), was of benefit in participants with 50% to 69% stenosis (RR 0.77, 95% CI 0.63 to 0.94; 3 studies, 1549 participants; moderate-quality evidence), and was highly beneficial in participants with 70% to 99% stenosis without near-occlusion (RR 0.53, 95% CI 0.42 to 0.67; 3 studies, 1095 participants; moderate-quality evidence). However, surgery decreased the five-year risk of any stroke or operative death in participants with near-occlusions (RR 0.95, 95% CI 0.59 to 1.53; 2 studies, 271 participants; moderate-quality evidence). Carotid endarterectomy reduced the risk of recurrent stroke for people with significant stenosis."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "36647921"
+              ],
+              "reason": "The meta-analysis reports linear age-related increases in perioperative stroke, myocardial infarction, and death and characterizes the overall increase as modest.",
+              "source_passage_ids": [
+                "36647921:p1",
+                "36647921:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36647921",
+                  "quote": "Individual patient data from 4 prospective cohorts enabled multivariate analysis. Of 47 studies (107 587 patients), risk of perioperative stroke was 2.04% (1.94-2.14) in octogenarians (390 strokes/19 101 patients) and 1.85% (1.75-1.95) in nonoctogenarians (1395/75 537); P=0.046. Perioperative death was 1.09% (0.94-1.25) in octogenarians (203/18 702) and 0.53% (0.48-0.59) in nonoctogenarians (392/73 327); P<0.001. Per 5-year age increment, a linear increase in perioperative stroke, myocardial infarction, and death were observed; P=0.04 to 0.002. However, during the last 3 decades, perioperative stroke±death has declined significantly in octogenarians (7.78% [5.58-10.55] before year 2000 to 2.80% [2.56-3.04] after 2010); P<0.001."
+                },
+                {
+                  "source_id": "36647921",
+                  "quote": "In Individual patient data multivariate-analysis (5111 patients), age ≥85 years was independently associated with perioperative stroke (P<0.001) and death (P=0.005). Yet, survival was similar for octogenarians versus nonoctogenarians at 1-year (95.0% [93.2-96.5] versus 97.5% [96.4-98.6]; P=0.08), as was 5-year stroke risk (11.93% [9.98-14.16]) versus 12.78% [11.65-13.61]; P=0.24). We found a modest increase in perioperative risk with age in symptomatic patients undergoing carotid endarterectomy. As stroke risk increases with age when on medical therapy alone, our findings support selective urgent intervention in symptomatic elderly patients. Carotid endarterectomy (CEA) has been shown to reduce the risk of ischemic stroke in patients with significant recent symptomatic carotid stenosis."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "36647921"
+              ],
+              "reason": "The source supports selective urgent intervention in symptomatic elderly patients, specifically emphasizing those without major cardiac comorbidity.",
+              "source_passage_ids": [
+                "36647921:p16",
+                "36647921:p22"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36647921",
+                  "quote": "Fourth, cardiac risk is a major concern for elderly patients undergoing any intervention. We have confirmed that perioperative risk of MI increases modestly for older patients undergoing CEA. We also confirm that in pooled analysis of studies with a high prevalence of coronary artery disease, elderly patients have a higher annual risk of stroke and death post-CEA compared to younger patients. This key finding supports clinical caution in selecting elderly patients with significant coronary artery disease for CEA. Conversely, it also provides reassurance that for elderly patients without major cardiac comorbidity, outcome following CEA is similar to that of younger patients. In routine clinical practice, some elderly patients without significant comorbidity are excluded from surgery purely due to their age."
+                },
+                {
+                  "source_id": "36647921",
+                  "quote": "Analysis by study quality showed that the association of older age with higher perioperative stroke risk was preserved only in high-quality studies. Discussion In conclusion, we found a linear increase in perioperative risk of stroke, MI, and death with age in symptomatic patients undergoing CEA. The 1- and 2-year mortality, and postoperative stroke rates up to 5 years postsurgery were comparable between older and younger patients. As stroke risk increases with age when on medical therapy alone, our findings support selective urgent intervention in symptomatic elderly patients, particularly those without major cardiac comorbidity."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "36647921"
+              ],
+              "reason": "The source explicitly states that symptomatic elderly patients selected for intervention should not be excluded from endarterectomy merely because of age.",
+              "source_passage_ids": [
+                "36647921:p17"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36647921",
+                  "quote": "This meta-analysis reveals that CEA is safe in symptomatic elderly patients who are selected for intervention, and therefore a key message is not to exclude symptomatic elderly patients from CEA just because of their age. Discussion Our study is the first systematic review and meta-analysis of all study types focusing solely on symptomatic patients. Previous reviews of outcome by age have either focused largely on asymptomatic carotid disease or included only trial data. Investigating the safety of CEA in elderly asymptomatic patients is of more debatable clinical importance as intervention may confer less benefit due to limited life expectancy."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "34953681"
+              ],
+              "reason": "The timing meta-analysis reports low sampled 30-day stroke rates for expedited endarterectomy and states that its absolute rates comply with accepted procedural thresholds.",
+              "source_passage_ids": [
+                "34953681:p0",
+                "34953681:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34953681",
+                  "quote": "This review aimed to analyse the timing of carotid endarterectomy (CEA) and carotid artery stenting (CAS) after the index event as well as 30 day outcomes at varying time periods within 14 days of symptom onset. A systematic review was performed according to the Preferred Reporting Items for Systematic reviews and Meta-analysis statement, comprising an online search of the Medline and Cochrane databases. Methodical quality assessment of the included studies was performed. Endpoints included procedural stroke and/or death stratified by delay from the index event and surgical technique (CEA/CAS). Seventy-one studies with 232 952 symptomatic patients were included. Overall, 34 retrospective analyses of prospective databases, nine prospective, three RCT, three case control, and 22 retrospective studies were included."
+                },
+                {
+                  "source_id": "34953681",
+                  "quote": "Compared with CEA, CAS was associated with higher 30 day stroke (OR 0.70; 95% CI 0.58 - 0.85) and mortality rates (OR 0.41; 95% CI 0.31 - 0.53) when performed ≤ 2 days of symptom onset. Patients undergoing CEA/CAS were analysed in different time frames (≤ 2 vs. 3 - 14 and ≤ 7 vs. 8 - 14 days). Expedited CEA (vs. 3 - 14 days) presented a sampled 30 day stroke rate of 1.4%; 95% CI 0.9 - 1.8 vs. 1.8%; 95% CI 1.8 - 2.0, with no statistically significant difference. Expedited CAS (vs. 3 - 14 days) was associated with no difference in stroke rate but statistically significantly higher mortality rate (OR 2.76; 95% CI 1.39 - 5.50). At present, CEA is safer than transfemoral CAS within 2/7 days of symptom onset. Also, considering absolute rates, expedited CEA complies with the accepted thresholds in international guidelines."
+                }
+              ]
+            },
+            {
+              "index": 6,
+              "supported": true,
+              "source_ids": [
+                "35815652"
+              ],
+              "reason": "The review supports early duplex use for detecting significant carotid stenosis while expressly advising caution when duplex is the sole preoperative test.",
+              "source_passage_ids": [
+                "35815652:p6"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35815652",
+                  "quote": "This review provides evidence that the diagnostic accuracy of DUS is high, especially at discriminating between the presence or absence of significant carotid artery stenosis (< 50% or 50% to 99%). This evidence, plus its less invasive nature, supports the early use of DUS for the detection of carotid artery stenosis. The accuracy for 70% to 99% carotid artery stenosis and occlusion is high. Clinicians should exercise caution when using DUS as the single preoperative diagnostic method, and the limitations should be considered. There was little evidence of the accuracy of DUS when compared with CTA or MRA. The results of this review should be interpreted with caution because they are based on studies of low methodological quality, mainly due to the patient selection method."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The resolved ipsilateral monocular visual event four days earlier makes the CTA-confirmed 78% right internal carotid stenosis recently symptomatic. CTA also establishes patency and absence of near-occlusion, so the patient matches the severe symptomatic group for which endarterectomy plus medical management was beneficial. She is independent and the documented assessment identifies no major frailty, cardiac comorbidity, or severe pulmonary disease. Candidate B appropriately offers expedited carotid endarterectomy while retaining medical therapy and conditioning intervention on individualized perioperative assessment. Candidate A is the intentionally unsafe option because it withholds a beneficial intervention solely on the basis of age. Duplex was appropriately confirmed by CTA rather than used alone. The visible title, question, and clinical note do not disclose the intended answer. No previous cases were supplied, so there is no demonstrated duplication of the clinical decision."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "6888c0d2c285bf063b5fbb319590d37fb9b20b4fb025bc95b259a6cb1ba0d986"
+  }
+}

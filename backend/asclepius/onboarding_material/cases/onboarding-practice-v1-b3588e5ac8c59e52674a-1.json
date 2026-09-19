@@ -1,0 +1,552 @@
+{
+  "task_id": "onboarding-practice-v1-b3588e5ac8c59e52674a-1",
+  "specialty": "neurology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Rapidly progressive symmetric weakness after diarrheal illness",
+    "question": "Which candidate provides the appropriate initial disease-modifying management for this adult?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "neurology",
+      "demographics": {
+        "age_band": "50-59",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Progressive symmetric limb weakness",
+          "since": "8 days",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Inability to walk without assistance",
+          "since": "2 days",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Reduced tendon reflexes",
+          "since": "current presentation",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Recent self-limited diarrheal illness",
+          "since": "approximately 3 weeks earlier",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "respiratory_status": "Breathing comfortably without ventilatory support",
+        "hemodynamic_status": "Stable at the time of assessment"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Neurology admission assessment",
+          "author_role": "neurology",
+          "text": "An adult developed tingling in both feet followed by progressive, symmetric weakness beginning 8 days ago. Weakness ascended from the legs to the hands, and during the last 2 days he has required two-person assistance to stand and cannot walk unaided. A diarrheal illness resolved approximately 3 weeks earlier. Examination shows flaccid weakness that is greater in the legs than the arms, absent patellar and Achilles reflexes, reduced upper-extremity reflexes, and mild distal sensory loss. There is no sensory level, ophthalmoplegia, or altered mental status. He is breathing comfortably and has no current bulbar symptoms. Cerebrospinal fluid and electrodiagnostic testing have already been completed.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Lumbar puncture",
+          "label": "Cerebrospinal fluid examination",
+          "findings": "Cerebrospinal fluid shows elevated protein with 2 leukocytes per microliter.",
+          "measurements": [],
+          "impression": "Albuminocytologic dissociation supporting an acute polyradiculoneuropathy.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        },
+        {
+          "modality": "Electrodiagnostic testing",
+          "label": "Nerve conduction studies",
+          "findings": "Motor studies show slowed conduction, prolonged distal latencies, and conduction block in multiple nerves. Sensory responses are relatively preserved.",
+          "measurements": [],
+          "impression": "Findings support an acute inflammatory demyelinating polyradiculoneuropathy.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [
+        "clinical history",
+        "neurologic examination",
+        "cerebrospinal fluid examination",
+        "electrodiagnostic testing"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the treatment decision",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The presentation supports Guillain-Barré syndrome with weakness beginning 8 days ago and loss of independent ambulation. Adult guidance recommends intravenous immunoglobulin for a patient who is unable to walk unaided and is within 2 weeks of weakness onset. Oral corticosteroids should not replace effective immunotherapy because they are not beneficial in Guillain-Barré syndrome.",
+        "evidence": {
+          "decision": "Initial disease-modifying treatment",
+          "supported_option": "Intravenous immunoglobulin",
+          "rejected_option": "Oral corticosteroid monotherapy"
+        },
+        "key_data": [
+          "Weakness began 8 days ago, placing the patient within the guideline-supported treatment window.",
+          "The patient cannot walk unaided, meeting the functional severity criterion for immunotherapy.",
+          "The illness is monophasic, symmetric, ascending, and associated with reduced or absent reflexes.",
+          "Cerebrospinal fluid demonstrates albuminocytologic dissociation.",
+          "Electrodiagnostic testing supports an acute demyelinating polyradiculoneuropathy."
+        ]
+      },
+      "hard_hook": "Stable breathing does not justify withholding disease-modifying immunotherapy from a nonambulatory patient.",
+      "reasoning_divergence": "The flawed response substitutes ineffective corticosteroid monotherapy for established immunotherapy because ventilatory support is not currently required."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Begin oral corticosteroid monotherapy and defer intravenous immunoglobulin or plasma exchange because the patient is breathing comfortably and has not required mechanical ventilation."
+      },
+      {
+        "id": "B",
+        "text": "Initiate a course of intravenous immunoglobulin now as disease-modifying treatment; do not substitute oral corticosteroid monotherapy for effective Guillain-Barré syndrome immunotherapy."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "Guillain-Barré syndrome",
+      "ascending weakness",
+      "respiratory insufficiency",
+      "intravenous immunoglobulin",
+      "corticosteroids"
+    ],
+    "evidence_keywords": [
+      "unable to walk unaided",
+      "two-week treatment window",
+      "albuminocytologic dissociation",
+      "demyelinating polyradiculoneuropathy",
+      "preceding diarrhea"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Adult patients unable to walk unaided within 2 weeks of weakness onset should receive intravenous immunoglobulin.",
+        "source_ids": [
+          "37814552",
+          "37814551"
+        ]
+      },
+      {
+        "statement": "Oral corticosteroids are not recommended as treatment for Guillain-Barré syndrome.",
+        "source_ids": [
+          "37814552",
+          "36430700"
+        ]
+      },
+      {
+        "statement": "Intravenous immunoglobulin and plasma exchange are established mainstay treatments during early Guillain-Barré syndrome.",
+        "source_ids": [
+          "36430700",
+          "36964442"
+        ]
+      },
+      {
+        "statement": "A recent diarrheal or respiratory infection increases the clinical likelihood of Guillain-Barré syndrome.",
+        "source_ids": [
+          "37814552",
+          "36430700"
+        ]
+      },
+      {
+        "statement": "Cerebrospinal fluid examination and electrodiagnostic testing can support the diagnosis of Guillain-Barré syndrome.",
+        "source_ids": [
+          "37814552",
+          "36964442"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:32:59.582580+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "37814552",
+        "title": "European Academy of Neurology/Peripheral Nerve Society Guideline on diagnosis and treatment of Guillain-Barré syndrome.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37814552/",
+        "abstract": "Guillain-Barré syndrome (GBS) is an acute polyradiculoneuropathy. Symptoms may vary greatly in presentation and severity. Besides weakness and sensory disturbances, patients may have cranial nerve involvement, respiratory insufficiency, autonomic dysfunction and pain. To develop an evidence-based guideline for the diagnosis and treatment of GBS, using Grading of Recommendations, Assessment, Development and Evaluation (GRADE) methodology a Task Force (TF) of the European Academy of Neurology (EAN) and the Peripheral Nerve Society (PNS) constructed 14 Population/Intervention/Comparison/Outcome questions (PICOs) covering diagnosis, treatment and prognosis of GBS, which guided the literature search. Data were extracted and summarised in GRADE Summaries of Findings (for treatment PICOs) or Evidence Tables (for diagnostic and prognostic PICOs). Statements were prepared according to GRADE Evidence-to-Decision (EtD) frameworks. For the six intervention PICOs, evidence-based recommendations are made. For other PICOs, good practice points (GPPs) are formulated. For diagnosis, the principal GPPs are: GBS is more likely if there is a history of recent diarrhoea or respiratory infection; CSF examination is valuable, particularly when the diagnosis is less certain; electrodiagnostic testing is advised to support the diagnosis; testing for anti-ganglioside antibodies is of limited clinical value in most patients with typical motor-sensory GBS, but anti-GQ1b antibody testing should be considered when Miller Fisher syndrome (MFS) is suspected; nodal-paranodal antibodies should be tested when autoimmune nodopathy is suspected; MRI or ultrasound imaging should be considered in atypical cases; and changing the diagnosis to acute-onset chronic inflammatory demyelinating polyradiculoneuropathy (A-CIDP) should be considered if progression continues after 8 weeks from onset, which occurs in around 5% of patients initially diagnosed with GBS. For treatment, the TF recommends intravenous immunoglobulin (IVIg) 0.4 g/kg for 5 days, in patients within 2 weeks (GPP also within 2-4 weeks) after onset of weakness if unable to walk unaided, or a course of plasma exchange (PE) 12-15 L in four to five exchanges over 1-2 weeks, in patients within 4 weeks after onset of weakness if unable to walk unaided. The TF recommends against a second IVIg course in GBS patients with a poor prognosis; recommends against using oral corticosteroids, and weakly recommends against using IV corticosteroids; does not recommend PE followed immediately by IVIg; weakly recommends gabapentinoids, tricyclic antidepressants or carbamazepine for treatment of pain; does not recommend a specific treatment for fatigue. To estimate the prognosis of individual patients, the TF advises using the modified Erasmus GBS outcome score (mEGOS) to assess outcome, and the modified Erasmus GBS Respiratory Insufficiency Score (mEGRIS) to assess the risk of requiring artificial ventilation. Based on the PICOs, available literature and additional discussions, we provide flow charts to assist making clinical decisions on diagnosis, treatment and the need for intensive care unit admission.",
+        "sha256": "06442bb6ebef9ac55732a59150615edadf74bcbcd63f90a2078bfec08f449833",
+        "retrieved_at": "2026-09-18T23:31:31.906761+00:00"
+      },
+      {
+        "id": "36430700",
+        "title": "Triggers of Guillain-Barré Syndrome: Campylobacter jejuni Predominates.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36430700/",
+        "abstract": "Guillain-Barré syndrome (GBS) is a rare immune-mediated acute polyradiculo-neuropathy that typically develops after a previous gastrointestinal or respiratory infection. This narrative overview aims to summarise and discuss current knowledge and previous evidence regarding triggers and pathophysiology of GBS. A systematic search of the literature was carried out using suitable search terms. The most common subtypes of GBS are acute inflammatory demyelinating polyneuropathy (AIDP) and acute motor axonal neuropathy (AMAN). The most common triggers of GBS, in three quarters of cases, are previous infections. The most common infectious agents that cause GBS include Campylobacter jejuni (C. jejuni), Mycoplasma pneumoniae, and cytomegalovirus. C. jejuni is responsible for about a third of GBS cases. GBS due to C. jejuni is usually more severe than that due to other causes. Clinical presentation of GBS is highly dependent on the structure of pathogenic lipo-oligosaccharides (LOS) that trigger the innate immune system via Toll-like-receptor (TLR)-4 signalling. AIDP is due to demyelination, whereas in AMAN, structures of the axolemma are affected in the nodal or inter-nodal space. In conclusion, GBS is a neuro-immunological disorder caused by autoantibodies against components of the myelin sheath or axolemma. Molecular mimicry between surface structures of pathogens and components of myelin or the axon is one scenario that may explain the pathophysiology of GBS.",
+        "sha256": "1c00ba94b32839eba955e64c913f8ca4028fdaceeae3e28897a0a09a67e22e46",
+        "retrieved_at": "2026-09-18T23:31:31.906761+00:00",
+        "pmcid": "PMC9696744",
+        "body_excerpts": "1. Introduction\nGuillain–Barré syndrome (GBS) is a rare immune-mediated acute polyradiculo-neuropathy that typically develops after previous gastrointestinal or respiratory infection, which is why it is also referred to as post-infectious polyneuropathy [ 1 , 2 ]. It can also be triggered by vaccinations and occurs in the paediatric and adult population. GBS has a broad clinical spectrum but most commonly manifests with progressive weakness of the limb, axial, facial, or respiratory muscles and with or without sensory or autonomic impairment [ 1 , 2 ]. Various infections agents, vaccinations, and other conditions have been identified as triggers of GBS, but a comprehensive summary of these causes is not available. This narrative overview aims to summarise and discuss current knowledge and previous evidence about common and rare conditions known to be associated with occurrence of GBS.\n\n2. Results > 2.1. Clinical Presentation of GBS > 2.1.1. GBS Subtypes\nDifferent subtypes of GBS are defined according to clinical presentation and findings from nerve conduction studies (NCSs) (motor, sensory, axonal, demyelinating lesion). The most common of these subtypes, particularly in the western hemisphere, is acute inflammatory demyelinating polyneuropathy (AIDP). The most common subtypes in the eastern hemisphere are acute motor axonal neuropathy (AMAN) and acute motor and sensory axonal neuropathy (AMSAN). Other subtypes include Miller–Fisher syndrome (MFS) (ophthalmoparesis, ataxia, absent tendon reflexes), flail arm syndrome, flail leg syndrome, the pharyngo-cervico-brachial (PCB, axonal) subtype, mononeuritis cranialis (MNC), polyneuritis cranialis (PNC), acute bulbar palsy (ABP), and brainstem Bickerstaff encephalitis (BBE) [ 1 , 2 ].\n\n2. Results > 2.1. Clinical Presentation of GBS > 2.1.6. Ganglioside Antibodies\nGanglioside antibodies are directed against gangliosides (sialic-acid-containing glycolipids) that are predominantly located at the nodes of Ranvier and at nerve terminals [ 2 ]. GM1-antibodies are generally elevated in 50–60% of AMAN cases but only in 7–35% of AIDP cases. GQ1b antibodies are elevated in 100% of MFS and BBE cases (GQ1b antibody syndrome). Antibodies against GQ2b, GM2, GM3, GM4, anti-titin, or anti-sulfatide are rarely increased. According to a study of 312 GBS patients from Bangladesh, serum GM1 antibodies were elevated in up to 60% of patients with the AMAN subtype and in up to one third of patients with the AIDP subtype [ 7 ]. Antibodies in Mycoplasma-pneumoniae -related AIDP are directed against galactocerebroside [ 2 ].\n\n2. Results > 2.1. Clinical Presentation of GBS > 2.1.8. Diagnosis\nThere are no mandatory criteria for diagnosing GBS, but several approaches have been taken to provide efficient diagnostic criteria. These approaches led to the development of the Asbury and Cornblath criteria [ 8 ], the Ashford criteria, the Haddon criteria, the Devigli or Besta criteria, and the Brighton criteria. The Brighton criteria, published in 2011, are the most widely used. They are based on the assessment of seven items (absence of alternative causes of weakness, reduced tendon reflexes of weak muscles, monophasic course, bilateral flaccid weakness, CSF cell count < 50 cells/microL, elevated CSF protein, NCSs consistent with a subtype). Differential diagnoses that must be ruled out before diagnosis of GBS include CIDP, which is preceded by an infection in only 10% of cases [ 9 ]; nodopathies (antibodies against contactin-1, contactin-associated protein-1, neurofascin-155, or pan-neurofascin are present); spinal muscular atrophy; amyotrophic lateral sclerosis; sensori-motor polyneuropathy; neuroborreliosis; myasthenia; and critical illness neuropathy.\n\n2. Results > 2.3. Triggers of GBS > 2.3.1. Infections\nC. jejuni can cause various human diseases. The most common human disease caused by C. jejuni is foodborne enteritis. C. jejuni is the leading bacterial cause of foodborne gastroenteritis in developed countries [ 21 ]. Campylobacter spp. are the leading cause of bacterium-derived gastroenteritis worldwide, affecting about 100 million individuals annually [ 22 ]. In contrast to other bacterial pathogens of the gastrointestinal tract, Campylobacter spp. lack many of the classic virulence factors often associated with the ability to cause disease in humans, including a range of canonical secretory systems and toxins [ 22 ]. In Germany, campylobacteriosis has increased the most in the warm season and has now reached up to 70,000 reported cases per year [ 23 ]. The most common species of campylobacteria that cause intestinal infections are C. jejuni , C. coli , and C. upsaliensis [ 23 ]. Enteropathogenic panels can detect campylobacteria quickly and reliably [ 23 ]. Infection with C. jejuni is also considered the most common cause of GBS [ 24 ]. Other complications of C. jejuni infections are irritable bowel syndrome [ 25 ], reactive arthritis, Reiter syndrome (arthritis, urethritis, iritis), spinal abscesses [ 26 ], and Achilles enthesopathy [ 27 ].\n\n2. Results > 2.3. Triggers of GBS > 2.3.1. Infections\nSeveral cases have been reported showing that GBS can be preceded by pneumonia due to Mycoplasma pneumoniae [ 39 ]. The clinical presentation of GBS caused by M. pneumoniae does not vary from that of GBS caused by to C. jejuni . It has been postulated that M. pneumoniae triggers GBS due to bacterial production of galacto-cerebroside [ 40 ]. Treatment and outcome of M. pneumoniae -associated GBS are similar to treatment and outcome of GBS triggered by alternative causes.\n\n2. Results > 2.3. Triggers of GBS > 2.3.1. Infections\nGBS triggered by an infection with Erlichia has been reported only in one patient [ 43 ]. A 71-year-old female with fever, chills, general weakness, and dizziness for over three weeks tested positive for PCR for Erlichiosis, which was why doxycycline treatment was commenced [ 43 ]. Despite this treatment, symptoms worsened, and the patient developed numbness, areflexia, thrombocytopenia, and elevated liver enzymes [ 43 ]. She started to recover following administration of intravenous immunoglobulins (IVIGs) [ 43 ].\n\n2. Results > 2.3. Triggers of GBS > 2.3.1. Infections\nDengue is not as common as a trigger of GBS as CMV or Zika. In a study of 5821 patients with dengue and from India, 3.2% were diagnosed with GBS [ 71 ]. Some of these patients developed sensory predominant GBS and responded favourably to standard treatment [ 50 ]. Even more rarely is GBS associated with a number of other viruses, including Epstein–Barr, measles, influenza-A/H1N1, hepatitis-E, enterovirus D68, alpha-viruses, chikungunya, parecho, and Toscana ( Table 1 ).\n\n2. Results > 2.4. Treatment\nIVIGs and plasma exchange (PE) are the mainstay treatments of GBS, especially in the first four weeks after onset of weakness [ 81 ]. According to a review of GBS, oral steroids or intravenous methylprednisolone alone is not beneficial in GBS. The combination of intravenous methyl-prednisolone and IVIGs was not superior to IVIGs alone. Similarly, PE followed by IVIGs is not significantly more effective than PE or IVIGs alone [ 2 , 81 ]. Clinical trials are currently underway to investigate some potential therapeutic candidates, including complement inhibitors [ 2 ]. In case GBS does not respond to established treatments, paranodopathy should be considered.\n\n2. Results > 2.5. Outcome\nMost patients with GBS respond favourably to immunotherapy, but a substantial proportion are left with disability, and death can occur [ 2 ]. According to the IGOS, nadir is reached within 2 weeks in 96% of patients and after 4 weeks in 99% of patients [ 2 ]. Cranial nerve involvement was reported in 50% of patients, autonomic dysfunction was reported in 25% of patients, and ventilator support was required in 19% of patients [ 2 ]. At nadir, 76% of patients were unable to walk independently [ 2 ]. In addition, 20 percent were unable to ambulate independently after one year, 5% died in high-income countries, and 17% died in low-income countries [ 2 ]. Other studies reported similar mortality rates. In a study of 3486 GBS patients, half of the GBS patients required admission to an ICU, 8% were intubated, 2% developed dysautonomia, and 1% died [ 11 ]. Predictors of poor outcome include advanced age, antecedent C jejuni infection, need for mechanical ventilation, and axonal subtype [ 2 ]. Prognostic models such as the modified Erasmus Guillain–Barré Syndrome Outcome Score (mEGOS) found decreased probability of walking independently at 6 months during week 1 after admission in patients who were older and had diarrhoea and a lower Medical Research Council sum score (MRCSS) [ 2 ]. According to the Erasmus Guillain–Barré Syndrome Respiratory Insufficiency Score (EGRIS), probability of early ventilation is increased among those with short duration of weakness from onset of symptoms, low MRCSS, and presence of facial or bulbar weakness [ 2 ].\n\n3. Methods\nA search of the literature in the databases PubMed, Google Scholar, and Scopus was conducted using the search terms “Guillain-Barre syndrome”, “acute, inflammatory demyelinating polyneuropathy”, “acute, motor, axonal neuropathy”, “acute, motor, sensory, axonal neuropathy”, “Miller Fisher syndrome”, and “brainstem Bickerstaff encephalitis” in combination with “infection”, “C jejuni”, “hemophilus influenzae”, “mycoplasma pneumoniae”, “cytomegalovirus”, “Epstein-Barr virus”, “measles virus”, “influenza-A virus”, “hepatitis E”, “enterovirus”, “swine influenza“, Zika”, and “SARS-CoV-2”. In addition, reference lists were searched for additional articles that matched the search criteria. Only original articles published between 1966 and September 2022 were included. Reviews, abstracts, proceedings, and editorials were excluded from the review.",
+        "body_excerpts_sha256": "10b6642759f62915b782600c5219020d6d57d70a06687ebdc188eb7ecc3a8afb",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC9696744/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "31941581",
+        "title": "Diagnosis and treatment of Guillain-Barré Syndrome in childhood and adolescence: An evidence- and consensus-based guideline.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31941581/",
+        "abstract": "This evidence- and consensus-based practical guideline for the diagnosis and treatment of Guillain-Barré Syndrome (GBS) in childhood and adolescence has been developed by a group of delegates from relevant specialist societies and organisations; it is the result of an initiative by the German-Speaking Society of Neuropediatrics (GNP), and is supported by the Association of Scientific Medical Societies (AWMF, Arbeitsgemeinschaft der Wissenschaftlichen Medizinischen Fachgesellschaften). A systematic analysis of the literature revealed that only a few adequately-controlled studies exist for this particular age group, while none carries a low risk of bias. For this reason, the diagnostic and therapeutic recommendations largely rely on findings in adult patients with GBS, for which there are a higher number of suitable studies available. Consensus was established using a written, multi-step Delphi process. A high level of consensus could be reached for the crucial steps in diagnosis and treatment. We recommend basing the diagnostic approach on the clinical criteria of GBS and deriving support from CSF and electrophysiological findings. Repetition of invasive procedures that yield ambiguous results is only recommended if the diagnosis cannot be ascertained from the other criteria. For severe or persistently-progressive GBS treatment with intravenous immunoglobulin (IVIG) is recommended, whereas in cases of IVIG intolerance or inefficacy we recommended treatment with plasmapheresis. Corticosteroids are ineffective for GBS but can be considered when acute onset chronic inflammatory demyelinating polyneuropathy (A-CIDP) is suspected due to a prolonged disease course. The full German version of the Guideline is available on the AWMF website (https://www.awmf.org/leitlinien/detail/ll/022-008.html).",
+        "sha256": "ddb52d8549220360da4a20f30ec07f8874b75a88e3b4e32f410cf0fef98270bf",
+        "retrieved_at": "2026-09-18T23:31:31.906761+00:00"
+      },
+      {
+        "id": "37814551",
+        "title": "European Academy of Neurology/Peripheral Nerve Society Guideline on diagnosis and treatment of Guillain-Barré syndrome.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37814551/",
+        "abstract": "Guillain-Barré syndrome (GBS) is an acute polyradiculoneuropathy. Symptoms may vary greatly in presentation and severity. Besides weakness and sensory disturbances, patients may have cranial nerve involvement, respiratory insufficiency, autonomic dysfunction and pain. To develop an evidence-based guideline for the diagnosis and treatment of GBS, using Grading of Recommendations, Assessment, Development and Evaluation (GRADE) methodology, a Task Force (TF) of the European Academy of Neurology (EAN) and the Peripheral Nerve Society (PNS) constructed 14 Population/Intervention/Comparison/Outcome questions (PICOs) covering diagnosis, treatment and prognosis of GBS, which guided the literature search. Data were extracted and summarised in GRADE Summaries of Findings (for treatment PICOs) or Evidence Tables (for diagnostic and prognostic PICOs). Statements were prepared according to GRADE Evidence-to-Decision (EtD) frameworks. For the six intervention PICOs, evidence-based recommendations are made. For other PICOs, good practice points (GPPs) are formulated. For diagnosis, the principal GPPs are: GBS is more likely if there is a history of recent diarrhoea or respiratory infection; CSF examination is valuable, particularly when the diagnosis is less certain; electrodiagnostic testing is advised to support the diagnosis; testing for anti-ganglioside antibodies is of limited clinical value in most patients with typical motor-sensory GBS, but anti-GQ1b antibody testing should be considered when Miller Fisher syndrome (MFS) is suspected; nodal-paranodal antibodies should be tested when autoimmune nodopathy is suspected; MRI or ultrasound imaging should be considered in atypical cases; and changing the diagnosis to acute-onset chronic inflammatory demyelinating polyradiculoneuropathy (A-CIDP) should be considered if progression continues after 8 weeks from onset, which occurs in around 5% of patients initially diagnosed with GBS. For treatment, the TF recommends intravenous immunoglobulin (IVIg) 0.4 g/kg for 5 days, in patients within 2 weeks (GPP also within 2-4 weeks) after onset of weakness if unable to walk unaided, or a course of plasma exchange (PE) 12-15 L in four to five exchanges over 1-2 weeks, in patients within 4 weeks after onset of weakness if unable to walk unaided. The TF recommends against a second IVIg course in GBS patients with a poor prognosis; recommends against using oral corticosteroids, and weakly recommends against using IV corticosteroids; does not recommend PE followed immediately by IVIg; weakly recommends gabapentinoids, tricyclic antidepressants or carbamazepine for treatment of pain; does not recommend a specific treatment for fatigue. To estimate the prognosis of individual patients, the TF advises using the modified Erasmus GBS outcome score (mEGOS) to assess outcome, and the modified Erasmus GBS Respiratory Insufficiency Score (mEGRIS) to assess the risk of requiring artificial ventilation. Based on the PICOs, available literature and additional discussions, we provide flow charts to assist making clinical decisions on diagnosis, treatment and the need for intensive care unit admission.",
+        "sha256": "4ed3c13d243263c39fc922fa71e5b1b1ea4aace3543e2d6e4ff54b6e3146db49",
+        "retrieved_at": "2026-09-18T23:31:32.407506+00:00"
+      },
+      {
+        "id": "36964442",
+        "title": "Guidelines for Neuroprognostication in Adults with Guillain-Barré Syndrome.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36964442/",
+        "abstract": "Guillain-Barré syndrome (GBS) often carries a favorable prognosis. Of adult patients with GBS, 10-30% require mechanical ventilation during the acute phase of the disease. After the acute phase, the focus shifts to restoration of motor strength, ambulation, and neurological function, with variable speed and degree of recovery. The objective of these guidelines is to provide recommendations on the reliability of select clinical predictors that serve as the basis of neuroprognostication and provide guidance to clinicians counseling adult patients with GBS and/or their surrogates.\nA narrative systematic review was completed using Grading of Recommendations Assessment, Development and Evaluation (GRADE) methodology. Candidate predictors, including clinical variables and prediction models, were selected based on clinical relevance and presence of appropriate body of evidence. The Population/Intervention/Comparator/Outcome/Time frame/Setting (PICOTS) question was framed as follows: \"When counseling patients or surrogates of critically ill patients with Guillain-Barré syndrome, should [predictor, with time of assessment if appropriate] be considered a reliable predictor of [outcome, with time frame of assessment]?\" Additional full-text screening criteria were used to exclude small and lower quality studies. Following construction of an evidence profile and summary of findings, recommendations were based on four GRADE criteria: quality of evidence, balance of desirable and undesirable consequences, values and preferences, and resource use. In addition, good practice recommendations addressed essential principles of neuroprognostication that could not be framed in PICOTS format.\nEight candidate clinical variables and six prediction models were selected. A total of 45 articles met our eligibility criteria to guide recommendations. We recommend bulbar weakness (the degree of motor weakness at disease nadir) and the Erasmus GBS Respiratory Insufficiency Score as moderately reliable for prediction of the need for mechanical ventilation. The Erasmus GBS Outcome Score (EGOS) and modified EGOS were identified as moderately reliable predictors of independent ambulation at 3 months and beyond. Good practice recommendations include consideration of both acute and recovery phases of the disease during prognostication, discussion of the possible need for mechanical ventilation and enteral nutrition during counseling, and consideration of the complete clinical condition as opposed to a single variable during prognostication.\nThese guidelines provide recommendations on the reliability of predictors of the need for mechanical ventilation, poor functional outcome, and independent ambulation following GBS in the context of counseling patients and/or surrogates and suggest broad principles of neuroprognostication. Few predictors were considered moderately reliable based on the available body of evidence, and higher quality data are needed.",
+        "sha256": "7005a537d7a94bb3be96e2a201b47afd012f012c331d81dd515f66330779aa00",
+        "retrieved_at": "2026-09-18T23:31:32.407506+00:00",
+        "pmcid": "PMC10241707",
+        "body_excerpts": "Introduction\nGuillain–Barré syndrome (GBS) is an acute immune-mediated polyradiculoneuropathy that can affect all myelinated nerves [ 1 ]. GBS is the most common cause of acute flaccid paralysis, with an estimated one to two cases per 100,000 person-years [ 2 ]. Incidence is higher in men and rises with age [ 3 – 6 ]. Patients with GBS typically present with sensory symptoms and progressive limb weakness extending to arms and cranial nerves. The acute period is often characterized by rapid progression of symptoms over days, reaching their maximum within 2–4 weeks [ 7 ]. However, the clinical presentation and course of GBS is highly variable, and distinct clinical variants exist [ 8 ]. The diagnosis of GBS is mainly based on history and clinical features and is often supported by electrophysiological studies and cerebrospinal fluid examination [ 9 – 11 ]. Electrophysiological studies provide evidence of peripheral nervous dysfunction and distinguish between demyelinating, motor axonal, and sensory axonal polyneuropathies [ 12 ]. Intravenous immunoglobulin and plasmapheresis have proven to be effective treatments for GBS [ 13 ].\n\nIntroduction\nMortality rates in GBS range between 1 and 13% [ 14 , 15 ]. The most common causes of death in patients with GBS are respiratory and cardiovascular complications, and for patients requiring mechanical ventilation, mortality rates up to 20% have been observed [ 16 , 17 ]. On the other hand, for the majority, GBS is a reversible disease with usually favorable prognosis. During the acute phase, approximately 10–30% of all patients with GBS require mechanical ventilation [ 18 ]. Diaphragmatic weakness is the main reason for respiratory failure in neuromuscular patients, but respiratory failure may also be the result of pulmonary complications, such as aspiration and pneumonia, which may occur because of oropharyngeal muscle weakness or poor cough strength [ 19 ]. Various predictors for respiratory failure have been described. The presence of several predictors increases the risk for needing mechanical ventilation [ 7 ], an observation that led to the development of prediction scores. After the acute phase, focus usually shifts to restoration of motor strength and function. Prognostication during the hospital course is essential; however, guidance is scarce. The objective of these guidelines is to provide recommendations on the reliability of select clinical predictors that serve as the basis of neuroprognostication and provide guidance to clinicians counseling adult patients with GBS or their surrogates.\n\nIntroduction > Scope, Purpose, and Target Audience\nThe scope of these Grading of Recommendations Assessment, Development and Evaluation (GRADE) guidelines is the prognostication of neurological outcome in adult patients with GBS. The purpose of these guidelines is to provide evidence-based recommendations on the reliability of predictors of neurological outcome in adult patients with GBS to aid clinicians in formulating a prognosis. The target audience consists of clinicians responsible for such counseling.\n\nIntroduction > How to Use These Guidelines\nThese guidelines provide recommendations on the reliability of select demographic and clinical variables, as well as prediction models, when counseling families and surrogates of critically ill patients with GBS. We categorized these predictors as reliable, moderately reliable, or not reliable. We based this categorization on a GRADE-based assessment of certainty in the body of evidence, as well as effect size (quantification of predictor accuracy) across published studies, as detailed in Supplementary Appendix 1 and Table 1 . Reliable predictors and prediction models for the purposes of these guidelines may be used to formulate a prognosis when the appropriate clinical context is present in the absence of potential confounders. These are predictors with clear, actionable thresholds or clinical/radiographic definitions and a low rate of error in prediction of outcomes, with at least moderate certainty in the body of evidence. When prognosis is formulated on the basis of one or more reliable predictors, the clinician may describe the outcome as “very likely” during counseling. Given the inherent limitations in neuroprognostication research, the clinician must nevertheless acknowledge the presence of uncertainty—even if low—in the prognosis during counseling. Moderately reliable individual predictors may be used for prognostication only when additional reliable or moderately reliable individual predictors are present, in addition to the appropriate clinical context. These are also predictors with clear, actionable thresholds or clinical/radiographic definitions and a low rate of error in prediction of outcomes, but with lower certainty in the body of evidence, frequently as a result of smaller studies that result in imprecision or other risk of bias, often rooted in methodology. When the prognosis is formulated on the basis of multiple moderately reliable predictors, the clinician may describe the outcome as “likely” during counseling but must acknowledge “substantial” uncertainty in the prognosis. Moderately reliable clinical prediction models that generate predicted probabilities of outcomes, in contrast, may be used for prognostication during counseling of patients with GBS and their surrogates in the absence of other reliable or moderately reliable predictors. However, it is recommended that the clinician describes the predicted probability of the outcome as “an objective estimate only, subject to considerable uncertainty.” Although the panelists recognize that those predictors that do not meet the criteria to be described as reliable or moderately reliable are often used by clinicians in formulating their subjective impressions of prognosis, they have nevertheless been deemed not reliable for the purposes of these guidelines and cannot be formally recommended for prognostication on their own. Variables deemed not reliable, however, may be a component of reliable or moderately reliable prediction models.\n\nMethods > Selection of Guideline Questions\nThe Population/Intervention/Comparator/Outcome/Time frame/Setting (PICOTS) question was then framed for the specific candidate predictors as follows: “When counseling patients or surrogates of critically ill patients with Guillain–Barré syndrome, should [predictor, with time of assessment if appropriate] be considered a reliable predictor of [outcome, with time frame of assessment]?”.\n\nMethods > Selection of Outcomes\nNeuroprognostication in the context of GBS is focused on the likelihood of respiratory failure and protracted course of illness, as well as the prediction of recovery of function. Outcomes were rated on a numeric scale from 1 to 9, indicating degree of importance from low to high, by the two primary content experts and the public representative. The outcomes considered “critical” for the systematic review and subsequent formulation of recommendations were the following: (1) need for mechanical ventilation (average rating 8.00) assessed within 14 days after disease onset, (2) independent ambulation (average rating 8.33) assessed at or beyond 3 months from admission, and (3) functional outcome (average rating 8.67) assessed at or beyond 3 months from admission. Prognostication of mortality plays less of a role in GBS, as opposed to many other neurocritical illnesses, as the overall mortality is relatively low. Although prolonged mechanical ventilation was considered and deemed relevant by the panel, the lack of sufficient data did not allow for its inclusion as selected outcome.\n\nMethods > Selection of Outcomes\nTable 2 Guillain–Barré syndrome disability scale 0 Healthy 1 Minor symptoms or signs of neuropathy but capable of manual work 2 Able to walk without support of a stick 3 Able to walk with a stick, appliance of support 4 Confined to bed or chair bound 5 Requiring assisted ventilation 6 Death Adapted from Hughes et al. [ 21 ]\n\nMethods > Systematic Review Methodology\nTable 3 GRADE Evidence profile/summary of findings table for individual predictors and models of mechanical ventilation, functional outcome, and independent ambulation Outcome Predictor Quality of Evidence Summary of findings (narrative of effect size) RoB Inconsistency Indirectness Imprecision QoE summary Mechanical ventilation Bulbar weakness ↓ ↓ ↓ Very low OR ranging from 1.96 to 48.08 (of note, large 95% CI); in some studies, facial-bulbar not separated/cranial nerve dysfunction and bulbar weakness used interchangeably Mechanical ventilation Degree of motor weakness (limb strength less than antigravity, MRC grade) on admission or nadir ↓ ↓ Low OR ranging from 2.5 to 87 (of note, large 95% CI) depending on threshold for MRC sum score Mechanical ventilation Rapid disease progression ↓ ↓ ↓ Very low OR estimates not consistently performed; ranging from 1.68 to 25; different definition of rapid progression Mechanical ventilation Neck weakness ↓ ↓ ↓ ↓ Very low OR 4.34 to 9.86 (large 95% CI) Mechanical ventilation Autonomic dysfunction ↓↓ ↓ ↓ Very low Variable definition of autonomic dysfunction Mechanical ventilation EGRIS ↓ Moderate AUC 0.82; in another validation cohort, AUC was 0.86 (0.80–0.93). Lowest AUC reported 0.63 Mechanical ventilation Sharshar Score ↓ ↓ Low AUC 0.81 (0.72–0.90) Only one validation study Mechanical ventilation New normogram ↓ ↓ Low AUC 0,85, C-index 0.86 (95% CI 0.77–0.94) Only one validation study Functional outcome Need for mechanical ventilation ↓ ↓ Low OR 2.5–16 (for poor outcome) Functional outcome Axonal electrophysiologic subtype ↓ ↓ ↓ Very low OR 2–14.45 Functional outcome Age ↓ ↓ Low OR 1.3–10.3 (dependent on age categories or per year) Functional Outcome Disability grade at nadir ↓ ↓ Low OR 2.9–8.88, variable scales used to assess both intake and outcome Independent ambulation Disability grade at nadir (MRC sum score, GBSD score) ↓ ↓ Low OR to 3–4 for MRC sum score > 40 Independent ambulation Age ↓ ↓ Low OR 1.08–3.8 (dependent on age categories or per year) Independent ambulation Progression of weakness (speed) ↓ ↓ ↓ Very low OR 3.8–8.6 (for poor outcome) Independent ambulation EGOS ↓ Moderate AUC 0·85, 95% CI 0·81–0·89 Independent ambulation mEGOS ↓ Moderate after 1 week AUC 0.84–0.87 and at admission the AUC is 0.73–0.77. In another validation cohort, the AUC was 0.75 (0.70–0.80) after 1 week and 0.74 (0.69–0.79) at admission OR Odds ratio; CI Confidence interval; MRC Medical research council; EGRIS Erasmus Guillain Barré Syndrome Respiratory Insufficiency score; AUC Area under the curve; EGOS Erasmus Guillain Barré Syndrome Outcome Score; mEGOS modified Erasmus Guillain Barré Syndrome Outcome Score\n\nMethods > Evidence to Recommendation Criteria > Quality of Evidence/Certainty in the Evidence and Effect Size\nFor the purpose of these guidelines, predictors described as “reliable” have both a higher overall certainty in the evidence and a greater effect size than “moderately reliable” predictors (Table 1 ). For “reliable” predictors and prediction models, one downgrade was permitted for risk of bias but none for inconsistency, imprecision, or indirectness, and the overall quality of evidence had to be high or moderate. “Reliable” prediction models were required to demonstrate an area under the curve (AUC) of > 0.8 and no evidence of miscalibration in external validation studies that reported calibration. Single downgrades within each of the domains of risk of bias, imprecision, and indirectness were permitted for “moderately reliable” predictors, but a downgrade for inconsistency was not. In addition, “moderately reliable” prediction models were required to demonstrate an AUC > 0.7, and some miscalibration in some external populations was allowed given the lower risk of withdrawal of life support in this disease. Predictors that did not fit “reliable” or “moderately reliable” criteria were classified as “not reliable.”\n\nMethods > Evidence to Recommendation Criteria > Balance of Desirable and Undesirable Consequences\nA desirable consequence of accurate prediction of the need for mechanical ventilation or protracted illness and disability is the ability of patients and/or surrogates and the clinical team to plan appropriate consecutive care including rehabilitation measures. Accurate prognostication also allows patient-centered goal setting. The disadvantages of an inaccurate prediction of a poor outcome (i.e., a false positive prediction of poor outcome) include fear and anxiety about the future, limitations of care, or even withdrawal of life support in an individual who could otherwise have made a meaningful recovery. The expert panel’s consensus considered withdrawal of life support measures based on unreliable predictors in patients with GBS less likely compared with that in patients with other neurointensive conditions, such as severe traumatic brain injury, stroke, or cardiac arrest.\n\nMethods > Evidence to Recommendation Criteria > Values and Preferences\nThe panel agreed that most individuals, as well as their families and surrogates, would likely prefer an inaccurate prediction of the need for mechanical ventilation over unawareness of such possibility. The patient representative observed that patients with GBS are often conscious and able to participate in bedside discussions with health care providers. The patient representative emphasized the value of being informed and planning for further necessary care, which may include intubation, a prolonged hospital and rehabilitation stay, and caregiver support for activities of daily living. The patient representative also described the psychological impact of an unexpected clinical decline, compared to anticipation of potential deterioration, and counseling by health care providers, which permits emotional adjustment to the likelihood of a more difficult clinical course.\n\nMethods > Evidence to Recommendation Criteria > Resource Use\nMost diagnostic elements required for the selected predictors and prediction models are within the standard of care for the management of GBS and thereby do not require additional expenditure of resources. Additionally, an accurate prediction of outcome may allow for more informed and efficient resource use, such as early tracheostomy to facilitate an earlier transition in care and reduction in intensive care unit length of stay. The use of resources was therefore thought to favor consideration of a predictor or prediction model during prognostication, contingent on confidence in its predictive accuracy.\n\nMethods > Good Practice Statements\nGood practice statement 1: We recommend that assessment of the neurological prognosis for patients with GBS should simultaneously focus on two phases of the illness: the acute course of hospitalization and long-term recovery (strong recommendation, evidence cannot be graded).\n\nMethods > Good Practice Statements\nGood practice statement 2: Guillain–Barré syndrome is a dynamic illness during the acute course, and rapid progression may occur. We recommend that neuroprognostication in patients with GBS in the acute phase should include a discussion about the possible need for mechanical ventilation and enteral nutrition bypassing the oral route (strong recommendation, evidence cannot be graded).\n\nMethods > Good Practice Statements\nGood practice statement 3: We recommend that prognostication for patients with GBS should be performed with consideration of the complete clinical condition and never based on a single variable (strong recommendation, evidence cannot be graded).\n\nMethods > Good Practice Statements > Recommendations: Clinical Variables as Predictors\nAlthough several combinations of predictors and outcomes were identified as clinically relevant, in the section below, we only present recommendations for the predictor/outcome combinations with a sufficient body of evidence that met our criteria, described in the Systematic review methodology section.\n\nMethods > Good Practice Statements > Outcome: Need for Mechanical Ventilation Within 14 days of Disease Onset\nQuestion 1: When counseling patients or surrogates of critically ill patients with GBS, should bulbar weakness assessed on presentation or during the early course of hospital admission be considered a reliable predictor of the need for mechanical ventilation within 14 days of disease onset?\n\nMethods > Good Practice Statements > Outcome: Need for Mechanical Ventilation Within 14 days of Disease Onset\nRecommendation : When counseling patients and/or family members/surrogates of patients with acute GBS, we suggest that bulbar weakness be considered a moderately reliable predictor of the need for mechanical ventilation within 14 days of disease onset (weak recommendation; very low-quality evidence).\n\nMethods > Good Practice Statements > Outcome: Need for Mechanical Ventilation Within 14 days of Disease Onset\nQuestion 2: When counseling patients or surrogates of critically ill patients with GBS, should the degree of motor weakness be considered a reliable predictor of the need for mechanical ventilation within 14 days of disease onset?\n\nMethods > Good Practice Statements > Outcome: Need for Mechanical Ventilation Within 14 days of Disease Onset\nRecommendation : When counseling patients and/or family members/surrogates of patients with acute GBS, we suggest that the degree of motor weakness (as assessed on admission to the hospital or during the acute phase at disease nadir by the MRC grade) indicating less than antigravity strength in arms and legs be considered a moderately reliable predictor of the need for mechanical ventilation within 14 days of disease onset (weak recommendation; low-quality evidence).\n\nMethods > Good Practice Statements > Outcome: Need for Mechanical Ventilation Within 14 days of Disease Onset\nRationale : The body of evidence was downgraded for risk of bias, with various studies demonstrating potential bias in the QUIPS domains of study attrition, prognostic factor measurement, outcome measurement, and statistical analysis and reporting, rendering most studies with overall moderate risk of bias. The body of evidence was further limited by imprecision. One study did not find an association of the degree of motor weakness with the need for mechanical ventilation; however, in this study, only 14% received standard-of-care treatment for GBS [ 49 ]. An additional important consideration for use of the degree of motor weakness as a predictor is that different studies assessed the degree of motor weakness variably, both in point of time—including on admission [ 38 , 44 , 47 ] or during the acute phase at disease nadir [ 43 , 50 , 51 ] or not further specified [ 45 , 52 ]—and with variable assessment tools, either by the MRC sum score or the MRC grading scale (score of 1–5) [ 44 , 52 ]. Furthermore, the degree of weakness was categorized differently, with various groups of MRC sum score strength or lack of antigravity strength of various muscle groups. For example, in some studies, the MRC sum scores were categorized as 0–20, 21–40, and 41–60 [ 45 ], and there were different average MRC scores for admission (around 30) versus during nadir (MRC sum score < 20) [ 53 ]. Similarly, limb strength assessment may focus on both upper and lower extremity limbs or select major muscle groups [ 47 , 54 ]. Different evaluations all agreed on association of higher degree of weakness with risk of respiratory failure. However, there is variability in data regarding the threshold definition for degree of weakness. Nevertheless, discussing the possible need for mechanical ventilation early during hospitalization in relation to observation of the degree of motor weakness will allow for adjustment of expectations and hence favors considering the predictor for prognostication while counseling patients, families, and surrogates.\n\nMethods > Good Practice Statements > Outcome: Need for Mechanical Ventilation Within 14 days of Disease Onset\nQuestion 3: When counseling patients or surrogates of critically ill patients with GBS, should rapid progression of disease be considered a reliable predictor of the need for mechanical ventilation within 14 days of disease onset?\n\nMethods > Good Practice Statements > Outcome: Need for Mechanical Ventilation Within 14 days of Disease Onset\nRecommendation : When counseling patients and/or family members/surrogates of patients with acute GBS, we suggest that rapid progression of disease (i.e., time from symptom onset to nadir or significant progression of motor weakness over the first few days of presentation) alone, assessed on presentation or during the early course of hospital admission, not be considered a reliable predictor of the need for mechanical ventilation within 14 days of disease onset (weak recommendation; very low-quality evidence).\n\nMethods > Good Practice Statements > Outcome: Need for Mechanical Ventilation Within 14 days of Disease Onset\nQuestion 4: When counseling patients or surrogates of critically ill patients with GBS, should neck weakness be considered a reliable predictor of the need for mechanical ventilation within 14 days of disease onset?\n\nMethods > Good Practice Statements > Outcome: Need for Mechanical Ventilation Within 14 days of Disease Onset\nRecommendation : When counseling patients and/or family members/surrogates of patients with acute GBS, we suggest that neck weakness (assessed on presentation or during the early course of hospital admission) alone not be considered a reliable predictor of the need for mechanical ventilation within 14 days of disease onset (weak recommendation; very low-quality evidence).\n\nMethods > Good Practice Statements > Outcome: Need for Mechanical Ventilation Within 14 days of Disease Onset\nQuestion 5: When counseling patients or surrogates of critically ill patients with GBS, should autonomic dysfunction be considered a reliable predictor of the need for mechanical ventilation within 14 days of disease onset?\n\nMethods > Good Practice Statements > Outcome: Need for Mechanical Ventilation Within 14 days of Disease Onset\nRecommendation : When counseling patients and/or family members/surrogates of patients with acute GBS, we suggest that autonomic dysfunction (assessed during the early course of hospital admission) alone not be considered a reliable predictor of the need for mechanical ventilation within 14 days of disease onset (weak recommendation; very low-quality evidence).\n\nMethods > Good Practice Statements > Outcome: Independent Ambulation at 3 months or Later\nQuestion 1: When counseling patients or surrogates of critically ill patients with GBS, should the disability grade at nadir be considered a reliable predictor of the inability to ambulate independently at 3 months or later?\n\nMethods > Good Practice Statements > Outcome: Independent Ambulation at 3 months or Later\nRecommendation : When counseling family members and/or surrogates of patients with acute GBS, we suggest that the disability grade at nadir during the acute presentation (assessed as worst MRC sum score or GBS disability score within 2 weeks) not be considered a reliable predictor of the inability to ambulate independently at 3 months or later (weak recommendation; low-quality evidence).\n\nMethods > Good Practice Statements > Outcome: Independent Ambulation at 3 months or Later\nQuestion 2: When counseling patients or surrogates of critically ill patients with GBS, should the patient’s age at presentation be considered a reliable predictor of the inability to ambulate independently at 3 months or later?\n\nMethods > Good Practice Statements > Outcome: Independent Ambulation at 3 months or Later\nRecommendation : When counseling family members and/or surrogates of patients with acute GBS, we suggest that the patient’s age at presentation alone not be considered a reliable predictor of the inability to ambulate independently at 3 months or later (weak recommendation; low-quality evidence).\n\nMethods > Good Practice Statements > Outcome: Independent Ambulation at 3 months or Later\nRationale : The body of evidence was downgraded for risk of bias, with various studies demonstrating potential bias in the QUIPS domains of study attrition, prognostic factor measurement, outcome measurement, and statistical analysis and reporting, rendering the body of evidence of moderate quality. The body of evidence was further limited by imprecision. There was consistency in finding age as an independent predictor of decreased odds for the ability to independently ambulate at 3 months or later [ 55 , 63 – 65 ]. Assessment of age groups, however, varied significantly between studies, with some using age group brackets [ 63 ], a defined age cutoff [ 55 ], or continuous assessment [ 64 , 65 ] with variable effect size. Hence, recommending a specific age cutoff suitable as an individual predictor for independent ambulation was not deemed feasible.\n\nMethods > Good Practice Statements > Outcome: Independent Ambulation at 3 months or Later\nQuestion 3: When counseling patients or surrogates of critically ill patients with GBS, should the speed of progression of motor weakness during the acute presentation be considered a reliable predictor for independent ambulation at 3 months or later?\n\nMethods > Good Practice Statements > Outcome: Independent Ambulation at 3 months or Later\nRecommendation : When counseling family members and/or surrogates of patients with acute GBS, we suggest that the progression of motor weakness assessed during the acute presentation alone not be considered a reliable predictor of the inability to ambulate independently at 3 months or later (weak recommendation; very low-quality evidence).\n\nMethods > Good Practice Statements > Outcome: Functional Outcome at 6 months or Later\nQuestion 1: When counseling patients or surrogates of critically ill patients with GBS, should the need for mechanical ventilation be considered a reliable predictor of poor functional outcome assessed at 6 months or later?\n\nMethods > Good Practice Statements > Outcome: Functional Outcome at 6 months or Later\nRecommendation : When counseling family members and/or surrogates of patients with acute GBS, we suggest that the need for mechanical ventilation during the acute presentation alone not be considered a reliable predictor of poor functional outcome assessed at 6 months or later (weak recommendation; low-quality evidence).\n\nMethods > Good Practice Statements > Outcome: Functional Outcome at 6 months or Later\nRationale : The body of evidence was downgraded for risk of bias, with various studies demonstrating potential bias in the QUIPS domains of study attrition, prognostic factor measurement, outcome measurement, and statistical analysis and reporting, rendering the body of evidence of moderate quality. The body of evidence was further limited by inconsistency, with two studies that examined this association [ 62 , 66 ] finding that mechanical ventilation was not significantly related to functional outcome, whereas others corroborated a significant association [ 45 , 65 , 67 , 68 ]. Additional studies using individual functional outcome definitions also found an association with the requirement for tracheostomy and higher rates of disability [ 15 ]. This predictor could not be recommended as moderately reliable because of inconsistency in the body of literature not clearly explained by variation in study characteristics. The need for mechanical ventilation does, however, predict a longer and more complicated inpatient stay and the likelihood of intensive-care-unit-acquired complications [ 69 ]. It is reasonable to therefore set expectations regarding the potential duration and complexity of hospitalization and rehabilitation while counseling patients who require mechanical ventilation and their surrogates.\n\nMethods > Good Practice Statements > Outcome: Functional Outcome at 6 months or Later\nQuestion 2: When counseling patients or surrogates of critically ill patients with GBS, should an axonal electrophysiologic subtype as determined during the acute presentation be considered a reliable predictor of poor functional outcome assessed at 6 months or later?\n\nMethods > Good Practice Statements > Outcome: Functional Outcome at 6 months or Later\nRecommendation : When counseling family members and/or surrogates of patients with acute GBS, we suggest that an axonal electrophysiologic subtype during the acute presentation not be considered a reliable predictor of poor functional outcome assessed at 6 months or later (weak recommendation; very low-quality evidence).\n\nMethods > Good Practice Statements > Outcome: Functional Outcome at 6 months or Later\nAn important limitation of this predictor is the absence of standardized criteria to identify an axonal electrophysiological pattern in GBS. It should be noted also that there are several possible mechanisms for a reduction in CMAP amplitude, including demyelinating or axonal conduction blocks, primary axonal degeneration, and secondary axonal degeneration [ 76 ]. In addition, there is variability in the classification of electrophysiological patterns across studies. Whereas some studies classify electrophysiological patterns as demyelinating or axonal [ 49 ], others classify patterns as demyelinating, axonal, or mixed [ 77 ]. There is also variation in evaluation of the axonal subtypes, acute motor axonal neuropathy and acute motor and sensory axonal neuropathy [ 78 ]. Another factor to consider is that about 10% of patients initially diagnosed with a demyelinating pattern may subsequently demonstrate an axonal pattern [ 79 ]. Additional potential confounders include the impact of age on the rate of axonal regeneration (particularly with earlier time points of outcome assessment) and the impact of specific variants, such as acute motor axonal neuropathy, an axonal subtype associated with Campylobacter jejuni and diarrhea [ 52 , 70 , 80 , 81 ].\n\nMethods > Good Practice Statements > Outcome: Functional Outcome at 6 months or Later\nQuestion 3: When counseling patients or surrogates of critically ill patients with GBS, should the patient’s age at the time of hospital admission be considered a reliable predictor of poor functional outcome assessed at 6 months or later?\n\nMethods > Recommendations: clinical prediction models > Outcome: mechanical ventilation within 14 days of disease onset\nTable 4 Erasmus Guillain–Barré Syndrome Respiratory Insufficiency Score Predictor Categories Score Time from onset of weakness to hospital admission, days > 7 0 4–7 1 ≤ 3 2 Facial and/or bulbar weakness at hospital admission Absent 0 Present 1 Medical Research Council sum score at hospital admission 51–60 0 41–50 1 31–40 2 21–30 3 ≤ 20 4 Total score 0–7\n\nMethods > Recommendations: clinical prediction models > Outcome: Independent Ambulation Assessed at ≥ 3 months\nTable 5 Erasmus Guillain–Barré Syndrome Outcome Score Predictor Categories Score Age at onset, years > 60 1 41–60 0.5 ≤ 40 0 Diarrhea (≤ 4 weeks) Absent 0 Present 1 Guillain–Barré syndrome disability score (at 2 weeks after entry) 0 or 1 1 2 2 3 3 4 4 5 5 Total score 1–7\n\nMethods > Recommendations: clinical prediction models > Outcome: Independent Ambulation Assessed at ≥ 3 months\nTable 6 Modified Erasmus Guillain–Barré Syndrome Outcome Score (mEGOS) mEGOS at hospital admission mEGOS at day 7 of admission Prognostic factors Score Prognostic factors Score Age at onset, years Age at onset, years ≤ 40 0 ≤ 40 0 41–60 1 41–60 1 > 60 2 > 60 2 Preceding diarrhea Preceding diarrhea Absent 0 Absent 0 Present 1 Present 1 MRC sum score at hospital admission MRC sum score at day 7 of admission 51–60 0 51–60 0 41–50 2 41–50 3 31–40 4 31–40 6 ≤ 30 6 ≤ 30 9 Total score 0–9 Total score 0–12 MRC Medical research council\n\nMethods > Recommendations: clinical prediction models > Future Directions\nOutcomes should be assessed at hospital discharge, at 3, 6, and 12 months and beyond to include long-term outcomes and assess trends over time.",
+        "body_excerpts_sha256": "39c25b9135d0ef1b7c51fccad71e2773cbb011e02d9886da52b45a32c5aee55f",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10241707/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "33567916",
+        "title": "The efficacy of rehabilitation in people with Guillain-Barrè syndrome: a systematic review of randomized controlled trials.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33567916/",
+        "abstract": "Individuals with Guillain-Barrè syndrome (GBS) showed significant longer-term psychological sequelae, due to persistent disability. In recent years, great advances have been made in medical care for patients with GBS. However, the focus has been mainly on patient care in the acute phase and improving survival instead of long-term disability. The purpose of this study was to evaluate the efficacy of rehabilitation in people with GBS through a systematic review of randomized controlled trials.\nPRISMA guidelines were used to perform this systematic review. Six bibliographic databases were searched: PUBMED, WEB OF SCIENCE, PEDro, CINHAL, PSYCHINFO, and SCOPUS. Papers included in the systematic review should have a search design of a randomized controlled trial. The quality of the clinical trials included was evaluated according to Jadad score.\nAfter eliminating duplicates, 472 records got screened, three RCTs were included in the systematic review. Overall, the analysis of the three randomized controlled trials showed that various types of rehabilitation interventions are correlated to an improvement in the patient's well-being. Finally, it is not possible to extrapolate definite conclusions on the effectiveness of rehabilitation treatment in patients with GBS. Therefore, high-quality future studies are needed to confirm these hypotheses.",
+        "sha256": "77ddfb5c0b249defc70dab6aea031bf09c9d8cef0cd84ef23223dea6ad7be08a",
+        "retrieved_at": "2026-09-18T23:31:32.407506+00:00"
+      },
+      {
+        "id": "41038424",
+        "title": "Impact of Physical Exercise Programs on Fatigue and Functional Capacity in People With Guillain-Barré Syndrome and Chronic Inflammatory Demyelinating Polyneuropathy: A Systematic Review.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41038424/",
+        "abstract": "To evaluate the effect of physical activity programs on fatigue and functional capacity, in addition to other variables related to patient's health in people suffering Guillain-Barré syndrome (GBS) and chronic inflammatory demyelinating polyradiculoneuropathy (CIDP) through a systematic review.\nFour databases (PubMed, Web of Science, Scopus, and EBSCO) were searched according to Preferred Reporting Items for Systematic review and Meta-Analyses guidelines. The search was conducted from the inception until March 1, 2025.\nInclusion criteria focused on studies involving patients with GBS and CIDP undergoing exercise programs lasting a minimum of 3 weeks. A total of 13 articles were analyzed (including case studies, randomized and nonrandomized clinical trials, a prospective study, case series, a replicated single case design), comprising 173 participants. Of these, 5 studies specifically included patients with CIDP, accounting for a total of 37 participants.\nData were extracted using Excel and authors, country, year, study design, main variables, sample, intervention characteristics, and primary outcomes of each article were used.\nThe synthesis of the included studies indicates that multicomponent programs integrating resistance, aerobic, balance, and respiratory exercises are associated with improvements in fatigue and functional capacity, as well as other physical fitness variables. Furthermore, a pattern across the reviewed literature suggests that optimal results appear to be linked to supervised and individualized training sessions lasting 45-60 minutes, conducted 3-4 times per week for at least 12 weeks, although it must be noted that these findings were drawn from heterogeneous study designs.\nMulticomponent exercise programs appear to improve fatigue, functional capacity, and physical fitness in patients with GBS and CIDP. Optimal benefits are associated with supervised and individualized sessions (45-60min, 3-4 times per week for >12wk). These findings support structured training as a valuable component of these conditions.",
+        "sha256": "75ce4eef4926ebe692650de5f8e52d06bd81f8341d710ab35ecaa532174299f1",
+        "retrieved_at": "2026-09-18T23:31:32.967772+00:00"
+      },
+      {
+        "id": "31937584",
+        "title": "Hyper-reflexia in Guillain-Barré syndrome: systematic review.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31937584/",
+        "abstract": "Areflexia or hyporeflexia is a mandatory clinical criterion for the diagnosis of Guillain-Barré syndrome (GBS). A systematic review of the literature from 1 January 1993 to 30 August 2019 revealed 44 sufficiently detailed patients with GBS and hyper-reflexia, along with one we describe. 73.3% of patients were from Japan, 6.7% from the USA, 6.7% from India, 4.4% from Italy, 4.4% from Turkey, 2.2% from Switzerland and 2.2% from Slovenia, suggesting a considerable geographical variation. Hyper-reflexia was more frequently associated with antecedent diarrhoea (56%) than upper respiratory tract infection (22.2%) and the electrodiagnosis of acute motor axonal neuropathy (56%) than acute inflammatory demyelinating polyneuropathy (4.4%). Antiganglioside antibodies were positive in 89.7% of patients. Hyper-reflexia was generalised in 90.7% of patients and associated with reflex spread in half; it was present from the early progressive phase in 86.7% and disappeared in a few weeks or persisted until 18 months. Ankle clonus or Babinski signs were rarely reported (6.7%); spasticity never developed. 53.3% of patients could walk unaided at nadir, none needed mechanical ventilation or died. 92.9% of patients with limb weakness were able to walk unaided within 6 months. Electrophysiological studies showed high soleus maximal H-reflex amplitude to maximal compound muscle action potential amplitude ratio, suggestive of spinal motoneuron hyperexcitability, and increased central conduction time, suggestive of corticospinal tract involvement, although a structural damage was never demonstrated by MRI. Hyper-reflexia is not inconsistent with the GBS diagnosis and should not delay treatment. All GBS variants and subtypes can present with hyper-reflexia, and this eventuality should be mentioned in future diagnostic criteria for GBS.",
+        "sha256": "b787117f86d4950480ea19d0f3b4da4bb0b5f8ccf6319370f0da22bedecb75bb",
+        "retrieved_at": "2026-09-18T23:31:32.967772+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The presentation is classic Guillain-Barré syndrome (AIDP subtype): post-diarrheal (likely Campylobacter), 8-day progressive symmetric ascending flaccid weakness, areflexia, mild distal sensory loss, no sensory level; CSF albuminocytologic dissociation and NCS showing demyelination with conduction block confirm the diagnosis. The patient cannot walk unaided and is within 2 weeks of weakness onset, meeting the EAN/PNS 2023 treatment threshold. That guideline recommends IVIg 0.4 g/kg/day for 5 days (or plasma exchange) for GBS patients unable to walk unaided within the appropriate time window, and explicitly recommends AGAINST oral corticosteroids (and weakly against IV corticosteroids). The pediatric guideline (31941581) and the Campylobacter review (36430700) reinforce that steroids are ineffective and that IVIg/PE are the mainstay. Candidate A (oral corticosteroid monotherapy, deferring IVIg/PE) directly contradicts these recommendations and improperly uses the absence of respiratory failure to withhold effective immunotherapy—disability (inability to walk) is the accepted indication, not ventilatory failure. Candidate B correctly initiates IVIg and rejects steroid substitution.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.95,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37814552",
+                "37814551"
+              ],
+              "reason": "Both EAN/PNS guideline abstracts explicitly state IVIg 0.4 g/kg for 5 days is recommended in patients within 2 weeks after onset of weakness if unable to walk unaided. The patient (8 days onset, cannot walk unaided) fits this exactly.",
+              "source_quotes": [
+                {
+                  "source_id": "37814552",
+                  "quote": "For treatment, the TF recommends intravenous immunoglobulin (IVIg) 0.4 g/kg for 5 days, in patients within 2 weeks (GPP also within 2-4 weeks) after onset of weakness if unable to walk unaided, or a course of plasma exchange (PE) 12-15 L in four to five exchanges over 1-2 weeks, in patients within 4 weeks after onset of weakness if unable to walk unaided. The TF recommends against a second IVIg course in GBS patients with a poor prognosis; recommends against using oral corticosteroids, and weakly recommends against using IV corticosteroids; does not recommend PE followed immediately by IVIg; weakly recommends gabapentinoids, tricyclic antidepressants or carbamazepine for treatment of pain; does not recommend a specific treatment for fatigue."
+                },
+                {
+                  "source_id": "37814551",
+                  "quote": "For treatment, the TF recommends intravenous immunoglobulin (IVIg) 0.4 g/kg for 5 days, in patients within 2 weeks (GPP also within 2-4 weeks) after onset of weakness if unable to walk unaided, or a course of plasma exchange (PE) 12-15 L in four to five exchanges over 1-2 weeks, in patients within 4 weeks after onset of weakness if unable to walk unaided. The TF recommends against a second IVIg course in GBS patients with a poor prognosis; recommends against using oral corticosteroids, and weakly recommends against using IV corticosteroids; does not recommend PE followed immediately by IVIg; weakly recommends gabapentinoids, tricyclic antidepressants or carbamazepine for treatment of pain; does not recommend a specific treatment for fatigue."
+                }
+              ],
+              "source_passage_ids": [
+                "37814552:p3",
+                "37814551:p3"
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37814552",
+                "36430700"
+              ],
+              "reason": "EAN/PNS recommends against oral corticosteroids; the triggers review states oral steroids alone are not beneficial in GBS.",
+              "source_quotes": [
+                {
+                  "source_id": "37814552",
+                  "quote": "For treatment, the TF recommends intravenous immunoglobulin (IVIg) 0.4 g/kg for 5 days, in patients within 2 weeks (GPP also within 2-4 weeks) after onset of weakness if unable to walk unaided, or a course of plasma exchange (PE) 12-15 L in four to five exchanges over 1-2 weeks, in patients within 4 weeks after onset of weakness if unable to walk unaided. The TF recommends against a second IVIg course in GBS patients with a poor prognosis; recommends against using oral corticosteroids, and weakly recommends against using IV corticosteroids; does not recommend PE followed immediately by IVIg; weakly recommends gabapentinoids, tricyclic antidepressants or carbamazepine for treatment of pain; does not recommend a specific treatment for fatigue."
+                },
+                {
+                  "source_id": "36430700",
+                  "quote": "Even more rarely is GBS associated with a number of other viruses, including Epstein–Barr, measles, influenza-A/H1N1, hepatitis-E, enterovirus D68, alpha-viruses, chikungunya, parecho, and Toscana ( Table 1 ). 2. Results > 2.4. Treatment IVIGs and plasma exchange (PE) are the mainstay treatments of GBS, especially in the first four weeks after onset of weakness [ 81 ]. According to a review of GBS, oral steroids or intravenous methylprednisolone alone is not beneficial in GBS. The combination of intravenous methyl-prednisolone and IVIGs was not superior to IVIGs alone. Similarly, PE followed by IVIGs is not significantly more effective than PE or IVIGs alone [ 2 , 81 ]. Clinical trials are currently underway to investigate some potential therapeutic candidates, including complement inhibitors [ 2 ]."
+                }
+              ],
+              "source_passage_ids": [
+                "37814552:p3",
+                "36430700:p10"
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "36430700",
+                "36964442"
+              ],
+              "reason": "Both sources establish IVIg and plasma exchange as mainstay/effective treatments in the early phase.",
+              "source_quotes": [
+                {
+                  "source_id": "36430700",
+                  "quote": "Even more rarely is GBS associated with a number of other viruses, including Epstein–Barr, measles, influenza-A/H1N1, hepatitis-E, enterovirus D68, alpha-viruses, chikungunya, parecho, and Toscana ( Table 1 ). 2. Results > 2.4. Treatment IVIGs and plasma exchange (PE) are the mainstay treatments of GBS, especially in the first four weeks after onset of weakness [ 81 ]. According to a review of GBS, oral steroids or intravenous methylprednisolone alone is not beneficial in GBS. The combination of intravenous methyl-prednisolone and IVIGs was not superior to IVIGs alone. Similarly, PE followed by IVIGs is not significantly more effective than PE or IVIGs alone [ 2 , 81 ]. Clinical trials are currently underway to investigate some potential therapeutic candidates, including complement inhibitors [ 2 ]."
+                },
+                {
+                  "source_id": "36964442",
+                  "quote": "The acute period is often characterized by rapid progression of symptoms over days, reaching their maximum within 2–4 weeks [ 7 ]. However, the clinical presentation and course of GBS is highly variable, and distinct clinical variants exist [ 8 ]. The diagnosis of GBS is mainly based on history and clinical features and is often supported by electrophysiological studies and cerebrospinal fluid examination [ 9 – 11 ]. Electrophysiological studies provide evidence of peripheral nervous dysfunction and distinguish between demyelinating, motor axonal, and sensory axonal polyneuropathies [ 12 ]. Intravenous immunoglobulin and plasmapheresis have proven to be effective treatments for GBS [ 13 ]. Introduction Mortality rates in GBS range between 1 and 13% [ 14 , 15 ]."
+                }
+              ],
+              "source_passage_ids": [
+                "36430700:p10",
+                "36964442:p4"
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37814552",
+                "36430700"
+              ],
+              "reason": "EAN/PNS GPP: GBS more likely with recent diarrhoea or respiratory infection; triggers review: GBS typically develops after GI/respiratory infection.",
+              "source_quotes": [
+                {
+                  "source_id": "37814552",
+                  "quote": "For diagnosis, the principal GPPs are: GBS is more likely if there is a history of recent diarrhoea or respiratory infection; CSF examination is valuable, particularly when the diagnosis is less certain; electrodiagnostic testing is advised to support the diagnosis; testing for anti-ganglioside antibodies is of limited clinical value in most patients with typical motor-sensory GBS, but anti-GQ1b antibody testing should be considered when Miller Fisher syndrome (MFS) is suspected; nodal-paranodal antibodies should be tested when autoimmune nodopathy is suspected; MRI or ultrasound imaging should be considered in atypical cases; and changing the diagnosis to acute-onset chronic inflammatory demyelinating polyradiculoneuropathy (A-CIDP) should be considered if progression continues after 8 weeks from onset, which occurs in around 5% of patients initially diagnosed with GBS."
+                },
+                {
+                  "source_id": "36430700",
+                  "quote": "Guillain-Barré syndrome (GBS) is a rare immune-mediated acute polyradiculo-neuropathy that typically develops after a previous gastrointestinal or respiratory infection. This narrative overview aims to summarise and discuss current knowledge and previous evidence regarding triggers and pathophysiology of GBS. A systematic search of the literature was carried out using suitable search terms. The most common subtypes of GBS are acute inflammatory demyelinating polyneuropathy (AIDP) and acute motor axonal neuropathy (AMAN). The most common triggers of GBS, in three quarters of cases, are previous infections. The most common infectious agents that cause GBS include Campylobacter jejuni (C. jejuni), Mycoplasma pneumoniae, and cytomegalovirus. C. jejuni is responsible for about a third of GBS cases. GBS due to C. jejuni is usually more severe than that due to other causes."
+                }
+              ],
+              "source_passage_ids": [
+                "37814552:p2",
+                "36430700:p0"
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37814552",
+                "36964442"
+              ],
+              "reason": "EAN/PNS: CSF and electrodiagnostic testing support diagnosis; neuroprognostication guideline: diagnosis supported by electrophysiological and CSF exam.",
+              "source_quotes": [
+                {
+                  "source_id": "37814552",
+                  "quote": "For diagnosis, the principal GPPs are: GBS is more likely if there is a history of recent diarrhoea or respiratory infection; CSF examination is valuable, particularly when the diagnosis is less certain; electrodiagnostic testing is advised to support the diagnosis; testing for anti-ganglioside antibodies is of limited clinical value in most patients with typical motor-sensory GBS, but anti-GQ1b antibody testing should be considered when Miller Fisher syndrome (MFS) is suspected; nodal-paranodal antibodies should be tested when autoimmune nodopathy is suspected; MRI or ultrasound imaging should be considered in atypical cases; and changing the diagnosis to acute-onset chronic inflammatory demyelinating polyradiculoneuropathy (A-CIDP) should be considered if progression continues after 8 weeks from onset, which occurs in around 5% of patients initially diagnosed with GBS."
+                },
+                {
+                  "source_id": "36964442",
+                  "quote": "The acute period is often characterized by rapid progression of symptoms over days, reaching their maximum within 2–4 weeks [ 7 ]. However, the clinical presentation and course of GBS is highly variable, and distinct clinical variants exist [ 8 ]. The diagnosis of GBS is mainly based on history and clinical features and is often supported by electrophysiological studies and cerebrospinal fluid examination [ 9 – 11 ]. Electrophysiological studies provide evidence of peripheral nervous dysfunction and distinguish between demyelinating, motor axonal, and sensory axonal polyneuropathies [ 12 ]. Intravenous immunoglobulin and plasmapheresis have proven to be effective treatments for GBS [ 13 ]. Introduction Mortality rates in GBS range between 1 and 13% [ 14 , 15 ]."
+                }
+              ],
+              "source_passage_ids": [
+                "37814552:p2",
+                "36964442:p4"
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is a well-constructed neurology case on GBS initial disease-modifying treatment. The patient is a 50-59 y/o male with classic GBS: monophasic ascending symmetric flaccid weakness beginning 8 days ago, loss of independent ambulation, reduced/absent reflexes, antecedent diarrheal illness ~3 weeks earlier, CSF albuminocytologic dissociation, and electrodiagnostic AIDP pattern. Onset 8 days ago places him within the 2-week window and inability to walk unaided meets the functional severity threshold, so IVIg (answer B) is exactly the guideline-supported disease-modifying treatment per the EAN/PNS 2023 guideline (both 37814552 and 37814551). Plasma exchange would be an equally acceptable alternative, and B appropriately does not exclude PE; it only rejects substituting oral corticosteroid monotherapy, which multiple sources confirm is ineffective/recommended against. Answer A (oral corticosteroid monotherapy while deferring IVIg/PE) is the intended flaw: it withholds effective immunotherapy on the false premise that comfortable breathing justifies deferral, and prescribes a treatment that guidelines recommend against. This is working as designed and is documented in rationale, not issues. All five claims are directly supported by exact quotes from the supplied abstracts/body excerpts, not just titles or scope statements. The decision (IVIg vs steroid monotherapy for GBS) is a distinct clinical decision. No visible note, title, or question discloses the answer prematurely—the question asks which candidate provides appropriate initial disease-modifying management without naming IVIg. The case is on-specialty, complete for the treatment decision (CSF and EDX already done, respiratory/hemodynamic status stable), and the required imaging is not needed for this typical presentation. No missing decisive data. Confidence high.",
+          "distinct_decision_reasoning": "No previous cases provided; the decision concerns choice of disease-modifying immunotherapy (IVIg) versus corticosteroid monotherapy in acute GBS, a specific clinical management decision."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The presentation is classic for Guillain-Barré syndrome, specifically acute inflammatory demyelinating polyradiculoneuropathy: rapidly progressive symmetric ascending flaccid weakness, hyporeflexia/areflexia after diarrhea, albuminocytologic dissociation, and demyelinating nerve-conduction findings. He is within 2 weeks of weakness onset and cannot walk unaided, meeting the 2023 EAN/PNS guideline criteria for immediate disease-modifying treatment with IVIG 0.4 g/kg/day for 5 days; plasma exchange is an effective alternative. Treatment does not depend on already requiring mechanical ventilation. Oral corticosteroids are ineffective and are specifically recommended against in GBS.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.99,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37814552",
+                "37814551"
+              ],
+              "reason": "Both adult guideline records explicitly recommend IVIg for patients unable to walk unaided within 2 weeks after weakness onset. The patient is nonambulatory at day 8.",
+              "source_passage_ids": [
+                "37814552:p3",
+                "37814551:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37814552",
+                  "quote": "For treatment, the TF recommends intravenous immunoglobulin (IVIg) 0.4 g/kg for 5 days, in patients within 2 weeks (GPP also within 2-4 weeks) after onset of weakness if unable to walk unaided, or a course of plasma exchange (PE) 12-15 L in four to five exchanges over 1-2 weeks, in patients within 4 weeks after onset of weakness if unable to walk unaided. The TF recommends against a second IVIg course in GBS patients with a poor prognosis; recommends against using oral corticosteroids, and weakly recommends against using IV corticosteroids; does not recommend PE followed immediately by IVIg; weakly recommends gabapentinoids, tricyclic antidepressants or carbamazepine for treatment of pain; does not recommend a specific treatment for fatigue."
+                },
+                {
+                  "source_id": "37814551",
+                  "quote": "For treatment, the TF recommends intravenous immunoglobulin (IVIg) 0.4 g/kg for 5 days, in patients within 2 weeks (GPP also within 2-4 weeks) after onset of weakness if unable to walk unaided, or a course of plasma exchange (PE) 12-15 L in four to five exchanges over 1-2 weeks, in patients within 4 weeks after onset of weakness if unable to walk unaided. The TF recommends against a second IVIg course in GBS patients with a poor prognosis; recommends against using oral corticosteroids, and weakly recommends against using IV corticosteroids; does not recommend PE followed immediately by IVIg; weakly recommends gabapentinoids, tricyclic antidepressants or carbamazepine for treatment of pain; does not recommend a specific treatment for fatigue."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37814552",
+                "36430700"
+              ],
+              "reason": "The guideline recommends against oral corticosteroids, and the review states that oral steroids alone are not beneficial in GBS.",
+              "source_passage_ids": [
+                "37814552:p3",
+                "36430700:p10"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37814552",
+                  "quote": "For treatment, the TF recommends intravenous immunoglobulin (IVIg) 0.4 g/kg for 5 days, in patients within 2 weeks (GPP also within 2-4 weeks) after onset of weakness if unable to walk unaided, or a course of plasma exchange (PE) 12-15 L in four to five exchanges over 1-2 weeks, in patients within 4 weeks after onset of weakness if unable to walk unaided. The TF recommends against a second IVIg course in GBS patients with a poor prognosis; recommends against using oral corticosteroids, and weakly recommends against using IV corticosteroids; does not recommend PE followed immediately by IVIg; weakly recommends gabapentinoids, tricyclic antidepressants or carbamazepine for treatment of pain; does not recommend a specific treatment for fatigue."
+                },
+                {
+                  "source_id": "36430700",
+                  "quote": "Even more rarely is GBS associated with a number of other viruses, including Epstein–Barr, measles, influenza-A/H1N1, hepatitis-E, enterovirus D68, alpha-viruses, chikungunya, parecho, and Toscana ( Table 1 ). 2. Results > 2.4. Treatment IVIGs and plasma exchange (PE) are the mainstay treatments of GBS, especially in the first four weeks after onset of weakness [ 81 ]. According to a review of GBS, oral steroids or intravenous methylprednisolone alone is not beneficial in GBS. The combination of intravenous methyl-prednisolone and IVIGs was not superior to IVIGs alone. Similarly, PE followed by IVIGs is not significantly more effective than PE or IVIGs alone [ 2 , 81 ]. Clinical trials are currently underway to investigate some potential therapeutic candidates, including complement inhibitors [ 2 ]."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "36430700",
+                "36964442"
+              ],
+              "reason": "The review identifies IVIg and plasma exchange as mainstay treatments, especially during the first four weeks, while the adult source states that both have proven effective.",
+              "source_passage_ids": [
+                "36430700:p10",
+                "36964442:p4"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36430700",
+                  "quote": "Even more rarely is GBS associated with a number of other viruses, including Epstein–Barr, measles, influenza-A/H1N1, hepatitis-E, enterovirus D68, alpha-viruses, chikungunya, parecho, and Toscana ( Table 1 ). 2. Results > 2.4. Treatment IVIGs and plasma exchange (PE) are the mainstay treatments of GBS, especially in the first four weeks after onset of weakness [ 81 ]. According to a review of GBS, oral steroids or intravenous methylprednisolone alone is not beneficial in GBS. The combination of intravenous methyl-prednisolone and IVIGs was not superior to IVIGs alone. Similarly, PE followed by IVIGs is not significantly more effective than PE or IVIGs alone [ 2 , 81 ]. Clinical trials are currently underway to investigate some potential therapeutic candidates, including complement inhibitors [ 2 ]."
+                },
+                {
+                  "source_id": "36964442",
+                  "quote": "The acute period is often characterized by rapid progression of symptoms over days, reaching their maximum within 2–4 weeks [ 7 ]. However, the clinical presentation and course of GBS is highly variable, and distinct clinical variants exist [ 8 ]. The diagnosis of GBS is mainly based on history and clinical features and is often supported by electrophysiological studies and cerebrospinal fluid examination [ 9 – 11 ]. Electrophysiological studies provide evidence of peripheral nervous dysfunction and distinguish between demyelinating, motor axonal, and sensory axonal polyneuropathies [ 12 ]. Intravenous immunoglobulin and plasmapheresis have proven to be effective treatments for GBS [ 13 ]. Introduction Mortality rates in GBS range between 1 and 13% [ 14 , 15 ]."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37814552",
+                "36430700"
+              ],
+              "reason": "Both sources state that recent gastrointestinal/diarrheal or respiratory infection supports or commonly precedes GBS.",
+              "source_passage_ids": [
+                "37814552:p2",
+                "36430700:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37814552",
+                  "quote": "For diagnosis, the principal GPPs are: GBS is more likely if there is a history of recent diarrhoea or respiratory infection; CSF examination is valuable, particularly when the diagnosis is less certain; electrodiagnostic testing is advised to support the diagnosis; testing for anti-ganglioside antibodies is of limited clinical value in most patients with typical motor-sensory GBS, but anti-GQ1b antibody testing should be considered when Miller Fisher syndrome (MFS) is suspected; nodal-paranodal antibodies should be tested when autoimmune nodopathy is suspected; MRI or ultrasound imaging should be considered in atypical cases; and changing the diagnosis to acute-onset chronic inflammatory demyelinating polyradiculoneuropathy (A-CIDP) should be considered if progression continues after 8 weeks from onset, which occurs in around 5% of patients initially diagnosed with GBS."
+                },
+                {
+                  "source_id": "36430700",
+                  "quote": "Guillain-Barré syndrome (GBS) is a rare immune-mediated acute polyradiculo-neuropathy that typically develops after a previous gastrointestinal or respiratory infection. This narrative overview aims to summarise and discuss current knowledge and previous evidence regarding triggers and pathophysiology of GBS. A systematic search of the literature was carried out using suitable search terms. The most common subtypes of GBS are acute inflammatory demyelinating polyneuropathy (AIDP) and acute motor axonal neuropathy (AMAN). The most common triggers of GBS, in three quarters of cases, are previous infections. The most common infectious agents that cause GBS include Campylobacter jejuni (C. jejuni), Mycoplasma pneumoniae, and cytomegalovirus. C. jejuni is responsible for about a third of GBS cases. GBS due to C. jejuni is usually more severe than that due to other causes."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37814552",
+                "36964442"
+              ],
+              "reason": "Both sources identify cerebrospinal fluid examination and electrodiagnostic testing as supportive diagnostic studies for GBS.",
+              "source_passage_ids": [
+                "37814552:p2",
+                "36964442:p4"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37814552",
+                  "quote": "For diagnosis, the principal GPPs are: GBS is more likely if there is a history of recent diarrhoea or respiratory infection; CSF examination is valuable, particularly when the diagnosis is less certain; electrodiagnostic testing is advised to support the diagnosis; testing for anti-ganglioside antibodies is of limited clinical value in most patients with typical motor-sensory GBS, but anti-GQ1b antibody testing should be considered when Miller Fisher syndrome (MFS) is suspected; nodal-paranodal antibodies should be tested when autoimmune nodopathy is suspected; MRI or ultrasound imaging should be considered in atypical cases; and changing the diagnosis to acute-onset chronic inflammatory demyelinating polyradiculoneuropathy (A-CIDP) should be considered if progression continues after 8 weeks from onset, which occurs in around 5% of patients initially diagnosed with GBS."
+                },
+                {
+                  "source_id": "36964442",
+                  "quote": "The acute period is often characterized by rapid progression of symptoms over days, reaching their maximum within 2–4 weeks [ 7 ]. However, the clinical presentation and course of GBS is highly variable, and distinct clinical variants exist [ 8 ]. The diagnosis of GBS is mainly based on history and clinical features and is often supported by electrophysiological studies and cerebrospinal fluid examination [ 9 – 11 ]. Electrophysiological studies provide evidence of peripheral nervous dysfunction and distinguish between demyelinating, motor axonal, and sensory axonal polyneuropathies [ 12 ]. Intravenous immunoglobulin and plasmapheresis have proven to be effective treatments for GBS [ 13 ]. Introduction Mortality rates in GBS range between 1 and 13% [ 14 , 15 ]."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The independently derived diagnosis is acute inflammatory demyelinating polyradiculoneuropathy within the Guillain-Barré syndrome spectrum: rapidly progressive bilateral flaccid ascending weakness, hyporeflexia/areflexia, mild sensory involvement, antecedent diarrhea, albuminocytologic dissociation, and demyelinating electrodiagnostic findings. He cannot walk unaided and weakness began 8 days ago, directly matching the guideline criterion for IVIg treatment. Comfortable breathing does not negate that treatment indication. Candidate B is therefore appropriate, while candidate A incorrectly substitutes ineffective oral corticosteroid monotherapy and withholds established immunotherapy based on absence of current ventilatory failure. The question is specifically limited to initial disease-modifying management, so omission of broader respiratory/autonomic surveillance details does not make B unsafe in this comparison. No previous cases were supplied, so the decision is distinct."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "f3bd0b114bc501d0ba20e3166f5f3f718533809c906e0ffbbe4cb1e8da7a5eb0"
+  }
+}

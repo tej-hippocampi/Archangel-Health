@@ -731,6 +731,27 @@ class AsclepiusStore:
                 CREATE INDEX IF NOT EXISTS idx_cred_exam_user
                     ON credentialing_exams(user_id);
 
+                -- Synthetic onboarding material is never paid task inventory.
+                -- Ready rows are immutable; failed generation is retryable under
+                -- a lease, so concurrent applicants cannot race two answer keys.
+                CREATE TABLE IF NOT EXISTS onboarding_case_bank (
+                    task_id TEXT PRIMARY KEY,
+                    specialty TEXT NOT NULL,
+                    kind TEXT NOT NULL CHECK(kind IN ('practice','examination')),
+                    slot INTEGER NOT NULL,
+                    version INTEGER NOT NULL,
+                    status TEXT NOT NULL,
+                    lease_token TEXT,
+                    lease_until REAL NOT NULL DEFAULT 0,
+                    entry_json TEXT,
+                    validation_json TEXT,
+                    error_code TEXT,
+                    error_detail TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(specialty, kind, slot, version)
+                );
+
                 CREATE TABLE IF NOT EXISTS records (
                     record_id       TEXT PRIMARY KEY,
                     submission_id   TEXT NOT NULL,
@@ -877,6 +898,8 @@ class AsclepiusStore:
                     created_at    TEXT NOT NULL,
                     PRIMARY KEY (task_id, evaluator_id)
                 );
+                CREATE INDEX IF NOT EXISTS idx_independent_commits_evaluator
+                    ON independent_commits(evaluator_id);
                 """
             )
         self._migrate()
@@ -1185,6 +1208,12 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE credentialing_exams ADD COLUMN is_own_specialty INTEGER")
             if "applied_specialty" not in exam_cols:
                 conn.execute("ALTER TABLE credentialing_exams ADD COLUMN applied_specialty TEXT")
+
+            # error_code stays the coarse, physician-facing retry reason. The
+            # specific validator cause goes here so a failed real-model run names
+            # the gate it tripped instead of the generic code three times over.
+            if "error_detail" not in cols("onboarding_case_bank"):
+                conn.execute("ALTER TABLE onboarding_case_bank ADD COLUMN error_detail TEXT")
 
             task_cols = cols("tasks")
             if "grounding_mode" not in task_cols:
@@ -6333,8 +6362,9 @@ class AsclepiusStore:
         second look is for.
         """
         from asclepius.exam_grading import examination_metadata
+        from asclepius.exam_case import task_for_id
         captured_at = _utcnow_iso()
-        metadata = examination_metadata(self.get_task(task_id), payload,
+        metadata = examination_metadata(task_for_id(self, task_id), payload,
                                         captured_at=captured_at)
         exam_id = "ce-" + uuid.uuid4().hex[:12]
         with self._conn() as conn:
@@ -7965,6 +7995,13 @@ class AsclepiusStore:
         # wrong slot, and nothing raises. ``test_asclepius_queue_placeholders``
         # exists to fail when they drift.
         params: List[Any] = [evaluator_id, evaluator_id, evaluator_id, evaluator_id]
+        # A case already used for this physician's examination cannot become
+        # paid work after approval. Exclude before windowing/counting, including
+        # explicitly assigned cases, so the queue never offers a rejected submit.
+        onboarding_ids = sorted(self.onboarding_answer_task_ids(evaluator_id))
+        if onboarding_ids:
+            clauses.append("t.task_id NOT IN (" + ",".join("?" for _ in onboarding_ids) + ")")
+            params.extend(onboarding_ids)
         if specialty and not assignment_only:
             # Launch-week fan-out (V4 PRD §4). ``open_to_all_specialties`` widens
             # VISIBILITY and nothing else: the task appears in this labeler's queue
@@ -8420,6 +8457,25 @@ class AsclepiusStore:
                  _utcnow_iso(), submission_id),
             )
 
+    def onboarding_answer_task_ids(self, evaluator_id: str) -> set[str]:
+        with self._conn() as conn:
+            rows = conn.execute("SELECT task_id FROM credentialing_exams WHERE user_id=?", (evaluator_id,)).fetchall()
+            commits = conn.execute(
+                "SELECT task_id FROM independent_commits WHERE evaluator_id=? AND "
+                "json_extract(CASE WHEN json_valid(payload_json) THEN payload_json ELSE '{}' END, '$.purpose')='credentialing_exam'",
+                (evaluator_id,)).fetchall()
+        ids = {r["task_id"] for r in [*rows, *commits]}
+        state = self.get_tutorial_state(evaluator_id)
+        draws = [state.get("exam") or {}, *(state.get("previous_exam_draws") or [])]
+        ids.update(draw["task_id"] for draw in draws if isinstance(draw, dict) and draw.get("task_id"))
+        return ids
+
+    def is_onboarding_answer(self, task_id: str, evaluator_id: str) -> bool:
+        """An exam answer stays outside paid data after the doctor is approved."""
+        if str(task_id).startswith("onboarding-"):
+            return True
+        return task_id in self.onboarding_answer_task_ids(evaluator_id)
+
     def insert_submission(
         self,
         *,
@@ -8439,6 +8495,8 @@ class AsclepiusStore:
         portal_version: str = "v2",
         status: str = "submitted",
     ) -> Dict[str, Any]:
+        if self.is_onboarding_answer(task_id, evaluator_id):
+            raise ValueError("Onboarding answers cannot enter submissions")
         now = _utcnow_iso()
         with self._conn() as conn:
             conn.execute(

@@ -1,31 +1,10 @@
-"""The one case a physician is judged on, and where it comes from.
+"""Specialty-matched examinations with assessment answers kept out of paid data.
 
-An applicant used to be assessed on the PRACTICE case, which is a guided tour
-with a "Skip this step" button on every screen. That is a poor thing to decide
-about somebody with, and it made an exercise meant to teach behave like a test.
-
-So the practice case teaches, and this is the examination: one case, in the
-applicant's own specialty, in the same workspace and the same interface a paid
-case uses, with the same validation. The founders' instruction was "the same
-format and the same way we do tasks currently", and the closest honest reading
-of that is not a special exam screen but the real one.
-
-WHERE THE CASE COMES FROM. ``gold_cases`` already holds ratified, pre-authored
-V3 cases for nephrology, cardiology and oncology: ``case_source: "synthetic"``,
-each with its own authored A/B pair, no LLM needed to serve one. A nephrologist
-sits a synthetic nephrology case. Nothing new had to be written.
-
-WHY NOT THE LIVE QUEUE. Drawing from ``/tasks/next`` would have been the most
-literal reading, and it is worse in three ways: every applicant would sit a
-different case, so nobody could be compared with anybody; an unverified account
-would read live buyer data; and a real case would be consumed per applicant.
-
-WHY THE ANSWERS LIVE IN THEIR OWN TABLE. A gold task is also served to paid
-physicians, so writing an applicant's answers into ``submissions`` against a
-live ``task_id`` would put them within reach of the pay and export paths, and
-``AGENTS.md`` documents an "exactly three code sites may write export_ready"
-invariant that nobody should be testing on a hunch. A separate table makes it
-structurally impossible: there is no join from here into records.
+The authored gold sets remain available for nephrology, cardiology and oncology.
+Other specialties use the separately stored, evidence-reviewed synthetic
+onboarding bank. An absent case never becomes an unrelated specialty's case.
+Examination responses and their answer-key snapshots live in credentialing_exams;
+new onboarding cases never enter tasks, submissions or export inventory.
 """
 
 from __future__ import annotations
@@ -35,15 +14,6 @@ from typing import Any, Dict, List, Optional
 
 log = logging.getLogger("asclepius.exam_case")
 
-#: What an applicant sits when their own specialty has no authored gold set.
-#: Nephrology is the specialty this product was built around and the one with
-#: the deepest case set, so a physician outside the three we author for gets a
-#: real, ratified case rather than nothing. The screen SAYS SO rather than
-#: quietly handing a cardiologist a kidney case: see `exam_specialty`'s second
-#: return value, which the client renders.
-FALLBACK_SPECIALTY = "nephrology"
-
-
 def available_specialties() -> List[str]:
     from asclepius.gold_cases import GOLD_CASE_SETS
 
@@ -51,58 +21,15 @@ def available_specialties() -> List[str]:
 
 
 def exam_specialty(user: Dict[str, Any]) -> Dict[str, Any]:
-    """Which specialty's cases this applicant sits, and whether it is theirs.
-
-    Returns ``{specialty, is_own, applied_with}``. ``is_own`` is False when we
-    had to fall back, and the client says so out loud: serving a cardiologist a
-    nephrology case without a word would read as a broken product, and they
-    would reasonably answer it as though we had made a mistake.
-    """
-    applied = (user or {}).get("specialty") or ""
-    applied = applied.strip().lower()
-    sets = available_specialties()
-    if applied in sets:
-        return {"specialty": applied, "is_own": True, "applied_with": applied}
-    # THE EXACT-MATCH TEST ABOVE IS NOT ENOUGH, and the gap was silent.
-    #
-    # Physicians do not type registry names. They type "interventional
-    # cardiology", "pediatric cardiology", "cardiologist", "nephrology
-    # transplant" - and every one of those fell straight past `in sets` to the
-    # nephrology fallback. A cardiologist was handed a nephrology case and told,
-    # correctly and uselessly, that we had no set for their specialty.
-    #
-    # specialties.match_specialty already solves exactly this: registry hit,
-    # then alias, then leading token, then the practitioner-noun stem, and it
-    # returns None rather than guessing, because a WRONG specialty is worse than
-    # a missing one. Its answer is only usable here if we also hold a case set
-    # for what it names, so hepatology (enabled for generation, no gold set)
-    # still falls back honestly rather than 404ing on a draw.
-    matched = _match_specialty(applied)
-    if matched and matched in sets:
-        return {"specialty": matched, "is_own": True, "applied_with": applied}
-    return {"specialty": FALLBACK_SPECIALTY, "is_own": False, "applied_with": applied}
-
-
-def _match_specialty(applied: str) -> Optional[str]:
-    """``specialties.match_specialty``, and never an exception.
-
-    Imported lazily and wrapped because this sits on the path that draws an
-    applicant's examination: a registry that cannot be read should cost them
-    the specialty match, not the case.
-    """
-    if not applied:
-        return None
-    try:
-        from asclepius.specialties import match_specialty  # noqa: PLC0415
-
-        return match_specialty(applied)
-    except Exception:  # pragma: no cover - defensive
-        return None
+    """Resolve the confirmed specialty, with no unrelated fallback."""
+    from asclepius.onboarding_specialties import resolve
+    picked = resolve(user or {})
+    return {**picked, "is_own": bool(picked["specialty"])}
 
 
 def exam_task_for(store: Any, user: Dict[str, Any], attempt: int,
                   *, seed: bool = True) -> Optional[Dict[str, Any]]:
-    """The gold task this attempt draws, or None when none can be loaded.
+    """The ready own-specialty case this attempt draws, or None.
 
     Selected BY ID rather than through ``_query_next``, deliberately. The queue
     path takes a lease, counts against the case's ``max_labels`` and reorders
@@ -118,9 +45,16 @@ def exam_task_for(store: Any, user: Dict[str, Any], attempt: int,
 
     picked = exam_specialty(user)
     specialty = picked["specialty"]
+    from asclepius import onboarding_cases
+    prepared = (onboarding_cases.get_task(store, onboarding_cases.task_id(specialty, "examination", attempt))
+                if specialty else None)
+    if prepared:
+        return prepared
     entries = GOLD_CASE_SETS.get(specialty) or []
     if not entries:
-        return None
+        from asclepius import onboarding_cases
+        return (onboarding_cases.get_task(store, onboarding_cases.task_id(specialty, "examination", attempt))
+                if specialty else None)
 
     # Idempotent and LLM-free: already-present cases are skipped. Cheap enough
     # to call on the draw, which is what keeps a fresh deployment from having
@@ -148,6 +82,14 @@ def exam_task_for(store: Any, user: Dict[str, Any], attempt: int,
             if task:
                 break
     return task
+
+
+def task_for_id(store: Any, task_id: str) -> Optional[Dict[str, Any]]:
+    """Resolve onboarding material explicitly; never add it to paid inventory."""
+    from asclepius import onboarding_cases
+    if str(task_id or "").startswith(onboarding_cases.PREFIX):
+        return onboarding_cases.get_task(store, task_id)
+    return store.get_task(task_id)
 
 
 def is_users_exam_task(store: Any, user: Dict[str, Any], task_id: str) -> bool:

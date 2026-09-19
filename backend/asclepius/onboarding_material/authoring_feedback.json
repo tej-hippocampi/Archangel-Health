@@ -1,0 +1,62 @@
+{
+  "onboarding-practice-v1-536d65a07b5d16bb9bde-1": {
+    "issues": [
+      "Do not turn a systematic review's study-eligibility measurement schedule into a bedside screening recommendation. The wording POD had to be measured at least once per day and by postoperative day 1 in PMID37599617 describes included research. Use actual clinical recommendations and omit unsupported timing claims."
+    ]
+  },
+  "onboarding-examination-v1-536d65a07b5d16bb9bde-1": {
+    "issues": [
+      "The prior functional-study impression instructed the applicant to integrate measurements with clinical assessment, directly cueing the comprehensive-assessment answer. Keep all visible findings and impressions neutral and observational; put instructional reasoning only in the held-out answer key."
+    ]
+  },
+  "onboarding-examination-v1-76e4644baee47eeda234-1": {
+    "issues": [
+      "A prior suspected-HIT draft required empiric therapeutic anticoagulation before confirmation, but its retained sources did not establish that probability-based rule. Do not extrapolate an algorithm for refractory autoimmune HIT to ordinary initial suspected HIT. Choose a decision and patient population directly established by the supplied text."
+    ]
+  },
+  "onboarding-examination-v1-7c4ff9e6c4470cdf7d03-1": {
+    "issues": [
+      "Independent audit: required_modalities names the exact correct next staging tests before those investigations have been performed, leaking the answer to the blinded solver and public payload."
+    ]
+  },
+  "onboarding-examination-v1-b71cdb20a2f872d6b152-1": {
+    "issues": [
+      "A prior draft called qSOFA low despite respiratory rate 24 and acute confusion, which supply two positive components. Calculate scores correctly from the presented observations, and use human adult treatment evidence for this adult curriculum."
+    ]
+  },
+  "onboarding-examination-v1-a3f0529b322c9d257c29-1": {
+    "issues": [
+      "A prior draft after very recent firearm suicidal behavior omitted supervised acute disposition and treated outpatient safety planning as sufficient. Address the immediate safety decision and use actual adult safety-planning evidence, not a background assertion in an adolescent-only review."
+    ]
+  },
+  "onboarding-practice-v1-0e0315b9abae6616594d-1": {
+    "issues": [
+      "A prior draft extrapolated upper-limb positioning evidence to ankle treatment and combined spasticity treatment with a gait-training package the cited sources did not establish. Match the studied limb, outcome and intervention."
+    ]
+  },
+  "onboarding-examination-v1-0e0315b9abae6616594d-1": {
+    "issues": [
+      "A prior recurrent autonomic dysreflexia draft selected bladder medication without addressing documented delayed catheterization and immediate recurrence management. Include essential trigger correction and complete care for the actual decision."
+    ]
+  },
+  "onboarding-examination-v1-eab374162d4f1d645638-1": {
+    "issues": [
+      "A prior cord-compression draft treated a nonsignificant difference as proof of preferred fractionation and omitted essential corticosteroid management. Use actual patient-selection and emergency-care guidance; do not infer equivalence or treatment superiority from absence of statistical significance."
+    ]
+  },
+  "onboarding-practice-v1-3e19e5ff97ee3c9c1348-1": {
+    "issues": [
+      "A prior draft combined cognitive functional therapy and exercise and ranked the package against acupuncture using separate intervention studies. Separate component evidence does not establish effectiveness or superiority of the combined prescription."
+    ]
+  },
+  "onboarding-practice-v1-b83236bc7e0943e796cb-1": {
+    "issues": [
+      "A prior draft derived a work-versus-away peak-flow measurement protocol from a review that only named serial peak flow as a diagnostic reference standard. Retrieve actual protocol recommendations before scoring their use; association studies also do not establish a negative-test management rule."
+    ]
+  },
+  "onboarding-examination-v1-f72e684372859ac1757a-1": {
+    "issues": [
+      "A prior lung-screening draft did not name the governing framework while supplied current ACS and USPSTF guidelines differed on time since quitting. Name the intended framework neutrally or choose a decision with agreement; do not mark a different applicable guideline wrong."
+    ]
+  }
+}

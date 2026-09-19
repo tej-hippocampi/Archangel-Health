@@ -471,11 +471,66 @@ def _f_community_morning(ctx: _Ctx) -> str:
     ])
 
 
+def _onboarding_input(ctx: _Ctx) -> dict:
+    try:
+        return json.loads(ctx.user_text())
+    except (ValueError, TypeError):
+        return {}
+
+
+def _f_onboarding_case(ctx: _Ctx) -> str:
+    data = _onboarding_input(ctx)
+    specialty = data.get("specialty") or "dermatology"
+    sources = data.get("sources") or [{"id": "fixture-one"}, {"id": "fixture-two"}]
+    ids = [row["id"] for row in sources[:2]]
+    title = "Fake onboarding assessment: " + specialty
+    return _j({"title": title, "question": title + ". What is the appropriate next assessment?",
+        "case": {"specialty": specialty, "case_source": "synthetic",
+            "demographics": {"age_band": "10-19" if specialty.startswith("pediatric") else "40-49"},
+            "problem_list": [{"condition": "Fictional specialist assessment for software testing"}],
+            "notes": [{"text": "Fake software fixture, not clinical guidance. " * 8}],
+            "ground_truth": {"answer": "Assess the clinical findings before proceeding.",
+                "rationale": "Fake reviewer key for software testing only.",
+                "key_data": ["onset", "symptoms", "examination"]}},
+        "candidate_answers": [
+            {"id": "A", "text": "Fake answer: assess the documented clinical findings and safety concerns before proceeding with the specialist assessment."},
+            {"id": "B", "text": "Fake intentionally flawed answer: disregard the clinical findings and safety concerns and proceed without specialist assessment."}],
+        "intended_flawed_id": "B", "error_tags": ["unsafe_recommendation"],
+        "safety_keywords": ["safety", "assessment", "symptoms"],
+        "evidence_keywords": ["onset", "symptoms", "examination"],
+        "claims": [{"statement": "Fake clinical claim for software verification only.", "source_ids": ids} for _ in range(3)]})
+
+
+def _f_onboarding_solve(ctx: _Ctx) -> str:
+    return _j({"best_answer_id": "B" if _failing() else "A",
+               "confidence": .2 if _failing() else .98, "rationale": "Fake independent solution for software tests."})
+
+
+def _f_onboarding_review(ctx: _Ctx) -> str:
+    payload = _onboarding_input(ctx)
+    entry = payload.get("case_to_review") or {}
+    sources = {r["id"]: r.get("abstract", "") for r in payload.get("sources", [])}
+    return _j({**{key: not _failing() for key in ("on_specialty", "coherent", "key_correct",
+        "sound_answer_safe", "evidence_supported", "distinct_decision", "no_missing_information")},
+        "best_answer_id": "A", "confidence": .98,
+        "issues": ["Fake reviewer rejection"] if _failing() else [],
+        "rationale": "Fake evidence review for software tests only.",
+        "claim_checks": [{"index": i, "supported": not _failing(), "source_ids": claim["source_ids"],
+                          "source_passage_ids": [handle for handle, passage in payload.get("evidence_passages", {}).items()
+                                                 if passage["source_id"] in claim["source_ids"]],
+                          "source_quotes": [{"source_id": sid, "quote": sources.get(sid, "")[:200]}
+                                            for sid in claim["source_ids"]],
+                          "reason": "Fake evidence check"} for i, claim in enumerate(entry.get("claims") or [])]})
+
+
 # Keyed by ``purpose`` first, then by ``role`` for the call sites that declare no
 # purpose. Both spaces are closed and enumerable, and both are asserted against
 # the live code by test_fake_llm_provider.py's AST scan.
 _FIXTURES: dict[str, Callable[[_Ctx], str]] = {
     # ── purposes ──
+    "onboarding_case_author": _f_onboarding_case,
+    "onboarding_case_solve": _f_onboarding_solve,
+    "onboarding_case_review": _f_onboarding_review,
     "asclepius_baseline_capture": _f_baseline_answer,
     "asclepius_candidate_generation": _f_candidate_generation,
     "asclepius_case_generation": _f_case_generation,

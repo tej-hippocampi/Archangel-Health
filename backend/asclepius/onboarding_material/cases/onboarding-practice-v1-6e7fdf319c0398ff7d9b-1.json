@@ -1,0 +1,461 @@
+{
+  "task_id": "onboarding-practice-v1-6e7fdf319c0398ff7d9b-1",
+  "specialty": "neurosurgery",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Acute neurologic presentation with intracranial hemorrhage",
+    "question": "Which proposed management approach should be selected at this point in the patient’s initial care?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "neurosurgery",
+      "demographics": {
+        "age_band": "50-59",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Sudden severe headache",
+          "since": "Day 0",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Transient loss of consciousness",
+          "since": "Day 0",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Nuchal rigidity",
+          "since": "Day 0",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "History of hypertension",
+          "since": "Several years",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "blood_pressure": "178/102 mmHg",
+        "heart_rate": "84/min",
+        "respiratory_rate": "16/min",
+        "oxygen_saturation": "98% on room air",
+        "temperature": "36.8 C"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Emergency assessment",
+          "author_role": "neurosurgery",
+          "text": "A woman in her 50s developed an abrupt, maximal-at-onset occipital headache while performing routine household activity. She briefly lost consciousness and vomited once. On arrival she is drowsy but opens her eyes to voice, answers orientation questions correctly, and follows commands in all extremities. Pupils are equal and reactive, and no focal motor deficit is present. Examination shows nuchal rigidity. There was no preceding trauma. Family reports no anticoagulant or antiplatelet use. Noncontrast head CT and CT angiography were completed after arrival.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Noncontrast head CT",
+          "label": "Initial head CT",
+          "findings": "Acute subarachnoid blood is present in the basal cisterns and interhemispheric fissure. There is no large intraparenchymal hematoma, substantial mass effect, or hydrocephalus.",
+          "measurements": [],
+          "impression": "Acute subarachnoid hemorrhage.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        },
+        {
+          "modality": "CT angiography",
+          "label": "Initial intracranial angiographic study",
+          "findings": "A 6 mm irregular saccular aneurysm arises at the anterior communicating artery complex. No second intracranial aneurysm is identified.",
+          "measurements": [],
+          "impression": "Anterior communicating artery aneurysm corresponding to the hemorrhage distribution.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional onboarding assessment case; not for patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [
+        "clinical note",
+        "noncontrast head CT report",
+        "CT angiography report"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the stated decision",
+      "ground_truth": {
+        "answer": "A — Do not institute routine tranexamic acid therapy; pursue definitive aneurysm obliteration as early as possible.",
+        "rationale": "Randomized-trial meta-analysis found that tranexamic acid reduced rebleeding but did not improve all-cause mortality or functional outcome, and its routine use after subarachnoid hemorrhage was not recommended. The same evidence emphasizes early aneurysm obliteration. Delaying definitive treatment while relying on routine antifibrinolytic therapy therefore prioritizes an intermediate endpoint without demonstrated patient-centered benefit.",
+        "evidence": null,
+        "key_data": [
+          "Noncontrast CT confirms acute subarachnoid hemorrhage.",
+          "CT angiography identifies an irregular anterior communicating artery aneurysm matching the hemorrhage distribution.",
+          "The patient is neurologically responsive and has no large hematoma, substantial mass effect, or hydrocephalus.",
+          "There is no reported anticoagulant or antiplatelet use.",
+          "The aneurysm has not yet undergone definitive obliteration."
+        ]
+      },
+      "hard_hook": "Tranexamic acid reduces rebleeding but has not demonstrated mortality or functional-outcome benefit sufficient to support routine use.",
+      "reasoning_divergence": "The flawed approach substitutes improvement in the intermediate endpoint of rebleeding for demonstrated patient-centered benefit and delays definitive aneurysm treatment."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Do not institute routine tranexamic acid therapy. Pursue definitive obliteration of the ruptured aneurysm as early as possible rather than using antifibrinolytic therapy as a reason to postpone aneurysm treatment."
+      },
+      {
+        "id": "B",
+        "text": "Begin routine tranexamic acid therapy because it reduces rebleeding, observe the patient for 24 to 48 hours, and defer definitive aneurysm treatment until that period has passed and the hemorrhage appears stable."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "aneurysmal subarachnoid hemorrhage",
+      "rebleeding",
+      "tranexamic acid",
+      "aneurysm obliteration",
+      "treatment delay"
+    ],
+    "evidence_keywords": [
+      "randomized controlled trials",
+      "functional outcome",
+      "all-cause mortality",
+      "early aneurysm treatment",
+      "antifibrinolytic therapy"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Tranexamic acid significantly reduced rebleeding in randomized trials of adults with aneurysmal subarachnoid hemorrhage.",
+        "source_ids": [
+          "35083272"
+        ]
+      },
+      {
+        "statement": "Tranexamic acid did not significantly improve all-cause mortality or poor functional outcome in the reported meta-analysis.",
+        "source_ids": [
+          "35083272"
+        ]
+      },
+      {
+        "statement": "Routine tranexamic acid use after subarachnoid hemorrhage cannot be recommended, and early aneurysm obliteration is essential.",
+        "source_ids": [
+          "35083272"
+        ]
+      },
+      {
+        "statement": "Aneurysmal subarachnoid hemorrhage is a severely morbid and often deadly condition requiring evidence-based management.",
+        "source_ids": [
+          "37212182"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:40:55.906818+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "37212182",
+        "title": "2023 Guideline for the Management of Patients With Aneurysmal Subarachnoid Hemorrhage: A Guideline From the American Heart Association/American Stroke Association.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37212182/",
+        "abstract": "The \"2023 Guideline for the Management of Patients With Aneurysmal Subarachnoid Hemorrhage\" replaces the 2012 \"Guidelines for the Management of Aneurysmal Subarachnoid Hemorrhage.\" The 2023 guideline is intended to provide patient-centric recommendations for clinicians to prevent, diagnose, and manage patients with aneurysmal subarachnoid hemorrhage.\nA comprehensive search for literature published since the 2012 guideline, derived from research principally involving human subjects, published in English, and indexed in MEDLINE, PubMed, Cochrane Library, and other selected databases relevant to this guideline, was conducted between March 2022 and June 2022. In addition, the guideline writing group reviewed documents on related subject matter previously published by the American Heart Association. Newer studies published between July 2022 and November 2022 that affected recommendation content, Class of Recommendation, or Level of Evidence were included if appropriate. Structure: Aneurysmal subarachnoid hemorrhage is a significant global public health threat and a severely morbid and often deadly condition. The 2023 aneurysmal subarachnoid hemorrhage guideline provides recommendations based on current evidence for the treatment of these patients. The recommendations present an evidence-based approach to preventing, diagnosing, and managing patients with aneurysmal subarachnoid hemorrhage, with the intent to improve quality of care and align with patients' and their families' and caregivers' interests. Many recommendations from the previous aneurysmal subarachnoid hemorrhage guidelines have been updated with new evidence, and new recommendations have been created when supported by published data.",
+        "sha256": "e815869e979be216ea0387838d33e969b531cc1b004b4dda941151e42ea035b7",
+        "retrieved_at": "2026-09-18T23:38:57.752963+00:00"
+      },
+      {
+        "id": "30659573",
+        "title": "Worldwide Incidence of Aneurysmal Subarachnoid Hemorrhage According to Region, Time Period, Blood Pressure, and Smoking Prevalence in the Population: A Systematic Review and Meta-analysis.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30659573/",
+        "abstract": "Subarachnoid hemorrhage (SAH) from ruptured intracranial aneurysms is a subset of stroke with high fatality and morbidity. Better understanding of a change in incidence over time and of factors associated with this change could facilitate primary prevention.\nTo assess worldwide SAH incidence according to region, age, sex, time period, blood pressure, and smoking prevalence.\nWe searched PubMed, Web of Science, and Embase for studies on SAH incidence published between January 1960 and March 2017. Worldwide blood pressure and smoking prevalence data were extracted from the Noncommunicable Disease Risk Factor and Global Burden of Disease data sets.\nPopulation-based studies with prospective designs representative of the entire study population according to predefined criteria.\nTwo reviewers independently extracted data according to PRISMA guidelines. Incidence of SAH was calculated per 100 000 person-years, and risk ratios (RRs) including 95% CIs were calculated with multivariable random-effects binomial regression. The association of SAH incidence with blood pressure and smoking prevalence was assessed with linear regression.\nIncidence of SAH.\nA total of 75 studies from 32 countries were included. These studies comprised 8176 patients with SAH were studied over 67 746 051 person-years. Overall crude SAH incidence across all midyears was 7.9 (95% CI, 6.9-9.0) per 100 000 person-years; the RR for women was 1.3 (95% CI, 0.98-1.7). Compared with men aged 45 to 54 years, the RR in Japanese women older than 75 years was 2.5 (95% CI, 1.8-3.4) and in European women older than 75 years was 1.5 (95% CI, 0.9-2.5). Global SAH incidence declined from 10.2 (95% CI, 8.4-12.5) per 100 000 person-years in 1980 to 6.1 (95% CI, 4.9-7.5) in 2010 or by 1.7% (95% CI, 0.6-2.8) annually between 1955 and 2014. Incidence of SAH declined between 1980 and 2010 by 40.6% in Europe, 46.2% in Asia, and 14.0% in North America and increased by 59.1% in Japan. The global SAH incidence declined with every millimeter of mercury decrease in systolic blood pressure by 7.1% (95% CI, 5.8-8.4) and with every percentage decrease in smoking prevalence by 2.4% (95% CI, 1.6-3.3).\nWorldwide SAH incidence and its decline show large regional differences and parallel the decrease in blood pressure and smoking prevalence. Understanding determinants for regional differences and further reducing blood pressure and smoking prevalence may yield a diminished SAH burden.",
+        "sha256": "4422e8d6fa3e17fb3af793a8c32f11b1f84a346395da6b9dbd852620aeae4952",
+        "retrieved_at": "2026-09-18T23:38:57.752963+00:00",
+        "pmcid": "PMC6515606"
+      },
+      {
+        "id": "41432805",
+        "title": "Effects of cerebrospinal fluid drainage on patients with aneurysmal subarachnoid hemorrhage: an updated systematic review and meta-analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41432805/",
+        "abstract": "Cerebrospinal fluid drainage (CSFD) has been reported to be beneficial in patients with aneurysmal subarachnoid hemorrhage (aSAH), but there are controversial results among different studies. Moreover, the complications associated with CSFD have received widespread attention. In this study, an updated systematic review and meta-analysis were conducted with the aim of evaluating the relationships between CSFD and outcomes in aSAH patients.\nA systematic search was carried out for eligible English publications up to 1 July 2025 in the PubMed, Embase, Cochrane Library, and Web of Science databases. The primary outcomes were a good prognosis and death, and the secondary outcomes included hydrocephalus, cerebral vasospasm (CVS), delayed cerebral ischemia (DCI), and intracranial infection (II). Odds ratios (ORs) with 95% confidence intervals (CIs) were calculated by meta-analysis.\nA total of 3442 patients from 20 studies were included in the meta-analysis; 2258 patients received CSFD, and 1184 patients did not undergo drainage. Pooled analysis revealed that CSFD improved the prognosis (OR: 1.74; 95% CI: 1.15-2.61; P < 0.01) and reduced mortality (OR: 0.54; 95% CI: 0.38-0.76; P < 0.01). Meta-analysis of secondary outcomes suggested that patients who received CSFD had a lower incidence of CVS (OR: 0.52; 95% CI: 0.37-0.73; P < 0.01) and DCI (OR: 0.57; 95% CI: 0.40-0.81; P < 0.01) than those who did not receive drainage, but CSFD did not reduce the incidence of hydrocephalus. CSFD increased the risk of II (OR: 2.31; 95% CI: 1.24-4.29; P < 0.01). Subgroup analysis revealed that the results of different study methods and different drainage methods all showed that CSFD reduces the incidence of CVS but has no effect on the occurrence of hydrocephalus. However, for primary outcomes and other secondary outcomes, the results were inconsistent across subgroups.\nThe current data show that CSFD tends to improve prognosis and reduce the incidence of cerebral vasospasm and delayed cerebral ischemia. However, it may increase the risk of II and has no effect on the occurrence of hydrocephalus. More well-designed randomized controlled trials are needed.",
+        "sha256": "4560d983136112b70a58b0cf0324f80024fd174036b973cbab0a005f1c87ddee",
+        "retrieved_at": "2026-09-18T23:38:57.752963+00:00",
+        "pmcid": "PMC12727822"
+      },
+      {
+        "id": "35083272",
+        "title": "Efficacy and Safety of Tranexamic Acid in Aneurysmal Subarachnoid Hemorrhage: A Systematic Review and Meta-Analysis of Randomized Controlled Trials.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35083272/",
+        "abstract": "Tranexamic acid has been shown to reduce rebleeding after aneurysmal subarachnoid hemorrhage; however, whether it can reduce mortality and improve clinical outcomes is controversial. We performed a systematic review and meta-analysis to evaluate the efficacy and safety of the tranexamic acid in aneurysmal subarachnoid hemorrhage. We conducted a comprehensive literature search of PubMed, Embase, Web of Science, and Cochrane Library from inception to March 2021 for randomized controlled trials (RCTs) comparing tranexamic acid and placebo in adults with aneurysmal subarachnoid hemorrhage. The risk of bias was evaluated using the Cochrane Handbook, and the quality of evidence was evaluated using the GRADE approach. This meta-analysis included 13 RCTs, involving 2,888 patients. In patients with aneurysmal subarachnoid hemorrhage tranexamic acid had no significant effect on all-cause mortality (RR = 0.96; 95% CI = 0.84-1.10, p = 0.55, I 2 = 44%) or poor functional outcome (RR = 1.04; 95% CI = 0.95-1.15, p = 0.41) compared with the control group. However, risk of rebleeding was significantly lower (RR = 0.59; 95% CI = 0.43-0.80, p = 0.0007, I 2 = 53%). There were no significant differences in other adverse events between tranexamic acid and control treatments, including cerebral ischemia (RR = 1.17; 95% CI = 0.95-1.46, p = 0.15, I 2 = 53%). At present, routine use of tranexamic acid after subarachnoid hemorrhage cannot be recommended. For a patient with subarachnoid hemorrhage, it is essential to obliterate the aneurysm as early as possible. Additional higher-quality studies are needed to further assess the effect of tranexamic acid on patients with subarachnoid hemorrhage.",
+        "sha256": "ba234ac410083f38941fcf69b00ad3751965c2a3528d5cfec417220930bb548c",
+        "retrieved_at": "2026-09-18T23:38:58.416896+00:00",
+        "pmcid": "PMC8784421"
+      },
+      {
+        "id": "34304602",
+        "title": "Invasive Multimodal Neuromonitoring in Aneurysmal Subarachnoid Hemorrhage: A Systematic Review.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34304602/",
+        "abstract": "Aneurysmal subarachnoid hemorrhage is a devastating disease leaving surviving patients often severely disabled. Delayed cerebral ischemia (DCI) has been identified as one of the main contributors to poor clinical outcome after subarachnoid hemorrhage. The objective of this review is to summarize existing clinical evidence assessing the diagnostic value of invasive neuromonitoring (INM) in detecting DCI and provide an update of evidence since the 2014 consensus statement on multimodality monitoring in neurocritical care.\nThree invasive monitoring techniques were targeted in the data collection process: brain tissue oxygen tension (ptiO2), cerebral microdialysis, and electrocorticography. Prospective and retrospective studies as well as case series (≥10 patients) were included as long as monitoring was used to detect DCI or guide DCI treatment.\nForty-seven studies reporting INM in the context of DCI were included (ptiO2: N=21; cerebral microdialysis: N=22; electrocorticography: N=4). Changes in brain oxygen tension are associated with angiographic vasospasm or reduction in regional cerebral blood flow. Metabolic monitoring with trend analysis of the lactate to pyruvate ratio using cerebral microdialysis, identifies patients at risk for DCI. Clusters of cortical spreading depolarizations are associated with clinical neurological worsening and cerebral infarction in selected patients receiving electrocorticography monitoring.\nData supports the use of INM for the detection of DCI in selected patients. Generalizability to all subarachnoid hemorrhage patients is limited by design bias of available studies and lack of randomized trials. Continuous data recording with trend analysis and the combination of INM modalities can provide tailored treatment support in patients at high risk for DCI. Future trials should test interventions triggered by INM in relation to cerebral infarctions.",
+        "sha256": "c624f90ae7991c12dbc16129b097e4213792c31ca59f742e3a2db073cff42e3a",
+        "retrieved_at": "2026-09-18T23:38:58.416896+00:00"
+      },
+      {
+        "id": "35868504",
+        "title": "Lumbar Drainage After Aneurysmal Subarachnoid Hemorrhage: A Systematic Review and Meta-Analysis.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35868504/",
+        "abstract": "This study reviews the use of lumbar drains (LDs) after aneurysmal subarachnoid hemorrhage (aSAH) and compares the outcomes to those associated with external ventricular drains (EVDs) and controls.\nA comprehensive search of the literature was performed. English language studies with a sample size of more than 10 patients were included. One-arm and 2-arm meta-analyses were designed to compare external drainage groups. Random-effects models, heterogeneity measures, and risk of bias were calculated.\nSeventeen studies were included in the meta-analysis. The 2-arm meta-analysis comparing the LD to no drainage after aSAH found a significant improvement in the postoperative modified Rankin Scale (mRS) score (0-2) within 1 month of hospital discharge in the LD group (P = 0.003), a lower mortality rate (P = 0.03), fewer cases of clinical vasospasm (P = 0.007), and a lower incidence of ischemic stroke or delayed ischemic neurological deficits (P = 0.003). When the LD was compared to EVDs, a significant improvement in the postoperative mRS score (0-2) within 1 month of discharge was found in the LD group (P < 0.001). In the LD group, rebleeding occurred in 15 (3.4%) cases and meningitis occurred in 50 (4.7%) cases.\nCompared with patients without cerebrospinal fluid drainage, patients with the LD after aSAH had lower mortality rates, lower risk of clinical vasospasm, and lower risk of ischemic stroke, and they were more likely to have an mRS score of 0-2 within 1 month of discharge. Compared with patients with EVDs, patients with the LD were more likely to have an mRS score of 0-2 within 1 month of discharge.",
+        "sha256": "f8db6443f37ae42ca87245c4380d0626df224cbd80fd70215555bc066a91c6db",
+        "retrieved_at": "2026-09-18T23:38:58.416896+00:00"
+      },
+      {
+        "id": "32972406",
+        "title": "Mechanical ventilation in aneurysmal subarachnoid hemorrhage: systematic review and recommendations.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32972406/",
+        "abstract": "Mechanical ventilation (MV) has a complex interplay with the pathophysiology of aneurysmal subarachnoid hemorrhage (aSAH). We aim to provide a review of the physiology of MV in patients with aSAH, give recommendations based on a systematic review of the literature, and highlight areas that still need investigation.\nPubMed was queried for publications with the Medical Subject Headings (MeSH) terms \"mechanical ventilation\" and \"aneurysmal subarachnoid hemorrhage\" published between January 1, 1990, and March 1, 2020. Bibliographies of returned articles were reviewed for additional publications of interest.\nStudy inclusion criteria included English language manuscripts with the study population being aSAH patients and the exposure being MV. Eligible studies included randomized controlled trials, observational trials, retrospective trials, case-control studies, case reports, or physiologic studies. Topics and articles excluded included review articles, pediatric populations, non-aneurysmal etiologies of subarachnoid hemorrhage, mycotic and traumatic subarachnoid hemorrhage, and articles regarding tracheostomies.\nArticles were reviewed by one team member, and interpretation was verified by a second team member.\nThirty-one articles met the inclusion criteria for this review.\nWe make recommendations on oxygenation, hypercapnia, PEEP, APRV, ARDS, and intracranial pressure monitoring.",
+        "sha256": "26af9862870a5b00fb9c29f5c5286d72a7ccec1d494c5f0caeca895f32a49a0e",
+        "retrieved_at": "2026-09-18T23:38:59.044871+00:00",
+        "pmcid": "PMC7512211",
+        "body_excerpts": "Background\nAneurysmal subarachnoid hemorrhage (aSAH) occurs in 10–15 patients per 100,000 annually and represents 10% of all strokes in the USA [ 1 , 2 ]. Among ischemic, hemorrhagic, and aneurysmal strokes, aSAH is associated with the highest risk of requiring mechanical ventilation (MV) (RR, 3.9; 95% CI 3.8–4.0), with 38.5–65% of all aSAH patients requiring MV [ 3 – 6 ]. Pathologic processes such as neurogenic pulmonary edema (NPE), occurring in up to 20% of aSAH patients, illustrate the interconnectedness of the central nervous and pulmonary systems [ 7 , 8 ]. Modulating oxygenation and ventilation can be particularly challenging due to a large percentage of aSAH patients suffering from one or more pulmonary complications, including pneumonia (22%) and pulmonary edema (23%) [ 9 ]. Additionally, 18–50% of patients with aSAH experience acute respiratory distress syndrome (ARDS) [ 10 – 12 ].\n\nBackground\nFor a pathology that so frequently requires MV, intensivists and neurosurgeons alike are faced with questions regarding optimal management without an abundance of guiding evidence. Unlike other forms of stroke, the clinician must be increasingly cognizant of brain oxygen delivery and perfusion when considering the potential for delayed cerebral ischemia (DCI) and increased intracranial pressure from hydrocephalus (Fig. 1 ). Herein, we performed a systematic review of all aneurysmal subarachnoid studies with concomitant mechanical ventilation to review factors of ventilation that may be involved with brain-lung physiology. We outline the unique pulmonary pathophysiology of such patients, common conditions encountered, and how each element of mechanical ventilation can impact the complex disease processes of patients with aSAH. In addition, we make recommendations based on existing data and highlight gaps in knowledge for future research.\n\nMethods\nA PubMed database search was formulated based on the PICO (Participant, Intervention, Comparison, and Outcome) framework. The following Medical Subject Headings (MeSH) terms were used to define the participant and the intervention, respectively: “aneurysmal subarachnoid hemorrhage” and “mechanical ventilation.” Search parameters were limited to English language studies published between January 1, 1990, and March 1, 2020. The search was completed on March 1, 2018, and updated on March 8, 2020. Study inclusion criteria included English language manuscripts with the study population being aneurysmal subarachnoid hemorrhage and the exposure or intervention being mechanical ventilation. Eligible studies could include randomized controlled trials, observational trials, retrospective trials, case-control studies, case reports, or physiologic studies. We specifically assessed mechanical ventilation variables, brain physiologic measurements, and outcomes. We excluded topic review articles and articles concerning pediatric populations, non-aneurysmal etiologies of subarachnoid hemorrhage, mycotic and traumatic subarachnoid hemorrhage, and tracheostomies. The citations of the articles returned from the PubMed database search were examined, and any articles that appeared to pertain to our topic were reviewed and included, if appropriate. Bias was assessed individually given the type of study reported. Results found were not similar enough for combination or further statistical analysis.\n\nOxygen delivery and carbon dioxide clearance > Oxygenation\nBlood oxygen (O 2 ) and, to a greater degree, carbon dioxide (CO 2 ) are important variables to consider in the management of aSAH patients. Maintaining O 2 delivery is critically important to avoid brain ischemia. MV must strike a balance between oxygenating blood and maintaining cardiac output.\n\nOxygen delivery and carbon dioxide clearance > Carbon dioxide\nCO 2 is an important and powerful vasomodulator, potentially having a dramatic effect on the delivery of blood to the brain in patients with intact cerebral autoregulation [ 15 ]. Studies, both in humans and animal models, have found functioning cerebrovascular reactivity to CO 2 following aSAH [ 14 , 16 ]. A retrospective, single-institution review of 102 aSAH patients found hypocapnia (defined as a partial pressure of CO 2 (PaCO 2 ) < 35) to be independently associated with unfavorable outcome (defined as Glasgow outcome scale (GOS) < 4) and DCI, but not mortality [ 17 ]. Conversely, PaCO 2 levels above 37.5 mmHg in the first 24 h of care have been associated with a decreased risk of unfavorable outcome (defined as GOS of 1–3), suggesting that permissive mild hypercapnia may be beneficial in aSAH patients [ 18 ]. Westermaier et al. conducted a phase 1 clinical trial of controlled transient hypercapnia in aSAH. The authors examined six high-grade (Hunt and Hess (HH) 3–5 and Fisher grade (FG) 3) aSAH patients with multimodality monitoring, including intracerebral thermodilution probes, external ventricular drains (EVD), and near-infrared spectroscopy [ 19 ]. They found that PaCO 2 levels of 30, 40, 50, and 60 mmHg resulted in baseline cerebral blood flow (CBF) changes of 79%, 98%, 124%, and 143%, respectively [ 19 ]. The cerebral tissue oxygenation for PaCO 2 levels of 30, 40, 50, and 60 mmHg changed from baseline by 93%, 98%, 104%, and 111%, respectively [ 19 ]. Intracranial pressure (ICP) was not clinically affected by changes in PaCO 2 , but the average amount of cerebrospinal fluid (CSF) drained increased with increasing PaCO 2 [ 19 ]. They experienced no rebound perfusion deficit upon return to baseline ventilator settings [ 19 ]. While the ICPs were not elevated in these patients, it was likely only due to the elevated CSF drainage and thus this may be an unsafe maneuver in patients without an EVD. Despite some investigation into permissive hypercapnia as a therapy, there is still significant work to be done in regard to safety and efficacy given that some believe that brain-injured patients should avoid hypercapnia due to the risk of increased ICP from the rise in CBF [ 20 ].\n\nOxygen delivery and carbon dioxide clearance > Recommendations\nIn summary, hypoxemia should be avoided in aSAH patients as with any critically ill patient. While hyperoxemia does not have strong clinical evidence of causing further brain injury, advanced intracranial monitoring to measure brain tissue oxygen pressure (PbtO 2 ) can be used when titrating the fraction of inspired oxygen. Permissive hypercapnia is likely well tolerated in these patients, but it may safest to do so with intracranial pressure monitoring (ICPM) in place. Hypocapnia should generally be avoided unless there is an acute rise in ICP since it may incite ischemia.\n\nAcute respiratory distress syndrome in aSAH > PEEP and intracranial pressure\nARDS is not uncommon in aSAH. A retrospective, single-institution cohort study of 620 aSAH patients found that 27% had a PaO2:FiO 2 (fraction of inspired oxygen) ratio of ≤ 300 with 18% having a ratio ≤ 200 [ 11 ]. The diagnosis of lung injury occurred a median of 3 days from admission [ 11 ]. They found severity of illness, clinical grade of hemorrhage, red blood cell transfusions, and severe sepsis to be independently associated with developing ARDS [ 11 ]. Higher tidal volumes were not found to be associated with the subsequent development of ARDS [ 11 ]. ARDS was independently associated with mortality and longer hospital lengths of stay [ 11 ].\n\nAcute respiratory distress syndrome in aSAH > PEEP and intracranial pressure > Recommendations\nIn summary, the literature suggests that an increase in PEEP decreases MAP and increases intracranial pressure. However, since ARDS can present early in these patients, higher PEEPs may be safe early in the course of a patient with aSAH without evidence of intracranial hypertension or mass effect from hematoma. It is reasonable to use ICPM with ability of CSF diversion as the patient approaches the peak of the DCI period, prior to increasing PEEP to treat lung pathology.\n\nAcute respiratory distress syndrome in aSAH > Prone positioning > Recommendations\nBased on these studies, proning can be expected to raise ICP significantly however dramatically improves oxygenation. Patients with aSAH with ICPM who have demonstrated stable ICPs, have no mass effect from intracranial hematoma or edema, and who are experiencing ARDS can be considered for proning.\n\nAcute respiratory distress syndrome in aSAH > Alternative modes of ventilation > Recommendations\nConsider APRV in this population if there is concern for vent asynchrony or ARDS but need to maintain ICP.\n\nDelayed cerebral ischemia > Recommendations\nIn summary, one of the most challenging scenarios in managing high-grade aSAH patients is preventing the occurrence of DCI while there is concurrent severe ARDs. Higher PEEPs may decrease CBF in this group of patients; thus, simultaneous use of ionotropic agents such as milrinone may offset the decreased venous return from higher PEEPs. These patients are typically ideal candidates for advanced intracranial monitoring with PbtO 2 , potentially allowing for more nuanced ventilator titration.\n\nConclusions\nHypercapnia may be effective in reducing DCI and improving outcomes, but these patients should have some form of ICPM if higher PaCO 2 will be targeted.\n\nConclusions\nARD protocol ventilation should be followed in patients with aSAH allowing for higher PEEPs if early in the bleed course and after aneurysm has been secured. These patients should have ICPM, especially during the DCI period, and advance intracranial monitoring can help guide ventilator titration to strike a balance between oxygenation, ventilation, PEEP, and cerebral perfusion.",
+        "body_excerpts_sha256": "0f442b94f849b8f4bfa742eb1b76ad1974b33ee78400401e455879ae0d8f7fe9",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC7512211/fullTextXML",
+        "body_license_url": "http://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "29694665",
+        "title": "Systematic Evaluation of Desmopressin Administered to Patients with Aneurysmal Subarachnoid Hemorrhage in the Light of the Literature.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/29694665/",
+        "abstract": "To discuss the management of patients with the syndrome of inappropriate antidiuretic hormone secretion (SIADH) developing after subarachnoid hemorrhage, in a comparative manner in the light of the literature.\nWithout country or language restrictions, articles with high evidential value found in electronic databases were compared to our patients?\nAfter the literature review, three articles were included for systematic evaluation. Desmopressin was administered to the patients for the treatment of hyponatremia, volume contraction, and negative sodium balance caused by SIADH. However, it was not used for preventing re-bleeding.\nTo prevent the development of this complication (SIADH), the use of desmopressin, an analogue of vasopressin, is important in routine clinical practice.",
+        "sha256": "b75a35adbfeb0004dc5fb515517b43d4e257bdb0762ed304f18e7a053cf5960b",
+        "retrieved_at": "2026-09-18T23:38:59.044871+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "This is a classic aneurysmal subarachnoid hemorrhage (aSAH) with a demonstrated 6 mm ruptured anterior communicating artery aneurysm corresponding to the hemorrhage distribution. The core management principle is early definitive obliteration of the ruptured aneurysm (clipping or coiling). Source 35083272 (Zhang et al. meta-analysis of 13 RCTs, 2,888 patients) found tranexamic acid reduced rebleeding (RR 0.59) but had NO significant effect on all-cause mortality or functional outcome, and concluded that routine TXA use cannot be recommended, emphasizing that 'it is essential to obliterate the aneurysm as early as possible.' This directly supports Answer A. Notably, the large ULTRA trial showed ultra-early/short-course TXA did not improve outcomes. The 2023 AHA/ASA guideline (37212182) likewise prioritizes early aneurysm securing and does not endorse routine antifibrinolytics as a substitute for or reason to delay treatment. Answer B is inconsistent with the evidence because it uses TXA as a rationale to defer definitive aneurysm treatment for 24-48 hours—precisely the practice the literature warns against, since prolonged delay leaves the patient exposed to rebleeding risk and TXA does not improve mortality or functional outcomes.",
+          "confidence": 0.9
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "35083272"
+              ],
+              "source_passage_ids": [
+                "35083272:p0",
+                "35083272:p1"
+              ],
+              "reason": "The meta-analysis of 13 RCTs in adults with aSAH found significantly lower rebleeding risk with TXA (RR 0.59; 95% CI 0.43-0.80, p=0.0007).",
+              "source_quotes": [
+                {
+                  "source_id": "35083272",
+                  "quote": "Tranexamic acid has been shown to reduce rebleeding after aneurysmal subarachnoid hemorrhage; however, whether it can reduce mortality and improve clinical outcomes is controversial. We performed a systematic review and meta-analysis to evaluate the efficacy and safety of the tranexamic acid in aneurysmal subarachnoid hemorrhage. We conducted a comprehensive literature search of PubMed, Embase, Web of Science, and Cochrane Library from inception to March 2021 for randomized controlled trials (RCTs) comparing tranexamic acid and placebo in adults with aneurysmal subarachnoid hemorrhage. The risk of bias was evaluated using the Cochrane Handbook, and the quality of evidence was evaluated using the GRADE approach. This meta-analysis included 13 RCTs, involving 2,888 patients."
+                },
+                {
+                  "source_id": "35083272",
+                  "quote": "In patients with aneurysmal subarachnoid hemorrhage tranexamic acid had no significant effect on all-cause mortality (RR = 0.96; 95% CI = 0.84-1.10, p = 0.55, I 2 = 44%) or poor functional outcome (RR = 1.04; 95% CI = 0.95-1.15, p = 0.41) compared with the control group. However, risk of rebleeding was significantly lower (RR = 0.59; 95% CI = 0.43-0.80, p = 0.0007, I 2 = 53%). There were no significant differences in other adverse events between tranexamic acid and control treatments, including cerebral ischemia (RR = 1.17; 95% CI = 0.95-1.46, p = 0.15, I 2 = 53%). At present, routine use of tranexamic acid after subarachnoid hemorrhage cannot be recommended. For a patient with subarachnoid hemorrhage, it is essential to obliterate the aneurysm as early as possible."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "35083272"
+              ],
+              "source_passage_ids": [
+                "35083272:p1"
+              ],
+              "reason": "TXA showed no significant effect on all-cause mortality (RR 0.96, p=0.55) or poor functional outcome (RR 1.04, p=0.41).",
+              "source_quotes": [
+                {
+                  "source_id": "35083272",
+                  "quote": "In patients with aneurysmal subarachnoid hemorrhage tranexamic acid had no significant effect on all-cause mortality (RR = 0.96; 95% CI = 0.84-1.10, p = 0.55, I 2 = 44%) or poor functional outcome (RR = 1.04; 95% CI = 0.95-1.15, p = 0.41) compared with the control group. However, risk of rebleeding was significantly lower (RR = 0.59; 95% CI = 0.43-0.80, p = 0.0007, I 2 = 53%). There were no significant differences in other adverse events between tranexamic acid and control treatments, including cerebral ischemia (RR = 1.17; 95% CI = 0.95-1.46, p = 0.15, I 2 = 53%). At present, routine use of tranexamic acid after subarachnoid hemorrhage cannot be recommended. For a patient with subarachnoid hemorrhage, it is essential to obliterate the aneurysm as early as possible."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "35083272"
+              ],
+              "source_passage_ids": [
+                "35083272:p1"
+              ],
+              "reason": "The meta-analysis explicitly states routine TXA use cannot be recommended and that early aneurysm obliteration is essential.",
+              "source_quotes": [
+                {
+                  "source_id": "35083272",
+                  "quote": "In patients with aneurysmal subarachnoid hemorrhage tranexamic acid had no significant effect on all-cause mortality (RR = 0.96; 95% CI = 0.84-1.10, p = 0.55, I 2 = 44%) or poor functional outcome (RR = 1.04; 95% CI = 0.95-1.15, p = 0.41) compared with the control group. However, risk of rebleeding was significantly lower (RR = 0.59; 95% CI = 0.43-0.80, p = 0.0007, I 2 = 53%). There were no significant differences in other adverse events between tranexamic acid and control treatments, including cerebral ischemia (RR = 1.17; 95% CI = 0.95-1.46, p = 0.15, I 2 = 53%). At present, routine use of tranexamic acid after subarachnoid hemorrhage cannot be recommended. For a patient with subarachnoid hemorrhage, it is essential to obliterate the aneurysm as early as possible."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37212182"
+              ],
+              "source_passage_ids": [
+                "37212182:p1"
+              ],
+              "reason": "The 2023 AHA/ASA guideline abstract describes aSAH as a severely morbid and often deadly condition requiring evidence-based management.",
+              "source_quotes": [
+                {
+                  "source_id": "37212182",
+                  "quote": "Newer studies published between July 2022 and November 2022 that affected recommendation content, Class of Recommendation, or Level of Evidence were included if appropriate. Structure: Aneurysmal subarachnoid hemorrhage is a significant global public health threat and a severely morbid and often deadly condition. The 2023 aneurysmal subarachnoid hemorrhage guideline provides recommendations based on current evidence for the treatment of these patients. The recommendations present an evidence-based approach to preventing, diagnosing, and managing patients with aneurysmal subarachnoid hemorrhage, with the intent to improve quality of care and align with patients' and their families' and caregivers' interests."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is on-specialty (neurosurgery/aSAH initial management) and the clinical data are internally consistent: abrupt maximal-at-onset headache, transient LOC, vomiting, nuchal rigidity, hypertension history, NCCT confirming basal-cistern SAH, and CTA identifying a 6 mm irregular AComm aneurysm matching the hemorrhage distribution. The required modalities are present and the decision (whether to institute routine TXA vs. pursue early definitive obliteration) is well framed. Solving independently from the source text: the supplied 35083272 meta-analysis (13 RCTs, 2888 adults) shows TXA reduces rebleeding but does not improve mortality or functional outcome, and explicitly concludes routine TXA cannot be recommended while early aneurysm obliteration is essential. This directly supports candidate A. Candidate B (routine TXA plus deliberate 24-48h delay of definitive treatment) is the intentionally flawed option: it substitutes an intermediate endpoint for patient-centered benefit and, more importantly, delays the essential definitive obliteration, which is the working-as-designed unsafe choice. All four claims are entailed by the exact source text; claim 3 rests only on the guideline's characterization of aSAH severity, which the passage supports (not used to establish any specific management ranking). The title and visible note do not disclose the answer or the intended management plan—they present symmetric alternatives without hinting which is correct, so no coherence/disclosure defect. The sound answer A does not omit essential care: it affirmatively prioritizes early definitive aneurysm obliteration, which is the core essential intervention here; it does not need to enumerate every ICU detail to be safe for this specific decision point. Note: the 2023 guideline source (37212182) is only an abstract announcing scope and does not itself establish a specific TXA recommendation, but the case does not rely on it for that—the TXA claim rests on 35083272, and no claimed ranking is contradicted by any supplied source. Confidence held at 0.9 because guideline-level specifics beyond the TXA meta-analysis are not in the supplied full text, but this does not affect the decisive recommendation."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The presentation and imaging establish aneurysmal subarachnoid hemorrhage from a ruptured anterior communicating artery aneurysm. Definitive aneurysm obliteration should be pursued as early as feasible to prevent rebleeding. Routine tranexamic acid is not recommended: randomized-trial meta-analysis shows reduced rebleeding but no improvement in mortality or functional outcome, and it should not be used to justify delaying aneurysm treatment. This is consistent with the 2023 AHA/ASA aneurysmal subarachnoid hemorrhage guideline and the cited systematic review (PMID 35083272).",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "35083272"
+              ],
+              "reason": "The cited meta-analysis included adult randomized controlled trials and found a statistically significant reduction in rebleeding with tranexamic acid.",
+              "source_passage_ids": [
+                "35083272:p0",
+                "35083272:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35083272",
+                  "quote": "Tranexamic acid has been shown to reduce rebleeding after aneurysmal subarachnoid hemorrhage; however, whether it can reduce mortality and improve clinical outcomes is controversial. We performed a systematic review and meta-analysis to evaluate the efficacy and safety of the tranexamic acid in aneurysmal subarachnoid hemorrhage. We conducted a comprehensive literature search of PubMed, Embase, Web of Science, and Cochrane Library from inception to March 2021 for randomized controlled trials (RCTs) comparing tranexamic acid and placebo in adults with aneurysmal subarachnoid hemorrhage. The risk of bias was evaluated using the Cochrane Handbook, and the quality of evidence was evaluated using the GRADE approach. This meta-analysis included 13 RCTs, involving 2,888 patients."
+                },
+                {
+                  "source_id": "35083272",
+                  "quote": "In patients with aneurysmal subarachnoid hemorrhage tranexamic acid had no significant effect on all-cause mortality (RR = 0.96; 95% CI = 0.84-1.10, p = 0.55, I 2 = 44%) or poor functional outcome (RR = 1.04; 95% CI = 0.95-1.15, p = 0.41) compared with the control group. However, risk of rebleeding was significantly lower (RR = 0.59; 95% CI = 0.43-0.80, p = 0.0007, I 2 = 53%). There were no significant differences in other adverse events between tranexamic acid and control treatments, including cerebral ischemia (RR = 1.17; 95% CI = 0.95-1.46, p = 0.15, I 2 = 53%). At present, routine use of tranexamic acid after subarachnoid hemorrhage cannot be recommended. For a patient with subarachnoid hemorrhage, it is essential to obliterate the aneurysm as early as possible."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "35083272"
+              ],
+              "reason": "The reported confidence intervals and p values show no significant effect on all-cause mortality or poor functional outcome.",
+              "source_passage_ids": [
+                "35083272:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35083272",
+                  "quote": "In patients with aneurysmal subarachnoid hemorrhage tranexamic acid had no significant effect on all-cause mortality (RR = 0.96; 95% CI = 0.84-1.10, p = 0.55, I 2 = 44%) or poor functional outcome (RR = 1.04; 95% CI = 0.95-1.15, p = 0.41) compared with the control group. However, risk of rebleeding was significantly lower (RR = 0.59; 95% CI = 0.43-0.80, p = 0.0007, I 2 = 53%). There were no significant differences in other adverse events between tranexamic acid and control treatments, including cerebral ischemia (RR = 1.17; 95% CI = 0.95-1.46, p = 0.15, I 2 = 53%). At present, routine use of tranexamic acid after subarachnoid hemorrhage cannot be recommended. For a patient with subarachnoid hemorrhage, it is essential to obliterate the aneurysm as early as possible."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "35083272"
+              ],
+              "reason": "The source expressly states that routine tranexamic acid cannot be recommended and that aneurysm obliteration should occur as early as possible.",
+              "source_passage_ids": [
+                "35083272:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35083272",
+                  "quote": "In patients with aneurysmal subarachnoid hemorrhage tranexamic acid had no significant effect on all-cause mortality (RR = 0.96; 95% CI = 0.84-1.10, p = 0.55, I 2 = 44%) or poor functional outcome (RR = 1.04; 95% CI = 0.95-1.15, p = 0.41) compared with the control group. However, risk of rebleeding was significantly lower (RR = 0.59; 95% CI = 0.43-0.80, p = 0.0007, I 2 = 53%). There were no significant differences in other adverse events between tranexamic acid and control treatments, including cerebral ischemia (RR = 1.17; 95% CI = 0.95-1.46, p = 0.15, I 2 = 53%). At present, routine use of tranexamic acid after subarachnoid hemorrhage cannot be recommended. For a patient with subarachnoid hemorrhage, it is essential to obliterate the aneurysm as early as possible."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37212182"
+              ],
+              "reason": "The guideline abstract characterizes aneurysmal subarachnoid hemorrhage as severely morbid and often deadly and describes evidence-based management recommendations.",
+              "source_passage_ids": [
+                "37212182:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37212182",
+                  "quote": "Newer studies published between July 2022 and November 2022 that affected recommendation content, Class of Recommendation, or Level of Evidence were included if appropriate. Structure: Aneurysmal subarachnoid hemorrhage is a significant global public health threat and a severely morbid and often deadly condition. The 2023 aneurysmal subarachnoid hemorrhage guideline provides recommendations based on current evidence for the treatment of these patients. The recommendations present an evidence-based approach to preventing, diagnosing, and managing patients with aneurysmal subarachnoid hemorrhage, with the intent to improve quality of care and align with patients' and their families' and caregivers' interests."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The clinical data establish acute aneurysmal subarachnoid hemorrhage: noncontrast CT shows basal cisternal and interhemispheric subarachnoid blood, while CTA identifies a corresponding irregular anterior communicating artery aneurysm. Candidate A is the correct focused choice. The supplied randomized-trial meta-analysis found reduced rebleeding with tranexamic acid but no significant mortality or functional-outcome benefit, explicitly rejected routine use, and emphasized early aneurysm obliteration. Candidate B is intentionally unsafe because it converts an intermediate-endpoint benefit into a routine-treatment recommendation and delays definitive aneurysm treatment for 24–48 hours. Candidate A is a focused comparison rather than a comprehensive aSAH order set and does not direct clinicians to omit other necessary neurocritical care. The required diagnostic imaging is present, and selecting early obliteration does not require the case to resolve the separate clipping-versus-coiling decision. No previous cases were supplied, so there is no demonstrated duplication of the clinical decision."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "e38633c19118349c1e1de75378cefcac40ee2728c2221cb24afcde6f175b3499"
+  }
+}

@@ -1,0 +1,431 @@
+{
+  "task_id": "onboarding-practice-v1-33aa98a024c410e5e9b7-1",
+  "specialty": "pulmonology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Reassessment of inhaled therapy in an adult with asthma",
+    "question": "Which inhaled treatment strategy is most appropriate for this patient at the current visit?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "pulmonology",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Established asthma with episodic wheeze and chest tightness",
+          "since": "early adulthood",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Seasonal allergic rhinitis",
+          "since": "several years",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Recent urgent-care visit for worsening respiratory symptoms",
+          "since": "three weeks",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Albuterol",
+          "dose": null,
+          "route": "inhaled",
+          "freq": "as needed",
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Pulmonology consultation",
+          "author_role": "pulmonology",
+          "text": "Adult with previously established asthma presents after an urgent-care visit for wheezing and chest tightness that began during a thunderstorm. She currently uses only inhaled albuterol and reports symptom relief after each use. During the preceding two months, she needed the inhaler on approximately two days per week, with additional use during the recent episode. She is now comfortable at rest and has no fever, productive cough, or persistent nocturnal symptoms. She has never used an inhaled corticosteroid-containing asthma inhaler. Prior pulmonary function testing documented variable expiratory airflow obstruction with improvement after bronchodilator administration.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Pulmonary function testing",
+          "label": "Previously completed spirometry",
+          "findings": "Expiratory airflow obstruction was present and improved after administration of a bronchodilator, consistent with documented variable airflow limitation.",
+          "measurements": [],
+          "impression": "Variable expiratory airflow limitation in a patient with established asthma.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -90
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [
+        "clinical history",
+        "medication review",
+        "pulmonary function testing"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "Replace the SABA-only approach with an ICS-formoterol inhaler used for symptom relief. In the supplied network meta-analysis, ICS-formoterol reduced severe exacerbations and improved asthma control compared with SABA alone, without an increased risk of serious adverse events. Continuing albuterol alone would omit inhaled corticosteroid exposure and retain the strategy associated with more severe exacerbations in the comparison.",
+        "evidence": null,
+        "key_data": [
+          "The patient has established asthma with documented variable expiratory airflow limitation.",
+          "Her only current asthma medication is an inhaled short-acting beta agonist.",
+          "She has never used an inhaled corticosteroid-containing asthma inhaler.",
+          "She recently required urgent care for worsening wheeze and chest tightness.",
+          "ICS-formoterol was associated with fewer severe exacerbations than SABA alone in the supplied meta-analysis."
+        ]
+      },
+      "hard_hook": "The patient obtains prompt symptom relief from SABA, but the decision must account for exacerbation prevention rather than immediate bronchodilation alone.",
+      "reasoning_divergence": "The flawed response equates reliable short-term symptom relief with adequate asthma treatment and omits an ICS-containing reliever."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Replace albuterol-only relief with an inhaled corticosteroid-formoterol inhaler used for symptom relief, thereby providing an ICS-containing reliever rather than continuing SABA alone."
+      },
+      {
+        "id": "B",
+        "text": "Continue albuterol as the sole inhaled treatment because it reliably relieves her symptoms, reserving any inhaled corticosteroid-containing therapy for more persistent daily symptoms."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "asthma exacerbation",
+      "inhaled corticosteroid",
+      "formoterol",
+      "short-acting beta agonist",
+      "urgent care"
+    ],
+    "evidence_keywords": [
+      "ICS-formoterol",
+      "SABA alone",
+      "severe exacerbations",
+      "asthma control",
+      "serious adverse events",
+      "thunderstorm"
+    ],
+    "error_tags": [
+      "omission",
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "Compared with SABA alone, ICS-formoterol reduced severe asthma exacerbations with high-certainty evidence.",
+        "source_ids": [
+          "39465893"
+        ]
+      },
+      {
+        "statement": "ICS-formoterol improved asthma control compared with SABA alone in the network meta-analysis.",
+        "source_ids": [
+          "39465893"
+        ]
+      },
+      {
+        "statement": "ICS-formoterol was not associated with an increased risk of serious adverse events compared with SABA alone.",
+        "source_ids": [
+          "39465893"
+        ]
+      },
+      {
+        "statement": "Thunderstorms were associated with an increased risk of asthma events in a systematic review and meta-analysis.",
+        "source_ids": [
+          "37286218"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:30:48.745410+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "39465893",
+        "title": "Inhaled Reliever Therapies for Asthma: A Systematic Review and Meta-Analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39465893/",
+        "abstract": "The optimal inhaled reliever therapy for asthma remains unclear.\nTo compare short-acting β agonists (SABA) alone with SABA combined with inhaled corticosteroids (ICS) and with the fast-onset, long-acting β agonist formoterol combined with ICS for asthma.\nThe MEDLINE, Embase, and CENTRAL databases were searched from January 1, 2020, to September 27, 2024, without language restrictions.\nPairs of reviewers independently selected randomized clinical trials evaluating (1) SABA alone, (2) ICS with formoterol, and (3) ICS with SABA (combined or separate inhalers).\nTwo reviewers independently extracted data and assessed risk of bias. Random-effects meta-analyses synthesized outcomes. GRADE (Grading of Recommendations Assessment, Development, and Evaluation) was used to evaluate the certainty of evidence.\nAsthma symptom control (5-item Asthma Control Questionnaire; range, 0-6, lower scores indicate better asthma control; minimum important difference [MID], 0.5 points), asthma-related quality of life (Asthma Quality of Life Questionnaire; range, 1-7, higher scores indicate better quality of life; MID, 0.5 points), risk of severe exacerbations, and risk of serious adverse events.\nA total of 27 randomized clinical trials (N = 50 496 adult and pediatric patients; mean age, 41.0 years; 20 288 male [40%]) were included. Compared with SABA alone, both ICS-containing relievers were associated with fewer severe exacerbations (ICS-formoterol risk ratio [RR], 0.65 [95% CI, 0.60-0.72]; risk difference [RD], -10.3% [95% CI, -11.8% to -8.3%]; ICS-SABA RR, 0.84 [95% CI, 0.73-0.95]; RD, -4.7% [95% CI, -8.0% to -1.5%]) with high certainty. Compared with SABA alone, both ICS-containing relievers were associated with improved asthma control (ICS-formoterol RR improvement [MID] in total score, 1.07 [95% CI, 1.04-1.10]; RD, 4.1% [95% CI, 2.3%-5.9%]; ICS-SABA RR, 1.09 [95% CI, 1.03-1.15]; RD, 5.4% [95% CI, 1.8%-8.5%]) with high certainty. In an indirect comparison with ICS-SABA, ICS-formoterol was associated with fewer severe exacerbations (RR, 0.78 [95% CI, 0.66-0.92]; RD, -5.5% [95% CI, -8.4% to -2.0%]) with moderate certainty. Compared with SABA alone, ICS-formoterol (RD, -0.6% [95% CI, -1.3% to 0%]) was not associated with increased risk of serious adverse events (high certainty) and ICS-SABA (RD, 0% [95% CI, -1.1% to 1.2%]) was not associated with increased risk of serious adverse events (moderate certainty).\nIn this network meta-analysis of patients with asthma, ICS combined with formoterol and ICS combined with SABA were each associated with reduced asthma exacerbations and improved asthma control compared with SABA alone.",
+        "sha256": "16bccb6b250fc9c1aaed37c7be3ed813df99d4ab62f807feb849f3b926a97b8e",
+        "retrieved_at": "2026-09-18T23:29:22.430996+00:00",
+        "pmcid": "PMC11519786"
+      },
+      {
+        "id": "38108679",
+        "title": "Atopic dermatitis (eczema) guidelines: 2023 American Academy of Allergy, Asthma and Immunology/American College of Allergy, Asthma and Immunology Joint Task Force on Practice Parameters GRADE- and Institute of Medicine-based recommendations.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38108679/",
+        "abstract": "Guidance addressing atopic dermatitis (AD) management, last issued in 2012 by the American Academy of Allergy, Asthma and Immunology/American College of Allergy, Asthma and Immunology Joint Task Force, requires updating as a result of new treatments and improved guideline and evidence synthesis methodology.\nTo produce evidence-based guidelines that support patients, clinicians, and other decision-makers in the optimal treatment of AD.\nA multidisciplinary guideline panel consisting of patients and caregivers, AD experts (dermatology and allergy/immunology), primary care practitioners (family medicine, pediatrics, internal medicine), and allied health professionals (psychology, pharmacy, nursing) convened, prioritized equity, diversity, and inclusiveness, and implemented management strategies to minimize influence of conflicts of interest. The Evidence in Allergy Group supported guideline development by performing systematic evidence reviews, facilitating guideline processes, and holding focus groups with patient and family partners. The Grading of Recommendations Assessment, Development and Evaluation (GRADE) approach informed rating the certainty of evidence and strength of recommendations. Evidence-to-decision frameworks, subjected to public comment, translated evidence to recommendations using trustworthy guideline principles.\nThe panel agreed on 25 recommendations to gain and maintain control of AD for patients with mild, moderate, and severe AD. The eAppendix provides practical information and implementation considerations in 1-2 page patient-friendly handouts.\nThese evidence-based recommendations address optimal use of (1) topical treatments (barrier moisturization devices, corticosteroids, calcineurin inhibitors, PDE4 inhibitors [crisaborole], topical JAK inhibitors, occlusive [wet wrap] therapy, adjunctive antimicrobials, application frequency, maintenance therapy), (2) dilute bleach baths, (3) dietary avoidance/elimination, (4) allergen immunotherapy, and (5) systemic treatments (biologics/monoclonal antibodies, small molecule immunosuppressants [cyclosporine, methotrexate, azathioprine, mycophenolate, JAK inhibitors], and systemic corticosteroids) and UV phototherapy (light therapy).",
+        "sha256": "e1b083c1a724f2fc05873a13b45bb5df2b5bbc5e15d0839f5e102a0a110377bd",
+        "retrieved_at": "2026-09-18T23:29:22.430996+00:00"
+      },
+      {
+        "id": "41324154",
+        "title": "Allergic Rhinitis and Its Impact on Asthma (ARIA)-EAACI Guidelines-2024-2025 Revision: Part I-Guidelines on Intranasal Treatments.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41324154/",
+        "abstract": "Allergic rhinitis (AR) impacts quality of life, work and school productivity. Over the last years, an important body of evidence resulting from mHealth data has led to a better understanding of AR. Such advances have motivated an EAACI-endorsed update of the Allergic Rhinitis and its Impact on Asthma (ARIA) guidelines (ARIA 2024-2025). This manuscript presents the ARIA 2024-2025 recommendations for intranasal treatments, one of the mainstays for AR management.\nThe ARIA 2024-2025 guideline panel issued recommendations following the Grading of Recommendations, Assessment, Development, and Evaluation (GRADE) evidence-to-decision framework. Several sources of evidence were used to inform panel judgments and recommendations, including systematic reviews, evaluation of mHealth and pharmacovigilance data, as well as a survey of experts on costs.\nEleven guideline questions concerning intranasal treatments for AR were prioritized, leading to recommendations. Overall, these questions concern the choice between different classes of intranasal medications-most notably, intranasal corticosteroids (INCS), antihistamines (INAH), fixed combinations of INAH+INCS and decongestants-or between different individual medications within each class. Four questions had not been evaluated in previous ARIA guidelines, while for the other three there was a change in the strength or directionality of recommendations. Overall, recommendations point to the suggested use of INAH+INCS over INAH or INCS and INCS over INAH.\nThis ARIA 2024-2025 article supports patients, their caregivers, and healthcare professionals in choosing an intranasal treatment. However, decisions on AR treatment should consider the clinical variability of the disease, patients' values, and the affordability of medications.",
+        "sha256": "e00e3c8a5bfc522fdfe516c31a5fba41b34b461d997f7502dcd642e0ca1601c5",
+        "retrieved_at": "2026-09-18T23:29:22.430996+00:00",
+        "pmcid": "PMC13040648",
+        "body_excerpts": "Introduction\nAllergic rhinitis (AR) is a common chronic disease [ 1 , 2 ] that substantially impacts quality of life, work and school productivity, and social activities [ 3 , 4 , 5 ]. Several guidelines have been produced for AR management. In particular, the Allergic Rhinitis and its Impact on Asthma (ARIA) group first proposed its guidelines for AR and asthma multimorbidity in 2001 [ 6 ]. Subsequent revisions were published in 2008 [ 7 ], 2010 [ 8 ], 2016 [ 9 ], and 2020 [ 10 ], reflecting the development of new therapeutic options and/or improvements in its methodology. The ARIA 2010 and 2016 updates were developed following the Grading of Recommendations, Assessment, Development and Evaluation (GRADE) approach [ 9 ].\n\nQuestions Addressed by This Guideline\nTABLE 1 Recommendations of the ARIA 2024–2025 guidelines for the prioritized questions on intranasal treatments. Recommendation Capsule justification Subgroup considerations Implementation considerations (A) New questions in ARIA 2024–2025 Should a combination of an INAH+INCS vs. no treatment be used for the treatment of AR? In patients with AR in whom monotherapy is unlikely to lead to significant improvement in symptoms, we recommend using INAH+INCS over no treatment (strong recommendation|moderate CoE for seasonal AR and very low CoE for perennial AR) INAH+INCS are effective in improving nasal symptoms, ocular symptoms and quality‐of‐life. INAH+INCS are overall safe, tendentiously cost‐effective and well accepted by patients Recommendation applicable to children and adolescents None specific Should any specific INCS vs. other INCS be used for the treatment of AR? In patients with AR, we suggest using specific INCS (in particular, fluticasone furoate or fluticasone propionate) over others namely beclomethasone, budesonide, ciclesonide, mometasone and triamcinolone (conditional recommendation|low‐very low CoE) Fluticasone furoate and fluticasone propionate are the most effective INCS in improving nasal symptoms and quality of life in patients with seasonal AR. Individual INCS display a similar safety and satisfaction profile. Costs vary across countries In children and adolescents, evidence was not sufficient to support a specific recommendation In low‐ and middle‐income countries, other INCS may be preferred based on local availability and affordability (budesonide is on the WHO List of Essential Medicines). From a planetary health perspective, locally produced generics may be preferrable. Should any specific combination of an INAH+INCS vs. other combination of an INAH+INCS be used for the treatment of AR? In patients with AR, we suggest using azelastine‐fluticasone over olopatadine‐mometasone (conditional recommendation|moderate CoE) Azelastine‐fluticasone is the most effective INAH+INCS in improving ocular symptoms and quality of life in patients with seasonal AR. Both INAH+INCS display a similar safety profile In children and adolescents, we suggest either using azelastine‐fluticasone or olopatadine‐mometasone In patients experiencing bitter taste with azelastine‐fluticasone, olopatadine‐mometasone may be preferred Should a combination of an INCS and an intranasal decongestant vs. an INCS alone be used for the treatment of AR? In patients with AR, we suggest against using a combination of an INCS and an intranasal decongestant over an INCS alone (conditional recommendation|very low CoE) Adding an intranasal decongestant to an INCS does not result in an increase in efficacy but is associated with a higher risk of adverse events, costs and impact on planetary health Recommendation applicable to children and adolescents In some specific situations, using intranasal decongestants for a short period of time when INCS are being introduced can be considered (B) Questions with changed recommendation in terms of strength or directionality (compared to ARIA 2010/2016) Should an INAH vs. no treatment be used for the treatment of AR? In patients with AR, we recommend using INAH over no treatment (strong recommendation|moderate CoE) INAH are effective in improving nasal symptoms, ocular symptoms and quality‐of‐life. INAH are overall safe, cost‐effective and moderately accepted by patients Recommendation applicable to children and adolescents None specific Should an intranasal decongestant vs. no treatment be used for the treatment of AR? In adolescents and adults with AR, we suggest against using intranasal decongestants in the long term (longer than 5 days) over no treatment (conditional recommendation|very low CoE) Decongestants display a trivial effect on nasal and ocular symptoms and are associated with an increased risk of adverse events In pregnant women, children and the elderly, we suggest against using intranasal decongestants. Recommendation concerning oxymetazoline, xylometazoline and tramazoline. The ARIA panel recommends against the use of ephedrine‐based decongestants Should a combination of an INAH+INCS vs. an INCS alone be used for the treatment of AR? In patients with AR, we suggest using a combination of an INAH+INCS over an INCS alone (conditional recommendation|moderate CoE for seasonal AR and very low CoE for perennial AR) INAH+INCS and INCS display a similar efficacy and safety profile. INAH+INCS are frequently cost‐effective and typically associated with a faster onset of action and higher satisfaction Recommendation applicable to children and adolescents INAH+INCS may be particularly favored in patients with more severe symptoms. In low‐income countries or low‐resource settings, INCS may be preferred (C) Other questions in ARIA 2024–2025 Should an INCS vs. no treatment be used for the treatment of AR? In patients with AR, we recommend using INCS over no treatment (strong recommendation|moderate CoE) INCS are effective in improving nasal symptoms, ocular symptoms and quality‐of‐life. INCS are overall safe, cost‐effective and well‐accepted by patients Recommendation applicable to children and adolescents None specific Should an INCS vs. an INAH be used for the treatment of AR? In patients with AR, we suggest using INCS over INAH (conditional recommendation|moderate CoE) INCS and INAH display a similar efficacy and safety profile. INCS are typically less expensive (and/or cost‐effective) and associated with higher adherence and satisfaction Recommendation applicable to children and adolescents INCS may be particularly recommended for patients having taste alterations when using INAH. For patients with corticosteroid‐phobia, epistaxis or glaucoma, or having poor medication adherence, INAH may be considered Should a combination of an INAH+INCS vs. an INAH alone be used for the treatment of AR? In patients with AR, we suggest using a combination of an INAH+INCS over an INAH alone (conditional recommendation|moderate CoE for seasonal AR and very low CoE for perennial AR) INAH+INCS are more effective in improving nasal symptoms and quality of life. INAH+INCS display a similar safety profile. INAH+INCS tend to be cost‐effective and are associated with higher adherence and satisfaction Recommendation applicable to children and adolescents, even though evidence is scarcer None specific Should an INAH vs. an intranasal chromone be used for the treatment of AR? In patients with AR, we suggest using INAH over intranasal chromones (conditional recommendation|very low CoE) INAH appear to be more effective in improving nasal and ocular symptoms, and are associated with higher satisfaction. INAH and intranasal chromones display a similar safety profile Recommendation applicable to children and adolescents None specific Abbreviations: AR, allergic rhinitis; CoE, certainty of evidence; INAH, intranasal antihistamines; INCS, intranasal corticosteroids.\n\nMethodology > Evidence Review and Development of Recommendations\nEvidence on desirable and undesirable effects was obtained by conducting four systematic reviews (SRs) of randomized controlled trials (RCTs): (i) comparison of intranasal medications versus placebo in adults [ 22 , 23 , 24 ], (ii) comparisons among intranasal medications in adults [ 25 , 26 ], (iii) comparisons among intranasal medications in children [ 27 ], and (iv) comparison of nonfixed treatment combinations in adults and children (in preparation). In addition, evidence on undesirable effects was complemented by an analysis of pharmacovigilance data. In particular, we queried VigiBase, the World Health Organization (WHO) global database of adverse event reports for medicines and vaccines [ 28 ].\n\nMethodology > Evidence Review and Development of Recommendations\nFor values and preferences, we conducted a SR of the literature [ 29 ]. For the remaining criteria, we performed nonsystematic evidence reviews, which were complemented by evidence from other sources. In particular, we have conducted a survey of ARIA experts assessing the availability and costs of different AR medications (in preparation). Furthermore, we analyzed MASK‐air direct patient data to obtain information on treatment acceptability (in particular, adherence, satisfaction, and use of co‐medication) and indirect costs associated with productivity losses. The WHO List of Essential Medicines was consulted to inform judgments on equity [ 30 ].\n\nMethodology > Evidence Review and Development of Recommendations\nThe voting members of the ARIA 2024–2025 panel (i.e., members without conflicts of interest) convened at recurrent online meetings (average of two meetings per PICO question, with 3–4 PICO questions being discussed per meeting), where they issued a judgment for each criterion of each question through GRADEpro PanelVoice [ 17 ]. Based on all the provided judgments, the panel issued a recommendation for the respective guideline question. Recommendations were worded following the GRADE working group guidance (see “How to use these guidelines” section) [ 31 ]. In addition, for each recommendation, we present (i) considerations for preschool and school‐aged children and adolescents (and, if evidence is available, other special populations, such as patients with asthma), and (ii) implementation considerations. The latter include, among others, aspects related to the application of recommendations in low‐ and middle‐income countries, or to concerns with specific adverse events.\n\nRecommendations and Summary of Findings\nTABLE 2 Judgments on the effect sizes and certainty of evidence (CoE) assessments for each outcome in each prioritized question comparing each intervention to a comparator. Question Seasonal allergic rhinitis Perennial allergic rhinitis Nasal symptoms Ocular symptoms Quality of life AE Serious AE Nasal symptoms Ocular symptoms Quality of life AE Serious AE Should a combination of an INAH+INCS vs. no treatment be used for the treatment of AR? Effect size Moderate Small Moderate Trivial Trivial Small — b Small Trivial Trivial CoE Moderate Moderate Moderate Moderate Moderate Very low — b Very low Very low Very low Should any specific INCS vs. other INCS be used for the treatment of AR? Effect size Small Trivial Small Trivial Trivial Trivial Trivial Small Trivial Trivial CoE Very low/Low a Very low/Low a Very low/Low a Very low/Low a Very low/Low a Very low/Low a Very low Very low/Low a Very low/Low a Very low/Low a Should any specific combination of an INAH+INCS vs. other specific combination of an INAH+INCS be used for the treatment of AR? Effect size Trivial Small Small Trivial Trivial — b — b — b — b — b CoE Moderate Moderate Moderate Moderate Moderate — b — b — b — b — b Should a combination of an INCS and an intranasal decongestant vs. an INCS alone be used for the treatment of AR? Effect size Trivial — b Trivial Small Trivial Trivial — b Trivial Trivial Trivial CoE Very low — b Low Very low Very low Very low — b Very low very low Very low Should an INAH vs. no treatment be used for the treatment of AR? Effect size Small Small Small Trivial Trivial Small — b Small Trivial Trivial CoE Moderate High High Low Low High — b High Moderate Moderate Should an intranasal decongestant vs. no treatment be used for the treatment of AR? Effect size Trivial — b Trivial Trivial — b Trivial — b Trivial Small — b CoE Very low — b Low Moderate — b Low — b Very low Low — b Should a combination of an INAH+INCS vs. an INCS alone be used for the treatment of AR? Effect size Trivial Trivial Trivial Trivial Trivial Trivial — b Trivial Trivial Trivial CoE Moderate High High Moderate Moderate Very low — b Very low Very low Very low Should an INCS vs. no treatment be used for the treatment of AR? Effect size Small Small Small Trivial Trivial Small Small Small Trivial Trivial CoE Moderate High Moderate Moderate Moderate High Moderate Moderate Moderate Moderate Should an INCS vs. an INAH be used for the treatment of AR? Effect size Trivial Trivial Trivial Trivial Trivial Trivial — b Trivial Trivial Trivial CoE Low Moderate High Moderate Moderate High — b Low Moderate Moderate Should a combination of an INAH+INCS vs. an INAH alone be used for the treatment of AR? Effect size Trivial Trivial Small Trivial Trivial Small — b Trivial Trivial Trivial CoE High Moderate High Moderate Moderate Very low — b Very low Moderate Moderate Should an INAH vs. an intranasal chromone be used for the treatment of AR? Effect size Small Small — b Trivial — b — b — b — b — b — b CoE Very low Very low — b Very low — b — b — b — b — b — b Abbreviations: AE, adverse events; AR, allergic rhinitis; INAH, intranasal antihistamines; INCS, intranasal corticosteroids. Colour code: Effect size: The darker the blue the larger the effect size. CoE: Green=High, Yellow=Moderate, Orange=Low, Red=Very low. a Most common CoE assessments for the considered comparisons. b No available evidence.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should a Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid vs. no Treatment Be Used for the Treatment of AR?\nLink for the full EtD: https://www.mask‐air.com/etd_nasal/01/ .\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should a Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid vs. no Treatment Be Used for the Treatment of AR?\nContext: Fixed combinations of INAH+INCS are one of the mainstays for the treatment of AR, combining some of the advantages of INCS with those of INAH. However, INAH+INCS may not be affordable in all countries.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should a Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid vs. no Treatment Be Used for the Treatment of AR?\nRecommendation: In patients with AR in whom monotherapy is unlikely to lead to significant improvement in symptoms, we recommend using INAH+INCS over no treatment. (Strong recommendation based on moderate certainty of evidence for seasonal AR and very low certainty of evidence for perennial AR).\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should a Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid vs. no Treatment Be Used for the Treatment of AR?\nConsiderations in children and adolescents: The recommendation is applicable to children and adolescents, with available studies having assessed children aged as low as 4 years old.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should a Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid vs. no Treatment Be Used for the Treatment of AR?\nImplementation considerations: None specific.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should a Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid vs. no Treatment Be Used for the Treatment of AR?\nBrief justification: See online supplement.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Intranasal Corticosteroid vs. Another Intranasal Corticosteroid Be Used for the Treatment of AR?\nLink for the full EtD: https://www.mask‐air.com/etd_nasal/02/ .\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Intranasal Corticosteroid vs. Another Intranasal Corticosteroid Be Used for the Treatment of AR?\nContext: There are several INCS available, rendering it important not only to provide recommendations at a class level but also on what may be the most indicated individual INCS.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Intranasal Corticosteroid vs. Another Intranasal Corticosteroid Be Used for the Treatment of AR?\nRecommendation: In adult patients with AR, we suggest using specific INCS (in particular, fluticasone furoate or fluticasone propionate) over others (namely, beclomethasone, budesonide, ciclesonide, mometasone and triamcinolone). (Conditional recommendation based on very low or low certainty of evidence for most comparisons).\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Intranasal Corticosteroid vs. Another Intranasal Corticosteroid Be Used for the Treatment of AR?\nConsiderations in children and adolescents : In children and adolescents, evidence was not sufficient to support recommending a specific INCS (insufficient number of primary studies). Daily doses in children aged < 12 years old may be lower (e.g., half) of those used in adults.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Intranasal Corticosteroid vs. Another Intranasal Corticosteroid Be Used for the Treatment of AR?\nImplementation considerations : In low‐ and middle‐income countries, other specific INCS may be preferred based on local availability and affordability (e.g., budesonide is on the WHO List of Essential Medicines). From a planetary health perspective, locally produced generics may be preferrable.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Intranasal Corticosteroid vs. Another Intranasal Corticosteroid Be Used for the Treatment of AR? > Brief Justification\nEfficacy and safety: ○ A network meta‐analysis suggested that, in seasonal AR, fluticasone furoate and fluticasone propionate were the INCS displaying the highest probability of being more effective in improving nasal symptoms. In perennial AR, budesonide was the INCS displaying the highest probability of being the most effective in improving nasal symptoms, but it was only assessed by one trial. ○ In seasonal AR, beclomethasone and fluticasone furoate were the INCS having the highest probability of being the most effective in improving ocular symptoms. In perennial AR, fluticasone furoate was the most effective INCS for ocular symptoms. ○ In terms of rhinoconjunctivitis‐related quality of life (RQLQ), fluticasone furoate and fluticasone propionate were the INCS displaying the highest probability of being the most effective in seasonal AR. In perennial AR, the most effective INCS were fluticasone furoate and beclomethasone. ○ Similar frequencies and patterns of adverse events and serious adverse events were observed with the different INCS based on data from RCTs and pharmacovigilance.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Intranasal Corticosteroid vs. Another Intranasal Corticosteroid Be Used for the Treatment of AR? > Brief Justification\nResources required, cost‐effectiveness and equity : A survey of ARIA experts suggested that the least and most expensive INCS vary widely across countries. We did not identify any cost‐effectiveness study comparing INCS, but MASK‐air data suggests that mometasone and budesonide tend to be more frequently cost‐effective interventions compared to other INCS. Budesonide is the only INCS on the WHO List of Essential Medicines.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Intranasal Corticosteroid vs. Another Intranasal Corticosteroid Be Used for the Treatment of AR? > Brief Justification\nAcceptability and feasibility : MASK‐air data suggest that fluticasone furoate and mometasone are the INCS associated with higher adherence. The different INCS are associated with similar levels of treatment satisfaction. However, fluticasone furoate and fluticasone propionate seem to be used more often in co‐medication than other individual INCS.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Intranasal Corticosteroid vs. Another Intranasal Corticosteroid Be Used for the Treatment of AR? > Brief Justification\nPlanetary health : No specific evidence was found in terms of comparative impact on planetary health.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid vs. Another Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid Be Used for the Treatment of AR?\nLink for the full EtD: https://www.mask‐air.com/etd_nasal/03/ .\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid vs. Another Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid Be Used for the Treatment of AR?\nContext: There are two widely used INAH+INCS—azelastine‐fluticasone and olopatadine‐mometasone, rendering it important not only to provide recommendations at a class level but also on what may be the most indicated individual INAH+INCS.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid vs. Another Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid Be Used for the Treatment of AR?\nRecommendation: In adult patients with AR, we suggest using azelastine‐fluticasone over olopatadine‐mometasone. (Conditional recommendation based on moderate certainty of evidence for seasonal AR).\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid vs. Another Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid Be Used for the Treatment of AR?\nConsiderations in children and adolescents : In children and adolescents, we suggest either using azelastine‐fluticasone or olopatadine‐mometasone based on the available scarce evidence.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid vs. Another Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid Be Used for the Treatment of AR?\nImplementation considerations : In patients experiencing bitter taste with azelastine‐fluticasone, olopatadine‐mometasone may be preferred.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid vs. Another Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid Be Used for the Treatment of AR? > Brief Justification\nEfficacy and safety : ○ A network meta‐analysis suggested that, compared to olopatadine‐mometasone, azelastine‐fluticasone is associated with a 23% probability of resulting in a nontrivial improvement in nasal symptoms in seasonal AR. For ocular symptoms and RQLQ, this probability was 56%. ○ For perennial AR, no evidence was available for the comparison between azelastine‐fluticasone versus olopatadine‐mometasone. ○ Similar frequencies of adverse events were observed with azelastine‐fluticasone and olopatadine‐mometasone (trivial difference). Serious adverse events associated with these interventions are rare and most of those reported in RCTs have been judged unlikely to be related to the treatment.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid vs. Another Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid Be Used for the Treatment of AR? > Brief Justification\nResources required, cost‐effectiveness and equity : A survey of ARIA experts suggested olopatadine‐mometasone to be more expensive than azelastine‐fluticasone in 8 out of 14 countries for which data were available. We did not identify any cost‐effectiveness study comparing these two medications. Neither azelastine‐fluticasone nor olopatadine‐mometasone are on the WHO List of Essential Medicines, but azelastine‐fluticasone seems to be available in a wider number of countries.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid vs. Another Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid Be Used for the Treatment of AR? > Brief Justification\nAcceptability and feasibility : MASK‐air data suggest that azelastine‐fluticasone is associated with higher adherence and treatment satisfaction. However, azelastine‐fluticasone is associated with higher odds of being used in co‐medication (a proxy of poor rhinitis control) than olopatadine‐mometasone. In addition, there are studies on sensory attributes that favor olopatadine‐mometasone. Both azelastine‐fluticasone and olopatadine‐mometasone display a fast onset of action.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should Any Specific Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid vs. Another Combination of an Intranasal H 1 ‐Antihistamine and an Intranasal Corticosteroid Be Used for the Treatment of AR? > Brief Justification\nPlanetary health : No specific evidence was found in terms of comparative impact on planetary health. Both branded products are manufactured in Asia, with olopatadine‐mometasone being distributed in a plastic vial and azelastine‐fluticasone being distributed in a glass vial.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should a Combination of an Intranasal Corticosteroid and an Intranasal Decongestant vs. an Intranasal Corticosteroid Alone Be Used for the Treatment of AR?\nLink for the full EtD : https://www.mask‐air.com/etd_nasal/04/ .\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should a Combination of an Intranasal Corticosteroid and an Intranasal Decongestant vs. an Intranasal Corticosteroid Alone Be Used for the Treatment of AR?\nContext : Patients with AR using INCS often do co‐medication with intranasal decongestants (oxymetazoline, xylometazoline or tramazoline), particularly as the latter have a rapid onset and may help relieve nasal congestion.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should a Combination of an Intranasal Corticosteroid and an Intranasal Decongestant vs. an Intranasal Corticosteroid Alone Be Used for the Treatment of AR?\nRecommendation : In patients with AR, we suggest against using a combination of an INCS + intranasal decongestant over an INCS alone. (Conditional recommendation based on very low certainty of evidence).\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should a Combination of an Intranasal Corticosteroid and an Intranasal Decongestant vs. an Intranasal Corticosteroid Alone Be Used for the Treatment of AR?\nConsiderations in children and adolescents: The recommendation is applicable to children and adolescents.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should a Combination of an Intranasal Corticosteroid and an Intranasal Decongestant vs. an Intranasal Corticosteroid Alone Be Used for the Treatment of AR?\nImplementation considerations: This recommendation is particularly applicable to long‐term treatment (longer than 5 days). In some specific situations using intranasal decongestants for a short period of time—less than 5 days—when INCS are being introduced (to “compensate” for the slow onset of action of INCS) can be considered. However, if available and affordable, this can also be achieved with INAH+INCS (e.g., patients who cannot be treated for a long period of time with INAH+INCS due to costs or intolerance to bitter taste can have INAH+INCS for few days—to achieve fast symptom relief—followed by INCS). The ARIA panel recommends against the use of ephedrine‐based decongestants due to safety and legal concerns.\n\nRecommendations and Summary of Findings > New Questions in ARIA 2024–2025 > Should a Combination of an Intranasal Corticosteroid and an Intranasal Decongestant vs. an Intranasal Corticosteroid Alone Be Used for the Treatment of AR? > Brief Justification\nAcceptability and feasibility : MASK‐air data suggest that INCS + decongestants are associated with lower adherence and treatment satisfaction. Intranasal decongestants display a faster onset of action than INCS.\n\nConclusions\nNew questions Should an INAH+INCS vs. no treatment be used for the treatment of AR? ○ Recommendation: “In patients with AR in whom monotherapy is unlikely to lead to significant improvement in symptoms, we recommend using INAH+INCS over no treatment. (Strong recommendation based on moderate certainty of evidence for seasonal AR and very low certainty of evidence for perennial AR)” Should any specific INCS vs. other INCS be used for the treatment of AR? ○ Recommendation: “In patients with AR, we suggest using specific INCS (in particular, fluticasone furoate or fluticasone propionate) over others (namely, beclomethasone, budesonide, ciclesonide, mometasone and triamcinolone). (Conditional recommendation based on very low or low certainty of evidence for most comparisons)” Should any specific INAH+INCS vs. other INAH+INCS be used for the treatment of AR? ○ Recommendation: “In patients with AR, we suggest using azelastine‐fluticasone over olopatadine‐mometasone. (Conditional recommendation based on moderate certainty of evidence for seasonal AR)” Should a combination of an INCS and an intranasal decongestant vs. an INCS alone be used for the treatment of AR? ○ Recommendation: “In patients with AR, we suggest against using a combination of an INCS + intranasal decongestant over an INCS alone. (Conditional recommendation based on very low certainty of evidence)” Questions with changed recommendation (in terms of directionality or strength): Should an INAH vs. no treatment be used for the treatment of AR? ○ Recommendation changed from conditional recommendation in favor of INAH (2010/2016 guidelines) to a strong recommendation in favor of INAH (2024–2025 guidelines). Should an intranasal decongestant vs. no treatment be used for the treatment of AR? ○ Recommendation changed from conditional recommendation in favor of intranasal decongestants (2010/2016 guidelines) to a conditional recommendation against the intervention (2024–2025 guidelines). Should a combination of an INAH+INCS vs. an INCS alone be used for the treatment of AR? ○ Recommendation changed from conditional recommendation either for either INAH + INCS or INCS (2010/2016 guidelines) to a conditional recommendation in favor of INAH + INCS (2024–2025 guidelines). AR, Allergic rhinitis; ARIA, Allergic Rhinitis and its Impact on Asthma; INAH, Intranasal H1‐antihistamines; INAH+INCS, Fixed combinations of intranasal H1‐antihistamines and intranasal corticosteroids; INCS, Intranasal corticosteroids.",
+        "body_excerpts_sha256": "f587d0d8000a987302343621041b60dca3388394cd35f8cd83be8b3e11266ed1",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC13040648/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "39384302",
+        "title": "Epidemiology of severe asthma in children: a systematic review and meta-analysis.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39384302/",
+        "abstract": "Severe asthma significantly impacts a minority of children with asthma, leading to frequent symptoms, hospitalisations and potential long-term health consequences. However, accurate global data on severe asthma epidemiology is lacking. This study aims to address this gap, providing data on severe asthma epidemiology, regional differences and associated comorbidities.\nWe conducted a rigorous systematic review and meta-analysis following a registered protocol (PROSPERO CRD42023472845). We searched PubMed, Scopus and Web of Science for cohort or cross-sectional studies published since 2003, evaluating severe asthma incidence and prevalence in children. Study quality and risk of bias were assessed using STROBE guidelines.\nNine studies investigating European children with asthma (aged 5-18 years) were included in the meta-analysis. No significant publication bias was found. The overall severe asthma prevalence in children with asthma was 3% (95% CI 1-6; I2=99.9%; p<0.001), with no significant difference between males and females. Prevalence estimates varied significantly depending on the diagnostic criteria used (Global Initiative for Asthma: 6%; European Respiratory Society/American Thoracic Society: 1%; other: 3%). Because none of the examined studies were prospectively designed, incidence rates could not be determined.\nThis systematic review and meta-analysis provide the first robust assessment of severe asthma prevalence among European children. Our findings underscore the need for comprehensive research to address knowledge gaps in severe asthma, including determining incidence rates, standardising definitions, investigating regional differences and evaluating comorbidities and treatment strategies.",
+        "sha256": "84154e487cf4ff43b35b498594d42312c33c97463ce860e7e58399f0b94dd904",
+        "retrieved_at": "2026-09-18T23:29:23.029975+00:00",
+        "pmcid": "PMC11462310"
+      },
+      {
+        "id": "37286218",
+        "title": "Extreme weather and asthma: a systematic review and meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37286218/",
+        "abstract": "Climate change's influence on extreme weather events poses a significant threat to the morbidity and mortality of asthma patients. The aim of this study was to examine associations between extreme weather events and asthma-related outcomes.\nA systematic literature search for relevant studies was performed using the PubMed, EMBASE, Web of Science and ProQuest databases. Fixed-effects and random-effects models were applied to estimate the effects of extreme weather events on asthma-related outcomes.\nWe observed that extreme weather events were associated with increasing risks of general asthma outcomes with relative risks of 1.18-fold for asthma events (95% CI 1.13-1.24), 1.10-fold for asthma symptoms (95% CI 1.03-1.18) and 1.09-fold for asthma diagnoses (95% CI 1.00-1.19). Extreme weather events were associated with increased risks of acute asthma exacerbation with risk ratios of asthma emergency department visits of 1.25-fold (95% CI 1.14-1.37), of asthma hospital admissions of 1.10-fold (95% CI 1.04-1.17), of asthma outpatient visits of 1.19-fold (95% CI 1.06-1.34) and of asthma mortality of 2.10-fold (95% CI 1.35-3.27). Additionally, an increase in extreme weather events increased risk ratios of asthma events by 1.19-fold in children and 1.29-fold in females (95% CI 1.08-1.32 and 95% CI 0.98-1.69, respectively). Thunderstorms increased the risk ratio of asthma events by 1.24-fold (95% CI 1.13-1.36).\nOur study showed that extreme weather events more prominently increased the risk of asthma morbidity and mortality in children and females. Climate change is a critical concern for asthma control.",
+        "sha256": "7770539a868994ede93a0b62e2f18d1e1ee62fe6705e83d85ba411ae574b3191",
+        "retrieved_at": "2026-09-18T23:29:23.029975+00:00",
+        "pmcid": "PMC10245140"
+      },
+      {
+        "id": "37073761",
+        "title": "Treating asthma patients with probiotics: a systematic review and meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37073761/",
+        "abstract": "Objective: To evaluate the role of probiotics in the treatment of asthma patients by meta-analysis. Methods: PubMed, Embase, The Cochrane Library, Web of Science, and other databases were searched by computer, and the relevant literature on the treatment of asthma by probiotics that met the inclusion criteria was screened by manual retrieval. Meta-analysis was performed using Revman 5.4 software and the combined effect was evaluated by odds ratio (OR) or mean difference (MD) and 95 % confidence interval (CI). Results: a total of ten references were included, all of which were randomized controlled studies, and a total of 1,101 people were investigated. Fractional exhaled nitric oxide (FeNO) (MD = -7.17, 95 % CI: -12.81, -1.54), asthma symptom severity (MD = -0.07, 95 % CI: -0.10, -0.04), Childhood Asthma Control Test (CACT) (MD = 2.26, 95 % CI: 1.14, 3.39), and the number of acute episodes of asthma (OR = 0.30, 95 % CI: 0.19, 0.47) in the probiotics group were better than those in the control group. There was no significant difference in forced expiratory volume in the first second (FEV1) (MD = 0.11, 95 % CI: -0.05, 0.26) and FEV1/FVC (%) (MD = 0.32, 95 % CI: -1.48, 2.12). Conclusion: the use of probiotics in patients with asthma can improve lung inflammation and asthma symptoms, reduce the number of asthma attacks, and have no effect on lung function.",
+        "sha256": "4c4a673ac2b5f90a0bbbee2f262431dff44eec7ff751cec263fbf62dde1bb665",
+        "retrieved_at": "2026-09-18T23:29:23.029975+00:00"
+      },
+      {
+        "id": "35843501",
+        "title": "Effect of respiratory muscle training in asthma: A systematic review and meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35843501/",
+        "abstract": "The last systematic review about respiratory muscle training (RMT) in people with asthma was published almost 10 years ago. Since then, several works have been published.\nTo review the effect of RMT in people with asthma.\nWe conducted a systematic review of research included up to September 2021 in PubMed/MEDLINE, PEDro, Scopus, Web of Science, CINAHL, LILACS, Cochrane Central Register of Controlled Trials and ClinicalTrials.gov. We included randomized controlled trials and quasi-experimental studies assessing the effect of RMT on respiratory muscle function, rescue medication, asthma-related symptoms, lung function, exercise capacity, healthcare use, health-related quality of life (HRQoL) and adverse effects in people with asthma. Risk of bias and methodological quality were assessed with the Cochrane Risk of Bias assessment tool and the PEDro scale. Meta-analysis was performed whenever possible; otherwise a qualitative approach was followed.\nEleven studies (270 participants) were included, 10 with only adults and were included in the meta-analysis. Inspiratory muscle training (IMT) had beneficial effects on maximal inspiratory pressure (PImax: mean difference [MD] 21.95 cmH2O [95% confidence interval [CI] 15.05; 28.85]), with no changes in maximal expiratory pressure (MD 14.97 cmH2O [95%CI -5.65; 35.59]), lung function (forced expiratory volume in 1 sec: MD 0.06 [95%CI -0.14; 0.26] L; force vital capacity: MD 0.39 [95%CI -0.24; 1.02] L) and exercise capacity (standard mean difference [SMD] 1.73 [95%CI -0.61; 4.08]). Subgroup analysis revealed that IMT load >50% PImax and duration >6 weeks were beneficial for exercise capacity. The qualitative analysis suggested that IMT may have benefits on respiratory muscle endurance, rescue medication and exertional dyspnoea, with no adverse effects.\nThis systematic review and meta-analysis showed a significant increase in PImax after IMT in adults with asthma and reinforced the relevance of the dose-response principle of training. More evidence is needed to clarify the effect of IMT in respiratory muscle endurance, rescue medication, exercise capacity, healthcare use and HRQoL.\nPROSPERO International Prospective Register of Systematic Reviews CRD42020221939; https://www.crd.york.ac.uk/prospero/display_record.php?RecordID=221939.",
+        "sha256": "1354dc823a5a8489ea6f1376a535fb463dd70d18be4c31736f589c8827389066",
+        "retrieved_at": "2026-09-18T23:29:23.598017+00:00"
+      },
+      {
+        "id": "36538979",
+        "title": "Comparative efficacy of tezepelumab to mepolizumab, benralizumab, and dupilumab in eosinophilic asthma: A Bayesian network meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36538979/",
+        "abstract": "It is unclear how the efficacy of tezepelumab, approved for the treatment of type 2 high and low asthma, compares to the efficacy of other biologics for type 2-high asthma.\nWe sought to conduct an indirect comparison of tezepelumab to dupilumab, benralizumab, and mepolizumab in the treatment of eosinophilic asthma.\nThe investigators conducted a systematic review and Bayesian network meta-analyses. They identified randomized controlled trials indexed in PubMed, Embase, or Cochrane Central Register of Controlled Trials (CENTRAL) between January 1, 2000, and August 12, 2022. Outcomes included exacerbation rates, prebronchodilator FEV1, and the Asthma Control Questionnaire.\nTen randomized controlled trials (n = 9201) met eligibility. Tezepelumab (relative risk: 0.63; 95% credible interval [CI]: 0.46-0.86) was associated with significantly lower exacerbation rates than benralizumab and larger improvements in FEV1 compared to mepolizumab (mean difference [MD]: 66; 95% CI: -33 to 170) and benralizumab (MD: 62; 95% CI: -22 to 150), though the 95% CI crossed the null value of 0. Mepolizumab improved the Asthma Control Questionnaire score the most, but this improvement was not significantly different from that of tezepelumab (tezepelumab vs mepolizumab; MD: 0.14; 95% CI: -0.10 to 0.38). For efficacy by clinically important thresholds, tezepelumab, mepolizumab, and dupilumab achieved a >99% probability of reducing exacerbation rates by ≥50% compared to placebo, but benralizumab had only a 66% probability of doing so. Tezepelumab and dupilumab had a probability of 1.00 of improving prebronchodilator FEV1 by ≥100 mL above placebo. Compared to mepolizumab, dupilumab had >90% chance for improving FEV1 by ≥50 mL, but none of the differences between biologics exceeded 100 mL.\nIn individuals with eosinophilic asthma, tezepelumab and dupilumab were associated with greater improvements (although below clinical thresholds) in exacerbation rates and lung function than benralizumab or mepolizumab.",
+        "sha256": "cc42c922922128bd4d815a5acf305a6bb1c006fc60e8bb603e31cb3a0c802be4",
+        "retrieved_at": "2026-09-18T23:29:23.598017+00:00",
+        "pmcid": "PMC9992307"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The patient has established asthma (documented variable expiratory airflow limitation) with symptoms roughly twice weekly over the preceding two months plus a recent exacerbation requiring urgent care during a thunderstorm. She uses only SABA (albuterol) and has never used any ICS-containing inhaler. Current evidence and guideline direction favor abandoning SABA-only treatment in asthma. The 2025 systematic review/network meta-analysis (PMID 39465893) shows with high certainty that compared with SABA alone, ICS-formoterol relievers reduce severe exacerbations (RR 0.65) and improve asthma control, without increased serious adverse events; ICS-formoterol was also superior to ICS-SABA for exacerbation reduction. Thunderstorm exposure and female sex further elevate exacerbation risk (PMID 37286218), reinforcing the need for an ICS-containing reliever. Option B (continuing SABA monotherapy) is contradicted by this high-certainty evidence and represents an outdated strategy that leaves her at elevated exacerbation risk despite symptomatic relief. Therefore an ICS-formoterol reliever (Option A) is most appropriate.",
+          "confidence": 0.9
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "39465893"
+              ],
+              "reason": "The abstract explicitly reports ICS-formoterol RR 0.65 for severe exacerbations vs SABA alone with high certainty.",
+              "source_passage_ids": [
+                "39465893:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39465893",
+                  "quote": "Asthma symptom control (5-item Asthma Control Questionnaire; range, 0-6, lower scores indicate better asthma control; minimum important difference [MID], 0.5 points), asthma-related quality of life (Asthma Quality of Life Questionnaire; range, 1-7, higher scores indicate better quality of life; MID, 0.5 points), risk of severe exacerbations, and risk of serious adverse events. A total of 27 randomized clinical trials (N = 50 496 adult and pediatric patients; mean age, 41.0 years; 20 288 male [40%]) were included. Compared with SABA alone, both ICS-containing relievers were associated with fewer severe exacerbations (ICS-formoterol risk ratio [RR], 0.65 [95% CI, 0.60-0.72]; risk difference [RD], -10.3% [95% CI, -11.8% to -8.3%]; ICS-SABA RR, 0.84 [95% CI, 0.73-0.95]; RD, -4.7% [95% CI, -8.0% to -1.5%]) with high certainty."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39465893"
+              ],
+              "reason": "Abstract reports improved asthma control with ICS-formoterol vs SABA alone with high certainty.",
+              "source_passage_ids": [
+                "39465893:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39465893",
+                  "quote": "Compared with SABA alone, both ICS-containing relievers were associated with improved asthma control (ICS-formoterol RR improvement [MID] in total score, 1.07 [95% CI, 1.04-1.10]; RD, 4.1% [95% CI, 2.3%-5.9%]; ICS-SABA RR, 1.09 [95% CI, 1.03-1.15]; RD, 5.4% [95% CI, 1.8%-8.5%]) with high certainty. In an indirect comparison with ICS-SABA, ICS-formoterol was associated with fewer severe exacerbations (RR, 0.78 [95% CI, 0.66-0.92]; RD, -5.5% [95% CI, -8.4% to -2.0%]) with moderate certainty. Compared with SABA alone, ICS-formoterol (RD, -0.6% [95% CI, -1.3% to 0%]) was not associated with increased risk of serious adverse events (high certainty) and ICS-SABA (RD, 0% [95% CI, -1.1% to 1.2%]) was not associated with increased risk of serious adverse events (moderate certainty)."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "39465893"
+              ],
+              "reason": "Abstract states ICS-formoterol not associated with increased serious adverse events (high certainty).",
+              "source_passage_ids": [
+                "39465893:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39465893",
+                  "quote": "Compared with SABA alone, both ICS-containing relievers were associated with improved asthma control (ICS-formoterol RR improvement [MID] in total score, 1.07 [95% CI, 1.04-1.10]; RD, 4.1% [95% CI, 2.3%-5.9%]; ICS-SABA RR, 1.09 [95% CI, 1.03-1.15]; RD, 5.4% [95% CI, 1.8%-8.5%]) with high certainty. In an indirect comparison with ICS-SABA, ICS-formoterol was associated with fewer severe exacerbations (RR, 0.78 [95% CI, 0.66-0.92]; RD, -5.5% [95% CI, -8.4% to -2.0%]) with moderate certainty. Compared with SABA alone, ICS-formoterol (RD, -0.6% [95% CI, -1.3% to 0%]) was not associated with increased risk of serious adverse events (high certainty) and ICS-SABA (RD, 0% [95% CI, -1.1% to 1.2%]) was not associated with increased risk of serious adverse events (moderate certainty)."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37286218"
+              ],
+              "reason": "The meta-analysis reports thunderstorms increased risk ratio of asthma events by 1.24-fold.",
+              "source_passage_ids": [
+                "37286218:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37286218",
+                  "quote": "Extreme weather events were associated with increased risks of acute asthma exacerbation with risk ratios of asthma emergency department visits of 1.25-fold (95% CI 1.14-1.37), of asthma hospital admissions of 1.10-fold (95% CI 1.04-1.17), of asthma outpatient visits of 1.19-fold (95% CI 1.06-1.34) and of asthma mortality of 2.10-fold (95% CI 1.35-3.27). Additionally, an increase in extreme weather events increased risk ratios of asthma events by 1.19-fold in children and 1.29-fold in females (95% CI 1.08-1.32 and 95% CI 0.98-1.69, respectively). Thunderstorms increased the risk ratio of asthma events by 1.24-fold (95% CI 1.13-1.36). Our study showed that extreme weather events more prominently increased the risk of asthma morbidity and mortality in children and females. Climate change is a critical concern for asthma control."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is on-specialty (adult asthma controller therapy). The patient has established asthma with documented variable airflow limitation, uses only SABA (albuterol), has never used an ICS-containing inhaler, needs SABA ~2 days/week, and had a recent urgent-care visit during a thunderstorm. Candidate A (ICS-formoterol reliever instead of SABA alone) reflects the current preferred strategy and is directly supported by the supplied 2025 network meta-analysis (39465893), which shows ICS-formoterol reduces severe exacerbations (RR 0.65, high certainty) and improves control vs SABA alone without increased serious adverse events. Candidate B (continue SABA alone, defer ICS until daily persistent symptoms) is the intended flawed option: it omits ICS-containing therapy despite a recent exacerbation and represents the strategy associated with more severe exacerbations. This is the case working as designed. All four claims are exactly supported by the cited passages. The thunderstorm context is corroborated by 37286218. The decision (initiate ICS-containing reliever in SABA-only asthma) is clinically distinct from the previous case (post-COPD-exacerbation pulmonary rehabilitation referral). The question asks 'which inhaled treatment strategy is most appropriate' without naming ICS-formoterol as the answer in visible notes, so it does not disclose the intended answer. No essential data is missing: prior spirometry documents reversible obstruction, medication list is complete, and symptom frequency/recent exacerbation are given. The other sources (atopic dermatitis, ARIA rhinitis, pediatric severe asthma, biologics, probiotics, respiratory muscle training) are distractors not relied upon for the answer. The designated sound answer is safe and complete; no blocking defects identified. Minor observation: dose details of the ICS-formoterol reliever are not specified, but that does not undermine the strategy-level decision."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "She has objectively confirmed asthma and recently required urgent care while using SABA alone. Current evidence favors an ICS-containing reliever even when baseline symptoms are infrequent. The cited systematic review found that as-needed ICS-formoterol, compared with SABA alone, reduced severe exacerbations (RR 0.65, 95% CI 0.60-0.72) and improved asthma control without increasing serious adverse events. Reliable symptom relief from albuterol does not address airway inflammation or justify delaying corticosteroid therapy until symptoms occur daily. Therefore, replacing albuterol-only treatment with as-needed ICS-formoterol is the more appropriate strategy.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "39465893"
+              ],
+              "source_passage_ids": [
+                "39465893:p1"
+              ],
+              "reason": "The cited meta-analysis directly reports fewer severe exacerbations with ICS-formoterol than with SABA alone and rates the evidence as high certainty.",
+              "source_quotes": [
+                {
+                  "source_id": "39465893",
+                  "quote": "Asthma symptom control (5-item Asthma Control Questionnaire; range, 0-6, lower scores indicate better asthma control; minimum important difference [MID], 0.5 points), asthma-related quality of life (Asthma Quality of Life Questionnaire; range, 1-7, higher scores indicate better quality of life; MID, 0.5 points), risk of severe exacerbations, and risk of serious adverse events. A total of 27 randomized clinical trials (N = 50 496 adult and pediatric patients; mean age, 41.0 years; 20 288 male [40%]) were included. Compared with SABA alone, both ICS-containing relievers were associated with fewer severe exacerbations (ICS-formoterol risk ratio [RR], 0.65 [95% CI, 0.60-0.72]; risk difference [RD], -10.3% [95% CI, -11.8% to -8.3%]; ICS-SABA RR, 0.84 [95% CI, 0.73-0.95]; RD, -4.7% [95% CI, -8.0% to -1.5%]) with high certainty."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39465893"
+              ],
+              "source_passage_ids": [
+                "39465893:p2"
+              ],
+              "reason": "The passage directly reports improved asthma control with ICS-formoterol versus SABA alone, with high-certainty evidence.",
+              "source_quotes": [
+                {
+                  "source_id": "39465893",
+                  "quote": "Compared with SABA alone, both ICS-containing relievers were associated with improved asthma control (ICS-formoterol RR improvement [MID] in total score, 1.07 [95% CI, 1.04-1.10]; RD, 4.1% [95% CI, 2.3%-5.9%]; ICS-SABA RR, 1.09 [95% CI, 1.03-1.15]; RD, 5.4% [95% CI, 1.8%-8.5%]) with high certainty. In an indirect comparison with ICS-SABA, ICS-formoterol was associated with fewer severe exacerbations (RR, 0.78 [95% CI, 0.66-0.92]; RD, -5.5% [95% CI, -8.4% to -2.0%]) with moderate certainty. Compared with SABA alone, ICS-formoterol (RD, -0.6% [95% CI, -1.3% to 0%]) was not associated with increased risk of serious adverse events (high certainty) and ICS-SABA (RD, 0% [95% CI, -1.1% to 1.2%]) was not associated with increased risk of serious adverse events (moderate certainty)."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "39465893"
+              ],
+              "source_passage_ids": [
+                "39465893:p2"
+              ],
+              "reason": "The passage directly states that ICS-formoterol was not associated with increased serious adverse events compared with SABA alone and identifies the evidence as high certainty.",
+              "source_quotes": [
+                {
+                  "source_id": "39465893",
+                  "quote": "Compared with SABA alone, both ICS-containing relievers were associated with improved asthma control (ICS-formoterol RR improvement [MID] in total score, 1.07 [95% CI, 1.04-1.10]; RD, 4.1% [95% CI, 2.3%-5.9%]; ICS-SABA RR, 1.09 [95% CI, 1.03-1.15]; RD, 5.4% [95% CI, 1.8%-8.5%]) with high certainty. In an indirect comparison with ICS-SABA, ICS-formoterol was associated with fewer severe exacerbations (RR, 0.78 [95% CI, 0.66-0.92]; RD, -5.5% [95% CI, -8.4% to -2.0%]) with moderate certainty. Compared with SABA alone, ICS-formoterol (RD, -0.6% [95% CI, -1.3% to 0%]) was not associated with increased risk of serious adverse events (high certainty) and ICS-SABA (RD, 0% [95% CI, -1.1% to 1.2%]) was not associated with increased risk of serious adverse events (moderate certainty)."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37286218"
+              ],
+              "source_passage_ids": [
+                "37286218:p1"
+              ],
+              "reason": "The systematic review and meta-analysis directly reports that thunderstorms increased the risk ratio of asthma events.",
+              "source_quotes": [
+                {
+                  "source_id": "37286218",
+                  "quote": "Extreme weather events were associated with increased risks of acute asthma exacerbation with risk ratios of asthma emergency department visits of 1.25-fold (95% CI 1.14-1.37), of asthma hospital admissions of 1.10-fold (95% CI 1.04-1.17), of asthma outpatient visits of 1.19-fold (95% CI 1.06-1.34) and of asthma mortality of 2.10-fold (95% CI 1.35-3.27). Additionally, an increase in extreme weather events increased risk ratios of asthma events by 1.19-fold in children and 1.29-fold in females (95% CI 1.08-1.32 and 95% CI 0.98-1.69, respectively). Thunderstorms increased the risk ratio of asthma events by 1.24-fold (95% CI 1.13-1.36). Our study showed that extreme weather events more prominently increased the risk of asthma morbidity and mortality in children and females. Climate change is a critical concern for asthma control."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is an adult pulmonology decision concerning asthma reliever/controller therapy. The patient has established asthma confirmed by reversible variable airflow obstruction, currently receives SABA alone, has never used an ICS-containing inhaler, and recently required urgent care. Among the offered choices, A is supported by direct comparative evidence showing fewer severe exacerbations and better asthma control with an ICS-formoterol reliever than with SABA alone, without an increased risk of serious adverse events. The answer does not require unsupported dosing or discharge advice because the question asks only which inhaled strategy is most appropriate. B is the intentionally unsafe option because prompt bronchodilator relief does not address exacerbation prevention and it postpones ICS exposure until daily symptoms occur. The thunderstorm association is supported but is contextual rather than decisive. The title and visible question do not disclose the intended answer or management plan. This decision is distinct from the previous COPD post-discharge pulmonary-rehabilitation case."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "c33ad729e27fab70e1bb3e7c921a24ce172187500091fe0bb7586c8ed4ff5dc3"
+  }
+}

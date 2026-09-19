@@ -180,7 +180,7 @@ from onboarding_emails import (
     build_asclepius_password_reset_email,
     build_asclepius_signin_link_email,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from ratelimit import client_ip, rate_limiter
 from asclepius.validation import compute_dedupe_hash, grounding_status, is_grounded, residual_identifiers
 
@@ -1929,11 +1929,60 @@ async def community_preview(user: Dict[str, Any] = Depends(asc_auth.get_current_
 # entering the pipeline. Isolation from the queue, records, exports, stats,
 # agreement, and value metrics is therefore structural (those all read the DB),
 # not a filter that someone can forget. Only ``events`` rows are written.
+def _prepare_onboarding_case(store, user, kind, attempt=1):
+    from asclepius import onboarding_cases
+    from asclepius.onboarding_specialties import resolve
+
+    specialty = resolve(user)["specialty"]
+    if not specialty:
+        raise HTTPException(status_code=422, detail="Your specialty is missing from your application. Please contact support to have it corrected before starting the case.")
+    result = onboarding_cases.request_case(store, specialty, kind, attempt)
+    if result["status"] == "ready":
+        return result["task"]
+    if result["status"] == "retry_wait":
+        raise HTTPException(status_code=503, detail="We could not finish validating your specialty case. Please try again shortly.",
+                            headers={"Retry-After": "60"})
+    return JSONResponse(status_code=202, headers={"Retry-After": "4"}, content={
+        "preparing": True, "specialty": specialty, "retry_after": 4,
+        "message": "Preparing and checking your " + specialty + " case. This may take a few minutes."})
+
+
+def _practice_task(store, user):
+    from asclepius import onboarding_cases
+    from asclepius.onboarding_specialties import resolve
+    current = store.get_tutorial_state(user["id"])
+    ident = current.get("practice_task_id")
+    if ident and ident != TUTORIAL_TASK_ID:
+        return onboarding_cases.get_task(store, ident)
+    if not ident and resolve(user)["specialty"]:
+        prepared = onboarding_cases.get_task(store, onboarding_cases.task_id(resolve(user)["specialty"], "practice"))
+        if prepared:
+            return prepared
+    # Legacy nephrology clients could reveal/submit without a draw. That
+    # compatibility must never make a missing dermatology case a renal case.
+    return tutorial_raw_task() if resolve(user)["specialty"] == "nephrology" else None
+
+
 @router.get("/tutorial/task")
 async def get_tutorial_task(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL))):
     """The practice case, blinded EXACTLY like a real task (same
     ``_blind_task`` path: ground_truth stripped, answer texts withheld)."""
-    return {"task": _blind_task(tutorial_raw_task())}
+    from asclepius.onboarding_specialties import resolve
+    store = _store()
+    specialty = resolve(user)["specialty"]
+    task = _practice_task(store, user)
+    if not task or task.get("specialty") != specialty:
+        task = _prepare_onboarding_case(store, user, "practice")
+    if isinstance(task, JSONResponse):
+        return task
+    current = store.get_tutorial_state(user["id"])
+    if current.get("practice_task_id") != task["task_id"]:
+        old = current.get("practice_task_id")
+        if old:
+            current.setdefault("previous_practice_tasks", []).append(old)
+        current["practice_task_id"] = task["task_id"]
+        store.set_tutorial_state(user["id"], current)
+    return {"task": _blind_task(task), "specialty": specialty, "is_own_specialty": True}
 
 
 # ─── The credentialing examination ───────────────────────────────────────────
@@ -1956,20 +2005,33 @@ async def get_exam_task(user: Dict[str, Any] = Depends(asc_auth.require_surface(
     exam = current.get("exam") if isinstance(current.get("exam"), dict) else {}
     attempt = int(exam.get("attempt") or 0) or 1
 
+    picked = exam_case.exam_specialty(user)
     stamped = str(exam.get("task_id") or "").strip()
-    task = (store.get_task(stamped) if stamped and exam.get("state") in ("in_progress", "submitted")
-            else exam_case.exam_task_for(store, user, attempt))
+    task = (exam_case.task_for_id(store, stamped) if stamped and exam.get("state") in ("in_progress", "submitted") else None)
+    # Submitted assessments are immutable. An unfinished off-specialty draw
+    # can be replaced once its own-specialty case is ready, retaining its old
+    # stamp and independent answer; browser drafts are keyed by the old ID.
+    replace_mismatch = bool(task and exam.get("state") != "submitted" and task.get("specialty") != picked["specialty"])
+    if replace_mismatch:
+        task = None
+    if not task and exam.get("state") != "submitted":
+        task = exam_case.exam_task_for(store, user, attempt)
+        if not task:
+            task = _prepare_onboarding_case(store, user, "examination", attempt)
+        if isinstance(task, JSONResponse):
+            return task
     if not task:
         raise HTTPException(
             status_code=503,
-            detail="No examination case is available yet. We will email you.")
+            detail="The examination case is unavailable. Please try again shortly.")
 
-    picked = exam_case.exam_specialty(user)
     served_specialty = task.get("specialty") or picked["specialty"]
     # Mark it in progress on the DRAW, so somebody who closes the tab mid-case
     # comes back to "Resume my examination" rather than to a screen that has
     # forgotten they started.
     if exam.get("state") != "submitted":
+        if replace_mismatch:
+            current.setdefault("previous_exam_draws", []).append({**exam, "reason": "specialty_corrected"})
         # ``task_id`` is stamped here because it is the ONLY record of which case
         # this applicant was given, and ``require_task_access`` (PRD A §2.1) reads
         # it to decide whether a provisional account may open, reveal or prelabel
@@ -2032,7 +2094,7 @@ async def submit_exam(
     if not served:
         raise HTTPException(
             status_code=503,
-            detail="No examination case is available yet. We will email you.")
+            detail="The examination case is unavailable. Please try again shortly.")
     if claimed != served:
         # 403 rather than 400: this is not a malformed request, it is a request
         # about somebody else's case.
@@ -2048,7 +2110,9 @@ async def submit_exam(
         return {"ok": True, "user": asc_auth.public_user(store.get_user_by_id(user["id"]))}
 
     picked = exam_case.exam_specialty(user)
-    served_specialty = (store.get_task(task_id) or {}).get("specialty") or picked["specialty"]
+    served_specialty = (exam_case.task_for_id(store, task_id) or {}).get("specialty") or picked["specialty"]
+    if served_specialty != picked["specialty"]:
+        raise HTTPException(status_code=409, detail="Your specialty has been corrected. Reopen the examination to load your specialty case; your previous draft is saved.")
     exam_id, created = store.record_credentialing_exam(
         user_id=user["id"], task_id=task_id, specialty=served_specialty,
         attempt=attempt, payload=body,
@@ -2079,9 +2143,13 @@ async def submit_exam(
             "user": asc_auth.public_user(store.get_user_by_id(user["id"]))}
 
 
+class TutorialIndependentAnswer(IndependentAnswer):
+    task_id: Optional[str] = None
+
+
 @router.post("/tutorial/reveal")
 async def tutorial_reveal(
-    body: IndependentAnswer, user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL))
+    body: TutorialIndependentAnswer, user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL))
 ):
     """Mirror of ``POST /tasks/{id}/reveal`` minus persistence: the same
     non-empty-instinct gate (the tutorial teaches the real rule), but no
@@ -2096,11 +2164,42 @@ async def tutorial_reveal(
             },
         )
     store = _store()
+    task = _practice_task(store, user)
+    if not task or (body.task_id and body.task_id != task["task_id"]):
+        raise HTTPException(status_code=409, detail="Reopen your practice case before revealing its answers.")
     store.log_event(
         entity_type="user", entity_id=user["id"],
         event_type="tutorial_reveal", actor=user["id"],
     )
-    return {"answers": _task_answers(tutorial_raw_task()), "committed": True}
+    return {"answers": _task_answers(task), "committed": True}
+
+
+class TutorialConcern(BaseModel):
+    task_id: str
+    note: str = Field(min_length=1, max_length=8000)
+
+
+@router.post("/tutorial/report")
+async def report_tutorial_case(
+    body: TutorialConcern,
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL)),
+):
+    store = _store()
+    task = _practice_task(store, user)
+    if not task or body.task_id != task["task_id"]:
+        raise HTTPException(status_code=409, detail="Reopen your practice case before reporting it.")
+    current = store.get_tutorial_state(user["id"])
+    reports = list(current.get("practice_concerns") or [])
+    concern = {"task_id": body.task_id, "note": body.note.strip()}
+    if not concern["note"]:
+        raise HTTPException(status_code=422, detail="Please describe your concern.")
+    if concern not in reports:
+        reports.append(concern)
+        current["practice_concerns"] = reports
+        store.set_tutorial_state(user["id"], current)
+        store.log_event(entity_type="user", entity_id=user["id"], event_type="tutorial_case_concern",
+                        actor=user["id"], payload=concern)
+    return {"ok": True}
 
 
 @router.post("/tutorial/submit")
@@ -2117,7 +2216,9 @@ async def tutorial_submit(
     Never touches the real submit pipeline: no ``submissions`` row, no
     ``records``, no QA routing.
     """
-    if body.task_id != TUTORIAL_TASK_ID:
+    store = _store()
+    task = _practice_task(store, user)
+    if not task or body.task_id != task["task_id"]:
         raise HTTPException(status_code=400, detail="Not the tutorial task.")
     payload = body.model_dump()
     store = _store()
@@ -2129,7 +2230,11 @@ async def tutorial_submit(
     except (TypeError, ValueError):
         attempts = 1
 
-    result = grade_tutorial_submission(payload, case_for_attempt(attempts))
+    if task["task_id"] == TUTORIAL_TASK_ID:
+        result = grade_tutorial_submission(payload, case_for_attempt(attempts))
+    else:
+        from asclepius.onboarding_cases import practice_feedback
+        result = practice_feedback(store, task["task_id"], payload)
     passed = bool(result.get("passed"))
     now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
     already_done = bool(current.get("completed_at"))
@@ -2773,12 +2878,25 @@ async def ingest_image_asset(
 
 
 @router.get("/assets/{asset_id}")
-async def get_asset(asset_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+async def get_asset(asset_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_account)):
     """Stream a cleaned image asset by id (PRD §4). Authenticated (evaluator/admin);
     the served bytes carry no provider/model, no partner identity, and no residual
     metadata (stripped at ingest). The store path is never exposed."""
     from asclepius import assets as asc_assets
     store = _store()
+    if asset_id.startswith("onboarding-image-"):
+        asc_auth.require_surface(asc_caps.TUTORIAL)(user)
+        from asclepius import onboarding_media
+        ref = onboarding_media.authorized_asset(store, user, asset_id)
+        if not ref:
+            raise HTTPException(status_code=403, detail="This image is not part of your onboarding case.")
+        try:
+            data = onboarding_media.load(ref)
+        except (OSError, ValueError):
+            raise HTTPException(status_code=503, detail="The case image is unavailable. Please try again shortly.")
+        return Response(content=data, media_type=ref["mime"], headers={
+            "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
+    asc_auth.require_full_access(user)
     ref = asc_assets.find_asset_by_id(store, asset_id)
     if not ref:
         raise HTTPException(status_code=404, detail="asset_not_found")
@@ -4259,11 +4377,22 @@ def _attach_relay_handoff(store: Any, task: Dict[str, Any], out: Dict[str, Any])
     }
 
 
+def _workspace_task(store, user, task_id):
+    """Virtual exams are accessible only through the server-owned exam draw."""
+    from asclepius import exam_case, onboarding_cases
+    if str(task_id).startswith(onboarding_cases.PREFIX):
+        if (not str(task_id).startswith("onboarding-examination-") or
+                (user.get("role") != "admin" and not exam_case.is_users_exam_task(store, user, task_id))):
+            raise HTTPException(status_code=403, detail="That is not your examination case.")
+        return onboarding_cases.get_task(store, task_id)
+    return store.get_task(task_id)
+
+
 @router.get("/tasks/{task_id}")
 async def get_task(task_id: str,
                    user: Dict[str, Any] = Depends(require_task_access)):
     store = _store()
-    task = store.get_task(task_id)
+    task = _workspace_task(store, user, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)
@@ -4293,7 +4422,7 @@ async def reveal_task_answers(
     before the AI answers were seen. The commit is the authoritative independent
     answer used at packaging. Idempotent — the first commit's answer/timestamp win."""
     store = _store()
-    task = store.get_task(task_id)
+    task = _workspace_task(store, user, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)
@@ -4323,7 +4452,7 @@ async def reveal_task_answers(
             "text": text,
             "kind": kind,
             "portal_version": pv,
-            "purpose": "credentialing_exam" if asc_auth.owns_this_exam_task(user, task_id) else "labeling",
+            "purpose": "credentialing_exam" if store.is_onboarding_answer(task_id, user["id"]) else "labeling",
             "evidence_anchor": body.evidence_anchor.model_dump() if body.evidence_anchor else None,
             # Multi-anchor (BUG-3b): persist the full citation list on the committed
             # answer too, else packaging (which reads the AUTHORITATIVE commit, not
@@ -4433,7 +4562,7 @@ def _require_independent_commit(store: Any, task_id: str, user: Dict[str, Any]) 
     candidate answers (answer re-fetch, prelabel suggestions): the evaluator
     must have committed their blind independent capture first. One policy, one
     place — a hardening change here covers every answer-describing surface."""
-    task = store.get_task(task_id)
+    task = _workspace_task(store, user, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)  # V4 wall on answer-describing surfaces
@@ -4451,7 +4580,7 @@ def _require_independent_commit(store: Any, task_id: str, user: Dict[str, Any]) 
 
 
 @router.get("/tasks/{task_id}/answers")
-async def get_task_answers(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+async def get_task_answers(task_id: str, user: Dict[str, Any] = Depends(require_task_access)):
     """Re-fetch the revealed candidate answer texts (Eval Flow Upgrade §1, v2 anti-
     peeking) — e.g. on a mid-task refresh resuming into the compare stage. GATED:
     returns text only to an evaluator who has already committed an independent
@@ -4763,6 +4892,8 @@ async def submit(
     user: Dict[str, Any] = Depends(require_practice_case),
 ):
     store = _store()
+    if store.is_onboarding_answer(body.task_id, user["id"]):
+        raise HTTPException(status_code=403, detail="Onboarding answers cannot be submitted as paid work.")
     sid = body.submission_id or f"s-{uuid.uuid4().hex[:12]}"
 
     # Idempotent submit (PRD §10): replaying the same submission_id returns the
@@ -5471,7 +5602,7 @@ async def rubric_suggest(
     if not asc_auth.owns_this_exam_task(user, body.task_id):
         _full_task_gate(user)
     store = _store()
-    task = store.get_task(body.task_id)
+    task = _workspace_task(store, user, body.task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)

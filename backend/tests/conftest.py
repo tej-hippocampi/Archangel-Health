@@ -92,6 +92,14 @@ _NO_FAKE_LLM = {
 
 
 @pytest.fixture(autouse=True)
+def _isolate_published_onboarding_material(monkeypatch, tmp_path):
+    """Regression fixtures seed their own cases; production content is tested
+    explicitly by test_onboarding_library's release coverage gate."""
+    from asclepius import onboarding_library
+    monkeypatch.setattr(onboarding_library, "ROOT", tmp_path / "empty-case-library")
+
+
+@pytest.fixture(autouse=True)
 def _fake_llm_opt_out(request, monkeypatch):
     """Turn the fake transport off for the tests listed in _NO_FAKE_LLM."""
     module = os.path.basename(str(request.node.fspath))

@@ -880,7 +880,7 @@ def test_next_account_practice_does_not_inherit_exam_state(portal, session_exit)
             status=401, content_type="application/json", body='{"detail":"Session expired"}'))
         page.locator("#ascRevealBtn").click()
     page.locator('input[autocomplete="username"]').wait_for()
-    second = make_user(store, tier=None, practice_case=False)
+    second = make_user(store, specialty="nephrology", tier=None, practice_case=False)
     store.set_verification_status(second["id"], "pending")
     page.locator('input[autocomplete="username"]').fill(second["email"])
     page.locator('input[type="password"]').fill("pw-12345678")
@@ -1099,4 +1099,109 @@ def test_practice_scoring_can_finish_and_submit(portal, width, legacy_negative):
     page.get_by_role("button", name="Take my examination →", exact=True).wait_for()
     assert store.get_tutorial_state(user["id"])["status"] == "completed"
     assert not store.get_tutorial_state(user["id"]).get("exam")
+    assert not errors
+
+
+@pytest.mark.parametrize('specialty,width', [('dermatology', 1440), ('neurology', 390)])
+def test_generated_specialty_examination_entire_flow(portal, specialty, width):
+    from tests.test_onboarding_specialty_cases import seed_case, set_credentials
+    page, store, user, errors = portal
+    set_credentials(store, user['id'], {'primarySpecialty': specialty})
+    ident = seed_case(store, specialty, 'examination')
+    # Exercise the same real API/browser scoring, refresh, retry and receipt
+    # journey against a virtual bank case rather than ordinary gold inventory.
+    test_applicant_can_start_and_resume_examination(portal, width, False)
+    filed = store.list_credentialing_exams(user['id'])
+    assert filed[0]['task_id'] == ident and filed[0]['specialty'] == specialty
+    assert store.get_task(ident) is None
+
+
+@pytest.mark.parametrize('kind,width', [('practice', 1440), ('examination', 390)])
+def test_pathology_applicant_can_inspect_the_actual_slide(portal, monkeypatch, tmp_path, kind, width):
+    from playwright.sync_api import expect
+    from asclepius import onboarding_library
+    from tests.test_onboarding_library import publication
+    from tests.test_onboarding_specialty_cases import set_credentials
+    page, store, user, errors = portal
+    monkeypatch.setattr(onboarding_library, 'ROOT', tmp_path)
+    doc = publication('pathology', kind)
+    doc['entry']['case']['case_provenance'] = {'disclaimers': ['Synthetic patient scenario with a public-domain reference micrograph.']}
+    import hashlib
+    from asclepius import onboarding_cases, onboarding_media
+    doc['entry'] = onboarding_cases.validate_entry(doc['entry'], 'pathology', doc['validation']['sources'], approved_asset=onboarding_media.reference(kind)['asset'])
+    doc['validation']['entry_sha256'] = hashlib.sha256(json.dumps(doc['entry'], sort_keys=True).encode()).hexdigest()
+    (tmp_path / (doc['task_id'] + '.json')).write_text(json.dumps(doc))
+    set_credentials(store, user['id'], {'primarySpecialty': 'Pathology'})
+    page.set_viewport_size({'width': width, 'height': 900})
+    page.reload()
+    if kind == 'practice':
+        page.get_by_role('button', name='Optional: try a practice case first', exact=False).click()
+        page.get_by_role('button', name='Start the case →', exact=True).click()
+    else:
+        page.locator('#ascExamStart').click()
+    tab = page.locator('.asc-case-tab').filter(has_text='Path')
+    if tab.count():
+        tab.first.click()
+    else:
+        # Generic specialties use the Studies tab.
+        page.locator('.asc-case-tab').filter(has_text='Studies').first.click()
+    image = page.locator('.asc-img').first
+    expect(image).to_be_visible()
+    page.wait_for_function("document.querySelector('.asc-img')?.naturalWidth > 0")
+    expect(page.locator('body')).not_to_contain_text('HELD OUT INTERPRETATION')
+    expect(page.locator('body')).to_contain_text('public-domain reference micrograph')
+    page.get_by_title('Zoom in (+)', exact=True).first.click()
+    page.get_by_title('Reset view (0)', exact=True).first.click()
+    screenshot(page, f'pathology-{kind}-{width}.png')
+    assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+    assert not errors
+
+
+@pytest.mark.parametrize('specialty', ['dermatology', 'neurology'])
+def test_generated_practice_can_be_skipped_and_its_draft_resumed(portal, specialty):
+    from tests.test_onboarding_specialty_cases import seed_case, set_credentials
+    page, store, user, errors = portal
+    set_credentials(store, user['id'], {'primarySpecialty': specialty})
+    practice = seed_case(store, specialty)
+    exam = seed_case(store, specialty, 'examination')
+    test_applicant_skips_practice_directly_to_exam(portal, 390, True, False)
+    assert store.get_tutorial_state(user['id'])['practice_task_id'] == practice
+    assert store.get_tutorial_state(user['id'])['exam']['task_id'] == exam
+
+
+def test_pending_specialty_preparation_can_be_skipped_without_stale_navigation(portal):
+    from tests.test_onboarding_specialty_cases import seed_case, set_credentials
+    from playwright.sync_api import expect
+    page, store, user, errors = portal
+    set_credentials(store, user['id'], {'primarySpecialty': 'dermatology'})
+    exam = seed_case(store, 'dermatology', 'examination')
+    pending = []
+    page.route('**/tutorial/task', lambda route: pending.append(route))
+    page.get_by_role('button', name='Optional: try a practice case first', exact=False).click()
+    page.get_by_role('button', name='Skip practice & take examination →', exact=True).click()
+    page.locator('.asc-exam-banner').wait_for()
+    pending[0].fulfill(status=202, json={'preparing': True, 'retry_after': 1, 'message': 'Checking dermatology practice…'})
+    expect(page.locator('.asc-exam-banner')).to_be_visible()
+    assert store.get_tutorial_state(user['id'])['exam']['task_id'] == exam
+    assert not errors
+
+
+def test_specialty_exam_preparation_polls_then_opens(portal):
+    from tests.test_onboarding_specialty_cases import seed_case, set_credentials
+    page, store, user, errors = portal
+    set_credentials(store, user['id'], {'primarySpecialty': 'dermatology'})
+    ident = seed_case(store, 'dermatology', 'examination')
+    polls = []
+    def preparing_once(route):
+        polls.append(True)
+        if len(polls) == 1:
+            route.fulfill(status=202, json={'preparing': True, 'retry_after': 1, 'message': 'Checking your dermatology case…'})
+        else:
+            route.fallback()
+    page.route('**/exam/task', preparing_once)
+    page.locator('#ascExamStart').click()
+    page.get_by_text('Checking your dermatology case…', exact=True).wait_for()
+    page.locator('.asc-exam-banner').wait_for()
+    assert len(polls) == 2
+    assert store.get_tutorial_state(user['id'])['exam']['task_id'] == ident
     assert not errors

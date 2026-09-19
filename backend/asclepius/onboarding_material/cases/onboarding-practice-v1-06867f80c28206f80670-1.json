@@ -1,0 +1,365 @@
+{
+  "task_id": "onboarding-practice-v1-06867f80c28206f80670-1",
+  "specialty": "plastic surgery",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Acute volar finger laceration with limited flexion",
+    "question": "Which interpretation and immediate approach best fits the information available at this decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "plastic surgery",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Volar laceration of the right ring finger",
+          "since": "Index day",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Reduced active flexion of the injured digit",
+          "since": "Index day",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Initial hand assessment",
+          "author_role": "plastic surgery",
+          "text": "A right-hand-dominant adult sustained a glass laceration across the volar aspect of the right ring finger earlier today. Triage irrigation and a clean dressing were completed. The patient cannot actively flex the distal interphalangeal joint of that digit, while some proximal interphalangeal flexion remains. The abbreviated triage record does not document a complete assessment of the other flexor functions, digital sensation, perfusion, adjacent digits, or potentially associated structures. No prior hand injury is reported.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [
+        "clinical_note"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete to decision point",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The findings support suspicion of a flexor tendon injury, but the abbreviated examination is insufficient to label it an isolated tendon injury. Suspected flexor tendon injuries require thorough clinical assessment and are often accompanied by other injuries. The immediate sound approach is therefore to assess the injured hand comprehensively for associated structural and functional deficits before final classification or definitive treatment.",
+        "evidence": {},
+        "key_data": [
+          "The injury resulted from penetrating trauma to the volar finger.",
+          "Active distal interphalangeal joint flexion is absent in the injured digit.",
+          "The existing record lacks a complete assessment of other flexor functions and associated structures.",
+          "Flexor tendon injuries may not be isolated."
+        ]
+      },
+      "hard_hook": "Absent distal joint flexion suggests a specific tendon injury, but the documented examination is too limited to establish that it is isolated.",
+      "reasoning_divergence": "The flawed response prematurely converts one functional finding into an isolated operative diagnosis; the sound response preserves diagnostic suspicion while completing the required clinical assessment."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Conclude that this is an isolated flexor digitorum profundus transection from the absent distal joint flexion alone and proceed directly toward isolated tendon repair without assessing other structures."
+      },
+      {
+        "id": "B",
+        "text": "Maintain this as a suspected flexor tendon injury and perform a thorough clinical assessment of the injured hand for associated functional or structural injuries before assigning an isolated tendon diagnosis or definitive treatment."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "flexor tendon injury",
+      "volar laceration",
+      "associated injury",
+      "digital neurovascular injury",
+      "hand assessment"
+    ],
+    "evidence_keywords": [
+      "penetrating trauma",
+      "clinical assessment",
+      "acute flexor tendon injury",
+      "range of motion",
+      "non-isolated injury"
+    ],
+    "error_tags": [
+      "omission",
+      "wrong_diagnosis"
+    ],
+    "claims": [
+      {
+        "statement": "Flexor tendon injuries commonly occur as a result of penetrating trauma.",
+        "source_ids": [
+          "34416975"
+        ]
+      },
+      {
+        "statement": "Suspected flexor tendon injuries require thorough clinical assessment and frequently are not isolated injuries.",
+        "source_ids": [
+          "34416975"
+        ]
+      },
+      {
+        "statement": "Range of motion was the predominant clinician-reported outcome in studies of interventions for acute adult hand flexor tendon injuries.",
+        "source_ids": [
+          "35219612"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:44:51.327500+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "35219612",
+        "title": "Outcome measurement in adult flexor tendon injury: A systematic review.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35219612/",
+        "abstract": "Defining the optimal, evidence-based management of flexor tendon injury remains challenging. Lack of consensus on which measures to use to assess the outcome of interventions is a key issue, especially with regard to patient-reported outcome measures (PROMs). This systematic review defines the landscape of outcome measurement in studies on interventions for flexor tendon injuries to guide future research.\nA PRISMA-compliant systematic review was conducted using bespoke search strategies applied to MEDLINE, EMBASE, PsycINFO, CENTRAL, CINAHL and AMED. A protocol was developed and registered prospectively (CRD42020186780). We identified all studies describing adult patients undergoing interventions for acute hand flexor tendon injuries.\nOf the 4844 studies, 114 studies met the final inclusion criteria for evaluating the outcomes of 8127 participants with 9071 injured digits. Studies included 24 randomised controlled trials, 19 cohort studies and 61 case series. Nine different PROMs were used in 24 studies (22%): three site-specific PROMs, one generic quality-of-life measure and four visual analogue scales. Clinician-reported outcome measures were used in 103 studies (96%), such as the range of motion reported in 102 studies (94%). Adverse outcomes were reported in 96 studies (89%), with the most frequently reported adverse outcomes being tendon rupture and infection. Re-operation was reported in 21 studies (19%). The most frequently reported health economic outcome measure was the length of work absence, reported in ten studies (9%).\nThere is variability in the use of outcome measures used to study interventions for flexor tendon injuries. An independent systematic review of the psychometric properties of the identified outcome measures and a specific multi-stakeholder consensus process may support optimal choice and standardisation for future studies.",
+        "sha256": "bbb8920c19cd0911a290a1d0458183ef8d2de2a08b4f036d4a964a108f7268d4",
+        "retrieved_at": "2026-09-18T23:43:30.142506+00:00"
+      },
+      {
+        "id": "33132034",
+        "title": "Ultrasonographic Diagnosis of A2 or A4 Flexor Tendon Pulley Injury: A Systematic Review.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33132034/",
+        "abstract": "A2 or A4 annular finger pulley tears are common injuries in rock climbers. This study reviews the measurement procedures used and tendon-to-bone distance data obtained on high-resolution ultrasound images when diagnosing isolated rupture of the A2 or A4 pulleys. Out of 3447 records extracted, only 7 remained after applying the exclusion criteria. In diagnosing a complete rupture, tendon-to-bone distance used varied widely from 1.9 to 5.1 mm for A2 and from 1.8 to 3.1 mm for A4. Our findings point to a lack of consensus diagnostic criteria for pulley injuries and identify technical details needing further research.",
+        "sha256": "cc740875707966bcf1b52b249716d3d2fd9c0e2a60e076b134a128590d2c1862",
+        "retrieved_at": "2026-09-18T23:43:30.142506+00:00"
+      },
+      {
+        "id": "34789105",
+        "title": "Outcomes of Isolated Digital Flexor Tenolysis: A Systematic Review.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34789105/",
+        "abstract": "Background: Flexor tendon injuries form a significant proportion of hand trauma presentations. Insult to the flexor tendon and surrounding sheath may lead to the formation of adhesions between these structures during the repair process. Tenolysis is a surgical release of these adhesions which requires careful consideration. This systematic review aims to report on the functional outcomes following isolated digital flexor tenolysis. Methods: We searched four online databases in December 2019. Eligibility criteria for studies were: English language; described patients undergoing digital flexor tenolysis; reported functional outcomes such as total active motion (TAM). Five articles were included. The selected studies were of limited quality (level IV evidence). Results: Of the final cohort 79.4% were male. Three studies reported patient age, with a mean age of 36.8 years [4 years to 58 years] in that subset. One hundred and three digits underwent flexor tenolysis only. Mean duration to surgery from the index operation or injury was 15.1 months [2.3 months-240 months]. Average follow-up from the tenolysis procedure was 18.6 months [3 months to 120 months]. Four studies assessing motion via Strickland classification reported 78.9% excellent or good outcomes. The remaining study reported 80% of patients reporting excellent or good motion as per Buck-Gramcko score. The complication rate reported was 15.3%. Conclusions: This review found digital flexor tenolysis significantly improves ROM, however these benefits must be considered in the light of potential complications. A detailed discussion with each individual patient must occur prior to such an undertaking.",
+        "sha256": "89f943fdf6e974d3ba36af3790a9ed4bc03f13f762d155e5a907f2131437a3d5",
+        "retrieved_at": "2026-09-18T23:43:31.163306+00:00"
+      },
+      {
+        "id": "35965368",
+        "title": "A Systematic Review of the Outcomes of Flexor Tenolysis in Zones 2-5.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35965368/",
+        "abstract": "Background: Although numerous surgical techniques have been described and deployed, flexor tenolysis remains one of the most challenging procedures in hand surgery and there is no standardised way of recording the outcomes. The aim of this study is to systematically review the evidence supporting current concepts and outcomes in flexor tenolysis. Methods: The systematic review was conducted according to the Preferred Reporting Items for Systematic Reviews and Meta-Analyses (PRISMA) guidelines. Medline and EMBASE databases were searched for articles published in English using the keyword search terms 'flexor' or 'tendon' and 'tenolysis' or 'tenoarthrolysis'. A total of 555 articles were listed and further screening provided fourteen studies remaining for final inclusion. The parameters for data extraction included number of digits operated on, age of the patients, initial injury mechanism requiring flexor tenolysis, outcome assessment method, follow-up period, results and complications. The primary outcome was postoperative active range of motion. Results: 556 digits were included across all studies and the age of patients ranged between 1 and 75 years. Eleven out of fourteen of the articles used the Strickland criteria to report their outcomes. Other outcome measures used were total active motion (TAM), Buck-Gramcko and pulp-to-palm distance. In the studies which used the Strickland criteria, the average percentage of outcomes reported as 'good' or 'excellent' was 68% with a range between 45% and 91%. Three other studies used Buck-Gramcko, TAM and pulp-to-palm distance outcome reporting and achieved 72% 'good' or 'excellent', 84% improvement and 30% able to touch distal palm crease respectively. Conclusions: Although the literature contains a limited number of observational studies, the current evidence shows that 68% of well-selected patients who undergo flexor tenolysis achieve a good or excellent outcome as measured by the Strickland criteria. Level of Evidence: Level III (Therapeutic).",
+        "sha256": "403e2e55dce0a3132f54e6a363a00f61316b97c1be34958812ce4f9cec01d1d4",
+        "retrieved_at": "2026-09-18T23:43:31.163306+00:00"
+      },
+      {
+        "id": "30545730",
+        "title": "Flexor tendon rehabilitation in the 21st century: A systematic review.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30545730/",
+        "abstract": "Systematic review.\nThe rehabilitation of patients following flexor tendon injury has progressed from immobilization to true active flexion with the addition of wrist motion over the last 75 years.\nThis review specifically intended to determine whether there is evidence to support one type of exercise regimen, early passive, place and hold, or true active, as superior for producing safe and maximal range of motion following flexor tendon repair.\nThe preferred reporting items for systematic review and meta-analysis (PRISMA-P 2015) checklist was utilized to format the review. Both reviewers collaborated on all aspects of the research, including identifying inclusion/exclusion factors, search terms, reading and scoring articles, and authoring the paper. Articles were independently scored by each reviewer using the Structured Effectiveness Quality Evaluation Scale (SEQES).\nA total of nine intervention studies that included a rehabilitative comparison group were systematically reviewed: one pediatric, four comparing passive flexion protocols to place and hold flexion, and four comparing true active flexion to passive and/or place and hold flexion.\nThis review provides moderate to strong evidence that place and hold exercises provide better outcomes than passive flexion protocols for patients with two to six-strand repairs. The studies included in this review suffered from methodological limitations including short timeframes for follow-up, unequal group distribution, and limited attention to repair site strength.\nBased on a lack of superior benefits following true active motion regimens, there is not sufficient evidence to support true active motion as an effective or preferable choice for flexor tendon rehabilitation at this time.",
+        "sha256": "0f1953fba5b40a50ca424cae9825a861becbbff9fc535b4e673ac2541f27d8f7",
+        "retrieved_at": "2026-09-18T23:43:31.163306+00:00"
+      },
+      {
+        "id": "34416975",
+        "title": "Flexor tendon injuries: Repair & Rehabilitation.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34416975/",
+        "abstract": "Flexor tendon injuries are common and occur mostly by penetrating trauma. Suspected flexor tendon injuries require a thorough clinical assessment and often are not isolated injuries. A detailed understanding of flexor tendon anatomy and spatial relationships is essential, especially when repairing multi-tendon injuries. Principles of flexor tendon repair include a strong suture construct, minimising gap formation between tendon ends, preserving tendon blood supply and providing a smooth repair interface. Moreover, adequate exposure of the zone of injury using full-thickness skin flaps and preservation of neurovascular and pulley structures is essential. In this article an overview of contemporary management strategies is presented. Today's hand surgeons and therapists can choose from a variety of treatment options when managing these important and potentially life-changing injuries.",
+        "sha256": "c6700b87882a65b3ffaf15163355c60d55f49f809a64618823fc859705fbaf2a",
+        "retrieved_at": "2026-09-18T23:43:31.782156+00:00"
+      },
+      {
+        "id": "33179068",
+        "title": "Surgical Treatment of Insertional Achilles Tendinopathy: A Systematic Review.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33179068/",
+        "abstract": "Insertional Achilles tendinopathy is a common complaint among patients. Oftentimes, conservative treatment is inadequate, and surgical treatment is required. However, there is no published consensus regarding surgical intervention in reference to insertional Achilles tendinopathy.\nThe purpose of this systematic review was to evaluate the surgical management of insertional Achilles tendinopathy and report which surgical procedures provide the greatest pain reduction and improvement in functional outcome. A review of PubMed, OVID, Google Scholar, and Cochrane Controlled Trials Register was performed using a defined search strategy and inclusion criteria.\nOf 2,863 articles identified using the defined strategy, 20 met the inclusion criteria (three prospective and 17 retrospective). Operative interventions included Achilles tendon debridement, reattachment with suture anchors, reconstruction with flexor hallucis longus tendon autograft or bone-patellar tendon autograft, and gastrocnemius recession. All of the studies, regardless of intervention, showed generalized improvement after surgery. Wide variation in outcome scoring systems prevented direct comparison between studies and interventions.\nThis systematic review did not identify a superior treatment for insertional Achilles tendinopathy but rather found that the surgical treatment should be based on the extent of tendon injury.",
+        "sha256": "c1953e1de2b82281e9fb23b9c84d16fc372808b90ed536a373712855c42cbc5b",
+        "retrieved_at": "2026-09-18T23:43:31.782156+00:00"
+      },
+      {
+        "id": "35168382",
+        "title": "Extensor Tendon Injury After Volar Locking Plating for Distal Radius Fractures: A Systematic Review.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35168382/",
+        "abstract": "Distal radius fractures are common orthopedic injuries. Treatment has varied historically, but volar locking plating currently predominates. Although flexor tendon injury is a well-studied complication of this operation, extensor tendon injury is less well studied. The purpose of this review is to search the literature and present the epidemiology, presentation, and treatment of this complication. The Cochrane, EMBASE, PubMed, and SCOPUS databases were searched for the terms \"volar\" + \"radius\" + (\"plate\" OR \"plating\") + \"extensor.\" Ninety final studies were included for analysis in this review. The incidence of extensor tendon rupture varies from 0% to 12.5%; the extensor pollicis longus is most commonly ruptured. The presentation and management of extensor tendon injury after injury, intraoperatively, and postoperatively are summarized. Radiographic views are described to detect screw prominence and minimize intraoperative risk. Extensor tendon injury after volar locking plate for distal radius fractures is an uncommon injury with several risk factors including dorsal screw prominence and fracture fragments. Removal of hardware and tendon transfers or reconstruction may be necessary to prevent loss of extensor mechanism.",
+        "sha256": "b936a42942b02c2bbb55d27a610bf66739389a9dd228c64a242d91c1441a6bcb",
+        "retrieved_at": "2026-09-18T23:43:31.782156+00:00",
+        "pmcid": "PMC9793626"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The triage record explicitly notes an incomplete assessment: flexor digitorum superficialis function, digital sensation, perfusion, adjacent digits, and associated structures have not been evaluated. Absent DIP flexion alone suggests FDP involvement but cannot establish an isolated diagnosis. Source 34416975 directly states that 'Suspected flexor tendon injuries require a thorough clinical assessment and often are not isolated injuries,' and emphasizes preservation of neurovascular and pulley structures—underscoring that glass lacerations frequently involve nerves, vessels, and additional tendons. Committing to isolated FDP repair without full examination (Answer A) risks missing concurrent digital nerve/artery injury, partial FDS laceration, or pulley damage, and prematurely narrows the diagnosis. Answer B aligns with the sourced standard of a complete, structured hand assessment before assigning an isolated diagnosis or definitive treatment.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34416975"
+              ],
+              "source_passage_ids": [
+                "34416975:p0"
+              ],
+              "reason": "Source states flexor tendon injuries 'occur mostly by penetrating trauma,' directly supporting the claim.",
+              "source_quotes": [
+                {
+                  "source_id": "34416975",
+                  "quote": "Flexor tendon injuries are common and occur mostly by penetrating trauma. Suspected flexor tendon injuries require a thorough clinical assessment and often are not isolated injuries. A detailed understanding of flexor tendon anatomy and spatial relationships is essential, especially when repairing multi-tendon injuries. Principles of flexor tendon repair include a strong suture construct, minimising gap formation between tendon ends, preserving tendon blood supply and providing a smooth repair interface. Moreover, adequate exposure of the zone of injury using full-thickness skin flaps and preservation of neurovascular and pulley structures is essential. In this article an overview of contemporary management strategies is presented. Today's hand surgeons and therapists can choose from a variety of treatment options when managing these important and potentially life-changing injuries."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34416975"
+              ],
+              "source_passage_ids": [
+                "34416975:p0"
+              ],
+              "reason": "Source states suspected flexor tendon injuries require thorough clinical assessment and often are not isolated injuries.",
+              "source_quotes": [
+                {
+                  "source_id": "34416975",
+                  "quote": "Flexor tendon injuries are common and occur mostly by penetrating trauma. Suspected flexor tendon injuries require a thorough clinical assessment and often are not isolated injuries. A detailed understanding of flexor tendon anatomy and spatial relationships is essential, especially when repairing multi-tendon injuries. Principles of flexor tendon repair include a strong suture construct, minimising gap formation between tendon ends, preserving tendon blood supply and providing a smooth repair interface. Moreover, adequate exposure of the zone of injury using full-thickness skin flaps and preservation of neurovascular and pulley structures is essential. In this article an overview of contemporary management strategies is presented. Today's hand surgeons and therapists can choose from a variety of treatment options when managing these important and potentially life-changing injuries."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "35219612"
+              ],
+              "source_passage_ids": [
+                "35219612:p0",
+                "35219612:p1"
+              ],
+              "reason": "The systematic review covered adult acute hand flexor tendon injury interventions; range of motion was a clinician-reported outcome reported in 102/114 studies (94%), the most frequently reported clinician measure.",
+              "source_quotes": [
+                {
+                  "source_id": "35219612",
+                  "quote": "Defining the optimal, evidence-based management of flexor tendon injury remains challenging. Lack of consensus on which measures to use to assess the outcome of interventions is a key issue, especially with regard to patient-reported outcome measures (PROMs). This systematic review defines the landscape of outcome measurement in studies on interventions for flexor tendon injuries to guide future research. A PRISMA-compliant systematic review was conducted using bespoke search strategies applied to MEDLINE, EMBASE, PsycINFO, CENTRAL, CINAHL and AMED. A protocol was developed and registered prospectively (CRD42020186780). We identified all studies describing adult patients undergoing interventions for acute hand flexor tendon injuries. Of the 4844 studies, 114 studies met the final inclusion criteria for evaluating the outcomes of 8127 participants with 9071 injured digits."
+                },
+                {
+                  "source_id": "35219612",
+                  "quote": "Studies included 24 randomised controlled trials, 19 cohort studies and 61 case series. Nine different PROMs were used in 24 studies (22%): three site-specific PROMs, one generic quality-of-life measure and four visual analogue scales. Clinician-reported outcome measures were used in 103 studies (96%), such as the range of motion reported in 102 studies (94%). Adverse outcomes were reported in 96 studies (89%), with the most frequently reported adverse outcomes being tendon rupture and infection. Re-operation was reported in 21 studies (19%). The most frequently reported health economic outcome measure was the length of work absence, reported in ten studies (9%). There is variability in the use of outcome measures used to study interventions for flexor tendon injuries."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is a plastic/hand surgery scenario. The clinical logic is sound: absent DIP flexion with retained PIP flexion suggests an FDP injury, but the triage exam is explicitly incomplete (no documentation of other flexor functions, sensation, perfusion, adjacent digits). Candidate A prematurely converts a single functional finding into an isolated operative diagnosis and proceeds to repair without assessing neurovascular and other structures — unsafe and directly contradicted by source 34416975, which states such injuries 'require a thorough clinical assessment and often are not isolated injuries.' Candidate B preserves diagnostic suspicion and completes the needed assessment, which is the safe, evidence-supported answer. The two options represent genuinely distinct clinical decisions (complete assessment vs. proceed to repair), not mere wording changes. The visible note does not disclose the intended answer; it presents the ambiguity without stating the plan. All three claims are entailed by the cited source text; source 35219612 is an adult acute hand flexor tendon population matching claim 2. Other sources (tenolysis, Achilles, extensor tendon, pulley ultrasound) are not relied upon for decisive claims. No missing decisive data prevents this decision-point judgment — indeed the point of the case is recognizing incompleteness. No blocking defects found."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Absent active distal interphalangeal flexion strongly suggests flexor digitorum profundus dysfunction, but the abbreviated examination does not establish an isolated complete transection. Digital sensation, perfusion, other flexor functions, adjacent digits, and associated neurovascular, pulley, or tendon injuries remain undocumented. The cited review on flexor tendon injury management states that suspected injuries require thorough clinical assessment and often are not isolated (PMID: 34416975). Therefore, the appropriate immediate approach is comprehensive hand assessment before assigning an isolated diagnosis or proceeding to definitive repair.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34416975"
+              ],
+              "reason": "The source directly states that flexor tendon injuries occur mostly through penetrating trauma, matching the mechanism claim.",
+              "source_passage_ids": [
+                "34416975:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34416975",
+                  "quote": "Flexor tendon injuries are common and occur mostly by penetrating trauma. Suspected flexor tendon injuries require a thorough clinical assessment and often are not isolated injuries. A detailed understanding of flexor tendon anatomy and spatial relationships is essential, especially when repairing multi-tendon injuries. Principles of flexor tendon repair include a strong suture construct, minimising gap formation between tendon ends, preserving tendon blood supply and providing a smooth repair interface. Moreover, adequate exposure of the zone of injury using full-thickness skin flaps and preservation of neurovascular and pulley structures is essential. In this article an overview of contemporary management strategies is presented. Today's hand surgeons and therapists can choose from a variety of treatment options when managing these important and potentially life-changing injuries."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34416975"
+              ],
+              "reason": "The source explicitly states both that suspected flexor tendon injuries require thorough clinical assessment and that they often are not isolated.",
+              "source_passage_ids": [
+                "34416975:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34416975",
+                  "quote": "Flexor tendon injuries are common and occur mostly by penetrating trauma. Suspected flexor tendon injuries require a thorough clinical assessment and often are not isolated injuries. A detailed understanding of flexor tendon anatomy and spatial relationships is essential, especially when repairing multi-tendon injuries. Principles of flexor tendon repair include a strong suture construct, minimising gap formation between tendon ends, preserving tendon blood supply and providing a smooth repair interface. Moreover, adequate exposure of the zone of injury using full-thickness skin flaps and preservation of neurovascular and pulley structures is essential. In this article an overview of contemporary management strategies is presented. Today's hand surgeons and therapists can choose from a variety of treatment options when managing these important and potentially life-changing injuries."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "35219612"
+              ],
+              "reason": "In studies of interventions for acute adult hand flexor tendon injuries, range of motion was reported in 102 studies, compared with clinician-reported outcomes overall in 103 studies, establishing it as the predominant clinician-reported measure.",
+              "source_passage_ids": [
+                "35219612:p0",
+                "35219612:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35219612",
+                  "quote": "Defining the optimal, evidence-based management of flexor tendon injury remains challenging. Lack of consensus on which measures to use to assess the outcome of interventions is a key issue, especially with regard to patient-reported outcome measures (PROMs). This systematic review defines the landscape of outcome measurement in studies on interventions for flexor tendon injuries to guide future research. A PRISMA-compliant systematic review was conducted using bespoke search strategies applied to MEDLINE, EMBASE, PsycINFO, CENTRAL, CINAHL and AMED. A protocol was developed and registered prospectively (CRD42020186780). We identified all studies describing adult patients undergoing interventions for acute hand flexor tendon injuries. Of the 4844 studies, 114 studies met the final inclusion criteria for evaluating the outcomes of 8127 participants with 9071 injured digits."
+                },
+                {
+                  "source_id": "35219612",
+                  "quote": "Studies included 24 randomised controlled trials, 19 cohort studies and 61 case series. Nine different PROMs were used in 24 studies (22%): three site-specific PROMs, one generic quality-of-life measure and four visual analogue scales. Clinician-reported outcome measures were used in 103 studies (96%), such as the range of motion reported in 102 studies (94%). Adverse outcomes were reported in 96 studies (89%), with the most frequently reported adverse outcomes being tendon rupture and infection. Re-operation was reported in 21 studies (19%). The most frequently reported health economic outcome measure was the length of work absence, reported in ten studies (9%). There is variability in the use of outcome measures used to study interventions for flexor tendon injuries."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The volar penetrating injury and absent active distal interphalangeal flexion justify suspicion of a flexor tendon injury, but the record expressly lacks assessment of other flexor functions, sensation, perfusion, adjacent digits, and associated structures. Therefore, an isolated flexor digitorum profundus transection cannot safely be concluded from the available examination alone. Candidate B appropriately preserves diagnostic suspicion and calls for the comprehensive assessment directly supported by source 34416975 before isolated classification or definitive treatment. Candidate A is intentionally flawed because it prematurely declares an isolated transection and bypasses assessment for associated injury. The case remains within plastic/hand surgery, the title and question do not disclose the intended answer, no imaging result is required to distinguish the two proposed decisions, and there are no previous cases against which this decision could duplicate another."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "1239841f0d8a8651d786a14a5a321fa5af5118390cee614c3319c17373f3d8a1"
+  }
+}

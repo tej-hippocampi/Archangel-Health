@@ -1193,19 +1193,16 @@ def _provision_asclepius_user(
     verify: bool = True,
 ) -> None:
     """Create/refresh the person's account in the Asclepius plane (asclepius.db)."""
-    from asclepius import specialties as asc_specialties
+    from asclepius.onboarding_specialties import canonical
 
     creds = credentials or {}
     # The verified legal name on the credential record is the authoritative name
     # attached to sold data; fall back to the identity name from onboarding.
     full_name = (creds.get("fullLegalName") or full_name or "").strip() or None
-    # Asclepius tasks store canonical, lowercased specialties and the evaluator
-    # queue matches case-sensitively. Normalize so a clinician who typed
-    # "Nephrology" actually gets nephrology tasks; if the specialty isn't an
-    # enabled registry specialty, leave it null so they fall into the "any open
-    # task" queue rather than a permanently empty one (mirrors the SSO path).
+    # Clinical identity is independent of which paid-generation specialties
+    # happen to be enabled. Keep the confirmed declaration for onboarding.
     raw_specialty = (creds.get("primarySpecialty") or specialty or "").strip().lower()
-    primary_specialty = raw_specialty if asc_specialties.is_enabled(raw_specialty) else None
+    primary_specialty = canonical(raw_specialty) or None
     board_certs = creds.get("boardCertifications") or []
     board_cert = None
     if isinstance(board_certs, list) and board_certs:
@@ -1217,7 +1214,7 @@ def _provision_asclepius_user(
         elif isinstance(first, str):
             board_cert = first
     # Optional free-text niche / case-type description from onboarding. Stored
-    # verbatim (unlike primary_specialty, which is normalized to the registry);
+    # verbatim (unlike primary_specialty, which is normalized as clinical identity);
     # descriptive metadata only, never a scoring input.
     specialty_niche = (creds.get("specialtyNiche") or "").strip() or None
     years = creds.get("yearsInActivePractice")

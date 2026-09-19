@@ -1,0 +1,489 @@
+{
+  "task_id": "onboarding-examination-v1-6e7fdf319c0398ff7d9b-1",
+  "specialty": "neurosurgery",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Acute lumbosacral neurologic presentation",
+    "question": "Which management approach is most appropriate at this decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "neurosurgery",
+      "demographics": {
+        "age_band": "40-49",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Acute severe low back pain",
+          "since": "Day 0",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "New bilateral leg pain and weakness",
+          "since": "Day 0",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "New perineal sensory change",
+          "since": "Day 0",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "New difficulty initiating urination",
+          "since": "Day 0",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "hemodynamic_status": "stable",
+        "mental_status": "alert"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Emergency assessment",
+          "author_role": "neurosurgery",
+          "text": "A man in his forties developed abrupt worsening of low back pain followed over several hours by pain radiating into both legs, subjective leg weakness, numbness around the perineum, and difficulty initiating urination. He denies recent trauma. Examination shows reduced perineal light-touch sensation and mild bilateral ankle plantar-flexion weakness. He can void a small amount. Bedside bladder ultrasound immediately after voiding records a residual volume of 90 mL. A previously performed digital rectal examination was documented as showing preserved resting anal tone. No lumbar imaging has yet been completed.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Bladder ultrasound",
+          "label": "Post-void bladder assessment",
+          "findings": "Bedside ultrasound performed immediately after a small spontaneous void shows a post-void residual urine volume of 90 mL.",
+          "measurements": [
+            {
+              "analyte": "Post-void residual urine volume",
+              "loinc": null,
+              "value": 90,
+              "unit": "mL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": true
+            }
+          ],
+          "impression": "Post-void residual below 200 mL.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete_to_decision_point",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The combination of acute back pain, bilateral leg symptoms, new perineal sensory loss, and urinary difficulty warrants prompt diagnostic workup for possible cauda equina compression. Lumbar MRI should not be deferred because the post-void residual is below 200 mL or because resting anal tone was preserved. Post-void residual is only an adjunct and should not be used in isolation as an exclusion tool, while digital rectal assessment of anal tone has low sensitivity and risks false reassurance. Rapid MRI-based evaluation and urgent neurosurgical or spine assessment are therefore appropriate.",
+        "evidence": null,
+        "key_data": [
+          "New urinary initiation difficulty developed with acute severe low back pain.",
+          "The patient has new perineal sensory loss and bilateral leg neurologic symptoms.",
+          "Post-void residual volume is 90 mL, but this measurement cannot exclude cauda equina compression in isolation.",
+          "Preserved resting anal tone has low diagnostic sensitivity and can provide false reassurance.",
+          "No lumbar MRI has yet been completed."
+        ]
+      },
+      "hard_hook": "A low post-void residual and preserved anal tone may falsely reassure despite multiple concerning neurologic features.",
+      "reasoning_divergence": "Whether adjunctive bedside findings can safely override the symptom complex and justify deferring prompt MRI-based evaluation."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Defer urgent lumbar imaging and discharge with routine outpatient follow-up because the post-void residual is below 200 mL and preserved resting anal tone makes clinically important cauda equina compression unlikely."
+      },
+      {
+        "id": "B",
+        "text": "Obtain prompt lumbar MRI and urgent neurosurgical or spine assessment; do not defer this diagnostic workup based on the post-void residual below 200 mL or the documented preservation of resting anal tone."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "cauda equina compression",
+      "urinary dysfunction",
+      "saddle sensory loss",
+      "bilateral leg weakness",
+      "lumbar MRI"
+    ],
+    "evidence_keywords": [
+      "red flags",
+      "post-void residual",
+      "digital rectal examination",
+      "prompt diagnostic workup",
+      "clinical-radiological diagnosis"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Cauda equina syndrome is a clinical-radiological diagnosis most commonly established using magnetic resonance imaging.",
+        "source_ids": [
+          "37141301"
+        ]
+      },
+      {
+        "statement": "Cauda equina syndrome is a surgical emergency requiring rapid identification, and its morbidity supports a lower threshold for MRI.",
+        "source_ids": [
+          "37141301"
+        ]
+      },
+      {
+        "statement": "Red-flag findings are more specific than sensitive, and their presence justifies prompt diagnostic workup.",
+        "source_ids": [
+          "31132655"
+        ]
+      },
+      {
+        "statement": "Post-void residual volume is an adjunct to full clinical assessment and should not be used alone as an exclusion tool.",
+        "source_ids": [
+          "37121596"
+        ]
+      },
+      {
+        "statement": "Digital rectal examination of anal tone has low sensitivity for cauda equina compression and carries a high risk of false reassurance.",
+        "source_ids": [
+          "35180641"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:42:07.858422+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "31201127",
+        "title": "A systematic review of the presentation of scan-negative suspected cauda equina syndrome.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31201127/",
+        "abstract": "A significant proportion of patients presenting with suspected cauda equina syndrome (CES) do not have associated radiological evidence to support the diagnosis, often termed 'scan-negative'. Due to the limited number of studies regarding the matter, there is no clear understanding for this presentation. As a result, no treatment protocol exists for the scan-negative group. The purpose of this review is to assess the potential contributing factors leading to the presentation of suspected CES with normal imaging.\nA systematic review was conducted on PubMed and Cochrane databases. Bibliographies of key articles and Google Scholar were searched for additional results. The search strategy provided 204 results. Of those, 8 had no identifiable causation for suspected CES and were included for systematic review.\n6 of 8 studies investigated for a difference in clinical presentation between cohorts that may indicate a normal scan. Studies were either inconclusive and contradictory. Two studies suggest a functional somatic disorder as reasoning for negative MRI, with positive provisional findings.\nA psychogenic hypothesis is plausible and warrants further investigation. The need for additional studies is essential to scheming a potential treatment protocol for the scan-negative population, which currently does not exist.",
+        "sha256": "3e877bbfced4a352425e5e26eb5ec27670cfc7ab8849139310b3f019f79d9564",
+        "retrieved_at": "2026-09-18T23:40:57.510955+00:00"
+      },
+      {
+        "id": "37141301",
+        "title": "Definition and surgical timing in cauda equina syndrome-An updated systematic review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37141301/",
+        "abstract": "Systematic review.\nTo conduct a systematic review identifying existing definitions of cauda equina syndrome (CES) and time to surgery in the literature for patients with CES.\nA systematic review was conducted in accordance with the PRISMA statement. Ovid Medline, Embase, CINAHL Plus, and trial registries were searched from October 1st, 2016, to 30th December 2022, and combined with articles identified from a previous systematic review by the same authors (studies published 1990-2016).\nA total of 110 studies (52,008 patients) were included. Of these only 16 (14.5%) used established definitions in defining CES, including Fraser criteria (n = 6), British Association of Spine Surgeons (BASS) (n = 5), Gleave and MacFarlane (n = 2), and other (n = 3). Most reported symptoms were urinary dysfunction (n = 44, 40%%), altered sensation in the perianal region (n = 28, 25.5%) and bowel dysfunction (n = 20, 18.2%). Sixty-eight (61.8%) studies included details on time to surgery. There was an increase in percentage of studies defining CES published in the last 5 years compared to ones from 1990-2016 (58.6% vs 77.5.%, P = .045).\nDespite Fraser recommendations, substantial heterogeneity exists in reporting of CES definitions, and a start point for time to surgery, with most authors using self-defined criteria. A consensus is required to define CES and time to surgery, to allow consistency in reporting and study analysis.",
+        "sha256": "d170bc1cc778809d5682b77995fbc02c16ead11c71aa13d8fa741c08f5059cab",
+        "retrieved_at": "2026-09-18T23:40:57.510955+00:00",
+        "pmcid": "PMC10159340",
+        "body_excerpts": "Introduction\nCauda equina syndrome (CES) is a rare condition caused by compression of the lumbosacral neve roots below the conus medullaris, and is a clinical-radiological diagnosis most commonly made using Magnetic Resonance Imaging (MRI) [ 1 , 2 ]. Common symptoms and signs of CES include lower back pain, bladder and bowel dysfunction, motor weakness of the lower limbs, and saddle anaesthesia [ 3 ]. CES can be categorised on the basis of urinary symptoms- with CES associated with urinary retention and overflow incontinence being termed as complete (CES-Retention), and without being termed as incomplete (CES-I) [ 4 ]. CES is a surgical emergency, requiring rapid identification to prevent a high risk of morbidity [ 5 ], with many studies indicating that earlier surgical decompression leads to improved functional and long-term outcomes [ 6 – 9 ]. Cauda equina syndrome has a high morbidity and legal burden which necessitates a lower threshold for MRI [ 10 ].\n\nIntroduction > Review question\nIn studies of cauda equina syndrome where patients underwent surgery, what were the symptoms and signs used to define CES, and what was the definition of timing that the authors used?\n\nDiscussion\nDue to a lack of consistency among defining time to surgery in CES, there is a need for researchers in future work to consider appropriate and uniform time definitions, and to specify when timing was started. The approach to define a specific time point, considering its perceived importance and ease of measurement, should be done using a consensus process that considers ideas and viewpoints from key stakeholders.",
+        "body_excerpts_sha256": "45a236d0eb6781d833063347ddf1464e9d163251015558e20853e5eb0d6b092a",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10159340/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "30973513",
+        "title": "Compressive Pressure Versus Time in Cauda Equina Syndrome: A Systematic Review and Meta-Analysis of Experimental Studies.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30973513/",
+        "abstract": "Systematic review and meta-analysis.\nTo examine the relationship between compressive pressure and its duration in cauda equina compression, and the effects of subsequent decompression, on neurophysiological function, and pathophysiology in animal studies. We further aim to investigate these relationships with systemic blood pressure to assess whether a vascular component in the underlying mechanism may contribute to the clinical heterogeneity of this disease.\nThe complex relationship between preoperative factors and outcomes in cauda equina syndrome (CES) suggests heterogeneity within CES which may inform better understanding of pathophysiological process, their effect on neurological function, and prognosis.\nSystematic review identified 17 relevant studies including 422 animals and reporting electrophysiological measures (EP), histopathology, and blood flow. Modeling using meta-regression analyzed the relationship between compressive pressure, duration of compression, and electrophysiological function in both compression and decompression studies.\nModeling suggested that electrophysiological dysfunction in acute cauda equina compression has a sigmoidal response, with particularly deterioration when mean arterial blood pressure is exceeded and, additionally, sustained for approximately 1 hour. Accounting for pressure and duration may help risk-stratify patients pre-decompression. Outcomes after decompression appeared to be related more to the degree of compression, where exceeding systolic blood pressure tended to result in an irreversible lesion, rather than duration of compression. Prognosis was most strongly associated with residual pre-decompression function.\nCompressive pressure influences effects and outcomes of cauda equina compression. We suggest the presence of two broad phenotypic groups within CES defined by the degree of ischaemia as a potential explanatory pathophysiological mechanism.\n1.",
+        "sha256": "9e375c9221dfa9959d9374819bfb9d7ac12c74a8828ac15f7d4f5b937757348d",
+        "retrieved_at": "2026-09-18T23:40:57.510955+00:00",
+        "pmcid": "PMC6855389"
+      },
+      {
+        "id": "39592477",
+        "title": "Lumbar Disc Herniation and Cauda Equina Syndrome During Pregnancy: A Systematic Review.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39592477/",
+        "abstract": "Low back pain is common during pregnancy, affecting up to 76% of women. However, symptomatic lumbar disc herniation (LDH) is rare, occurring in about 1 in 10,000 pregnancies, with less than 2% progressing to cauda equina syndrome (CES). The overlap in symptoms between LDH and typical pregnancy-related conditions complicates both diagnosis and management. This review aims to enhance understanding of LDH and CES during pregnancy and provide a comprehensive overview of treatment options.\nA systematic review of the PubMed database was conducted following PRISMA guidelines, focusing on patient demographics, clinical presentation, diagnostics, treatment strategies, and outcomes.\nThirty-three case reports and series involving 51 pregnant women diagnosed with LDH and CES were analyzed. The average age was 33.2 years, with most symptoms occurring in the third trimester. Lower extremity pain (86.3%) and low back pain (78.4%) were the predominant symptoms, with 49.0% experiencing sphincter involvement. MRI was the primary diagnostic tool, identifying single-level disc herniation in 92.2% of cases. Antepartum spine surgery was performed on 74.5% of the women, predominantly through microdiscectomy, with 79.2% using general anesthesia. Post-surgery, 52.6% had cesarean sections, while 42.1% delivered vaginally. Adverse events were minimal (3.9%), and 62.7% of patients experienced favorable outcomes without neurological deterioration or maternal/fetal deaths.\nAlthough rare, acute LDH and CES during pregnancy require prompt attention and intervention. MRI and emergent surgical treatment are generally safe and effective for both mother and fetus. Special surgical positioning and anesthesia management considerations are critical to minimizing risks and ensuring favorable outcomes.",
+        "sha256": "767fbb7469192dbb127d11044b24ec7e8d1f6505dee4cba6f89c0e045eef658e",
+        "retrieved_at": "2026-09-18T23:40:58.089823+00:00"
+      },
+      {
+        "id": "37121596",
+        "title": "Predictive value of post-void residual volume as an adjunctive tool in the clinical evaluation of cauda equina syndrome.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37121596/",
+        "abstract": "The early diagnosis of cauda equina syndrome (CES) is crucial for a favourable outcome. Several studies have reported the use of an ultrasound scan of the bladder as an adjunct to assess the minimum post-void residual volume of urine (mPVR). However, variable mPVR values have been proposed as a threshold without consensus on a value for predicting CES among patients with relevant symptoms and signs. The aim of this study was to perform a meta-analysis and systematic review of the published evidence to identify a threshold mPVR value which would provide the highest diagnostic accuracy in patients in whom the diagnosis of CES is suspected. The search strategy used electronic databases (PubMed, Medline, EMBASE, and AMED) for publications between January 1996 and November 2021. All studies that reported mPVR in patients in whom the diagnosis of CES was suspected, followed by MRI, were included. A total of 2,115 studies were retrieved from the search. Seven fulfilled the inclusion criteria. These included 1,083 patients, with data available from 734 being available for meta-analysis. In 125 patients, CES was confirmed by MRI. The threshold value of mPVR reported in each study varied and could be categorized into 100 ml, 200 ml, 300 ml, and 500 ml. From the meta-analysis, 200 ml had the highest diagnostic accuracy, with 82% sensitivity (95% confidence interval (CI) 0.72 to 0.90) and 65% specificity (95% CI 0.70 to 0.90). When compared using summative receiver operating characteristic curves, mPVR of 200 ml was superior to other values in predicting the radiological confirmation of CES. mPVR is a useful tool when assessing patients in whom the diagnosis of CES is suspected. Compared with other values a mPVR of 200 ml had superior sensitivity, specificity, and positive and negative predictive values. In a patient with a suggestive history and clinical findings, a mPVR of > 200 ml should further raise the suspicion of CES. Caution is recommended when considering the mPVR in isolation and using it as an 'exclusion tool', and it should only be used as an adjunct to a full clinical assessment.",
+        "sha256": "abf4fe5f6dd31379a0876537ef404843f6c2150c9a39b6f4624f21526cb90b1c",
+        "retrieved_at": "2026-09-18T23:40:58.089823+00:00"
+      },
+      {
+        "id": "31132655",
+        "title": "What is the diagnostic accuracy of red flags related to cauda equina syndrome (CES), when compared to Magnetic Resonance Imaging (MRI)? A systematic review.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31132655/",
+        "abstract": "To review and statistically pool available evidence on the diagnostic accuracy of red flags to clinically identify MRI confirmed Cauda Equina Syndrome (CES).\nSystematic review.\nEmbase, Scopus, Ovid Medline, Ovid Healthstar, Amed and CINAHL from inception to January 30, 2018 and a grey literature search.\nPrimary diagnostic studies, published in English; comparing red flags for CES; to Magnetic Resonance Imaging (MRI) as reference standard; in humans; older than 18 years.\nData extraction, assessment of study quality using a modified QUADAS-2 tool and the use of GRADE to synthesize the results for each test was performed by three independent assessors. Diagnostic accuracy statistics applied to the identified data andpooled analysis performed using Meta-DiSc, version 1.4. Moderator analyses planned for pooled results.\nSeven studies (total N = 569 participants) were included. Potential signs or symptoms of CES were compared to MRI findings. Diagnostic data could be pooled for reduced anal tone, leg pain, back pain, saddle anaesthesia, urinary retention, urinary incontinence and bowel incontinence from six of seven studies. The pooled sensitivity for the signs and symptoms ranged from 0.19 (95% CI 0.09 to 0.33) to 0.43 (95% CI 0.30 to 0.56) while the pooled specificity ranged from 0.62 (95% CI 0.59 to 0.73) to 0.88 (95% CI 0.85 to 0.92).\nRed flags used to identify potential CES appear to be more specific than sensitive. As such, when these are present, they should be considered justification for prompt diagnostic workup.",
+        "sha256": "9b83892cae1dc4cb41118f1439bca577c87db9282e6dd5f42b1a00079d0b3673",
+        "retrieved_at": "2026-09-18T23:40:58.089823+00:00"
+      },
+      {
+        "id": "35180641",
+        "title": "Can digital rectal examination be used to detect cauda equina compression in people presenting with acute cauda equina syndrome? A systematic review and meta-analysis of diagnostic test accuracy studies.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35180641/",
+        "abstract": "Digital rectal examination (DRE) is a commonly used test to help identify people with cauda equina compression (CEC).\nTo determine the diagnostic accuracy of DRE in assessment of anal tone, squeeze, sensation and reflexes, as predictors of CEC.\nA systematic review to investigate the diagnostic accuracy of DRE to detect CEC compared with lumbar Magnetic Resonance Imaging (MRI).\nSix electronic databases were searched from inception to 6 July 2020 for studies published in English. Two assessors independently performed screening, data extraction and risk of bias assessment (QUADAS-2). Meta-analysis was performed using STATA-16.\nSix studies were included (n = 741). The sensitivity of anal tone was low across all studies (range: 0.23 to 0.53) with moderate quality evidence against the use of DRE of anal tone. One study on anal sensation found no correlation with CEC using Kendall's tau test: p = 0.102 and another found sensation had low test accuracy. One study identified sensitivity: 0.29 and specificity: 0.96 for anal squeeze, while another identified sensitivity: 0.38 and specificity: 0.6 for anal reflexes.\nThe diagnostic accuracy of DRE of anal tone to detect CEC is low and carries a high risk of false reassurance. It is therefore not recommended in any clinical setting. More research is needed to determine the diagnostic accuracy of DRE of anal squeeze, sensation and reflexes and if done the results should be interpreted with caution.",
+        "sha256": "474181717291c74cb96248a7647141b0835c757b83318f2c83a3eb7d7f570bc1",
+        "retrieved_at": "2026-09-18T23:40:58.667816+00:00"
+      },
+      {
+        "id": "34581849",
+        "title": "Outcomes of cauda equina syndrome due to lumbar disc herniation after surgical management and the factors affecting it: a systematic review and meta-analysis of 22 studies with 852 cases.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34581849/",
+        "abstract": "This study aimed to investigate the long-term clinical outcomes after surgical decompression in cauda equina syndrome (CES) and see if any preoperative patient-related factors contributed to this outcome.\nA systematic literature search was conducted in the electronic databases of PubMed, Embase, Scopus, and Ovid. Data regarding outcome parameters from eligible studies were extracted. Meta-analysis was performed using a random-effect model.\nA total of 852 patients (492 males and 360 females), with a mean age of 44.6 ± 5.5 years from 22 studies diagnosed with cauda equina syndrome and undergoing surgical decompression, were included in the meta-analysis; however, not all studies reported every outcome. The mean follow-up period was 39.2 months, with a minimum follow-up of 12 months in all included studies. Meta-analysis showed that on long-term follow-up, 43.3% [29.1, 57.5] (n=708) of patients had persistent bladder dysfunction. Persistent bowel dysfunction was observed in 31.1% [14.7, 47.6] (n=439) cases, sensory deficit in 53.3% [37.1, 69.6] (n=519), motor weakness in 38.4% [22.4, 54.4] (n=490), and sexual dysfunction in 40.1% [28.0, 52.1] (n=411). Decompression within 48 hours of the onset of symptoms was associated with a favourable outcome in terms of bladder function with 24.6% [1.6, 50.9] (n=75) patients having persistent dysfunction, whereas 50.3% [10.3, 90.4] (n=185) of patients in studies with a mean time to decompression after 48 hours had persistent bladder dysfunction. Other factors such as speed of onset and sex of the patients were not found to significantly impact long-term bladder outcomes.\nThe long-term outcomes of CES after decompression are enumerated. Decompression within 48 hours of the onset of symptoms appears to result in fewer patients with persistent bladder dysfunction. However, a randomized controlled trial is required to conclusively determine whether early decompression leads to better outcomes.",
+        "sha256": "4cfe513362aa6e8d11f1dcaaf9153e86d5c0fb57870e13b29f991787298b3573",
+        "retrieved_at": "2026-09-18T23:40:58.667816+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This patient presents with a classic constellation of early cauda equina syndrome (CES): abrupt severe back pain, bilateral leg pain and weakness, perineal (saddle) sensory change, and difficulty initiating urination. CES is a surgical emergency where earlier decompression (ideally within 48 hours per Srikandarajah/Hoeritzauer literature, e.g., PMID 34581849) improves bladder and neurologic outcomes. The two 'reassuring' findings invoked in Answer A do not exclude CES: (1) A post-void residual of 90 mL (below 200 mL) cannot be used as an exclusion tool. The meta-analysis by PMID 37121596 found the optimal mPVR threshold of 200 mL had only 82% sensitivity and explicitly cautions against using mPVR in isolation or as an exclusion tool; it is only an adjunct to full clinical assessment. Moreover, this is early/incomplete CES (CES-I) with retained voiding, which is precisely when intervention preserves function—waiting for retention (CES-R) worsens prognosis. (2) Preserved resting anal tone does not rule out CES. The DRE meta-analysis (PMID 35180641) found anal tone sensitivity of only 0.23–0.53, concluding DRE of anal tone carries a high risk of false reassurance and is 'not recommended in any clinical setting' for excluding CEC. Red flags are more specific than sensitive (PMID 31132655), so when present—as here—they justify prompt MRI workup, not deferral. Answer A relies on two low-sensitivity tests to discharge a patient with multiple concordant CES red flags, which the retrieved evidence directly refutes. Answer B (prompt lumbar MRI plus urgent neurosurgical/spine assessment) aligns with the standard of care and the cited literature.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.92,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37141301"
+              ],
+              "reason": "Body excerpt states CES is a clinical-radiological diagnosis most commonly made using MRI.",
+              "source_quotes": [
+                {
+                  "source_id": "37141301",
+                  "quote": "Introduction Cauda equina syndrome (CES) is a rare condition caused by compression of the lumbosacral neve roots below the conus medullaris, and is a clinical-radiological diagnosis most commonly made using Magnetic Resonance Imaging (MRI) [ 1 , 2 ]. Common symptoms and signs of CES include lower back pain, bladder and bowel dysfunction, motor weakness of the lower limbs, and saddle anaesthesia [ 3 ]. CES can be categorised on the basis of urinary symptoms- with CES associated with urinary retention and overflow incontinence being termed as complete (CES-Retention), and without being termed as incomplete (CES-I) [ 4 ]. CES is a surgical emergency, requiring rapid identification to prevent a high risk of morbidity [ 5 ], with many studies indicating that earlier surgical decompression leads to improved functional and long-term outcomes [ 6 – 9 ]."
+                }
+              ],
+              "source_passage_ids": [
+                "37141301:p2"
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37141301"
+              ],
+              "reason": "Excerpt describes CES as surgical emergency requiring rapid identification and states high morbidity necessitates a lower threshold for MRI.",
+              "source_quotes": [
+                {
+                  "source_id": "37141301",
+                  "quote": "Introduction Cauda equina syndrome (CES) is a rare condition caused by compression of the lumbosacral neve roots below the conus medullaris, and is a clinical-radiological diagnosis most commonly made using Magnetic Resonance Imaging (MRI) [ 1 , 2 ]. Common symptoms and signs of CES include lower back pain, bladder and bowel dysfunction, motor weakness of the lower limbs, and saddle anaesthesia [ 3 ]. CES can be categorised on the basis of urinary symptoms- with CES associated with urinary retention and overflow incontinence being termed as complete (CES-Retention), and without being termed as incomplete (CES-I) [ 4 ]. CES is a surgical emergency, requiring rapid identification to prevent a high risk of morbidity [ 5 ], with many studies indicating that earlier surgical decompression leads to improved functional and long-term outcomes [ 6 – 9 ]."
+                },
+                {
+                  "source_id": "37141301",
+                  "quote": "Cauda equina syndrome has a high morbidity and legal burden which necessitates a lower threshold for MRI [ 10 ]. Introduction > Review question In studies of cauda equina syndrome where patients underwent surgery, what were the symptoms and signs used to define CES, and what was the definition of timing that the authors used? Discussion Due to a lack of consistency among defining time to surgery in CES, there is a need for researchers in future work to consider appropriate and uniform time definitions, and to specify when timing was started. The approach to define a specific time point, considering its perceived importance and ease of measurement, should be done using a consensus process that considers ideas and viewpoints from key stakeholders."
+                }
+              ],
+              "source_passage_ids": [
+                "37141301:p2",
+                "37141301:p3"
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "31132655"
+              ],
+              "reason": "Abstract concludes red flags are more specific than sensitive and their presence justifies prompt diagnostic workup.",
+              "source_quotes": [
+                {
+                  "source_id": "31132655",
+                  "quote": "Potential signs or symptoms of CES were compared to MRI findings. Diagnostic data could be pooled for reduced anal tone, leg pain, back pain, saddle anaesthesia, urinary retention, urinary incontinence and bowel incontinence from six of seven studies. The pooled sensitivity for the signs and symptoms ranged from 0.19 (95% CI 0.09 to 0.33) to 0.43 (95% CI 0.30 to 0.56) while the pooled specificity ranged from 0.62 (95% CI 0.59 to 0.73) to 0.88 (95% CI 0.85 to 0.92). Red flags used to identify potential CES appear to be more specific than sensitive. As such, when these are present, they should be considered justification for prompt diagnostic workup."
+                }
+              ],
+              "source_passage_ids": [
+                "31132655:p1"
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37121596"
+              ],
+              "reason": "Abstract explicitly cautions against using mPVR in isolation as an exclusion tool and states it should only be used as an adjunct to full clinical assessment.",
+              "source_quotes": [
+                {
+                  "source_id": "37121596",
+                  "quote": "mPVR is a useful tool when assessing patients in whom the diagnosis of CES is suspected. Compared with other values a mPVR of 200 ml had superior sensitivity, specificity, and positive and negative predictive values. In a patient with a suggestive history and clinical findings, a mPVR of > 200 ml should further raise the suspicion of CES. Caution is recommended when considering the mPVR in isolation and using it as an 'exclusion tool', and it should only be used as an adjunct to a full clinical assessment."
+                }
+              ],
+              "source_passage_ids": [
+                "37121596:p2"
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "35180641"
+              ],
+              "reason": "Abstract states DRE of anal tone has low diagnostic accuracy and high risk of false reassurance, not recommended in any clinical setting.",
+              "source_quotes": [
+                {
+                  "source_id": "35180641",
+                  "quote": "One study on anal sensation found no correlation with CEC using Kendall's tau test: p = 0.102 and another found sensation had low test accuracy. One study identified sensitivity: 0.29 and specificity: 0.96 for anal squeeze, while another identified sensitivity: 0.38 and specificity: 0.6 for anal reflexes. The diagnostic accuracy of DRE of anal tone to detect CEC is low and carries a high risk of false reassurance. It is therefore not recommended in any clinical setting. More research is needed to determine the diagnostic accuracy of DRE of anal squeeze, sensation and reflexes and if done the results should be interpreted with caution."
+                }
+              ],
+              "source_passage_ids": [
+                "35180641:p1"
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is on-specialty (neurosurgery, CES urgent evaluation) and internally coherent. A man in his forties presents with acute back pain, bilateral leg symptoms, perineal sensory loss, and urinary initiation difficulty — a red-flag constellation for cauda equina compression. The intended flawed candidate A would discharge based on a post-void residual <200 mL and preserved anal tone; both bedside findings are documented adjuncts with poor sensitivity, and using them to exclude CES is unsafe. Candidate B (prompt MRI + urgent neurosurgical/spine assessment) is the safe answer and is directly supported by the evidence: mPVR should not be used as an exclusion tool (37121596), DRE anal tone has low sensitivity and high false-reassurance risk (35180641), red flags justify prompt workup when present (31132655), and CES is a clinical-radiological diagnosis established by MRI with a lower threshold warranted (37141301). All five claims map to actual source text. The key correctly notes the 90 mL PVR and preserved tone cannot exclude CES. The question ('Which management approach is most appropriate') does not disclose the answer, and visible notes describe findings without revealing the intended plan; the hard_hook and reasoning_divergence fields are metadata, not model-visible. Decision is distinct from the prior SAH/tranexamic-acid case (different clinical decision entirely). No essential care is omitted from B — it captures both imaging and specialist referral. Minor observation: the case leans on an abstract-level evidence base rather than a formal guideline, but the specific claims are each entailed by the supplied text, so evidence support holds."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The abrupt bilateral radicular symptoms, leg weakness, reduced perineal sensation, and new urinary difficulty are concerning for incomplete cauda equina syndrome and justify prompt lumbar MRI with urgent spine/neurosurgical assessment. A post-void residual below 200 mL cannot safely exclude compression: the cited meta-analysis found the 200 mL threshold only 82% sensitive and cautioned against using PVR in isolation as an exclusion tool. Preserved resting anal tone is likewise falsely reassuring because DRE anal-tone sensitivity is low (0.23-0.53). CES is a clinical-radiological emergency, and these red flags warrant prompt diagnostic imaging rather than discharge.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.99,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37141301"
+              ],
+              "reason": "The cited passage explicitly describes CES as a clinical-radiological diagnosis most commonly made with MRI.",
+              "source_passage_ids": [
+                "37141301:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37141301",
+                  "quote": "Introduction Cauda equina syndrome (CES) is a rare condition caused by compression of the lumbosacral neve roots below the conus medullaris, and is a clinical-radiological diagnosis most commonly made using Magnetic Resonance Imaging (MRI) [ 1 , 2 ]. Common symptoms and signs of CES include lower back pain, bladder and bowel dysfunction, motor weakness of the lower limbs, and saddle anaesthesia [ 3 ]. CES can be categorised on the basis of urinary symptoms- with CES associated with urinary retention and overflow incontinence being termed as complete (CES-Retention), and without being termed as incomplete (CES-I) [ 4 ]. CES is a surgical emergency, requiring rapid identification to prevent a high risk of morbidity [ 5 ], with many studies indicating that earlier surgical decompression leads to improved functional and long-term outcomes [ 6 – 9 ]."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37141301"
+              ],
+              "reason": "The source explicitly calls CES a surgical emergency requiring rapid identification and states that its morbidity necessitates a lower MRI threshold.",
+              "source_passage_ids": [
+                "37141301:p2",
+                "37141301:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37141301",
+                  "quote": "Introduction Cauda equina syndrome (CES) is a rare condition caused by compression of the lumbosacral neve roots below the conus medullaris, and is a clinical-radiological diagnosis most commonly made using Magnetic Resonance Imaging (MRI) [ 1 , 2 ]. Common symptoms and signs of CES include lower back pain, bladder and bowel dysfunction, motor weakness of the lower limbs, and saddle anaesthesia [ 3 ]. CES can be categorised on the basis of urinary symptoms- with CES associated with urinary retention and overflow incontinence being termed as complete (CES-Retention), and without being termed as incomplete (CES-I) [ 4 ]. CES is a surgical emergency, requiring rapid identification to prevent a high risk of morbidity [ 5 ], with many studies indicating that earlier surgical decompression leads to improved functional and long-term outcomes [ 6 – 9 ]."
+                },
+                {
+                  "source_id": "37141301",
+                  "quote": "Cauda equina syndrome has a high morbidity and legal burden which necessitates a lower threshold for MRI [ 10 ]. Introduction > Review question In studies of cauda equina syndrome where patients underwent surgery, what were the symptoms and signs used to define CES, and what was the definition of timing that the authors used? Discussion Due to a lack of consistency among defining time to surgery in CES, there is a need for researchers in future work to consider appropriate and uniform time definitions, and to specify when timing was started. The approach to define a specific time point, considering its perceived importance and ease of measurement, should be done using a consensus process that considers ideas and viewpoints from key stakeholders."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "31132655"
+              ],
+              "reason": "The systematic review reports low sensitivity relative to specificity for red flags and explicitly states that their presence justifies prompt diagnostic workup.",
+              "source_passage_ids": [
+                "31132655:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31132655",
+                  "quote": "Potential signs or symptoms of CES were compared to MRI findings. Diagnostic data could be pooled for reduced anal tone, leg pain, back pain, saddle anaesthesia, urinary retention, urinary incontinence and bowel incontinence from six of seven studies. The pooled sensitivity for the signs and symptoms ranged from 0.19 (95% CI 0.09 to 0.33) to 0.43 (95% CI 0.30 to 0.56) while the pooled specificity ranged from 0.62 (95% CI 0.59 to 0.73) to 0.88 (95% CI 0.85 to 0.92). Red flags used to identify potential CES appear to be more specific than sensitive. As such, when these are present, they should be considered justification for prompt diagnostic workup."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37121596"
+              ],
+              "reason": "The meta-analysis explicitly cautions against using post-void residual in isolation as an exclusion tool and limits its role to an adjunct to full clinical assessment.",
+              "source_passage_ids": [
+                "37121596:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37121596",
+                  "quote": "mPVR is a useful tool when assessing patients in whom the diagnosis of CES is suspected. Compared with other values a mPVR of 200 ml had superior sensitivity, specificity, and positive and negative predictive values. In a patient with a suggestive history and clinical findings, a mPVR of > 200 ml should further raise the suspicion of CES. Caution is recommended when considering the mPVR in isolation and using it as an 'exclusion tool', and it should only be used as an adjunct to a full clinical assessment."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "35180641"
+              ],
+              "reason": "The review found low sensitivity for anal-tone examination and explicitly identified a high risk of false reassurance.",
+              "source_passage_ids": [
+                "35180641:p0",
+                "35180641:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35180641",
+                  "quote": "Digital rectal examination (DRE) is a commonly used test to help identify people with cauda equina compression (CEC). To determine the diagnostic accuracy of DRE in assessment of anal tone, squeeze, sensation and reflexes, as predictors of CEC. A systematic review to investigate the diagnostic accuracy of DRE to detect CEC compared with lumbar Magnetic Resonance Imaging (MRI). Six electronic databases were searched from inception to 6 July 2020 for studies published in English. Two assessors independently performed screening, data extraction and risk of bias assessment (QUADAS-2). Meta-analysis was performed using STATA-16. Six studies were included (n = 741). The sensitivity of anal tone was low across all studies (range: 0.23 to 0.53) with moderate quality evidence against the use of DRE of anal tone."
+                },
+                {
+                  "source_id": "35180641",
+                  "quote": "One study on anal sensation found no correlation with CEC using Kendall's tau test: p = 0.102 and another found sensation had low test accuracy. One study identified sensitivity: 0.29 and specificity: 0.96 for anal squeeze, while another identified sensitivity: 0.38 and specificity: 0.6 for anal reflexes. The diagnostic accuracy of DRE of anal tone to detect CEC is low and carries a high risk of false reassurance. It is therefore not recommended in any clinical setting. More research is needed to determine the diagnostic accuracy of DRE of anal squeeze, sensation and reflexes and if done the results should be interpreted with caution."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Answer B is independently supported by the acute combination of bilateral radicular symptoms and weakness, perineal sensory loss, and new urinary difficulty. These findings justify prompt MRI-based evaluation for possible cauda equina compression. A post-void residual of 90 mL cannot exclude CES: the supplied meta-analysis reports only 82% sensitivity at the 200 mL threshold and expressly warns against using residual volume alone as an exclusion tool. Preserved resting anal tone is likewise not reassuring because DRE anal-tone sensitivity is low and carries a high risk of false reassurance. Prompt lumbar MRI and urgent spine/neurosurgical involvement are appropriate for a possible surgical emergency; no pre-imaging decompression or unestablished diagnosis is asserted. The absence of lumbar imaging is the reason for the next step rather than missing case information. Candidate A would be unsafe because it converts two insufficiently sensitive adjuncts into grounds for discharge. The title and visible question do not disclose the intended answer. This decision is distinct from the prior subarachnoid-hemorrhage case concerning antifibrinolytic therapy and aneurysm obliteration."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "f53e8c2ee87357a14b5b405251bd183c20ef921f2dd279a00ea98d6a7742c44a"
+  }
+}

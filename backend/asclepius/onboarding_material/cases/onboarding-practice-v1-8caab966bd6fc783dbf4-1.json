@@ -1,0 +1,502 @@
+{
+  "task_id": "onboarding-practice-v1-8caab966bd6fc783dbf4-1",
+  "specialty": "ophthalmology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Bilateral painful visual decline after a recent medication change",
+    "question": "Which candidate provides the most appropriate immediate management approach for this acute ophthalmic presentation?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "ophthalmology",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Acute bilateral ocular pain and blurred vision",
+          "since": "Index day",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Migraine disorder",
+          "since": "Several years",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Topiramate",
+          "dose": null,
+          "route": "oral",
+          "freq": null,
+          "collected_offset_days": -12
+        }
+      ],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Urgent ophthalmology assessment",
+          "author_role": "ophthalmology",
+          "text": "An adult in her thirties presents with several hours of rapidly worsening bilateral eye pain, headache, halos around lights, and blurred distance vision. Topiramate was started for migraine prevention 12 days earlier, and she reports no previous glaucoma attack or ocular procedure. Examination shows conjunctival injection, mild bilateral corneal edema, mid-sized reactive pupils, and markedly shallow anterior chambers. Intraocular pressure is elevated in both eyes. Gonioscopy demonstrates appositional angle closure bilaterally without a documented chronic visual-field defect.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Tonometry",
+          "label": "Bilateral intraocular pressure measurement",
+          "findings": "Intraocular pressure is elevated in both eyes.",
+          "measurements": [
+            {
+              "analyte": "Right-eye intraocular pressure",
+              "loinc": null,
+              "value": 37,
+              "unit": "mmHg",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": true
+            },
+            {
+              "analyte": "Left-eye intraocular pressure",
+              "loinc": null,
+              "value": 39,
+              "unit": "mmHg",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": true
+            }
+          ],
+          "impression": "Bilateral ocular hypertension in the setting of acute symptoms.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        },
+        {
+          "modality": "Gonioscopy",
+          "label": "Anterior chamber angle assessment",
+          "findings": "The iridocorneal angles are appositionally closed in both eyes. No prior iridotomy is present.",
+          "measurements": [],
+          "impression": "Bilateral angle closure.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [
+        "clinical examination",
+        "tonometry",
+        "gonioscopy"
+      ],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The bilateral attack began 12 days after topiramate initiation, closely matching the reported peak onset near two weeks. The supported immediate approach is to stop topiramate and begin prompt topical ocular therapy, adding systemic medical therapy if clinically required. Treating the presentation as routine pupillary-block disease while continuing the precipitating medication omits the essential intervention. Laser peripheral iridotomy specifically relieves pupillary block and should not replace withdrawal of topiramate in this medication-associated presentation.",
+        "evidence": null,
+        "key_data": [
+          "Topiramate was initiated 12 days before symptom onset.",
+          "Pain, blurred vision, shallow anterior chambers, elevated pressure, and angle closure are bilateral.",
+          "There is no history of a previous acute angle-closure attack or ocular procedure.",
+          "The essential initial actions reported for topiramate-induced acute angle closure are immediate drug cessation and topical therapy."
+        ]
+      },
+      "hard_hook": "The applicant must distinguish medication-associated bilateral angle closure from a routine pupillary-block presentation.",
+      "reasoning_divergence": "The flawed approach equates every closed angle with pupillary block and omits withdrawal of the recently initiated precipitating medication."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Continue topiramate because it is unrelated to the ocular findings, and proceed directly to bilateral laser peripheral iridotomy as the sole immediate treatment for presumed pupillary-block angle closure."
+      },
+      {
+        "id": "B",
+        "text": "Immediately discontinue topiramate and initiate prompt topical ocular therapy for the bilateral pressure elevation, adding systemic medical therapy if clinically required rather than substituting routine iridotomy for withdrawal of the precipitating drug."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "acute angle closure",
+      "elevated intraocular pressure",
+      "topiramate",
+      "vision loss",
+      "bilateral ocular pain"
+    ],
+    "evidence_keywords": [
+      "topiramate cessation",
+      "topical therapy",
+      "pupillary block",
+      "laser peripheral iridotomy",
+      "two-week onset"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Topiramate-induced acute angle closure is a potentially vision-threatening adverse effect.",
+        "source_ids": [
+          "35502014"
+        ]
+      },
+      {
+        "statement": "Reported topiramate-associated angle closure most often begins around two weeks after treatment is started.",
+        "source_ids": [
+          "35502014"
+        ]
+      },
+      {
+        "statement": "All cases in the systematic review were managed with immediate topiramate cessation and topical therapy.",
+        "source_ids": [
+          "35502014"
+        ]
+      },
+      {
+        "statement": "Systemic medications were used in many reported cases, whereas laser or surgical intervention occurred in a minority.",
+        "source_ids": [
+          "35502014"
+        ]
+      },
+      {
+        "statement": "Laser peripheral iridotomy creates an iris opening that permits aqueous flow and eliminates pupillary block.",
+        "source_ids": [
+          "36621864"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:48:33.750293+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "33759192",
+        "title": "Lens extraction for chronic angle-closure glaucoma.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33759192/",
+        "abstract": "Primary angle-closure glaucoma (PACG) is characterized by a rise in intraocular pressure (IOP) secondary to aqueous outflow obstruction, with relative pupillary block being the most common underlying mechanism. There is increasing evidence that lens extraction may relieve pupillary block and thereby improve IOP control. As such, comparing the effectiveness of lens extraction against other commonly used treatment modalities can help inform the decision-making process.\nTo assess the effectiveness of lens extraction compared with other interventions in the treatment of chronic PACG in people without previous acute angle-closure attacks.\nWe searched CENTRAL, MEDLINE, Embase, one other database, and two trials registers (December 2019). We also screened the reference lists of included studies and the Science Citation Index database. We had no date or language restrictions.\nWe included randomized controlled trials (RCTs) comparing lens extraction with other treatment modalities for chronic PACG.\nWe followed standard Cochrane methodology.\nWe identified eight RCTs with 914 eyes. We obtained data for participants meeting our inclusion criteria for these studies (PACG only, no previous acute angle-closure attacks), resulting in 513 eyes included in this review. The participants were recruited from a diverse range of countries. We were unable to conduct meta-analyses due to different follow-up periods and insufficient data. One study compared phacoemulsification with laser peripheral iridotomy (LPI) as standard care. Participants in the phacoemulsification group were less likely to experience progression of visual field loss (odds ratio [OR] 0.35, 95% confidence interval [CI] 0.13 to 0.91; 216 eyes; moderate certainty evidence), and required fewer IOP-lowering medications (mean difference [MD] -0.70, 95% CI -0.89 to -0.51; 263 eyes; moderate certainty evidence) compared with standard care at 12 months. Moderate certainty evidence also suggested that phacoemulsification improved gonioscopic findings at 12 months or later (MD -84.93, 95% CI -131.25 to -38.61; 106 eyes). There was little to no difference in health-related quality of life measures (MD 0.04, 95% CI -0.16 to 0.24; 254 eyes; moderate certainty evidence), and visual acuity (VA) (MD 2.03 ETDRS letter, 95% CI -0.77 to 4.84; 242 eyes) at 12 months, and no observable difference in mean IOP (MD -0.03mmHg, 95% CI -2.34 to 2.32; 257 eyes; moderate certainty evidence) compared to standard care. Irreversible loss of vision was observed in one participant in the phacoemulsification group, and three participants in standard care at 36 months (moderate-certainty evidence). One study (91 eyes) compared phacoemulsification with phaco-viscogonioplasty (phaco-VGP). Low-certainty evidence suggested that fewer IOP-lowering medications were needed at 12 months with phacoemulsification (MD -0.30, 95% CI -0.55 to -0.05). Low-certainty evidence also suggested that phacoemulsification may have improved gonioscopic findings at 12 months or later compared to phaco-VGP (angle grading MD -0.60, 95% CI -0.91 to -0.29; TISA500 MD -0.03, 95% CI -0.06 to -0.01; TISA750 MD -0.03, 95% CI -0.06 to -0.01; 91 eyes). Phacoemulsification may result in little to no difference in best corrected VA at 12 months (MD -0.01 log MAR units, 95% CI -0.10 to 0.08; low certainty evidence), and the evidence is very uncertain about its effect on IOP at 12 months (MD 0.50 mmHg, 95% CI -2.64 to 3.64; very low certainty evidence). Postoperative fibrin reaction was observed in two participants in the phacoemulsification group and four in the phaco-VGP group. Three participants in the phaco-VGP group experienced hyphema. No data were available for progression of visual field loss and quality of life measurements at 12 months. Two studies compared phacoemulsification with phaco-goniosynechialysis (phaco-GSL). Low-certainty evidence suggested that there may be little to no difference in mean IOP at 12 months (MD -0.12 mmHg, 95% CI -4.72 to 4.48; 1 study, 32 eyes) between the interventions. Phacoemulsification did not reduce the number of IOP-lowering medications compared to phaco-GSL at 12 months (MD -0.38, 95% CI -1.23 to 0.47; 1 study, 32 eyes; moderate certainty evidence). Three eyes in the phaco-GSL group developed hyphemas. No data were available at 12 months for progression of visual field loss, gonioscopic findings, visual acuity, and quality of life measures. Three studies compared phacoemulsification with combined phaco-trabeculectomy, but the data were only available for one study (63 eyes). In this study, low-certainty evidence suggested that there was little to no difference between groups in mean change in IOP from baseline (MD -0.60 mmHg, 95% CI -1.99 to 0.79), number of IOP-lowering medications at 12 months (MD 0.00, 95% CI -0.42 to 0.42), and VA measured by the Snellen chart (MD -0.03, 95% CI -0.18 to 0.12). Participants in the phacoemulsification group had fewer complications (risk ratio [RR] 0.59, 95% CI 0.34 to 1.04), and the phaco-trabeculectomy group required more IOP-lowering procedures (RR 5.81, 95% CI 1.41 to 23.88), but the evidence was very uncertain. No data were available for other outcomes.\nModerate certainty evidence showed that lens extraction has an advantage over LPI in treating chronic PACG with clear crystalline lenses over three years of follow-up; ultimately, the decision for intervention should be part of a shared decision-making process between the clinician and the patient. For people with chronic PACG and visually significant cataracts, low certainty evidence suggested that combining phacoemulsification with either viscogonioplasty or goniosynechialysis does not confer any additional benefit over phacoemulsification alone. There was insufficient evidence to draw any meaningful conclusions regarding phacoemulsification versus trabeculectomy. Low certainty evidence suggested that combining phacoemulsification with trabeculectomy does not confer any additional benefit over phacoemulsification alone, and may cause more complications instead. These conclusions only apply to short- to medium-term outcomes; studies with longer follow-up periods can help assess whether these effects persist in the long term.",
+        "sha256": "65b93295efbbc6bc2982550996318d126d56cfc6ef540c7df1412cf97671cb04",
+        "retrieved_at": "2026-09-18T23:46:53.493312+00:00",
+        "pmcid": "PMC8094223"
+      },
+      {
+        "id": "38633303",
+        "title": "A deep dive into hyperbaric environments and intraocular pressure-a systematic review.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38633303/",
+        "abstract": "SCUBA diving exposes participants to a unique hyperbaric environment, but few studies have examined the effects of such an environment on intraocular pressure (IOP) and glaucoma. This systematic review aims to consolidate recent literature findings regarding the impact of increased atmospheric pressure on IOP and glaucoma.\nThree online databases were searched to identify publications encompassing the subjects of diving or increased atmospheric pressure in conjunction with IOP or glaucoma. Three reviewers independently screened the publications and identified eligible articles. Relevant data was extracted from each article. The heterogeneity of the data precluded the conduct of a meta-analysis.\nNine studies met the inclusion criteria. Six experimental studies employed hyperbaric chambers to measure IOP under simulated diving conditions. Among these, IOP exhibited a reduction with increased atmospheric pressures in four studies, while the findings of two studies were inconclusive. One study measured IOP pre- and post-dive and another measured IOP with and without a diving mask. Post-dive, a decrease in IOP was observed, and a statistically significant reduction was noted when subjects wore a diving mask. A retrospective study examining the incidence of acute angle closure glaucoma attack found no association with weather or atmospheric pressure.\nThe majority of studies found IOP to decrease with increased atmospheric pressure and after diving. The mechanisms underlying this reduction remain incompletely understood, with potential contributors including changes in ocular blood flow, sympathetic responses, and increased oxygenation. Hyperbaric chambers may have potential in future glaucoma treatments, but more studies are required to draw reliable conclusions regarding the safety of diving for glaucoma patients.",
+        "sha256": "39fe388760a1d4cec3b9f6c7993974f74b30f80735d56e9831ff646044098f2f",
+        "retrieved_at": "2026-09-18T23:46:53.493312+00:00",
+        "pmcid": "PMC11021581"
+      },
+      {
+        "id": "41188801",
+        "title": "Risk factors for glaucoma in nanophthalmos - a systematic review and meta-analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41188801/",
+        "abstract": "Nanophthalmos, a rare ocular condition characterized by small but structurally normal eyes, presents a high risk for developing angle-closure glaucoma and related complications. Accurate estimation of glaucoma prevalence and identification of predictive risk factors are essential for guiding early diagnosis and tailored interventions in this anatomically vulnerable population. Therefore, the current systematic review and meta-analysis synthesizes existing evidence on the associated clinical and biometric risk factors for glaucoma in nanophthalmic eyes.\nFollowing PRISMA guidelines, we conducted a comprehensive literature search in PubMed and the Cochrane Library for studies published between January 2000 and December 2023. Eligible studies included investigations reporting biometric data in nanophthalmic eyes. Data were extracted on demographics, clinical parameters, and risk factors. Meta-analyses using random-effects models were conducted to estimate pooled prevalence and assess heterogeneity. Subgroup analyses and meta-regression explored sources of variability. The risk of bias was assessed using NIH quality tools.\nA total of 44 studies involving 1,397 eyes from 1,078 patients were included. The pooled prevalence of glaucoma in nanophthalmos was estimated at 51.88% (95% CI: 33.33-70.43; I² = 88.57%). Meta-regression revealed that higher intraocular pressure (IOP) at presentation was significantly associated with increased glaucoma prevalence, while shorter axial length (AL) was inversely associated. Other biometric factors, such as anterior chamber depth, lens thickness, and spherical equivalent, were variably reported but commonly showed anatomical crowding. Acute angle-closure glaucoma emerged as the most frequently observed complication. No publication bias was detected.\nOver half of the eyes with nanophthalmos are affected by glaucoma, with elevated IOP and short axial length serving as major risk factors. These findings emphasize the need for early biometric screening, vigilant monitoring, and individualized anatomy-based management strategies to prevent irreversible vision loss among nanophthalmic patients.\nInternational prospective register of systematic reviews (PROSPERO) - CRD42024522578.",
+        "sha256": "ab0468a0875cf5b878cec8c2d13a98f21972f643f8138e566cdbcb525000ca89",
+        "retrieved_at": "2026-09-18T23:46:53.493312+00:00",
+        "pmcid": "PMC12584219"
+      },
+      {
+        "id": "37747945",
+        "title": "Risk Factors for Primary Angle-closure Glaucoma: A Systematic Review and Meta-analysis of 45 Studies.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37747945/",
+        "abstract": "This study summarized primary angle-closure glaucoma (PACG)-related factors across different dimensions.\nThis review aimed at systematically summarizing the associated factors of PACG in published literatures.\nA systematic review and meta-analysis were conducted by searching the electronic databases including PubMed, EMBASE, and Web of Science from their inception to November 2021. The pooled risk estimates of continuous and categorical variables were calculated using weighted mean difference (WMD) and odds ratio (OR; 95% confidence intervals [CIs]), respectively.\nWe included 45 studies in this review. In the meta-analysis, intraocular pressure (WMD, 3.13; 95% CI, 2.37 to 3.89), anterior chamber depth (WMD, -0.52; 95% CI, -0.70 to -0.34), axial length (WMD, -0.77; 95% CI, -1.26 to -0.28), retinal nerve fiber layer (WMD, -21.23; 95% CI, -30.21 to -12.25), and spherical equivalent (WMD, 1.02; 95% CI, 0.66 to 1.38) were the most common ophthalmic anatomic factors, and lower body weight (WMD, -3.65; 95% CI, -6.48 to -0.82) was the most significant general morphological indicators. The presence of cataract (OR, 3.77; 95% CI, 3.46 to 4.11) and hyperlipidemia (OR, 1.10; 95% CI, 1.02 to 1.20) were significantly associated with PACG. Increased level of triglyceride (WMD, 0.17; 95% CI, 0.06 to 0.27) was associated with PACG. In addition, an association between short-term antidepressant exposure (OR, 1.36; 95% CI, 1.08 to 1.70) and acute angle-closure glaucoma was observed.\nThis review identified a few consistent factors related to PACG, providing important information for primary care physicians, general ophthalmologists, and public health professionals to counsel their patients on PACG risks.",
+        "sha256": "1af52c94aef885eb18ee1b3e59c1921e4122359ea922b25a3baf8d2fa77d998b",
+        "retrieved_at": "2026-09-18T23:46:54.063686+00:00"
+      },
+      {
+        "id": "35502014",
+        "title": "Topiramate-induced acute angle closure: A systematic review of case reports and case series.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35502014/",
+        "abstract": "Topiramate-induced acute angle closure (TiAAC) is a potentially vision-threatening side effect of topiramate (TPM) use. The purpose of this article is to review demographic characteristics, clinical features, and management options of TiAAC. A systematic literature search of all reported cases and case series of TiAAC was conducted in the following search engines: PubMed, Web of Science, Google Scholar, Elsevier, and EBSCO. Seventy-three publications describing 77 cases were included. 58 (75.3%) patients were female, and the mean age was 34.88 ± 11.21 years (range, 7-57). The most commonly reported indication of TPM use was migraine headache (59.7%), and the mean duration from starting treatment until the onset of angle closure was 14.1 ± 31.5 days. All cases were managed by immediate cessation of TPM and topical therapy. In addition, systemic medications (carbonic anhydrase inhibitors, hyperosmotic agents, and steroids) were used in 51 patients (66.2%). A laser and/or surgical intervention was performed in 10 patients (13%). After commencement of treatment, the mean duration until the resolution of TiAAC was 3.9 ± 3.6 days (range, 1-18). The findings of our study present a summary of the current body of evidence provided by case reports and case series on TiAAC. In conclusion, the onset of angle closure following TPM use peaks at 2 weeks after initiating treatment, and in most cases, successful management can be achieved by discontinuing TPM and initiating appropriate medical therapy.",
+        "sha256": "a0744e1598df183a1f97c52bf72fa87d82a4fdeabeb7e5114cb404dd900aad4d",
+        "retrieved_at": "2026-09-18T23:46:54.063686+00:00",
+        "pmcid": "PMC9333044"
+      },
+      {
+        "id": "39905214",
+        "title": "Progression of primary angle closure suspects: a systematic review and meta-analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39905214/",
+        "abstract": "This systematic review and meta-analysis examined the proportion of primary angle closure suspects (PACS) progressing to primary angle closure (PAC), acute angle closure (AAC), and primary angle closure glaucoma (PACG) and evaluated the impact of prophylactic laser peripheral iridotomy (LPI) on disease progression. A systematic search was performed on MEDLINE and EMBASE for studies published until November 2023 that reported on the proportion of PACS progressing to PAC. Using random-effects modelling, risk ratios and 95% confidence intervals estimated the proportion of progressing PACS between patients who received LPI versus those who did not. Two randomized-controlled-trials and three observational studies included a total of 1997 PACS patients. The weighted average age was 57.2 years with 74.7% females, and an average follow-up period of 6.2 years. Overall, 284 (14.2%) PACS patients progressed to either PAC (n = 258, 12.9%), AAC (n = 9, 0.5%), or PACG (n = 17, 0.9%). Patients receiving LPI displayed a 2.49-fold decrease in the risk of progression to PAC (RR: 2.49; 95% CI = 1.50-4.07; p < 0.001; NNT = 15), suggesting that there is a higher risk of disease progression without LPI. However, for the progressions to AAC and PACG, statistical significance was not reached. The present study provides valuable insights to the proportion of PACS who showed disease progression and underscores the potential benefit of prophylactic LPI in reducing the risk of angle closure disease progression. However, this study also addresses the issues surrounding the lack of demonstrated clinical efficacy for this intervention, thus advocating for a balanced approach in clinical decision-making.",
+        "sha256": "9666802fb38418ba5ec679c2bffbdd3aec0ada7f387e3ab5970cd1773a840c89",
+        "retrieved_at": "2026-09-18T23:46:54.063686+00:00",
+        "pmcid": "PMC11933690"
+      },
+      {
+        "id": "35472806",
+        "title": "Valsalva-Induced Spontaneous Suprachoroidal Hemorrhage: A Case Report and Review of the Literature.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35472806/",
+        "abstract": "We report a rare case of spontaneous suprachoroidal hemorrhage and present a systematic review of the literature using PubMed/Medline databases. Patients that developed a spontaneous suprachoroidal hemorrhage with a history of previous intraocular surgery were excluded. An 82-year-old male patient with no known ocular pathologies or surgical history was referred with acute ocular pain and decreased vision in the right eye (BCVA: 0.6 with hyperopic correction) following a Valsalva maneuver. General history included chronic heart failure and coronary artery disease, treated with anticoagulant and antihypertensive drugs. Dilated fundus examination revealed a posterior red-brown choroidal mass, with a thickness of 1.5 mm on B-scan ultrasonography. The lesion was not visible on fluorescein or indocyanine green angiography and was located under the choroid on B-scan optical coherence tomography. The diagnosis of a spontaneous suprachoroidal hemorrhage was evoked, and the patient was observed. Five months later, BCVA was 1.0 uncorrected, with a normal-appearing fundus. In a literature review, eight cases of spontaneous suprachoroidal hemorrhage following an episode of increased intrathoracic pressure were identified, including our patient. M/F ratio was 1 : 1, with a median age of 66.5 years. All cases presented systemic pathologies. All cases presented with a unilateral suprachoroidal hemorrhage. Only 2/8 patients had ocular comorbidities. Complications requiring treatment were noted in 4/8 cases, including 2 cases that resulted in the loss of the vision following an acute angle-closure glaucoma. Spontaneous resolution of the hemorrhage was observed in the other 4 patients. In 6/8 cases, vision recovered over a mean period of 10 weeks. In conclusion, spontaneous suprachoroidal hemorrhage following a Valsalva maneuver in eyes with no history of ocular surgery or trauma is rare, and has been associated with advanced age, cardiovascular disease and asthma. In severe cases (2/8) the eye was lost, while most cases (6/8) recovered, presenting a good visual outcome.",
+        "sha256": "f78620bd9c3b2c2feb9502c8d7c7c07ca9d886672be11601921b665b92273449",
+        "retrieved_at": "2026-09-18T23:46:54.582290+00:00"
+      },
+      {
+        "id": "36621864",
+        "title": "Iridotomy to slow progression of visual field loss in angle-closure glaucoma.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36621864/",
+        "abstract": "Primary angle-closure glaucoma is a type of glaucoma associated with a physically obstructed anterior chamber angle. For example, contact between the iris and lens at the pupillary margin creates a pupillary block that increases resistance to aqueous outflow. Obstruction of the anterior chamber angle blocks drainage of fluids (aqueous humor) within the eye and may raise intraocular pressure (IOP). Elevated IOP is associated with glaucomatous optic nerve damage and visual field loss. Laser peripheral iridotomy ('iridotomy') is a procedure to eliminate pupillary block by allowing aqueous humor to pass directly from the posterior to anterior chamber, which is achieved by creating a hole in the iris using laser. Iridotomy is used to treat patients with primary angle-closure glaucoma, patients with primary angle-closure (narrow angles and no signs of glaucomatous optic neuropathy), and patients who are primary angle-closure suspects (patients with reversible obstruction). However, the effectiveness of iridotomy on slowing progression of visual field loss is uncertain.\nTo assess the effects of iridotomy compared with no iridotomy for primary angle-closure glaucoma, primary angle-closure, and primary angle-closure suspect.\nWe searched the Cochrane Central Register of Controlled Trials (CENTRAL; 2021, Issue 10), which contains the Cochrane Eyes and Vision Trials Register; MEDLINE Ovid; Embase Ovid; PubMed; LILACS; ClinicalTrials.gov; and the WHO ICTRP. The date of the most recent search was 10 October 2021.\nRandomized or quasi-randomized controlled trials that compared iridotomy with no iridotomy in primary angle-closure suspects, people with primary angle-closure, or people with primary angle-closure glaucoma in one or both eyes were eligible.\nWe used standard Cochrane methodology and assessed the certainty of the body of evidence for prespecified outcomes using the GRADE approach.\nWe identified four studies (3086 eyes of 1543 participants) that compared iridotomy with no iridotomy in participants (range of mean age 59.6 to 62.9 years) who were primary angle-closure suspects from China, Singapore, or the UK. Study investigators randomized one eye of each participant to iridotomy and the other to no iridotomy. Two studies provided long-term (five or more years) results. We judged the certainty of the evidence as moderate to low across the prespecified outcomes, downgrading for high risk of bias (e.g. performance and detection biases) and imprecision of results. Meta-analyses of data from two studies suggest that iridotomy probably results in little to no difference in IOP compared with no iridotomy at one year (mean difference (MD) 0.04 mm Hg, 95% confidence interval (CI) -0.17 to 0.24; I2 = 65%; 2598 eyes of 1299 participants; moderate certainty evidence) and five years (MD 0.12 mm Hg, 95% CI -0.11 to 0.35; I2 = 0%; 2016 eyes of 1008 participants), and in best-corrected visual acuity measured as logMAR at one year (MD 0.00, 95% CI -0.01 to 0.01; I2 = 69%; 2596 eyes of 1298 participants; moderate certainty evidence) and five years (MD 0.01, 95% CI -0.01 to 0.03; I2 = 0%; 2002 eyes of 1001 participants). In terms of gonioscopic findings, eyes treated with iridotomy likely had wider angles in Shaffer grading scale (MD 4.93 units, 95% CI 4.73 to 5.12; I2 = 59%; 2598 eyes of 1299 participants at one year; MD 5.07, 95% CI 4.78 to 5.36; I2 = 97%; 2016 eyes of 1008 participants at five years; moderate certainty evidence) and experienced fewer peripheral anterior synechiae (PAS) than eyes that received no iridotomy at five years (risk ratio (RR) 0.41, 95% CI 0.24 to 0.67; I2 = 28%; 2 studies, 2738 eyes of 1369 participants), but the evidence was less conclusive at one year (RR 0.62, 95% CI 0.25 to 1.54; I2 = 57%; 3 studies, 2896 eyes of 1448 participants; low certainty evidence). No studies reported data on the proportion of participants with progressive visual field loss during follow-up (the primary outcome of this review), mean number of medications to control IOP, or quality of life outcomes. Low certainty evidence suggests that iridotomy may result in little to no difference in the incidence of acute angle-closure (RR 0.29, 95% CI 0.07 to 1.20; I2 = 0%; 3 studies, 3006 eyes of 1503 participants). Other ocular adverse events (e.g. eye pain, dry eye, redness of eyes, and ocular discomfort), although rare, were more common in eyes treated with iridotomy than in eyes in the control group.  AUTHORS' CONCLUSIONS: We did not find sufficient evidence to draw any meaningful conclusions on the use of iridotomy for the purpose of slowing progression of visual field loss. No study reported on progressive visual field loss, the primary outcome of this review. Although there is moderate certainty evidence that iridotomy results in improved gonioscopic findings, in is unclear if these findings translate to clinically meaningful benefits.",
+        "sha256": "ab991c5529a319931ede4849fca69c0d5f7661c151562ece38dddec36ad91e9f",
+        "retrieved_at": "2026-09-18T23:46:54.582290+00:00",
+        "pmcid": "PMC9827451"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This is a classic presentation of topiramate-induced acute angle closure (TiAAC): a woman in her thirties on topiramate for migraine, presenting ~12 days after starting the drug with acute bilateral pain, halos, blurred vision, corneal edema, shallow anterior chambers, elevated IOP, and appositional angle closure. Source 35502014 directly addresses this exact scenario (75% female, mean age ~35, migraine indication, onset peaking ~2 weeks) and states that management is immediate cessation of topiramate plus topical therapy, with systemic agents (carbonic anhydrase inhibitors, hyperosmotics, steroids) added as needed; laser/surgical intervention was required in only ~13% of cases. The mechanism is a secondary angle closure from ciliary body edema/anterior lens-iris diaphragm rotation—NOT pupillary block—so laser peripheral iridotomy is not the appropriate primary treatment (supported by the bilaterality, mid-sized reactive pupils, and drug timing). Candidate A is wrong on both counts: it continues the precipitating drug and applies LPI (a pupillary-block treatment) which does not address this non-pupillary-block mechanism. Candidate B matches the evidence-based approach precisely.",
+          "confidence": 0.96
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "35502014"
+              ],
+              "source_passage_ids": [
+                "35502014:p0"
+              ],
+              "reason": "Abstract explicitly states TiAAC is a potentially vision-threatening side effect.",
+              "source_quotes": [
+                {
+                  "source_id": "35502014",
+                  "quote": "Topiramate-induced acute angle closure (TiAAC) is a potentially vision-threatening side effect of topiramate (TPM) use. The purpose of this article is to review demographic characteristics, clinical features, and management options of TiAAC. A systematic literature search of all reported cases and case series of TiAAC was conducted in the following search engines: PubMed, Web of Science, Google Scholar, Elsevier, and EBSCO. Seventy-three publications describing 77 cases were included. 58 (75.3%) patients were female, and the mean age was 34.88 ± 11.21 years (range, 7-57). The most commonly reported indication of TPM use was migraine headache (59.7%), and the mean duration from starting treatment until the onset of angle closure was 14.1 ± 31.5 days. All cases were managed by immediate cessation of TPM and topical therapy."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "35502014"
+              ],
+              "source_passage_ids": [
+                "35502014:p0",
+                "35502014:p1"
+              ],
+              "reason": "Mean duration 14.1 days and text states onset peaks at 2 weeks.",
+              "source_quotes": [
+                {
+                  "source_id": "35502014",
+                  "quote": "Topiramate-induced acute angle closure (TiAAC) is a potentially vision-threatening side effect of topiramate (TPM) use. The purpose of this article is to review demographic characteristics, clinical features, and management options of TiAAC. A systematic literature search of all reported cases and case series of TiAAC was conducted in the following search engines: PubMed, Web of Science, Google Scholar, Elsevier, and EBSCO. Seventy-three publications describing 77 cases were included. 58 (75.3%) patients were female, and the mean age was 34.88 ± 11.21 years (range, 7-57). The most commonly reported indication of TPM use was migraine headache (59.7%), and the mean duration from starting treatment until the onset of angle closure was 14.1 ± 31.5 days. All cases were managed by immediate cessation of TPM and topical therapy."
+                },
+                {
+                  "source_id": "35502014",
+                  "quote": "In addition, systemic medications (carbonic anhydrase inhibitors, hyperosmotic agents, and steroids) were used in 51 patients (66.2%). A laser and/or surgical intervention was performed in 10 patients (13%). After commencement of treatment, the mean duration until the resolution of TiAAC was 3.9 ± 3.6 days (range, 1-18). The findings of our study present a summary of the current body of evidence provided by case reports and case series on TiAAC. In conclusion, the onset of angle closure following TPM use peaks at 2 weeks after initiating treatment, and in most cases, successful management can be achieved by discontinuing TPM and initiating appropriate medical therapy."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "35502014"
+              ],
+              "source_passage_ids": [
+                "35502014:p0"
+              ],
+              "reason": "Abstract states all cases managed by immediate cessation and topical therapy.",
+              "source_quotes": [
+                {
+                  "source_id": "35502014",
+                  "quote": "Topiramate-induced acute angle closure (TiAAC) is a potentially vision-threatening side effect of topiramate (TPM) use. The purpose of this article is to review demographic characteristics, clinical features, and management options of TiAAC. A systematic literature search of all reported cases and case series of TiAAC was conducted in the following search engines: PubMed, Web of Science, Google Scholar, Elsevier, and EBSCO. Seventy-three publications describing 77 cases were included. 58 (75.3%) patients were female, and the mean age was 34.88 ± 11.21 years (range, 7-57). The most commonly reported indication of TPM use was migraine headache (59.7%), and the mean duration from starting treatment until the onset of angle closure was 14.1 ± 31.5 days. All cases were managed by immediate cessation of TPM and topical therapy."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "35502014"
+              ],
+              "source_passage_ids": [
+                "35502014:p1"
+              ],
+              "reason": "Systemic medications used in 66.2%; laser/surgical in 13% (minority).",
+              "source_quotes": [
+                {
+                  "source_id": "35502014",
+                  "quote": "In addition, systemic medications (carbonic anhydrase inhibitors, hyperosmotic agents, and steroids) were used in 51 patients (66.2%). A laser and/or surgical intervention was performed in 10 patients (13%). After commencement of treatment, the mean duration until the resolution of TiAAC was 3.9 ± 3.6 days (range, 1-18). The findings of our study present a summary of the current body of evidence provided by case reports and case series on TiAAC. In conclusion, the onset of angle closure following TPM use peaks at 2 weeks after initiating treatment, and in most cases, successful management can be achieved by discontinuing TPM and initiating appropriate medical therapy."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "36621864"
+              ],
+              "source_passage_ids": [
+                "36621864:p0"
+              ],
+              "reason": "Describes iridotomy as creating iris hole to eliminate pupillary block by allowing aqueous flow.",
+              "source_quotes": [
+                {
+                  "source_id": "36621864",
+                  "quote": "Primary angle-closure glaucoma is a type of glaucoma associated with a physically obstructed anterior chamber angle. For example, contact between the iris and lens at the pupillary margin creates a pupillary block that increases resistance to aqueous outflow. Obstruction of the anterior chamber angle blocks drainage of fluids (aqueous humor) within the eye and may raise intraocular pressure (IOP). Elevated IOP is associated with glaucomatous optic nerve damage and visual field loss. Laser peripheral iridotomy ('iridotomy') is a procedure to eliminate pupillary block by allowing aqueous humor to pass directly from the posterior to anterior chamber, which is achieved by creating a hole in the iris using laser."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is a well-constructed ophthalmology scenario of topiramate-induced acute angle closure (TiAAC): a woman in her thirties, migraine, topiramate started 12 days earlier, bilateral shallow chambers, elevated IOP, appositional (not synechial) angle closure, no prior attack/procedure. This is the classic secondary angle closure mechanism (ciliochoroidal effusion/anterior lens-iris rotation), NOT pupillary block. Candidate B (stop topiramate, topical therapy, add systemic as needed, do not substitute routine iridotomy) matches the supported management from source 35502014, which reports ALL cases managed by immediate cessation plus topical therapy, systemic in majority, laser/surgery only in a minority. Candidate A is unsafe: it continues the precipitating drug and treats a non-pupillary-block mechanism with LPI as sole therapy — LPI does not address ciliochoroidal effusion and continuing topiramate perpetuates the attack. Key answer B is correct and safe. All five claims are directly supported by exact abstract text. The two-week onset matches the 12-day exposure. The question stem does not disclose the answer (it asks which candidate is most appropriate without naming drug cessation). Specialty is correctly ophthalmology. Distinct clinical decision (medication-associated bilateral angle closure management vs pupillary-block/LPI). No missing decisive data: tonometry and gonioscopy present, mechanism clear. Note: candidate B says 'topical therapy' and 'systemic if required' without naming specific agents/doses; this is acceptable as it mirrors the source's general management language and avoids unsafe specifics. Minor observation: iridotomy sources (36621864, 33759192) pertain to chronic/primary angle closure populations, correctly used only to characterize LPI's mechanism, not to endorse it for this case. No blocking defects identified."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The presentation is classic for topiramate-induced acute bilateral angle closure: bilateral symptoms, markedly shallow chambers and elevated intraocular pressure beginning about 12 days after topiramate initiation. This is generally caused by ciliochoroidal effusion with forward displacement of the lens-iris diaphragm rather than pupillary block. Immediate management therefore requires stopping topiramate and promptly lowering intraocular pressure with topical therapy, with systemic agents and other appropriate medical treatment added as clinically necessary. The cited systematic review reports that all identified cases were treated with immediate topiramate cessation and topical therapy, with systemic medications used in many cases; onset peaked around two weeks. Routine laser peripheral iridotomy does not correct this non-pupillary-block mechanism and should not replace withdrawal of the causative drug.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "35502014"
+              ],
+              "reason": "The review directly characterizes topiramate-induced acute angle closure as potentially vision-threatening.",
+              "source_passage_ids": [
+                "35502014:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35502014",
+                  "quote": "Topiramate-induced acute angle closure (TiAAC) is a potentially vision-threatening side effect of topiramate (TPM) use. The purpose of this article is to review demographic characteristics, clinical features, and management options of TiAAC. A systematic literature search of all reported cases and case series of TiAAC was conducted in the following search engines: PubMed, Web of Science, Google Scholar, Elsevier, and EBSCO. Seventy-three publications describing 77 cases were included. 58 (75.3%) patients were female, and the mean age was 34.88 ± 11.21 years (range, 7-57). The most commonly reported indication of TPM use was migraine headache (59.7%), and the mean duration from starting treatment until the onset of angle closure was 14.1 ± 31.5 days. All cases were managed by immediate cessation of TPM and topical therapy."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "35502014"
+              ],
+              "reason": "The review reports a mean onset of 14.1 days and explicitly states that onset peaks at two weeks after initiation.",
+              "source_passage_ids": [
+                "35502014:p0",
+                "35502014:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35502014",
+                  "quote": "Topiramate-induced acute angle closure (TiAAC) is a potentially vision-threatening side effect of topiramate (TPM) use. The purpose of this article is to review demographic characteristics, clinical features, and management options of TiAAC. A systematic literature search of all reported cases and case series of TiAAC was conducted in the following search engines: PubMed, Web of Science, Google Scholar, Elsevier, and EBSCO. Seventy-three publications describing 77 cases were included. 58 (75.3%) patients were female, and the mean age was 34.88 ± 11.21 years (range, 7-57). The most commonly reported indication of TPM use was migraine headache (59.7%), and the mean duration from starting treatment until the onset of angle closure was 14.1 ± 31.5 days. All cases were managed by immediate cessation of TPM and topical therapy."
+                },
+                {
+                  "source_id": "35502014",
+                  "quote": "In addition, systemic medications (carbonic anhydrase inhibitors, hyperosmotic agents, and steroids) were used in 51 patients (66.2%). A laser and/or surgical intervention was performed in 10 patients (13%). After commencement of treatment, the mean duration until the resolution of TiAAC was 3.9 ± 3.6 days (range, 1-18). The findings of our study present a summary of the current body of evidence provided by case reports and case series on TiAAC. In conclusion, the onset of angle closure following TPM use peaks at 2 weeks after initiating treatment, and in most cases, successful management can be achieved by discontinuing TPM and initiating appropriate medical therapy."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "35502014"
+              ],
+              "reason": "The review explicitly states that all included cases were managed with immediate topiramate cessation and topical therapy.",
+              "source_passage_ids": [
+                "35502014:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35502014",
+                  "quote": "Topiramate-induced acute angle closure (TiAAC) is a potentially vision-threatening side effect of topiramate (TPM) use. The purpose of this article is to review demographic characteristics, clinical features, and management options of TiAAC. A systematic literature search of all reported cases and case series of TiAAC was conducted in the following search engines: PubMed, Web of Science, Google Scholar, Elsevier, and EBSCO. Seventy-three publications describing 77 cases were included. 58 (75.3%) patients were female, and the mean age was 34.88 ± 11.21 years (range, 7-57). The most commonly reported indication of TPM use was migraine headache (59.7%), and the mean duration from starting treatment until the onset of angle closure was 14.1 ± 31.5 days. All cases were managed by immediate cessation of TPM and topical therapy."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "35502014"
+              ],
+              "reason": "Systemic medications were reported in 66.2% of cases, while laser and/or surgery occurred in 13%, supporting the stated frequency comparison.",
+              "source_passage_ids": [
+                "35502014:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35502014",
+                  "quote": "In addition, systemic medications (carbonic anhydrase inhibitors, hyperosmotic agents, and steroids) were used in 51 patients (66.2%). A laser and/or surgical intervention was performed in 10 patients (13%). After commencement of treatment, the mean duration until the resolution of TiAAC was 3.9 ± 3.6 days (range, 1-18). The findings of our study present a summary of the current body of evidence provided by case reports and case series on TiAAC. In conclusion, the onset of angle closure following TPM use peaks at 2 weeks after initiating treatment, and in most cases, successful management can be achieved by discontinuing TPM and initiating appropriate medical therapy."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "36621864"
+              ],
+              "reason": "The source directly explains that laser peripheral iridotomy creates an iris opening that permits aqueous passage from the posterior to anterior chamber and thereby eliminates pupillary block.",
+              "source_passage_ids": [
+                "36621864:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36621864",
+                  "quote": "Primary angle-closure glaucoma is a type of glaucoma associated with a physically obstructed anterior chamber angle. For example, contact between the iris and lens at the pupillary margin creates a pupillary block that increases resistance to aqueous outflow. Obstruction of the anterior chamber angle blocks drainage of fluids (aqueous humor) within the eye and may raise intraocular pressure (IOP). Elevated IOP is associated with glaucomatous optic nerve damage and visual field loss. Laser peripheral iridotomy ('iridotomy') is a procedure to eliminate pupillary block by allowing aqueous humor to pass directly from the posterior to anterior chamber, which is achieved by creating a hole in the iris using laser."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The bilateral acute angle closure occurring 12 days after topiramate initiation closely matches the supplied review's reported two-week peak. Candidate B includes the two consistently supported immediate actions: stopping topiramate and promptly initiating topical ocular treatment, with systemic therapy reserved for clinical need. Candidate A is intentionally unsafe because it continues the likely precipitating medication and uses iridotomy alone. The iridotomy source establishes that LPI relieves pupillary block, while the topiramate review shows that withdrawal and medical therapy—not routine iridotomy as a substitute—formed the core management of reported topiramate-associated cases. The examination, tonometry, gonioscopy, bilateral pattern, and medication timeline provide enough information for this immediate decision; additional imaging is not necessary to choose between the candidates. No previous cases were supplied, so there is no demonstrated duplication of an earlier decision."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "26612b46de769e151a227d7c4dfcd6e775ee2d44db2e8ccb9ff26063de2f9d71"
+  }
+}

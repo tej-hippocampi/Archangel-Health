@@ -59,15 +59,14 @@ def test_a_physician_sits_a_case_in_their_own_specialty(client):
         assert body["task"]["task_id"].startswith("gold-")
 
 
-def test_a_fallback_is_said_out_loud(client):
-    """Handing a dermatologist a kidney case without a word would read as a
-    broken product, and they would reasonably answer it as though we had
-    made a mistake."""
-    store = fresh_store()
-    user = _applicant(store, "dermatology")
-    body = client.get("/api/asclepius/exam/task", headers=headers_for(user)).json()
-    assert body["specialty"] == exam_case.FALLBACK_SPECIALTY
-    assert body["is_own_specialty"] is False
+def test_missing_specialty_case_waits_instead_of_serving_an_unrelated_case(client, monkeypatch):
+    from asclepius import onboarding_cases
+    monkeypatch.setattr(onboarding_cases, "request_case", lambda *args: {"status": "generating"})
+    user = _applicant(fresh_store(), "dermatology")
+    response = client.get("/api/asclepius/exam/task", headers=headers_for(user))
+    assert response.status_code == 202
+    assert response.json()["specialty"] == "dermatology"
+    assert "task" not in response.json()
 
 
 def test_the_examination_case_is_blinded_like_a_real_one(client):

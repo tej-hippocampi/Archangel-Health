@@ -1,0 +1,481 @@
+{
+  "task_id": "onboarding-practice-v1-aa3792e95218f1af9490-1",
+  "specialty": "dermatology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Adult with a recurrent pruritic eczematous eruption",
+    "question": "Which topical management approach is most appropriate for the current presentation?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "dermatology",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Previously diagnosed atopic dermatitis",
+          "since": "early adulthood",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Pruritic flexural plaques",
+          "since": "3 weeks",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Xerosis",
+          "since": "recurrent",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Fragrance-free moisturizer",
+          "dose": null,
+          "route": "topical",
+          "freq": "intermittent",
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Dermatology consultation",
+          "author_role": "dermatology",
+          "text": "An adult with previously diagnosed atopic dermatitis reports three weeks of increasing itch and recurrent dry plaques in the antecubital and popliteal fossae. Moisturizer use has been intermittent. Examination shows symmetric erythematous, scaly, mildly excoriated plaques involving a limited body-surface area. There is no honey-colored crust, purulent drainage, warmth, tenderness, fever, rapidly spreading erythema, or other clinical evidence of bacterial infection. No prescription topical anti-inflammatory treatment is currently being used.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "basic",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "Use a moderate-potency topical corticosteroid on the active eczematous lesions while continuing regular moisturizer. Adult topical-therapy guidelines strongly recommend both topical corticosteroids and moisturizers. Comparative randomized-trial evidence places moderate-potency corticosteroids among the most effective topical treatments across multiple outcomes. Routine topical antibiotic monotherapy is not appropriate when there is no clinical infection; guidelines conditionally recommend against topical antimicrobials, and comparative evidence suggests topical antibiotics may be among the least effective options for atopic dermatitis.",
+        "evidence": null,
+        "key_data": [
+          "The patient has established atopic dermatitis with a localized active flexural flare.",
+          "The examination shows no clinical evidence of bacterial skin infection.",
+          "She is not currently using a prescription topical anti-inflammatory treatment.",
+          "Moisturizer use has been intermittent despite clinically apparent xerosis."
+        ]
+      },
+      "hard_hook": "Distinguishing anti-inflammatory treatment of an uncomplicated flare from unsupported antimicrobial monotherapy",
+      "reasoning_divergence": "The flawed approach treats excoriation as bacterial infection and omits effective anti-inflammatory therapy."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Use a topical antibiotic alone on the plaques and discontinue moisturizer until the eruption clears, because the excoriations suggest occult bacterial infection despite the absence of crust, drainage, tenderness, or systemic symptoms."
+      },
+      {
+        "id": "B",
+        "text": "Treat the active plaques with a moderate-potency topical corticosteroid while continuing regular moisturizer; do not substitute routine topical antibiotic monotherapy when there are no clinical findings of bacterial infection."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "atopic dermatitis",
+      "topical corticosteroid",
+      "topical antibiotic",
+      "skin infection",
+      "antimicrobial stewardship"
+    ],
+    "evidence_keywords": [
+      "moderate-potency corticosteroid",
+      "moisturizer",
+      "topical antimicrobials",
+      "flexural eczema",
+      "comparative effectiveness"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Adult atopic dermatitis guidelines strongly recommend topical corticosteroids as topical therapy.",
+        "source_ids": [
+          "36641009"
+        ]
+      },
+      {
+        "statement": "Adult atopic dermatitis guidelines strongly recommend moisturizers as part of topical management.",
+        "source_ids": [
+          "36641009"
+        ]
+      },
+      {
+        "statement": "The adult guideline conditionally recommends against routine use of topical antimicrobials.",
+        "source_ids": [
+          "36641009"
+        ]
+      },
+      {
+        "statement": "Moderate-potency topical corticosteroids were among the most effective treatments across multiple outcomes.",
+        "source_ids": [
+          "37678572"
+        ]
+      },
+      {
+        "statement": "Topical antibiotics alone or in combination may be among the least effective options for atopic dermatitis.",
+        "source_ids": [
+          "37678572"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:30:13.660535+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "39018058",
+        "title": "Systemic Immunomodulatory Treatments for Atopic Dermatitis: Living Systematic Review and Network Meta-Analysis Update.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39018058/",
+        "abstract": "There are multiple approved systemic treatments for atopic dermatitis. Lebrikizumab is a newly licensed biologic medication that has been compared to placebo in clinical trials but not to other systemic treatments.\nTo compare reported measures of efficacy and safety of lebrikizumab to other systemic treatments for atopic dermatitis in a living systematic review and network meta-analysis.\nThe Cochrane Central Register of Controlled Trials, MEDLINE, Embase, the Latin American and Caribbean Health Science Information database, the Global Resource of Eczema Trials database, and trial registries were searched from inception through November 3, 2023.\nRandomized clinical trials evaluating 8 or more weeks of treatment with systemic immunomodulatory medications for moderate to severe atopic dermatitis. Titles, abstracts, and full texts were screened in duplicate.\nData were abstracted in duplicate and random-effects bayesian network meta-analyses were performed. Minimal important differences were used to define important differences between medications. Certainty of evidence was assessed using the GRADE approach (Grading of Recommendations Assessment, Development and Evaluation). The updated analysis was completed from December 13, 2023, to February 20, 2024.\nEfficacy outcomes were the Eczema Area and Severity Index (EASI), the Patient Oriented Eczema Measure (POEM) Dermatology Life Quality Index (DLQI), and Peak Pruritus Numeric Rating Scales (PP-NRS) and were compared using mean difference (MD) with 95% credible intervals (CrI). Safety outcomes were serious adverse events and withdrawal due to adverse events. Other outcomes included the proportion of participants with 50%, 75%, and 90% improvement in EASI (EASI-50, -75, -90) and the proportion with success on the Investigator Global Assessment compared using odds ratios with 95% CrI.\nThe study sample included 97 eligible trials, with a total of 24 679 patients. Lebrikizumab was associated with no important difference in change in EASI (MD, -2.0; 95% CrI, -4.5 to 0.3; moderate certainty), POEM (MD, -1.1; 95% CrI -2.5 to 0.2; moderate certainty), DLQI (MD, -0.2; 95% CrI -2.1 to 1.6; moderate certainty), or PP-NRS (MD, 0.1; 95% CrI -0.4, 0.6; high certainty) compared to dupilumab among adults with atopic dermatitis who were treated for up to 16 weeks. Dupilumab was associated with higher odds of efficacy in binary outcomes compared with lebrikizumab. The relative efficacy of other approved systemic medications was similar to that found by previous updates of this living study, with high-dose upadacitinib and abrocitinib demonstrating numerically highest relative efficacy. For safety outcomes, low event rates limited useful comparisons.\nIn this living systematic review and network meta-analysis, lebrikizumab was similarly effective to dupilumab for the short-term treatment of atopic dermatitis in adults. Clinicians and patients can use these comparative data to inform treatment decisions.",
+        "sha256": "8af86ef94816e781d588904de1024e295a54cddebd91ef3647656f240247b60e",
+        "retrieved_at": "2026-09-18T23:29:01.252945+00:00",
+        "pmcid": "PMC11255974"
+      },
+      {
+        "id": "37705227",
+        "title": "Global epidemiology of atopic dermatitis: a comprehensive systematic analysis and modelling study.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37705227/",
+        "abstract": "Atopic dermatitis (AD) is the leading cause of the global burden from skin disease; no study has provided global and country-specific epidemiological estimates of AD.\nTo quantify global, regional and country-specific estimates of the epidemiology of AD.\nA comprehensive search for epidemiological studies in AD was conducted in four electronic databases (PubMed, Embase, Web of Science and China National Knowledge Infrastructure). A Bayesian hierarchical linear mixed model was constructed to calculate epidemiological estimates of AD considering the heterogeneity of regions, countries, type of diagnoses and age strata.\nIn total, 344 studies met the inclusion criteria. Incidence varied substantially with the location and age of the surveyed participants. The global prevalence of AD and the population affected by AD were estimated to be 2.6% [95% uncertainty interval (UI) 1.9-3.5] and 204.05 million people, respectively. Around 101.27 million adults and 102.78 million children worldwide have AD, corresponding to prevalence rates of 2.0% (95% UI 1.4-2.6) and 4.0% (95% UI 2.8-5.3), respectively. Females were more likely to suffer from AD than males: the global prevalence of AD in females was 2.8% (95% UI 2.0-3.7%) and affected 108.29 million people, while in males the corresponding estimates were 2.4% (95% UI 1.7-3.3%) and 95.76 million people.\nEpidemiological AD data are lacking in 41.5% of countries worldwide. The epidemiology of AD varies substantially with age and sex and is distributed unequally across geographical regions.",
+        "sha256": "fcae582ad8a0daf36cfe9c6af7ed254b9634dfa749a128e1bada4c9e6ae92f90",
+        "retrieved_at": "2026-09-18T23:29:01.252945+00:00"
+      },
+      {
+        "id": "38108679",
+        "title": "Atopic dermatitis (eczema) guidelines: 2023 American Academy of Allergy, Asthma and Immunology/American College of Allergy, Asthma and Immunology Joint Task Force on Practice Parameters GRADE- and Institute of Medicine-based recommendations.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38108679/",
+        "abstract": "Guidance addressing atopic dermatitis (AD) management, last issued in 2012 by the American Academy of Allergy, Asthma and Immunology/American College of Allergy, Asthma and Immunology Joint Task Force, requires updating as a result of new treatments and improved guideline and evidence synthesis methodology.\nTo produce evidence-based guidelines that support patients, clinicians, and other decision-makers in the optimal treatment of AD.\nA multidisciplinary guideline panel consisting of patients and caregivers, AD experts (dermatology and allergy/immunology), primary care practitioners (family medicine, pediatrics, internal medicine), and allied health professionals (psychology, pharmacy, nursing) convened, prioritized equity, diversity, and inclusiveness, and implemented management strategies to minimize influence of conflicts of interest. The Evidence in Allergy Group supported guideline development by performing systematic evidence reviews, facilitating guideline processes, and holding focus groups with patient and family partners. The Grading of Recommendations Assessment, Development and Evaluation (GRADE) approach informed rating the certainty of evidence and strength of recommendations. Evidence-to-decision frameworks, subjected to public comment, translated evidence to recommendations using trustworthy guideline principles.\nThe panel agreed on 25 recommendations to gain and maintain control of AD for patients with mild, moderate, and severe AD. The eAppendix provides practical information and implementation considerations in 1-2 page patient-friendly handouts.\nThese evidence-based recommendations address optimal use of (1) topical treatments (barrier moisturization devices, corticosteroids, calcineurin inhibitors, PDE4 inhibitors [crisaborole], topical JAK inhibitors, occlusive [wet wrap] therapy, adjunctive antimicrobials, application frequency, maintenance therapy), (2) dilute bleach baths, (3) dietary avoidance/elimination, (4) allergen immunotherapy, and (5) systemic treatments (biologics/monoclonal antibodies, small molecule immunosuppressants [cyclosporine, methotrexate, azathioprine, mycophenolate, JAK inhibitors], and systemic corticosteroids) and UV phototherapy (light therapy).",
+        "sha256": "e1b083c1a724f2fc05873a13b45bb5df2b5bbc5e15d0839f5e102a0a110377bd",
+        "retrieved_at": "2026-09-18T23:29:01.252945+00:00"
+      },
+      {
+        "id": "37678577",
+        "title": "Systemic treatments for atopic dermatitis (eczema): Systematic review and network meta-analysis of randomized trials.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37678577/",
+        "abstract": "Atopic dermatitis (AD) is an inflammatory skin condition with multiple systemic treatments and uncertainty regarding their comparative impact on AD outcomes.\nWe sought to systematically synthesize the benefits and harms of AD systemic treatments.\nFor the 2023 American Academy of Allergy, Asthma & Immunology and American College of Allergy, Asthma, and Immunology Joint Task Force on Practice Parameters AD guidelines, we searched MEDLINE, EMBASE, CENTRAL, Web of Science, and GREAT databases from inception to November 29, 2022, for randomized trials addressing systemic treatments and phototherapy for AD. Paired reviewers independently screened records, extracted data, and assessed risk of bias. Random-effects network meta-analyses addressed AD severity, itch, sleep, AD-related quality of life, flares, and harms. The Grading of Recommendations Assessment, Development and Evaluation approach informed certainty of evidence ratings. This review is registered in the Open Science Framework (https://osf.io/e5sna).\nThe 149 included trials (28,686 patients with moderate-to-severe AD) evaluated 75 interventions. With high-certainty evidence, high-dose upadacitinib was among the most effective for 5 of 6 patient-important outcomes; high-dose abrocitinib and low-dose upadacitinib were among the most effective for 2 outcomes. These Janus kinase inhibitors were among the most harmful in increasing adverse events. With high-certainty evidence, dupilumab, lebrikizumab, and tralokinumab were of intermediate effectiveness and among the safest, modestly increasing conjunctivitis. Low-dose baricitinib was among the least effective. Efficacy and safety of azathioprine, oral corticosteroids, cyclosporine, methotrexate, mycophenolate, phototherapy, and many novel agents are less certain.\nAmong individuals with moderate-to-severe AD, high-certainty evidence demonstrates that high-dose upadacitinib is among the most effective in addressing multiple patient-important outcomes, but also is among the most harmful. High-dose abrocitinib and low-dose upadacitinib are effective, but also among the most harmful. Dupilumab, lebrikizumab, and tralokinumab are of intermediate effectiveness and have favorable safety.",
+        "sha256": "10791cf74dc91abd99b07b903898b97a7d5c6c6d98bd951ca49905c011399c5e",
+        "retrieved_at": "2026-09-18T23:29:01.897850+00:00"
+      },
+      {
+        "id": "37678572",
+        "title": "Topical treatments for atopic dermatitis (eczema): Systematic review and network meta-analysis of randomized trials.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37678572/",
+        "abstract": "Atopic dermatitis (AD) is a common skin condition with multiple topical treatment options, but uncertain comparative effects.\nWe sought to systematically synthesize the benefits and harms of AD prescription topical treatments.\nFor the 2023 American Academy of Allergy, Asthma & Immunology and American College of Allergy, Asthma, and Immunology Joint Task Force on Practice Parameters AD guidelines, we searched MEDLINE, EMBASE, CENTRAL, CINAHL, LILACS, ICTRP, and GREAT databases to September 5, 2022, for randomized trials addressing AD topical treatments. Paired reviewers independently screened records, extracted data, and assessed risk of bias. Random-effects network meta-analyses addressed AD severity, itch, sleep, AD-related quality of life, flares, and harms. The Grading of Recommendations Assessment, Development and Evaluation approach informed certainty of evidence ratings. We classified topical corticosteroids (TCS) using 7 groups-group 1 being most potent. This review is registered in the Open Science Framework (https://osf.io/q5m6s).\nThe 219 included trials (43,123 patients) evaluated 68 interventions. With high-certainty evidence, pimecrolimus improved 6 of 7 outcomes-among the best for 2; high-dose tacrolimus (0.1%) improved 5-among the best for 2; low-dose tacrolimus (0.03%) improved 5-among the best for 1. With moderate- to high-certainty evidence, group 5 TCS improved 6-among the best for 3; group 4 TCS and delgocitinib improved 4-among the best for 2; ruxolitinib improved 4-among the best for 1; group 1 TCS improved 3-among the best for 2. These interventions did not increase harm. Crisaborole and difamilast were intermediately effective, but with uncertain harm. Topical antibiotics alone or in combination may be among the least effective. To maintain AD control, group 5 TCS were among the most effective, followed by tacrolimus and pimecrolimus.\nFor individuals with AD, pimecrolimus, tacrolimus, and moderate-potency TCS are among the most effective in improving and maintaining multiple AD outcomes. Topical antibiotics may be among the least effective.",
+        "sha256": "5e87f60f5d99b508f9ac0e3addd87e94166a6450b9c8cbe80a22ee870f106852",
+        "retrieved_at": "2026-09-18T23:29:01.897850+00:00"
+      },
+      {
+        "id": "40147466",
+        "title": "Global, regional, and national burden of asthma and atopic dermatitis, 1990-2021, and projections to 2050: a systematic analysis of the Global Burden of Disease Study 2021.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40147466/",
+        "abstract": "Asthma and atopic dermatitis are common allergic conditions that contribute to substantial health loss, economic burden, and pain across individuals of all ages worldwide. Therefore, as a component of the Global Burden of Diseases, Injuries, and Risk Factors Study (GBD) 2021, we present updated estimates of the prevalence, disability-adjusted life-years (DALYs), incidence, and deaths due to asthma and atopic dermatitis and the burden attributable to modifiable risk factors, with forecasted prevalence up to 2050.\nAsthma and atopic dermatitis prevalence, incidence, DALYs, and mortality, with corresponding 95% uncertainty intervals (UIs), were estimated for 204 countries and territories from 1990 to 2021. A systematic review identified data from 389 sources for asthma and 316 for atopic dermatitis, which were further pooled using the Bayesian meta-regression tool. We also described the age-standardised DALY rates of asthma attributable to four modifiable risk factors: high BMI, occupational asthmagens, smoking, and nitrogen dioxide pollution. Furthermore, as a secondary analysis, prevalence was forecasted to 2050 using the Socio-demographic Index (SDI), air pollution, and smoking as predictors for asthma and atopic dermatitis. To assess trends in the burden of asthma and atopic dermatitis before (2010-19) and during (2019-21) the COVID-19 pandemic, we compared their average annual percentage changes (AAPCs).\nIn 2021, there were an estimated 260 million (95% UI 227-298) individuals with asthma and 129 million (124-134) individuals with atopic dermatitis worldwide. Asthma cases declined from 287 million (250-331) in 1990 to 238 million (209-272) in 2005 but increased to 260 million in 2021. Atopic dermatitis cases consistently rose from 107 million (103-112) in 1990 to 129 million (124-134) in 2021. However, age-standardised prevalence rates decreased-by 40·0% (from 5568·3 per 100 000 to 3340·1 per 100 000) for asthma and 8·3% (from 1885·4 per 100 000 to 1728·5 per 100 000) for atopic dermatitis. In 2021, there were substantial variations in the burden of asthma and atopic dermatitis across different SDI groups, with the highest age-standardised DALY rate found in south Asia for asthma (465·0 [357·2-648·9] per 100 000) and the high-income super-region for atopic dermatitis (3552·5 [3407·2-3706·1] per 100 000). During the COVID-19 pandemic, the decline in asthma prevalence had stagnated (AAPC pre-pandemic -1·39% [-2·07 to -0·71] and during the pandemic 0·47% [-1·86 to 2·79]; p=0·020); however, there was no significant difference in atopic dermatitis prevalence in the same period (pre-pandemic -0·28% [-0·33 to -0·22] and during the pandemic -0·35% [-0·78 to 0·08]; p=0·20). Modifiable risk factors were responsible for 29·9% of the global asthma DALY burden; among them, high BMI was the greatest contributor (39·4 [19·6-60·2] per 100 000), followed by occupational asthmagens (20·8 [16·7-26·5] per 100 000) across all regions. The age-standardised DALY rate of asthma attributable to high BMI was highest in high-SDI settings, whereas the contribution of occupational asthmagens was highest in low-SDI settings. According to our forecasting models, we expect 275 million (224-330) asthma cases and 148 million (140-158) atopic dermatitis cases in 2050, with population growth driving this increase. However, age-standardised prevalence rates are expected to remain stable (-23·2% [-44·4 to 5·3] for asthma and -1·4% [-9·1 to 7·0] for atopic dermatitis) from 2021 to 2050.\nAlthough the increases in the total number of asthma and atopic dermatitis cases will probably continue until 2050, age-standardised prevalence rates are expected to remain stable. A considerable portion of the global burden could be managed through efforts to address modifiable risk factors. Additionally, the contribution of risk factors to the burden substantially varied by SDI, which suggests the need for tailored initiatives for specific SDI settings. The growing number of individuals expected to be affected by asthma and atopic dermatitis in the future suggests that it is essential to improve our understanding of risk factors for asthma and atopic dermatitis and collect disease prevalence data that are globally generalisable.\nGates Foundation.",
+        "sha256": "a6ea8568c2ea7b1458cf047dd5b94c8cca27a87e02f84f7d84ce42c4bd8e336f",
+        "retrieved_at": "2026-09-18T23:29:01.897850+00:00"
+      },
+      {
+        "id": "37943240",
+        "title": "Guidelines of care for the management of atopic dermatitis in adults with phototherapy and systemic therapies.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37943240/",
+        "abstract": "For people with atopic dermatitis (AD) refractory to topical therapies, treatment with phototherapy and systemic therapies can be considered. Multiple biologic therapies and Janus kinase (JAK)inhibitors have been approved since 2014 to treat AD. These guidelines update the 2014 recommendations for management of AD with phototherapy and systemic therapies.\nTo provide evidence-based recommendations on the use of phototherapy and systemic therapies for AD in adults.\nA multidisciplinary workgroup conducted a systematic review and applied the GRADE approach for assessing the certainty of evidence and formulating and grading recommendations.\nThe workgroup developed 11 recommendations on the management of AD in adults with phototherapy and systemic agents, including biologics, oral JAK inhibitors, and other immunomodulatory medications.\nMost randomized controlled trials of phototherapy and systemic therapies for AD are of short duration with subsequent extension studies, limiting comparative long-term efficacy and safety conclusions.\nWe make strong recommendations for the use of dupilumab, tralokinumab, abrocitinib, baricitinib, and upadacitinib. We make conditional recommendations in favor of using phototherapy, azathioprine, cyclosporine, methotrexate, and mycophenolate, and against the use of systemic corticosteroids.",
+        "sha256": "3a1a6df15c23a82d1017cdda3771c7008f89d36844126235d572352d9c3368e9",
+        "retrieved_at": "2026-09-18T23:29:02.645834+00:00"
+      },
+      {
+        "id": "36641009",
+        "title": "Guidelines of care for the management of atopic dermatitis in adults with topical therapies.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36641009/",
+        "abstract": "New evidence has emerged since the 2014 guidelines that further informs the management of atopic dermatitis (AD) with topical therapies. These guidelines update the 2014 recommendations for management of AD with topical therapies.\nTo provide evidence-based recommendations related to management of AD in adults using topical treatments.\nA multidisciplinary workgroup conducted a systematic review and applied the GRADE (Grading of Recommendations, Assessment, Development, and Evaluations) approach for assessing the certainty of evidence and formulating and grading recommendations.\nThe workgroup developed 12 recommendations on the management of AD in adults with topical therapies, including nonprescription agents and prescription topical corticosteroids (TCS), calcineurin inhibitors (TCIs), Janus kinase (JAK) inhibitors, phosphodiesterase-4 inhibitors (PDE-4), antimicrobials, and antihistamines.\nThe pragmatic decision to limit the literature review to English-language randomized trials may have excluded data published in other languages and relevant long-term follow-up data.\nStrong recommendations are made for the use of moisturizers, TCIs, TCS, and topical PDE-4 and JAK inhibitors. Conditional recommendations are made for the use of bathing and wet wrap therapy and against the use of topical antimicrobials, antiseptics, and antihistamines.",
+        "sha256": "95cdf24f03fe9dc6a77e2dc5cfb80f6bb494f32d212d45d61e7110792845379b",
+        "retrieved_at": "2026-09-18T23:29:02.645834+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This is a classic mild-to-moderate atopic dermatitis flare in a limited body-surface area with no clinical signs of bacterial infection (no honey-colored crust, purulent drainage, warmth, tenderness, fever, or spreading erythema). Guideline-based evidence supports treating active AD plaques with topical corticosteroids while continuing regular emollient/moisturizer use. The AAD 2023 topical therapy guidelines (36641009) make strong recommendations for moisturizers and TCS, and conditional recommendations AGAINST routine topical antimicrobials/antiseptics. The AAAAI/ACAAI 2023 guidelines and network meta-analysis (37678572) found that moderate-potency TCS are among the most effective topical treatments, whereas topical antibiotics alone or in combination 'may be among the least effective.' Answer A is inappropriate: it recommends antibiotic monotherapy based on excoriations alone (which reflect scratching, not infection) and wrongly advises discontinuing moisturizer, which is a foundational maintenance therapy. Answer B aligns directly with the evidence and standard of care.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.92,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "36641009"
+              ],
+              "source_passage_ids": [
+                "36641009:p1"
+              ],
+              "reason": "The 2023 adult topical guideline states strong recommendations are made for TCS.",
+              "source_quotes": [
+                {
+                  "source_id": "36641009",
+                  "quote": "The workgroup developed 12 recommendations on the management of AD in adults with topical therapies, including nonprescription agents and prescription topical corticosteroids (TCS), calcineurin inhibitors (TCIs), Janus kinase (JAK) inhibitors, phosphodiesterase-4 inhibitors (PDE-4), antimicrobials, and antihistamines. The pragmatic decision to limit the literature review to English-language randomized trials may have excluded data published in other languages and relevant long-term follow-up data. Strong recommendations are made for the use of moisturizers, TCIs, TCS, and topical PDE-4 and JAK inhibitors. Conditional recommendations are made for the use of bathing and wet wrap therapy and against the use of topical antimicrobials, antiseptics, and antihistamines."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "36641009"
+              ],
+              "source_passage_ids": [
+                "36641009:p1"
+              ],
+              "reason": "Same passage explicitly names moisturizers among strong recommendations.",
+              "source_quotes": [
+                {
+                  "source_id": "36641009",
+                  "quote": "The workgroup developed 12 recommendations on the management of AD in adults with topical therapies, including nonprescription agents and prescription topical corticosteroids (TCS), calcineurin inhibitors (TCIs), Janus kinase (JAK) inhibitors, phosphodiesterase-4 inhibitors (PDE-4), antimicrobials, and antihistamines. The pragmatic decision to limit the literature review to English-language randomized trials may have excluded data published in other languages and relevant long-term follow-up data. Strong recommendations are made for the use of moisturizers, TCIs, TCS, and topical PDE-4 and JAK inhibitors. Conditional recommendations are made for the use of bathing and wet wrap therapy and against the use of topical antimicrobials, antiseptics, and antihistamines."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "36641009"
+              ],
+              "source_passage_ids": [
+                "36641009:p1"
+              ],
+              "reason": "The guideline conditionally recommends against topical antimicrobials.",
+              "source_quotes": [
+                {
+                  "source_id": "36641009",
+                  "quote": "The workgroup developed 12 recommendations on the management of AD in adults with topical therapies, including nonprescription agents and prescription topical corticosteroids (TCS), calcineurin inhibitors (TCIs), Janus kinase (JAK) inhibitors, phosphodiesterase-4 inhibitors (PDE-4), antimicrobials, and antihistamines. The pragmatic decision to limit the literature review to English-language randomized trials may have excluded data published in other languages and relevant long-term follow-up data. Strong recommendations are made for the use of moisturizers, TCIs, TCS, and topical PDE-4 and JAK inhibitors. Conditional recommendations are made for the use of bathing and wet wrap therapy and against the use of topical antimicrobials, antiseptics, and antihistamines."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37678572"
+              ],
+              "source_passage_ids": [
+                "37678572:p1",
+                "37678572:p2"
+              ],
+              "reason": "The topical NMA finds group 5 (moderate-potency) TCS among the most effective and that moderate-potency TCS are among the most effective in improving/maintaining outcomes.",
+              "source_quotes": [
+                {
+                  "source_id": "37678572",
+                  "quote": "We classified topical corticosteroids (TCS) using 7 groups-group 1 being most potent. This review is registered in the Open Science Framework (https://osf.io/q5m6s). The 219 included trials (43,123 patients) evaluated 68 interventions. With high-certainty evidence, pimecrolimus improved 6 of 7 outcomes-among the best for 2; high-dose tacrolimus (0.1%) improved 5-among the best for 2; low-dose tacrolimus (0.03%) improved 5-among the best for 1. With moderate- to high-certainty evidence, group 5 TCS improved 6-among the best for 3; group 4 TCS and delgocitinib improved 4-among the best for 2; ruxolitinib improved 4-among the best for 1; group 1 TCS improved 3-among the best for 2. These interventions did not increase harm. Crisaborole and difamilast were intermediately effective, but with uncertain harm. Topical antibiotics alone or in combination may be among the least effective."
+                },
+                {
+                  "source_id": "37678572",
+                  "quote": "To maintain AD control, group 5 TCS were among the most effective, followed by tacrolimus and pimecrolimus. For individuals with AD, pimecrolimus, tacrolimus, and moderate-potency TCS are among the most effective in improving and maintaining multiple AD outcomes. Topical antibiotics may be among the least effective."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37678572"
+              ],
+              "source_passage_ids": [
+                "37678572:p1",
+                "37678572:p2"
+              ],
+              "reason": "The topical NMA states topical antibiotics alone or in combination may be among the least effective.",
+              "source_quotes": [
+                {
+                  "source_id": "37678572",
+                  "quote": "We classified topical corticosteroids (TCS) using 7 groups-group 1 being most potent. This review is registered in the Open Science Framework (https://osf.io/q5m6s). The 219 included trials (43,123 patients) evaluated 68 interventions. With high-certainty evidence, pimecrolimus improved 6 of 7 outcomes-among the best for 2; high-dose tacrolimus (0.1%) improved 5-among the best for 2; low-dose tacrolimus (0.03%) improved 5-among the best for 1. With moderate- to high-certainty evidence, group 5 TCS improved 6-among the best for 3; group 4 TCS and delgocitinib improved 4-among the best for 2; ruxolitinib improved 4-among the best for 1; group 1 TCS improved 3-among the best for 2. These interventions did not increase harm. Crisaborole and difamilast were intermediately effective, but with uncertain harm. Topical antibiotics alone or in combination may be among the least effective."
+                },
+                {
+                  "source_id": "37678572",
+                  "quote": "To maintain AD control, group 5 TCS were among the most effective, followed by tacrolimus and pimecrolimus. For individuals with AD, pimecrolimus, tacrolimus, and moderate-potency TCS are among the most effective in improving and maintaining multiple AD outcomes. Topical antibiotics may be among the least effective."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This adult dermatology case describes an established atopic dermatitis patient with a localized flexural flare, xerosis, intermittent moisturizer use, and explicitly no clinical evidence of bacterial infection (no crust, drainage, warmth, tenderness, fever, or spreading erythema). Solving independently: the correct topical approach for an uncomplicated AD flare is an anti-inflammatory agent (moderate-potency TCS) plus continued regular moisturizer, which is exactly candidate B. Candidate A (topical antibiotic monotherapy, discontinue moisturizer, presumed occult infection despite no signs) is unsafe and represents antimicrobial misuse plus omission of both effective anti-inflammatory therapy and barrier care; it is the intended flawed option working as designed. All five claims are supported by supplied source text: the 2023 AAD adult topical guideline (36641009) strongly recommends both moisturizers and TCS and conditionally recommends against topical antimicrobials; the topical NMA (37678572) places moderate-potency (group 5) TCS among the most effective and topical antibiotics among the least effective. The chart data (no infection signs, active flexural plaques, intermittent moisturizer, no current prescription anti-inflammatory) are consistent with the key answer B. The two candidates represent genuinely distinct clinical decisions (anti-inflammatory + barrier care vs. antibiotic monotherapy + stopping moisturizer). No decisive imaging or labs are needed for this basic topical-management question; the diagnosis is established and infection is clinically excluded per the note. The visible note describes findings but does not disclose the intended management plan or name the answer class, so it does not reveal the answer. Comparator sources on systemic therapies (37678577, 37943240, 39018058) and epidemiology sources are irrelevant to this localized-flare topical question but do not contradict B. No blocking defects identified; case is acceptable."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This is a limited flare of previously diagnosed atopic dermatitis without clinical evidence of secondary bacterial infection. Adult topical-therapy guidelines strongly recommend both topical corticosteroids and moisturizers, while recommending against routine topical antimicrobials. A systematic review likewise found moderate-potency topical corticosteroids among the most effective therapies, whereas topical antibiotics were among the least effective. Therefore, treating active flexural plaques with a moderate-potency topical corticosteroid while restoring regular moisturizer use is appropriate; excoriations alone do not justify antibiotic monotherapy.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "36641009"
+              ],
+              "reason": "The adult topical-therapy guideline explicitly makes a strong recommendation for topical corticosteroids.",
+              "source_passage_ids": [
+                "36641009:p0",
+                "36641009:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36641009",
+                  "quote": "New evidence has emerged since the 2014 guidelines that further informs the management of atopic dermatitis (AD) with topical therapies. These guidelines update the 2014 recommendations for management of AD with topical therapies. To provide evidence-based recommendations related to management of AD in adults using topical treatments. A multidisciplinary workgroup conducted a systematic review and applied the GRADE (Grading of Recommendations, Assessment, Development, and Evaluations) approach for assessing the certainty of evidence and formulating and grading recommendations."
+                },
+                {
+                  "source_id": "36641009",
+                  "quote": "The workgroup developed 12 recommendations on the management of AD in adults with topical therapies, including nonprescription agents and prescription topical corticosteroids (TCS), calcineurin inhibitors (TCIs), Janus kinase (JAK) inhibitors, phosphodiesterase-4 inhibitors (PDE-4), antimicrobials, and antihistamines. The pragmatic decision to limit the literature review to English-language randomized trials may have excluded data published in other languages and relevant long-term follow-up data. Strong recommendations are made for the use of moisturizers, TCIs, TCS, and topical PDE-4 and JAK inhibitors. Conditional recommendations are made for the use of bathing and wet wrap therapy and against the use of topical antimicrobials, antiseptics, and antihistamines."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "36641009"
+              ],
+              "reason": "The adult topical-therapy guideline explicitly makes a strong recommendation for moisturizers.",
+              "source_passage_ids": [
+                "36641009:p0",
+                "36641009:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36641009",
+                  "quote": "New evidence has emerged since the 2014 guidelines that further informs the management of atopic dermatitis (AD) with topical therapies. These guidelines update the 2014 recommendations for management of AD with topical therapies. To provide evidence-based recommendations related to management of AD in adults using topical treatments. A multidisciplinary workgroup conducted a systematic review and applied the GRADE (Grading of Recommendations, Assessment, Development, and Evaluations) approach for assessing the certainty of evidence and formulating and grading recommendations."
+                },
+                {
+                  "source_id": "36641009",
+                  "quote": "The workgroup developed 12 recommendations on the management of AD in adults with topical therapies, including nonprescription agents and prescription topical corticosteroids (TCS), calcineurin inhibitors (TCIs), Janus kinase (JAK) inhibitors, phosphodiesterase-4 inhibitors (PDE-4), antimicrobials, and antihistamines. The pragmatic decision to limit the literature review to English-language randomized trials may have excluded data published in other languages and relevant long-term follow-up data. Strong recommendations are made for the use of moisturizers, TCIs, TCS, and topical PDE-4 and JAK inhibitors. Conditional recommendations are made for the use of bathing and wet wrap therapy and against the use of topical antimicrobials, antiseptics, and antihistamines."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "36641009"
+              ],
+              "reason": "The guideline explicitly makes a conditional recommendation against topical antimicrobials.",
+              "source_passage_ids": [
+                "36641009:p0",
+                "36641009:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36641009",
+                  "quote": "New evidence has emerged since the 2014 guidelines that further informs the management of atopic dermatitis (AD) with topical therapies. These guidelines update the 2014 recommendations for management of AD with topical therapies. To provide evidence-based recommendations related to management of AD in adults using topical treatments. A multidisciplinary workgroup conducted a systematic review and applied the GRADE (Grading of Recommendations, Assessment, Development, and Evaluations) approach for assessing the certainty of evidence and formulating and grading recommendations."
+                },
+                {
+                  "source_id": "36641009",
+                  "quote": "The workgroup developed 12 recommendations on the management of AD in adults with topical therapies, including nonprescription agents and prescription topical corticosteroids (TCS), calcineurin inhibitors (TCIs), Janus kinase (JAK) inhibitors, phosphodiesterase-4 inhibitors (PDE-4), antimicrobials, and antihistamines. The pragmatic decision to limit the literature review to English-language randomized trials may have excluded data published in other languages and relevant long-term follow-up data. Strong recommendations are made for the use of moisturizers, TCIs, TCS, and topical PDE-4 and JAK inhibitors. Conditional recommendations are made for the use of bathing and wet wrap therapy and against the use of topical antimicrobials, antiseptics, and antihistamines."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37678572"
+              ],
+              "reason": "The network meta-analysis reports that moderate-potency topical corticosteroids are among the most effective treatments for improving and maintaining multiple atopic dermatitis outcomes.",
+              "source_passage_ids": [
+                "37678572:p1",
+                "37678572:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37678572",
+                  "quote": "We classified topical corticosteroids (TCS) using 7 groups-group 1 being most potent. This review is registered in the Open Science Framework (https://osf.io/q5m6s). The 219 included trials (43,123 patients) evaluated 68 interventions. With high-certainty evidence, pimecrolimus improved 6 of 7 outcomes-among the best for 2; high-dose tacrolimus (0.1%) improved 5-among the best for 2; low-dose tacrolimus (0.03%) improved 5-among the best for 1. With moderate- to high-certainty evidence, group 5 TCS improved 6-among the best for 3; group 4 TCS and delgocitinib improved 4-among the best for 2; ruxolitinib improved 4-among the best for 1; group 1 TCS improved 3-among the best for 2. These interventions did not increase harm. Crisaborole and difamilast were intermediately effective, but with uncertain harm. Topical antibiotics alone or in combination may be among the least effective."
+                },
+                {
+                  "source_id": "37678572",
+                  "quote": "To maintain AD control, group 5 TCS were among the most effective, followed by tacrolimus and pimecrolimus. For individuals with AD, pimecrolimus, tacrolimus, and moderate-potency TCS are among the most effective in improving and maintaining multiple AD outcomes. Topical antibiotics may be among the least effective."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37678572"
+              ],
+              "reason": "The network meta-analysis explicitly reports that topical antibiotics, alone or in combination, may be among the least effective options.",
+              "source_passage_ids": [
+                "37678572:p1",
+                "37678572:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37678572",
+                  "quote": "We classified topical corticosteroids (TCS) using 7 groups-group 1 being most potent. This review is registered in the Open Science Framework (https://osf.io/q5m6s). The 219 included trials (43,123 patients) evaluated 68 interventions. With high-certainty evidence, pimecrolimus improved 6 of 7 outcomes-among the best for 2; high-dose tacrolimus (0.1%) improved 5-among the best for 2; low-dose tacrolimus (0.03%) improved 5-among the best for 1. With moderate- to high-certainty evidence, group 5 TCS improved 6-among the best for 3; group 4 TCS and delgocitinib improved 4-among the best for 2; ruxolitinib improved 4-among the best for 1; group 1 TCS improved 3-among the best for 2. These interventions did not increase harm. Crisaborole and difamilast were intermediately effective, but with uncertain harm. Topical antibiotics alone or in combination may be among the least effective."
+                },
+                {
+                  "source_id": "37678572",
+                  "quote": "To maintain AD control, group 5 TCS were among the most effective, followed by tacrolimus and pimecrolimus. For individuals with AD, pimecrolimus, tacrolimus, and moderate-potency TCS are among the most effective in improving and maintaining multiple AD outcomes. Topical antibiotics may be among the least effective."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is an uncomplicated, localized adult atopic dermatitis flare with xerosis and no clinical evidence of bacterial infection. The supplied adult guideline supports both topical corticosteroids and regular moisturization and conditionally recommends against topical antimicrobials. Comparative randomized-trial evidence supports moderate-potency topical corticosteroids as among the most effective topical options and places topical antibiotics among the least effective. Thus B is appropriate and safe for the question's requested management approach. A improperly infers occult infection from excoriation despite the explicitly negative infection findings, omits anti-inflammatory treatment, and advises stopping beneficial moisturization. The title and question do not reveal the intended answer, no imaging is relevant, and there are no previous cases against which decision duplication could arise."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "a3a26f97ec398f83d7ab912268baa0562ffd50a6716856bbad27ab67ea9ba264"
+  }
+}

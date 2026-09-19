@@ -1,0 +1,424 @@
+{
+  "task_id": "onboarding-examination-v1-d6cc8a50a7bd4ff6e9f8-1",
+  "specialty": "gastroenterology",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Stable adult with melena: applying Glasgow-Blatchford Score to decide admission vs outpatient care",
+    "question": "Given this hemodynamically stable adult with melena and normal labs, which initial management strategy best aligns with guideline-based care for acute upper gastrointestinal bleeding?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "gastroenterology",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Melena, suspected nonvariceal upper gastrointestinal bleeding",
+          "since": "day 0",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "blood_pressure": "124/76",
+        "heart_rate": 88,
+        "respiratory_rate": 16,
+        "temperature_c": 36.7,
+        "oxygen_saturation_percent": 99
+      },
+      "lab_panels": [
+        {
+          "panel": "Basic Metabolic Panel",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "BUN",
+              "loinc": null,
+              "value": 12,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Creatinine",
+              "loinc": null,
+              "value": 0.9,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Sodium",
+              "loinc": null,
+              "value": 139,
+              "unit": "mmol/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Potassium",
+              "loinc": null,
+              "value": 4.1,
+              "unit": "mmol/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Complete Blood Count",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Hemoglobin",
+              "loinc": null,
+              "value": 14.2,
+              "unit": "g/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Hematocrit",
+              "loinc": null,
+              "value": 42,
+              "unit": "%",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Platelets",
+              "loinc": null,
+              "value": 260,
+              "unit": "k/µL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "WBC",
+              "loinc": null,
+              "value": 7.1,
+              "unit": "k/µL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "ED Triage",
+          "author_role": "emergency_medicine",
+          "text": "A male in his 30s presents with two black, tarry stools over the last 12 hours. No hematemesis, syncope, or chest pain. Mild epigastric discomfort without severe pain. Denies liver disease, heart failure, or anticoagulant/antiplatelet use. No NSAID use reported. Vitals stable: BP 124/76, HR 88, afebrile, oxygenation normal. Exam: alert, non-toxic, abdomen soft and non-tender, no stigmata of chronic liver disease. Rectal exam confirms melena. Initial labs show normal hemoglobin (14.2 g/dL) and normal BUN (12 mg/dL). Based on history, exam, and labs, suspected nonvariceal upper GI source. The clinical question is whether to admit for urgent endoscopy versus risk-stratify and consider outpatient management. Glasgow-Blatchford Score elements: BUN normal (0 points), hemoglobin normal for male (0), systolic BP >110 (0), pulse <100 (0), melena present (1), no syncope (0), no hepatic disease (0), no heart failure (0). GBS total = 1.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": null,
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "For stable adults with suspected UGIB, guideline-endorsed pre-endoscopy risk stratification with the Glasgow-Blatchford Score identifies very-low-risk patients (GBS 0–1) who can be safely discharged with outpatient follow-up/endoscopy. This patient’s GBS is 1 (melena only), with normal hemoglobin, normal BUN, normal blood pressure, heart rate <100, and no comorbid liver/cardiac disease; thus outpatient management without admission, urgent endoscopy, or transfusion is appropriate. Urgent endoscopy within 12 hours has not shown outcome benefit over early endoscopy within 24 hours and is not indicated here; transfusion is also not indicated as hemoglobin is well above the restrictive threshold of 7 g/dL recommended for hospitalized patients with UGIB.",
+        "evidence": null,
+        "key_data": [
+          "Glasgow-Blatchford Score calculated at 1 (melena present; all other parameters 0)",
+          "Hemodynamically stable: BP 124/76, HR 88, no syncope or active hematemesis",
+          "Hemoglobin 14.2 g/dL and BUN 12 mg/dL: no anemia or azotemia",
+          "No hepatic disease or heart failure",
+          "Presentation consistent with suspected nonvariceal UGIB without high-risk features"
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Admit for urgent inpatient endoscopy within 6–12 hours, begin an intravenous PPI infusion immediately, and transfuse 1 unit of packed red blood cells preemptively to prevent deterioration despite the normal hemoglobin, given the presence of melena."
+      },
+      {
+        "id": "B",
+        "text": "Use the Glasgow-Blatchford Score for pre-endoscopy risk stratification; with GBS = 1 and stable vitals/labs, discharge with clear return precautions and arrange outpatient follow-up/endoscopy rather than admission, without transfusion or urgent endoscopy."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "upper gastrointestinal bleeding",
+      "Glasgow-Blatchford Score",
+      "risk stratification",
+      "endoscopy timing",
+      "transfusion threshold"
+    ],
+    "evidence_keywords": [
+      "ACG 2021 UGIB guideline",
+      "ESGE 2021 NVUGIH guideline",
+      "very-low-risk discharge",
+      "restrictive transfusion 7 g/dL",
+      "endoscopy within 24 hours"
+    ],
+    "error_tags": [
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "Very-low-risk UGIB patients with a Glasgow-Blatchford Score of 0–1 can be discharged with outpatient follow-up rather than admitted.",
+        "source_ids": [
+          "33929377",
+          "33567467"
+        ]
+      },
+      {
+        "statement": "For patients hospitalized with upper gastrointestinal bleeding, a restrictive red blood cell transfusion threshold of 7 g/dL is recommended.",
+        "source_ids": [
+          "33929377",
+          "30910853"
+        ]
+      },
+      {
+        "statement": "Endoscopy should be performed within 24 hours after presentation following hemodynamic resuscitation; urgent (≤12 hours) endoscopy does not improve outcomes over early endoscopy.",
+        "source_ids": [
+          "33929377",
+          "33567467"
+        ]
+      },
+      {
+        "statement": "Pre-endoscopy intravenous erythromycin is suggested to improve gastric visualization before endoscopy in patients with UGIB.",
+        "source_ids": [
+          "33929377"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T22:07:38.503152+00:00",
+    "author_model": "gpt-5",
+    "sources": [
+      {
+        "id": "33929377",
+        "title": "ACG Clinical Guideline: Upper Gastrointestinal and Ulcer Bleeding.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33929377/",
+        "abstract": "We performed systematic reviews addressing predefined clinical questions to develop recommendations with the GRADE approach regarding management of patients with overt upper gastrointestinal bleeding. We suggest risk assessment in the emergency department to identify very-low-risk patients (e.g., Glasgow-Blatchford score = 0-1) who may be discharged with outpatient follow-up. For patients hospitalized with upper gastrointestinal bleeding, we suggest red blood cell transfusion at a threshold of 7 g/dL. Erythromycin infusion is suggested before endoscopy, and endoscopy is suggested within 24 hours after presentation. Endoscopic therapy is recommended for ulcers with active spurting or oozing and for nonbleeding visible vessels. Endoscopic therapy with bipolar electrocoagulation, heater probe, and absolute ethanol injection is recommended, and low- to very-low-quality evidence also supports clips, argon plasma coagulation, and soft monopolar electrocoagulation; hemostatic powder spray TC-325 is suggested for actively bleeding ulcers and over-the-scope clips for recurrent ulcer bleeding after previous successful hemostasis. After endoscopic hemostasis, high-dose proton pump inhibitor therapy is recommended continuously or intermittently for 3 days, followed by twice-daily oral proton pump inhibitor for the first 2 weeks of therapy after endoscopy. Repeat endoscopy is suggested for recurrent bleeding, and if endoscopic therapy fails, transcatheter embolization is suggested.",
+        "sha256": "4828ceacc904ca689ac781fb31bc5dd75438f839b21177214429eb4422784e73",
+        "retrieved_at": "2026-09-18T22:05:04.754049+00:00"
+      },
+      {
+        "id": "33567467",
+        "title": "Endoscopic diagnosis and management of nonvariceal upper gastrointestinal hemorrhage (NVUGIH): European Society of Gastrointestinal Endoscopy (ESGE) Guideline - Update 2021.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33567467/",
+        "abstract": "1: ESGE recommends in patients with acute upper gastrointestinal hemorrhage (UGIH) the use of the Glasgow-Blatchford Score (GBS) for pre-endoscopy risk stratification. Patients with GBS ≤ 1 are at very low risk of rebleeding, mortality within 30 days, or needing hospital-based intervention and can be safely managed as outpatients with outpatient endoscopy.Strong recommendation, moderate quality evidence. 2: ESGE recommends that in patients with acute UGIH who are taking low-dose aspirin as monotherapy for secondary cardiovascular prophylaxis, aspirin should not be interrupted. If for any reason it is interrupted, aspirin should be re-started as soon as possible, preferably within 3-5 days.Strong recommendation, moderate quality evidence. 3: ESGE recommends that following hemodynamic resuscitation, early (≤ 24 hours) upper gastrointestinal (GI) endoscopy should be performed. Strong recommendation, high quality evidence. 4: ESGE does not recommend urgent (≤ 12 hours) upper GI endoscopy since as compared to early endoscopy, patient outcomes are not improved. Strong recommendation, high quality evidence. 5: ESGE recommends for patients with actively bleeding ulcers (FIa, FIb), combination therapy using epinephrine injection plus a second hemostasis modality (contact thermal or mechanical therapy). Strong recommendation, high quality evidence. 6: ESGE recommends for patients with an ulcer with a nonbleeding visible vessel (FIIa), contact or noncontact thermal therapy, mechanical therapy, or injection of a sclerosing agent, each as monotherapy or in combination with epinephrine injection. Strong recommendation, high quality evidence. 7 : ESGE suggests that in patients with persistent bleeding refractory to standard hemostasis modalities, the use of a topical hemostatic spray/powder or cap-mounted clip should be considered. Weak recommendation, low quality evidence. 8: ESGE recommends that for patients with clinical evidence of recurrent peptic ulcer hemorrhage, use of a cap-mounted clip should be considered. In the case of failure of this second attempt at endoscopic hemostasis, transcatheter angiographic embolization (TAE) should be considered. Surgery is indicated when TAE is not locally available or after failed TAE. Strong recommendation, moderate quality evidence. 9: ESGE recommends high dose proton pump inhibitor (PPI) therapy for patients who receive endoscopic hemostasis and for patients with FIIb ulcer stigmata (adherent clot) not treated endoscopically. (A): PPI therapy should be administered as an intravenous bolus followed by continuous infusion (e. g., 80 mg then 8 mg/hour) for 72 hours post endoscopy. (B): High dose PPI therapies given as intravenous bolus dosing (twice-daily) or in oral formulation (twice-daily) can be considered as alternative regimens.Strong recommendation, high quality evidence. 10: ESGE recommends that in patients who require ongoing anticoagulation therapy following acute NVUGIH (e. g., peptic ulcer hemorrhage), anticoagulation should be resumed as soon as the bleeding has been controlled, preferably within or soon after 7 days of the bleeding event, based on thromboembolic risk. The rapid onset of action of direct oral anticoagulants (DOACS), as compared to vitamin K antagonists (VKAs), must be considered in this context.Strong recommendation, low quality evidence.",
+        "sha256": "6ee9e2e6c03c255b5cb3ebb576d6d11cc0da24860eac94d77b5d616ed2c784ad",
+        "retrieved_at": "2026-09-18T22:05:04.754049+00:00"
+      },
+      {
+        "id": "30910853",
+        "title": "Management of acute upper gastrointestinal bleeding.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30910853/",
+        "abstract": "Upper gastrointestinal bleeding (UGIB) is a common medical emergency, with a reported mortality of 2-10%. Patients identified as being at very low risk of either needing an intervention or death can be managed as outpatients. For all other patients, intravenous fluids as needed for resuscitation and red cell transfusion at a hemoglobin threshold of 70-80 g/L are recommended. After resuscitation is initiated, proton pump inhibitors (PPIs) and the prokinetic agent erythromycin may be administered, with antibiotics and vasoactive drugs recommended in patients who have cirrhosis. Endoscopy should be undertaken within 24 hours, with earlier endoscopy considered after resuscitation in patients at high risk, such as those with hemodynamic instability. Endoscopic treatment is used for variceal bleeding (for example, ligation for esophageal varices and tissue glue for gastric varices) and for high risk non-variceal bleeding (for example, injection, thermal probes, or clips for lesions with active bleeding or non-bleeding visible vessel). Patients who require endoscopic therapy for ulcer bleeding should receive high dose proton pump inhibitors after endoscopy, whereas those who have variceal bleeding should continue taking antibiotics and vasoactive drugs. Recurrent ulcer bleeding is treated with repeat endoscopic therapy, with subsequent bleeding managed by interventional radiology or surgery. Recurrent variceal bleeding is generally treated with transjugular intrahepatic portosystemic shunt. In patients who require antithrombotic agents, outcomes appear to be better when these drugs are reintroduced early.",
+        "sha256": "b226108d373f757511e25bbeb2da28095854ba33788416bf3b7dfd35d5c2a332",
+        "retrieved_at": "2026-09-18T22:05:04.754049+00:00"
+      },
+      {
+        "id": "36174643",
+        "title": "Endoscopic diagnosis and management of esophagogastric variceal hemorrhage: European Society of Gastrointestinal Endoscopy (ESGE) Guideline.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36174643/",
+        "abstract": "1: ESGE recommends that patients with compensated advanced chronic liver disease (ACLD; due to viruses, alcohol, and/or nonobese [BMI < 30 kg/m2] nonalcoholic steatohepatitis) and clinically significant portal hypertension (hepatic venous pressure gradient [HVPG] > 10 mmHg and/or liver stiffness by transient elastography > 25 kPa) should receive, if no contraindications, nonselective beta blocker (NSBB) therapy (preferably carvedilol) to prevent the development of variceal bleeding.Strong recommendation, moderate quality evidence. 2: ESGE recommends that in those patients unable to receive NSBB therapy with a screening upper gastrointestinal (GI) endoscopy that demonstrates high risk esophageal varices, endoscopic band ligation (EBL) is the endoscopic prophylactic treatment of choice. EBL should be repeated every 2-4 weeks until variceal eradication is achieved. Thereafter, surveillance EGD should be performed every 3-6 months in the first year following eradication.Strong recommendation, moderate quality evidence. 3: ESGE recommends, in hemodynamically stable patients with acute upper GI hemorrhage (UGIH) and no history of cardiovascular disease, a restrictive red blood cell (RBC) transfusion strategy, with a hemoglobin threshold of ≤ 70 g/L prompting RBC transfusion. A post-transfusion target hemoglobin of 70-90 g/L is desired.Strong recommendation, moderate quality evidence. 4 : ESGE recommends that patients with ACLD presenting with suspected acute variceal bleeding be risk stratified according to the Child-Pugh score and MELD score, and by documentation of active/inactive bleeding at the time of upper GI endoscopy.Strong recommendation, high quality of evidence. 5 : ESGE recommends the vasoactive agents terlipressin, octreotide, or somatostatin be initiated at the time of presentation in patients with suspected acute variceal bleeding and be continued for a duration of up to 5 days.Strong recommendation, high quality evidence. 6 : ESGE recommends antibiotic prophylaxis using ceftriaxone 1 g/day for up to 7 days for all patients with ACLD presenting with acute variceal hemorrhage, or in accordance with local antibiotic resistance and patient allergies.Strong recommendation, high quality evidence. 7 : ESGE recommends, in the absence of contraindications, intravenous erythromycin 250 mg be given 30-120 minutes prior to upper GI endoscopy in patients with suspected acute variceal hemorrhage.Strong recommendation, high quality evidence. 8 : ESGE recommends that, in patients with suspected variceal hemorrhage, endoscopic evaluation should take place within 12 hours from the time of patient presentation provided the patient has been hemodynamically resuscitated.Strong recommendation, moderate quality evidence. 9 : ESGE recommends EBL for the treatment of acute esophageal variceal hemorrhage (EVH).Strong recommendation, high quality evidence. 10 : ESGE recommends that, in patients at high risk for recurrent esophageal variceal bleeding following successful endoscopic hemostasis (Child-Pugh C  ≤ 13 or Child-Pugh B > 7 with active EVH at the time of endoscopy despite vasoactive agents, or HVPG > 20 mmHg), pre-emptive transjugular intrahepatic portosystemic shunt (TIPS) within 72 hours (preferably within 24 hours) must be considered.Strong recommendation, high quality evidence. 11 : ESGE recommends that, for persistent esophageal variceal bleeding despite vasoactive pharmacological and endoscopic hemostasis therapy, urgent rescue TIPS should be considered (where available).Strong recommendation, moderate quality evidence. 12 : ESGE recommends endoscopic cyanoacrylate injection for acute gastric (cardiofundal) variceal (GOV2, IGV1) hemorrhage.Strong recommendation, high quality evidence. 13: ESGE recommends endoscopic cyanoacrylate injection or EBL in patients with GOV1-specific bleeding.Strong recommendations, moderate quality evidence. 14: ESGE suggests urgent rescue TIPS or balloon-occluded retrograde transvenous obliteration (BRTO) for gastric variceal bleeding when there is a failure of endoscopic hemostasis or early recurrent bleeding.Weak recommendation, low quality evidence. 15: ESGE recommends that patients who have undergone EBL for acute EVH should be scheduled for follow-up EBLs at 1- to 4-weekly intervals to eradicate esophageal varices (secondary prophylaxis).Strong recommendation, moderate quality evidence. 16: ESGE recommends the use of NSBBs (propranolol or carvedilol) in combination with endoscopic therapy for secondary prophylaxis in EVH in patients with ACLD.Strong recommendation, high quality evidence.",
+        "sha256": "45703524834630f1c49e784f51f9329803d3cb85e39b2b70ab2a16dab5c31784",
+        "retrieved_at": "2026-09-18T22:05:05.416145+00:00"
+      },
+      {
+        "id": "31634917",
+        "title": "Management of Nonvariceal Upper Gastrointestinal Bleeding: Guideline Recommendations From the International Consensus Group.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31634917/",
+        "abstract": "This update of the 2010 International Consensus Recommendations on the Management of Patients With Nonvariceal Upper Gastrointestinal Bleeding (UGIB) refines previous important statements and presents new clinically relevant recommendations.\nAn international multidisciplinary group of experts developed the recommendations. Data sources included evidence summarized in previous recommendations, as well as systematic reviews and trials identified from a series of literature searches of several electronic bibliographic databases from inception to April 2018. Using an iterative process, group members formulated key questions. Two methodologists prepared evidence profiles and assessed quality (certainty) of evidence relevant to the key questions according to the GRADE (Grading of Recommendations Assessment, Development and Evaluation) approach. Group members reviewed the evidence profiles and, using a consensus process, voted on recommendations and determined the strength of recommendations as strong or conditional.\nPreendoscopic management: The group suggests using a Glasgow Blatchford score of 1 or less to identify patients at very low risk for rebleeding, who may not require hospitalization. In patients without cardiovascular disease, the suggested hemoglobin threshold for blood transfusion is less than 80 g/L, with a higher threshold for those with cardiovascular disease. Endoscopic management: The group suggests that patients with acute UGIB undergo endoscopy within 24 hours of presentation. Thermocoagulation and sclerosant injection are recommended, and clips are suggested, for endoscopic therapy in patients with high-risk stigmata. Use of TC-325 (hemostatic powder) was suggested as temporizing therapy, but not as sole treatment, in patients with actively bleeding ulcers. Pharmacologic management: The group recommends that patients with bleeding ulcers with high-risk stigmata who have had successful endoscopic therapy receive high-dose proton-pump inhibitor (PPI) therapy (intravenous loading dose followed by continuous infusion) for 3 days. For these high-risk patients, continued oral PPI therapy is suggested twice daily through 14 days, then once daily for a total duration that depends on the nature of the bleeding lesion. Secondary prophylaxis: The group suggests PPI therapy for patients with previous ulcer bleeding who require antiplatelet or anticoagulant therapy for cardiovascular prophylaxis.",
+        "sha256": "dafb5a0036a7681bfaec9cd2c4d157489126060eab5fb7c98375df00aa11c5cd",
+        "retrieved_at": "2026-09-18T22:05:05.416145+00:00"
+      },
+      {
+        "id": "35183361",
+        "title": "AGA Clinical Practice Update on De-Prescribing of Proton Pump Inhibitors: Expert Review.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35183361/",
+        "abstract": "Proton pump inhibitors (PPIs) are among the most commonly used medications in the world. Developed for the treatment and prevention of acid-mediated upper gastrointestinal conditions, these agents are being used increasingly for indications where their benefits are less certain. PPI overprescription imposes an economic cost and contributes to polypharmacy. In addition, PPI use has been increasingly linked to a number of adverse events (PPI-associated adverse events [PAAEs]). Therefore, de-prescribing of PPIs is an important strategy to lower pill burden while reducing real costs and theoretical risks. The purpose of this clinical update was to provide Best Practice Advice (BPA) statements about how to approach PPI de-prescribing in ambulatory patients.\nOur guiding principle was that, although PPIs are generally safe, patients should not use any medication when there is not a reasonable expectation of benefit based on scientific evidence or prior treatment response. Prescribers are responsible for determining whether PPI use is absolutely or conditionally indicated and, when uncertainty exists, to incorporate patient perspectives into PPI decision making. We collaboratively outlined a high-level \"process map\" of the conceptual approach to de-prescribing PPIs in a clinical setting. We identified the following 3 key domains that required BPA guidance: documentation of PPI indication; identifying suitable candidates for consideration of de-prescribing; and optimizing successful de-prescribing. Co-authors drafted 1 or more potential BPAs, supported by literature review, for each domain. All co-authors reviewed, edited, and selected or rejected draft BPAs for inclusion in the final list submitted to the American Gastroenterological Association Governing Board. Because this was not a systematic review, we did not carry out a formal rating of the quality of evidence or strength of the presented considerations. Best Practice Advice Statements BEST PRACTICE ADVICE 1: All patients taking a PPI should have a regular review of the ongoing indications for use and documentation of that indication. This review should be the responsibility of the patient's primary care provider. BEST PRACTICE ADVICE 2: All patients without a definitive indication for chronic PPI should be considered for trial of de-prescribing. BEST PRACTICE ADVICE 3: Most patients with an indication for chronic PPI use who take twice-daily dosing should be considered for step down to once-daily PPI. BEST PRACTICE ADVICE 4: Patients with complicated gastroesophageal reflux disease, such as those with a history of severe erosive esophagitis, esophageal ulcer, or peptic stricture, should generally not be considered for PPI discontinuation. BEST PRACTICE ADVICE 5: Patients with known Barrett's esophagus, eosinophilic esophagitis, or idiopathic pulmonary fibrosis should generally not be considered for a trial of de-prescribing. BEST PRACTICE ADVICE 6: PPI users should be assessed for upper gastrointestinal bleeding risk using an evidence-based strategy before de-prescribing. BEST PRACTICE ADVICE 7: Patients at high risk for upper gastrointestinal bleeding should not be considered for PPI de-prescribing. BEST PRACTICE ADVICE 8: Patients who discontinue long-term PPI therapy should be advised that they may develop transient upper gastrointestinal symptoms due to rebound acid hypersecretion. BEST PRACTICE ADVICE 9: When de-prescribing PPIs, either dose tapering or abrupt discontinuation can be considered. BEST PRACTICE ADVICE 10: The decision to discontinue PPIs should be based solely on the lack of an indication for PPI use, and not because of concern for PAAEs. The presence of a PAAE or a history of a PAAE in a current PPI user is not an independent indication for PPI withdrawal. Similarly, the presence of underlying risk factors for the development of an adverse event associated with PPI use should also not be an independent indication for PPI withdrawal.",
+        "sha256": "dcb72ad8c895dd967c917da1a47248bc1948a731cd209f6158ba951b2a40ba63",
+        "retrieved_at": "2026-09-18T22:05:05.416145+00:00"
+      },
+      {
+        "id": "40788637",
+        "title": "Prophylactic Antibiotics for Upper Gastrointestinal Bleeding in Patients With Cirrhosis: A Systematic Review and Bayesian Meta-Analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40788637/",
+        "abstract": "International guidelines recommend 5 to 7 days of antibiotic prophylaxis for patients with cirrhosis and upper gastrointestinal bleeding. However, the evidence for this recommendation has not been reassessed recently.\nTo determine whether current evidence continues to support the recommended 5 to 7 days of antibiotic prophylaxis in patients with cirrhosis and upper gastrointestinal bleeding.\nSearches were performed of the Embase, MEDLINE, and CENTRAL databases for randomized clinical trials (RCTs) from inception to September 25, 2024. The search query included the keywords gastrointestinal bleeding and prophylactic antibiotics.\nIncluded RCTs compared longer durations of antibiotic prophylaxis to shorter durations (or 0 days) in patients with cirrhosis and upper gastrointestinal bleeding. Observational and pediatric studies, gray literature, comparisons of systemic antibiotics, studies not reporting mortality or early rebleed, and studies of nonsystemic antibiotics were excluded.\nData were extracted in duplicate by independent reviewers. Study quality was assessed in duplicate using the Cochrane Risk of Bias 2 tool. Data were pooled by random-effects bayesian meta-analyses using a noninformative prior for the effect and a weakly informative prior for heterogeneity. To account for therapeutic advancements, a post hoc subgroup analysis was performed for studies published after 2004.\nThe primary outcome was all-cause mortality with a prespecified 5% noninferiority margin on the risk difference (RD) scale. Early rebleed and bacterial infections were secondary outcomes.\nThe analysis included 14 RCTs totaling 1322 participants (mean age range, 41.5 to 62.0 years; 981 male [74.2%] individuals), of whom 1202 (90.9%) had a variceal source of bleeding. Study quality was low to moderate, bacterial infections were heterogeneously defined, and no studies reported adverse events. Two RCTs compared longer (5-7 days) to shorter (2-3 days) durations and 12 RCTs compared any prophylaxis (1-10 days) to none. Shorter durations (including none) had a 97.3% probability of noninferiority for all-cause mortality (RD, 0.9%; 95% credible interval [95% CrI],  -2.6 to 4.9). Shorter durations had a 73.8% probability of noninferiority for early rebleeding (RD, 2.9%; 95% CrI, -4.2 to 10.0) but were associated with more study-defined bacterial infections (RD, 15.2%; 95% CrI, 5.0 to 25.9). The probabilities of noninferiority of shorter durations for all 3 outcomes were higher in studies published after 2004.\nThe findings of this systematic review and bayesian meta-analysis do not support the purported mortality benefit driving guideline recommendations for antibiotic prophylaxis in patients with cirrhosis and upper gastrointestinal bleeds. Although prophylaxis reduced reported infections, methodological concerns regarding infection definitions introduced high risk of bias. Higher-quality RCTs are needed to determine the benefit and optimal duration of antibiotic prophylaxis in the modern era of advanced interventions. Until these studies are available, clinicians should be aware that the current guideline recommendations are not based on high-quality evidence.",
+        "sha256": "f68c8760e0ef36fe453c4bee866d786b5377c98b9e83bd50a11e38c2e3149dca",
+        "retrieved_at": "2026-09-18T22:05:06.030652+00:00"
+      },
+      {
+        "id": "39007578",
+        "title": "Society of Critical Care Medicine and American Society of Health-System Pharmacists Guideline for the Prevention of Stress-Related Gastrointestinal Bleeding in Critically Ill Adults.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39007578/",
+        "abstract": "Critically ill adults can develop stress-related mucosal damage from gastrointestinal hypoperfusion and reperfusion injury, predisposing them to clinically important stress-related upper gastrointestinal bleeding (UGIB).\nThe objective of this guideline was to develop evidence-based recommendations for the prevention of UGIB in adults in the ICU.\nA multiprofessional panel of 18 international experts from dietetics, critical care medicine, nursing, and pharmacy, and two methodologists developed evidence-based recommendations in alignment with the Grading of Recommendations, Assessment, Development, and Evaluation (GRADE) methodology. Conflict-of-interest policies were strictly followed during all phases of guideline development including task force selection and voting.\nThe panel members identified and formulated 13 Population, Intervention, Comparison, and Outcome questions. We conducted a systematic review for each question to identify the best available evidence, statistically analyzed the evidence, and then assessed the certainty of the evidence using the GRADE approach. We used the evidence-to-decision framework to formulate the recommendations. Good practice statements were included to provide additional guidance.\nThe panel generated nine conditional recommendations and made four good practice statements. Factors that likely increase the risk for clinically important stress-related UGIB in critically ill adults include coagulopathy, shock, and chronic liver disease. There is no firm evidence for mechanical ventilation alone being a risk factor. Enteral nutrition probably reduces UGIB risk. All critically ill adults with factors that likely increase the risk for stress-related UGIB should receive either proton pump inhibitors or histamine-2 receptor antagonists, at low dosage regimens, to prevent UGIB. Prophylaxis should be discontinued when critical illness is no longer evident or the risk factor(s) is no longer present despite ongoing critical illness. Discontinuation of stress ulcer prophylaxis before transfer out of the ICU is necessary to prevent inappropriate prescribing.\nThe guideline panel achieved consensus regarding the recommendations for the prevention of stress-related UGIB. These recommendations are intended for consideration along with the patient's existing clinical status.",
+        "sha256": "d7de26a0143cb02db2ab095252e25e36ca53b4362f86294420cbc2c20b829297",
+        "retrieved_at": "2026-09-18T22:05:06.030652+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient is a hemodynamically stable adult (BP 124/76, HR 88) with melena, normal hemoglobin (14.2 g/dL), normal BUN (12 mg/dL), no comorbidities, no anticoagulants/antiplatelets, and a calculated Glasgow-Blatchford Score of 1. Multiple guidelines converge on outpatient management for such very-low-risk patients: ESGE (33567467) explicitly states patients with GBS ≤1 are at very low risk of rebleeding, mortality, or need for hospital-based intervention and can be safely managed as outpatients with outpatient endoscopy (strong recommendation, moderate quality). The ACG guideline (33929377) suggests ED risk assessment to identify very-low-risk patients (GBS 0-1) who may be discharged with outpatient follow-up. The International Consensus Group (31634917) similarly suggests GBS ≤1 identifies very-low-risk patients who may not require hospitalization. Answer A contradicts guidelines on multiple points: (1) transfusion is contraindicated with normal Hb—the recommended threshold is 7 g/dL (ACG) / 70-80 g/L (ESGE), and preemptive transfusion is not supported; (2) urgent endoscopy within 6-12 hours is not recommended—ESGE explicitly does NOT recommend urgent (≤12 h) endoscopy since it does not improve outcomes compared with early (≤24 h) endoscopy; (3) empiric admission and IV PPI infusion are unnecessary for a very-low-risk patient prior to endoscopy (high-dose IV PPI infusion is reserved for post-endoscopic hemostasis or high-risk stigmata). Answer B aligns precisely with GBS-based risk stratification and guideline-directed care.",
+          "confidence": 0.93
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.95,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33929377",
+                "33567467"
+              ],
+              "reason": "ACG abstract explicitly suggests identifying very-low-risk patients (GBS 0-1) for discharge with outpatient follow-up; ESGE recommends GBS ≤1 patients can be safely managed as outpatients."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "33929377",
+                "30910853"
+              ],
+              "reason": "ACG suggests RBC transfusion threshold of 7 g/dL for hospitalized UGIB; the 2019 review recommends 70-80 g/L threshold. Supported."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33929377",
+                "33567467"
+              ],
+              "reason": "ACG suggests endoscopy within 24 hours; ESGE recommends early (≤24h) endoscopy after resuscitation and explicitly does not recommend urgent (≤12h) endoscopy since outcomes are not improved."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "33929377"
+              ],
+              "reason": "ACG abstract states erythromycin infusion is suggested before endoscopy. This claim is not directly relevant to the answer choice but is source-supported."
+            }
+          ],
+          "issues": [],
+          "rationale": "Independently solving: a hemodynamically stable man in his 30s with melena, normal Hgb (14.2), normal BUN (12), SBP >110, HR <100, no syncope, no hepatic/cardiac disease has GBS = 1 (melena only). Both ACG 2021 and ESGE 2021 endorse pre-endoscopy risk stratification with GBS and identify GBS 0-1 as very-low-risk patients who can be safely discharged for outpatient management/endoscopy. Answer B matches guideline-based care and is safe. Answer A (intended flawed) recommends admission for urgent endoscopy within 6-12h (ESGE explicitly does NOT recommend urgent ≤12h endoscopy as it does not improve outcomes), immediate IV PPI infusion, and preemptive transfusion of 1 unit PRBC despite normal Hgb of 14.2 (well above the restrictive 7 g/dL threshold—transfusing a non-anemic patient is unsafe and unsupported). A is correctly the flawed candidate. The case is on-specialty (gastroenterology/UGIB), internally coherent, and the GBS arithmetic in the triage note is correct. Sources verified against actual abstract text: ACG (33929377) supports GBS 0-1 outpatient discharge, 7 g/dL transfusion threshold, endoscopy within 24h, and pre-endoscopy erythromycin; ESGE (33567467) supports GBS ≤1 outpatient management, early (≤24h) endoscopy, and explicitly rejects urgent (≤12h) endoscopy. The 2019 review (30910853) supports very-low-risk outpatient management and 70-80 g/L transfusion threshold. No missing decisive data—vitals, CBC, BMP, and history are complete for GBS calculation; no imaging is required for this risk-stratification decision. The decision (discharge vs admit based on GBS) is a distinct clinical decision. Claim 3 (erythromycin) is source-supported though tangential to the answer. No previous cases to check for independence.",
+          "distinct_decision_detail": "The clinical decision is admission vs outpatient management based on GBS risk stratification."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Guidelines endorse pre-endoscopy risk stratification with the Glasgow-Blatchford Score (GBS). Very-low-risk patients (GBS 0–1) may be safely discharged with outpatient follow-up/endoscopy rather than admitted (ACG 2021; ESGE NVUGIH 2021). This patient’s GBS is 1 with stable vitals and normal hemoglobin/BUN, meeting outpatient criteria. Urgent inpatient endoscopy within ≤12 hours is not recommended (ESGE 2021); early endoscopy within 24 hours applies to hospitalized patients. Preemptive RBC transfusion is inappropriate; a restrictive threshold of ~7 g/dL is recommended (ACG 2021; ESGE 2022). High-dose IV PPI infusion is indicated after successful endoscopic hemostasis of high-risk lesions, not preemptively in a very-low-risk patient (ACG 2021; International Consensus 2019). Therefore, discharge with precautions and arrange outpatient follow-up/endoscopy aligns with guidelines.",
+          "confidence": 0.93
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "33929377",
+                "33567467"
+              ],
+              "reason": "Both ACG 2021 and ESGE 2021 explicitly state that very-low-risk UGIB patients with GBS 0–1 can be safely discharged with outpatient follow-up/endoscopy."
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "33929377",
+                "30910853"
+              ],
+              "reason": "ACG 2021 recommends a restrictive transfusion threshold of 7 g/dL for hospitalized UGIB patients; the 2019 review supports a restrictive strategy (70–80 g/L), consistent with 7 g/dL."
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "33929377",
+                "33567467"
+              ],
+              "reason": "ACG 2021 suggests endoscopy within 24 hours after presentation; ESGE 2021 recommends early (≤24 h) and specifically notes urgent (≤12 h) endoscopy does not improve outcomes over early endoscopy."
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "33929377"
+              ],
+              "reason": "ACG 2021 suggests pre-endoscopy erythromycin infusion to improve gastric visualization in UGIB."
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent assessment: The patient is a hemodynamically stable male in his 30s with melena, normal hemoglobin (14.2 g/dL), normal BUN (12 mg/dL), normal blood pressure and heart rate, and no liver disease or heart failure. Using the Glasgow-Blatchford Score (GBS): BUN 0, Hb 0, SBP 0, pulse 0, melena 1, syncope 0, hepatic disease 0, heart failure 0, total = 1. Per ACG 2021 and ESGE 2021 guidelines, very-low-risk patients with GBS 0–1 can be discharged with outpatient follow-up/endoscopy rather than admitted. If hospitalized for UGIB, a restrictive transfusion threshold of 7 g/dL is recommended; this patient’s Hb is far above, so transfusion is not indicated. Timing of endoscopy: For patients requiring hospitalization, early endoscopy within 24 hours is recommended; urgent ≤12 hours does not improve outcomes over early endoscopy in stable nonvariceal UGIB. Pre-endoscopy erythromycin can be used to improve visualization when endoscopy is planned, but it is not a reason to admit very-low-risk patients.\nEvaluation of candidate answers: A is unsafe and guideline-incongruent—recommends urgent (6–12 h) endoscopy without indication, IV PPI infusion preemptively (not supported outside post-endoscopic high-risk stigmata therapy), and a preemptive PRBC transfusion despite Hb 14.2 g/dL, which contradicts restrictive transfusion guidance. B follows guideline-based care: use GBS; with GBS = 1 and stability, discharge with clear return precautions and arrange outpatient follow-up/endoscopy; no transfusion or urgent endoscopy.\nKey audit: The provided key selects B and gives rationale consistent with ACG and ESGE recommendations. The case is within gastroenterology; data are coherent and sufficient for the decision; no decisive information is missing (denies liver disease, stable vitals and labs, enabling safe use of GBS for outpatient management). Previous cases are absent, so practice decision is distinct by default. Minor nuance: while some settings consider empiric PPI therapy before endoscopy, guidelines emphasize high-dose PPI after endoscopic hemostasis for high-risk lesions; this does not alter the disposition decision here.",
+          "best_answer_id_reason": "B aligns with modern UGIB guidelines for very-low-risk patients (GBS 0–1) to be safely managed as outpatients with follow-up; A includes unnecessary admission, urgent endoscopy, and an unsafe, unsupported transfusion."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "43f129b415c59eb461fc996e64269e9c1084e87486e0c19d693fbe9ff7401ee1"
+  }
+}

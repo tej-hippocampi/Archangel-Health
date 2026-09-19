@@ -78,7 +78,7 @@ def _gate(store, user_id) -> dict:
 @pytest.mark.parametrize("method,url", GATED)
 def test_a_tiered_physician_cannot_reach_real_work_before_passing(method, url):
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     r = _call(method, url, A.headers_for(user))
     assert r.status_code == 403, (url, r.text)
     body = r.json()["detail"]
@@ -92,7 +92,7 @@ def test_a_tiered_physician_cannot_reach_real_work_before_passing(method, url):
 
 def test_passing_opens_every_gated_endpoint():
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     r = client.post("/api/asclepius/tutorial/submit", json=_good_payload(),
                     headers=A.headers_for(user))
     assert r.status_code == 200 and r.json()["result"]["passed"] is True
@@ -115,7 +115,7 @@ def test_a_poor_attempt_is_still_an_attempt_and_still_opens_nothing():
     assertion at the bottom.
     """
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     bad = _good_payload()
     bad["chosen_id"] = "A"          # the answer the reference panel rejected
     r = client.post("/api/asclepius/tutorial/submit", json=bad,
@@ -135,7 +135,7 @@ def test_a_poor_attempt_is_still_an_attempt_and_still_opens_nothing():
 
 def test_retries_are_unlimited_and_the_gate_opens_on_the_pass():
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     hdrs = A.headers_for(user)
     bad = _good_payload(); bad["chosen_id"] = "A"
     for _ in range(3):
@@ -151,7 +151,7 @@ def test_retries_are_unlimited_and_the_gate_opens_on_the_pass():
 
 def test_skipping_grants_nothing():
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     hdrs = A.headers_for(user)
     assert client.patch("/api/asclepius/me/tutorial", json={"action": "skip"},
                         headers=hdrs).status_code == 200
@@ -165,7 +165,7 @@ def test_a_physician_cannot_clear_their_own_gate(action):
     dict from scratch. A grandfathered physician clicking any of them would have
     dropped their own gate and locked themselves out of their own queue."""
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     store.set_tutorial_state(user["id"], {
         "status": "not_started", "version": None,
         "gate": {"state": "grandfathered", "source": "migration:practice_gate_backfill"}})
@@ -176,7 +176,7 @@ def test_a_physician_cannot_clear_their_own_gate(action):
 
 def test_admins_and_the_demo_account_are_exempt():
     store = A.fresh_store()
-    admin = A.make_user(store, role="admin", practice_case=False)
+    admin = A.make_user(store, specialty="nephrology", role="admin", practice_case=False)
     assert asc_caps.practice_gate_reason(
         store.get_user_by_id(admin["id"]), required_version=TUTORIAL_VERSION) is None
     assert asc_caps.practice_gate_reason(
@@ -190,7 +190,7 @@ def test_skipping_every_step_is_not_a_pass():
     checks. Fourteen clicks matched all four findings, which under a hard gate
     would have unlocked every paid case."""
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     payload = _good_payload()                       # a full 4-of-4 payload...
     payload["assisted"] = sorted(GRADED_STEP_IDS)   # ...that the client admits it filled
     r = client.post("/api/asclepius/tutorial/submit", json=payload,
@@ -205,7 +205,7 @@ def test_skipping_every_step_is_not_a_pass():
 def test_skipping_an_ungraded_step_is_still_a_pass():
     """The affordance stays usable: only the steps the key reads disqualify."""
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     payload = _good_payload()
     payload["assisted"] = ["ch1-tabs", "ch3-read"]   # pure reading beats
     r = client.post("/api/asclepius/tutorial/submit", json=payload,
@@ -216,7 +216,7 @@ def test_skipping_an_ungraded_step_is_still_a_pass():
 # ─── Grandfathering ──────────────────────────────────────────────────────────
 def _seed_worker(store, *, tutorial_json):
     """A physician with one real submission, in some prior tutorial state."""
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     with store._conn() as conn:
         conn.execute("UPDATE users SET tutorial_json = ? WHERE id = ?",
                      (tutorial_json, user["id"]))
@@ -285,7 +285,7 @@ def test_a_deliberately_locked_gate_is_not_handed_back_on_the_next_deploy():
 
 def test_a_physician_with_no_real_work_is_not_grandfathered():
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     with store._conn() as conn:
         store._backfill_practice_gate(conn)
     assert _gate(store, user["id"]) == {}
@@ -308,7 +308,7 @@ def test_a_grandfathered_physician_who_replays_and_fails_keeps_their_access():
 # ─── Versioning ──────────────────────────────────────────────────────────────
 def test_a_pass_under_an_older_answer_key_is_re_gated():
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     store.set_tutorial_state(user["id"], {
         "status": "completed",
         "gate": {"state": "passed", "passed_version": 0, "attempts": 1}})
@@ -327,7 +327,7 @@ def test_grandfathered_rows_are_exempt_from_the_version_check():
 # ─── The score stays internal ────────────────────────────────────────────────
 def test_the_session_payload_carries_no_grade_for_the_physicians_own_work():
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     hdrs = A.headers_for(user)
     client.post("/api/asclepius/tutorial/submit", json=_good_payload(), headers=hdrs)
     tut = client.get("/api/asclepius/auth/me", headers=hdrs).json()["tutorial"]
@@ -343,7 +343,7 @@ def test_the_teaching_material_opens_only_after_a_submission():
     task by _blind_task and have never been visible. The split stays deliberate:
     the task is still blind, and the submit response is what opens them."""
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     hdrs = A.headers_for(user)
     task = client.get("/api/asclepius/tutorial/task", headers=hdrs).json()["task"]
     assert "ground_truth" not in json.dumps(task)
@@ -357,7 +357,7 @@ def test_the_teaching_material_opens_only_after_a_submission():
 
 def test_every_miss_is_something_the_physician_has_to_open():
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     payload = _good_payload()
     payload["independent_answer"] = {"text": "Increase the loop dose."}
     payload["chosen_revision"]["why_better_notes"] = "It is the better answer."
@@ -375,7 +375,7 @@ def test_every_miss_is_something_the_physician_has_to_open():
 
 def test_the_pass_mark_needs_the_right_answer_and_enough_of_it():
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     thin = {"task_id": TUTORIAL_TASK_ID, "chosen_id": "B",
             "independent_answer": {"text": "Still congested, so keep going."}}
     result = client.post("/api/asclepius/tutorial/submit", json=thin,
@@ -393,7 +393,7 @@ def test_approved_doctor_can_skip_practice_without_dismissing_other_stops(tmp_pa
     from pathlib import Path
 
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     store.set_verification_status(user["id"], "approved")
     store.set_first_run(user["id"], {
         "version": store.FIRST_RUN_VERSION,
@@ -454,7 +454,7 @@ def test_approved_doctor_can_skip_practice_without_dismissing_other_stops(tmp_pa
 
 def test_practice_skip_is_only_available_after_approval():
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False, tier=None)
+    user = A.make_user(store, specialty="nephrology", practice_case=False, tier=None)
     before = store.get_first_run(user["id"])
     response = client.patch("/api/asclepius/me/first-run",
                             json={"action": "skip_practice"}, headers=A.headers_for(user))
@@ -464,7 +464,7 @@ def test_practice_skip_is_only_available_after_approval():
 
 def test_practice_skip_does_not_rewrite_a_completed_case_or_other_stops():
     store = A.fresh_store()
-    user = A.make_user(store)
+    user = A.make_user(store, specialty="nephrology")
     store.set_verification_status(user["id"], "approved")
     headers = A.headers_for(user)
     store.set_first_run(user["id"], {"version": store.FIRST_RUN_VERSION,
@@ -483,7 +483,7 @@ def test_practice_skip_does_not_rewrite_a_completed_case_or_other_stops():
 def test_remaining_stops_can_complete_after_skipping_practice():
     from asclepius.first_run import mode
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     store.set_verification_status(user["id"], "approved")
     headers = A.headers_for(user)
     client.patch("/api/asclepius/me/first-run", json={"action": "skip_practice"}, headers=headers)
@@ -500,7 +500,7 @@ def test_remaining_stops_can_complete_after_skipping_practice():
 @pytest.mark.parametrize("good", [True, False])
 def test_submitting_practice_resolves_just_the_practice_stop(good):
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     store.set_first_run(user["id"], {"version": store.FIRST_RUN_VERSION,
                                     "stops": {"welcome": "done", "start": "done"}})
     payload = _good_payload() if good else {"task_id": TUTORIAL_TASK_ID}
@@ -515,7 +515,7 @@ def test_submitting_practice_resolves_just_the_practice_stop(good):
 def test_failed_skip_write_leaves_onboarding_unchanged_and_retryable(monkeypatch):
     import sqlite3
     store = A.fresh_store()
-    user = A.make_user(store, practice_case=False)
+    user = A.make_user(store, specialty="nephrology", practice_case=False)
     store.set_verification_status(user["id"], "approved")
     before = store.get_first_run(user["id"])
     original = store.set_first_run

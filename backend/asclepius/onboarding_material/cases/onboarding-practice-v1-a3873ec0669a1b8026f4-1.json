@@ -1,0 +1,405 @@
+{
+  "task_id": "onboarding-practice-v1-a3873ec0669a1b8026f4-1",
+  "specialty": "allergy and immunology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Adult with rapid-onset multisystem allergic reaction after restaurant meal",
+    "question": "In this adult with rapid onset of multisystem allergic symptoms consistent with anaphylaxis, what is the most appropriate immediate treatment step to provide now?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "allergy and immunology",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "IgE-mediated peanut allergy (known prior)",
+          "since": "several years",
+          "collected_offset_days": null
+        },
+        {
+          "condition": "Intermittent asthma (mild)",
+          "since": "adolescence",
+          "collected_offset_days": null
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Albuterol inhaler",
+          "dose": null,
+          "route": "inhaled",
+          "freq": "as needed",
+          "collected_offset_days": null
+        }
+      ],
+      "vitals": {
+        "bp": "86/52 mmHg",
+        "hr": 118,
+        "rr": 26,
+        "temp": "36.7 C",
+        "SpO2": "93% on room air"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Triage",
+          "author_role": "urgent care clinician",
+          "text": "A 34-year-old man with a history of IgE-mediated peanut allergy and mild intermittent asthma presents to urgent care approximately 20 minutes after eating satay at a restaurant. He reports sudden onset of generalized pruritus, hives on his trunk and arms, lip and periorbital swelling, throat tightness, hoarseness, chest tightness, wheeze, and lightheadedness. He denies syncope. He did not take any medications prior to arrival (no antihistamines, no epinephrine). No alcohol use today. Past reactions to peanut have included hives and wheeze but never hypotension. On exam, he is anxious, speaking in short phrases with audible wheeze, scattered inspiratory stridor, and extensive urticaria with angioedema of the lips. Capillary refill is delayed. Lungs with diffuse expiratory wheezes. Cardiac exam reveals tachycardia with regular rhythm. Abdomen is soft and nontender. Skin is warm with raised erythematous wheals. There is no known beta-blocker use. The presentation began within minutes of a likely allergen exposure and involves skin, respiratory symptoms, and hypotension.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "easy",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "Guidelines recommend the prompt use of intramuscular epinephrine as the first-line treatment for anaphylaxis. Antihistamines and glucocorticoids are adjuncts and should not delay epinephrine; they are not substitutes and do not reliably prevent biphasic reactions. In this patient with rapid onset after a likely allergen exposure and involvement of skin, respiratory system, and hypotension, immediate intramuscular epinephrine is indicated.",
+        "evidence": null,
+        "key_data": [
+          "Rapid onset of symptoms within minutes of likely peanut exposure",
+          "Multisystem involvement: diffuse urticaria/angioedema, wheeze/stridor, hypotension",
+          "No prior self-administration of epinephrine before arrival",
+          "Vital signs show hypotension and hypoxemia on room air, consistent with severe anaphylaxis"
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Administer an H1 antihistamine and an intravenous corticosteroid first, observe closely for progression, and reserve intramuscular epinephrine only if symptoms persist or worsen despite these medications."
+      },
+      {
+        "id": "B",
+        "text": "Administer intramuscular epinephrine immediately as the first-line treatment for anaphylaxis; do not delay epinephrine by giving antihistamines or glucocorticoids in its place."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "anaphylaxis",
+      "intramuscular epinephrine",
+      "hypotension",
+      "airway edema",
+      "urticaria",
+      "wheeze"
+    ],
+    "evidence_keywords": [
+      "epinephrine first-line",
+      "IM route recommended",
+      "antihistamines not first-line",
+      "EAACI anaphylaxis guideline",
+      "practice parameter update"
+    ],
+    "error_tags": [
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "Prompt use of intramuscular epinephrine is recommended as the first-line management for anaphylaxis in healthcare settings and the community.",
+        "source_ids": [
+          "34343358"
+        ]
+      },
+      {
+        "statement": "Epinephrine is the first-line pharmacotherapy for anaphylaxis; antihistamines and glucocorticoids are adjuncts and not substitutes for epinephrine.",
+        "source_ids": [
+          "32001253"
+        ]
+      },
+      {
+        "statement": "Clinical criteria should be used to identify anaphylaxis at the point of care, with consideration of later serum tryptase measurement.",
+        "source_ids": [
+          "34343358"
+        ]
+      },
+      {
+        "statement": "Patients at risk of anaphylaxis should have access to epinephrine autoinjectors and receive training on when and how to use them.",
+        "source_ids": [
+          "34343358",
+          "38108678"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-18T23:12:59.432725+00:00",
+    "author_model": "gpt-5",
+    "sources": [
+      {
+        "id": "34536239",
+        "title": "The international EAACI/GA²LEN/EuroGuiDerm/APAAACI guideline for the definition, classification, diagnosis, and management of urticaria.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34536239/",
+        "abstract": "This update and revision of the international guideline for urticaria was developed following the methods recommended by Cochrane and the Grading of Recommendations Assessment, Development and Evaluation (GRADE) working group. It is a joint initiative of the Dermatology Section of the European Academy of Allergology and Clinical Immunology (EAACI), the Global Allergy and Asthma European Network (GA²LEN) and its Urticaria and Angioedema Centers of Reference and Excellence (UCAREs and ACAREs), the European Dermatology Forum (EDF; EuroGuiDerm), and the Asia Pacific Association of Allergy, Asthma and Clinical Immunology with the participation of 64 delegates of 50 national and international societies and from 31 countries. The consensus conference was held on 3 December 2020. This guideline was acknowledged and accepted by the European Union of Medical Specialists (UEMS). Urticaria is a frequent, mast cell-driven disease that presents with wheals, angioedema, or both. The lifetime prevalence for acute urticaria is approximately 20%. Chronic spontaneous or inducible urticaria is disabling, impairs quality of life, and affects performance at work and school. This updated version of the international guideline for urticaria covers the definition and classification of urticaria and outlines expert-guided and evidence-based diagnostic and therapeutic approaches for the different subtypes of urticaria.",
+        "sha256": "8db7c36348b45d0f39694a87a122d50291334626e9beecfbcf903687d4a59d45",
+        "retrieved_at": "2026-09-18T23:09:54.868431+00:00"
+      },
+      {
+        "id": "34343358",
+        "title": "EAACI guidelines: Anaphylaxis (2021 update).",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34343358/",
+        "abstract": "Anaphylaxis is a clinical emergency which all healthcare professionals need to be able to recognize and manage. The European Academy of Allergy and Clinical Immunology Anaphylaxis multidisciplinary Task Force has updated the 2014 guideline. The guideline was developed using the AGREE II framework and the GRADE approach. The evidence was systematically reviewed and recommendations were created by weighing up benefits and harms. The guideline was peer-reviewed by external experts and reviewed in a public consultation. The use of clinical criteria to identify anaphylaxis is suggested with blood sampling for the later measurement of tryptase. The prompt use of intramuscular adrenaline as first-line management is recommended with the availability of adrenaline autoinjectors to patients in the community. Pharmacokinetic data should be provided for adrenaline autoinjector devices. Structured, comprehensive training for people at risk of anaphylaxis is recommended. Simulation training and visual prompts for healthcare professionals are suggested to improve the management of anaphylaxis. It is suggested that school policies reflect anaphylaxis guidelines. The evidence for the management of anaphylaxis remains mostly at a very low level. There is an urgent need to prioritize clinical trials with the potential to improve the management of patients at risk of anaphylaxis.",
+        "sha256": "fb5cdb2f7abbfd438377b7e30c3052b9dbbe05de1dca919ac61bafdbb0129288",
+        "retrieved_at": "2026-09-18T23:09:54.868431+00:00"
+      },
+      {
+        "id": "38108678",
+        "title": "Anaphylaxis: A 2023 practice parameter update.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38108678/",
+        "abstract": "This practice parameter update focuses on 7 areas in which there are new evidence and new recommendations. Diagnostic criteria for anaphylaxis have been revised, and patterns of anaphylaxis are defined. Measurement of serum tryptase is important for diagnosis of anaphylaxis and to identify underlying mast cell disorders. In infants and toddlers, age-specific symptoms may differ from older children and adults, patient age is not correlated with reaction severity, and anaphylaxis is unlikely to be the initial reaction to an allergen on first exposure. Different community settings for anaphylaxis require specific measures for prevention and treatment of anaphylaxis. Optimal prescribing and use of epinephrine autoinjector devices require specific counseling and training of patients and caregivers, including when and how to administer the epinephrine autoinjector and whether and when to call 911. If epinephrine is used promptly, immediate activation of emergency medical services may not be required if the patient experiences a prompt, complete, and durable response. For most medical indications, the risk of stopping or changing beta-blocker or angiotensin-converting enzyme inhibitor medication may exceed the risk of more severe anaphylaxis if the medication is continued, especially in patients with insect sting anaphylaxis. Evaluation for mastocytosis, including a bone marrow biopsy, should be considered for adult patients with severe insect sting anaphylaxis or recurrent idiopathic anaphylaxis. After perioperative anaphylaxis, repeat anesthesia may proceed in the context of shared decision-making and based on the history and results of diagnostic evaluation with skin tests or in vitro tests when available, and supervised challenge when necessary.",
+        "sha256": "a52b74804c832b5b58c1d3bc33f1ddb0e2505cab3a0ce2b5b3731c09a76868ae",
+        "retrieved_at": "2026-09-18T23:09:54.868431+00:00"
+      },
+      {
+        "id": "39560049",
+        "title": "AAAAI-EAACI PRACTALL: Standardizing oral food challenges-2024 Update.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39560049/",
+        "abstract": "This common statement of the American Academy of Allergy, Asthma and Immunology (AAAAI) and The European Academy of Allergy and Clinical Immunology (EAACI) provides an update of the 2012 published guidelines on food challenges. The guidelines equally address food challenges in the research and the clinical settings. They first address the diagnostic tests which can guide the decision to conduct a challenge. Safety of food challenges is prime, and the various procedures and safety issues as well as medications potentially involved in challenges are extensively discussed. Challenges are suggested to be conducted with semi-logarithmic incremental doses based on the protein content, typically for IgE-mediated food allergy with intervals of 20-30 min between doses. Specific protocols for other types of reactions such atopic dermatitis or gastrointestinal food allergy are detailed separately. Proper stopping criteria are essential in order to reduce the risk of false-positive diagnoses, but also severe reactions. The guidelines recommend criteria based on \"go on,\" \"stop,\" or \"observation.\" These revised guidelines will clearly provide much needed guidance for food challenges in the research and clinical settings. They will continue to evolve with new diagnostic tests or new needs in the field of food allergy.",
+        "sha256": "ed3740d9ab2df49ffbb8e7640a99608a2517de1c0be3215b5cfd2f321fe706df",
+        "retrieved_at": "2026-09-18T23:09:55.501328+00:00"
+      },
+      {
+        "id": "33751797",
+        "title": "Association of Veterinary Hematology and Transfusion Medicine (AVHTM) transfusion reaction small animal consensus statement (TRACS). Part 3: Diagnosis and treatment.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33751797/",
+        "abstract": "To systematically review available evidence to develop guidelines for diagnosis and treatment of transfusion-associated reactions in dogs and cats.\nStandardized and systemic evaluation of the literature (identified through Medline via PubMed and Google Scholar searches) was carried out for identified transfusion reaction types in dogs and cats. The available evidence was evaluated using PICO (Population, Intervention, Comparison, Outcome) questions generated for each reaction type. The evidence was categorized by level of evidence (LOE) and quality (Good, Fair, or Poor). Guidelines, diagnostic, and treatment algorithms were generated based on the evaluation of the evidence. Consensus on the final guidelines was achieved through Delphi-style surveys. Draft recommendations were disseminated through veterinary specialty listservs for review and comments, which were evaluated and integrated prior to final publication.\nMedline via PubMed and Google Scholar databases were searched. There were 14 Population Intervention Comparison Outcome questions identified and corresponding worksheets were developed focusing on the diagnosis and treatment of transfusion-associated reactions in dogs and cats. Fourteen guidelines and four algorithms were developed with a high degree of consensus.\nThis systematic evidence evaluation process yielded recommended diagnostic and treatment algorithms for use in practice. However, significant knowledge gaps were identified, demonstrating the need for additional research in veterinary transfusion medicine.",
+        "sha256": "c18bf499e76079f407bf532962d8be0af6f8d8d8d3be7516da766c1801e7a6ab",
+        "retrieved_at": "2026-09-18T23:09:55.501328+00:00"
+      },
+      {
+        "id": "32001253",
+        "title": "Anaphylaxis-a 2020 practice parameter update, systematic review, and Grading of Recommendations, Assessment, Development and Evaluation (GRADE) analysis.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32001253/",
+        "abstract": "Anaphylaxis is an acute, potential life-threatening systemic allergic reaction that may have a wide range of clinical manifestations. Severe anaphylaxis and/or the need for repeated doses of epinephrine to treat anaphylaxis are risk factors for biphasic anaphylaxis. Antihistamines and/or glucocorticoids are not reliable interventions to prevent biphasic anaphylaxis, although evidence supports a role for antihistamine and/or glucocorticoid premedication in specific chemotherapy protocols and rush aeroallergen immunotherapy. Evidence is lacking to support the role of antihistamines and/or glucocorticoid routine premedication in patients receiving low- or iso-osmolar contrast material to prevent recurrent radiocontrast media anaphylaxis. Epinephrine is the first-line pharmacotherapy for uniphasic and/or biphasic anaphylaxis. After diagnosis and treatment of anaphylaxis, all patients should be kept under observation until symptoms have fully resolved. All patients with anaphylaxis should receive education on anaphylaxis and risk of recurrence, trigger avoidance, self-injectable epinephrine education, referral to an allergist, and be educated about thresholds for further care.",
+        "sha256": "63a0fe4b8a4eb4a9c89aeaf6792099251c2afaff825d1d73ee76dd5dc75ae389",
+        "retrieved_at": "2026-09-18T23:09:55.501328+00:00"
+      },
+      {
+        "id": "41324154",
+        "title": "Allergic Rhinitis and Its Impact on Asthma (ARIA)-EAACI Guidelines-2024-2025 Revision: Part I-Guidelines on Intranasal Treatments.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41324154/",
+        "abstract": "Allergic rhinitis (AR) impacts quality of life, work and school productivity. Over the last years, an important body of evidence resulting from mHealth data has led to a better understanding of AR. Such advances have motivated an EAACI-endorsed update of the Allergic Rhinitis and its Impact on Asthma (ARIA) guidelines (ARIA 2024-2025). This manuscript presents the ARIA 2024-2025 recommendations for intranasal treatments, one of the mainstays for AR management.\nThe ARIA 2024-2025 guideline panel issued recommendations following the Grading of Recommendations, Assessment, Development, and Evaluation (GRADE) evidence-to-decision framework. Several sources of evidence were used to inform panel judgments and recommendations, including systematic reviews, evaluation of mHealth and pharmacovigilance data, as well as a survey of experts on costs.\nEleven guideline questions concerning intranasal treatments for AR were prioritized, leading to recommendations. Overall, these questions concern the choice between different classes of intranasal medications-most notably, intranasal corticosteroids (INCS), antihistamines (INAH), fixed combinations of INAH+INCS and decongestants-or between different individual medications within each class. Four questions had not been evaluated in previous ARIA guidelines, while for the other three there was a change in the strength or directionality of recommendations. Overall, recommendations point to the suggested use of INAH+INCS over INAH or INCS and INCS over INAH.\nThis ARIA 2024-2025 article supports patients, their caregivers, and healthcare professionals in choosing an intranasal treatment. However, decisions on AR treatment should consider the clinical variability of the disease, patients' values, and the affordability of medications.",
+        "sha256": "e00e3c8a5bfc522fdfe516c31a5fba41b34b461d997f7502dcd642e0ca1601c5",
+        "retrieved_at": "2026-09-18T23:09:56.339081+00:00"
+      },
+      {
+        "id": "39473345",
+        "title": "EAACI guidelines on the management of IgE-mediated food allergy.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39473345/",
+        "abstract": "This European Academy of Allergy and Clinical Immunology (EAACI) guideline provides recommendations for the management of IgE-mediated food allergy and was developed using the Grading of Recommendations, Assessment, Development and Evaluations (GRADE) approach. Following the confirmation of IgE-mediated food allergy diagnosis, allergen avoidance and dietary advice (with support of a specialised dietitian, if possible) together with the provision of a written treatment plan, education on the recognition of allergic symptoms and prescription of medication including adrenaline using an auto-injector are essential. Patients with significant anxiety and requirement for coping strategies may benefit from support from a clinical psychologist. As immunomodulatory interventions, omalizumab is suggested for treatment of IgE-mediated food allergy in children from the age of 1 and adults; and oral allergen-specific immunotherapy is recommended for children and adolescents with peanut allergy and suggested for milk and egg allergies (generally after 4 years of age for milk and egg). Sublingual and epicutaneous immunotherapy are suggested for peanut allergy but are not yet available at the point of care. Future research into disease modifying treatments for IgE-mediated food allergy are highly needed, with standardised and patient-focused protocols and outcomes.",
+        "sha256": "d3562e0d1eda549ca7098d03391f1c30ec201562c2cdfa36a74ee3d2b89860e1",
+        "retrieved_at": "2026-09-18T23:09:56.339081+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient meets clinical criteria for anaphylaxis: rapid onset (~20 min post likely peanut/satay exposure) with multisystem involvement—skin/mucosa (urticaria, lip/periorbital angioedema), respiratory (stridor, wheeze, hoarseness, throat tightness, SpO2 93%), and cardiovascular compromise (BP 86/52, HR 118, delayed capillary refill, lightheadedness). Multiple concordant guidelines (EAACI 2021 Anaphylaxis update PMID 34343358, AAAAI 2020 and 2023 practice parameters PMID 32001253 and 38108678) recommend prompt intramuscular epinephrine as first-line treatment. Antihistamines and glucocorticoids are adjuncts only and must not delay or replace epinephrine; they are not reliable for reversing airway compromise/hypotension or preventing biphasic reactions. Answer A dangerously withholds first-line epinephrine, contradicting the evidence.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34343358"
+              ],
+              "reason": "EAACI 2021 abstract states prompt IM adrenaline is first-line with community autoinjector availability.",
+              "source_quotes": [
+                {
+                  "source_id": "34343358",
+                  "quote": "The prompt use of intramuscular adrenaline as first-line management is recommended with the availability of adrenaline autoinjectors to patients in the community."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "32001253"
+              ],
+              "reason": "2020 practice parameter states epinephrine is first-line and antihistamines/glucocorticoids do not reliably prevent biphasic reactions.",
+              "source_quotes": [
+                {
+                  "source_id": "32001253",
+                  "quote": "Epinephrine is the first-line pharmacotherapy for uniphasic and/or biphasic anaphylaxis."
+                },
+                {
+                  "source_id": "32001253",
+                  "quote": "Antihistamines and/or glucocorticoids are not reliable interventions to prevent biphasic anaphylaxis"
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34343358"
+              ],
+              "reason": "EAACI abstract supports clinical criteria with later tryptase measurement.",
+              "source_quotes": [
+                {
+                  "source_id": "34343358",
+                  "quote": "The use of clinical criteria to identify anaphylaxis is suggested with blood sampling for the later measurement of tryptase."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34343358",
+                "38108678"
+              ],
+              "reason": "Both abstracts support autoinjector access and training on when/how to use.",
+              "source_quotes": [
+                {
+                  "source_id": "34343358",
+                  "quote": "Structured, comprehensive training for people at risk of anaphylaxis is recommended."
+                },
+                {
+                  "source_id": "38108678",
+                  "quote": "Optimal prescribing and use of epinephrine autoinjector devices require specific counseling and training of patients and caregivers, including when and how to administer the epinephrine autoinjector"
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case presents a textbook adult anaphylaxis: rapid onset after peanut (satay) exposure with multisystem involvement (urticaria/angioedema, stridor/wheeze/throat tightness, and hypotension BP 86/52 with hypoxemia SpO2 93%). Answer B (immediate IM epinephrine, do not substitute antihistamines/glucocorticoids) is the correct, guideline-supported first-line management. Answer A (delay epinephrine, give antihistamine + IV steroid first, reserve epinephrine) is the intended-flawed, unsafe option and is correctly not selected; this is the case working as designed. Both cited guideline abstracts (34343358, 32001253) directly support the first-line IM epinephrine recommendation and the adjunct-only status of antihistamines/steroids. The question does not disclose the answer in title/notes (title merely describes the scenario). Decision is a distinct clinical action (drug choice/route/sequencing). All decisive claims are supported by exact source text. No missing decisive data—vitals, history, exam all present; no imaging required for this clinical diagnosis. Minor observation: the triage note's final sentence explicitly restates the anaphylaxis criteria (skin, respiratory, hypotension), but this is clinical data summarizing findings rather than disclosing the treatment answer, so it does not trigger a coherence rejection. On-specialty (allergy/immunology). Adult scope matches."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "This patient has clear anaphylaxis with hypotension and airway/respiratory compromise after likely peanut exposure. Intramuscular epinephrine is the immediate first-line treatment and should not be delayed by giving antihistamines or corticosteroids, which are adjunctive and not life-saving. Early IM epinephrine improves outcomes. This is explicitly recommended by EAACI Anaphylaxis guidelines (2021 update; PMID 34343358) and the AAAAI/ACAAI Anaphylaxis practice parameter update (2023; PMID 38108678), and reaffirmed in the 2020 parameter (PMID 32001253).",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.92,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34343358"
+              ],
+              "reason": "EAACI anaphylaxis guideline explicitly recommends prompt intramuscular epinephrine (adrenaline) as first-line management and mentions community availability.",
+              "source_quotes": [
+                {
+                  "source_id": "34343358",
+                  "quote": "The prompt use of intramuscular adrenaline as first-line management is recommended with the availability of adrenaline autoinjectors to patients in the community."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "32001253"
+              ],
+              "reason": "The practice parameter states epinephrine is first-line pharmacotherapy; it also notes antihistamines/glucocorticoids are not reliable to prevent biphasic reactions, supporting that they are not substitutes for epinephrine and are adjunctive.",
+              "source_quotes": [
+                {
+                  "source_id": "32001253",
+                  "quote": "Epinephrine is the first-line pharmacotherapy for uniphasic and/or biphasic anaphylaxis."
+                },
+                {
+                  "source_id": "32001253",
+                  "quote": "Antihistamines and/or glucocorticoids are not reliable interventions to prevent biphasic anaphylaxis"
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34343358"
+              ],
+              "reason": "EAACI recommends using clinical criteria at point of care and obtaining blood for later tryptase measurement.",
+              "source_quotes": [
+                {
+                  "source_id": "34343358",
+                  "quote": "The use of clinical criteria to identify anaphylaxis is suggested with blood sampling for the later measurement of tryptase."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "34343358",
+                "38108678"
+              ],
+              "reason": "Guidelines recommend autoinjector availability and structured training; the practice parameter emphasizes counseling and training on when/how to use autoinjectors.",
+              "source_quotes": [
+                {
+                  "source_id": "34343358",
+                  "quote": "The prompt use of intramuscular adrenaline as first-line management is recommended with the availability of adrenaline autoinjectors to patients in the community."
+                },
+                {
+                  "source_id": "34343358",
+                  "quote": "Structured, comprehensive training for people at risk of anaphylaxis is recommended."
+                },
+                {
+                  "source_id": "38108678",
+                  "quote": "Optimal prescribing and use of epinephrine autoinjector devices require specific counseling and training of patients and caregivers, including when and how to administer the epinephrine autoinjector and whether and when to call 911."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Independent solution: The patient has rapid-onset multisystem involvement minutes after likely peanut exposure with hypotension (86/52), respiratory compromise (wheeze, stridor, throat tightness, hoarseness), and diffuse urticaria/angioedema—meeting clinical criteria for anaphylaxis. The immediate, most appropriate step is intramuscular epinephrine as first-line therapy. EAACI explicitly recommends prompt IM epinephrine; the AAAAI/ACAAI practice parameter confirms epinephrine as first-line and indicates antihistamines/glucocorticoids do not prevent biphasic reactions and therefore must not replace epinephrine. Candidate comparison: A is unsafe because it delays epinephrine in a hypotensive, airway-compromised anaphylaxis—contrary to guidelines. B correctly prioritizes immediate IM epinephrine and warns against delaying it with adjuncts, aligning with evidence. Key scrutiny: The key’s designation of B and its rationale (IM epinephrine first-line; antihistamines/steroids are adjuncts and not substitutes; do not delay epinephrine) are consistent with the supplied sources. Scope/specialty: Allergy and immunology; adult; anaphylaxis first-line management—on target. Completeness/safety: The question asks for the immediate step; B provides it correctly. Although additional acute measures (supine positioning with legs elevated, high-flow oxygen, IV fluids, airway readiness, repeat IM epinephrine if needed) are standard, they are beyond the single immediate step requested. No contradictions with the chart or unsafe dosing/contraindications are present. Distinctness: No prior cases to conflict with. Overall, answer B is supported and safe, the key is correct, and the flawed option is intentionally unsafe as designed."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "a4e939aef0db09f3ca0342fa78fdd19a6b160cf9429450bb858eb9069114e57a"
+  }
+}

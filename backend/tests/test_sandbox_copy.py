@@ -11,6 +11,8 @@ account cannot sign in.
 from __future__ import annotations
 
 import hashlib
+import gc
+from contextlib import closing
 import os
 import pathlib
 import sys
@@ -89,17 +91,32 @@ def test_copy_sources_lists_live_systems_and_the_fixture(world):
     assert fx["fixture"] is True and fx["name"] == "Archangel (fixture)"
 
 
-def test_copy_snapshots_rows_and_files_and_never_writes_live(world):
+def test_copy_snapshots_rows_and_files_and_never_writes_live(world, monkeypatch):
     live, sb, hs = world["live"], world["sb"], world["hs"]
-    before = _file_digest(live.db_path)
-    r = client.post(f"/api/asclepius/sandbox/copy-health-system/{hs['hs_id']}", headers=world["headers"])
+    original_copy = sandbox_copy.copy_health_system
+
+    def copy_after_collection(*args, **kwargs):
+        # Reproduce the CI timing: sqlite context managers commit but do not
+        # close connections; GC can close the last fixture writer mid-request.
+        gc.collect()
+        return original_copy(*args, **kwargs)
+
+    monkeypatch.setattr(sandbox_copy, "copy_health_system", copy_after_collection)
+    # Keep one writer handle alive across BOTH byte snapshots. Otherwise GC of
+    # fixture connections may checkpoint the WAL, changing file bytes even when
+    # the copy opened only mode=ro and did not write a single live row.
+    with closing(live._conn()) as keeper:
+        keeper.execute("SELECT count(*) FROM health_systems").fetchone()
+        before = _file_digest(live.db_path)
+        r = client.post(f"/api/asclepius/sandbox/copy-health-system/{hs['hs_id']}", headers=world["headers"])
+        after = _file_digest(live.db_path)
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["uploads"] == 1 and body["ingest_cases"] == 1 and body["portal_accounts"] == 1
     assert body["files"] == 1 and body["assets"] == 1 and body["replaced"] is False
     assert body["purposes"] == ["task_creation"]
     # Live file byte-identical.
-    assert _file_digest(live.db_path) == before
+    assert after == before
     with live._conn() as conn:
         assert conn.execute("SELECT origin FROM health_systems WHERE hs_id = ?", (hs["hs_id"],)).fetchone()[0] is None
 
