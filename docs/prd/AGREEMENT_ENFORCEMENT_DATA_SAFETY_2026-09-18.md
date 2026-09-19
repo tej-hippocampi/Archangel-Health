@@ -84,7 +84,30 @@ reenable retry. The shared refusal classifier and realm link are browser tested.
 
 ## Validation results
 
-Pending final suite completion; this section is updated before delivery.
+- Final focused agreement and attestation suite: **164 passed**.
+- Full backend run on the rebased implementation: **7,577 passed, 4 skipped,
+  3 failed** in 15m12s. Two failures were corrected: the applicant-home DOM
+  fixture now provides the location used by agreement deep links, and eight
+  shifted citations in existing PRDs were refreshed. All **74** applicant-home
+  and harness checks passed on the corrected tree.
+- The remaining failure, `test_release_library_contains_all_86_reviewed_cases`,
+  also fails on a separately archived, clean `d964fdb` main tree. Required
+  specialty case artifacts are missing from that upstream release. This branch
+  changes neither the library nor its material or acceptance test. The test is
+  retained and the PR stays draft; the repository-wide suite is not fully green.
+- The six agreement browser cases pass after relocation into the existing
+  physician-onboarding browser module. This puts them in the Chromium CI job
+  without changing shard selection or permitting silent browser skips.
+- All 64 landing component tests pass, and the production landing build passes.
+- Route baseline is unchanged at 676 routes; dangling-import and JavaScript
+  syntax checks, destructive-SQL guard, all shipped PRD citation checks, and
+  merge readiness pass.
+- The independent auditor approved the browser-test relocation and the narrow
+  fixture/citation corrections. Production code was unchanged by these fixes.
+
+The full-run and focused logs, clean-main reproduction, and CI logs are retained
+in the task's local output/agreement-enforcement directory. PR #166 carries the
+latest CI status and final focused agreement/attestation result.
 
 ## Release decision and recovery
 
