@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import logging
+import os
 import re
 import time
 import uuid
@@ -396,7 +397,20 @@ def validate_review(review: dict, entry: dict, sources: list[dict] | None = None
                     raise ValueError("source_quote_not_in_retrieved_text")
 
 
-async def build_case(store, specialty: str, kind: str, ident: str) -> tuple[dict, dict]:
+def openai_trial_models() -> tuple[str, str]:
+    """Explicit CI experiment only; its reports are never release approvals."""
+    from ai.model_config import fake_llm_enabled, resolve, resolve_provider
+    if (os.getenv("GITHUB_ACTIONS") != "true" or fake_llm_enabled()
+            or os.getenv("ENV", "").strip().lower() == "production"
+            or not os.getenv("OPENAI_API_KEY")):
+        raise ValueError("OpenAI trial requires isolated real-model CI")
+    if resolve_provider(resolve("asclepius_case_gen")["model"]) != "openai":
+        raise ValueError("OpenAI trial author must use OpenAI")
+    return ("gpt-5.6-sol", "gpt-5.5")
+
+
+async def build_case(store, specialty: str, kind: str, ident: str, *,
+                     openai_trial: bool = False, previous_trial_cases: list[dict] | None = None) -> tuple[dict, dict]:
     from ai.llm_client import call_llm, first_text
     from ai.model_config import OPENAI_MODEL, resolve, resolve_provider, fake_llm_enabled
     from asclepius.critic import _extract_json
@@ -405,6 +419,14 @@ async def build_case(store, specialty: str, kind: str, ident: str) -> tuple[dict
     from asclepius.constants import ERROR_TAXONOMY
     from asclepius.onboarding_catalog import topic_for, age_scope_for
     from asclepius import onboarding_media
+    models = list(openai_trial_models()) if openai_trial else [resolve("asclepius_case_judge")["model"], OPENAI_MODEL]
+    if openai_trial:
+        # Isolated transport: no shared SDK retries, raw error logging or team DB.
+        from scripts.trial_onboarding_openai import call_openai as call_llm
+    if not openai_trial and len({resolve_provider(m) for m in models}) != 2:
+        raise ValueError("independent_review_models_required")
+    if previous_trial_cases and not openai_trial:
+        raise ValueError("Trial context is not production material")
     topic = topic_for(specialty, kind)
     age_scope = age_scope_for(specialty)
     sources = await retrieve(specialty, topic=topic) if topic else await retrieve(specialty)
@@ -414,7 +436,7 @@ async def build_case(store, specialty: str, kind: str, ident: str) -> tuple[dict
         sources.append({"id": "reference-slide-" + kind, "title": "Reference H&E micrograph",
             "url": ref["source_page"], "abstract": ref["caption"],
             "sha256": hashlib.sha256(ref["caption"].encode()).hexdigest()})
-    previous = _previous(store, specialty, ident)
+    previous = _previous(store, specialty, ident) + (previous_trial_cases or [])
     evidence_passages = passages(sources)
     from asclepius.onboarding_library import authoring_feedback
     payload = {"specialty": specialty, "purpose": kind, "curriculum_topic": topic, "age_scope": age_scope, "sources": sources,
@@ -445,9 +467,6 @@ async def build_case(store, specialty: str, kind: str, ident: str) -> tuple[dict
             "The image is not from this fictional patient or a health-system partner. "
             "Assess the visible field only; this is not a whole-slide examination."]}
     entry = validate_entry(proposed, specialty, sources, approved_asset=asset, age_scope=age_scope)
-    models = [resolve("asclepius_case_judge")["model"], OPENAI_MODEL]
-    if len({resolve_provider(m) for m in models}) != 2:
-        raise ValueError("independent_review_models_required")
 
     blind_payload = {"specialty": specialty, "case": blind_entry(entry),
                      "sources": [r for r in sources if not r["id"].startswith("reference-slide-")]}
@@ -513,7 +532,7 @@ async def build_case(store, specialty: str, kind: str, ident: str) -> tuple[dict
                       "author_request_id": author.get("request_id"), "reviewed_at": _now(),
                       "reviews": traces})
         raise ValueError("clinical_review_rejected: " + " | ".join(failures))
-    return entry, {"version": VERSION, "method": "fake_fixture_only" if fake_llm_enabled() else "two_provider_evidence_review",
+    return entry, {"version": VERSION, "method": ("openai_only_trial" if openai_trial else "fake_fixture_only" if fake_llm_enabled() else "two_provider_evidence_review"),
                    "source_quote_review": True,
                    "physician_ratified": False, "reviewed_at": _now(),
                    "author_model": author.get("model"), "sources": sources, "reviews": reviews,
