@@ -1,0 +1,241 @@
+{
+  "protocol": "independent_source_gap_audit_v1",
+  "audit_date": "2026-09-18",
+  "scope": "Source identity, reuse license, population and decision support for rejected ENT and infectious-diseases examination drafts. This identifies evidence for revision; it does not clear a revised artifact or certify physician review.",
+  "input_path": "specialty-case-library/backend/scripts/onboarding_revision_inputs.json",
+  "status": "viable_revision_sources_identified",
+  "clinical_artifact_clearance": false,
+  "physician_ratified": false,
+  "real_model_calls_performed": false,
+  "method": [
+    "Read the actual rejected draft, source metadata, retained evidence and reviewer rejection in the local revision input.",
+    "Checked primary PubMed/PMC/publisher/society pages and Europe PMC core metadata and fullTextXML. Verified candidate article identities and actual license declarations rather than inferring permission from free availability.",
+    "Separated guideline recommendations from observational diagnostic yield and matched recommendations to the proposed population and decision point. No case, source artifact or runtime code was changed."
+  ],
+  "cases": [
+    {
+      "task_id": "onboarding-examination-v1-a2344499dcd2cac5f8d6-1",
+      "specialty": "otolaryngology",
+      "kind": "examination",
+      "disposition": "revise_with_thyroid_associated_neck_mass_source_pair",
+      "existing_gap": "The current adult cystic-neck-mass draft's next PET/CT decision has one directly supporting retained source, PMID31186166. The other retained topics include neck massage/pain, migraine, obesity, sleep apnea and free-flap mortality; these do not independently support the decisive diagnostic recommendation. Do not count them toward the two-source requirement.",
+      "recommended_pmids": ["37358008", "41258456"],
+      "recommended_decision": "Use an adult with a persistent lateral cervical mass, a thyroid nodule and suspicious cervical-node ultrasound features, before tissue sampling. Test ultrasound-guided FNA assessment of suspicious disease versus treating the lesion as a benign cyst on imaging alone. These sources support that thyroid-associated diagnostic decision. They do not replace the missing second source for the old nondiagnostic-FNA-to-PET/CT decision.",
+      "population_and_drafting_constraints": [
+        "Describe the actual thyroid and node ultrasound features, thyroid function and sampling status. Keep the diagnosis unconfirmed at this decision point.",
+        "If the answer specifies thyroglobulin or calcitonin washout, connect the test to the suspected phenotype and the ETA recommendation; do not demand both indiscriminately.",
+        "If applying a thyroid nodule size threshold, provide the size and risk category needed for the chosen guideline. Do not confuse thyroid-nodule thresholds with suspicious-node evaluation.",
+        "Avoid a suspected lymphoma or anaplastic-thyroid-cancer scenario when making routine FNA the unqualified answer; ESR identifies core biopsy as preferred in those settings.",
+        "The final revised artifact still requires retained-quote/hash checks, independent public-payload and companion-case distinctness review, and the real review gates."
+      ],
+      "sources": [
+        {
+          "pmid": "37358008",
+          "pmcid": "PMC10448590",
+          "title": "2023 European Thyroid Association Clinical Practice Guidelines for thyroid nodule management.",
+          "publication_year": 2023,
+          "doi": "10.1530/etj-23-0067",
+          "type": "Practice guideline",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0/",
+          "license_verification": "PMC article license declaration; Europe PMC core metadata also identifies CC BY.",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/37358008/",
+          "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10448590/",
+          "fulltext_xml_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10448590/fullTextXML",
+          "retention_eligibility": "CC BY full text",
+          "decision_quotes": [
+            {
+              "text": "FNA is recommended in suspicious lymph nodes, with thyroglobulin or calcitonin washout dependent on phenotype",
+              "location": "Table 1, ultrasound-guided FNA"
+            }
+          ],
+          "supports": "Adult thyroid-nodule workup includes cervical ultrasound and FNA of suspicious nodes. The document describes cystic areas, microcalcifications and absent-hilum abnormal vascularity as suspicious nodal findings.",
+          "does_not_support": "General PET/CT escalation for any adult cystic neck mass after inconclusive FNA."
+        },
+        {
+          "pmid": "41258456",
+          "pmcid": "PMC13086679",
+          "title": "ESR Essentials: thyroid imaging-practice recommendations by the European Society of Head and Neck Radiology.",
+          "publication_year": 2026,
+          "online_publication_date": "2025-11-19",
+          "print_publication_date": "2026-05",
+          "doi": "10.1007/s00330-025-12101-2",
+          "type": "Practice guideline / review; society practice recommendations",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0/",
+          "license_verification": "Europe PMC fullTextXML article-meta/permissions/license explicitly states Attribution 4.0; PMID, PMCID and DOI matched.",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/41258456/",
+          "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13086679/",
+          "fulltext_xml_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC13086679/fullTextXML",
+          "retention_eligibility": "CC BY full text",
+          "decision_quotes": [
+            {
+              "text": "FNA is the standard sampling method",
+              "location": "Body, thyroid cancer diagnostic imaging and sampling"
+            }
+          ],
+          "supports": "Ultrasound evaluates thyroid nodules and cervical nodes, with FNA assessment of suspicious findings. The abstract is substantive, and the full body provides the sampling context.",
+          "does_not_support": "Automatic PET/CT as the next test after nondiagnostic cystic-node FNA; routine FNA over core biopsy for suspected lymphoma or anaplastic thyroid cancer."
+        }
+      ],
+      "other_candidates": [
+        {
+          "pmid": "31186166",
+          "pmcid": null,
+          "title": "Cystic form of cervical lymphadenopathy. Guidelines of the French Society of Otorhinolaryngology - Head and Neck Surgery (SFORL). Part 1: Diagnostic procedures for lymphadenopathy in case of cervical mass with cystic aspect.",
+          "publication_year": 2019,
+          "type": "Practice guideline",
+          "license": "No compatible full-text reuse license verified",
+          "retention_eligibility": "Substantive PubMed abstract only under the existing abstract policy",
+          "source_url": "https://pubmed.ncbi.nlm.nih.gov/31186166/",
+          "role": "Supports the original cystic-neck-mass workup, including PET/CT after inconclusive aspiration. It is only one supporting source for that precise decision."
+        },
+        {
+          "pmid": "34719893",
+          "pmcid": "PMC8628155",
+          "title": "2021 Korean Thyroid Imaging Reporting and Data System and Imaging-Based Management of Thyroid Nodules: Korean Society of Thyroid Radiology Consensus Statement and Recommendations.",
+          "publication_year": 2021,
+          "type": "Consensus statement / review",
+          "license": "CC BY-NC 4.0",
+          "license_url": "http://creativecommons.org/licenses/by-nc/4.0/",
+          "license_verification": "Exact permissions/license declaration verified in Europe PMC fullTextXML.",
+          "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8628155/",
+          "retention_eligibility": "Exclude full text under the unchanged CC BY/CC0 policy",
+          "role": "Do not relabel NC content as CC BY. A general abstract about the guideline is insufficient to retain its detailed FNA algorithms."
+        },
+        {
+          "pmid": "40058844",
+          "pmcid": "PMC12086281",
+          "title": "The 2024 revised clinical guidelines on the management of thyroid tumors by the Japan Association of Endocrine Surgery.",
+          "publication_year": 2025,
+          "type": "Practice guideline",
+          "license": "CC BY-NC-ND per Europe PMC core metadata; version not independently established in this audit",
+          "source_url": "https://pubmed.ncbi.nlm.nih.gov/40058844/",
+          "retention_eligibility": "Exclude full text under the unchanged CC BY/CC0 policy",
+          "role": "Unnecessary for the recommended pair and not a license-compatible replacement."
+        }
+      ]
+    },
+    {
+      "task_id": "onboarding-examination-v1-8e91610afd9fe9c9d129-1",
+      "specialty": "infectious diseases",
+      "kind": "examination",
+      "disposition": "revise_strength_of_recommendation_and_add_direct_guideline",
+      "existing_gap": "The current answer categorically selects PET/CT for community-onset MRSA bacteremia after delayed clearance and fever, despite a drained forearm abscess and negative TEE. PMID35331165 supports occult-focus risk and potential diagnostic benefit, but explicitly cannot establish which subgroup benefits most. The mortality/antibiotic-route/combination-treatment sources do not independently support the next-imaging decision.",
+      "recommended_pmids": ["39387894", "35331165"],
+      "optional_supporting_pmid": "39354984",
+      "recommended_decision": "Test whether to continue a tailored assessment for occult metastatic infection in an adult with increased-risk SAB, with FDG-PET/CT as an appropriate available modality, versus declaring no further assessment necessary solely because fever resolved and echocardiography was negative. Keep the answer and rationale conditional and evidence-calibrated.",
+      "population_and_drafting_constraints": [
+        "Document active therapy, follow-up culture timing/results, echocardiographic evaluation, source-control status and symptom/exam-directed evaluation. A negative TEE does not address every extracardiac focus.",
+        "Do not claim PET/CT is compulsory, proven superior to all alternative imaging, or proven to improve survival in this individual. Do not use it to replace appropriate blood cultures or echocardiography.",
+        "If relying on the 2026 IDSA whole-body-imaging consensus, make the patient match its increased-risk, unknown-focus population after appropriate initial evaluation. The current drained-forearm-abscess vignette cannot simply be labeled unknown-source without revision.",
+        "Avoid categorical duration-of-antibiotic claims based only on older complicated/uncomplicated labels; duration is outside the proposed diagnostic decision.",
+        "Retain the guideline's bacteremia indication section, not an unrelated fever-of-unknown-origin, prosthetic-valve or spinal-infection paragraph. Then verify the literal quote is present in the actual generated source passage."
+      ],
+      "sources": [
+        {
+          "pmid": "39387894",
+          "pmcid": "PMC11732780",
+          "title": "EANM/SNMMI guideline/procedure standard for [18F]FDG hybrid PET use in infection and inflammation in adults v2.0.",
+          "publication_year": 2024,
+          "online_publication_date": "2024-10-10",
+          "doi": "10.1007/s00259-024-06915-3",
+          "type": "Practice guideline / procedure standard",
+          "license": "CC BY 4.0",
+          "license_url": "http://creativecommons.org/licenses/by/4.0/",
+          "license_verification": "Actual Europe PMC fullTextXML permissions/license and article identifiers verified; PMC HTML agrees.",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/39387894/",
+          "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11732780/",
+          "fulltext_xml_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11732780/fullTextXML",
+          "retention_eligibility": "CC BY full text",
+          "decision_quotes": [
+            {
+              "text": "Evaluation of the source of infection.",
+              "location": "B. Infection; bacteremia/septicemia; Indications"
+            },
+            {
+              "text": "Evaluation of septic emboli and metastatic infections.",
+              "location": "B. Infection; bacteremia/septicemia; Indications"
+            }
+          ],
+          "supports": "Adult PET infection-source and metastatic-focus assessment as recognized indications.",
+          "does_not_support": "Mandatory screening of all SAB, guaranteed survival benefit, or excluding native-valve endocarditis when echocardiography is negative."
+        },
+        {
+          "pmid": "35331165",
+          "pmcid": "PMC8943998",
+          "title": "[18F]FDG-PET/CT in Staphylococcus aureus bacteremia: a systematic review.",
+          "publication_year": 2022,
+          "publication_date": "2022-03-24",
+          "doi": "10.1186/s12879-022-07273-x",
+          "type": "Systematic review of nonrandomized studies",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0/",
+          "license_verification": "Actual Europe PMC fullTextXML permissions/license and article identifiers verified.",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/35331165/",
+          "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8943998/",
+          "fulltext_xml_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8943998/fullTextXML",
+          "retention_eligibility": "CC BY full text, already retained",
+          "decision_quotes": [
+            {
+              "text": "a diagnostic work-up strategy guided by clinical presentation alone is at high risk for missing relevant metastatic infections",
+              "location": "Discussion"
+            }
+          ],
+          "supports": "Hospitalized adult SAB can have clinically silent metastatic foci; community acquisition, persistent cultures and fever increase concern. Five studies included 880 patients; the mortality subset was four studies and 804 patients.",
+          "does_not_support": "A firm PET mandate or a reliably identified subgroup with proven benefit. Evidence was low or very low certainty, with substantial bias and uncertainty."
+        },
+        {
+          "pmid": "39354984",
+          "pmcid": "PMC11440864",
+          "title": "The role of [18F]FDG-PET/CT in gram-positive and gram-negative bacteraemia: A systematic review.",
+          "publication_year": 2022,
+          "publication_date": "2022-11-18",
+          "date_note": "Publication was in 2022; the later PubMed identifier/indexing must not be presented as a 2024 publication.",
+          "doi": "10.3389/fnume.2022.1066246",
+          "type": "Systematic review",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0/",
+          "license_verification": "Europe PMC fullTextXML declares CC BY; the article publisher's copyright declaration links specifically to CC BY 4.0.",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/39354984/",
+          "source_url": "https://www.frontiersin.org/journals/nuclear-medicine/articles/10.3389/fnume.2022.1066246/full",
+          "fulltext_xml_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11440864/fullTextXML",
+          "retention_eligibility": "CC BY full text; optional supporting evidence",
+          "decision_quotes": [
+            {
+              "text": "Both found significantly higher detection of metastatic foci in PET/CT recipients compared to controls",
+              "location": "Results; Identification and location of foci by PET/CT"
+            }
+          ],
+          "supports": "Diagnostic yield in observational bacteremia cohorts, predominantly gram-positive and often SAB; two studies compared detection against controls.",
+          "does_not_support": "A mandatory PET recommendation, causal survival benefit or broad extrapolation to gram-negative bacteremia. It overlaps evidence in the other review."
+        }
+      ],
+      "current_guideline_context": {
+        "pmid": null,
+        "pmcid": null,
+        "title": "IDSA/ESCMID 2026 Consensus Statements on Staphylococcus aureus Bacteremia: Risk Stratification, Diagnostic Evaluation, and Management of Adults and Children",
+        "publication_date": "2026-09-09",
+        "type": "Society consensus statements; statement 5 addresses whole-body imaging",
+        "license": "Compatible CC BY/CC0 reuse license not verified",
+        "source_url": "https://www.idsociety.org/practice-guideline/staphylococcus-aureus-bacteremia/",
+        "full_statement_url": "https://www.idsociety.org/globalassets/idsa/practice-guidelines/sab/consensus-statement-5.-whole-body-imaging-manuscript.pdf",
+        "retention_eligibility": "Context only: no verified PubMed/PMC identity or compatible full-text reuse license for pinning in the present evidence pipeline",
+        "decision_quotes": [
+          {
+            "text": "after appropriate initial evaluation",
+            "location": "Consensus Statement 5, adult population qualifier"
+          }
+        ],
+        "supports": "For adults with increased-risk SAB and an unknown focus after initial evaluation, the panel suggests whole-body imaging such as PET/CT or combinations of imaging selected for likely sites. It presupposes follow-up cultures, echocardiography and appropriate targeted evaluation.",
+        "does_not_support": "Treating PET/CT as the sole acceptable modality or claiming established mortality/relapse superiority. Do not invent a PMID or relabel website access as a reuse license."
+      }
+    }
+  ],
+  "implementation_notes": [
+    "Pin the exact selected PMIDs instead of reusing broad neck* AND mass* searches. Preserve each article's real title, publication date, PMID/PMCID, source URL and license.",
+    "No broadened NC/ND exception is needed: two CC BY sources exist for the ENT pivot and a CC BY guideline plus systematic review exist for the calibrated SAB assessment decision.",
+    "Check selected excerpts after ingestion. The current parse_open_text drops paragraphs shorter than 40 characters and ranks by topic overlap: the 38-character EANM source-of-infection bullet may be omitted, while the longer metastatic-infections bullet can supply direct support if retained with its bacteremia heading.",
+    "Existing OpenAI review or publication metadata does not replace artifact validation. Any revised entry requires its own exact whole-document hash, retained-source and literal-quote verification, clinical reviews, blind solution checks and independent artifact audit before release."
+  ]
+}

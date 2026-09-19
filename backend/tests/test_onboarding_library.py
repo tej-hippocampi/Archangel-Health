@@ -62,7 +62,7 @@ def publication(specialty='dermatology', kind='practice'):
         entry = bank.validate_entry(entry, specialty, SOURCES, approved_asset=asset)
     reviews = []
     for provider in ('anthropic', 'openai'):
-        reviews.append({'provider': provider, 'model': provider + '-test',
+        reviews.append({'provider': provider, 'model': ('claude-test' if provider == 'anthropic' else 'gpt-test'),
             'blind_solution': {'best_answer_id': 'A', 'confidence': .95, 'rationale': 'Fixture only'},
             'image_sha256': asset['sha256'] if asset else None,
             'review': {**approved_review(entry), 'image_supports_key': True,
@@ -104,6 +104,72 @@ def test_reject_unreviewed_changed_or_unseen_material(damage):
     if damage == 'blind': doc['validation']['reviews'][0]['blind_solution']['best_answer_id'] = 'B'
     if damage == 'pixels': doc['validation']['reviews'][0]['image_sha256'] = 'wrong'
     with pytest.raises(ValueError): library.validate(doc)
+
+
+def audited_openai_publication(monkeypatch, tmp_path, damage=None):
+    doc = copy.deepcopy(publication())
+    doc.update(release_protocol='audited_openai_models_v1', release_eligible=True)
+    doc['validation'].update(method='openai_only_trial', physician_ratified=False)
+    for review, model in zip(doc['validation']['reviews'], ('gpt-5.6-sol', 'gpt-5.5')):
+        review.update(provider='openai', model=model)
+    # Even a hash-audited envelope must still satisfy the clinical protocol.
+    if damage == 'same-model': doc['validation']['reviews'][1]['model'] = 'gpt-5.6-sol'
+    if damage == 'review': doc['validation']['reviews'][0]['review']['sound_answer_safe'] = False
+    path = tmp_path / 'audits.json'
+    monkeypatch.setattr(library, 'OPENAI_AUDITS', path)
+    monkeypatch.setattr(library, 'AUDIT_REPORTS', tmp_path)
+    audit = tmp_path / 'independent-audit.json'
+    audit.write_text(json.dumps({'artifacts': [{'task_id': doc['task_id'],
+        'entry_sha256': doc['validation']['entry_sha256'], 'verdict': 'clear'}]}))
+    path.write_text(json.dumps({'protocol': 'audited_openai_models_v1', 'artifacts': {doc['task_id']: {
+        'document_sha256': hashlib.sha256(json.dumps(doc, sort_keys=True).encode()).hexdigest(),
+        'disposition': 'clear', 'audit_report': audit.name,
+        'audit_sha256': hashlib.sha256(audit.read_bytes()).hexdigest(),
+        'source_artifact_sha256': 'a' * 64}}}))
+    return doc, path, audit
+
+
+@pytest.mark.parametrize('damage', [None, 'no-audit', 'entry', 'source', 'review', 'same-model', 'trial-flag', 'physician-claim'])
+def test_openai_release_requires_exact_audit_and_all_clinical_gates(monkeypatch, tmp_path, damage):
+    doc, path, audit = audited_openai_publication(monkeypatch, tmp_path, damage)
+    if damage == 'no-audit': path.write_text('{"artifacts": {}}')
+    if damage == 'entry': doc['entry']['question'] += ' changed after review'
+    if damage == 'source': doc['validation']['sources'][0]['abstract'] += ' changed'
+    if damage == 'trial-flag': doc['release_eligible'] = False
+    if damage == 'physician-claim': doc['validation']['physician_ratified'] = True
+    if damage is None:
+        assert library.validate(doc) == doc
+    else:
+        with pytest.raises(ValueError): library.validate(doc)
+
+
+
+@pytest.mark.parametrize('damage', ['protocol', 'source-hash', 'report-path', 'report-hash', 'registry-revoked', 'report-changed', 'report-removed'])
+def test_openai_audit_changes_revoke_cached_lookup(monkeypatch, tmp_path, damage):
+    doc, path, audit = audited_openai_publication(monkeypatch, tmp_path)
+    install_fixture(monkeypatch, tmp_path, doc)
+    assert library.row_for(doc['task_id']) is not None
+    registry = json.loads(path.read_text())
+    row = registry['artifacts'][doc['task_id']]
+    if damage == 'protocol': registry['protocol'] = 'unknown'
+    if damage == 'source-hash': row['source_artifact_sha256'] = 'not-a-hash'
+    if damage == 'report-path': row['audit_report'] = '../outside.json'
+    if damage == 'report-hash': row['audit_sha256'] = 'b' * 64
+    if damage == 'registry-revoked': row['disposition'] = 'hold'
+    if damage == 'report-changed': audit.write_text('{"disposition": "hold"}')
+    if damage == 'report-removed': audit.unlink()
+    path.write_text(json.dumps(registry))
+    with pytest.raises(ValueError): library.row_for(doc['task_id'])
+
+
+def test_trial_cannot_bypass_audit_by_relabelling_provider_or_protocol(monkeypatch, tmp_path):
+    doc, path, audit = audited_openai_publication(monkeypatch, tmp_path)
+    doc['validation']['method'] = 'two_provider_evidence_review'
+    doc['validation']['reviews'][0]['provider'] = 'anthropic'
+    with pytest.raises(ValueError): library.validate(doc)
+    doc.pop('release_protocol')
+    doc.pop('release_eligible')
+    with pytest.raises(ValueError, match='provenance'): library.validate(doc)
 
 
 def test_misnamed_release_case_cannot_claim_another_specialty_or_kind(monkeypatch, tmp_path):

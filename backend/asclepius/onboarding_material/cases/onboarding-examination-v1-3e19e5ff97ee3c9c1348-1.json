@@ -1,0 +1,555 @@
+{
+  "task_id": "onboarding-examination-v1-3e19e5ff97ee3c9c1348-1",
+  "specialty": "pain medicine",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Persistent daily headache during long-term analgesic use",
+    "question": "Which management approach is most appropriate at this decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "pain medicine",
+      "demographics": {
+        "age_band": "40-49",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Chronic migraine",
+          "since": "more than 10 years",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Near-daily headache",
+          "since": "approximately 3 years",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Constipation during long-term opioid exposure",
+          "since": "approximately 2 years",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Codeine-containing combination analgesic",
+          "dose": null,
+          "route": "oral",
+          "freq": "used daily or nearly daily",
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Pain medicine consultation",
+          "author_role": "pain medicine",
+          "text": "An adult with chronic migraine has taken a prescribed codeine-containing combination analgesic daily or nearly daily for approximately four years. Headaches are now present on most days, and a headache specialist has established medication-overuse headache related to the long-standing opioid exposure. Six weeks of education and counselling about medication overuse did not produce a sustained reduction in use. The patient reports fear of withdrawal and worsening pain but is willing to participate in collaborative care. There is no active cancer pain or acute neurologic deficit.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the management decision",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "Long-standing opioid overuse in medication-overuse headache should be addressed with slow tapering rather than abrupt termination. Because education alone has not been effective, withdrawal should be paired with preventive treatment of proven efficacy and multidisciplinary involvement. An individualized, collaborative approach is preferable because patient-provider interaction and tailored care facilitate a more favorable tapering experience, while inappropriately rapid tapering can cause significant harm.",
+        "evidence": null,
+        "key_data": [
+          "Medication-overuse headache has already been established by a headache specialist.",
+          "The overused medication contains an opioid and has been taken almost daily for approximately four years.",
+          "Education and counselling alone have not produced sustained reduction in use.",
+          "The patient fears withdrawal but remains willing to participate in collaborative care.",
+          "There is no active cancer pain or acute neurologic deficit requiring continuation for an urgent indication."
+        ]
+      },
+      "hard_hook": "Distinguishing an indicated slow, patient-centered opioid taper from abrupt cessation after unsuccessful education",
+      "reasoning_divergence": "Both options stop the overused medication, but only one accounts for the specific withdrawal approach recommended for long-standing opioid overuse."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Stop the codeine-containing analgesic abruptly today because ongoing use perpetuates the headache, and defer preventive therapy and multidisciplinary involvement until opioid withdrawal is fully complete."
+      },
+      {
+        "id": "B",
+        "text": "Use a slow, individualized opioid taper developed collaboratively with the patient, continue education, involve pain or neurology and behavioral expertise, and provide preventive headache treatment of proven efficacy."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "opioid withdrawal",
+      "rapid taper",
+      "medication-overuse headache",
+      "chronic opioid exposure",
+      "patient-centered tapering"
+    ],
+    "evidence_keywords": [
+      "slow tapering",
+      "education and counselling",
+      "multidisciplinary care",
+      "preventive treatment",
+      "individualized care",
+      "shared decision-making"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Long-standing overuse of opioids in medication-overuse headache should be managed with slow tapering rather than abrupt termination.",
+        "source_ids": [
+          "32430926"
+        ]
+      },
+      {
+        "statement": "Education and counselling are the first management step for medication-overuse headache.",
+        "source_ids": [
+          "32430926"
+        ]
+      },
+      {
+        "statement": "When education is ineffective, withdrawal from the overused drug should be accompanied by preventive treatment of proven efficacy.",
+        "source_ids": [
+          "32430926"
+        ]
+      },
+      {
+        "statement": "Medication-overuse headache care should involve neurologists or pain specialists together with behavioral psychologists.",
+        "source_ids": [
+          "32430926"
+        ]
+      },
+      {
+        "statement": "Patient-provider interactions and individualized care are important for a favorable opioid-tapering experience.",
+        "source_ids": [
+          "39874194"
+        ]
+      },
+      {
+        "statement": "Inappropriately rapid opioid tapering has been associated with adverse mental-health and hospitalization consequences.",
+        "source_ids": [
+          "38117465"
+        ]
+      },
+      {
+        "statement": "Chronic opioid management guidance emphasizes patient preferences, shared decision-making, adherence monitoring, and awareness of adverse events.",
+        "source_ids": [
+          "38117465"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T01:36:04.704800+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "38117465",
+        "title": "Comprehensive, Evidence-Based, Consensus Guidelines for Prescription of Opioids for Chronic Non-Cancer Pain from the American Society of Interventional Pain Physicians (ASIPP).",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38117465/",
+        "abstract": "Opioid prescribing in the United States is decreasing, however, the opioid epidemic is continuing at an uncontrollable rate. Available data show a significant number of opioid deaths, primarily associated with illicit fentanyl use. It is interesting to also note that the data show no clear correlation between opioid prescribing (either number of prescriptions or morphine milligram equivalent [MME] per capita), opioid hospitalizations, and deaths. Furthermore, the data suggest that the 2016 guidelines from the Centers for Disease Control and Prevention (CDC) have resulted in notable problems including increased hospitalizations and mental health disorders due to the lack of appropriate opioid prescribing as well as inaptly rapid tapering or weaning processes. Consequently, when examined in light of other policies and complications caused by COVID-19, a fourth wave of the opioid epidemic has been emerging.\nIn light of this, we herein seek to provide guidance for the prescription of opioids for the management of chronic non-cancer pain. These clinical practice guidelines are based upon a systematic review of both clinical and epidemiological evidence and have been developed by a panel of multidisciplinary experts assessing the quality of the evidence and the strength of recommendations and offer a clear explanation of logical relationships between various care options and health outcomes.\nThe methods utilized included the development of objectives and key questions for the various facets of opioid prescribing practice. Also utilized were employment of trustworthy standards, and appropriate disclosures of conflicts of interest(s). The literature pertaining to opioid use, abuse, effectiveness, and adverse consequences was reviewed. The recommendations were developed after the appropriate review of text and questions by a panel of multidisciplinary subject matter experts, who tabulated comments, incorporated changes, and developed focal responses to questions posed. The multidisciplinary panel finalized 20 guideline recommendations for prescription of opioids for chronic non-cancer pain. Summary of the results showed over 90% agreement for the final 20 recommendations with strong consensus. The consensus guidelines included 4 sections specific to opioid therapy with 1) ten recommendations particular to initial steps of opioid therapy; 2) five recommendations for assessment of effectiveness of opioid therapy; 3) three recommendations regarding monitoring adherence and side effects; and 4) two general, final phase recommendations.\nThere is a continued paucity of literature of long-term opioid therapy addressing chronic non-cancer pain. Further, significant biases exist in the preparation of guidelines, which has led to highly variable rules and regulations across various states.\nThese guidelines were developed based upon a comprehensive review of the literature, consensus among expert panelists, and in alignment with patient preferences, and shared decision-making so as to improve the long-term pain relief and function in patients with chronic non-cancer pain. Consequently, it was concluded - and herein recommended - that chronic opioid therapy should be provided in low doses with appropriate adherence monitoring and understanding of adverse events only to those patients with a proven medical necessity, and who exhibit stable improvement in both pain relief and activities of daily function, either independently or in conjunction with other modalities of treatments.",
+        "sha256": "313320ea2be6ba8e31fafb195c9b97137423e422066c3e85aac69451d0d6b56b",
+        "retrieved_at": "2026-09-19T01:34:41.143017+00:00"
+      },
+      {
+        "id": "41731947",
+        "title": "Evidence-based consensus guidelines for the pharmacological management of substance dependence: Recommendations from the British Association for Psychopharmacology.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41731947/",
+        "abstract": "The British Association for Psychopharmacology guidelines for the management of substance dependence focus primarily on the pharmacological aspects of treatment. A group of international experts from a wide range of disciplines reviewed the current evidence in their field, considered the strength of the evidence and discussed the clinical implications at a consensus meeting. The guidelines focus on the pharmacological management of dependence on alcohol, benzodiazepines, 'z-drugs', \u03b3-hydroxybutyrate (GHB), gabapentinoids, opioids, nicotine, cannabis and synthetic cannabinoids, cocaine, amphetamine and methamphetamine, dissociative drugs and their analogues. They are based on the available evidence and make recommendations to aid clinical decision making, as well as highlighting the gaps in the current evidence-base.",
+        "sha256": "3b4ac572f7d9d9e284d5f17e2405937b0fba7901b7bf55a3c625a26b302db7f1",
+        "retrieved_at": "2026-09-19T01:34:41.143017+00:00",
+        "pmcid": "PMC13222391"
+      },
+      {
+        "id": "32430926",
+        "title": "European Academy of Neurology guideline on the management of medication-overuse headache.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32430926/",
+        "abstract": "The frequent use of medication to treat migraine attacks can lead to an increase in migraine frequency and is called medication-overuse headache (MOH).\nBased on the available literature in this guideline, the first step in patient management is education and counselling.\nPatients with MOH should be managed by a multidisciplinary team of neurologists or pain specialists and behavioral psychologists. Patients in whom education is not effective should be withdrawn from overused drugs and should receive preventive treatment with drugs of proven efficacy. Patients with MOH in whom preventive treatment is not effective should undergo drug withdrawal. Drug intake can be abruptly terminated or restricted in patients overusing simple analgesics, ergots or triptan medication. In patients with long-lasting abuse of opioids, barbiturates or tranquilizers, slow tapering of these drugs is recommended. Withdrawal can be performed on an outpatient basis or in a daycare or inpatient setting.",
+        "sha256": "8d39df4aba44f86d3688ac0dc7f5365accd20ad4956ba54f43124ec8ac9fa290",
+        "retrieved_at": "2026-09-19T01:34:41.143017+00:00"
+      },
+      {
+        "id": "35581524",
+        "title": "Elective surgery in ankle and foot disorders-best practices for management of pain: a guideline for clinicians.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35581524/",
+        "abstract": "Complex elective foot and ankle surgeries are often associated with severe pain pre- and postoperatively. When inadequately managed, chronic postsurgical pain and long-term opioid use can result. As no standards currently exist, we aimed to develop best practice pain management guidelines.\nA local steering committee (n = 16) surveyed 116 North American foot and ankle surgeons to understand the \"current state\" of practice. A multidisciplinary expert panel (n = 35) was then formed consisting of orthopedic surgeons, anesthesiologists, chronic pain physicians, primary care physicians, pharmacists, registered nurses, physiotherapists, and clinical psychologists. Each expert provided up to three pain management recommendations for each of the presurgery, intraoperative, inpatient postoperative, and postdischarge periods. These preliminary recommendations were reduced, refined, and sent to the expert panel and \"current state\" survey respondents to create a consensus document using a Delphi process conducted from September to December 2020.\nOne thousand four hundred and five preliminary statements were summarized into 51 statements. Strong consensus (\u2265 80% respondent agreement) was achieved in 53% of statements including the following: postsurgical opioid use risk should be assessed preoperatively; opioid-na\u00efve patients should not start opioids preoperatively unless non-opioid multimodal analgesia fails; and if opioids are prescribed at discharge, patients should receive education regarding importance of tapering opioid use. There was no consensus regarding opioid weaning preoperatively.\nUsing multidisciplinary experts and a Delphi process, strong consensus was achieved in many areas, showing considerable agreement despite limited evidence for standardized pain management in patients undergoing complex elective foot and ankle surgery. No consensus on important issues related to opioid prescribing and cessation highlights the need for research to determine best practice.",
+        "sha256": "5f976f129e45b4971bd5fa66aaad102ea629b77410330de4e38b829beff21596",
+        "retrieved_at": "2026-09-19T01:34:41.704416+00:00"
+      },
+      {
+        "id": "32008341",
+        "title": "Tapering opioids: a comprehensive qualitative review.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32008341/",
+        "abstract": "This state-of-the-art review comprehensive covers the benefits and risks of tapering opioids. The review discusses opioid strategies and pitfalls that may occur during tapering. The purpose of this review is to expand the knowledge of clinicians regarding tapering opioids and equip them to be able to successfully reduce and stop opioid therapy when appropriate.",
+        "sha256": "82eefcb474a64b9f3e7a096769aff23f180b919df09b9e1b2cd3a8d178aac3cd",
+        "retrieved_at": "2026-09-19T01:34:42.798490+00:00"
+      },
+      {
+        "id": "39874194",
+        "title": "Patients' Experiences With Opioid Tapering in Noncancer Pain: A Systematic Review and Meta-synthesis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39874194/",
+        "abstract": "Tapering opioids is an effective strategy to reduce the risks associated with long-term opioid therapy. However, patients' experience with tapering can influence the success of this treatment. Understanding patients' experiences with opioid tapering will allow for patient-centered approaches to be adopted to tailor interventions to achieve safe and successful taper outcomes. This paper aims to synthesize qualitative data capturing patients' experiences with opioid tapering for noncancer pain. Qualitative studies in English that explored patients' experiences with opioid tapering in noncancer pain were included. MEDLINE, Embase, Scopus, and PsycINFO were searched from inception to March 2023. Two authors independently selected the studies, extracted data, and assessed the quality of included studies using the Critical Appraisal Skills Programme. A meta-synthesis allowed for overarching themes to be identified to form a new interpretation of the data in the context of past literature. From 5714 articles identified, 10 studies were included that met the inclusion criteria after title/abstract screening and full-text review. These studies involved 218 patients with experience tapering opioids. Three key themes guiding the new meta-synthesis were identified: (1) patient-provider interactions, (2) individualized care, and (3) tactics to manage the opioid tapering process. This review demonstrated the role that patient-provider interactions, tailored care, and effective tapering strategies play in facilitating a favorable patient experience during the opioid tapering process. Future research should incorporate the themes identified in this review to optimize the patient's taper experience.",
+        "sha256": "9550c15fbbac1d1b8371e10cc52d1b1a081576abd8bc5a4d590a6a6a9ce69a5c",
+        "retrieved_at": "2026-09-19T01:34:42.798490+00:00"
+      },
+      {
+        "id": "30597076",
+        "title": "Does Opioid Tapering in Chronic Pain Patients Result in Improved Pain or Same Pain vs Increased Pain at Taper Completion? A Structured Evidence-Based Systematic Review.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30597076/",
+        "abstract": "To support or refute the hypothesis that opioid tapering in chronic pain patients (CPPs) improves pain or maintains the same pain level by taper completion but does not increase pain.\nOf 364 references, 20 fulfilled inclusion/exclusion criteria. These studies were type 3 and 4 (not controlled) but reported pre/post-taper pain levels. Characteristics of the studies were abstracted into tabular form for numerical analysis. Studies were rated independently by two reviewers for quality. The percentage of studies supporting the above hypothesis was determined.\nNo studies had a rejection quality score. Combining all studies, 2,109 CPPs were tapered. Eighty percent of the studies reported that by taper completion pain had improved. Of these, 81.25% demonstrated this statistically. In 15% of the studies, pain was the same by taper completion. One study reported that by taper completion, 97% of the CPPs had improved or the same pain, but CPPs had worse pain in 3%. As such, 100% of the studies supported the hypothesis. Applying the Agency for Health Care Policy and Research Levels of Evidence Guidelines to this result produced an A consistency rating.\nThere is consistent type 3 and 4 study evidence that opioid tapering in CPPs reduces pain or maintains the same level of pain. However, these studies represented lower levels of evidence and were not designed to test the hypothesis, with the evidence being marginal in quality with large amounts of missing data. These results then primarily reveal the need for controlled studies (type 2) to address this hypothesis.",
+        "sha256": "c265deb865847d72740aa25aa6cf6c6b1f0a699310d174b081edfb2606adc65d",
+        "retrieved_at": "2026-09-19T01:34:42.798490+00:00"
+      },
+      {
+        "id": "29727002",
+        "title": "Hormone Replacement Therapy and Opioid Tapering for Opioid-Induced Hypogonadism Among Patients with Chronic Noncancer Pain: A Systematic Review.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/29727002/",
+        "abstract": "To systematically review evidence addressing the efficacy of testosterone replacement therapy (TRT) and opioid tapering for opioid-induced hypogonadism among patients with chronic noncancer pain.\nSystematic review of randomized controlled trials (RCTs) and observational studies.\nWe searched MEDLINE, CINAHL, AMED, CENTRAL, CINAHL, DARE, EMBASE, and PsycINFO through August 2017. Eligible studies enrolled\u2009\u226510 patients with chronic noncancer pain and opioid-induced hypogonadism and reported the effect of TRT or opioid tapering on a patient-important outcome collected\u2009\u226514\u2009days after treatment. Pairs of reviewers independently screened for eligible studies, assessed risk of bias, and extracted data. We used the GRADE approach to rate quality of evidence.\nOf 666 abstracts reviewed, five studies including one RCT (N\u2009=\u200984) and four observational studies (N\u2009=\u2009157) were eligible. No studies explored the effect of opioid tapering for opioid-induced hypogonadism. Very low-quality evidence found that TRT was associated with improvements in pain (median reduction of 2 points on the 11-point numerical rating scale for pain; 95% confidence interval [CI] = -1.4 to -2.6; minimally important difference [MID]\u2009=\u20092 points), and emotional functioning (mean increase of 9 points on the 100-point SF-36 Mental Component Summary score; 95% CI = 4.40 to 13.60; MID\u2009=\u20095 points). Low-quality evidence suggested that TRT had no effect on sleep quality, sexual function, physical functioning, role functioning, or social functioning; very low-quality evidence suggested no association with depressive symptoms.\nLow-quality to very low-quality evidence suggests that TRT may improve pain and emotional functioning, but not other outcomes, in chronic noncancer pain patients with opioid-induced hypogonadism.",
+        "sha256": "d220916cd1de607436f54ebc261174d1b77afb64f2efbe435e60a5d53d5d01c2",
+        "retrieved_at": "2026-09-19T01:34:43.364374+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient has opioid-related medication-overuse headache, and education alone has not reduced use. The European Academy of Neurology guideline recommends withdrawal plus preventive treatment of proven efficacy when education is ineffective; specifically, long-standing opioid overuse should be managed with slow tapering rather than abrupt termination. Multidisciplinary involvement from neurology or pain medicine and behavioral psychology is also recommended. A collaborative, individualized taper addresses her withdrawal concerns and is consistent with patient-centered opioid guidance. Option A is inappropriate because it combines abrupt opioid cessation with delayed preventive and multidisciplinary care.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "32430926"
+              ],
+              "reason": "The guideline specifically recommends slow tapering for long-lasting opioid overuse, in contrast to abrupt termination permitted for several nonopioid acute-headache drugs.",
+              "source_passage_ids": [
+                "32430926:p0",
+                "32430926:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32430926",
+                  "quote": "The frequent use of medication to treat migraine attacks can lead to an increase in migraine frequency and is called medication-overuse headache (MOH). Based on the available literature in this guideline, the first step in patient management is education and counselling. Patients with MOH should be managed by a multidisciplinary team of neurologists or pain specialists and behavioral psychologists. Patients in whom education is not effective should be withdrawn from overused drugs and should receive preventive treatment with drugs of proven efficacy. Patients with MOH in whom preventive treatment is not effective should undergo drug withdrawal. Drug intake can be abruptly terminated or restricted in patients overusing simple analgesics, ergots or triptan medication."
+                },
+                {
+                  "source_id": "32430926",
+                  "quote": "In patients with long-lasting abuse of opioids, barbiturates or tranquilizers, slow tapering of these drugs is recommended. Withdrawal can be performed on an outpatient basis or in a daycare or inpatient setting."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "32430926"
+              ],
+              "reason": "The guideline expressly identifies education and counselling as the first management step for medication-overuse headache.",
+              "source_passage_ids": [
+                "32430926:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32430926",
+                  "quote": "The frequent use of medication to treat migraine attacks can lead to an increase in migraine frequency and is called medication-overuse headache (MOH). Based on the available literature in this guideline, the first step in patient management is education and counselling. Patients with MOH should be managed by a multidisciplinary team of neurologists or pain specialists and behavioral psychologists. Patients in whom education is not effective should be withdrawn from overused drugs and should receive preventive treatment with drugs of proven efficacy. Patients with MOH in whom preventive treatment is not effective should undergo drug withdrawal. Drug intake can be abruptly terminated or restricted in patients overusing simple analgesics, ergots or triptan medication."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "32430926"
+              ],
+              "reason": "The guideline states that patients for whom education is ineffective should be withdrawn from the overused drug and receive preventive treatment with drugs of proven efficacy.",
+              "source_passage_ids": [
+                "32430926:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32430926",
+                  "quote": "The frequent use of medication to treat migraine attacks can lead to an increase in migraine frequency and is called medication-overuse headache (MOH). Based on the available literature in this guideline, the first step in patient management is education and counselling. Patients with MOH should be managed by a multidisciplinary team of neurologists or pain specialists and behavioral psychologists. Patients in whom education is not effective should be withdrawn from overused drugs and should receive preventive treatment with drugs of proven efficacy. Patients with MOH in whom preventive treatment is not effective should undergo drug withdrawal. Drug intake can be abruptly terminated or restricted in patients overusing simple analgesics, ergots or triptan medication."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "32430926"
+              ],
+              "reason": "The guideline explicitly recommends a multidisciplinary team involving neurologists or pain specialists and behavioral psychologists.",
+              "source_passage_ids": [
+                "32430926:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32430926",
+                  "quote": "The frequent use of medication to treat migraine attacks can lead to an increase in migraine frequency and is called medication-overuse headache (MOH). Based on the available literature in this guideline, the first step in patient management is education and counselling. Patients with MOH should be managed by a multidisciplinary team of neurologists or pain specialists and behavioral psychologists. Patients in whom education is not effective should be withdrawn from overused drugs and should receive preventive treatment with drugs of proven efficacy. Patients with MOH in whom preventive treatment is not effective should undergo drug withdrawal. Drug intake can be abruptly terminated or restricted in patients overusing simple analgesics, ergots or triptan medication."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "39874194"
+              ],
+              "reason": "The systematic review identifies patient-provider interactions and individualized care as central themes facilitating a favorable opioid-tapering experience.",
+              "source_passage_ids": [
+                "39874194:p0",
+                "39874194:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39874194",
+                  "quote": "Tapering opioids is an effective strategy to reduce the risks associated with long-term opioid therapy. However, patients' experience with tapering can influence the success of this treatment. Understanding patients' experiences with opioid tapering will allow for patient-centered approaches to be adopted to tailor interventions to achieve safe and successful taper outcomes. This paper aims to synthesize qualitative data capturing patients' experiences with opioid tapering for noncancer pain. Qualitative studies in English that explored patients' experiences with opioid tapering in noncancer pain were included. MEDLINE, Embase, Scopus, and PsycINFO were searched from inception to March 2023. Two authors independently selected the studies, extracted data, and assessed the quality of included studies using the Critical Appraisal Skills Programme."
+                },
+                {
+                  "source_id": "39874194",
+                  "quote": "A meta-synthesis allowed for overarching themes to be identified to form a new interpretation of the data in the context of past literature. From 5714 articles identified, 10 studies were included that met the inclusion criteria after title/abstract screening and full-text review. These studies involved 218 patients with experience tapering opioids. Three key themes guiding the new meta-synthesis were identified: (1) patient-provider interactions, (2) individualized care, and (3) tactics to manage the opioid tapering process. This review demonstrated the role that patient-provider interactions, tailored care, and effective tapering strategies play in facilitating a favorable patient experience during the opioid tapering process. Future research should incorporate the themes identified in this review to optimize the patient's taper experience."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "38117465"
+              ],
+              "reason": "The guideline abstract reports increased hospitalizations and mental-health disorders in connection with inappropriate prescribing policies and inaptly rapid tapering or weaning.",
+              "source_passage_ids": [
+                "38117465:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38117465",
+                  "quote": "Opioid prescribing in the United States is decreasing, however, the opioid epidemic is continuing at an uncontrollable rate. Available data show a significant number of opioid deaths, primarily associated with illicit fentanyl use. It is interesting to also note that the data show no clear correlation between opioid prescribing (either number of prescriptions or morphine milligram equivalent [MME] per capita), opioid hospitalizations, and deaths. Furthermore, the data suggest that the 2016 guidelines from the Centers for Disease Control and Prevention (CDC) have resulted in notable problems including increased hospitalizations and mental health disorders due to the lack of appropriate opioid prescribing as well as inaptly rapid tapering or weaning processes."
+                }
+              ]
+            },
+            {
+              "index": 6,
+              "supported": true,
+              "source_ids": [
+                "38117465"
+              ],
+              "reason": "The guidance states alignment with patient preferences and shared decision-making and separately recommends adherence monitoring and awareness of adverse events.",
+              "source_passage_ids": [
+                "38117465:p3",
+                "38117465:p4"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38117465",
+                  "quote": "The consensus guidelines included 4 sections specific to opioid therapy with 1) ten recommendations particular to initial steps of opioid therapy; 2) five recommendations for assessment of effectiveness of opioid therapy; 3) three recommendations regarding monitoring adherence and side effects; and 4) two general, final phase recommendations. There is a continued paucity of literature of long-term opioid therapy addressing chronic non-cancer pain. Further, significant biases exist in the preparation of guidelines, which has led to highly variable rules and regulations across various states. These guidelines were developed based upon a comprehensive review of the literature, consensus among expert panelists, and in alignment with patient preferences, and shared decision-making so as to improve the long-term pain relief and function in patients with chronic non-cancer pain."
+                },
+                {
+                  "source_id": "38117465",
+                  "quote": "Consequently, it was concluded - and herein recommended - that chronic opioid therapy should be provided in low doses with appropriate adherence monitoring and understanding of adverse events only to those patients with a proven medical necessity, and who exhibit stable improvement in both pain relief and activities of daily function, either independently or in conjunction with other modalities of treatments."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Answer B matches the independently supported management approach. The patient has established medication-overuse headache after approximately four years of near-daily opioid-containing analgesic use, and education alone has failed. The supplied medication-overuse-headache guideline recommends slow tapering for long-lasting opioid overuse, preventive treatment of proven efficacy when education is ineffective, and multidisciplinary involvement. Patient-centered taper literature also supports individualized care and constructive patient-provider interaction. Answer A is intentionally unsafe because it calls for abrupt opioid cessation and delays preventive and multidisciplinary care. The opioid dose is not needed to choose between these approaches, although it would be required to construct the detailed taper schedule. No imaging is necessary for this decision because the diagnosis is already established and no acute neurologic deficit or other red flag is reported. There are no previous cases against which this decision duplicates."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The case describes medication-overuse headache from long-standing daily or near-daily use of a codeine-containing analgesic, with education and counselling alone failing to reduce use. The European Academy of Neurology guideline for medication-overuse headache states that after ineffective education, patients should be withdrawn from overused drugs and receive preventive treatment with drugs of proven efficacy; it also recommends management by a multidisciplinary team including neurology or pain specialists and behavioral psychologists. Importantly, abrupt termination may be appropriate for simple analgesics, ergots, or triptans, but for long-lasting overuse of opioids, barbiturates, or tranquilizers, slow tapering is recommended. Broader opioid-tapering literature also supports individualized, patient-centered tapering and shared decision-making rather than rapid or forced discontinuation. Therefore, a collaborative slow opioid taper with ongoing education, multidisciplinary/behavioral support, and evidence-based migraine prevention is more appropriate than abrupt cessation with deferral of preventive and multidisciplinary care.",
+          "confidence": 0.95
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "32430926"
+              ],
+              "reason": "The medication-overuse headache guideline distinguishes abrupt termination for simple analgesics/ergots/triptans from slow tapering for long-lasting opioid overuse.",
+              "source_passage_ids": [
+                "32430926:p0",
+                "32430926:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32430926",
+                  "quote": "The frequent use of medication to treat migraine attacks can lead to an increase in migraine frequency and is called medication-overuse headache (MOH). Based on the available literature in this guideline, the first step in patient management is education and counselling. Patients with MOH should be managed by a multidisciplinary team of neurologists or pain specialists and behavioral psychologists. Patients in whom education is not effective should be withdrawn from overused drugs and should receive preventive treatment with drugs of proven efficacy. Patients with MOH in whom preventive treatment is not effective should undergo drug withdrawal. Drug intake can be abruptly terminated or restricted in patients overusing simple analgesics, ergots or triptan medication."
+                },
+                {
+                  "source_id": "32430926",
+                  "quote": "In patients with long-lasting abuse of opioids, barbiturates or tranquilizers, slow tapering of these drugs is recommended. Withdrawal can be performed on an outpatient basis or in a daycare or inpatient setting."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "32430926"
+              ],
+              "reason": "The guideline explicitly states education and counselling are the first management step for MOH.",
+              "source_passage_ids": [
+                "32430926:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32430926",
+                  "quote": "The frequent use of medication to treat migraine attacks can lead to an increase in migraine frequency and is called medication-overuse headache (MOH). Based on the available literature in this guideline, the first step in patient management is education and counselling. Patients with MOH should be managed by a multidisciplinary team of neurologists or pain specialists and behavioral psychologists. Patients in whom education is not effective should be withdrawn from overused drugs and should receive preventive treatment with drugs of proven efficacy. Patients with MOH in whom preventive treatment is not effective should undergo drug withdrawal. Drug intake can be abruptly terminated or restricted in patients overusing simple analgesics, ergots or triptan medication."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "32430926"
+              ],
+              "reason": "The guideline states that when education is ineffective, patients should be withdrawn from overused drugs and receive preventive treatment with proven-efficacy drugs.",
+              "source_passage_ids": [
+                "32430926:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32430926",
+                  "quote": "The frequent use of medication to treat migraine attacks can lead to an increase in migraine frequency and is called medication-overuse headache (MOH). Based on the available literature in this guideline, the first step in patient management is education and counselling. Patients with MOH should be managed by a multidisciplinary team of neurologists or pain specialists and behavioral psychologists. Patients in whom education is not effective should be withdrawn from overused drugs and should receive preventive treatment with drugs of proven efficacy. Patients with MOH in whom preventive treatment is not effective should undergo drug withdrawal. Drug intake can be abruptly terminated or restricted in patients overusing simple analgesics, ergots or triptan medication."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "32430926"
+              ],
+              "reason": "The guideline recommends multidisciplinary MOH management involving neurologists or pain specialists and behavioral psychologists.",
+              "source_passage_ids": [
+                "32430926:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "32430926",
+                  "quote": "The frequent use of medication to treat migraine attacks can lead to an increase in migraine frequency and is called medication-overuse headache (MOH). Based on the available literature in this guideline, the first step in patient management is education and counselling. Patients with MOH should be managed by a multidisciplinary team of neurologists or pain specialists and behavioral psychologists. Patients in whom education is not effective should be withdrawn from overused drugs and should receive preventive treatment with drugs of proven efficacy. Patients with MOH in whom preventive treatment is not effective should undergo drug withdrawal. Drug intake can be abruptly terminated or restricted in patients overusing simple analgesics, ergots or triptan medication."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "39874194"
+              ],
+              "reason": "The systematic review found patient-provider interactions and individualized/tailored care to be key themes facilitating favorable opioid-tapering experiences.",
+              "source_passage_ids": [
+                "39874194:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39874194",
+                  "quote": "A meta-synthesis allowed for overarching themes to be identified to form a new interpretation of the data in the context of past literature. From 5714 articles identified, 10 studies were included that met the inclusion criteria after title/abstract screening and full-text review. These studies involved 218 patients with experience tapering opioids. Three key themes guiding the new meta-synthesis were identified: (1) patient-provider interactions, (2) individualized care, and (3) tactics to manage the opioid tapering process. This review demonstrated the role that patient-provider interactions, tailored care, and effective tapering strategies play in facilitating a favorable patient experience during the opioid tapering process. Future research should incorporate the themes identified in this review to optimize the patient's taper experience."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "38117465"
+              ],
+              "reason": "The ASIPP guideline abstract links inaptly rapid tapering/weaning processes with increased hospitalizations and mental health disorders.",
+              "source_passage_ids": [
+                "38117465:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38117465",
+                  "quote": "Opioid prescribing in the United States is decreasing, however, the opioid epidemic is continuing at an uncontrollable rate. Available data show a significant number of opioid deaths, primarily associated with illicit fentanyl use. It is interesting to also note that the data show no clear correlation between opioid prescribing (either number of prescriptions or morphine milligram equivalent [MME] per capita), opioid hospitalizations, and deaths. Furthermore, the data suggest that the 2016 guidelines from the Centers for Disease Control and Prevention (CDC) have resulted in notable problems including increased hospitalizations and mental health disorders due to the lack of appropriate opioid prescribing as well as inaptly rapid tapering or weaning processes."
+                }
+              ]
+            },
+            {
+              "index": 6,
+              "supported": true,
+              "source_ids": [
+                "38117465"
+              ],
+              "reason": "The chronic opioid guidance is described as aligned with patient preferences and shared decision-making, and recommends adherence monitoring and understanding adverse events.",
+              "source_passage_ids": [
+                "38117465:p3",
+                "38117465:p4"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38117465",
+                  "quote": "The consensus guidelines included 4 sections specific to opioid therapy with 1) ten recommendations particular to initial steps of opioid therapy; 2) five recommendations for assessment of effectiveness of opioid therapy; 3) three recommendations regarding monitoring adherence and side effects; and 4) two general, final phase recommendations. There is a continued paucity of literature of long-term opioid therapy addressing chronic non-cancer pain. Further, significant biases exist in the preparation of guidelines, which has led to highly variable rules and regulations across various states. These guidelines were developed based upon a comprehensive review of the literature, consensus among expert panelists, and in alignment with patient preferences, and shared decision-making so as to improve the long-term pain relief and function in patients with chronic non-cancer pain."
+                },
+                {
+                  "source_id": "38117465",
+                  "quote": "Consequently, it was concluded - and herein recommended - that chronic opioid therapy should be provided in low doses with appropriate adherence monitoring and understanding of adverse events only to those patients with a proven medical necessity, and who exhibit stable improvement in both pain relief and activities of daily function, either independently or in conjunction with other modalities of treatments."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Answer B is the best-supported and safer management choice. The patient has established medication-overuse headache from long-standing daily or near-daily codeine exposure, and education alone has failed. The supplied MOH guideline supports education first, multidisciplinary care, withdrawal with proven preventive therapy when education is ineffective, and slow tapering specifically for long-lasting opioid overuse. The opioid-tapering sources support individualized, patient-centered tapering and caution against inappropriately rapid tapering. Candidate A is intentionally flawed because it recommends abrupt opioid cessation and defers preventive and multidisciplinary care, which conflicts with the MOH guidance for long-lasting opioid overuse. The case is within pain medicine because it concerns opioid therapy risk mitigation/tapering in chronic noncancer pain, with neurology/headache overlap. No decisive imaging, labs, or dosing details are missing for the management decision as framed."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "222a86218badbe236134fa968bc3d793608a5bb293a8ab11b893b8853acc451f"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

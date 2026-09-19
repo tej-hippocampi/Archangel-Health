@@ -1,0 +1,705 @@
+{
+  "task_id": "onboarding-practice-v1-536d65a07b5d16bb9bde-1",
+  "specialty": "geriatrics",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Acute cognitive and behavioral change after hip fracture repair",
+    "question": "Which candidate response provides the appropriate management at this clinical decision point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "geriatrics",
+      "demographics": {
+        "age_band": "70-79",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Acute fluctuating inattention and disorganized thinking",
+          "since": "Postoperative period",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Parkinson disease",
+          "since": "Several years",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Hip fracture status post operative repair",
+          "since": "Two days ago",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Bilateral hearing impairment",
+          "since": "Chronic",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Levodopa-carbidopa",
+          "dose": null,
+          "route": "oral",
+          "freq": "scheduled",
+          "collected_offset_days": 0
+        },
+        {
+          "drug": "Amantadine",
+          "dose": null,
+          "route": "oral",
+          "freq": "scheduled",
+          "collected_offset_days": 0
+        },
+        {
+          "drug": "Opioid analgesic",
+          "dose": null,
+          "route": "oral",
+          "freq": "as needed",
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "temperature_C": 38.1,
+        "heart_rate_per_min": 96,
+        "blood_pressure_mmHg": "138/72",
+        "respiratory_rate_per_min": 18,
+        "oxygen_saturation_percent": 96,
+        "oxygen_support": "room air"
+      },
+      "lab_panels": [
+        {
+          "panel": "Basic metabolic and hematologic assessment",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Sodium",
+              "loinc": null,
+              "value": 132,
+              "unit": "mmol/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "low",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Glucose",
+              "loinc": null,
+              "value": 108,
+              "unit": "mg/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "White blood cell count",
+              "loinc": null,
+              "value": 13.4,
+              "unit": "10^9/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "high",
+              "ref_range_unusable": false
+            }
+          ]
+        },
+        {
+          "panel": "Urinalysis after urinary catheter removal",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Leukocyte esterase",
+              "loinc": null,
+              "value": "positive",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "abnormal",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Nitrite",
+              "loinc": null,
+              "value": "positive",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "abnormal",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Urine white blood cells",
+              "loinc": null,
+              "value": "numerous",
+              "unit": null,
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "abnormal",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Geriatric assessment",
+          "author_role": "geriatrics",
+          "text": "On postoperative day 2, nursing staff and family describe an abrupt change from the patient's usual conversational baseline. She alternates between drowsiness and restlessness, cannot sustain attention, and gives disorganized answers. She reports suprapubic discomfort and pain with movement. Oral intake and sleep were poor overnight. A urinary catheter was removed earlier today. Examination shows suprapubic tenderness without rigidity, no new focal neurologic deficit, and no evidence of recent head trauma. She is not threatening staff, attempting to leave the bed, or expressing distress from hallucinations. Her hearing aids were unavailable during the morning assessment. There is no history of recent alcohol use or withdrawal.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Confusion Assessment Method",
+          "label": "Bedside cognitive assessment",
+          "findings": "Acute onset with fluctuation is present. Inattention is present. Disorganized thinking is present. Level of consciousness varies between alert and drowsy.",
+          "measurements": [],
+          "impression": "Confusion Assessment Method criteria are met.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical review role"
+        ],
+        "disclaimers": [
+          "Fictional onboarding case; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for stated decision",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The acute, fluctuating disturbance of attention and thinking meets Confusion Assessment Method criteria for delirium. Management should prioritize reversible contributors, including the suspected urinary infection, pain, reduced intake, metabolic disturbance, sensory deprivation, sleep disruption, and potentially deliriogenic medication. Appropriate supportive measures include hearing aids, reorientation, day-night cues, food and fluids, and early mobilization. In Parkinson disease, amantadine should be reviewed for supervised reduction or gradual discontinuation rather than stopped abruptly. Routine lorazepam is inappropriate because benzodiazepines are not suggested for postoperative delirium outside the distinct setting of alcohol withdrawal.",
+        "evidence": null,
+        "key_data": [
+          "Abrupt and fluctuating inattention, disorganized thinking, and variable alertness meet Confusion Assessment Method criteria.",
+          "Fever, leukocytosis, suprapubic discomfort, tenderness, and inflammatory urinalysis findings indicate a potentially reversible infectious trigger.",
+          "Pain, poor intake, sleep disruption, absent hearing aids, and low sodium are additional modifiable contributors.",
+          "The patient has Parkinson disease and takes amantadine, which is identified as potentially delirogenic in this population.",
+          "There is no history suggesting alcohol withdrawal and no severe distress or safety-threatening agitation."
+        ]
+      },
+      "hard_hook": "Distinguishing cause-based delirium care in Parkinson disease from reflexive sedative treatment",
+      "reasoning_divergence": "The flawed response suppresses behavior with a benzodiazepine while delaying assessment and correction of reversible precipitants."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Treat the behavioral change with scheduled lorazepam while continuing the existing Parkinson regimen unchanged. Defer assessment of infection, pain, hydration, sensory impairment, and metabolic contributors until the patient is calmer and more cooperative."
+      },
+      {
+        "id": "B",
+        "text": "Manage this as delirium by promptly addressing reversible contributors, including the suspected urinary infection, pain, reduced intake, and metabolic disturbance. Restore hearing aids, reorientation and day-night cues, support food, fluids and mobility, and review medications with supervised reduction or gradual discontinuation of amantadine. Avoid routine benzodiazepine treatment because there is no alcohol withdrawal."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "postoperative delirium",
+      "Parkinson disease",
+      "benzodiazepines",
+      "urinary infection",
+      "amantadine",
+      "falls"
+    ],
+    "evidence_keywords": [
+      "Confusion Assessment Method",
+      "reversible triggers",
+      "sensory aids",
+      "reorientation",
+      "medication review",
+      "early mobilization"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Acute, fluctuating impairment of attention with accompanying cognitive disturbance supports a clinical diagnosis of delirium.",
+        "source_ids": [
+          "39046524"
+        ]
+      },
+      {
+        "statement": "In Parkinson disease, infections, metabolic disorders, medication effects, and pain should be considered and treated as delirium triggers.",
+        "source_ids": [
+          "39046524"
+        ]
+      },
+      {
+        "statement": "Nonpharmacological delirium care in Parkinson disease may include sensory aids, reorientation, food and fluids, day-night support, and early mobilization.",
+        "source_ids": [
+          "39046524"
+        ]
+      },
+      {
+        "statement": "Postoperative multicomponent interventions include reorientation, sleep hygiene, early mobilization, catheter removal, and early nutrition.",
+        "source_ids": [
+          "37599617"
+        ]
+      },
+      {
+        "statement": "Amantadine should be reduced or gradually discontinued when reviewing potentially deliriogenic Parkinson medications.",
+        "source_ids": [
+          "39046524"
+        ]
+      },
+      {
+        "statement": "Benzodiazepines are not suggested for postoperative delirium treatment outside the distinct setting of alcohol withdrawal delirium.",
+        "source_ids": [
+          "37599617"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T02:17:49.147301+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "39982143",
+        "title": "A Focused Update to the Clinical Practice Guidelines for the Prevention and Management of Pain, Anxiety, Agitation/Sedation, Delirium, Immobility, and Sleep Disruption in Adult Patients in the ICU.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39982143/",
+        "abstract": "Critically ill adults are at risk for a variety of distressing and consequential symptoms both during and after an ICU stay. Management of these symptoms can directly influence outcomes.\nThe objective was to update and expand the Society of Critical Care Medicine's 2018 Clinical Practice Guidelines for the Prevention and Management of Pain, Agitation/Sedation, Delirium, Immobility, and Sleep Disruption in Adult Patients in the ICU.\nThe interprofessional inclusive guidelines task force was composed of 24 individuals including nurses, physicians, pharmacists, physiotherapists, psychologists, and ICU survivors. The task force developed evidence-based recommendations using the Grading of Recommendations, Assessment, Development, and Evaluation (GRADE) approach. Conflict-of-interest policies were strictly followed in all phases of the guidelines, including task force selection and voting.\nThe task force focused on five main content areas as they pertain to adult ICU patients: anxiety (new topic), agitation/sedation, delirium, immobility, and sleep disruption. Using the GRADE approach, we conducted a rigorous systematic review for each population, intervention, control, and outcome question to identify the best available evidence, statistically summarized the evidence, assessed the quality of evidence, and then performed the evidence-to-decision framework to formulate recommendations.\nThe task force issued five statements related to the management of anxiety, agitation/sedation, delirium, immobility, and sleep disruption in adults admitted to the ICU. In adult patients admitted to the ICU, the task force issued conditional recommendations to use dexmedetomidine over propofol for sedation, provide enhanced mobilization/rehabilitation over usual mobilization/rehabilitation, and administer melatonin. The task force was unable to issue recommendations on the administration of benzodiazepines to treat anxiety, and the use of antipsychotics to treat delirium.\nThe guidelines task force provided recommendations for pharmacologic management of agitation/sedation and sleep, and nonpharmacologic management of immobility in critically ill adults. These recommendations are intended for consideration along with the patient's clinical status.",
+        "sha256": "ca84e41b1429a9b2e172228686fc09a7d70cb9575bb61d87139873959121f47a",
+        "retrieved_at": "2026-09-19T02:16:35.976507+00:00"
+      },
+      {
+        "id": "37599617",
+        "title": "Update of the European Society of Anaesthesiology and Intensive Care Medicine evidence-based and consensus-based guideline on postoperative delirium in adult patients.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37599617/",
+        "abstract": "Postoperative delirium (POD) remains a common, dangerous and resource-consuming adverse event but is often preventable. The whole peri-operative team can play a key role in its management. This update to the 2017 ESAIC Guideline on the prevention of POD is evidence-based and consensus-based and considers the literature between 01 April 2015, and 28 February 2022. The search terms of the broad literature search were identical to those used in the first version of the guideline published in 2017. POD was defined in accordance with the DSM-5 criteria. POD had to be measured with a validated POD screening tool, at least once per day for at least 3 days starting in the recovery room or postanaesthesia care unit on the day of surgery or, at latest, on postoperative day 1. Recent literature confirmed the pathogenic role of surgery-induced inflammation, and this concept reinforces the positive role of multicomponent strategies aimed to reduce the surgical stress response. Although some putative precipitating risk factors are not modifiable (length of surgery, surgical site), others (such as depth of anaesthesia, appropriate analgesia and haemodynamic stability) are under the control of the anaesthesiologists. Multicomponent preoperative, intra-operative and postoperative preventive measures showed potential to reduce the incidence and duration of POD, confirming the pivotal role of a comprehensive and team-based approach to improve patients' clinical and functional status.",
+        "sha256": "88dc5782a883d34989704262045bb4605430c9c3f0779854caf3124cc9353abf",
+        "retrieved_at": "2026-09-19T02:16:35.976507+00:00",
+        "pmcid": "PMC10763721",
+        "body_excerpts": "General methods > General approach for all working groups\n(delirium OR confusion OR confusion\u2217 OR disorientation OR bewilderment) AND (postoperative OR postoperative period OR postoperative period\u2217 OR postsurgical OR postsurgical OR anesthesia recovery period OR anesthesia recovery period\u2217 OR post anesthesia).\n\nResults and recommendations > Chapter 1: Basic Science > Authors: Colm Cunningham, Robert D. Sanders, Bjoern Weiss\nThe Basic Science working group provided \u2013 based on the results of the above-mentioned broad literature search \u2013 a narrative review of the research carried out in this field since 2015. After extensive discussion, the task force unanimously agreed that no explicit recommendations should be made in this section of the updated guideline. Rather, the areas that need further investigation and the weaknesses of the existing evidence should be highlighted to encourage more thorough research into the mechanisms underlying the emergence, existing risk factors, development and treatment of POD. Research on the pathophysiology of POD using animal models has been dominated by a dual focus on the deleterious effects of anaesthesia and those of inflammation. Although there are studies suggesting deleterious impacts of anaesthesia alone on hyperphosphorylation of Tau and other pathological features in animals, it is also the case that normal working memory and attention return within 1 to 2 h after general anaesthesia in humans. 5 Although some complex interactions between anaesthetics and inflammation may occur, research published in the last 7 years (i.e. this review period) has shown an increasing focus on inflammation. The main animal models employed by researchers in this research period are laparotomy and tibial fracture (with occasional use of hepatolobectomy and cardiopulmonary bypass). These surgical interventions produce acute tissue injury and, therefore, cause the production/release of damage-associated molecular patterns (DAMPs) such as S100 proteins, nucleic acids and High Mobility Group Box-1 (HMGB1), which are analogous to, and activate the same receptors as, pathogen-associated molecular pattern (PAMPs), such as bacterial lipopolysaccharide (LPS) \u2013 also known as \u2018endotoxin\u2019 \u2013 and pathogen nucleic acids that arise during infection. These DAMPs activate various inflammatory receptors to induce acute inflammatory responses in the periphery and also trigger some neuroinflammatory changes. The changes most commonly described in models of POD include circulating cytokines, induction of inflammatory transcripts in the brain, blood brain barrier impairments and changes in the morphology or number of microglial cells (brain resident macrophage population) and astrocytes. These inflammatory changes are now quite well established in the POD field, as they have been in the infection-induced delirium field. 6 , 7 There have now been studies blocking individual cytokines, 8 , 9 depleting microglia 10 or inhibiting microglia/macrophages/monocytes 11 or blocking inflammatory pathways by exploiting natural anti-inflammatory pathways, such as restoring levels of acetylcholine 12 and increasing resolvins, 13 which are endogenous lipid mediators of inflammatory resolution. Other lipid-derived mediators, prostaglandins, blocked by cyclooxygenase inhibitors, have also been shown to contribute to neurophysiological and behavioural features of delirium, albeit in LPS models. 14 , 15 Most of these anti-inflammatory treatments reduce the intensity or duration of inflammation not only in the brain but also in the periphery, although increased blood\u2013CSF barrier permeability may facilitate closer interactions between peripheral and central processes. 16 Most of the studies above report positive impacts on \u2018POD-like\u2019 changes in these animals.\n\nResults and recommendations > Chapter 1: Basic Science > Authors: Colm Cunningham, Robert D. Sanders, Bjoern Weiss\nHowever, these findings come with significant caveats. The nature of cognitive characterisation of animals in the postsurgical phase remains a weakness in this literature. It is essential to establish cognitive and behavioural tasks that inform on dysfunction in cognitive domains relevant to clinical delirium, but many studies rely on measures for which the level of disruption may be disproportionately weighted by typical responses to surgical trauma or illness, like anxiety, inactivity and suppression of appetite, which are significant confounders of many of the cognitive tasks used in this field. Inattention is a core feature of delirium and several studies, using tasks for memory consolidation, locomotor activity/exploration, food retrieval and novel object recognition, have inappropriately used the terms attention/inattention to describe tasks despite not measuring attention. There has been a tendency to re-label the behavioural measure actually recorded using terms that allow it to conform with criteria for delirium. Thus, there is a strong imperative to measure specific cognitive features, using tasks specifically designed for that feature and to report data using precise terminology appropriate to the task actually undertaken.\n\nResults and recommendations > Chapter 1: Basic Science > Authors: Colm Cunningham, Robert D. Sanders, Bjoern Weiss\nTo summarise, the field is still in its infancy and further research is urgently required, but the best current information would support the idea that acute inflammation is a better predictor of postoperative cognitive changes than is anaesthesia. More precise cognitive testing will be required to assess whether the observed cognitive changes represent a delirium-like syndrome. As most studies have used young healthy animals, it is not intuitive that the changes observed in those studies with young healthy animals would reach the severity of delirium, which is more often associated with patients who are older, frailer or suffer from underlying dementia. Studies using older animals or with models of underlying degenerative disease have more often been performed in animals receiving bacterial LPS rather than surgery, 29 , 30 but similar studies are beginning to emerge in post-operative studies: with larger effects of tibial fracture described in animals with prior amyloid pathology 31 and significant effects of laparotomy in older animals. 32 It will remain important to employ behavioural tasks that interrogate specific cognitive domains and to control for injury-associated or illness-associated confounds. Finally, molecular findings from animal model studies will need to be validated in the relevant patient cohorts to examine the extent to which inflammatory 33 and brain injury markers 34 are associated with delirium and long-term outcomes.\n\nResults and recommendations > Chapter 1: Basic Science > Outlook\nThere is now reasonable evidence that peripheral inflammation and, in turn, neuroinflammation contribute to acute deficits resembling delirium. The data that anaesthetics do likewise are significantly weaker. The alpha-2 agonist sedative drug dexmedetomidine has shown promise, and basic evidence is emerging that it also acts in an anti-inflammatory manner. This requires confirmation in human studies. There remains relatively little exploration of the idea that anti-inflammatory approaches more broadly might be helpful in patients. Given the caution around use of NSAIDs in older patients, evidence for beneficial effects will have to be pursued in experimental medicine or clinical trials. One recent randomised controlled trial demonstrated that postoperative intravenous acetaminophen was effective in the prevention of delirium 35 ; however, it is already typically prescribed for its analgesic effects. Detailed collection of data informing on inflammatory, metabolic and hypoxic changes is required in the peri-operative setting to support adoption of new clinical strategies to mitigate POD.\n\nResults and recommendations > Chapter 2: Risk Factors > Meta-analyses\nAlthough the cut-offs presented in Recommendation 2.1 imply risk escalates significantly at certain thresholds, it is important to recognise that risk entails a continuum of disease and that the risk factors above similarly represent a continuous risk factor. This means that as the risk factors scale (e.g. age increases), it is reasonable to estimate that, on average, risk of delirium also increases. Furthermore, risk factors may interact and even synergise. For example, the available evidence suggests increasing delirium risk after the age of 60 years old, however impaired cognitive function likely interacts, increasing delirium risk for a given age.\n\nResults and recommendations > PICO 1 (preventive use of dexmedetomidine preoperatively, intra-operatively or postoperatively vs. non-dexmedetomidine/placebo) > Adverse effects\nIn summary, there is a possibility that there is a patient group that may benefit from intra-operative and/or postoperative dexmedetomidine, but this specific group and details of intervention (timing and dosage) remain to be defined. As age is a risk factor for delirium, the desired effect is probably more likely to occur in older patients; however, the results of recent systematic reviews 62 , 63 assessing subgroups based on age are conflicting.\n\nResults and recommendations > PICO 3 (preventive use of sleep medications preoperatively or postoperatively vs. no sleep medications/placebo)\nThree studies (two RCTs and one observational study) evaluated the effects of sleep medications, such as melatonin or ramelteon (a strong agonist of melatonin receptors) on POD prevention. Shi 65 administered melatonin (3 mg for 7 days, starting on the day of surgery) and compared it with a placebo, in a good-quality pilot RCT, in 288 patients who underwent percutaneous transluminal coronary intervention (PCI). The incidence of POD was significantly lower in the melatonin group than in the placebo group (27.0 vs. 39.6%, respectively, P = 0.02). In a second RCT (also of good quality), 66 ramelteon (8 mg) or placebo was administered starting from the night prior to the surgery up to 8 days, in 120 patients who underwent elective pulmonary thromboendarterectomy, with no statistically significant differences in the two study arms (36% placebo vs. 32.2% ramelteon; relative risk (RR) 0.9, 95% CI, 0.5 to 1.4, P = 0.656). Finally, Artemiou et al. 67 carried out an observational study in a group of 250 patients (good quality), administering 5 mg of melatonin from the day before surgery to postoperative day 3. The incidence of delirium was 8.4% in the melatonin group vs. 20.8% in the control group ( P = 0.001).\n\nResults and recommendations > PICO 7 (anaesthetic drugs: ketamine intra-operatively or postoperatively vs. no ketamine)\nOne study met the inclusion criteria. Avidan et al. 87 carried out a good-quality RCT that enrolled 672 patients older than 60 years undergoing major cardiac or noncardiac surgery under general anaesthesia. Patients were randomised to one of the three groups: placebo (0.9% saline), low-dose ketamine (0.5 mg kg \u22121 ) or high-dose ketamine (1.0 mg kg \u22121 ) after induction of anaesthesia. There was no difference in delirium incidence between patients in the combined ketamine groups and the placebo group (19.45 vs. 19.82%, respectively; absolute difference of 0.36%, 95% CI, \u22126.07 to 7.38, P = 0.92), but there were more postoperative hallucinations ( P = 0.01) and nightmares ( P = 0.03) with increasing ketamine doses compared with placebo.\n\nResults and recommendations > PICO 8 (type of anaesthesia: regional anaesthesia vs. general anaesthesia)\nSeven studies met the inclusion criteria (six RCTs and one observational) with six out of seven studies showing no difference in the incidence of POD between regional anaesthesia and general anaesthesia. A RCT by Tang et al. 88 that aimed to compare the combined lumbar-sacral plexus block (CLSB) plus general anaesthesia with the unilateral spinal anaesthesia in 124 elderly patients undergoing hip fracture surgery, showed no significant differences in the incidence of POD (5.5 vs. 7.3%, P = 0.57). The RCT by Brown et al. 89 (217 patients aged \u226565 years) found that spinal anaesthesia with targeted sedation based on BIS values compared with general anaesthesia with masked BIS values did not reduce the incidence of delirium after lumbar fusion (25.2 vs. 18.9%; P = 0.26). In a large RCT by Li et al. 90 (950 patients aged \u226565 years undergoing hip fracture surgery), regional anaesthesia without sedation did not significantly reduce the incidence of POD as compared with general anaesthesia (unadjusted risk difference, 1.1%; 95% CI, \u22121.7 to 3.8%; P = 0.48). In a large RCT by Neuman et al. 91 (1600 patients aged \u226550 years) to evaluate spinal anaesthesia compared with general anaesthesia for hip fracture, the incidence of POD was similar with both types of anaesthesia (20.5 vs. 19.7%, RR, 1.04; 95% CI, 0.84 to 1.30). In a RCT by Strike et al. 92 ( n = 44) regarding a transapical transcatheter aortic valve replacement (TAVR) procedure, the patients were assigned to either the paravertebral group (perioperative continuous thoracic paravertebral block with a local anaesthetic) or the patient-controlled analgesia group (systemically administered opioids), with no difference in the rate of POD (23 vs. 27%, P = 0.73). In an observational study by Vlisides et al. 93 in a group of 263 surgical patients, postoperative epidural use was not associated with a reduced overall incidence of delirium (adjusted OR, 0.65; 95% CI, 0.32 to 1.35; P = 0.25). In a large RCT by Li et al. , 94 1720 patients aged 60 to 90 years were scheduled for major noncardiac thoracic or abdominal surgery and POD was less common in the combined epidural-general anaesthesia group (1.8%) than in the general anaesthesia group (5.0%); with RR, 0.351; 95% CI [0.197 to 0.627]; P < 0.001; number needed to treat (NNT) = 31.\n\nResults and recommendations > PICO 13: Which nonpharmacological multicomponent or single interventions can be recommended to prevent POD?\nBoth the process of decision-making about surgery and patients\u2019 preoperative optimisation should be planned and managed at a multidisciplinary team level as suggested by the US Coalition for Quality in Geriatric Surgery. 123 This requires, apart from risk factor screening and preoperative medication management, multidisciplinary conferences for high-risk patients. 123 Staff training aimed at increasing the understanding of POD, and good communication skills among different medical professions seem prerequisites for the implementation of successful multicomponent interventions to reduce the incidence of POD. 124 Retrospective data suggest that a combination of staff education, protocols for implementation, preprinted orders and systematic screening for POD reduces its incidence. 125 Although POD is considered relevant for patients\u2019 outcomes, not all teams communicate delirium care plans during handover and not all professionals are confident about their role in its prevention. 126 Recommendation 4.3 Quality of the evidence Strength of recommendation We recommend multicomponent nonpharmacological interventions in all patients at risk of POD. Moderate Olotu et al ., 2022 101 Deeken et al ., 2022 97 Marcantonio et al ., 2001 100 Vidan et al ., 2005 103 Guo and Fan, 2016 98 Partridge et al ., 2017 102 Hempenius et al ., 2013 99 Wang et al. , 2019 79 Strong\n\nResults and recommendations > PICO 13: Which nonpharmacological multicomponent or single interventions can be recommended to prevent POD?\nThere were two major approaches of multicomponent interventions (see Supplement Table S11): Three-quarters (6/8) of the studies 97 , 99 , 100 , 102 \u2013 104 combined a preoperative or early postoperative geriatric assessment with individualised tailored interventions from a set of possible interventions. The dimensions of the geriatric assessments (described in detail only in three studies 97 , 99 , 102 ) slightly varied between studies. However, all three studies assessed frailty, cognition, comorbidities and functional status/functional impairment. Based on these screenings, a set of \u2018best-practice delirium prevention modules\u2019 97 or a \u2018tailored HELP protocol\u2019 102 was available. Other studies used \u2018recommendations based on a structured protocol\u2019. 100\n\nResults and recommendations > PICO 13: Which nonpharmacological multicomponent or single interventions can be recommended to prevent POD?\nThese elements of geriatric assessment and tailored treatments were brought into the existing teams by an \u2018independent delirium study prevention team\u2019, 97 a \u2018geriatric team, which supervised an individual treatment plan with specific attention to patient-related risk factors\u2019, 99 a \u2018proactive geriatrics consultation within 24 h after surgery\u2019 100 or a \u2018geriatric team\u2019 composed of a geriatrician, a rehabilitation specialist and a specific social worker. 101 This team implemented a \u2018complete geriatric evaluation to identify and quantify medical and psychosocial problems and functional capability to elaborate a comprehensive therapeutic plan\u2019. 103 In another study, the whole procedure took place in an \u2018outpatient clinic setting\u2019. 102\n\nResults and recommendations > PICO 13: Which nonpharmacological multicomponent or single interventions can be recommended to prevent POD?\nAn alternative approach (see again Supplement Table 11) was to train the existing staff and to implement a set of measures for all patients undergoing (elective) surgery. 101 These \u2018delirium prevention bundles\u2019 included reorientation measures, sleeping aids (quiet ward, eye masks/earplugs at night, avoiding caffeinated drinks in the afternoons and evenings), and early mobilisation, early catheter removal and early nutrition commencement. 101 Another study evaluated preop visits to the ICU, the introduction of the medical equipment used in combination with reorientation strategies, sleep hygiene, catheter removal and early mobilisation and nasal feeding by \u2018educated staff\u2019. 98\n\nResults and recommendations > PICO 15: Does multiparameter intraoperative EEG monitoring, focusing on burst suppression activity and including the density spectral array, improve guiding depth of anaesthesia and decrease the risk of POD? > Raw EEG\nCooter Wright et al. 145 included 139 older surgical patients (age \u226565) and analysed the Duke Anesthesia Resistance Scale: the average Bispectral index (BIS) divided by the quantity 2.5 minus the average age-adjusted end-tidal minimum alveolar concentration (aaMAC) inhaled anaesthetic fraction. The relationship between Duke Anesthesia Resistance Scale and delirium risk was nonlinear, with higher delirium risk at lower Duke Anesthesia Resistance Scale scores. Acker et al. 146 applied the multiscale entropy (MSE) in 50 adult patients (\u226560 years) before and during surgery and found that MSE was not associated with delirium or attention. Koch et al. 147 included 237 patients aged at least 65 years in an observational study and performed the raw EEG analysis calculating the perioperative spectral edge frequency (SEF). The authors showed that lower preoperative SEF, absence of slowing in EEG while transitioning from preoperative state to unconscious state, and lower EEG power in relevant frequency bands in both these states are related to POD development. Tanabe et al. 148 recruited 70 surgical patients included in an ongoing cohort study (Interventions for POD: Biomarker-3) and performed an EEG slow-wave activity (SWA) analysis on preoperative and postoperative days. They found that changes in occipitoparietal cortical SWA correlated with worsening delirium severity. Gutierrez et al. 149 conducted an exploratory observational study in 30 patients older than 60 years, scheduled for elective major abdominal surgery. The authors found that patients with POD or subsyndromal POD in comparison with the control group had a lower intraoperative absolute alpha-band power during anaesthesia (4.4 \u00b1 3.8 vs. 9.6 \u00b1 3.2 dB, P = 0.0004) and a lower relative alpha power (0.09 \u00b1 0.06 vs. 0.21 \u00b1 0.08, P < 0.0001), independently of the anaesthetic dose.\n\nResults and recommendations > PICO 15: Does multiparameter intraoperative EEG monitoring, focusing on burst suppression activity and including the density spectral array, improve guiding depth of anaesthesia and decrease the risk of POD? > Discussion\nIn older patients, deep anaesthesia frequently causes burst suppression activity in the raw EEG, 150 which has been identified as a risk factor for POD. 129 , 130 , 140 \u2013 143 This EEG pattern \u2013 an isoelectric line with intermittent bursts \u2013 can easily be identified in the raw EEG if presented on the monitors. Thus, anaesthesiologists should ensure that the monitors they use provide raw EEG traces.\n\nResults and recommendations > Chapter 6: Pharmacological Treatment of POD and POD Outcomes > Authors: Claudia Spies, Nicola Latronico, Alasdair MacLullich, Anika M\u00fcller, Finn Radtke, Lisa Vasiljewa\nThe objective of our working group was to find evidence-based information on different options of pharmacological interventions for POD, and to evaluate their efficacy as well as their harms and benefits. The first-line measures for prevention and treatment of POD are nonpharmacological. Only when there is severe and intractable distress should medications be used. For pharmacological therapy of POD, there are different treatment options available for the different delirium symptoms. For example, hallucinations can occur in patients with POD even when they are oriented, and if distressing they could be treated with antipsychotics, if nonpharmacological measures have failed.\n\nResults and recommendations > Chapter 6: Pharmacological Treatment of POD and POD Outcomes > Authors: Claudia Spies, Nicola Latronico, Alasdair MacLullich, Anika M\u00fcller, Finn Radtke, Lisa Vasiljewa\nDelirium in the presence of alcohol withdrawal syndrome (diagnosis of exclusion, after considering all other diagnoses 203 ): long-acting benzodiazepines (e.g. diazepam, lorazepam)\n\nResults and recommendations > Chapter 6: Pharmacological Treatment of POD and POD Outcomes > Authors: Claudia Spies, Nicola Latronico, Alasdair MacLullich, Anika M\u00fcller, Finn Radtke, Lisa Vasiljewa\nIf POD is detected, patients should not be discharged from the recovery room to the ward without having started cause-based and symptom-based treatment. The longer the delirium lasts and the later the treatment starts, the more likely cognitive decline and worse clinical outcomes may be expected. 204\n\nResults and recommendations > Chapter 6: Pharmacological Treatment of POD and POD Outcomes > Authors: Claudia Spies, Nicola Latronico, Alasdair MacLullich, Anika M\u00fcller, Finn Radtke, Lisa Vasiljewa\nDelirium in the presence of alcohol withdrawal syndrome is a special sub-form of delirium, which can occur in the perioperative setting as well, and it is challenging to differentiate the overlap with other forms of delirium. 205 The diagnosis of delirium in the presence of alcohol withdrawal syndrome is a clinical diagnosis of exclusion, after considering all other diagnoses. 203 Therapy of alcohol withdrawal delirium is based on long-acting benzodiazepines (e.g. diazepam, lorazepam). 203\n\nResults and recommendations > PICO 16: Should antipsychotics be used for the treatment of POD?\nThe evidence in support of the use of antipsychotics for POD treatment remains inconsistent and controversial. Postsurgical administration of haloperidol or atypical antipsychotics seems to alleviate POD and treat hallucinations as part of psychotic symptoms. 206 , 208 \u2013 210 It also showed several adverse effects, such as hypotension, sedation, 211 extrapyramidal symptoms, 212 and QT-prolongation. 206 , 209 , 210 Most analysed randomised-controlled studies on the use of antipsychotics for POD treatment showed no positive effects on delirium overall. There was one systematic review with moderate certainty of the evidence, which included 12 RCTs on the treatment of POD with haloperidol and atypical antipsychotics and revealed no significant effect on delirium severity, delirium duration, mortality, hospital and ICU lengths of stay. 210 It also concluded that low-dose haloperidol therapy has comparable efficacy and side effect rates to atypical neuroleptics.\n\nResults and recommendations > PICO 16: Should antipsychotics be used for the treatment of POD?\nIn a systematic review from Neufeld et al. , 210 antipsychotics for the treatment of delirium were analysed. They had no subgroup for POD, so that we could not adopt this review to our guideline because of a high proportion of nonsurgical patients suffering from delirium. In the included patients, collectively, no benefits of antipsychotic treatment for delirium was found.\n\nResults and recommendations > PICO 16: Should antipsychotics be used for the treatment of POD?\nRegarding the benefits and harms of haloperidol or other antipsychotics for delirium therapy, it is uncertain if there are clear benefits, and the risk of undesired side effects remains. Delirium is a complex disorder, and there is no single drug intervention that plausibly could treat all cases of delirium. 214 Therefore, the concept of a drug treatment for delirium as a whole is flawed. However, in some circumstances, the use of antipsychotics might provide some benefit. There is no clear evidence for this, but expert consensus from published guidelines and standards supports limited use of antipsychotics only for severe distress particularly in the context of psychosis, and/or if hyperactivity and/or agitation is causing significant safety concerns when nonpharmacological interventions have been insufficiently effective or if the indication is urgent. We advise a short-term, symptom-oriented therapy. The application should be bolus-wise and with the lowest dose (suggestion on the initial dose in the elderly: 0.125 to 0.25 mg haloperidol): especially in elderly patients, who are considered being at particular risk of developing delirium after surgery and in which the sedative effect of antipsychotics predominates.\n\nResults and recommendations > PICO 17: Should benzodiazepines be used for the treatment of POD?\nRecommendation 6.2 Quality of the evidence Strength of recommendation The use of benzodiazepines for the treatment of delirium in postoperative patients is not suggested. The evidence for the benefits of benzodiazepine therapy for treating POD symptoms or the underlying causes is very low to nonexistent. This recommendation is not to be confused with delirium in the context of alcohol withdrawal, where benzodiazepines are recommended symptom orientated as the first-line medication (in a bolus-titrated dosage, lowest as possible). Very low Yapici et al. , 2011 215 Weak\n\nResults and recommendations > PICO 18: Should alpha-2 agonists be used for the treatment of POD?\nRecommendation 6.3 Quality of the evidence Strength of recommendation We suggest using dexmedetomidine for the treatment of postoperative delirium in cardiac surgery. Very low RCT: Yapici et al. , 2011 215 /SR: Pieri et al. , 2019 216 (based on Yapici 2011) RCT: Shokri and Ali, 2019 61 Weak\n\nResults and recommendations > PICO 18: Should alpha-2 agonists be used for the treatment of POD?\nThe importance of alpha 2-adrenoceptor agonists has increased in recent years, both clinically and economically. There is evolving evidence of the beneficial use of alpha 2-adrenoceptor agonists, particularly in elderly patients with delirium, although the underlying pathological mechanisms are still uncertain. Clinically, these agents are primarily characterised by analgesic, sedative, anxiolytic and antihypertensive effects. They also lower sympathetic tone. In Europe, dexmedetomidine is approved by the EMA for mild-to-moderate sedation levels from Richmond Agitation and Sedation Scale (RASS) 0 to RASS -3. Deeper sedation with dexmedetomidine in younger adults is currently being discussed as being harmful in these patients, while it may be beneficial in older surgical patients. 217\n\nResults and recommendations > PICO 18: Should alpha-2 agonists be used for the treatment of POD?\nRegarding POD treatment studies with alpha 2-adrenoceptor agonists, there is little evidence. We analysed eight studies using dexmedetomidine in the perioperative context. Seven of the eight studies were in cardiac surgery patients, including one systematic review. Therefore, no recommendation on alpha 2-adrenoceptor agonists for delirium treatment in noncardiac surgical patients is possible. Some of the studies included in our analysis overlapped with the studies included in the chapter on pharmacologic prevention of POD. In some study protocols, the investigated drug continued to be used even after the onset of POD. Thus, like the authors of the section on pharmacologic prevention of POD, the authors of the present section made the judgement that it was reasonable to draw some conclusions about the therapeutic effectiveness from these studies. 61 We chose delirium duration as our outcome for therapeutic effectiveness, and we rated delirium incidence as a preventive effect, when the investigational drug was started before delirium occurred.\n\nResults and recommendations > PICO 18: Should alpha-2 agonists be used for the treatment of POD?\nCertainty in reduction of severity of POD was rated from very low to low because of serious risk of bias: not all studies fulfilling POD assessment criteria included in the meta-analysis distinguished between POD and ICU delirium in postoperative patients, nor between preventive and treatment effects of dexmedetomidine. Two of the eight analysed studies lacked blinding of the participating physicians.\n\nResults and recommendations > PICO 18: Should alpha-2 agonists be used for the treatment of POD?\nThere is moderate certainty of evidence that postoperative patients receiving dexmedetomidine may lower delirium duration 57 , 59 , 61 and also mortality rates compared with patients receiving placebo, propofol or clonidine infusion. 42 , 61 The heterogeneity of the studies made meta-analysis inappropriate (Supplement Figure S17). There is low-to-moderate certainty of evidence that postoperative administration of dexmedetomidine is likely to reduce time to extubation, 42 , 53 , 215 hospital LoS, 42 , 57 , 61 ICU LoS 42 , 61 and time to onset of delirium. 57 The main limitations in all studies analysed were considerable imprecision (small sample sizes) and significant indirectness (i.e. mixed ICU and surgical patients, different timing or dosage of dexmedetomidine administration). As only one RCT used another alpha 2-adrenoceptor agonist (clonidine) as a comparator to dexmedetomidine, 61 the panel decided to use \u2018dexmedetomidine\u2019 in the suggestion.\n\nDiscussion\nFor precipitating factors associated with anaesthesia and surgery, it is relevant to monitor cerebral effects of anaesthesia through neuromonitoring on a level that considers drug-specific and patient-specific patterns as is already done during monitoring of circulation parameters. Based on adequate staff training, the anaesthesiologists should likely avoid burst suppression in their patients. In addition, other causes relevant to surgery such as inflammation, circulation-based hypoxic states, and haemodynamic instabilities require clinical trials to demonstrate effective interventions.\n\nExecutive summary\nRecommendation 6.2 Quality of the evidence Strength of recommendation The use of benzodiazepines for the treatment of delirium in postoperative patients is not suggested. The evidence for the benefits of benzodiazepine therapy for treating POD symptoms or the underlying causes is very low to nonexistent. This recommendation is not to be confused with delirium in the context of alcohol withdrawal, where benzodiazepines are recommended symptom orientated as the first-line medication (in a bolus-titrated dose, lowest as possible). Very low Weak",
+        "body_excerpts_sha256": "82f12c8c0ccfa5d45e5be5e5172569f2f5e637b615fc56b1241fa62e0b5dc11b",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10763721/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "31492476",
+        "title": "Evidence-based clinical practice guidelines for the management of sedoanalgesia and delirium in critically ill adult patients.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31492476/",
+        "abstract": "Given the importance of the management of sedation, analgesia and delirium in Intensive Care Units, and in order to update the previously published guidelines, a new clinical practice guide is presented, addressing the most relevant management and intervention aspects based on the recent literature. A group of 24 intensivists from 9 countries of the Pan-American and Iberian Federation of Societies of Critical Medicine and Intensive Therapy met to develop the guidelines. Assessment of evidence quality and recommendations was made according to the Grading of Recommendations Assessment, Development and Evaluation Working Group. A systematic search of the literature was carried out using MEDLINE, Cochrane Library databases such as the Cochrane Database of Systematic Reviews and the Cochrane Central Register of Controlled Trials (CENTRAL), the Database of Abstracts of Reviews of Effects, the National Health Service Economic Evaluation Database and the database of Latin American and Caribbean Literature in Health Sciences (LILACS). A total of 438 references were selected. After consensus, 47 strong recommendations with high and moderate quality evidence, 14 conditional recommendations with moderate quality evidence, and 65 conditional recommendations with low quality evidence were established. Finally, the importance of initial and multimodal pain management was underscored. Emphasis was placed on decreasing sedation levels and the use of deep sedation only in specific cases. The evidence and recommendations for the use of drugs such as dexmedetomidine, remifentanil, ketamine and others were incremented.",
+        "sha256": "9bf17bc4641fffea64542b2ce1d59dcd9b7f137a5002a66ba20c6064c051d133",
+        "retrieved_at": "2026-09-19T02:16:36.582523+00:00"
+      },
+      {
+        "id": "35279975",
+        "title": "2021 KSCCM clinical practice guidelines for pain, agitation, delirium, immobility, and sleep disturbance in the intensive care unit.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35279975/",
+        "abstract": "We revised and expanded the \"2010 Guideline for the Use of Sedatives and Analgesics in the Adult Intensive Care Unit (ICU).\" We revised the 2010 Guideline based mainly on the 2018 \"Clinical Practice Guidelines for the Prevention and Management of Pain, Agitation/Sedation, Delirium, Immobility, and Sleep Disruption (PADIS) in Adult Patients in the ICU,\" which was an updated 2013 pain, agitation, and delirium guideline with the inclusion of two additional topics (rehabilitation/mobility and sleep). Since it was not possible to hold face-to-face meetings of panels due to the coronavirus disease 2019 (COVID-19) pandemic, all discussions took place via virtual conference platforms and e-mail with the participation of all panelists. All authors drafted the recommendations, and all panelists discussed and revised the recommendations several times. The quality of evidence for each recommendation was classified as high (level A), moderate (level B), or low/very low (level C), and all panelists voted on the quality level of each recommendation. The participating panelists had no conflicts of interest on related topics. The development of this guideline was independent of any industry funding. The Pain, Agitation/Sedation, Delirium, Immobility (rehabilitation/mobilization), and Sleep Disturbance panels issued 42 recommendations (level A, 6; level B, 18; and level C, 18). The 2021 clinical practice guideline provides up-to-date information on how to prevent and manage pain, agitation/sedation, delirium, immobility, and sleep disturbance in adult ICU patients. We believe that these guidelines can provide an integrated method for clinicians to manage PADIS in adult ICU patients.",
+        "sha256": "498d7186f5685d8913dd50a50ed806aa326715509b6e4a1f6a7bd693a865d547",
+        "retrieved_at": "2026-09-19T02:16:36.582523+00:00",
+        "pmcid": "PMC8918705"
+      },
+      {
+        "id": "39046524",
+        "title": "Diagnostics and treatment of impulse control disorders, psychosis and delirium: systemic review-based recommendations\u00a0- guideline \"Parkinson's disease\" of the German Society of Neurology.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39046524/",
+        "abstract": "Impulse control disorders (ICD), psychosis and delirium are part of the spectrum of behavioural changes associated with Parkinson's disease (PD). The diagnostic and therapeutic management of these rather complex neuropsychiatric conditions has been updated in the clinical guideline by the German Society of Neurology (DGN).\nRecommendations are based on a systematic literature reviews, other relevant guidelines and expert opinion.\nPatients receiving dopamine agonists (DA) therapy should be informed about the symptoms and risks of an ICD and should be routinely screened for ICD symptoms. In the presence of an ICD, DA should be reduced or discontinued and psychotherapeutic treatment may be considered. Non-oral therapies (levodopa/carbidopa intestinal gel infusion or deep brain stimulation) may also be an option for appropriate candidates. Psychosis in PD often has a gradual onset. Cognitive and affective disorders, psychiatric and medical comorbidities as well as polypharmacy are risk factors for a psychosis. Non-pharmacological treatments should be implemented as soon as possible and anti-parkinsonian medications should be adjusted/reduced if feasible. For psychosis associated with PD, quetiapine or clozapine should be used on an as-needed basis and for as short a time as is necessary, with safety monitoring. Delirium in PD may be underdiagnosed due to an overlap with chronic neuropsychiatric features of PD. Although transient by definition, delirium in PD can lead to permanent cognitive decline, motor impairment and increased mortality. Management of delirium includes pharmacological and non-pharmacological interventions.\nThe updated guideline encompasses the evidence-based diagnostic, non-pharmacological and pharmacological management of ICD, psychosis and delirium in PD.",
+        "sha256": "365328c031eff4bc78c28586f1e71df1bcd8e2d271987780daaba0f8af5004f4",
+        "retrieved_at": "2026-09-19T02:16:37.163413+00:00",
+        "pmcid": "PMC11588934",
+        "body_excerpts": "Introduction\nParkinson\u2019s disease (PD) is a neuropsychiatric disorder [ 1 ]. In addition to the motor symptoms, the spectrum for PD symptoms includes a wide range of neuropsychiatric manifestations. A meta-analysis of 30 studies including 7142 PD patients with a disease duration of more than 3 years reported a prevalence of depressive disorders of 47.2%, apathy of 45.5%, anxiety disorders of 42.9%, psychotic disorders of 19.4% and impulse control disorders (ICD) of 18.5% [ 1 ]. A prevalence of 31% has been reported for delirium in inpatients with PD [ 2 ]. The German 2016 guideline included the medical management of psychosis in PD [ 3 ]. The new guideline from 2023 updates the diagnostic and therapeutic management of psychosis in PD and newly includes the diagnosis and treatment of ICD and delirium in [ 4 ]. In the present article, the specified diagnostic and therapeutic management issues, results of a systemic literature review, other relevant guidelines and expert opinions are used to generate recommendations for these disorders in PD based on the recently published German guideline.\n\nIntroduction > What is new in the 2023 guideline?\nIn addition to the previous version, the new guidelines include recommendations for the diagnosis and treatment of ICD, which are important given the high prevalence in PD. Risk factors, diagnosis and treatment of psychosis in PD have been updated and the recommendations for the diagnosis and management of delirium are included. Main recommendations are as follows:\n\nIntroduction > What is new in the 2023 guideline?\nBefore using dopamine agonists, patients should be informed about the signs and symptoms of an ICD and their association with the use of dopamine agonists.\n\nIntroduction > What is new in the 2023 guideline?\nThe Questionnaire for Impulsive-Compulsive Disorders in Parkinson's Disease\" (QUIP) should be used to assess signs and symptoms of ICD.\n\nIntroduction > What is new in the 2023 guideline?\nThe QUIP test as a screening test should be aided by patient\u2019s history and expand with an external medical history.\n\nIntroduction > What is new in the 2023 guideline?\nStopping dopamine agonists is an effective ICD treatment. We recommend a gradual doses reduction of dopamine agonists.\n\nIntroduction > What is new in the 2023 guideline?\nIn the event of adverse effects of dopamine agonist reduction (e.g. dopamine agonist withdrawal syndrome), the dopamine agonist should be reduced to the lowest tolerated dosage.\n\nIntroduction > What is new in the 2023 guideline?\nNon-dopaminergic drugs such as naltrexone, zonisamide, clozapine, risperidone, quetiapine and valproate acid should not be used for ICD therapy given the lack of evidence.\n\nIntroduction > What is new in the 2023 guideline?\nBilateral deep brain stimulation of the subthalamic nucleus can be recommended to treat signs and symptoms of an ICD in patients eligible for deep brain stimulation.\n\nIntroduction > What is new in the 2023 guideline?\nA stepwise approach is recommended in PD patients with psychotic symptoms:\n\nIntroduction > What is new in the 2023 guideline?\nIf 1\u20133 fail, clozapine should be used in the balance between benefits and risks (risk of agranulocytosis, risk of myocarditis, risk of falls, anticholinergic side effects). Alternatively, quetiapine may be offered off-label in PD patients without cognitive impairment.\n\nIntroduction > What is new in the 2023 guideline?\nAmantadine, anticholinergics and dopamine agonists should be reduced or (gradually) discontinued.\n\nIntroduction > What is new in the 2023 guideline?\nNon-pharmacological measures for prevention and therapy of delirium in PD include early mobilisation, avoidance of catheters and accesses, adherence to the day\u2013night rhythm, sensory aids (hearing aids, visual aids), food and fluid intake, quiet environment with good lighting and good colour contrasts, treatment of pain and infections, presence of caregivers (including rooming-in) and reorientation measures (e.g. introduction by name at every contact, clock in the field of vision)\n\nIntroduction > What is new in the 2023 guideline?\nIn the case of delirium in PD, triggering factors (pain, infections, metabolic disorders) should be treated with medication.\n\nIntroduction > What is new in the 2023 guideline?\nQuetiapine may be used to treat delirium. When using quetiapine, cognition, blood pressure and bladder emptying should be monitored. Clozapine and benzodiazepines may be used in individual cases with special consideration of possible side effects, especially the risk of falls.\n\nMethods\nThe new guidelines were developed as S2k guideline, i.e. the recommendations were based on a structured consensus process.\n\nMethods\nThe guidelines follow the rules and recommendations of the Sk2 guidelines of the AWMF (Arbeitsgemeinschaft der Wissenschaftlichen Medizinischen Fachgesellschaften/Working Group of the Scientific Medical Societies) [ 5 ]. The writing team for the chapters on ICD, psychosis and delirium consisted of an interdisciplinary group of experts from the fields of neurology (KW, JL, TvE, GE) and psychiatry and psychotherapy (AH). The key questions selected for the development of the recommendations were developed by this team and approved by the Editorial Board of the PD Guidelines, which consists of the publisher, i.e. the German Neurological Society (DGN), other professional associations and organisations, and experts in the field. The authors of this guideline developed a draft guideline, which was discussed and voted on as part of a structured consensus building process by a panel of experts (see appendix) and 22 German, Austrian and Swiss professional societies and organisations, including patient representatives.\n\nMethods\nThe recommendations are based on (i) systematic reviews in the MEDLINE database, including meta-analyses, randomised controlled trials (RCTs) and other relevant studies; (ii) German national guidelines for delirium [ 6 ] and schizophrenia [ 7 ]; (iii) recommendations from the International Parkinson and Movement Disorder Society (MDS); (iv) expert opinion based on clinical expertise and knowledge of the literature and (v) the previous version of the Parkinson\u2019s Disease (PD) guideline [ 8 ] for all questions that were already included.\n\nMethods\nThe recommendations follow a \u201cshould/should not\u201d, \u201ccan/cannot\u201d or \u201cmight/might not\u201d sentence structure. The recommendations were discussed and approved by the PD Guidelines Editorial Board. Revisions were made based on the discussions. The final recommendations were then voted on and scored according to agreement (strong agreement: > 95% positive votes; agreement: > 85\u201395%; majority agreement: > 50\u201385%; no majority agreement: < 50%).\n\nResults > Which tests are suitable for the assessment of impulse control disorders in patients with PD compared to PD patients without impulse control disorders?\nThe wide clinical spectrum of behavioural abnormalities in PD requires a detailed history in addition to the use of a standardised tests. This is because ICD are not necessarily associated with personal distress for the patient, and there are even feelings of satisfaction when ICD behaviours are performed [ 11 ]. Therefore, an external history is recommended. As ICD can occur at any time during the illness and also with a marked latency to the initiation of DA treatment [ 18 ], sustained attention is required to detect ICD in PD. As ICD is associated with self-harm and harm to others and significantly reduces the patient's quality of life [ 19 ], appropriate diagnosis is essential.\n\nResults > Study analysis and guideline establishment\nThe Questionnaire for Impulsive-Compulsive Disorders in Parkinson's disease (QUIP) is available as a validated translation into German [ 20 , 21 ]. The scale has three sections. The first section asks about signs and symptoms of an ICD (gambling, shopping, hypersexuality and eating disorders). Section 2 asks about other compulsive behaviours (punding, hobbyism and ritualistic walking) and section 3 asks about medication overuse. The QUIP is used to assess the presence of ICD symptoms both during the course of the illness (QUIP-anytime) and at the time of the interview (QUIP-current). The questionnaire is completed using the QUIP Rating Scale (QUIP-RS), which describes the severity of symptoms [ 20 ]. The German version of the QUIP shows a good sensitivity for ICD symptoms of 68\u201391% for the QUIP-current and 68\u201391% for the QUIP-anytime [ 21 ]. Whenever the QUIP indicates to the presence of an ICD a detailed psychiatric examination should be performed in order to assess the individual extent and severity of the symptoms.\n\nResults > Study analysis and guideline establishment\nRecommendation for IDC symptom screening (new) Before using dopamine agonists, patients should be informed about the signs and symptoms of an ICD and their association with the use of dopamine agonists The Questionnaire for Impulsive-Compulsive Disorders in Parkinson\u2019s Disease (QUIP) should be used to assess signs and symptoms of impulse control disorders The QUIP test as a screening test should be aided by a patient history and an external medical history Level of consensus: 96.6%, strong consensus\n\nResults > Study analysis and guideline establishment > The efficacy of reducing DA doses or even omitting DAs for ICD therapy\nOne study reported that 80% of patients were ICD-free after DA dose reduction and 100% of patients were ICD free after DA discontinuation [ 36 ]. In a follow-up study of 30 PD patients with ICD on DA, discontinuation of DA showed a reduction in ICD severity of 50% in the first year and a further 20% in the second year [ 11 ]. Therefore, DA dose reduction and discontinuation are effective treatment strategies for ICD therapy in PD. If discontinuation is unsuccessful, for example, in the setting of DA withdrawal syndrome (DAWS), the dose should be tapered to the lowest tolerated DA dose.\n\nResults > Study analysis and guideline establishment > The efficacy of switching DA therapy to a continuous levodopa/carbidopa intestinal gel for ICD therapy\nRecommendation for the management of dopamine agonists in ICD in Parkinson\u2019s disease (new) Withdrawal of dopamine agonists is an effective ICD treatment. We recommend a gradual reduction of dopamine agonist dosage In the event of adverse effects of dopamine agonist reduction (e.g. dopamine agonist withdrawal syndrome), the dopamine agonist should be reduced to the lowest tolerated dose Patients with Parkinson's disease who are eligible for continuous non-oral dopaminergic therapy may be considered for ICD therapy with levodopa-carbidopa intestinal gel (LCIG) Level of consensus: 100%, strong consensus\n\nResults > Study analysis and guideline establishment\nRecommendation for the use of cognitive behavioural therapies in the management of ICD in Parkinson\u2019s disease (new) Cognitive behavioural therapy can be used to treat ICD in PD Level of consensus: 100%, strong consensus\n\nResults > Study analysis and guideline establishment\nThe spectrum of psychotic disorders includes hallucinations with loss of insight and the development of delusions, e.g. delusions of jealousy, and should be carefully considered during the history and examination as these symptoms are often not spontaneously reported [ 68 , 70 \u2013 72 ]. An important differential diagnosis is psychosis due to delirium on PD.\n\nResults > What are the risk factors for psychotic disorders in PD? > Study analysis and guideline establishment\nThe spectrum of risk factors is wide. Knowledge of risk factors for psychotic disorders in PD should be taken into account in preventive measures and treatment. Mild cognitive impairment or dementia, depression, advanced age, duration and severity of PD, as well as significant psychiatric (especially current or past addiction) or medical comorbidities (e.g. pronounced cerebral microangiopathy) are risk factors for the development of psychosis in PD. Other important and modifiable risk factors include sensory deprivation due to reduced vision or hearing. In addition, there are significant pharmacological risks, such as complex medication regimens (differential diagnosis with delirium). Visual hallucinations are most common in poor lighting conditions (e.g. poorly lit wards, lack of contrast in room design).\n\nResults > How are psychotic symptoms diagnosed in PD? > Study analysis and guideline establishment\nThere is no standardised methodology for the diagnosis of psychotic symptoms in PD. Before diagnosing PD medication-induced psychosis as the cause of a psychotic syndrome, other aetiologies causing secondary psychosis must be excluded. Important differential diagnoses that must be considered include other neurodegenerative disorders, psychosis associated with the various causes of delirium, major depressive disorder, side effects of dopaminergic medications (especially dopamine agonists, COMT inhibitors), side effects of other medications (e.g. opiates, anticholinergics), hyponatremia, substance abuse or intoxication. To date no standardised tool has been developed for the diagnosis of psychotic disorders in PD. Various questionnaires may facilitate the diagnostic process (see research question above).\n\nResults > Delirium\nPD is an independent risk factor for the development of delirium. The development of delirium is an important complication that is associated with a high risk of long-lasting deterioration of motor, autonomic and higher brain functions and psychopathology. Delirium is also associated with higher mortality rates. The few studies available do not allow a statement to be made as to whether delirium in the context of PD is characterised by a specific phenotype. During delirium, an increase in motor symptoms and a reduced response to dopaminergic medication may occur. The clinical diagnosis of delirium in PD requires the differentiation of symptoms inherent to PD and delirious symptoms. This includes both motor symptoms such as hypokinesia and the various non-motor symptoms that can occur in the different stages of PD. Neuropsychiatric symptoms, not only hallucinations and delusions but also apathy, restlessness, insomnia and sleep-associated behavioural disorders, overlap with the possible symptoms of delirium. Behavioural disorders and fluctuations in vigilance are particularly common in dementia with Lewy bodies (DLB). In addition, side effects of anti-Parkinson's therapy can lead to symptom overlaps. These include psychomotor agitation, visual hallucinations, vegetative symptoms, agitation and confusion. To date, there is insufficient knowledge about the prevalence, incidence, course and prognosis of delirium in PD. There is also a lack of clinical studies from which evidence-based recommendations for the management of delirium in PD can be drawn.\n\nResults > Delirium\nIn sum, the overlap between symptoms of delirium and PD and the complex role of dopaminergic transmission for phenotype and pharmacotherapy motivated us to define guidelines for delirium in PD in addition to the established guidelines for delirium.\n\nResults > What are the risk factors for delirium in PD? > Data sources, study analysis and guideline establishment\nNo controlled studies were identified in which specific risk factors for delirium in PD were investigated. General risk factors for the development of delirium [ 87 ] were identified in two reviews and judged to be also relevant for delirium in PD [ 88 , 89 ].\n\nResults > What are the risk factors for delirium in PD? > Data sources, study analysis and guideline establishment\nRecommendation to pay attention to the following risk factors for delirium in Parkinson\u2019s disease (new) \u2022 The following factors can predispose to the occurrence of delirium: Advanced age (usually > 65 years), pre-existing substance use, polypharmacy, hearing impairment, internal comorbidities and cognitive disorders. Infections, metabolic disorders, psychological stressors, drug side effects and pain can be considered as triggers. Prolonged treatment in hospital, especially in intensive care units, major surgical interventions and catheters, can increase the risk of delirium in hospitalised patients Level of consensus: 100%, strong consensus\n\nResults > What diagnostic tools exist for delirium in PD? > Data sources, study analysis and guideline establishment\nNo studies were identified in which diagnostic instruments for delirium in PD were investigated. According to three reviews, it is possible to use scales that are not specifically developed for the diagnosis of delirium in PD [ 88 \u2013 90 ].\n\nResults > What diagnostic tools exist for delirium in PD? > Data sources, study analysis and guideline establishment\nRecommendation on screening methods for the detection of delirium in Parkinson's disease (new) For delirium screening, the Nurse Delirium Screening Scale (Nu-Desc) [ 91 ] and the Delirium Observation Scale (DOS-S) [ 92 ] may be used. The Confusion Assessment Method (CAM) [ 87 ] may be used to diagnose delirium and assess its course Level of consensus: 100%, strong consensus\n\nResults > How is delirium diagnosed in PD? > Data sources and search strategy\nNo controlled studies were identified in which specific diagnostic criteria for delirium in PD were investigated. Three reviews were identified that addressed the diagnosis of delirium in PD [ 88 \u2013 90 ].\n\nResults > How is delirium diagnosed in PD? > Study analysis and guideline establishment\nIn principle, the criteria listed in ICD-10/11 and DSM-V apply to the diagnosis of delirium. According to these, delirium is defined as an acute and transient disturbance of attention and perception with accompanying disturbance of memory, orientation, language and perception. In ICD-11 and DSM-V, delirium is additionally characterised by a fluctuating course. Disturbances of the sleep\u2013wake rhythm, hallucinations and delusions and psychomotor agitation are further symptoms that can be associated with delirium.\n\nResults > How is delirium diagnosed in PD? > Study analysis and guideline establishment\nDelirium presents in three clinical manifestations: (I) the hyperactive, (II) the hypoactive form and (III) mixed delirium, which is characterised by alternating hyperactive and hypoactive states. The mixed form is the most common. The diagnosis of delirium in PD is complicated by overlapping symptoms of delirium with those that can be attributed to PD symptoms of delirium with those of PD (e.g. apathy, vigilance fluctuations, drug-induced hallucinations). Imaging, EEG and laboratory tests are performed for differential diagnosis and identification of triggering factors.\n\nResults > How is delirium diagnosed in PD? > Study analysis and guideline establishment\nRecommendation for the diagnosis of delirium in Parkinson's disease (new) The diagnosis of delirium in PD can be made on the basis of the criteria listed in ICD-10/11 or DSM-V criteria listed in the ICD-10/11 or DSM-V. Possible overlaps with other psychopathological complications of PD should be taken into account. The Confusion Assessment Method (CAM, [ 1 ]) may be used to diagnose delirium in PD. Differential diagnoses and triggering factors for delirium can be identified by paraclinical diagnostics Level of consensus: 100%, strong consensus\n\nResults > Do preventive measures in PD lead to a reduction in the risk of delirium? > Data sources and search strategy\nNo controlled studies were identified in which preventive measures to avoid delirium in PD were investigated. Two reviews were identified that dealt with the prevention of delirium in PD [ 88 , 89 ].\n\nResults > Do preventive measures in PD lead to a reduction in the risk of delirium? > Study analysis and guideline establishment\nPrevention includes adherence to the day\u2013night rhythm, use of assistive devices, early mobilisation, adequate food and fluid intake, a quiet environment and, as far as possible, avoidance of catheters and accesses [ 93 , 94 ]. Adequate hydration and the treatment of pain and infections are relevant both for the prevention as well as for the treatment of delirium. Training hospital staff on delirium is desirable. The involvement of relatives plays a crucial role in delirium prevention [ 87 ]. If possible, the admission of an accompanying person can lower the risk of hospitalisation delirium in particularly vulnerable patients, e.g. those with dementia or psychotic symptoms [ 88 , 89 ].\n\nResults > Do preventive measures in PD lead to a reduction in the risk of delirium? > Study analysis and guideline establishment\nRecommendation for the prevention of delirium in Parkinson's disease (new) The following measures may be considered to prevent delirium in patients at risk of delirium: 1. early mobilisation 2. avoidance of catheters and i.v. lines 3. adherence to the day\u2013night rhythm 4. sensory aids (hearing aids, visual aids) 5. food and fluid intake 6. quiet environment 7. environment with good lighting and good colour contrasts 8. treatment of pain and infections 9. presence of caregivers (including rooming-in) 10. Reorientation measures (e.g. introducing oneself by name at every contact, clock in the in the field of vision) Level of consensus: 96.9%, strong consensus\n\nResults > Does a change in Parkinson's therapy in PD lead to a reduction in delirium? > Data sources and search strategy\nNo controlled studies were identified in which the effects of a change in PD therapy on delirium were investigated. Three reviews were identified that addressed the effects of PD therapy on delirium in PD [ 88 , 89 , 95 ].\n\nResults > Does a change in Parkinson's therapy in PD lead to a reduction in delirium? > Study analysis and guideline establishment\nIn cases of delirium, drugs with potentially higher delirogenic potency should be discontinued [ 96 ]. These include DA, anticholinergics and amantadine. This often results in levodopa monotherapy [ 88 ]. Close monitoring is required since withdrawal symptoms (DWAS: dopamine agonist withdrawal syndrome; MDES: malignant dopaminergic withdrawal syndrome) can occur after abrupt discontinuation of these substances.\n\nResults > Does a change in Parkinson's therapy in PD lead to a reduction in delirium? > Study analysis and guideline establishment\nRecommendation for changing the anti-Parkinson medication for delirium in Parkinson's disease (new) In the case of delirium in PD, amantadine, anticholinergics and dopamine agonists should be reduced or (gradually) be discontinued Level of consensus: 93.1%, strong consensus\n\nResults > Do other pharmacological therapies lead to a reduction in delirium in PD? > Data sources and search strategy\nNo controlled trials were identified in which the effects of other pharmacological therapies on delirium in PD were investigated. Three reviews were identified that dealt with the pharmacological treatment of delirium in PD [ 88 , 89 , 95 ].\n\nResults > Do other pharmacological therapies lead to a reduction in delirium in PD? > Study analysis and guideline establishment\nDrug therapy options include the treatment of factors potentially causing delirium, such as acute infections, pain or metabolic disorders. Antipsychotic treatment of delirium with quetiapine and clozapine has not yet been sufficiently investigated in PD, while other antipsychotics are contraindicated for the treatment of delirium in PD due to their dopamine blocking properties. Due to its anticholinergic properties, clozapine can increase delirium. Quetiapine is used in other indications (e.g. delirium in dementia), but corresponding studies are lacking, as is the use of benzodiazepines for severe anxiety and agitation. The administration of benzodiazepines increases the risk of falls and aspiration and must therefore be used with extreme caution. Paradoxical effects are also possible.\n\nResults > Do other pharmacological therapies lead to a reduction in delirium in PD? > Study analysis and guideline establishment\nRecommendation for drug therapy of delirium in Parkinson's disease (new) In the case of delirium in PD, triggering factors (pain, infections, metabolic disorders) should be treated with medication. Quetiapine may be used to treat delirium. When using quetiapine, cognition, blood pressure and bladder emptying should be monitored. It must be noted that Quetiapine has not been specifically investigated for delirium in PD [ 97 ]. Clozapine and benzodiazepines may be used in individual cases with special consideration of possible side effects, especially the risk of falls. In general, due to the anticholinergic properties, a worsening of delirium in PD can also occur with the antipsychotics mentioned here Level of consensus: 93.1%, strong consensus\n\nResults > Do non-pharmacological therapies in PD lead to a reduction in delirium? > Data sources and search strategy\nNo controlled trials were identified in which non-pharmacological interventions were used to reduce delirium in PD. Three reviews were identified that dealt with non-pharmacological measures to reduce delirium in PD [ 88 , 89 , 95 ].\n\nResults > Do non-pharmacological therapies in PD lead to a reduction in delirium? > Study analysis and guideline establishment\nNon-pharmacological measures play a decisive role both for prevention of delirium in patients at risk and in manifest delirium (see above). Involving relatives supports the communication and (re)orientation of those affected by delirium [ 94 ]. If possible, it is helpful if the patient's partner or a close caregiver is also admitted to the hospital [ 89 ]. Adapted ward routines with direct nursing care and therapeutic measures for orientation during the day and at night have a positive effect on patients with delirium. An adequate supply of food and fluids and the provision of hearing aids are further important elements of non-medication therapy [ 87 ].\n\nResults > Do non-pharmacological therapies in PD lead to a reduction in delirium? > Study analysis and guideline establishment\nIn the case of delirium in PD, triggering factors (pain, infections, metabolic disorders) should be treated with medication. Quetiapine can be used to treat delirium under control of cognition, circulation and bladder emptying. It must be noted that Quetiapine has not been specifically investigated for delirium in PD [ 97 ]. Clozapine and benzodiazepines can be used in individual cases with special consideration of possible side effects, especially the risk of falls. In general, due to the anticholinergic properties, a worsening of delirium in PK can also occur with the antipsychotics mentioned here.\n\nResults > Do non-pharmacological therapies in PD lead to a reduction in delirium? > Study analysis and guideline establishment\nRecommendation for the non-drug therapy of delirium in Parkinson's disease (new) The following measures may be used for the non-medication therapy of delirium in PD: 1. early mobilisation 2. avoidance of catheters and accesses 3. adherence to the day\u2013night rhythm 4. sensory aids (hearing aids, visual aids) 5. food and fluid intake 6. quiet environment 7. environment with good lighting and good colour contrasts 8. treatment of pain and infections 9. presence of caregivers (including rooming-in) 10. reorientation measures (e.g. introduction by name at every contact, clock in the field of vision) Level of consensus: 97.0%, strong consensus\n\nDiscussion\nThis guideline article presents evidence for and expert opinions on diagnostic and therapeutic procedures in the management of ICD, psychosis and delirium in PD. It is acknowledged that only a few randomised controlled studies in these fields of interest have been performed. In the treatment of those neuropsychiatric conditions, it is important to consider the individual characteristics of patients. These differences between patients, such as demographic factors, their comorbidities, the cognitive profile and cognitive reserve, and individual disease characteristics and differences in the course of the disease, need to be considered in both diagnosis and treatment regimes. In the following sections, we will discuss some of the special considerations that should be taken into account. We will also describe some of the medical conditions that may occasionally require a deviation from the guidelines, and we will suggest ways to address some of the gaps in knowledge that could be beneficial for everyday clinical practice.\n\nDiscussion\nAt present, there are only few studies addressing delirium in PD. Given that delirium in PD is a potentially avoidable and treatable condition, more efforts are needed to improve recognition and to improve prevention and management. Acute onset may help differentiate between delirium and chronic neuropsychiatric symptoms inherent to PD. Yet, the clinical course may include fluctuations of symptoms in both conditions and delirium can thus be easily overlooked in PD. Psychomotor slowing in hypoactive delirium may be particularly difficult to differentiate from hypodopaminergic OFF-state conditions. Available assessment tools for delirium, such as CAM [ 87 ], should be validated for PD or modified accordingly. Further research is also needed to better understand transient or permanent motor deterioration which often occurs in the context of delirium in PD and may not properly respond to levodopa medication. At present, the knowledge about the effects of pharmacologic interventions on the course of delirium in PD is insufficient and pertinent recommendations largely rely on expert opinion. Prospective multicentre approaches are needed to delineate risk factors, prevalence, management and outcome of delirium in PD.\n\nDiscussion\nDelirium is a burdensome situation also for caregivers and relatives. More insight on caregiver burden and support is critical and may be relevant to reduce long-term institutionalisation following delirium. In this line, awareness for PD delirium should be increased by continuous education of physicians, nursing staff and caregivers. More efforts and appropriate reimbursement are needed to implement preventive and supportive measures such as screening routines to identify PD patients at risk for delirium, rooming-in of caregivers, psychosocial counselling and cognitive rehabilitation.\n\nData sharing and data accessibility\nSystematic literature search data will be shared by request from any qualified investigator. Data sharing requests are made in writing through Prof. Dr. Karsten Witt (chapter \u201cICD\u201d, karsten.witt@uni-oldenburg.de, Carl von Ossietzky Universit\u00e4t, Oldenburg), Prof. Dr. Johannes Levin (chapter \u201cPsychosis\u201d, johannes.levin@med.uni-muenchen.de, University Munich) and Prof. Dr. Georg Ebersbach (chapter \u201cDelirium\u201d, ebersbach@kliniken-beelitz.de, Movement Disorder Hospital, Beelitz-Heilst\u00e4tten). Data sharing requires a formal data sharing agreement with approval from the respective University and the guideline office of the German Society of Neurology (DGN). Data sharing agreements must include details on how the data will be stored, who will have access to the data and intended use of the data and agreements as to the allocation of intellectual property.\n\nAssociated Data > Data Availability Statement\nSystematic literature search data will be shared by request from any qualified investigator. Data sharing requests are made in writing through Prof. Dr. Karsten Witt (chapter \u201cICD\u201d, karsten.witt@uni-oldenburg.de, Carl von Ossietzky Universit\u00e4t, Oldenburg), Prof. Dr. Johannes Levin (chapter \u201cPsychosis\u201d, johannes.levin@med.uni-muenchen.de, University Munich) and Prof. Dr. Georg Ebersbach (chapter \u201cDelirium\u201d, ebersbach@kliniken-beelitz.de, Movement Disorder Hospital, Beelitz-Heilst\u00e4tten). Data sharing requires a formal data sharing agreement with approval from the respective University and the guideline office of the German Society of Neurology (DGN). Data sharing agreements must include details on how the data will be stored, who will have access to the data and intended use of the data and agreements as to the allocation of intellectual property.",
+        "body_excerpts_sha256": "ad42165576df1d95976bf8e0b0f8d2acab0038e23acd660c8cab9ea14f9bbc79",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11588934/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "32246170",
+        "title": "[Depression, anxiety, delirium and desire to die in palliative care : Recommendations of the S3 guideline on palliative care for patients with incurable cancer].",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32246170/",
+        "abstract": "The aim of palliative care is to optimize the quality of life of patients with incurable advanced diseases. Adequate psychotherapeutic and psychiatric care is essential in this context.\nThis article presents the recommendations of the S3 guideline on palliative care for patients with incurable cancer with regard to psychotherapeutic and psychiatric contents.\nThe guideline was developed under the leadership of the German Society for Palliative Medicine (DGP) within the methodological framework of the German Guideline Program in Oncology. Systematic literature reviews were carried out to identify relevant publications in the databases Medline, Cochrane Library, PsycInfo and Embase. Based on the publications included and clinical experience, representatives of 61\u00a0professional associations developed and agreed on evidence-based and consensus-based recommendations.\nOut of the total of 15\u00a0chapters in the guidelines, four have a special reference to psychiatry or psychotherapy; they cover the topics depression, anxiety, delirium in the dying phase and dealing with the desire to die. These chapters contain a\u00a0total of 71\u00a0recommendations, almost one third of which are evidence-based. In view of the regularly undetected psychological symptoms in patients with incurable cancer, an early assessment is recommended. Optimal control of physical symptoms and support in social and existential matters are general measures that should be provided in addition to non-pharmacological and pharmacological procedures.\nThe guideline on palliative care deals with important mental issues that should be considered by all disciplines and professions. The need for research in palliative care remains high.",
+        "sha256": "fd291cc94c65cfdfb12d35498ff8ef78481853797e5f04c5ad19d2f38054e1da",
+        "retrieved_at": "2026-09-19T02:16:37.163413+00:00"
+      },
+      {
+        "id": "39488349",
+        "title": "ACR Appropriateness Criteria\u00ae Altered Mental Status, Coma, Delirium, and Psychosis: 2024 Update.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39488349/",
+        "abstract": "Altered mental status (AMS) and coma are terms used to describe disorders of arousal and content of consciousness. AMS may account for up to 4% to 10% of chief complaints in the emergency department setting and is a common accompanying symptom for other presentations. AMS is not a diagnosis, but rather a term for symptoms of acute or chronic disordered mentation, including confusion, disorientation, lethargy, drowsiness, somnolence, unresponsiveness, agitation, altered behavior, inattention, hallucinations, delusions, and psychosis. Some of the most common disorders associated with AMS are underlying medical conditions, substance use, and mental disorders. This document focuses on the appropriateness of neuroimaging in adult patients presenting with AMS changes including new onset delirium or new onset psychosis. In these cases, imaging is often expedited for initial stabilization and to exclude an intracranial process requiring intervention. The American College of Radiology Appropriateness Criteria are evidence-based guidelines for specific clinical conditions that are reviewed annually by a multidisciplinary expert panel. The guideline development and revision process support the systematic analysis of the medical literature from peer reviewed journals. Established methodology principles such as Grading of Recommendations Assessment, Development, and Evaluation or GRADE are adapted to evaluate the evidence. The RAND/UCLA Appropriateness Method User Manual provides the methodology to determine the appropriateness of imaging and treatment procedures for specific clinical scenarios. In those instances where peer reviewed literature is lacking or equivocal, experts may be the primary evidentiary source available to formulate a recommendation.",
+        "sha256": "e115594bf856f6ae74e3a6cf7a0ec2e404f4cf6741b4affbb9a1a9c89ae3fe14",
+        "retrieved_at": "2026-09-19T02:16:37.163413+00:00"
+      },
+      {
+        "id": "31054753",
+        "title": "ACR Appropriateness Criteria\u00ae Acute Mental Status Change, Delirium, and New Onset Psychosis.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31054753/",
+        "abstract": "Acute changes in mental status represent a broad collection of symptoms used to describe disorders in mentation and level of arousal, including the more narrowly defined diagnoses of delirium and psychosis. A wide range of precipitating factors may be responsible for symptom onset including infection, intoxication, and metabolic disorders. Neurologic causes that may be detected on neuroimaging include stroke, traumatic brain injury, nonconvulsive seizure, central nervous system infection, tumors, hydrocephalus, and inflammatory disorders. Not infrequently, two or more precipitating factors may be found. Neuroimaging with CT or MRI is usually appropriate if the clinical suspicion for an acute neurological cause is high, where the cause of symptoms is not found on initial assessment, and for patients whose symptoms do not respond appropriately to management. There was disagreement regarding the appropriateness of neuroimaging in cases where a suspected, nonneurologic cause is found on initial assessment. Neuroimaging with CT is usually appropriate for patients presenting with delirium, although the yield may be low in the absence of trauma or a focal neurological deficit. Neuroimaging with CT or MRI may be appropriate in the evaluation of new onset psychosis, although the yield may be low in the absence of a neurologic deficit. The American College of Radiology Appropriateness Criteria are evidence-based guidelines for specific clinical conditions that are reviewed annually by a multidisciplinary expert panel. The guideline development and revision include an extensive analysis of current medical literature from peer reviewed journals and the application of well-established methodologies (RAND/UCLA Appropriateness Method and Grading of Recommendations Assessment, Development, and Evaluation or GRADE) to rate the appropriateness of imaging and treatment procedures for specific clinical scenarios. In those instances where evidence is lacking or equivocal, expert opinion may supplement the available evidence to recommend imaging or treatment.",
+        "sha256": "42c372585fdf0e3950b0f7e301bbfa46545c39216dca147e5d820af34286673d",
+        "retrieved_at": "2026-09-19T02:16:37.797463+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The acute fluctuating inattention, disorganized thinking, and altered arousal meeting CAM criteria indicate postoperative delirium. Management should promptly target likely contributors, including symptomatic urinary infection, pain, poor intake/dehydration, mild hyponatremia, medication effects, sleep disruption, and absent hearing aids. Recommended supportive measures include reorientation, restoration of sensory aids, day-night cues, nutrition, hydration, and early safe mobilization. Parkinson-specific guidance recommends supervised reduction or gradual discontinuation of potentially deliriogenic amantadine while avoiding abrupt disruption of essential dopaminergic therapy. Routine lorazepam is inappropriate because benzodiazepines are not recommended for postoperative delirium outside alcohol withdrawal and may worsen sedation, falls, and aspiration risk. The patient also has no severe agitation or dangerous behavior requiring symptom-directed sedation. These recommendations are supported by the postoperative delirium guideline (PMID 37599617) and Parkinson disease delirium guideline (PMID 39046524).",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "39046524"
+              ],
+              "reason": "The source defines delirium by acute, fluctuating impairment of attention with accompanying cognitive or perceptual disturbance and permits CAM for diagnosis in Parkinson disease.",
+              "source_passage_ids": [
+                "39046524:p23",
+                "39046524:p24",
+                "39046524:p25"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39046524",
+                  "quote": "Results > What diagnostic tools exist for delirium in PD? > Data sources, study analysis and guideline establishment Recommendation on screening methods for the detection of delirium in Parkinson's disease (new) For delirium screening, the Nurse Delirium Screening Scale (Nu-Desc) [ 91 ] and the Delirium Observation Scale (DOS-S) [ 92 ] may be used. The Confusion Assessment Method (CAM) [ 87 ] may be used to diagnose delirium and assess its course Level of consensus: 100%, strong consensus Results > How is delirium diagnosed in PD? > Data sources and search strategy No controlled studies were identified in which specific diagnostic criteria for delirium in PD were investigated. Three reviews were identified that addressed the diagnosis of delirium in PD [ 88 \u2013 90 ]."
+                },
+                {
+                  "source_id": "39046524",
+                  "quote": "Results > How is delirium diagnosed in PD? > Study analysis and guideline establishment In principle, the criteria listed in ICD-10/11 and DSM-V apply to the diagnosis of delirium. According to these, delirium is defined as an acute and transient disturbance of attention and perception with accompanying disturbance of memory, orientation, language and perception. In ICD-11 and DSM-V, delirium is additionally characterised by a fluctuating course. Disturbances of the sleep\u2013wake rhythm, hallucinations and delusions and psychomotor agitation are further symptoms that can be associated with delirium. Results > How is delirium diagnosed in PD? > Study analysis and guideline establishment Delirium presents in three clinical manifestations: (I) the hyperactive, (II) the hypoactive form and (III) mixed delirium, which is characterised by alternating hyperactive and hypoactive states."
+                },
+                {
+                  "source_id": "39046524",
+                  "quote": "The mixed form is the most common. The diagnosis of delirium in PD is complicated by overlapping symptoms of delirium with those that can be attributed to PD symptoms of delirium with those of PD (e.g. apathy, vigilance fluctuations, drug-induced hallucinations). Imaging, EEG and laboratory tests are performed for differential diagnosis and identification of triggering factors. Results > How is delirium diagnosed in PD? > Study analysis and guideline establishment Recommendation for the diagnosis of delirium in Parkinson's disease (new) The diagnosis of delirium in PD can be made on the basis of the criteria listed in ICD-10/11 or DSM-V criteria listed in the ICD-10/11 or DSM-V. Possible overlaps with other psychopathological complications of PD should be taken into account. The Confusion Assessment Method (CAM, [ 1 ]) may be used to diagnose delirium in PD."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39046524"
+              ],
+              "reason": "The Parkinson disease guideline identifies infection, metabolic disorders, medication adverse effects, and pain as delirium triggers and recommends treating triggers and reducing potentially deliriogenic Parkinson medications.",
+              "source_passage_ids": [
+                "39046524:p22",
+                "39046524:p30",
+                "39046524:p32"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39046524",
+                  "quote": "Infections, metabolic disorders, psychological stressors, drug side effects and pain can be considered as triggers. Prolonged treatment in hospital, especially in intensive care units, major surgical interventions and catheters, can increase the risk of delirium in hospitalised patients Level of consensus: 100%, strong consensus Results > What diagnostic tools exist for delirium in PD? > Data sources, study analysis and guideline establishment No studies were identified in which diagnostic instruments for delirium in PD were investigated. According to three reviews, it is possible to use scales that are not specifically developed for the diagnosis of delirium in PD [ 88 \u2013 90 ]."
+                },
+                {
+                  "source_id": "39046524",
+                  "quote": "Results > Does a change in Parkinson's therapy in PD lead to a reduction in delirium? > Study analysis and guideline establishment Recommendation for changing the anti-Parkinson medication for delirium in Parkinson's disease (new) In the case of delirium in PD, amantadine, anticholinergics and dopamine agonists should be reduced or (gradually) be discontinued Level of consensus: 93.1%, strong consensus Results > Do other pharmacological therapies lead to a reduction in delirium in PD? > Data sources and search strategy No controlled trials were identified in which the effects of other pharmacological therapies on delirium in PD were investigated. Three reviews were identified that dealt with the pharmacological treatment of delirium in PD [ 88 , 89 , 95 ]."
+                },
+                {
+                  "source_id": "39046524",
+                  "quote": "Paradoxical effects are also possible. Results > Do other pharmacological therapies lead to a reduction in delirium in PD? > Study analysis and guideline establishment Recommendation for drug therapy of delirium in Parkinson's disease (new) In the case of delirium in PD, triggering factors (pain, infections, metabolic disorders) should be treated with medication. Quetiapine may be used to treat delirium. When using quetiapine, cognition, blood pressure and bladder emptying should be monitored. It must be noted that Quetiapine has not been specifically investigated for delirium in PD [ 97 ]. Clozapine and benzodiazepines may be used in individual cases with special consideration of possible side effects, especially the risk of falls."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "39046524"
+              ],
+              "reason": "The guideline expressly recommends early mobilization, day-night support, sensory aids, food and fluids, treatment of pain and infection, caregiver involvement, and reorientation for delirium in Parkinson disease.",
+              "source_passage_ids": [
+                "39046524:p34",
+                "39046524:p35",
+                "39046524:p36"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39046524",
+                  "quote": "Involving relatives supports the communication and (re)orientation of those affected by delirium [ 94 ]. If possible, it is helpful if the patient's partner or a close caregiver is also admitted to the hospital [ 89 ]. Adapted ward routines with direct nursing care and therapeutic measures for orientation during the day and at night have a positive effect on patients with delirium. An adequate supply of food and fluids and the provision of hearing aids are further important elements of non-medication therapy [ 87 ]. Results > Do non-pharmacological therapies in PD lead to a reduction in delirium? > Study analysis and guideline establishment In the case of delirium in PD, triggering factors (pain, infections, metabolic disorders) should be treated with medication. Quetiapine can be used to treat delirium under control of cognition, circulation and bladder emptying."
+                },
+                {
+                  "source_id": "39046524",
+                  "quote": "It must be noted that Quetiapine has not been specifically investigated for delirium in PD [ 97 ]. Clozapine and benzodiazepines can be used in individual cases with special consideration of possible side effects, especially the risk of falls. In general, due to the anticholinergic properties, a worsening of delirium in PK can also occur with the antipsychotics mentioned here. Results > Do non-pharmacological therapies in PD lead to a reduction in delirium? > Study analysis and guideline establishment Recommendation for the non-drug therapy of delirium in Parkinson's disease (new) The following measures may be used for the non-medication therapy of delirium in PD: 1. early mobilisation 2. avoidance of catheters and accesses 3. adherence to the day\u2013night rhythm 4. sensory aids (hearing aids, visual aids) 5. food and fluid intake 6. quiet environment 7."
+                },
+                {
+                  "source_id": "39046524",
+                  "quote": "environment with good lighting and good colour contrasts 8. treatment of pain and infections 9. presence of caregivers (including rooming-in) 10. reorientation measures (e.g. introduction by name at every contact, clock in the field of vision) Level of consensus: 97.0%, strong consensus Discussion This guideline article presents evidence for and expert opinions on diagnostic and therapeutic procedures in the management of ICD, psychosis and delirium in PD. It is acknowledged that only a few randomised controlled studies in these fields of interest have been performed. In the treatment of those neuropsychiatric conditions, it is important to consider the individual characteristics of patients."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37599617"
+              ],
+              "reason": "The postoperative delirium guideline describes multicomponent bundles containing reorientation, sleep measures, early mobilization, early catheter removal, and early nutrition, alongside a recommendation for multicomponent nonpharmacological intervention in at-risk patients.",
+              "source_passage_ids": [
+                "37599617:p20",
+                "37599617:p24"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37599617",
+                  "quote": "123 Staff training aimed at increasing the understanding of POD, and good communication skills among different medical professions seem prerequisites for the implementation of successful multicomponent interventions to reduce the incidence of POD. 124 Retrospective data suggest that a combination of staff education, protocols for implementation, preprinted orders and systematic screening for POD reduces its incidence. 125 Although POD is considered relevant for patients\u2019 outcomes, not all teams communicate delirium care plans during handover and not all professionals are confident about their role in its prevention. 126 Recommendation 4.3 Quality of the evidence Strength of recommendation We recommend multicomponent nonpharmacological interventions in all patients at risk of POD."
+                },
+                {
+                  "source_id": "37599617",
+                  "quote": "102 Results and recommendations > PICO 13: Which nonpharmacological multicomponent or single interventions can be recommended to prevent POD? An alternative approach (see again Supplement Table 11) was to train the existing staff and to implement a set of measures for all patients undergoing (elective) surgery. 101 These \u2018delirium prevention bundles\u2019 included reorientation measures, sleeping aids (quiet ward, eye masks/earplugs at night, avoiding caffeinated drinks in the afternoons and evenings), and early mobilisation, early catheter removal and early nutrition commencement. 101 Another study evaluated preop visits to the ICU, the introduction of the medical equipment used in combination with reorientation strategies, sleep hygiene, catheter removal and early mobilisation and nasal feeding by \u2018educated staff\u2019."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "39046524"
+              ],
+              "reason": "The Parkinson disease guideline specifically recommends that amantadine be reduced or gradually discontinued during delirium and warns that abrupt withdrawal can cause withdrawal syndromes requiring close monitoring.",
+              "source_passage_ids": [
+                "39046524:p29",
+                "39046524:p30"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39046524",
+                  "quote": "Results > Does a change in Parkinson's therapy in PD lead to a reduction in delirium? > Study analysis and guideline establishment In cases of delirium, drugs with potentially higher delirogenic potency should be discontinued [ 96 ]. These include DA, anticholinergics and amantadine. This often results in levodopa monotherapy [ 88 ]. Close monitoring is required since withdrawal symptoms (DWAS: dopamine agonist withdrawal syndrome; MDES: malignant dopaminergic withdrawal syndrome) can occur after abrupt discontinuation of these substances."
+                },
+                {
+                  "source_id": "39046524",
+                  "quote": "Results > Does a change in Parkinson's therapy in PD lead to a reduction in delirium? > Study analysis and guideline establishment Recommendation for changing the anti-Parkinson medication for delirium in Parkinson's disease (new) In the case of delirium in PD, amantadine, anticholinergics and dopamine agonists should be reduced or (gradually) be discontinued Level of consensus: 93.1%, strong consensus Results > Do other pharmacological therapies lead to a reduction in delirium in PD? > Data sources and search strategy No controlled trials were identified in which the effects of other pharmacological therapies on delirium in PD were investigated. Three reviews were identified that dealt with the pharmacological treatment of delirium in PD [ 88 , 89 , 95 ]."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "37599617"
+              ],
+              "reason": "The postoperative delirium guideline advises against benzodiazepines for treatment and distinguishes alcohol-withdrawal delirium, where they are first-line symptom-directed therapy.",
+              "source_passage_ids": [
+                "37599617:p36",
+                "37599617:p42",
+                "37599617:p43"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37599617",
+                  "quote": "Results and recommendations > PICO 17: Should benzodiazepines be used for the treatment of POD? Recommendation 6.2 Quality of the evidence Strength of recommendation The use of benzodiazepines for the treatment of delirium in postoperative patients is not suggested. The evidence for the benefits of benzodiazepine therapy for treating POD symptoms or the underlying causes is very low to nonexistent. This recommendation is not to be confused with delirium in the context of alcohol withdrawal, where benzodiazepines are recommended symptom orientated as the first-line medication (in a bolus-titrated dosage, lowest as possible). Very low Yapici et al."
+                },
+                {
+                  "source_id": "37599617",
+                  "quote": "Discussion For precipitating factors associated with anaesthesia and surgery, it is relevant to monitor cerebral effects of anaesthesia through neuromonitoring on a level that considers drug-specific and patient-specific patterns as is already done during monitoring of circulation parameters. Based on adequate staff training, the anaesthesiologists should likely avoid burst suppression in their patients. In addition, other causes relevant to surgery such as inflammation, circulation-based hypoxic states, and haemodynamic instabilities require clinical trials to demonstrate effective interventions. Executive summary Recommendation 6.2 Quality of the evidence Strength of recommendation The use of benzodiazepines for the treatment of delirium in postoperative patients is not suggested."
+                },
+                {
+                  "source_id": "37599617",
+                  "quote": "The evidence for the benefits of benzodiazepine therapy for treating POD symptoms or the underlying causes is very low to nonexistent. This recommendation is not to be confused with delirium in the context of alcohol withdrawal, where benzodiazepines are recommended symptom orientated as the first-line medication (in a bolus-titrated dose, lowest as possible). Very low Weak"
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Candidate B is independently the appropriate response. The abrupt fluctuating inattention, disorganized thinking, variable alertness, and positive CAM establish postoperative delirium. Fever, leukocytosis, suprapubic symptoms, and inflammatory urinalysis make urinary infection a plausible reversible contributor, while pain, poor intake, mild hyponatremia, sleep disruption, absent hearing aids, opioids, and amantadine provide additional contributors. B appropriately prioritizes cause-based treatment, medication review, sensory restoration, reorientation, hydration/nutrition, sleep cues, and supervised mobility. Its recommendation to reduce or gradually discontinue amantadine is directly supported and avoids unsafe abrupt withdrawal. Avoiding routine benzodiazepines is appropriate because there is no alcohol withdrawal, severe distress, or safety-threatening agitation. Candidate A is unsafe because scheduled lorazepam may worsen sedation, falls, and aspiration risk while delaying assessment and treatment of reversible causes. No neuroimaging is decisively required at this point given the identified nonneurologic precipitants, absence of trauma or focal deficit, and no stated failure to respond to initial management. The visible case discloses the delirium diagnosis but not the requested management choice, so it does not leak the intended answer. The clinical decision is substantively supported by both the Parkinson-disease delirium guideline and the postoperative-delirium guideline."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The patient meets CAM criteria for postoperative delirium with multiple reversible precipitants: suspected catheter-associated urinary infection, pain, poor intake/dehydration risk, mild hyponatremia, sleep disruption, and sensory deprivation from missing hearing aids. Source 37599617 states that first-line treatment of postoperative delirium is nonpharmacologic and cause-based, and that benzodiazepines are not suggested for postoperative delirium except in alcohol-withdrawal delirium. Source 39046524 specifically addresses delirium in Parkinson disease and recommends treating triggers such as pain, infections, and metabolic disorders; using nonpharmacologic measures including early mobilization, day-night rhythm, sensory aids, food/fluid intake, quiet well-lit environment, caregivers, and reorientation; and reducing or gradually discontinuing delirogenic Parkinson medications such as amantadine. Candidate B matches these recommendations. Candidate A is inappropriate because scheduled lorazepam can worsen delirium, falls, aspiration, and sedation in an older postoperative patient without alcohol withdrawal, and it incorrectly delays evaluation and treatment of reversible causes.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.91,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "39046524"
+              ],
+              "reason": "The cited Parkinson disease delirium guideline defines delirium as an acute disturbance of attention/perception with accompanying cognitive disturbance and fluctuating course, and states CAM may be used for diagnosis.",
+              "source_passage_ids": [
+                "39046524:p24",
+                "39046524:p25"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39046524",
+                  "quote": "Results > How is delirium diagnosed in PD? > Study analysis and guideline establishment In principle, the criteria listed in ICD-10/11 and DSM-V apply to the diagnosis of delirium. According to these, delirium is defined as an acute and transient disturbance of attention and perception with accompanying disturbance of memory, orientation, language and perception. In ICD-11 and DSM-V, delirium is additionally characterised by a fluctuating course. Disturbances of the sleep\u2013wake rhythm, hallucinations and delusions and psychomotor agitation are further symptoms that can be associated with delirium. Results > How is delirium diagnosed in PD? > Study analysis and guideline establishment Delirium presents in three clinical manifestations: (I) the hyperactive, (II) the hypoactive form and (III) mixed delirium, which is characterised by alternating hyperactive and hypoactive states."
+                },
+                {
+                  "source_id": "39046524",
+                  "quote": "The mixed form is the most common. The diagnosis of delirium in PD is complicated by overlapping symptoms of delirium with those that can be attributed to PD symptoms of delirium with those of PD (e.g. apathy, vigilance fluctuations, drug-induced hallucinations). Imaging, EEG and laboratory tests are performed for differential diagnosis and identification of triggering factors. Results > How is delirium diagnosed in PD? > Study analysis and guideline establishment Recommendation for the diagnosis of delirium in Parkinson's disease (new) The diagnosis of delirium in PD can be made on the basis of the criteria listed in ICD-10/11 or DSM-V criteria listed in the ICD-10/11 or DSM-V. Possible overlaps with other psychopathological complications of PD should be taken into account. The Confusion Assessment Method (CAM, [ 1 ]) may be used to diagnose delirium in PD."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39046524"
+              ],
+              "reason": "The PD delirium guideline identifies infections, metabolic disorders, drug side effects, and pain as triggers, and recommends treating triggering factors such as pain, infections, and metabolic disorders.",
+              "source_passage_ids": [
+                "39046524:p22",
+                "39046524:p31",
+                "39046524:p32"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39046524",
+                  "quote": "Infections, metabolic disorders, psychological stressors, drug side effects and pain can be considered as triggers. Prolonged treatment in hospital, especially in intensive care units, major surgical interventions and catheters, can increase the risk of delirium in hospitalised patients Level of consensus: 100%, strong consensus Results > What diagnostic tools exist for delirium in PD? > Data sources, study analysis and guideline establishment No studies were identified in which diagnostic instruments for delirium in PD were investigated. According to three reviews, it is possible to use scales that are not specifically developed for the diagnosis of delirium in PD [ 88 \u2013 90 ]."
+                },
+                {
+                  "source_id": "39046524",
+                  "quote": "Results > Do other pharmacological therapies lead to a reduction in delirium in PD? > Study analysis and guideline establishment Drug therapy options include the treatment of factors potentially causing delirium, such as acute infections, pain or metabolic disorders. Antipsychotic treatment of delirium with quetiapine and clozapine has not yet been sufficiently investigated in PD, while other antipsychotics are contraindicated for the treatment of delirium in PD due to their dopamine blocking properties. Due to its anticholinergic properties, clozapine can increase delirium. Quetiapine is used in other indications (e.g. delirium in dementia), but corresponding studies are lacking, as is the use of benzodiazepines for severe anxiety and agitation. The administration of benzodiazepines increases the risk of falls and aspiration and must therefore be used with extreme caution."
+                },
+                {
+                  "source_id": "39046524",
+                  "quote": "Paradoxical effects are also possible. Results > Do other pharmacological therapies lead to a reduction in delirium in PD? > Study analysis and guideline establishment Recommendation for drug therapy of delirium in Parkinson's disease (new) In the case of delirium in PD, triggering factors (pain, infections, metabolic disorders) should be treated with medication. Quetiapine may be used to treat delirium. When using quetiapine, cognition, blood pressure and bladder emptying should be monitored. It must be noted that Quetiapine has not been specifically investigated for delirium in PD [ 97 ]. Clozapine and benzodiazepines may be used in individual cases with special consideration of possible side effects, especially the risk of falls."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "39046524"
+              ],
+              "reason": "The guideline lists non-medication delirium therapy measures in PD including early mobilisation, day-night rhythm, sensory aids, food and fluid intake, and reorientation.",
+              "source_passage_ids": [
+                "39046524:p35",
+                "39046524:p36"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39046524",
+                  "quote": "It must be noted that Quetiapine has not been specifically investigated for delirium in PD [ 97 ]. Clozapine and benzodiazepines can be used in individual cases with special consideration of possible side effects, especially the risk of falls. In general, due to the anticholinergic properties, a worsening of delirium in PK can also occur with the antipsychotics mentioned here. Results > Do non-pharmacological therapies in PD lead to a reduction in delirium? > Study analysis and guideline establishment Recommendation for the non-drug therapy of delirium in Parkinson's disease (new) The following measures may be used for the non-medication therapy of delirium in PD: 1. early mobilisation 2. avoidance of catheters and accesses 3. adherence to the day\u2013night rhythm 4. sensory aids (hearing aids, visual aids) 5. food and fluid intake 6. quiet environment 7."
+                },
+                {
+                  "source_id": "39046524",
+                  "quote": "environment with good lighting and good colour contrasts 8. treatment of pain and infections 9. presence of caregivers (including rooming-in) 10. reorientation measures (e.g. introduction by name at every contact, clock in the field of vision) Level of consensus: 97.0%, strong consensus Discussion This guideline article presents evidence for and expert opinions on diagnostic and therapeutic procedures in the management of ICD, psychosis and delirium in PD. It is acknowledged that only a few randomised controlled studies in these fields of interest have been performed. In the treatment of those neuropsychiatric conditions, it is important to consider the individual characteristics of patients."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37599617"
+              ],
+              "reason": "The postoperative delirium guideline recommends multicomponent nonpharmacological interventions for patients at risk of POD and describes bundles including reorientation, sleep hygiene, early mobilisation, catheter removal, and early nutrition.",
+              "source_passage_ids": [
+                "37599617:p20",
+                "37599617:p24"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37599617",
+                  "quote": "123 Staff training aimed at increasing the understanding of POD, and good communication skills among different medical professions seem prerequisites for the implementation of successful multicomponent interventions to reduce the incidence of POD. 124 Retrospective data suggest that a combination of staff education, protocols for implementation, preprinted orders and systematic screening for POD reduces its incidence. 125 Although POD is considered relevant for patients\u2019 outcomes, not all teams communicate delirium care plans during handover and not all professionals are confident about their role in its prevention. 126 Recommendation 4.3 Quality of the evidence Strength of recommendation We recommend multicomponent nonpharmacological interventions in all patients at risk of POD."
+                },
+                {
+                  "source_id": "37599617",
+                  "quote": "102 Results and recommendations > PICO 13: Which nonpharmacological multicomponent or single interventions can be recommended to prevent POD? An alternative approach (see again Supplement Table 11) was to train the existing staff and to implement a set of measures for all patients undergoing (elective) surgery. 101 These \u2018delirium prevention bundles\u2019 included reorientation measures, sleeping aids (quiet ward, eye masks/earplugs at night, avoiding caffeinated drinks in the afternoons and evenings), and early mobilisation, early catheter removal and early nutrition commencement. 101 Another study evaluated preop visits to the ICU, the introduction of the medical equipment used in combination with reorientation strategies, sleep hygiene, catheter removal and early mobilisation and nasal feeding by \u2018educated staff\u2019."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "39046524"
+              ],
+              "reason": "The PD delirium guideline specifically includes amantadine among drugs with higher deliriogenic potency and recommends reduction or gradual discontinuation with monitoring for withdrawal syndromes.",
+              "source_passage_ids": [
+                "39046524:p29",
+                "39046524:p30"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39046524",
+                  "quote": "Results > Does a change in Parkinson's therapy in PD lead to a reduction in delirium? > Study analysis and guideline establishment In cases of delirium, drugs with potentially higher delirogenic potency should be discontinued [ 96 ]. These include DA, anticholinergics and amantadine. This often results in levodopa monotherapy [ 88 ]. Close monitoring is required since withdrawal symptoms (DWAS: dopamine agonist withdrawal syndrome; MDES: malignant dopaminergic withdrawal syndrome) can occur after abrupt discontinuation of these substances."
+                },
+                {
+                  "source_id": "39046524",
+                  "quote": "Results > Does a change in Parkinson's therapy in PD lead to a reduction in delirium? > Study analysis and guideline establishment Recommendation for changing the anti-Parkinson medication for delirium in Parkinson's disease (new) In the case of delirium in PD, amantadine, anticholinergics and dopamine agonists should be reduced or (gradually) be discontinued Level of consensus: 93.1%, strong consensus Results > Do other pharmacological therapies lead to a reduction in delirium in PD? > Data sources and search strategy No controlled trials were identified in which the effects of other pharmacological therapies on delirium in PD were investigated. Three reviews were identified that dealt with the pharmacological treatment of delirium in PD [ 88 , 89 , 95 ]."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "37599617"
+              ],
+              "reason": "The postoperative delirium guideline states benzodiazepines are not suggested for treating POD and distinguishes alcohol withdrawal delirium as the setting where benzodiazepines are first-line.",
+              "source_passage_ids": [
+                "37599617:p36",
+                "37599617:p43"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37599617",
+                  "quote": "Results and recommendations > PICO 17: Should benzodiazepines be used for the treatment of POD? Recommendation 6.2 Quality of the evidence Strength of recommendation The use of benzodiazepines for the treatment of delirium in postoperative patients is not suggested. The evidence for the benefits of benzodiazepine therapy for treating POD symptoms or the underlying causes is very low to nonexistent. This recommendation is not to be confused with delirium in the context of alcohol withdrawal, where benzodiazepines are recommended symptom orientated as the first-line medication (in a bolus-titrated dosage, lowest as possible). Very low Yapici et al."
+                },
+                {
+                  "source_id": "37599617",
+                  "quote": "The evidence for the benefits of benzodiazepine therapy for treating POD symptoms or the underlying causes is very low to nonexistent. This recommendation is not to be confused with delirium in the context of alcohol withdrawal, where benzodiazepines are recommended symptom orientated as the first-line medication (in a bolus-titrated dose, lowest as possible). Very low Weak"
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The visible case describes an older postoperative hip-fracture patient with Parkinson disease, acute fluctuating inattention, disorganized thinking, variable level of consciousness, and a CAM impression that criteria are met. She has plausible reversible precipitants: symptomatic urinary infection after catheter removal, fever/leukocytosis, pain, poor intake/sleep, mild hyponatremia, absent hearing aids, opioid exposure, and amantadine. She has no alcohol withdrawal history and no safety-threatening agitation or severe distress requiring sedative suppression. Candidate B appropriately prioritizes delirium management with cause-based treatment, nonpharmacologic supportive measures, sensory restoration, medication review with supervised amantadine reduction/gradual discontinuation, and avoidance of routine benzodiazepines. Candidate A is unsafe because it schedules lorazepam and delays evaluation/treatment of reversible contributors. The case is within geriatrics, the key matches the clinical data, and the decisive management is substantively supported by both the Parkinson disease delirium source and the postoperative delirium guideline."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "9615fb393078c4af9c056995950e468078776bdb29dc2215acca3c8b98994509"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

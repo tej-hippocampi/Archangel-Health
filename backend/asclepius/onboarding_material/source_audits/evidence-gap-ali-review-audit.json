@@ -1,0 +1,71 @@
+{
+  "audit_date": "2026-09-18",
+  "disposition": "conditional_secondary_source_for_stable_initial_care_only",
+  "pin": {
+    "id": "31416204",
+    "pmcid": "PMC6723825",
+    "title": "Acute Limb Ischemia: An Update on Diagnosis and Management.",
+    "source_type": "secondary_clinical_review",
+    "require_licensed_fulltext": true
+  },
+  "excerpt_terms": "acute limb ischemia initial management urgent anticoagulation unfractionated heparin vascular emergency revascularization strategy Rutherford duration comorbidities",
+  "metadata": {
+    "pmid": "31416204",
+    "pmcid": "PMC6723825",
+    "publication_date": "2019-08-14",
+    "publication_types": [
+      "Journal Article",
+      "Review"
+    ],
+    "source_class": "secondary_clinical_review",
+    "authority": "Peer-reviewed narrative clinical review in Journal of Clinical Medicine, not a primary guideline, consensus or systematic review.",
+    "recency": "Passes unchanged calendar-year gate 2019–2026. It is older than seven rolling years as of2026-09-18; do not describe it as within rolling7years or use if that is the intended requirement."
+  },
+  "license_statement": "© 2019 by the authors. 2019 https://creativecommons.org/licenses/by/4.0/ Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license ( http://creativecommons.org/licenses/by/4.0/ ).",
+  "license_url": "http://creativecommons.org/licenses/by/4.0/",
+  "body_excerpts_sha256": "9ba6d1907f75038629ca824dc9d15f96d24701d7b9255071eddcb3370033271c",
+  "abstract_sha256": "0a2c234a577752632b8ee1276e104d8ac11d72d7b91df92d7b82b72637d0afce",
+  "fulltext_xml_sha256": "3da9924876441ec7e4df692c2ae99237ca2633904202054656b9b5b798e23435",
+  "source_json_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/31416204-source.json",
+  "supporting_quotes": [
+    {
+      "quote": "Urgent anticoagulation with unfractionated heparin (UFH) prevents thrombus propagation and preserves microcirculation",
+      "literal_in_unchanged_parser_retention": true
+    },
+    {
+      "quote": "Patients with clinical suspicion of ALI should be addressed to emergency centers which have a 24-h/365-day vascular team available for diagnosis and management.",
+      "literal_in_unchanged_parser_retention": true
+    },
+    {
+      "quote": "The therapeutic strategy will depend on type of occlusion (thrombus or embolus), location, type of conduit (artery of graft), Rutherford class, duration of ischemia, co-morbidities and therapy-related risks and outcomes.",
+      "literal_in_unchanged_parser_retention": true
+    },
+    {
+      "quote": "Different revascularization strategies can be applied, either endovascular or surgical (thrombectomy, bypass and arterial repair).",
+      "literal_in_unchanged_parser_retention": true
+    }
+  ],
+  "scope_limits": [
+    "Use only for urgent UFH and emergency vascular-team access in clearly salvageable adult ALI; no exact UFH dose supplied by these initial-care paragraphs.",
+    "The urgent UFH passage does not expressly state contraindication exceptions. Current ACC/AHA corroboration confirms those exceptions, but restricted guideline text is not retained as author/reviewer evidence. A no-active-bleeding/no-HIT scenario avoids an unsupported contraindication-management branch.",
+    "Do not use this source to rank open surgery universally above endovascular techniques. Its own treatment section individualizes by Rutherford grade, cause, anatomy, time and risk.",
+    "Do not apply its open-revascularization sentence to categoryIII/nonviable limbs. It conflicts with current ACC/AHA guidance. Retained excerpt currently contains that sentence; source content audit must not treat every statement as current."
+  ],
+  "conflicting_text": {
+    "quote": "Patients with an immediately threatened or nonviable limb, bypass graft with suspected infection, or contraindication to thrombolysis should undergo open revascularization.",
+    "retained_by_parser": true,
+    "finding": "Includes nonviable limb in a blanket open-revascularization recommendation. Current2024 guideline recommends primary amputation for irreversibly damaged categoryIII and individualized urgent revascularization for salvageable limbs. This makes an unrestricted use of the review unsuitable."
+  },
+  "current_primary_corroboration": {
+    "url": "https://www.ahajournals.org/doi/full/10.1161/CIR.0000000000001251",
+    "sections": [
+      "11.1",
+      "11.2.1",
+      "11.2.3"
+    ],
+    "paraphrase": "The2024 ACC/AHA multisociety guideline calls for urgent expert assessment, therapeutic intravenous UFH on diagnosis unless contraindicated, selection of revascularization for salvageable limbs, and primary amputation for irreversible categoryIII.",
+    "use": "Read-only audit corroboration. No restricted body passage copied into source JSON or proposed retained evidence."
+  },
+  "recommendation": "A narrow secondary_clinical_review exact pin can substantiate stable immediate UFH/emergency access if calendar-year recency is intentional and concurrent recent sources govern reperfusion choice. Do not certify it as a primary guideline or complete standalone ALI authority.",
+  "no_repo_edits_or_model_calls": true
+}

@@ -1,0 +1,409 @@
+{
+  "audit_version": 1,
+  "audited_at": "2026-09-19T02:28:51.601774+00:00",
+  "auditor": "Independent artifact auditor /root/audit_release_group1",
+  "scope": "Three revised CI passes in audit-revision-batch2.json: final geriatrics practice/examination pair and nephrology practice with existing examination companion. Read-only clinical/evidence/public-payload and integrity audit; no real-model calls or repository edits.",
+  "manifest_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/audit-revision-batch2.json",
+  "manifest_sha256": "f7565ba9d8cce901c67d2cad04302fb84fb29f5983064fea61d172c96ff73770",
+  "overall_disposition": "clear",
+  "physician_ratification": false,
+  "method": [
+    "Read complete authored entries, private keys and actual public payload/rendered prompt separately.",
+    "Inspect retained source content and surrounding population, treatment/prevention, contraindication and evidence-limit context; assess decisive recommendation entailment independently of reviewer agreement.",
+    "Verify exact entry hashes, every retained abstract/body hash, both review validations, and all 50 literal cited-passage instances.",
+    "Compare the final revised geriatrics pair in the same artifact folder and the bundled nephrology examination companion."
+  ],
+  "blocking_findings": [],
+  "cases": [
+    {
+      "task_id": "onboarding-practice-v1-536d65a07b5d16bb9bde-1",
+      "specialty": "geriatrics",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10574989198/trial-onboarding-practice-v1-536d65a07b5d16bb9bde-1.json",
+      "artifact_sha256": "9926a4e017fb4e0cb99c1bf4e226b8a14678c864c15587b8999a0648d7cf4c87",
+      "entry_sha256": "9615fb393078c4af9c056995950e468078776bdb29dc2215acca3c8b98994509",
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_population",
+          "result": "clear",
+          "finding": "The 70-79-year-old postoperative patient has Parkinson disease, acute fluctuating attention/cognition, variable arousal, and CAM findings. The retained Parkinson guideline permits CAM and describes this delirium phenotype and postoperative triggers. The decision is geriatric delirium management, not an unsupported chronic Parkinson diagnosis.",
+          "source_ids": [
+            "39046524"
+          ],
+          "source_passage_ids": [
+            "39046524:p22",
+            "39046524:p23",
+            "39046524:p24",
+            "39046524:p25"
+          ]
+        },
+        {
+          "check": "decisive_recommendation_support",
+          "result": "clear",
+          "finding": "Candidate B and the private key prioritize prompt evaluation/treatment of infection, pain, intake/metabolic issues, sensory and sleep problems, and potentially deliriogenic medication. The Parkinson guideline directly supports treating these triggers and using hearing aids, reorientation, nutrition/hydration, day-night support, and mobilization in manifest delirium. Fever, leukocytosis, suprapubic symptoms/tenderness and inflammatory urinalysis justify treating urinary infection as suspected rather than treating asymptomatic bacteriuria. No antibiotic choice or dose is asserted.",
+          "source_ids": [
+            "39046524"
+          ],
+          "source_passage_ids": [
+            "39046524:p22",
+            "39046524:p31",
+            "39046524:p32",
+            "39046524:p34",
+            "39046524:p35",
+            "39046524:p36"
+          ]
+        },
+        {
+          "check": "medication_safety_and_evidence_limits",
+          "result": "clear",
+          "finding": "The answer specifies supervised reduction or gradual discontinuation of amantadine, consistent with the Parkinson guideline and its warning about abrupt withdrawal. It avoids routine benzodiazepines in postoperative delirium; the chart expressly excludes alcohol withdrawal and severe distress or dangerous agitation. Parkinson guidance allows individualized sedatives in selected cases, which does not undermine avoidance of routine lorazepam here. The recommendations are represented as guidance, not established controlled-trial benefits in Parkinson delirium.",
+          "source_ids": [
+            "39046524",
+            "37599617"
+          ],
+          "source_passage_ids": [
+            "39046524:p29",
+            "39046524:p30",
+            "39046524:p31",
+            "39046524:p32",
+            "37599617:p36",
+            "37599617:p42",
+            "37599617:p43"
+          ]
+        },
+        {
+          "check": "prevention_vs_treatment_context",
+          "result": "clear",
+          "finding": "The postoperative source passages for multicomponent bundles concern prevention in patients at risk. The claim accurately lists the bundle components without asserting a treatment effect, and the separate Parkinson source directly supports those measures for manifest delirium. The decisive treatment recommendation therefore does not rely on an unsupported prevention-to-treatment extrapolation.",
+          "source_ids": [
+            "37599617",
+            "39046524"
+          ],
+          "source_passage_ids": [
+            "37599617:p20",
+            "37599617:p24",
+            "39046524:p34",
+            "39046524:p35",
+            "39046524:p36"
+          ]
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "Inspected blind_entry and render_case_prompt output, including title, question, notes, problem list, and visible study findings/impression. CAM confirms the diagnosis but does not disclose the requested management choice. No private key, claims, safety keywords, error tags, or revision feedback appears in the public case."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The companion revised examination case asks for an individualized fall-prevention exercise strategy in a community-dwelling older adult. It is distinct from this acute postoperative delirium, precipitant-treatment, and medication-review decision."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-examination-v1-536d65a07b5d16bb9bde-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10574989198/trial-onboarding-examination-v1-536d65a07b5d16bb9bde-1.json",
+        "entry_sha256": "4701ebd7d68697424cf022c00238c7784b207faa90f050c9420eafc45c09a41a"
+      },
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "both_blind_solutions_and_reviews_choose": "B",
+        "retained_source_hashes_verified": [
+          {
+            "source_id": "39982143",
+            "abstract_sha256": "ca84e41b1429a9b2e172228686fc09a7d70cb9575bb61d87139873959121f47a"
+          },
+          {
+            "source_id": "37599617",
+            "abstract_sha256": "88dc5782a883d34989704262045bb4605430c9c3f0779854caf3124cc9353abf",
+            "body_excerpts_sha256": "82f12c8c0ccfa5d45e5be5e5172569f2f5e637b615fc56b1241fa62e0b5dc11b"
+          },
+          {
+            "source_id": "31492476",
+            "abstract_sha256": "9bf17bc4641fffea64542b2ce1d59dcd9b7f137a5002a66ba20c6064c051d133"
+          },
+          {
+            "source_id": "35279975",
+            "abstract_sha256": "498d7186f5685d8913dd50a50ed806aa326715509b6e4a1f6a7bd693a865d547"
+          },
+          {
+            "source_id": "39046524",
+            "abstract_sha256": "365328c031eff4bc78c28586f1e71df1bcd8e2d271987780daaba0f8af5004f4",
+            "body_excerpts_sha256": "ad42165576df1d95976bf8e0b0f8d2acab0038e23acd660c8cab9ea14f9bbc79"
+          },
+          {
+            "source_id": "32246170",
+            "abstract_sha256": "fd291cc94c65cfdfb12d35498ff8ef78481853797e5f04c5ad19d2f38054e1da"
+          },
+          {
+            "source_id": "39488349",
+            "abstract_sha256": "e115594bf856f6ae74e3a6cf7a0ec2e404f4cf6741b4affbb9a1a9c89ae3fe14"
+          },
+          {
+            "source_id": "31054753",
+            "abstract_sha256": "42c372585fdf0e3950b0f7e301bbfa46545c39216dca147e5d820af34286673d"
+          }
+        ],
+        "literal_source_quote_instances_verified": 29,
+        "public_boundary_verified": true
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "issues": []
+        }
+      ]
+    },
+    {
+      "task_id": "onboarding-examination-v1-536d65a07b5d16bb9bde-1",
+      "specialty": "geriatrics",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10574989198/trial-onboarding-examination-v1-536d65a07b5d16bb9bde-1.json",
+      "artifact_sha256": "2f23cc675e40043bb6b8f19e849ea7ffa1f91d201c714be294b395bcc69dcc8f",
+      "entry_sha256": "4701ebd7d68697424cf022c00238c7784b207faa90f050c9420eafc45c09a41a",
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_population",
+          "result": "clear",
+          "finding": "The patient is community dwelling, age 80-89, has recurrent falls and observed chair-rise, balance, and turning deficits. This matches the USPSTF population of adults at least 65 at increased fall risk. The history and standing blood pressure do not introduce a competing acute syncope, vestibular, neurologic, or hemodynamic problem for the exercise-strategy question.",
+          "source_ids": [
+            "38833246"
+          ],
+          "source_passage_ids": [
+            "38833246:p1"
+          ]
+        },
+        {
+          "check": "decisive_recommendation_support",
+          "result": "clear",
+          "finding": "The ICFSR guideline directly supports individualization to function, limitations, tolerance, and preference; multicomponent resistance/strength, balance, and gait work; and the inadequacy of walking alone when strength and balance deficits are present. Candidate B selects that strategy without inventing a specific exercise dose or claiming that all fall assessment ends with exercise.",
+          "source_ids": [
+            "34409961"
+          ],
+          "source_passage_ids": [
+            "34409961:p11",
+            "34409961:p14",
+            "34409961:p35"
+          ]
+        },
+        {
+          "check": "safety_and_evidence_limits",
+          "result": "clear",
+          "finding": "The full retained exercise text qualifies progression and workload and describes injury risks from specific power-training techniques. Candidate B prescribes an individualized program rather than an unsupported high-intensity or ballistic regimen. The source cautions that falls evidence is insufficient in community-dwelling adults with cognitive impairment; this case does not assert dementia or cognitive impairment and explicitly documents consistent participation and multistep instruction following. Complete medication reconciliation excludes an unresolved sedative-driven decision.",
+          "source_ids": [
+            "34409961"
+          ]
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The title and question frame falls and exercise strategy without naming the correct program. The functional study describes observed performance; its impression repeats findings and does not state an intervention or answer-key label. The actual public payload excludes the private key, evidence claims, grading keywords, and revision feedback."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "Compared with the final revised geriatrics practice artifact in the same CI folder: this case tests fall-prevention exercise selection; the practice case tests acute postoperative delirium contributors, supportive treatment, amantadine review, and benzodiazepine avoidance."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-practice-v1-536d65a07b5d16bb9bde-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10574989198/trial-onboarding-practice-v1-536d65a07b5d16bb9bde-1.json",
+        "entry_sha256": "9615fb393078c4af9c056995950e468078776bdb29dc2215acca3c8b98994509"
+      },
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "both_blind_solutions_and_reviews_choose": "B",
+        "retained_source_hashes_verified": [
+          {
+            "source_id": "38833246",
+            "abstract_sha256": "3b3eaf6c16483b892d13e6b83800faee99e1f834963e40403a2a036d82ebe063"
+          },
+          {
+            "source_id": "34409961",
+            "abstract_sha256": "7735d29ddb65438005c5b175b077f39823dfffa594815365894b5261fe24e618",
+            "body_excerpts_sha256": "d89bc1368b24c23ad453def6eb20960dae3b6d1b07700df221f9cd9bc0d045d9"
+          },
+          {
+            "source_id": "35262271",
+            "abstract_sha256": "65670621082779ab6aac78b846d39912b2db5472b404cb8f45142b376e490797"
+          },
+          {
+            "source_id": "40819291",
+            "abstract_sha256": "616b24a03c6f88582cf469ff6832813b937ade6452ba63737d580fc8629331a7"
+          },
+          {
+            "source_id": "41918148",
+            "abstract_sha256": "8fe4c63bdd93187b0ee86555d11071dfdbefee40837ea8210de626509192b7fb"
+          },
+          {
+            "source_id": "35608838",
+            "abstract_sha256": "788e81b12f76065548b5f51dd97d81794092762fafdbef86f505a3a7114a7e46"
+          },
+          {
+            "source_id": "33169468",
+            "abstract_sha256": "84b86c0f862733daeb9bd4e194530a272d07372a6f47b92b2e129749e2fd8f69"
+          },
+          {
+            "source_id": "33755083",
+            "abstract_sha256": "260fe33d9208563c5fca7770799d2437b736a5e8c7d1d03a415d35a4e0eabb8f"
+          }
+        ],
+        "literal_source_quote_instances_verified": 10,
+        "public_boundary_verified": true
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "issues": []
+        }
+      ]
+    },
+    {
+      "task_id": "onboarding-practice-v1-7e10bcdcaa72d9b4a621-1",
+      "specialty": "nephrology",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10575961405/trial-onboarding-practice-v1-7e10bcdcaa72d9b4a621-1.json",
+      "artifact_sha256": "8c8928e9ea5230aae4f3a1a1b2fbd54f8b509d6b47355f28449a5d0e3f8bbca2",
+      "entry_sha256": "549897671572feba25a5094a64e3d1f258706ae980af03bd9861e4d2e36ab407",
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_population",
+          "result": "clear",
+          "finding": "Persistent G3b CKD and A3 albuminuria are established by eGFR 39 then 37 and UACR 460 then 520 mg/g more than three months apart. The adult has non-diabetic CKD, an existing maximally tolerated approved-dose ARB, controlled blood pressure, potassium 4.6, no orthostatic symptoms, and no recent acute illness or volume depletion. The patient is within the directly cited non-diabetic albuminuric CKD population and above the eGFR threshold.",
+          "source_ids": [
+            "38365947",
+            "39353639"
+          ]
+        },
+        {
+          "check": "decisive_recommendation_support",
+          "result": "clear",
+          "finding": "The BMJ CKD guideline applies SGLT2 recommendations irrespective of type 2 diabetes status. The ERA/ESH synopsis directly recommends SGLT2 therapy for diabetic and non-diabetic CKD with moderate or severe albuminuria at eGFR at least 20, including use on top of standard ACEi or ARB therapy. It also supports maximum tolerated approved-dose ACEi or ARB monotherapy and rejects ACEi-plus-ARB dual therapy because of adverse events. These passages substantively support every decisive part of B and refute both components of A.",
+          "source_ids": [
+            "39353639",
+            "38365947"
+          ],
+          "source_passage_ids": [
+            "39353639:p0",
+            "39353639:p1",
+            "39353639:p3",
+            "38365947:p19",
+            "38365947:p20",
+            "38365947:p38"
+          ]
+        },
+        {
+          "check": "contraindications_and_evidence_limits",
+          "result": "clear",
+          "finding": "Reviewed the retained guideline context covering renal-function/electrolyte monitoring, early hemodynamic eGFR decline, volume effects, and individualized risk assessment. The chart shows stable renal function, tolerated ARB treatment, controlled pressure, and no current illness or volume depletion; no stated fact triggers withholding the selected class. Candidate B chooses a class strategy without specifying an unsupported agent, dose, or monitoring exemption. The finerenone recommendation in the same source is limited to CKD with type 2 diabetes and is not incorrectly applied here.",
+          "source_ids": [
+            "39353639",
+            "38365947"
+          ]
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "Inspected the actual title, question, public notes/labs, and candidate answers. The chart reports persistent albuminuria and existing ARB therapy without stating which new class to add or disclosing the private answer. Public payload excludes the private key, claims, safety keywords, error tags, and revision feedback."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The existing nephrology examination companion concerns acute kidney injury after a 6.5-liter paracentesis in cirrhosis, albumin volume expansion, and when to withhold vasoconstrictors pending HRS-AKI criteria. This practice case concerns chronic albuminuric CKD progression prevention with SGLT2 treatment and avoiding dual RAAS blockade; the decisions are distinct."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-examination-v1-7e10bcdcaa72d9b4a621-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-examination-v1-7e10bcdcaa72d9b4a621-1.json",
+        "entry_sha256": "6af7cd0777b264e1bc517dc171ed0908a84ad89fe4b37620da615d5ecf752dc1"
+      },
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "both_blind_solutions_and_reviews_choose": "B",
+        "retained_source_hashes_verified": [
+          {
+            "source_id": "39353639",
+            "abstract_sha256": "0990e86ad5f1a4c31e809e41f3c729a34fea3a7f74b454abc135d69549df45d3"
+          },
+          {
+            "source_id": "33127436",
+            "abstract_sha256": "5f469af57cbd234dad3799051fce1413e7a4996ef15ab629e9fc4d90e78d9eb3"
+          },
+          {
+            "source_id": "38365947",
+            "abstract_sha256": "78c736c6644e2dc7390056a10f3e32104f660c6eced216b52705001589e40535",
+            "body_excerpts_sha256": "ed3274e6881dc1846361e703a4309904c5fe2c247530eb9a0af7bb28e5522b3e"
+          },
+          {
+            "source_id": "40518892",
+            "abstract_sha256": "c44a438f514d5daac394dbbc57dbd9649fc02fdf61a7b5c5cf1b8e015c9fe4a6"
+          },
+          {
+            "source_id": "40518893",
+            "abstract_sha256": "4d8ea2b335f0b9a3fa889ada517304cf7bea42ff5fdd79c0d731c0bd4e519a0a"
+          },
+          {
+            "source_id": "39932834",
+            "abstract_sha256": "25616c5088f8aa8e938114103daf02e815c490b76bdedd22b3aa05d6e8e2fdee"
+          },
+          {
+            "source_id": "39731488",
+            "abstract_sha256": "8e84abbe73a1d06d9d81162f8bbc59f76e27d9b32d7affc91903724421086ea8"
+          },
+          {
+            "source_id": "41722153",
+            "abstract_sha256": "9d5b66811a589054b33c6d20287853cd0bc56540edd04997cc000e6596635f98"
+          },
+          {
+            "source_id": "40222774",
+            "abstract_sha256": "673d6b74bf22d1d6286fad88a5c17b37f09e35f5ad417d516add45a9f71ced83"
+          },
+          {
+            "source_id": "34979961",
+            "abstract_sha256": "942ea87ed2c866da0f4783705c856bac1a447054a11eedc5032893f345820e1f",
+            "body_excerpts_sha256": "212127def54d9dff7d14edb71f5fad4d8edde56a6f96198e86e26fae5901e06b"
+          }
+        ],
+        "literal_source_quote_instances_verified": 11,
+        "public_boundary_verified": true
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "issues": []
+        }
+      ]
+    }
+  ]
+}

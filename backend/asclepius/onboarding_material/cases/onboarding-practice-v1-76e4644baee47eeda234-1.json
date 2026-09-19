@@ -1,0 +1,605 @@
+{
+  "task_id": "onboarding-practice-v1-76e4644baee47eeda234-1",
+  "specialty": "hematology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Adult with newly identified isolated thrombocytopenia",
+    "question": "Which candidate provides the more appropriate current diagnostic interpretation and evaluation strategy?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "hematology",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "New isolated thrombocytopenia",
+          "since": "Index presentation",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Easy bruising",
+          "since": "Approximately two weeks",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "temperature_c": 36.7,
+        "heart_rate_bpm": 74,
+        "blood_pressure_mm_hg": "122/76",
+        "oxygen_saturation_percent": 99
+      },
+      "lab_panels": [
+        {
+          "panel": "Complete blood count",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Platelet count",
+              "loinc": null,
+              "value": 42,
+              "unit": "10^9/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "low",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Hemoglobin",
+              "loinc": null,
+              "value": 14.3,
+              "unit": "g/dL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Mean corpuscular volume",
+              "loinc": null,
+              "value": 89,
+              "unit": "fL",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "White blood cell count",
+              "loinc": null,
+              "value": 6.4,
+              "unit": "10^9/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Neutrophils",
+              "loinc": null,
+              "value": 58,
+              "unit": "%",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "Lymphocytes",
+              "loinc": null,
+              "value": 33,
+              "unit": "%",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Hematology consultation",
+          "author_role": "hematology",
+          "text": "An adult presents with two weeks of spontaneous bruising and a newly discovered low platelet count. He reports no epistaxis, gastrointestinal bleeding, hematuria, severe headache, fever, recent infection, thrombosis, heparin exposure, or previous platelet disorder. He uses no prescription, over-the-counter, or herbal products and reports no family history of thrombocytopenia. Examination shows several small ecchymoses without active bleeding, lymphadenopathy, hepatomegaly, or splenomegaly. Hemoglobin, red-cell indices, leukocyte count, and differential are preserved. Quantitative immunoglobulins, viral serologies, and Helicobacter pylori testing have not been performed.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Peripheral blood microscopy",
+          "label": "Peripheral blood smear",
+          "findings": "Platelets are decreased in number. No platelet aggregates, schistocytes, circulating blasts, immature leukocytes, giant platelets, or dysplastic changes are observed. Red-cell and leukocyte morphology is otherwise unremarkable.",
+          "measurements": [],
+          "impression": null,
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional onboarding assessment case; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete_for_decision",
+      "ground_truth": {
+        "answer": "Candidate B",
+        "rationale": "Primary immune thrombocytopenia remains an exclusion-based diagnosis. The isolated thrombocytopenia and reassuring smear are compatible with ITP but do not establish primary ITP while evaluation for secondary causes remains incomplete. Quantitative immunoglobulins and relevant infection testing should be completed and interpreted with the existing history, examination, CBC, and smear. Routine bone marrow examination is not indicated at this point because there is no anemia, macrocytosis, leukocyte abnormality, abnormal blood-cell morphology, organomegaly, lymphadenopathy, or treatment-refractory course. Candidate A prematurely assigns a primary ITP diagnosis and could miss a secondary or alternative cause.",
+        "evidence": {
+          "evidence_basis": "Supplied adult ITP diagnostic reference guide and society consensus recommendations."
+        },
+        "key_data": [
+          "The platelet count is 42 \u00d7 10^9/L, while hemoglobin, MCV, leukocyte count, and differential are preserved.",
+          "Peripheral microscopy confirms thrombocytopenia without platelet aggregates, schistocytes, blasts, immature leukocytes, giant platelets, or dysplasia.",
+          "Medication, family, and physical examinations do not identify an evident cause, but quantitative immunoglobulins and infection testing remain unavailable.",
+          "There is no splenomegaly, lymphadenopathy, anemia, macrocytosis, leukocyte abnormality, or abnormal blood-cell morphology to support routine marrow examination.",
+          "The patient has minor bruising without active or life-threatening bleeding."
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": "The candidates differ on whether compatible isolated thrombocytopenia establishes primary ITP or whether exclusion-focused evaluation must be completed before that diagnosis is assigned."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Record primary immune thrombocytopenia as established because the thrombocytopenia is isolated and the smear lacks clumping, schistocytes, or blasts. No further evaluation for infections, immunodeficiency, secondary immune thrombocytopenia, or other causes is needed."
+      },
+      {
+        "id": "B",
+        "text": "Treat the findings as compatible with, but not yet diagnostic of, primary immune thrombocytopenia. Complete the exclusion-focused evaluation with quantitative immunoglobulins and testing for HIV, hepatitis B, hepatitis C, and Helicobacter pylori, integrating these results with the completed history, examination, CBC, and smear. Do not perform routine bone marrow examination at this stage unless additional clinical or hematologic abnormalities emerge."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "thrombocytopenia",
+      "immune thrombocytopenia",
+      "secondary ITP",
+      "pseudothrombocytopenia",
+      "bone marrow examination",
+      "viral serology"
+    ],
+    "evidence_keywords": [
+      "diagnosis by exclusion",
+      "peripheral blood smear",
+      "quantitative immunoglobulins",
+      "HIV testing",
+      "hepatitis serology",
+      "Helicobacter pylori"
+    ],
+    "error_tags": [
+      "wrong_diagnosis",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Primary immune thrombocytopenia is diagnosed by systematically excluding other causes using clinical history, physical examination, CBC, and peripheral blood smear.",
+        "source_ids": [
+          "37892566"
+        ]
+      },
+      {
+        "statement": "Peripheral blood smear examination is mandatory in suspected primary immune thrombocytopenia and helps identify competing explanations for thrombocytopenia.",
+        "source_ids": [
+          "37892566"
+        ]
+      },
+      {
+        "statement": "Platelet aggregates on a peripheral smear should be assessed when excluding pseudothrombocytopenia.",
+        "source_ids": [
+          "37957517"
+        ]
+      },
+      {
+        "statement": "Adult ITP evaluation includes testing for HIV, hepatitis B, hepatitis C, and Helicobacter pylori as potential associated conditions.",
+        "source_ids": [
+          "37957517"
+        ]
+      },
+      {
+        "statement": "Quantitative measurement of IgG, IgA, and IgM is recommended as part of testing for immune thrombocytopenia.",
+        "source_ids": [
+          "37957517"
+        ]
+      },
+      {
+        "statement": "Systematic bone marrow examination is not recommended when no clinical or peripheral-blood abnormality suggests another disorder or treatment refractoriness.",
+        "source_ids": [
+          "37892566"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T02:58:44.214987+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "37957517",
+        "title": "Reference guide for the diagnosis of adult primary immune thrombocytopenia, 2023 edition.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37957517/",
+        "abstract": "Primary immune thrombocytopenia (ITP) is an autoimmune disorder characterized by isolated thrombocytopenia due to accelerated platelet destruction and impaired platelet production. Diagnosis of ITP is still challenging because ITP has been diagnosed by exclusion. Exclusion of thrombocytopenia due to bone marrow failure is especially important in Japan because of high prevalence of aplastic anemia compared to Western countries. Hence, we propose a new diagnostic criteria involving the measurement of plasma thrombopoietin (TPO) levels and percentage of immature platelet fraction (RP% or IPF%); 1) isolated thrombocytopenia with no morphological evidence of dysplasia in any blood cell type in a blood smear, 2) normal or slightly increased plasma TPO level (< cutoff), 3) elevated RP% or IPF% (> upper limit of normal), and 4) absence of other conditions that potentially cause thrombocytopenia including secondary ITP. A diagnosis of ITP is made if conditions 1-4 are all met. Cases in which criterion 2 or 3 is not met or unavailable are defined as \"possible ITP,\" and diagnosis of ITP can be made mainly by typical clinical course. These new criteria enable us to clearly differentiate ITP from aplastic anemia and other forms of hypoplastic thrombocytopenia and can be highly useful in clinical practice for avoiding unnecessary bone marrow examination as well as for appropriate selection of treatments.",
+        "sha256": "8aa0ba92801643d0afe4f24d351ac5e3fa0967f5536ce1089a0ba3266e34eae7",
+        "retrieved_at": "2026-09-19T02:57:09.468733+00:00",
+        "source_type": "primary_expert_diagnostic_guidance",
+        "pmcid": "PMC10770234",
+        "body_excerpts": "Introduction\nIn Japan, primary immune thrombocytopenia (ITP) has conventionally been diagnosed according to the diagnostic criteria revised in 1990 by the former Ministry of Health and Welfare Research Committee. These diagnostic criteria primarily involve diagnosis by exclusion. Certain aspects of these criteria warranted revision: for example, platelet-associated IgG (PAIgG), as used here, was of little diagnostic value due to a lack of specificity [ 1 ]; while bone marrow examination, which is considered necessary, does not yield findings specific to ITP [ 2 ]. Most notably, aplastic anemia can be misdiagnosed as ITP when anemia is preceded by thrombocytopenia in the early stage, and bone marrow examination does not always reveal hypoplasia depending on the puncture site [ 3 ]. Roughly 10% of cases diagnosed as refractory ITP are bone marrow failure [ 4 ], and differentiating ITP from aplastic anemia is considered more important in Japan, where the prevalence of aplastic anemia is markedly higher that in the West [ 5 ]. Our research group has tackled this issue for many years. In 2006, we proposed diagnostic criteria incorporating anti-GPIIb/IIIa antibody-producing B cells (ELISPOT), platelet-associated (PA) anti-GPIIb/IIIa antibodies, plasma thrombopoietin (TPO) levels, and percentage of reticulated platelets (RP%) [ 6 ]. Here, we have proposed new diagnostic criteria involving the measurement of plasma TPO levels and percentage of immature platelet fraction, which includes RP%. These biomarkers reflect the pathology of ITP, which is characterized by a shortened platelet lifespan associated with platelet destruction and relatively maintained platelet production [ 7 ]. While our diagnostic criteria resemble the previous criteria in that they emphasize the exclusion of many other diseases, these new criteria enable clear differentiation of ITP from aplastic anemia and other forms of hypoplastic thrombocytopenia. Therefore, our new diagnostic criteria can be highly useful in clinical practice for avoiding unnecessary bone marrow examination as well as appropriate selection of treatments.\n\nDiagnostic criteria (Table  1 )\nTable 1 Diagnostic criteria 1. ALL of the following *1 Thrombocytopenia (< 100,000/\u03bcL) Absence of anemia (excluding anemia due to bleeding and/or iron deficiency) Normal leukocyte count (but may present with mild abnormal leukocyte count) No morphological evidence of dysplasia in any blood cell type in a blood smear 2. Normal or slightly increased plasma TPO level (< cutoff) *2 3. Elevated percentage of immature platelet fraction (RP% or IPF%; > ULN) 4. Absence of other conditions that potentially cause thrombocytopenia including secondary ITP \u22c63 ULN upper limit of normal A diagnosis of ITP is made if conditions 1\u20134 above are all met Cases in which criterion 2 or 3 is not met or unavailable are defined as \u201cpossible ITP\u201d. A diagnosis of ITP can be made if the patient is a glycoprotein (GP)-specific platelet-antibody positive, increased GP-specific platelet antibody-producing B cells, or typical clinical course 1 Bone marrow examination is strongly recommended to rule out other diseases if peripheral blood demonstrates any of the following findings: leukocyte count < 3000 or \u2265 10,000/\u03bcL, MCV \u2265 110, neutrophils < 30% or lymphocytes \u2265 50%, presence of immature leukocytes 2 The cutoff is 300 pg/mL with a R&D Systems ELISA Kit and 70 pg/mL with a MBL kit (TPO-CLEIA) 3 Includes drug-related thrombocytopenia, radiation injury, aplastic anemia, myelodysplastic syndrome (MDS), paroxysmal nocturnal hemoglobinuria (PNH), systemic lupus erythematosus (SLE), leukemia, malignant lymphoma, bone marrow metastasis of cancer cells, disseminated intravascular coagulation (DIC), thrombotic thrombocytopenic purpura (TTP), hypersplenism, megaloblastic anemia, sepsis, infections (tuberculosis, etc.), sarcoidosis, and huge hemangioma such as Kasabach-Merritt syndrome. Congenital diseases involving thrombocytopenia include Bernard\u2013Soulier syndrome, Wiskott\u2013Aldrich syndrome, MYH9-related disease and Upshaw\u2013Schulman syndrome\n\nDiagnostic criteria (Table  1 ) > Detailed explanations of diagnostic criteria > ALL of the following\nNo morphological evidence of dysplasia in any blood cell type in a blood smear\n\nDiagnostic criteria (Table  1 ) > Detailed explanations of diagnostic criteria > ALL of the following\nITP does not demonstrate any hematopoietic abnormalities other than thrombocytopenia. However, microcytic anemia due to bleeding and/or iron deficiency is frequently observed. In contrast, macrocytic anemia (MCV \u2265 110) is unusual in ITP and requires bone marrow examination to exclude other diseases, such as myelodysplastic syndrome (MDS). In addition, while mild leukopenia and leukocytosis are not uncommon in ITP, bone marrow examination is strongly recommended in the event of any of the following: leukocyte count < 3000/\u03bcL or \u2265 10,000/\u03bcL, immature or morphological abnormal leukocytes in a peripheral blood smear, reduced neutrophil levels, or elevated lymphocyte levels.\n\nDiagnostic criteria (Table  1 ) > Detailed explanations of diagnostic criteria > Normal or slightly increased plasma TPO level\nTPO is constantly produced primarily by the liver, while plasma TPO levels are regulated by its binding and clearance via TPO receptors (c-MPL) expressed on platelets and megakaryocytes [ 8 ]. Thus, plasma TPO levels are inversely proportional to the rate of platelet production, and plasma TPO levels dramatically increase in hypoplastic thrombocytopenia such as aplastic anemia. In sharp contrast, in ITP, both enhanced platelet destruction accelerating the disappearance of platelet-bound TPO from plasma and the relatively preserved number of megakaryocytes keep plasma TPO levels to remain normal to slightly elevated despite thrombocytopenia. A recent study in mice has revealed a novel mechanism of TPO regulation in which desialylated senescent platelets are phagocytosed via hepatocyte Ashwell\u2013Morell receptors, promoting the production of TPO [ 9 ]. While anti-GPIb\u03b1 antibodies can promote desialylation [ 10 ], the presence of anti-GPIb\u03b1 antibodies in ITP has not been found to affect plasma TPO levels in humans [ 11 ]. Thus, this novel mechanism of TPO regulation remains elusive in humans.\n\nDiagnostic criteria (Table  1 ) > Detailed explanations of diagnostic criteria > Normal or slightly increased plasma TPO level\nAs shown by many studies, measurement of plasma TPO level is incredibly useful for differentiating between ITP and hypoplastic thrombocytopenia [ 12 \u2013 30 ]. However, in chronic hepatitis, while TPO levels are normal to slightly elevated, the progression of fibrosis causes TPO levels to decrease [ 22 , 30 \u2013 32 ]. While thrombotic thrombocytopenic purpura (TTP) and antiphospholipid syndrome (APS) are similar to ITP in terms of plasma TPO levels [ 12 , 19 ], plasma TPO levels are elevated in severe cases of disseminated intravascular coagulation [ 19 , 33 \u2013 35 ]. They are also normal to slightly elevated in congenital thrombocytopenia [ 24 , 27 ]. Plasma TPO levels range from normal to high in MDS, as discussed in detail later.\n\nDiagnostic criteria (Table  1 ) > Detailed explanations of diagnostic criteria > Elevated immature platelet fraction (RP% or IPF%)\nIn ITP, immune mechanisms enhance platelet destruction and shorten platelet lifespan, causing the percentage of immature platelets to increase. Patients with ITP also exhibit increased larger immature platelets compared to healthy subjects [ 38 ]. The standard method to detect immature platelets is to identify RNA-rich platelets in flow cytometry using thiazole orange as reticulated platelets (RP), as with the detection of reticulocytes [ 39 , 40 ]. However, RP measurement is complicated and not standardized yet, making it unsuitable as a laboratory test. A recently developed method enables measurement of immature platelet fraction (IPF) with an automated hemocytometer (Sysmex, Japan). However, this method has several drawbacks: measurement in terms of IPF may not necessarily be identical to RP; measurements were strongly affected by schistocytes, and data obtained from severe thrombocytopenia were less reliable due to extremely small platelet measurement counts, especially in older devices (Sysmex XE series) [ 41 ]. The new XN-Series and XR-Series, which use dedicated staining reagents and a dedicated measurement channel, were developed to overcome these drawbacks, and have sensitivity and specificity similar to those for RP% [ 41 \u2013 44 ].\n\nDiagnostic criteria (Table  1 ) > Detailed explanations of diagnostic criteria > Elevated immature platelet fraction (RP% or IPF%)\nAs reported by many studies, elevated RP% and IPF% have been observed in ITP [ 6 , 22 , 23 , 30 , 36 , 41 , 45 \u2013 67 ]. However, increased RP% and IPF% are not specific to ITP; rather, they are also observed in DIC, TTP, and other forms of thrombocytopenia caused primarily by enhanced platelet consumption [ 66 , 67 ]. Values of IPF% vary in MDS and other hematologic malignancies. It is worth noting that IPF% is likely high in MDS with poor prognostic chromosomal abnormalities including chromosome 7 [ 53 , 55 , 56 , 68 , 69 ]. In addition, IPF% is more greatly affected by platelet size than RP%. Therefore, IPF% is often markedly elevated in MYH9-related disease, Bernard\u2013Soulier syndrome, and other congenital macrothrombocytopenia [ 61 , 70 ]. When IPF% is markedly elevated in comparison to platelet count (platelet count \u2265 50,000/\u03bcL and IPF \u2265 10%), the possibilities of MDS and congenital macrothrombocytopenia must be considered.\n\nDiagnostic criteria (Table  1 ) > Detailed explanations of diagnostic criteria > Other diseases that can cause thrombocytopenia can be ruled out.\nMajor diseases to differentiate from ITP will be discussed later.\n\nDiagnostic criteria (Table  1 ) > Detailed explanations of diagnostic criteria > Supplemental explanations for diagnostic criteria\nA diagnosis of ITP is made if conditions 1 - 4 above are all met\n\nDiagnostic criteria (Table  1 ) > Detailed explanations of diagnostic criteria > Supplemental explanations for diagnostic criteria\nCases in which criterion 2 or 3 is not met or unavailable are defined as \u201cpossible ITP\u201d. A diagnosis of ITP can be made if the patient is glycoprotein (GP)-specific platelet-antibody positive, the patient demonstrates increased GP-specific antiplatelet antibody-producing B cells, or a typical clinical course\n\nDiagnostic criteria (Table  1 ) > Detailed explanations of diagnostic criteria > Supplemental explanations for diagnostic criteria\nA typical case of ITP meets all conditions 1\u20134. In particular, a combination of plasma TPO level and IPF% can distinguish ITP from hypoplastic thrombocytopenia with high sensitivity and specificity [ 6 , 22 , 23 , 30 , 47 ]. However, plasma TPO levels occasionally exceed standard levels, and plasma TPO levels in acute phase of ITP may be higher as compared in chronic ITP [ 71 ]. We recommend to repeat measurement of plasma TPO levels with high TPO levels in typical ITP cases. Regarding elevated immature platelet fraction (RP% or IPF%), many studies have reported that RP% and IPF% are elevated in 60\u201395% and \u2265 80% of ITP cases, respectively. However, some ITP patients did not show elevation of these markers [ 6 , 23 , 41 , 50 , 51 , 56 , 57 , 62 ]. Therefore, cases that do not meet the criteria for either plasma TPO level or elevated percentage of immature platelet fraction are diagnosed as \u201cpossible ITP\u201d. When possible, a diagnosis of ITP should be made based on GP-specific platelet antibodies or a GP-specific antiplatelet antibody-producing B cell (ELISPOT) test [ 6 ]. If these tests are unavailable, ITP can be diagnosed based on clinical course, particularly the effects of corticosteroid therapy and/or high-dose immunoglobulin therapy.\n\nDiagnostic procedure (Fig.\u00a0 1 )\nFigure 1 shows the flowchart for diagnosing ITP. We have introduced plasma TPO level and immature platelet fraction in the diagnostic criteria. While these biomarkers reflect the pathology of ITP, they do not constitute a specific test for ITP exclusively. Therefore, it is crucial to carefully differentiate ITP from other diseases that cause thrombocytopenia.\n\nDiagnostic procedure (Fig.\u00a0 1 )\nPseudothrombocytopenia is first ruled out when there are no abnormalities other than thrombocytopenia and no bleeding symptoms. Pseudothrombocytopenia is a state in which platelets agglutinate in vitro, causing the hemocytometer to yield a low platelet count. While pseudothrombocytopenia is considered to occur most commonly due to antibodies recognizing GPIIb/IIIa that has undergone structural alteration in the presence of EDTA [ 72 , 73 ], platelets can also agglutinate in the presence of citrate and blood collection with heparin, though the detailed mechanism of agglutination has not yet been determined [ 74 ]. It is important to confirm the presence of platelet aggregates in a peripheral blood smear. When possible, assessing platelet count immediately following blood collection without any anticoagulant can yield a more accurate result. Also, although extremely rare, cold agglutinins are reported to cause pseudothrombocytopenia [ 75 ].\n\nDiagnostic procedure (Fig.\u00a0 1 )\nBasic assessment Disease history Family history Physical findings Complete blood count (CBC) Peripheral blood smear Biochemical examination\n\nDiagnostic procedure (Fig.\u00a0 1 )\nDiagnostic interviews should confirm the course of thrombocytopenia and bleeding symptoms, previous infections, comorbidities, medications used, and family history of thrombocytopenia. The nature of bleeding symptoms should be noted carefully. Purpura in ITP often typically range in size from petechiae to ecchymosis. Mucosal bleeding (epistaxis, gastrointestinal bleeding, hematuria, etc.) is frequently observed in more serious cases of thrombocytopenia, and fatal intracranial hemorrhage occurs in roughly 1% of adults and 0.4% of children with ITP [ 76 ]. Intra-articular bleeding, intramuscular bleeding, and other deep hemorrhages observed in conditions such as hemophilia are rare. Adults with ITP often do not demonstrate bleeding symptoms.\n\nDiagnostic procedure (Fig.\u00a0 1 )\nAs for peripheral blood findings, bone marrow examination is strongly recommended to rule out other diseases in the following cases: anemia other than iron deficiency or hemolytic anemia is observed, leukocyte count is abnormal (< 3000/\u03bcL or \u2265 10,000/\u03bcL), a peripheral blood smear reveals the presence of immature leukocytes or morphological defects, neutrophil count is decreased, or lymphocyte count is increased. In a biochemical examination, liver dysfunction, increased LD, and inflammatory findings require particular attention. While ITP shows an increased percentage of large platelets, congenital macrothrombocytopenia should be considered in the event of markedly increased large to giant platelets. Ruling out SLE, which frequently occurs in secondary ITP, requires consideration of antinuclear antibodies and complements as well as examination of physical abnormalities such as fever, arthralgia/arthritis, and findings in the skin (erythema, etc.), kidneys, lungs, heart, and central nervous system [ 77 ].\n\nDiagnostic procedure (Fig.\u00a0 1 )\nWhen a routine coagulation/hemostasis assay (PT, aPTT, fibrinogen, FDP) reveals abnormalities, DIC and other diseases should be excluded. When hemolysis findings (elevated bilirubin, elevated LD, decreased haptoglobin) are observed, a Coombs test should be performed, and the possibility of Evans syndrome should be considered. When a Coombs test is negative, or in the event of neurological symptoms, renal dysfunction, or schistocytes, ADAMTS13 activity should be measured to rule out TTP. Imaging should be considered to assess for splenomegaly. Testing should also be performed for H. pylori , HIV, HBV, and HCV, all of which are potentially associated with ITP.\n\nDiagnostic procedure (Fig.\u00a0 1 )\nTesting is performed when evident abnormalities other than thrombocytopenia are not observed Plasma TPO levels Immature platelet fraction (RP% or IPF%)\n\nDiagnostic procedure (Fig.\u00a0 1 )\nWhen the above tests do not reveal any evident abnormalities other than thrombocytopenia, plasma TPO levels and immature platelet fraction (RP% or IPF%) are measured, and ITP is diagnosed based on the criteria described above.\n\nDiseases to differentiate from ITP and their characteristics\nCongenital (hereditary) thrombocytopenia\n\nDiseases to differentiate from ITP and their characteristics\nCongenital thrombocytopenia is a rare disease but is reported to account for roughly 15% of diagnoses of refractory ITP [ 4 ]. Congenital thrombocytopenia not only poses a risk of unnecessary treatment such as splenectomy due to misdiagnosis as ITP but can also involve nephritis, deafness, and cataract in MYH9-related disease as well as leukemia in FPD-AML; therefore, careful differentiation of ITP and congenital thrombocytopenia is required [ 78 ]. In diagnosing ITP, it is important to confirm the family history and thoroughly review peripheral blood smear findings. Congenital thrombocytopenia can be classified by platelet size: MYH9-related disease, Bernard\u2013Soulier syndrome, and GPIIb/IIIa-induced thrombocytopenia, which are relatively frequent, are classified as congenital \u201cmacro\u201d thrombocytopenia. MYH9-related disease presents with \u2265 50% giant platelets and characteristic leukocyte inclusion bodies [ 79 ]. In congenital macrothrombocytopenia, IPF% is often markedly high compared to platelet count, a characteristic that facilitates differentiation from ITP [ 61 , 70 ].\n\nDiseases to differentiate from ITP and their characteristics\nDrug-related thrombocytopenia is broadly divided into two types: non-immune-mediated, which is typified by anticancer drug induced myelosuppression, and immune-mediated. More than 300 drugs have been reported to induce immune thrombocytopenia [ 80 ]. Drug-related immune thrombocytopenia typically manifests 5 \u2212 10 days following drug administration and not uncommonly presents with a dramatically reduced platelet count (\u2264 20,000/\u03bcL). Known mechanisms involved in drug-related immune thrombocytopenia include the following: i) hapten-dependent antibodies: drug binds to platelet membranes as haptens and react with antibodies (penicillin, cephalosporins); (ii) quinine-type antibodies: drug binds to antibody Fab and membrane GP, enhancing antibody affinity and binding to platelet GP (quinine, vancomycin, rifampicin, etc.); (iii) autoantibody induction: drug induces the formation of platelet autoantibody that reacts in a non-drug-dependent fashion (procarbazine, gold salts, etc.); (iv) immune complexes: drug/PF4 immune complex activates platelets via Fc\u03b3RIIa (heparin) [ 81 ].\n\nDiseases to differentiate from ITP and their characteristics\nThrombocytopenia is observed in approximately 10% of all pregnant women, roughly 70% of those cases being gestational thrombocytopenia. Although its pathology is unknown, it typically occurs in the second to third trimester; thrombocytopenia is mild, with platelet count typically \u2265 70,000/\u03bcL. Gestational thrombocytopenia spontaneously remits 1 \u2212 2 months after delivery without triggering fetal or neonatal thrombocytopenia. Since there is no clear method for distinguishing between gestational thrombocytopenia and ITP in pregnancy, it is important to carefully observe the course of thrombocytopenia when it first appears during pregnancy. Caution is required when gestational thrombocytopenia involves hemolysis findings. Although rare, congenital TTP (Upshaw\u2013Schulman syndrome) should be considered as a possibility, and ADAMTS13 activity should be measured [ 82 ]. Refer to other guidelines regarding diseases to consider in relation to thrombocytopenia during pregnancy [ 83 ].\n\nDiseases to differentiate from ITP and their characteristics\nAplastic anemia is characterized by marrow hypoplasia from immune attack on hematopoietic cells of unknown etiology, resulting in pancytopenia [ 84 ]. During its course, some patients who were initially diagnosed as aplastic anemia develop MDS or acute myeloid leukemia [ 85 ]; and bone marrow aspiration and biopsy are needed to assess clonal evolution. However, chromosomal abnormalities are also detected in some patients with aplastic anemia [ 86 ]. Abnormalities in chromosome 7 (monosomy 7, etc.) are known to be associated with a high risk of progression to MDS/acute myeloid leukemia and poor prognoses [ 87 , 88 ]. In contrast, some abnormalities such as trisomy 8 [ 89 , 90 ], del(13q) [ 91 , 92 ], and loss of heterozygosity in the short arm of chromosome 6 (6pLOH) [ 93 ] are unrelated to poor prognosis. While bone marrow in aplastic anemia is characterized by hypoplastic bone marrow with fatty replacement, the residual patchy hematopoiesis may affect accurate assessment of hematopoiesis by aspiration and/or biopsy. Therefore, magnetic resonance imaging (MRI) is useful to assess a homogeneous fatty bone marrow observed in aplastic anemia [ 94 ].\n\nDiseases to differentiate from ITP and their characteristics\nIn some cases of aplastic anemia, isolated thrombocytopenia can be observed in its early stage, making it difficult to differentiate from ITP, and roughly 10% of patients with refractory ITP are misdiagnosis of bone marrow failure including aplastic anemia [ 4 ]. In bone marrow examination, the number of megakaryocytes is an important point for differentiation. Although there are no specific findings in the bone marrow with ITP, the number of megakaryocytes is generally normal to increased. In contrast, the number of megakaryocytes is decreased in aplastic anemia. Immature platelet fraction and plasma TPO level, which we have proposed here as diagnostic criteria for ITP, are highly effective for the differential diagnosis. Significant differences between aplastic anemia and ITP are the lack of an increased immature platelet fraction and a markedly increased plasma TPO level in the case of aplastic anemia [ 12 \u2013 18 , 20 \u2013 24 , 26 \u2013 29 ]. Increased PNH clones, which are detected in 30% \u2212 60% of cases of aplastic anemia, may also be useful in the differential diagnosis between ITP and aplastic anemia [ 95 ].\n\nDiseases to differentiate from ITP and their characteristics\nMDS occurs most frequently among elderly adults. Among patients with MDS, 80\u2013 85% present with anemia, 30\u201365% present with thrombocytopenia, and 40\u201350% present with neutropenia [ 96 ]. Although MDS often involves reductions in at least two types of blood cells, 1\u201310% of patients demonstrate only thrombocytopenia, hindering differentiation from ITP [ 97 \u2013 101 ]. Patients with MDS sometimes demonstrate markedly increased IPF%. Such cases often demonstrate markedly heterogeneous platelet size and chromosomal abnormalities including chromosome 7 with poor prognoses [ 68 ]. Plasma TPO levels vary greatly from normal to high [ 22 , 30 , 31 ]. Notably, patients with markedly elevated plasma TPO levels often have increased PNH-type cells and respond to ciclosporin [ 102 , 103 ], a pathology surmised to resemble that of aplastic anemia. As illustrated above, MDS and ITP are difficult to differentiate based on immature platelet fraction and plasma TPO level. Proactive bone marrow examination is recommended for differentiating ITP from MDS in the following instances: high MCV [ 104 ], abnormal leukocyte count, blood cell morphological defects, the appearance of immature leukocytes, or abnormal neutrophil\u2013lymphocyte ratio, or refractory cases of ITP.\n\nDiseases to differentiate from ITP and their characteristics\nThrombocytopenia with increased thrombus formation: DIC, TTP, APS, etc\n\nDiseases to differentiate from ITP and their characteristics\nIn thrombocytopenic diseases such as DIC, TTP, and APS, increased thrombus formation may induce enhanced platelet consumption, in turn causing thrombocytopenia. While TTP dominantly present symptoms associated with thrombus formation, TTP occasionally exhibits bleeding tendency with severe thrombocytopenia resembling ITP. These diseases often demonstrate the same trends observed for ITP in immature platelet fraction and plasma TPO level, which have been adopted in this guideline as diagnostic criteria for ITP [ 12 , 19 , 33 \u2013 35 , 66 , 67 ]. For DIC, coagulation and fibrinolytic system testing, namely FDP, fibrinogen, and prothrombin time, are useful for diagnosis. We recommend differentiation of TTP from ITP based on confirmation of schistocytes in a peripheral blood smear and hemolysis findings (elevated LD, decreased haptoglobin, etc.) and consideration of clinical findings such as nephropathy and neurologic symptoms. Differentiation of TTP from ITP via measurement of ADAMTS13 activity is particularly important when hemolysis findings are observed. As for APS, in the event of thrombosis, habitual abortion, or other clinical findings indicative of APS, an antiphospholipid antibody test should be performed. For all the above diseases, diagnostic criteria and therapeutic guidelines have been published; refer to these when differentiating these diseases from ITP [ 105 \u2013 108 ].\n\nDiseases to differentiate from ITP and their characteristics\nUnderling diseases of secondary ITP include connective tissue diseases (SLE, mixed connective tissue disease, Sj\u00f6gren's syndrome, etc.), lymphoproliferative disease, chronic hepatitis, and HIV infection. Primary and secondary ITP share the same pathogenic process, mediated through immune dysregulation consisting primarily of anti-platelet autoantibodies. This hinders differentiation based on diagnostic criteria 1 \u2212 3 [ 109 \u2013 111 ]. Therefore, exclusion of secondary ITP is based on detailed interviews, physical findings, and test results specific to underlying diseases (e.g. virus tests). SLE often involves not only thrombocytopenia but also decreased neutrophil, lymphocyte, and erythrocyte counts, with the frequency of lymphocytopenia serving as useful information. Pancytopenia is also found in patients with cirrhosis when portal hypertension is complicated. Although the thrombocytopenia observed in SLE is mediated mainly by secondary ITP, other pathogenic mechanisms, such as amegakaryocytic thrombocytopenia, DIC, thrombotic microangiopathy, APS, and non-specific platelet destruction associated with immune complexes account for thrombocytopenia in SLE.\n\nOther tests associated with ITP diagnosis\nDetection of antiplatelet autoantibodies\n\nOther tests associated with ITP diagnosis\nDetection of anti-platelet antibody-producing B cells (ELISPOT)\n\nOther tests associated with ITP diagnosis\nIn circulation, GP-specific platelet antibodies are primarily bound to platelet membrane surfaces, requiring techniques to lyse platelets for detection of these antibodies. Therefore, an assay using the enzyme-linked immunospot (ELISPOT) principle has been proposed to detect anti-platelet antibody-producing B cells [ 121 , 122 ]. Specifically, mononuclear cells isolated from the patient\u2019s peripheral blood are cultured on the solid-phased membranes of GP (GPIIb/IIIa, GPIb, etc.), followed by detection of anti-GP antibodies. While ELISPOT is useful for differentiating ITP from MDS and aplastic anemia, the method is not widespread as a standard laboratory test because the assay requires immediate separation after blood drawing. Assays using this principle can be developed into kits, and measurements can be outsourced to testing centers.\n\nOther tests associated with ITP diagnosis\nThe primary purpose of bone marrow examination in ITP diagnosis is to rule out diseases other than ITP. Although bone marrow examination has indisputably played a role in differentiating ITP from diseases such as MDS and aplastic anemia, recent studies have claimed that bone marrow examination is unnecessary in this regard [ 123 \u2013 126 ]. Guidelines and consensus reports have also stressed that bone marrow examination is unnecessary [ 127 , 128 ]. However, bone marrow examination has been conventional until now, with 50% of examinations reported to have been unnecessary [ 129 ]. There are no bone marrow findings unique to ITP; increased megakaryocytes, which are considered characteristic of ITP, are observed in only 25% of cases; and the sensitivity and specificity of bone marrow examination in ITP diagnosis are considered to be 24% and 90%, respectively [ 130 ]. Bone marrow examination may be necessary for circumstances such as the following: abnormal hematological findings other than thrombocytopenia (including smear findings), splenomegaly, lymphadenopathy, advanced age (\u226560 or \u226565 years), treatment refractoriness, and planned use of TPO receptor agonists [ 131 ]. Although criteria for assessing abnormal hematological findings are lacking in evidence, potential criteria include the following: anemia, morphological abnormalities of blood cells, the appearance of immature leukocytes, abnormal leukocyte count, abnormal neutrophil ratio or lymphocyte ratio, and high MCV. The present diagnosis reference guide also recommends bone marrow examination when the above findings are observed. In actual bone marrow examinations, factors such as nucleated cell count, megakaryocyte count, morphological abnormalities in all three lineages of blood cells, B cell and T cell clonality, and chromosomal abnormalities should be examined. At present, the indication for bone marrow examination might be difficult to determine based on the proposed diagnostic markers (immature platelet fraction and plasma TPO level). However, we assume that our proposed diagnostic markers would contribute to the more accurate diagnosis of ITP, which would make bone marrow examination less frequent.\n\nOther tests associated with ITP diagnosis\nOther tests (Ig quantitation, antiphospholipid antibodies, thyroid-related tests, antinuclear antibodies, and DAT)\n\nOther tests associated with ITP diagnosis\nDue to potential comorbid common variable immunodeficiency, IgG, A, and M should be quantitated as part of testing for ITP [ 128 ]. Results for anti-cardiolipin antibodies, lupus anticoagulant, and other antiphospholipid antibodies are positive in 25\u2212 30% of patients with ITP [ 132 \u2013 134 ]. Immunoglobulins should be quantitated before using TPO receptor agonists or similar agents to assess the risk of thrombosis. A positive result for antinuclear antibodies suggests the possibility of chronic or secondary ITP [ 135 , 136 ]. Tests for antithyroid antibodies and thyroid dysfunction should also be performed because these are often present in patients with ITP [ 137 ]. The possibility of comorbid autoimmune hemolytic anemia (Evans syndrome) should also be considered in direct Coombs testing.\n\nConclusion\nMeasurement of the combination of immature platelet fraction and plasma TPO level in appropriate cases enable clear differentiation of ITP from hypoplastic thrombocytopenia, which has sometimes been difficult in the past. However, it remains crucial to rule out many other diseases by several screening examinations. Further evaluation of the validity of our diagnostic criteria is necessary.\n\nAcknowledgements\nThis reference guide for diagnosis of adult ITP was created under the auspices of the Ministry of Health, Labor and Welfare Science Research Grant Project, Research Team for Blood Coagulation and Other Intractable Diseases (Research Representative: Eriko Morishita). We would like to express our sincere gratitude to all the team members for their valuable input.",
+        "body_excerpts_sha256": "1f5ffb1010e79fc4a02f1cf1f3a7d05fe36caa75e9809f00621adfc4fcd450c2",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10770234/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "37892566",
+        "title": "Recommendations for the Clinical Approach to Immune Thrombocytopenia: Spanish ITP Working Group (GEPTI).",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37892566/",
+        "abstract": "Primary immune thrombocytopenia (ITP) is a complex autoimmune disease whose hallmark is a deregulation of cellular and humoral immunity leading to increased destruction and reduced production of platelets. The heterogeneity of presentation and clinical course hampers personalized approaches for diagnosis and management. In 2021, the Spanish ITP Group (GEPTI) of the Spanish Society of Hematology and Hemotherapy (SEHH) updated a consensus document that had been launched in 2011. The updated guidelines have been the reference for the diagnosis and management of primary ITP in Spain ever since. Nevertheless, the emergence of new tools and strategies makes it advisable to review them again. For this reason, we have updated the main recommendations appropriately. Our aim is to provide a practical tool to facilitate the integral management of all aspects of primary ITP management.",
+        "sha256": "837a5722a41069007bfac94517dbfd286b23d260ce246845d7ffea17698cf04e",
+        "retrieved_at": "2026-09-19T02:57:09.468733+00:00",
+        "source_type": "primary_society_consensus",
+        "pmcid": "PMC10607106",
+        "body_excerpts": "1. Introduction > 1.2. Diagnosis\nDespite the important advances achieved in the therapeutic field in the last decade, there has been little progress in the diagnosis of the disease, and reliable markers or confirmatory tests are lacking. Diagnosis continues to be essentially clinical and based on excluding other causes of thrombocytopenia. When a patient is suspected of primary ITP, once the clinical history, physical examination, peripheral blood smear, immunoglobulin level and viral serology have allowed us to rule out other processes, the general rule consists of limiting tests to a minimum, since most of them will not be very informative. The paradigmatic laboratory finding is isolated thrombocytopenia, and careful examination of the peripheral blood smear is mandatory. In primary ITP patients, platelets are usually large and granular, with elevated mean platelet volumes and immature fractions. The systematic analysis of bone marrow is not recommended, except in the event that treatment response is inadequate, or when other abnormalities in the peripheral blood smear or the clinical presentation lead us to suspect other disorders. These limitations may result in an incorrect diagnosis in one out of seven patients identified as having primary ITP [ 2 ]. Further measures to overcome this challenge are required.\n\n1. Introduction > 1.4. Outcome\nTable 1 Primary ITP: general aspects, pathophysiology and diagnosis. General Aspects Primary ITP is defined as a platelet count < 100 \u00d7 10 9 /L, which is not justified by any known reason. The term secondary ITP is limited to those situations where a platelet count drop to values < 100 \u00d7 10 9 /L is caused by diagnosed diseases able to induce immune destruction of platelets. Incidence of primary ITP is two to four cases per 100,000 individuals per year in adults and children. Bleeding manifestations are the main symptoms associated with primary ITP. Higher thrombotic risk, fatigue (occasionally unrelated to platelet counts) and higher predisposition to infection can also be observed. Adverse events subsequent to administration of primary ITP therapies are often seen. The development of new treatments has probably improved prognosis of primary ITP patients. However, the exact influence of these therapies on causes of either mortality or the mortality rate has not been established. Pathophysiology Causal mechanisms underlying primary ITP lead to an increase in platelet destruction or a decrease in platelet generation. Platelet destruction is caused by autoantibodies, phagocytes, complement, apoptosis and clearance through Ashwell\u2013Morel receptors of hepatocytes. The lower rate of platelet production is caused by autoantibodies able to block TPO function and by increased apoptosis of megakaryocytes. Diagnosis Diagnosis of primary ITP is performed by excluding systematically other causes of thrombocytopenia and is based essentially on clinical history, physical examination, CBC and peripheral blood smear. Peripheral blood smear examination is paramount for diagnosis. Additional studies may be required and should be requested according to presentation and clinical course of the disease. Assessment of antiplatelet autoantibodies is not routinely indicated, although it may be useful in complex cases. The systematic analysis of bone marrow is not recommended except in the event of refractoriness to treatments or when another disease is suspected. In these cases, bone marrow examination should include aspiration and biopsy, immunophenotyping with flow cytometry, cytogenetics and molecular biology. CBC, complete blood count; ITP, immune thrombocytopenia; TPO, thrombopoietin.\n\n1. Introduction > 1.4. Outcome\nTable 2 Consensual definitions and concepts in the context of ITP. Primary ITP Categories According to the Phase of the Disease [ 4 ] Newly diagnosed ITP: within 3 months from diagnosis. Persistent ITP: between 3 and 12 months from diagnosis. Chronic ITP: lasting for more than 12 months from diagnosis. Severe ITP: there are bleeding symptoms sufficient to mandate treatment, or new bleeding symptoms requiring additional therapeutic intervention with either an increased dose or a different platelet-enhancing agent. Refractory ITP [ 4 ] Two criteria must be met: Failure of splenectomy or subsequent relapse. Severe ITP or bleeding risk that in the opinion of the attending physician requires therapy. Type of response [ 4 ] Complete response: platelet count \u2265 100 \u00d7 10 9 /L and absence of bleeding. Response: platelet count \u2265 30 \u00d7 10 9 /L and at least doubling of the baseline count, and absence of bleeding. No response: platelet count < 30 \u00d7 10 9 /L or less than doubling of the baseline count, or bleeding. Corticosteroid dependence: the ongoing need for corticosteroid administration at least for 2 months to maintain a platelet count \u2265 30 \u00d7 10 9 /L and/or to avoid bleeding. Type of response [ 6 ] Durable response: platelet count \u2265 30 \u00d7 10 9 /L and at least doubling baseline at 6 months. Early response: platelet count \u2265 30 \u00d7 10 9 /L and at least doubling baseline at 1 week. Initial response: platelet count \u2265 30 \u00d7 10 9 /L and at least doubling baseline at 1 month. Maintained response in the absence of treatment: response after 6 months without treatment. Texts excerpted from Rodeghiero et al., 2009 [ 4 ] and Neunert et al., 2019 [ 6 ]. ITP, immune thrombocytopenia.\n\n3. First-Line, Second-Line and Multirefractory ITP Treatment\nTable 3 First-line and second-line treatment of primary ITP and management of refractory patients. First-Line Treatment Decision relies basically on bleeding symptoms and platelet counts (<20 \u00d7 10 9 /L). First-line treatment is glucocorticoids (prednisone 0.5\u20131 mg/kg or dexamethasone 40 mg/day for 4 days). Treatment should not last more than 8 weeks in the case of prednisone or more than three cycles in the case of dexamethasone. ERR prednisone: 60\u201380%; SRR prednisone: 30\u201350%. Potential side effects of glucocorticoids other than those linked to immunosuppression are ecchymosis, skin thinning and atrophy, acne, mild hirsutism, facial erythema, stria, impaired wound healing, thinning of hair, perioral dermatitis and adverse gastrointestinal effects. IVIg are reserved for patients with severe hemorrhage or when steroids are contraindicated. ERR IVIg: 75\u201392%; SRR IVIg: 30\u201355%. In severe hemorrhage scenarios, combined treatment is suitable (IVIg, high-dose methylprednisolone, platelet transfusion; consider whether antifibrinolytics and/or TPO-RA are required). Potential side effects of IVIg are chills, fever, flushing, flu-like muscle pains or joint pains, nausea, fatigue, rash, vomiting and very rarely, allergic reactions or anemia. Anti-D immunoglobulins may be used, although they are not available world-wide. The single, i.v. dose, is 50\u201375 \u03bcg/kg, ERR is 80\u201390% and SRR at 60 days is 17%. A potential side effect is secondary hemolytic anemia in Rh(D) positive patients. Hospitalization for at least 48\u201372 h is recommended for newly diagnosed patients with platelet counts < 20 \u00d7 10 9 /L. Second-Line Treatment The first choice should be TPO-RA (eltrombopag, romiplostim, avatrombopag) or fostamatinib. TPO-RA exhibits a good safety profile, although its cost is high. The choice of one TPO-RA or another should be based on administration route, patient preference and potential future complications. ERR eltrombopag: 70\u201380%; SRR eltrombopag: 10\u201330%; ERR romiplostim: 70\u201380%; SRR romiplostim: 10\u201330%; ERR avatrombopag: 65%; SRR avatrombopag: not known. TPO-RA may increase the risk of venous thromboembolism. Other potential side effects are headache, tiredness, arthralgias, nausea and nasopharyngitis. Fostamatinib is a SYK inhibitor able to reduce the anti-platelet activity of phagocytes. ERR fostamatinib: 18\u201343%. Responses to fostamatinib are observed early, and good results in multirefractory patients have been described. Fostamatinib is particularly suitable as a first option for second-line treatment in patients with high thromboembolic risk. Potential side effects of fostamatinib are blood pressure increase, liver toxicity, severe diarrhea, and infections. Rituximab should be the secondary scenario in second-line options. The more used regimen consists of four doses of 375 mg/m 2 each, administered on a weekly basis. Nevertheless, the same temporal pattern reducing each dose from 375 to 100 mg/m 2 has been shown to have the same efficacy, while being possibly safer. ERR rituximab: 60\u201380%; SRR rituximab: 20\u201330%. Potential side effects of rituximab other than those linked to immunosuppression are infusion-related reactions (special attention has to be paid to fever, chills, shaking, dizziness, trouble breathing, itching or rash, lightheadedness or fainting), body aches, tiredness and nausea. Splenectomy can be considered in chronic phases after at least one second-line treatment has failed. ERR splenectomy: 80\u201390%; SRR splenectomy: 60\u201370%. The laparoscopic procedure is preferred if splenectomy is finally decided. Potential side effects of splenectomy other than infection risk are pancreatitis/fistula, atelectasis, bleeding or pulmonary embolism. Refractory Patients There is no clear recommendation about how those refractory patient treatments should be managed. Combined therapies are usually more effective than monotherapy in refractory patients. Ideally, agents with different mechanisms of action should be combined. Rescues have been described using steroids concomitantly with rituximab or TPO-RA. In the event of no response to one treatment, adding a new therapy concomitantly may be better than suspending the former and starting with the new one only. Other diagnoses, such as drug-induced thrombocytopenia, myelodysplastic syndrome or hereditary thrombocytopenia, should be considered in multirefractory patients. The use of immunosuppressants, immunomodulators or cytostatic agents can be considered. Nevertheless, their side effects, especially those linked to an increased infection risk, make it advisable to balance carefully the benefit:risk ratio. ERR, expected response rate; ITP, immune thrombocytopenia; i.v., intravenous; IVIg, intravenous immunoglobulins; SRR, sustained response rate; TPO-RA, agonist of thrombopoietin receptor; SYK, spleen tyrosine kinase.\n\n3. First-Line, Second-Line and Multirefractory ITP Treatment > 3.1. First-Line Treatment\nTable 4 Guidelines for the follow-up of non-hospitalized primary ITP patients. Newly Diagnosed Patients The frequency of CBC should be established according to individual features in order to guarantee stable platelet counts. The patient has to be educated to recognize alarm signs early (hemorrhage; fatigue; pregnancy; start of anticoagulant or antiplatelet treatment; planned invasive procedures). Disorders that may lead to erroneous primary ITP diagnosis have to be ruled out: autoimmune diseases, thyroid disease, hematologic disorders, immunodeficiencies. Patients with persistent or chronic ITP who are not being treated CBC on a 3\u20136 monthly basis. The patient has to be educated to recognize alarm signs. If still pending, continue proceeding with the differential diagnosis to rule out other autoimmune diseases. Attention should be paid to complications associated with the use of previous therapies. Patients currently on treatment (In all cases, the aforementioned actions to be taken in risk situations are applicable.) With corticoids Patients have to be informed about the more important side effects: hyperglycemia; hypertension; sleep disorder; state of mind disorder; osteoporosis; muscle weakness or atrophy; weight gain; infection; acne; skin stretch Prophylaxis of osteoporosis with calcium and vitamin D is recommended if steroids are used for >4 weeks. Infection prophylaxis as described is recommended. With IVIg CBC has to be performed on a weekly basis to assess efficacy and, accordingly, duration of therapy. Patients have to be informed about the possibility of suffering cephalea (occasionally with meningismus) in the days following treatment administration. With TPO-RA CBC has to be performed on a weekly basis until maintenance dose is reached. Thereafter, CBC will be performed on a 4\u20138 weekly basis provided that platelet counts remain >50 \u00d7 10 9 /L. Those patients with previous history of thrombembolism or with thrombembolic risk factors have to be informed about thromboembolic risk. Peripheral blood smear has to be carefully studied in the event that CVC results suggest the onset of fibrosis. Patients have to be informed about side effects they may experience, such as fatigue, headache, muscle and joint pain or cutaneous symptoms, explaining that they will not be severe. Liver function has to be monitored if eltrombopag is the chosen TPO-RA. With fostamatinib CBC has to be performed on a monthly basis until a maintenance dose is reached. Thereafter, frequency has to be adapted to each individual requirement. Blood pressure has to be controlled to monitor hypertension risk. Liver enzymes have to be monitored each 4\u20138 weeks. Patients have to be informed about possible side effects they may experience such as diarrhea or abdominal discomfort. With rituximab Serological control of HBV (anti-HBc, HBsAg) has to be performed. Patients have to be warned about infection risk, especially when they are being administered rituximab concomitantly with corticoids. Attention must be paid to neurologic signs consistent with progressive multifocal leukoencephalopathy in order to allow its early detection, since this disorder has been associated with this therapy, although still not frequently. In the event of imminent vaccination (including SARS-CoV-2 vaccine), it is advisable to be aware that rituximab may influence efficacy. The vaccination calendar had to be adapted accordingly. Before/after splenectomy Before surgery, patients have to be vaccinated against encapsulated bacteria ( Neisseria meningitidis , Streptococcus pneumoniae , Haemophilus influenzae ). Patients must also be vaccinated against influenza before surgery and each year. MMR and varicella: two doses administered 4\u20138 weeks (preferably three months) apart from each other in subjects without evidence of immunity. Tdap: three doses in naive patient or one boost if previously vaccinated. New boost every 10 years. Serogroup B meningococcal vaccine has to be considered for those younger than 25 years. In the event that splenectomy is performed as an emergency procedure, vaccination should be performed afterwards After surgery, proper thromboembolic prophylaxis should be initiated according to the patient\u2019s characteristics. Close monitoring is recommended to anticipate thromboembolic complications. Re-vaccination against the aforementioned pathogens should be performed according to established guidelines of each country. Meningococcal and pneumococcal vaccine boosts are recommended every 5 years. Patients have to be warned about the risk of infection after the procedure and have to be educated for them to early detect symptoms coherent with this complication. They have to be explicitly told to go to the doctor if they are experiencing febrile episodes lasting more than 48 h. Anti-HBc, antibody to HBV core antigen; CBC, complete blood count; HBsAg, hepatitis B surface antigen; HBV, hepatitis B virus; ITP, immune thrombocytopenia; IVIg, intravenous immunoglobulins; MMR, measles, mumps and rubella; Tdap, tetanus/diphtheria/pertussis; TPO-RA, agonist of thrombopoietin receptor.\n\n3. First-Line, Second-Line and Multirefractory ITP Treatment > 3.4. Treatment of Multirefractory Patients\nMultirefractory primary ITP is a severe condition that can be experienced by up to 20% of patients. The term \u201crefractoriness\u201d has been controversial. It has been recently defined as the total loss of response to one or more treatments, including rituximab and TPO-RA [ 50 ]. In these cases, reconsidering primary ITP diagnosis is advisable, and bone marrow examination is indicated. As far as the therapeutic attitude is concerned, eradication of Helicobacter pylori , a gram-negative bacterium that can be detected in the digestive tract of more than half of the total population, can be proposed, since it has been associated with primary ITP in several studies [ 51 ]. On the other hand, treatments consisting of combinations of agents able to induce platelet generation and prevent platelet destruction have been applied. Patient rescues subsequent to administration of steroids concomitantly with rituximab or TPO-RA, as well as subsequent to rituximab and TPO-RA combination, have been described [ 52 , 53 , 54 , 55 , 56 ].\n\n4. Follow-Up of Patients with Primary ITP\u2014Scenarios and Recommendations\nThe fact that the diagnosis of primary ITP is performed by exclusion may lead to situations where the definitive diagnosis has not been made before the initiation of treatment. Patients should be closely followed up by experienced practitioners, with the aim to rule out other diseases responsible for the symptoms attributed to primary ITP, and to control the subsequent onset of other disorders, especially when patients have persistent or chronic primary ITP, or are elderly. Furthermore, follow-up is required for the early identification of thrombocytopenia-derived complications and side effects of treatments. The scenarios that can be most frequently found throughout the follow-up period are described below.\n\n5. Primary ITP in Selected Patient Populations > 5.1. Pediatric Patients\nHospitalization is recommended for pediatric patients with active hemorrhage, bleeding risk factors or platelet counts \u2264 20 \u00d7 10 9 /L. In order to make therapeutic decisions, platelet counts should not be the only factor taken into account. Other variables such as mucocutaneous symptoms, the type of active hemorrhage and bleeding risk factors such as other hemostatic disorders and anticoagulant or antiplatelet drugs, should also be considered on a case-by-case basis. The aim of the treatment should focus on the control of clinically relevant hemorrhages rather than the platelet count recovery. First-line treatments are either corticosteroids, such as prednisone (oral) or methylprednisolone (i.v.), or high-dose IVIg. In the event of no response to the first chosen agent, the alternative one can be tried [ 77 , 78 ]. TPO-RA can be used as a second-line option [ 79 , 80 ]. Failure of the first and second treatment lines should prompt not only bone marrow examination but also the consideration of other drugs such as mycophenolate mofetil or rituximab, even though the experience with these agents is limited in children. Splenectomy may be an option in scenarios of life-threatening hemorrhage. Finally, dapsone has been shown to be effective and safe in pediatric ITP patients refractory to steroids and may be another third-line option [ 81 ]. Table 6 provides details about these therapeutic guidelines.\n\n5. Primary ITP in Selected Patient Populations > 5.1. Pediatric Patients\nTable 6 Management of primary ITP in pediatric patients, elderly patients and pregnant women. Pediatric Patients Therapeutic decisions should not rely on platelet counts only. The type of bleeding manifestations and hemorrhagic risk factors have also to be considered. The aim of the treatment should prioritize the control of clinically relevant hemorrhages. First-line options Oral prednisone or i.v. methylprednisolone, 4 mg/kg/day (maximum dose 180 mg/day in three daily doses) during 4 days, 2 mg/kg for 3 days, then suspend. High-dose IVIg, one single dose of 0.8\u20131 g/kg. Second-line options In persistent ITP (If Rh+) i.v. anti-D Ig, one dose of 50\u201375 \u03bcg/kg, one-hour perfusion. Methylprednisolone, i.v., 30 mg/kg/day for 3 days, 2 h perfusion. Dexamethasone, oral, 0.6 mg/kg/day (one daily dose, 40 mg/day maximum dose) for 4 days each month. In chronic ITP TPO-RA (long-term treatment). Romiplostim, s.c., one weekly dose, initial dose 1 \u03bcg/kg, weekly increases of 1 \u03bcg (10 \u03bcg maximum dose) until platelet counts \u2265 50 \u00d7 10 9 /L are reached. Eltrombopag, oral daily dose of 25 mg (<6 years) or 50 mg (\u22656 years). If platelet counts remain <50 \u00d7 10 9 /L after 2 weeks, increase daily dose in 12.5 mg (<6 years) or 25 mg (\u22656 years). This pattern is repeated until platelet counts > 50 \u00d7 10 9 /L are reached, never using daily doses >75 mg. Third-line options Mycophenolate mofetil, 20\u201340 mg/kg/day orally, in two daily doses (response in 4\u20136 weeks). Rituximab, currently under surveillance for suspicion of risk of progressive multifocal leukoencephalopathy; furthermore, risk of infection due to prolonged B-cell depletion. Infusion has to be closely monitored to anticipate acute immunoallergic reactions. Splenectomy: - In ITP of new or persistent diagnosis, if there is a bleeding emergency that is life-threatening and does not respond to previous treatment. - In chronic ITP, if there is a life-threatening bleeding emergency. - Can be considered in patients >5 y.o. and >2 years evolution who are symptomatic and refractory to previous treatments, provided that ITP interferes the normal life development. Dapsone has shown a good efficacy/safety profile in pediatric patients refractory to steroids Elderly patients Differential diagnosis is particularly important to reliably discard other entities and avoid wrong therapeutic approaches. The aim of the treatment is to maintain platelet counts \u2265 30 \u00d7 10 9 /L in patients >75 y.o. (or in those >60 y.o. if there are concomitant bleeding risk factors), and improve QoL. When there is severe bleeding Hospitalization and immediate instauration of treatment. First-line options (General measures: local hemostasis, platelet and/or RBC transfusion, TXA, suspension of hemostatic medication). IVIg, 0.4\u20130.5 g/kg/day during no more than 5 days (controlling hydration and renal function). Administer concomitantly with corticosteroids. Corticosteroids. Prednisone, but change to second-line in the event that doses >5 mg/day were required for >3 months to maintain the desired platelet count. Do not prolong treatment beyond 6\u20138 weeks. Dexamethasone (avoid if possible; if chosen, avoid administering more than two to three cycles; these should not exceed 20 mg/day or 4 days). Additional options when rapid increases in platelet counts are required TPO-RA: romiplostim, eltrombopag, avatrombopag. Vinca alcaloids: vinblastine, vincristine. When there is no bleeding First-line options Corticosteroids. Prednisone, but change to second-line in the event that doses >5 mg/day are required for >3 months to maintain the desired platelet count. Do not prolong treatment beyond 6\u20138 weeks Dexamethasone (avoid if possible; if chosen, avoid administering more than two to three cycles; these should not exceed 20 mg/day or 4 days). IVIg (only with severe thrombocytopenia [<10 \u00d7 10 9 /L] or when bleeding risk is unacceptable), 0.4\u20130.5 g/kg/day for no more than 5 days, controlling hydration and renal function, and being administered concomitantly with corticosteroids. Second-line options TPO-RA (first choice, ahead of the other second-line drugs). Eltrombopag, oral daily dose of 25\u201375 mg. Romiplostim, s.c., weekly dose of 1 \u03bcg/kg; if needed, increase dose progressively, never exceeding 10 \u03bcg/kg, until the target platelet count is reached. We suggest starting with 3 \u03bcg/kg/week to optimize time to response. Avatrombopag, oral daily dose of 20\u201340 mg (dose adjustment with respect to other adult populations is not required). Fostamatinib, start with two oral daily doses of 100 mg, increase to 150 mg if required to reach the target. Recommended option when there is high thromboembolic risk. Rituximab, four doses of 100 or 375 mg/m 2 for 4 consecutive weeks (long-term remissions are scarce, and toxicity is higher). Other options Immunosuppressants or immunomodulators (if moderate disease): mycophenolate mofetil, cyclosporin, azathioprine, danazol, dapsone (well-characterized profiles of safety/efficacy). Pregnant patients Before making therapeutic decisions, the differential diagnosis must be carefully assessed in order to rule out other causes of thrombocytopenia, especially those which are pregnancy-related. Patients with platelet counts \u2264 20\u201330 \u00d7 10 9 /L require treatment. To undergo delivery, the recommended target for platelet count is >50 \u00d7 10 9 /L for vaginal and >70 \u00d7 10 9 /L for cesarean or if epidural anesthesia is going to be used. First-line options Prednisone, 10\u201320 mg/day, using the lowest possible dose that is enough to reach platelet counts in the range of 20\u201330 \u00d7 10 9 /L. IVIg (daily dose of 1 g/kg for 2 days or daily dose of 0.4 g/kg for 5 days), in the event of prednisone-induced side effects, severe bleeding or requirement of rapid recovery of platelets to prepare for deliver. Other options Azathioprine, cyclosporin. If splenectomy is decided (data regarding safety/efficacy are limited, risk of neonatal Thrombocytopenia), the procedure should be performed in the second trimester. Management of neonates will depend on their platelet count values. If these are <100 \u00d7 10 9 /L, repeat on a daily basis. If these are <50 \u00d7 10 9 /L, perform cranial ultrasound. If hemorrhage is detected, administer IVIg and steroids, pursuing a platelet count target of >100 \u00d7 10 9 /L. Although there is no evidence about what is the most suitable steroid, a short course of methylprednisolone could be a good option. If these are <30 \u00d7 10 9 /L or there are hemorrhagic symptoms, administer one single dose of IVIg (1 g/kg) to achieve rapid response. Ig, immunoglobulins; ITP, immune thrombocytopenia; i.v., intravenous; IVIg, intravenous immunoglobulins; QoL, quality of life; s.c., subcutaneous; RBC, red blood cell; TPO-RA, agonist of thrombopoietin receptor; TXA, tranexamic acid; y.o., years old.\n\n5. Primary ITP in Selected Patient Populations > 5.2. Elderly Patients\nThe incidence of primary ITP goes up to 9 per 100,000 individuals per year in >75 y.o. patients [ 1 ]. Nevertheless, the fact that some comorbidities causing thrombocytopenia can lead to an inaccurate diagnosis due to \u201cITP imitation\u201d must be kept in mind. Furthermore, the incidence of these entities, such as megaloblastic anemias, myelodysplastic syndromes (MDS) or acute leukemias, increases with age. For this reason, differential diagnosis is particularly important. When reasonable doubts arise, bone marrow analysis, including cytogenetic and flow cytometry approaches, is recommended.\n\n7. Primary ITP and Thrombosis > 7.2. Antiplatelet and Anticoagulant Treatments in the Context of Primary ITP\nTable 8 Primary ITP in special scenarios: thrombosis, COVID-19. Primary ITP and Thrombosis The risk of thrombosis, either venous or arterial, is 2-fold higher in patients with primary ITP. The origin is multifactorial, and there are many actors of primary hemostasis, coagulation and fibrinolysis playing a role. Some therapies for primary ITP also contribute to the increase in thromboembolic risk. Thrombocytopenia is associated with a poorer prognosis in patients with acute coronary syndromes. Thus, platelet count recovery must be a priority target. Treatment must be individualized according to hemorrhagic history and thromboembolic risk. In an acute arterial episode with platelet counts > 10 \u00d7 10 9 /L aspirin could be used, while double antiplatelet treatment may be considered with platelet counts > 30 \u00d7 10 9 /L. Anticoagulants can be used at full doses with platelet counts > 50 \u00d7 10 9 /L. With lower counts, the options are either dose reduction or suspension. In those situations where anticoagulation is contraindicated while immediate measures are required, a vena cava filter can be used or, with platelet counts < 10 \u00d7 10 9 /L, prophylactic platelet transfusion could be performed. In patients with thromboembolic history, the preferred choices for first- and second-line treatment are glucocorticoids and fostamatinib, respectively. Only in the event of no response to the latter, if maintenance of the platelet count is required in order to continue administering antiplatelet or anticoagulant treatment safely, the use of TPO-RAs could be considered. Primary ITP and COVID-19 The diagnosis of ITP in the context of COVID-19 is a diagnosis of exclusion. Patients with platelet counts < 20 \u00d7 10 9 /L and/or active bleeding have to be treated with prednisone, 0.5\u20131 mg/kg/day for no more than 2 weeks, with progressive reduction and suspension not beyond 8 weeks from the start. Those patients with severe COVID-19 who are already with corticoids and present with platelet counts < 20 \u00d7 10 9 /L and/or active bleeding could be additionally treated with IVIg, 2 g/kg total dosis. If counts < 20 \u00d7 10 9 /L and/or active bleeding persist, one TPO-RA could be administered, although, at the lowest possible dose, Fostamatinib may be one alternative option to TPO-RA. Rituximab must be avoided, since the patient\u2019s ability to produce antibodies would be compromised. For the same reason, other immunosuppressants should also be avoided whenever possible. When patients with chronic primary ITP who are being well-controlled with treatment are infected by SARS-CoV-2, their therapeutic regimen should not be modified. In the event that the infection induces a relapse, IVIg should be administered in case of severe thrombocytopenia and, if bleeding occurred, a platelet transfusion could be performed. Those patients who are already under treatment with TPO-RA could consider either a dose increase or the addition of another TPO-RA or fostamatinib. If patients with primary ITP who are receiving anticoagulant/antiplatelet treatment are infected by SARS-CoV-2 and present with severe symptoms: If they are on LMWH, they can continue treatment at full dose provided that platelet counts are >30 \u00d7 10 9 /L If they are on other anticoagulant or antiplatelet agents, treatment at full dose could be administered with platelet counts > 50 \u00d7 10 9 /L. The risk of secondary ITP subsequent to SARS-CoV-2 vaccination is not higher than that induced by another antiviral vaccines; SARS-CoV-2 vaccine is not contraindicated in pregnant women or patients with history of ITP. ITP, immune thrombocytopenia; IVIg, intravenous immunoglobulins; LMWH, low molecular weight heparin; TPO-RA, agonist of thrombopoietin receptor.\n\n8. ITP and COVID-19\nSARS-CoV-2, like other viral agents, is able to induce ITP. In this case, the diagnosis of secondary ITP is also by exclusion.\n\n8. ITP and COVID-19\nFinally, it must be remarked that the risk of secondary ITP associated with SARS-CoV-2 vaccination is very low, in the range of that induced by other commercially available vaccines against other viral agents [ 135 , 136 ]. There is no contraindication against using COVID-19 vaccines in pregnant women or patients with preexisting ITP [ 137 , 138 ].\n\n10. Conclusions\nPrimary ITP management remains a challenge. Its diagnosis is performed by exclusion and requires the involvement of experienced practitioners. There is now a consensus on disease categories, criteria used to define refractoriness and types of treatment response, and all these should be considered when managing patients with thrombocytopenia. Glucocorticoids and IVIg remain the cornerstones of first-line treatment. Regarding second-line treatment, TPO-RAs are usually the first choice. Fostamatinib is also a valid option and has been shown to be even better than the former for those patients with high thromboembolic risk. A variety of immunosuppressants, immunomodulators or cytostatic agents may be considered for multirefractory patients, after carefully weighing up their risks and benefits. The increasing choice of therapeutic options means that splenectomy is now only performed on a very limited set of patients. Treatments may be adjusted in specific subpopulations (pediatric, elderly, pregnant women) or in the presence of concomitant conditions (thrombosis, COVID-19). Primary ITP management is continuously evolving, and regular updates are necessary.",
+        "body_excerpts_sha256": "7eaebb753053c9532daa60c06c6cbbbfbd823459b0600979c1317014e3993071",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10607106/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "31794604",
+        "title": "American Society of Hematology 2019 guidelines for immune thrombocytopenia.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31794604/",
+        "abstract": "Despite an increase in the number of therapies available to treat patients with immune thrombocytopenia (ITP), there are minimal data from randomized trials to assist physicians with the management of patients.\nThese evidence-based guidelines of the American Society of Hematology (ASH) are intended to support patients, clinicians, and other health care professionals in their decisions about the management of ITP.\nIn 2015, ASH formed a multidisciplinary guideline panel that included 8 adult clinical experts, 5 pediatric clinical experts, 2 methodologists with expertise in ITP, and 2 patient representatives. The panel was balanced to minimize potential bias from conflicts of interest. The panel reviewed the ASH 2011 guideline recommendations and prioritized questions. The panel used the Grading of Recommendations Assessment, Development and Evaluation (GRADE) approach, including evidence-to-decision frameworks, to appraise evidence (up to May 2017) and formulate recommendations.\nThe panel agreed on 21 recommendations covering management of ITP in adults and children with newly diagnosed, persistent, and chronic disease refractory to first-line therapy who have non-life-threatening bleeding. Management approaches included: observation, corticosteroids, IV immunoglobulin, anti-D immunoglobulin, rituximab, splenectomy, and thrombopoietin receptor agonists.\nThere was a lack of evidence to support strong recommendations for various management approaches. In general, strategies that avoided medication side effects were favored. A large focus was placed on shared decision-making, especially with regard to second-line therapy. Future research should apply standard corticosteroid-dosing regimens, report patient-reported outcomes, and include cost-analysis evaluations.",
+        "sha256": "ab5a5e2f0d50219508f602e837d4a9e0586569241388dd8d350c018ce8261d63",
+        "retrieved_at": "2026-09-19T02:57:11.955062+00:00",
+        "pmcid": "PMC6963252"
+      },
+      {
+        "id": "31758894",
+        "title": "[Guideline for diagnosis and treatment of immune thrombocytopenia].",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31758894/",
+        "abstract": "Management, outcome, diagnosis, prognosis and treatment of immune thrombocytopenia are controversial. Several guidelines stating different experts' opinions have been published; however, no worldwide consensus regarding the management of the disease has still been reached. This guideline defines diagnostic criteria, states initial laboratory tests, establishes differential diagnosis, develops topics concerning outcome and prognosis, and enumerates available treatments for acute and chronic disease, as well as for management of life-threatening bleeding.",
+        "sha256": "17b6fb208014f4182f3a59365bc52f5e21b6e5bec964b0818cd6f9138be0907f",
+        "retrieved_at": "2026-09-19T02:57:11.955062+00:00"
+      },
+      {
+        "id": "41486654",
+        "title": "[Chinese guideline on the diagnosis and treatment of adult primary immune thrombocytopenia (2025)].",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41486654/",
+        "abstract": "Primary immune thrombocytopenia (ITP) is an acquired autoimmune disease characterized by impaired immune tolerance, leading to increased platelet destruction and decreased platelet production. In recent years, with population structure changes and disease management improvements in China, adult ITP exhibits a trend toward older age at presentation and increased incidence. Further, a proportion of patients are at risk of both bleeding and thrombosis. Based on its 2020 edition, this guideline integrates evidence-based medical evidence from domestic and international studies, updates the application of selected laboratory and auxiliary tests in diagnostic evaluation, refines strategies for emergency management and initial therapy, and systematically incorporates new treatment options, including thrombopoietin receptor agonists and small molecule kinase inhibitors. Moreover, it broadens combination regimens for subsequent treatment and places greater emphasis on balancing thrombotic risk and health-related quality of life in long-term management, thereby providing a reference for standardized and individualized care of adult ITP in China.",
+        "sha256": "e20f64ec07ea304bbd5ceb0ebb06e949be001f520b95f90b4d857faa72b6554a",
+        "retrieved_at": "2026-09-19T02:57:12.434930+00:00",
+        "pmcid": "PMC12790974"
+      },
+      {
+        "id": "34382561",
+        "title": "Recommendations for the diagnosis and management of vaccine-induced immune thrombotic thrombocytopenia.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34382561/",
+        "abstract": "There have recently been safety concerns regarding an increased risk of vaccine-induced immune thrombotic thrombocytopenia (VITT) following administration of SARS-CoV-2 adenoviral vector vaccines. The Southern African Society of Thrombosis and Haemostasis reviewed the emerging literature on this idiosyncratic complication. A draft document was produced and revised by consensus agreement by a panel of professionals from various specialties. The recommendations were adjudicated by independent international experts to avoid local bias. We present concise, practical guidelines for the clinical management of VITT.",
+        "sha256": "040ba1d2ae9f2b478bee076ff2be94db635df51acd16cc0e6b1e88f21d7661fb",
+        "retrieved_at": "2026-09-19T02:57:12.994411+00:00"
+      },
+      {
+        "id": "42208940",
+        "title": "Standardization of Platelet Activation Tests for the Diagnosis of Heparin-Induced Thrombocytopenia: Communication from the ISTH-SSC Subcommittee on Immune-Mediated Platelet Disorders.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/42208940/",
+        "abstract": "Heparin-induced thrombocytopenia (HIT) is a serious immune-mediated adverse effect of heparin therapy, characterized by thrombocytopenia and a paradoxical increase in thrombotic risk. HIT results from platelet-activating immunoglobulin G antibodies targeting complexes of platelet factor (PF)4 and heparin, leading to Fc\u03b3RIIA-mediated multicellular activation and a hypercoagulable state. Accurate diagnosis requires both immunological detection of antiplatelet factor 4/heparin antibodies and platelet activation confirmation of their potential pathogenicity. Immunoassays, while highly sensitive, lack clinical specificity due to their inability to distinguish between pathogenic and nonpathogenic antibodies. Platelet activation assays, although essential for definitive diagnosis, remain poorly standardized and are not widely available. This study addresses critical preanalytical and analytical variables influencing the accuracy of platelet activation HIT testing. It discusses key methodological considerations across various platelet activation assays, including the serotonin release assay, heparin-induced platelet activation, platelet aggregation tests, flow cytometry-based assays, and the heparin-induced multielectrode aggregometry method. Emphasis is placed on sample collection, donor selection, platelet preparation, heparin concentrations, and interpretation of results, including control strategies and troubleshooting indeterminate outcomes. The document also outlines assay-specific procedures and performance characteristics, highlighting the strengths and limitations of each method. By implementing standardized protocols and improving assay harmonization, diagnostic accuracy can be enhanced, ultimately improving clinical outcomes for suspected patients with HIT. This work reflects a collaborative expert consensus and aims to support laboratories in optimizing the application of platelet activation assays in HIT diagnostics.",
+        "sha256": "767b3ec377cfc24d7f2b697bedbc288d16101ca288608111b2797d516a0ba114",
+        "retrieved_at": "2026-09-19T02:57:13.566054+00:00"
+      },
+      {
+        "id": "38065529",
+        "title": "Diagnostic value of antibody-induced procoagulant platelets in heparin-induced thrombocytopenia: communication from the ISTH SSC Subcommittee on Platelet Immunology.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38065529/",
+        "abstract": "Heparin-induced thrombocytopenia (HIT) is an immune-mediated prothrombotic disorder characterized by a drop in platelet count and an increased risk of thromboembolic events. The accurate diagnosis of HIT involves clinical assessment and laboratory testing with well-characterized functional tests. Recent research has shown the potential of investigating procoagulant platelet formation induced by HIT antibodies. To successfully implement these assays in clinical laboratories, careful consideration of technical and preanalytical factors is crucial. In this communication from the SSC Platelet Immunology, we provide a consensus from experts on the use of flow cytometry in HIT diagnosis, highlighting the importance of standardized protocols.",
+        "sha256": "5d9ed1c3835e67528ba636e959e17c7f30d4241b7b98d909694baa49aa8dbd02",
+        "retrieved_at": "2026-09-19T02:57:14.609093+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The presentation is compatible with ITP\u2014platelets are below 100 \u00d7 10^9/L, other blood counts and morphology are preserved, and the smear excludes clumping, schistocytes, blasts, and dysplasia\u2014but primary ITP remains a diagnosis of exclusion. Current guidance supports evaluating for secondary causes, including HIV, HBV, HCV, Helicobacter pylori, and immunodeficiency with quantitative immunoglobulins. A routine bone marrow examination is not indicated in this young adult because there is no anemia, leukocyte abnormality, abnormal differential, dysplasia, immature cells, lymphadenopathy, or splenomegaly; it should be reserved for atypical findings, evolving cytopenias, or an inadequate treatment response. Thus, A overstates diagnostic certainty and incorrectly dispenses with further evaluation, whereas B appropriately characterizes this as possible/compatible ITP and completes an exclusion-focused workup.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37892566"
+              ],
+              "reason": "The consensus explicitly describes primary ITP as an exclusion-based diagnosis grounded in history, examination, CBC, and peripheral smear.",
+              "source_passage_ids": [
+                "37892566:p4"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37892566",
+                  "quote": "Pathophysiology Causal mechanisms underlying primary ITP lead to an increase in platelet destruction or a decrease in platelet generation. Platelet destruction is caused by autoantibodies, phagocytes, complement, apoptosis and clearance through Ashwell\u2013Morel receptors of hepatocytes. The lower rate of platelet production is caused by autoantibodies able to block TPO function and by increased apoptosis of megakaryocytes. Diagnosis Diagnosis of primary ITP is performed by excluding systematically other causes of thrombocytopenia and is based essentially on clinical history, physical examination, CBC and peripheral blood smear. Peripheral blood smear examination is paramount for diagnosis. Additional studies may be required and should be requested according to presentation and clinical course of the disease."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37892566"
+              ],
+              "reason": "The source calls careful peripheral-smear examination mandatory and places it within the process of excluding other causes.",
+              "source_passage_ids": [
+                "37892566:p1",
+                "37892566:p4"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37892566",
+                  "quote": "Introduction > 1.2. Diagnosis Despite the important advances achieved in the therapeutic field in the last decade, there has been little progress in the diagnosis of the disease, and reliable markers or confirmatory tests are lacking. Diagnosis continues to be essentially clinical and based on excluding other causes of thrombocytopenia. When a patient is suspected of primary ITP, once the clinical history, physical examination, peripheral blood smear, immunoglobulin level and viral serology have allowed us to rule out other processes, the general rule consists of limiting tests to a minimum, since most of them will not be very informative. The paradigmatic laboratory finding is isolated thrombocytopenia, and careful examination of the peripheral blood smear is mandatory."
+                },
+                {
+                  "source_id": "37892566",
+                  "quote": "Pathophysiology Causal mechanisms underlying primary ITP lead to an increase in platelet destruction or a decrease in platelet generation. Platelet destruction is caused by autoantibodies, phagocytes, complement, apoptosis and clearance through Ashwell\u2013Morel receptors of hepatocytes. The lower rate of platelet production is caused by autoantibodies able to block TPO function and by increased apoptosis of megakaryocytes. Diagnosis Diagnosis of primary ITP is performed by excluding systematically other causes of thrombocytopenia and is based essentially on clinical history, physical examination, CBC and peripheral blood smear. Peripheral blood smear examination is paramount for diagnosis. Additional studies may be required and should be requested according to presentation and clinical course of the disease."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37957517"
+              ],
+              "reason": "The diagnostic guide specifically states that platelet aggregates should be sought on the smear when evaluating pseudothrombocytopenia.",
+              "source_passage_ids": [
+                "37957517:p18"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37957517",
+                  "quote": "While pseudothrombocytopenia is considered to occur most commonly due to antibodies recognizing GPIIb/IIIa that has undergone structural alteration in the presence of EDTA [ 72 , 73 ], platelets can also agglutinate in the presence of citrate and blood collection with heparin, though the detailed mechanism of agglutination has not yet been determined [ 74 ]. It is important to confirm the presence of platelet aggregates in a peripheral blood smear. When possible, assessing platelet count immediately following blood collection without any anticoagulant can yield a more accurate result. Also, although extremely rare, cold agglutinins are reported to cause pseudothrombocytopenia [ 75 ]. Diagnostic procedure (Fig. 1 ) Basic assessment Disease history Family history Physical findings Complete blood count (CBC) Peripheral blood smear Biochemical examination Diagnostic procedure (Fig."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37957517"
+              ],
+              "reason": "The guide expressly recommends testing for H. pylori, HIV, HBV, and HCV because of their potential association with ITP.",
+              "source_passage_ids": [
+                "37957517:p22"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37957517",
+                  "quote": "Testing should also be performed for H. pylori , HIV, HBV, and HCV, all of which are potentially associated with ITP. Diagnostic procedure (Fig. 1 ) Testing is performed when evident abnormalities other than thrombocytopenia are not observed Plasma TPO levels Immature platelet fraction (RP% or IPF%) Diagnostic procedure (Fig. 1 ) When the above tests do not reveal any evident abnormalities other than thrombocytopenia, plasma TPO levels and immature platelet fraction (RP% or IPF%) are measured, and ITP is diagnosed based on the criteria described above. Diseases to differentiate from ITP and their characteristics Congenital (hereditary) thrombocytopenia Diseases to differentiate from ITP and their characteristics Congenital thrombocytopenia is a rare disease but is reported to account for roughly 15% of diagnoses of refractory ITP [ 4 ]."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37957517"
+              ],
+              "reason": "The guide directly recommends quantitating IgG, IgA, and IgM as part of ITP testing because of possible common variable immunodeficiency.",
+              "source_passage_ids": [
+                "37957517:p39"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37957517",
+                  "quote": "However, we assume that our proposed diagnostic markers would contribute to the more accurate diagnosis of ITP, which would make bone marrow examination less frequent. Other tests associated with ITP diagnosis Other tests (Ig quantitation, antiphospholipid antibodies, thyroid-related tests, antinuclear antibodies, and DAT) Other tests associated with ITP diagnosis Due to potential comorbid common variable immunodeficiency, IgG, A, and M should be quantitated as part of testing for ITP [ 128 ]. Results for anti-cardiolipin antibodies, lupus anticoagulant, and other antiphospholipid antibodies are positive in 25\u2212 30% of patients with ITP [ 132 \u2013 134 ]. Immunoglobulins should be quantitated before using TPO receptor agonists or similar agents to assess the risk of thrombosis. A positive result for antinuclear antibodies suggests the possibility of chronic or secondary ITP [ 135 , 136 ]."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "37892566"
+              ],
+              "reason": "Routine marrow analysis is not recommended unless treatment response is inadequate or clinical or peripheral-blood abnormalities suggest another disorder.",
+              "source_passage_ids": [
+                "37892566:p2",
+                "37892566:p5"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37892566",
+                  "quote": "In primary ITP patients, platelets are usually large and granular, with elevated mean platelet volumes and immature fractions. The systematic analysis of bone marrow is not recommended, except in the event that treatment response is inadequate, or when other abnormalities in the peripheral blood smear or the clinical presentation lead us to suspect other disorders. These limitations may result in an incorrect diagnosis in one out of seven patients identified as having primary ITP [ 2 ]. Further measures to overcome this challenge are required. 1. Introduction > 1.4. Outcome Table 1 Primary ITP: general aspects, pathophysiology and diagnosis. General Aspects Primary ITP is defined as a platelet count < 100 \u00d7 10 9 /L, which is not justified by any known reason."
+                },
+                {
+                  "source_id": "37892566",
+                  "quote": "Assessment of antiplatelet autoantibodies is not routinely indicated, although it may be useful in complex cases. The systematic analysis of bone marrow is not recommended except in the event of refractoriness to treatments or when another disease is suspected. In these cases, bone marrow examination should include aspiration and biopsy, immunophenotyping with flow cytometry, cytogenetics and molecular biology. CBC, complete blood count; ITP, immune thrombocytopenia; TPO, thrombopoietin. 1. Introduction > 1.4. Outcome Table 2 Consensual definitions and concepts in the context of ITP. Primary ITP Categories According to the Phase of the Disease [ 4 ] Newly diagnosed ITP: within 3 months from diagnosis. Persistent ITP: between 3 and 12 months from diagnosis. Chronic ITP: lasting for more than 12 months from diagnosis."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Candidate B is independently preferable. Isolated thrombocytopenia with a reassuring smear is compatible with ITP but does not establish primary ITP before relevant secondary causes are excluded. The specifically proposed infection tests and quantitative immunoglobulins are supported by the supplied diagnostic guide, while the exclusion-based interpretation and selective rather than routine use of marrow examination are independently supported by the society consensus. This young patient has normal hemoglobin, MCV, leukocyte count and differential, no abnormal leukocytes or dysplasia, no organomegaly or lymphadenopathy, and no refractory course, so routine marrow examination is not currently indicated. Candidate A prematurely labels primary ITP and incorrectly dispenses with further evaluation. The visible note identifies tests that remain pending but does not state that they must be ordered or otherwise explicitly disclose the intended management. The decision is distinct from the previous HIT case, which concerned diagnosis and anticoagulant treatment of heparin-associated thrombosis rather than exclusion-focused evaluation of isolated thrombocytopenia."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Candidate B is more appropriate. Current guidance describes primary ITP as a diagnosis of exclusion rather than something established solely by isolated thrombocytopenia and a non-worrisome smear. The provided history, exam, CBC, and smear make primary ITP plausible/compatible: isolated platelet count <100 \u00d7 10^9/L, preserved hemoglobin and leukocytes, no clumping/pseudothrombocytopenia, no schistocytes/TMA features, no blasts/dysplasia, no splenomegaly or lymphadenopathy, and no drug/heparin exposure. However, guidelines emphasize excluding secondary ITP and other causes with targeted testing. The cited Spanish consensus states that suspected primary ITP diagnosis relies on history, exam, CBC, smear, immunoglobulin level, and viral serology to rule out other processes; the 2023 diagnostic reference guide specifically notes testing for H. pylori, HIV, HBV, and HCV and quantitating IgG/IgA/IgM because of associations with secondary ITP or immunodeficiency. Bone marrow examination is not routinely recommended in otherwise typical isolated thrombocytopenia; it is reserved for abnormal blood counts or smear findings, splenomegaly/lymphadenopathy, older age, refractoriness, or other suspicion of marrow disease. Candidate A incorrectly treats primary ITP as established and dismisses further exclusion-focused evaluation.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37892566"
+              ],
+              "source_passage_ids": [
+                "37892566:p4"
+              ],
+              "reason": "The cited consensus explicitly states that primary ITP diagnosis is made by systematically excluding other causes and is based on history, examination, CBC, and peripheral smear.",
+              "source_quotes": [
+                {
+                  "source_id": "37892566",
+                  "quote": "Pathophysiology Causal mechanisms underlying primary ITP lead to an increase in platelet destruction or a decrease in platelet generation. Platelet destruction is caused by autoantibodies, phagocytes, complement, apoptosis and clearance through Ashwell\u2013Morel receptors of hepatocytes. The lower rate of platelet production is caused by autoantibodies able to block TPO function and by increased apoptosis of megakaryocytes. Diagnosis Diagnosis of primary ITP is performed by excluding systematically other causes of thrombocytopenia and is based essentially on clinical history, physical examination, CBC and peripheral blood smear. Peripheral blood smear examination is paramount for diagnosis. Additional studies may be required and should be requested according to presentation and clinical course of the disease."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "37892566"
+              ],
+              "source_passage_ids": [
+                "37892566:p1",
+                "37892566:p4"
+              ],
+              "reason": "The source states that peripheral smear examination is mandatory/paramount and places it among the elements used to rule out other processes in suspected primary ITP.",
+              "source_quotes": [
+                {
+                  "source_id": "37892566",
+                  "quote": "Introduction > 1.2. Diagnosis Despite the important advances achieved in the therapeutic field in the last decade, there has been little progress in the diagnosis of the disease, and reliable markers or confirmatory tests are lacking. Diagnosis continues to be essentially clinical and based on excluding other causes of thrombocytopenia. When a patient is suspected of primary ITP, once the clinical history, physical examination, peripheral blood smear, immunoglobulin level and viral serology have allowed us to rule out other processes, the general rule consists of limiting tests to a minimum, since most of them will not be very informative. The paradigmatic laboratory finding is isolated thrombocytopenia, and careful examination of the peripheral blood smear is mandatory."
+                },
+                {
+                  "source_id": "37892566",
+                  "quote": "Pathophysiology Causal mechanisms underlying primary ITP lead to an increase in platelet destruction or a decrease in platelet generation. Platelet destruction is caused by autoantibodies, phagocytes, complement, apoptosis and clearance through Ashwell\u2013Morel receptors of hepatocytes. The lower rate of platelet production is caused by autoantibodies able to block TPO function and by increased apoptosis of megakaryocytes. Diagnosis Diagnosis of primary ITP is performed by excluding systematically other causes of thrombocytopenia and is based essentially on clinical history, physical examination, CBC and peripheral blood smear. Peripheral blood smear examination is paramount for diagnosis. Additional studies may be required and should be requested according to presentation and clinical course of the disease."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37957517"
+              ],
+              "source_passage_ids": [
+                "37957517:p18"
+              ],
+              "reason": "The source specifically describes pseudothrombocytopenia from platelet agglutination and says to confirm platelet aggregates on peripheral smear.",
+              "source_quotes": [
+                {
+                  "source_id": "37957517",
+                  "quote": "While pseudothrombocytopenia is considered to occur most commonly due to antibodies recognizing GPIIb/IIIa that has undergone structural alteration in the presence of EDTA [ 72 , 73 ], platelets can also agglutinate in the presence of citrate and blood collection with heparin, though the detailed mechanism of agglutination has not yet been determined [ 74 ]. It is important to confirm the presence of platelet aggregates in a peripheral blood smear. When possible, assessing platelet count immediately following blood collection without any anticoagulant can yield a more accurate result. Also, although extremely rare, cold agglutinins are reported to cause pseudothrombocytopenia [ 75 ]. Diagnostic procedure (Fig. 1 ) Basic assessment Disease history Family history Physical findings Complete blood count (CBC) Peripheral blood smear Biochemical examination Diagnostic procedure (Fig."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37957517"
+              ],
+              "source_passage_ids": [
+                "37957517:p22"
+              ],
+              "reason": "The source explicitly recommends testing for H. pylori, HIV, HBV, and HCV because they are potentially associated with ITP.",
+              "source_quotes": [
+                {
+                  "source_id": "37957517",
+                  "quote": "Testing should also be performed for H. pylori , HIV, HBV, and HCV, all of which are potentially associated with ITP. Diagnostic procedure (Fig. 1 ) Testing is performed when evident abnormalities other than thrombocytopenia are not observed Plasma TPO levels Immature platelet fraction (RP% or IPF%) Diagnostic procedure (Fig. 1 ) When the above tests do not reveal any evident abnormalities other than thrombocytopenia, plasma TPO levels and immature platelet fraction (RP% or IPF%) are measured, and ITP is diagnosed based on the criteria described above. Diseases to differentiate from ITP and their characteristics Congenital (hereditary) thrombocytopenia Diseases to differentiate from ITP and their characteristics Congenital thrombocytopenia is a rare disease but is reported to account for roughly 15% of diagnoses of refractory ITP [ 4 ]."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37957517"
+              ],
+              "source_passage_ids": [
+                "37957517:p39"
+              ],
+              "reason": "The source states that IgG, IgA, and IgM should be quantitated as part of ITP testing.",
+              "source_quotes": [
+                {
+                  "source_id": "37957517",
+                  "quote": "However, we assume that our proposed diagnostic markers would contribute to the more accurate diagnosis of ITP, which would make bone marrow examination less frequent. Other tests associated with ITP diagnosis Other tests (Ig quantitation, antiphospholipid antibodies, thyroid-related tests, antinuclear antibodies, and DAT) Other tests associated with ITP diagnosis Due to potential comorbid common variable immunodeficiency, IgG, A, and M should be quantitated as part of testing for ITP [ 128 ]. Results for anti-cardiolipin antibodies, lupus anticoagulant, and other antiphospholipid antibodies are positive in 25\u2212 30% of patients with ITP [ 132 \u2013 134 ]. Immunoglobulins should be quantitated before using TPO receptor agonists or similar agents to assess the risk of thrombosis. A positive result for antinuclear antibodies suggests the possibility of chronic or secondary ITP [ 135 , 136 ]."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "37892566"
+              ],
+              "source_passage_ids": [
+                "37892566:p2",
+                "37892566:p5"
+              ],
+              "reason": "The source states that systematic bone marrow analysis is not recommended except with inadequate treatment response/refractoriness or clinical/peripheral smear abnormalities suggesting another disorder.",
+              "source_quotes": [
+                {
+                  "source_id": "37892566",
+                  "quote": "In primary ITP patients, platelets are usually large and granular, with elevated mean platelet volumes and immature fractions. The systematic analysis of bone marrow is not recommended, except in the event that treatment response is inadequate, or when other abnormalities in the peripheral blood smear or the clinical presentation lead us to suspect other disorders. These limitations may result in an incorrect diagnosis in one out of seven patients identified as having primary ITP [ 2 ]. Further measures to overcome this challenge are required. 1. Introduction > 1.4. Outcome Table 1 Primary ITP: general aspects, pathophysiology and diagnosis. General Aspects Primary ITP is defined as a platelet count < 100 \u00d7 10 9 /L, which is not justified by any known reason."
+                },
+                {
+                  "source_id": "37892566",
+                  "quote": "Assessment of antiplatelet autoantibodies is not routinely indicated, although it may be useful in complex cases. The systematic analysis of bone marrow is not recommended except in the event of refractoriness to treatments or when another disease is suspected. In these cases, bone marrow examination should include aspiration and biopsy, immunophenotyping with flow cytometry, cytogenetics and molecular biology. CBC, complete blood count; ITP, immune thrombocytopenia; TPO, thrombopoietin. 1. Introduction > 1.4. Outcome Table 2 Consensual definitions and concepts in the context of ITP. Primary ITP Categories According to the Phase of the Disease [ 4 ] Newly diagnosed ITP: within 3 months from diagnosis. Persistent ITP: between 3 and 12 months from diagnosis. Chronic ITP: lasting for more than 12 months from diagnosis."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Candidate B is the better answer. The patient has isolated thrombocytopenia with preserved hemoglobin, MCV, leukocyte count, differential, and a smear without clumping, schistocytes, blasts, dysplasia, or giant platelets. This is compatible with ITP, but the supplied evidence characterizes primary ITP as an exclusion-based diagnosis, not established solely by isolated thrombocytopenia and a reassuring smear. The visible chart also states that quantitative immunoglobulins, viral serologies, and Helicobacter pylori testing have not yet been performed, and the supplied sources support completing those elements. The absence of anemia, macrocytosis, leukocyte abnormalities, abnormal smear morphology, lymphadenopathy, splenomegaly, advanced age, or treatment-refractory disease supports not doing routine bone marrow examination at this stage. Candidate A is intentionally flawed because it prematurely labels primary ITP as established and says no further evaluation is needed, which could miss secondary ITP, infection-associated thrombocytopenia, immunodeficiency, or another cause. The case is within hematology and is distinct from the previous HIT anticoagulation case; this case tests exclusion-focused evaluation of suspected adult ITP rather than management of heparin-induced thrombocytopenia with thrombosis."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "f2bb83aeaa893f7199a09e68a4e4ba26131555018078360debfb77f83c146b3a"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

@@ -1,0 +1,518 @@
+{
+  "task_id": "onboarding-practice-v1-306f5a139a55f0c90a72-1",
+  "specialty": "orthopedic surgery",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "High-energy lower-leg injury after a motorcycle collision",
+    "question": "Which approach to systemic antibiotic prophylaxis is most appropriate at this point?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "orthopedic surgery",
+      "demographics": {
+        "age_band": "70-79",
+        "sex": "male"
+      },
+      "problem_list": [
+        {
+          "condition": "Open wound over the left shin with visible bone",
+          "since": "Day 0",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Painful deformity of the left lower leg",
+          "since": "Day 0",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {
+        "blood_pressure": "138/76 mmHg",
+        "heart_rate": "88 beats/min",
+        "respiratory_rate": "18 breaths/min",
+        "oxygen_saturation": "97% on room air",
+        "temperature": "36.7 C",
+        "gcs": "15"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Trauma assessment",
+          "author_role": "orthopedic surgery",
+          "text": "A man in his seventies was brought to the emergency department after a motorcycle collision. The primary trauma survey found no immediate life threat, and he remains alert and hemodynamically stable. Examination of the left lower leg shows a contaminated anteromedial wound with exposed bone and an associated deformity. Distal pulses are palpable, capillary refill is brisk, and foot sensation and motor function are preserved. Bleeding was controlled, the wound was covered with a sterile dressing, and the limb was splinted. He reports no penicillin or cephalosporin allergy. Medication reconciliation identifies no regular medicines or anticoagulants. No systemic antibiotic was administered before arrival.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Radiography",
+          "label": "Left tibia and fibula",
+          "findings": "Displaced comminuted fractures of the mid-shaft tibia and fibula with several small adjacent osseous fragments. Soft-tissue disruption and scattered radiopaque debris are present near the tibial fracture.",
+          "measurements": [],
+          "impression": "Comminuted displaced tibial and fibular shaft fractures associated with the clinically documented open wound.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "This is a confirmed open lower-extremity fracture in a responsive patient without a reported penicillin or cephalosporin allergy. Life threats have already been addressed, so systemic prophylaxis with a first-generation cephalosporin should be initiated promptly. Waiting for operative debridement, definitive severity classification, or culture collection would unnecessarily delay prophylaxis intended to reduce fracture-related infection and septic complications.",
+        "evidence": {
+          "decision": "Prompt first-generation cephalosporin prophylaxis after management of life threats",
+          "unsafe_alternative": "Withholding prophylaxis until operative assessment or culture collection"
+        },
+        "key_data": [
+          "Clinically confirmed open tibial and fibular shaft fractures",
+          "No unresolved immediate life threat after the primary trauma survey",
+          "No reported penicillin or cephalosporin allergy",
+          "No systemic antibiotic administered before arrival",
+          "Older adult with an open fracture and contaminated wound"
+        ]
+      },
+      "hard_hook": "The candidate must distinguish prompt prophylaxis from an unsafe delay until operative assessment.",
+      "reasoning_divergence": "Both options acknowledge eventual antibiotic use, but only one addresses the evidence-supported urgency of prophylaxis."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Initiate systemic prophylaxis now with a first-generation cephalosporin because life threats have been addressed and no relevant allergy is reported; do not wait for operative debridement, culture collection, or final injury grading."
+      },
+      {
+        "id": "B",
+        "text": "Withhold systemic antibiotics until operative debridement permits deep culture collection and definitive fracture grading, then select prophylaxis based on those findings to avoid obscuring microbiologic results."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "open fracture",
+      "fracture-related infection",
+      "antibiotic prophylaxis",
+      "cefazolin",
+      "tibial fracture",
+      "septic complications"
+    ],
+    "evidence_keywords": [
+      "early antibiotics",
+      "first-generation cephalosporin",
+      "open extremity fracture",
+      "life-threat management",
+      "infection prevention"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Prophylactic antibiotics should be administered to patients with open fractures as soon as possible to reduce fracture-related infection risk.",
+        "source_ids": [
+          "39356234"
+        ]
+      },
+      {
+        "statement": "After life threats are managed, a first-generation cephalosporin should be administered to a responsive patient without penicillin or cephalosporin allergy.",
+        "source_ids": [
+          "39356234"
+        ]
+      },
+      {
+        "statement": "Antibiotic administration for a suspected open fracture should not delay transport or other management of immediate life threats.",
+        "source_ids": [
+          "39356234"
+        ]
+      },
+      {
+        "statement": "Antibiotic prophylaxis is recommended for open fractures in elderly patients to decrease septic complications.",
+        "source_ids": [
+          "38816766"
+        ]
+      },
+      {
+        "statement": "Evidence summarized for geriatric open fractures supports short-course, single-agent cephalosporin prophylaxis rather than withholding prophylaxis.",
+        "source_ids": [
+          "38816766"
+        ]
+      },
+      {
+        "statement": "Open lower-limb fractures carry important risks including infection and non-union, making standardized initial care clinically consequential.",
+        "source_ids": [
+          "33485638"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T01:25:19.816105+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "33485638",
+        "title": "Standards of open lower limb fracture care in the United Kingdom.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33485638/",
+        "abstract": "Open fractures of the lower limb remain a potentially devastating group of injuries that are challenging to manage. The primary aims of treatment are to optimise limb function and avoid serious complications such as infection and non-union, which are costly for both the patient and healthcare system. The management of these fractures has evolved significantly, and this is evident following the creation of national open fracture guidelines and a formal trauma system. These have served to standardise care for these injuries in the United Kingdom. The aim of this review is to update our colleagues on the current standard of lower limb open fracture care in the United Kingdom, and the impact this has had on patient outcomes.",
+        "sha256": "2b30a60420423b8f54de3cca816a13021ff2a6949a95f565c03241ba5c1be5bf",
+        "retrieved_at": "2026-09-19T01:23:56.089936+00:00"
+      },
+      {
+        "id": "39356234",
+        "title": "Prehospital Antibiotic Administration for Suspected Open Fractures: Joint COT/OTA/ACEP/NAEMSP/NAEMT Position Statement.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39356234/",
+        "abstract": "One of the primary concerns associated with open fractures is the development of a fracture-related infection (FRI). To minimize the risk of developing an FRI and subsequent morbidity, prophylactic antibiotics should be administered to patients with open fractures as soon as possible. While the antibiotic recommendations for severe open fractures are somewhat debatable, the use of a cephalosporin remains a mainstay of prophylactic treatment. Though administration of prehospital antibiotics does represent an expansion of EMS responsibilities, there have been several other treatment expansions in the prehospital setting, such as the administration of tranexamic acid and the application of pelvic binders. The administration of antibiotics, specifically cefazolin, is inexpensive, technically simple, and does not require special storage. The following recommendations are supported by and represent consensus of the COT, OTA, ACEP, NAEMSP and NAEMT with regards to prehospital antibiotic prophylaxis for suspected fractures: In a responsive patient with no history of penicillin or cephalosporin allergy, the administration by EMS of a 1st generation cephalosporin should be performed after the management of life threats. This intervention should not delay transport.In an obtunded patient, the administration by EMS of a 1st generation cephalosporin should be performed after the management of life-threats. This intervention should not delay transport.In a responsive patient with a documented penicillin allergy, the administration by EMS of a 1st generation cephalosporin should be performed with close monitoring after the management of life-threats. This intervention should not delay transport.",
+        "sha256": "ca2d0252a4e35becf49f8e28e65eced4c085ab3d5cd78a560adf77d085eea3cb",
+        "retrieved_at": "2026-09-19T01:23:56.089936+00:00",
+        "pmcid": "PMC12080237"
+      },
+      {
+        "id": "33053308",
+        "title": "Urotrauma Guideline 2020: AUA Guideline.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33053308/",
+        "abstract": "The authors of this guideline reviewed the urologic trauma literature to guide clinicians in the appropriate methods of evaluation and management of genitourinary injuries.\nThe Panel amended the Guideline in 2020 to reflect additional literature published through February 2020. When sufficient evidence existed, the Panel assigned the body of evidence a strength rating of A (high), B (moderate), or C (low) for support of Strong, Moderate, or Conditional Recommendations. In the absence of sufficient evidence, the Panel provided additional information as Clinical Principles and Expert Opinions (See table 1[Table: see text]).\nThe Panel updated a total of six existing statements on renal, ureteral, bladder, urethra, and genital trauma. Additionally, four new statements were added based on literature released since the 2017 amendment. Statement 5b was added based on new evidence for treatment of hemodynamically unstable patients with renal trauma. Statement 20b was added based on new literature for percutaneous or open suprapubic tube placement following pelvic fracture urethral injury. Statements 30a and 30b were also added to provide guidance on ultrasonography for blunt scrotal injuries suggestive of testicular rupture and for performing surgical exploration with repair or orchiectomy for penetrating scrotal injuries respectively.\nThese evidence-based updates to the AUA Guidelines further inform the treatment of urotrauma.",
+        "sha256": "d0b7510b76f66d5f7ddfbde27e7cd92682f870d5b8af48413b97819fcd3118cd",
+        "retrieved_at": "2026-09-19T01:23:57.361973+00:00"
+      },
+      {
+        "id": "38816766",
+        "title": "The 2023 WSES guidelines on the management of trauma in elderly and frail patients.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38816766/",
+        "abstract": "The trauma mortality rate is higher in the elderly compared with younger patients. Ageing is associated with physiological changes in multiple systems and correlated with frailty. Frailty is a risk factor for mortality in elderly trauma patients. We aim to provide evidence-based guidelines for the management of geriatric trauma patients to improve it and reduce futile procedures.\nSix working groups of expert acute care and trauma surgeons reviewed extensively the literature according to the topic and the PICO question assigned. Statements and recommendations were assessed according to the GRADE methodology and approved by a consensus of experts in the field at the 10th international congress of the WSES in 2023.\nThe management of elderly trauma patients requires knowledge of ageing physiology, a focused triage, including drug history, frailty assessment, nutritional status, and early activation of trauma protocol to improve outcomes. Acute trauma pain in the elderly has to be managed in a multimodal analgesic approach, to avoid side effects of opioid use. Antibiotic prophylaxis is recommended in penetrating (abdominal, thoracic) trauma, in severely burned and in open fractures elderly patients to decrease septic complications. Antibiotics are not recommended in blunt trauma in the absence of signs of sepsis and septic shock. Venous thromboembolism prophylaxis with LMWH or UFH should be administrated as soon as possible in high and moderate-risk elderly trauma patients according to the renal function, weight of the patient and bleeding risk. A palliative care team should be involved as soon as possible to discuss the end of life in a multidisciplinary approach considering the patient's directives, family feelings and representatives' desires, and all decisions should be shared.\nThe management of elderly trauma patients requires knowledge of ageing physiology, a focused triage based on assessing frailty and early activation of trauma protocol to improve outcomes. Geriatric Intensive Care Units are needed to care for elderly and frail trauma patients in a multidisciplinary approach to decrease mortality and improve outcomes.",
+        "sha256": "76a7aeaf406b7bea7eca5ebe531b8348e32c67578f23e72375fd1a54fb1a1d1b",
+        "retrieved_at": "2026-09-19T01:23:57.361973+00:00",
+        "pmcid": "PMC11140935",
+        "body_excerpts": "Background\nThe most common mechanism of injury in patients aged \u2265 65 is the ground-level fall. Six percent of ground-level falls patients will sustain a fracture, and 10\u201330% of these patients will have polytrauma, being elderly people more likely to sustain fractures of the cervical spine, ribs, hip, and extremities. Mortality rate in this age-group is reported to be as high as 7% [ 7 \u2013 12 ]. Prevention strategies, endorsed recently by several western countries, to reduce falls in elderly such as home-based exercise programs and home safety interventions are effective to reduce the risk of falling but they have limited applications in active and independent people in the immediate future because of their high costs for healthcare systems [ 10 ].\n\nMethodology\nAccording to PICO [ 21 ] criteria, the coordinator of the project identified research areas, main topics and questions correlated to geriatric trauma management to investigate. The main topics and PICO questions are summarized in the Table 1 . Table 1 Topics and PICO questions MAIN TOPIC PICO QUESTIONS DEFINITIONS Q.1.1: Which trauma patient is defined as \u201cold\u201d at initial evaluation? Q 1.2: When a patient is considered \u201cphysiologically old\u201d and does he/she deserve different management after (blunt and penetrating) trauma? PRIMARY EVALUATION/ASSESSMENT Q 2.1: Which injury (physiological and anatomical) scores are higher predictive of outcome in evaluating elderly patients for trauma? Q 2.2: Which clinical features do better define the hemodynamic instability in geriatric trauma patients? Q 2.3: Which laboratory tests and biological markers are useful to evaluate the elderly trauma patient before resuscitation? Q 2.4: Which imaging studies are useful to better evaluate trauma elderly patients? RESUSCITATION Q 3.1: What early resuscitative protocol including intravenous fluids, blood transfusions or vasopressors should be used to manage geriatric trauma patients at primary evaluation? Q 3.2: Which are the resuscitation endpoints in elderly trauma patients? Q 3.3: Which vasopressors are indicated in comorbid elderly injured patients? Q 3.4: Vasopressors treatments versus permissive hypotension in geriatric trauma patients: which are the clinical parameters and laboratory tests to consider in the choice? Q 3.5: How intraoperative hypotension status is correlated with delirium in geriatric patients? MANAGEMENT OF ORAL ANTICOAGULANTS Q 4.1: Which blood tests are useful to evaluate geriatric patients with anticoagulant drugs in trauma setting? Q 4.2: Which reversal protocol is indicated in patients in treatment with vitamin K antagonists? Q 4.3: Which reversal protocol is indicated in patients in treatment with direct oral anticoagulants (DOACs) ? ANTIBIOTICS, ANALGESIA AND ANTI-THROMBOTIC PROPHYLAXIS Q 5.1: When is it indicated to administer antibiotics in elderly trauma patients? Q 5.2: How to control pain in elderly patients admitted for trauma? Q 5.3: When and how is indicated to perform thrombo-prophylaxis in elderly trauma patients? MANAGEMENT OF THE END-OF-LIFE IN IN TRAUMA SETTING FOR ELDERLY PATIENTS Q 6.1: Which are the clinical features and vital parameters to define the elderly patient at end of life after trauma? Q 6.2: Could palliative management be useful in the management of an elderly patient at the end of life?\n\nMethodology\nEach working group provided a focused draft and a variable number of statements and recommendations according to the Grading of Recommendations, Assessment, Development and Evaluation (GRADE) [ 23 ]. The provisional statements and the supporting literature were reviewed and discussed by email/call conferences and modified if necessary. Controversies statements and recommendations were validated with a Delphi consensus of WSES experts [ 24 ].\n\nMethodology\nThe final manuscript was discussed during the WSES Congress held in Pisa in June, 2023. Comments and suggestions were implemented to improve the recommendations in the geriatric trauma management.\n\nMethodology > Notes on the use of these guidelines\nThe 2023 WSES geriatric trauma guidelines are the result of an extensive review of the literature and a validation by a consensus of experts in the field. The statements and recommendations provided in this work do not represent a standard of practice but a suggested plan of care, based on the best available evidence and the consensus of experts, but they do not exclude other approaches as being within the standard of practice. These guidelines should be used and tailored by the treating surgeons and individualized for each patient depending on the setting and should not be followed blindly.\n\nResults > Definitions\nWe suggest early trauma protocol activation in patients aged \u2265 55 years old [Weak recommendation based on a low level of evidence 2C].\n\nResults > Definitions\nWe recommend to carefully evaluate injured patients aged \u2265 55-year-old for potential high risk of mortality and to avoid under-triage [Strong recommendation based on a low level of evidence 1C].\n\nResults > Summary of evidence and discussion\nIn trauma management, recent data suggest that mortality as adjusted for injury severity scale (ISS) increases at the age of 70 years, making the age of 70 the cutoff at which to consider a patient with trauma elderly or geriatric [ 26 ]. This notion is distinct from Advanced Trauma Life Support (ATLS) teaching, which recommends transportation to a trauma center for any patient older than 55 years. The Eastern Association for the Surgery of Trauma (EAST) guidelines which defines patients older than 65 years as elderly [ 27 , 28 ].\n\nResults > Summary of evidence and discussion\nWe suggest an early and rapid assessment of the patient including vital signs on presentation, mechanism of injury, injury severity and frailty including comorbidities and medication history to identify vulnerable trauma patients [Weak recommendation based on low level of evidence 2C].\n\nResults > Summary of evidence and discussion\nWe recommend assessing frailty in all elderly trauma patients [Strong recommendation based on a moderate level of evidence 1B].\n\nResults > Summary of evidence and discussion\nPrimary evaluation and triage of older people victims of a trauma, which includes clinical exam and objective assessment is challenging because of the physiologic differences between older and younger patients. Kehoe and colleagues [ 46 ] reported that older patients with a traumatic brain injury are often evaluated with a higher GCS score compared with younger patients. Heffernan and colleagues [ 47 ] reported also an increased mortality in patients aged 65 or older with trauma admitted with a systolic blood pressure less than 110 mm Hg (vs. > 95 mm Hg in younger patients) and heart rate greater than 90 beats/min (vs. > 130 beats/min in younger patients). In fact, older patients with trauma may have chronic occult hypoperfusion, which makes the presence of \u201cnormal\u201d initial vital signs unreliable. Elderly patients frequently have higher blood pressure, therefore, a \u201cnormal\u201d blood pressure may be hypotension in the elderly. Other examples include modification of conventional GCS cut-off values [ 48 ] and initial vital signs [ 47 , 49 ] for older patients. Other authors have recommended using markers such as serum lactate level and base deficit [ 50 \u2013 54 ] as alternative predictors of mortality. There is a need to modify trauma care of the elderly to improve the clinical outcome [ 55 ].\n\nPrimary evaluation/assessment\nWe suggest evaluating elderly patients for trauma through the Geriatric Trauma Outcome Score (GTOS) to predict in-hospital mortality and the Trauma-Specific Frailty Index to identify patients at highest risk of poor outcome [Weak Recommendation, based on Moderate Quality of Evidence, 2B] .\n\nPrimary evaluation/assessment > Summary of evidence and discussion\nGeriatric patients should have appropriate assessment of their poly-pharmacologic profile as soon as possible after admission. They should be screened for beta-blockers, steroids, antiplatelet and anticoagulant medications. The frequent use of anticoagulant (warfarin, coumadin, dabigatran, rivaroxaban) and antiplatelet (clopidogrel, aspirin) medications in the geriatric population, puts these patients at high risk for significant bleeding events, even after minor trauma (QoE B moderate).\n\nPrimary evaluation/assessment > Summary of evidence and discussion\nPoorer osseous mineralization, osteoporosis, and increased spinal rigidity put the elderly at a greater risk of having a spinal injury. Since 50% of geriatric cervical spine fractures are clinically unstable, and delayed diagnosis may result in secondary neurologic deterioration, prompt imaging is required. Geriatric patients are also more likely than younger patients to sustain multiple injuries. In these patients, the diagnostic value of radiographic assessment of cervical spine fracture is limited by reduced bone density and spondylotic changes. Therefore, injuries may be missed in up to 80% of elderly trauma patients at the radiographs [ 107 \u2013 109 ].\n\nPrimary evaluation/assessment > Summary of evidence and discussion\nGeriatric patients who sustain moderate to high-energy trauma, from both motor vehicle or fall from a height, and patients with focal neurologic signs, head injury, and associated injuries should be evaluated with cervical spine CT. Those who require head CT for trauma evaluation should also have concurrent screening CT of the cervical spine, since patients with an apparently isolated head injury have a 5% risk of additional spinal injury [ 109 ]. Screening CT of the cervical spine is also recommended in geriatric patients older than 75 years who sustain minor trauma, because of the high incidence of injury at C2 in this age group [ 108 ]. In summary, there should be a low threshold for imaging with CT scan (eventually associated with MRI) in these patients, given the complications that may arise from a missed cervical spinal fracture and the risk of spinal cord injury without radiological evidence of trauma (SCIWORET).\n\nPrimary evaluation/assessment > Summary of evidence and discussion\nCervical trauma may be also associated with blunt cerebrovascular injury. In patients with alarming clinical and radiological findings, including neurological deficits, GCS < 6, petrous bone fracture, foramen transverseria fracture, diffuse axonal injury, and a Le Fort II or III fracture, CT angiography is helpful in detecting any cerebrovascular injury [ 101 ]. According to the Denver criteria, CT angiography is recommended to screen for blunt cerebrovascular injury in patients with cervical spine fractures from C1 to C3, and traumatic cervical spine subluxations [ 110 ].\n\nPrimary evaluation/assessment > Summary of evidence and discussion\nOsteoporosis is a major risk factor also for vertebral compression fractures in the thoracolumbar spine in the elderly population. The most common site of injury is at the thoracolumbar junction (T12\u2013L2), followed by the mid-thoracic spine. Diagnosis of thoracolumbar osteoporotic compression fractures can be difficult at radiography as radiographs may not reveal an acute fracture line because of decreased bone mineral density [ 111 ]. If radiographs show loss of height in a vertebral body and the patient has focal pain, a CT scan should be performed to determine if the collapse is acute or chronic. CT achieve better diagnostic assessment of vertebral body height reduction and spinal canal diameter in cases of burst fractures with retropulsion. A CT scan of the whole spine is indicated in patients with major spinal trauma because 40% of injuries involve multiple, non-contiguous segments [ 72 ].\n\nPrimary evaluation/assessment > Summary of evidence and discussion\nAge > 65 years, together with number of rib fractures (the more ribs that are fractured, the worse the outcome) and the ISS, is a well-recognized prognostic factor associated with morbidity and mortality in older adults with blunt chest trauma [ 112 ]. Similar to what happens for spine fractures, bone demineralitazion put the geriatric population at a high risk of rib fractures from lower energy trauma and at worse outcomes than do younger adults [ 113 ]. Rib fractures are also a potential sentinel injury associated with more severe trauma, including cardiac and aortic, pneumothorax, pulmonary contusion and laceration, as well as liver and splenic trauma. Similarly, clavicular and first rib fractures are sentinel injuries for severe thoracic and brain injuries and are associated with a higher mortality rate in the elderly [ 56 , 72 ]. The radiologist can identify patients with rib injuries and flail chest segment that may benefit from open reduction and internal fixation, in order to enable patients to commence physiotherapy earlier, and decreasing the risk of secondary chest infections [ 114 ].\n\nResuscitation > Summary of evidence and discussion\nRisk factors to predict the need for MT in elderly patients are related to Focused Assessment for Sonography results, unstable pelvic fracture, and long bone open fracture of the lower limbs, along with pre-injury anticoagulants use, anti-platelet agent use, lactate levels, and shock index [ 133 ].\n\nResuscitation > Summary of evidence and discussion\nNeerland and al [ 178 ] investigated the associations between perioperative hemodynamic changes, use of vasopressor drugs, risk of acute delirium and risk of long-term dementia in patients presenting with hip fracture who had surgery. Risk factors for postoperative delirium were low body mass index, low level of functioning, severity of physical illness, and receipt of \u2265 2 blood transfusions. Long-term dementia was associated with severity of physical illness, delirium, receipt of vasopressor drugs perioperatively, and high mean arterial pressure postoperatively.\n\nResuscitation > Summary of evidence and discussion\nRadinovic and al [ 179 ] investigated the impact of intraoperative blood pressure on onset of postoperative delirium and showed that a higher MAP had a protective effect on the occurrence of postoperative delirium in patients managed for hip fracture. This issue has not been comprehensively addressed in the trauma setting. Predictive models developed in elective surgery settings do not directly report intraoperative hypotension among predictors of postoperative delirium. Some variables, including age, anesthesia methods, Mini-Mental State Examination (MMSE) score, hypoxia during operation, company of family members, serum concentration of IL-6 above 9 ng/ml, and major hemorrhage and other related to hypotension may be involved in the development of delirium [ 180 \u2013 183 ].\n\nRecommendation 4.3 > Summary of evidence and discussion\nThe ANNEXA-4 (Prospective, Open-Label Study of Andexanet Alfa in Patients Receiving a Factor Xa Inhibitor Who Have Acute Major Bleeding) [ 281 ] study was carried out to evaluate the andexanet alfa reversal efficacy in patients presenting with major bleeding \u2264 18 h after taking an FXa inhibitors (apixaban, rivaroxaban, edoxaban). Three-hundred fifty-two patients were enrolled and treated with andexanet alfa administered as an intravenous bolus, followed by a 2-h infusion, according to the type of FXa inhibitor and timing of the last FXa inhibitor dose. At the end of the andexanet bolus, anti-FXa activity was reduced from baseline by 92% (95% CI 91\u201393) in apixaban-treated patients and by 92% (95% CI 88\u201394) in rivaroxaban-treated patients. This effect persisted for the duration of the infusion, followed by a subsequent increase in anti-FXa activity seen 4 h after discontinuation. Of 254 patients, 82% had good/excellent hemostasis at 12 h (95% CI 77\u201387), with similar results for gastrointestinal (85%; 95% CI 76\u201394) and intracranial (80%; 95% CI 74\u201386) bleeding. Andexanet has not been studied in patients requiring urgent surgery and is not approved for this indication.\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis\nThe use of antibiotics for preventing infection in open limb fractures is recommended (QoE A high).\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis\nIn soft tissue penetrating injuries, broad spectrum, empirical, intravenous antibiotic therapy should be commenced once deep samples have been obtained, and then tailored once organisms and sensitivities are known. A short course, single agent regimens using cephalosporins in order to prevent adverse outcomes in soft tissue injuries associated with bony injury (open fractures) is recommended. Hand fractures do not require routine prophylaxis. (QoE B moderate).\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis\nA specific antibiotic or preferred dosing when employing local antibiotics in the management of fracture related infections cannot be recommended. (QoE C low).\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis\nThe use of antibiotic prophylaxis as a protective factor for SSI after open reduction and internal fixation of ankle and closed extremity fractures is recommended (QoE A high).\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis\nWe recommend antibiotic prophylaxis in penetrating (abdominal, thoracic) trauma, in severely burned and in open fractures in elderly patients to decrease septic complications [Strong recommendation based on a high-moderate quality level of evidence 1A].\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis > Traumatic limb fractures\nFractures are common in geriatric population and SSI is a significant post-operative complication after open reduction and internal fixation of traumatic fractures. A metanalysis was carried to evaluate the risk factors of SSI after open reduction and internal fixation of ankle fracture. It showed that BMI, ASA \u2265 3, diabetes, alcohol, open fracture, subluxation/dislocation, incision cleanness grade 2\u20134, high-energy injury mechanism, chronic heart disease, history of allergy, and use of antibiotic prophylaxis were identified as risk factors for the development of SSI after open reduction and internal fixation of ankle fracture [ 313 ].\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis > Traumatic limb fractures\nA randomized double-blinded placebo-controlled trial showed that there is no statistically significant difference between patients who received prophylactic postoperative cefazolin for 23 h versus placebo although it decreased the risk of SSI after open reduction and internal fixation of closed extremity fractures. Patients with diabetes mellitus are more likely to develop SSI [ 314 ].\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis > Traumatic limb fractures\nThere is evidence supporting the use of antibiotic prophylaxis in the management of open fractures [ 315 ]. Short course, single agent regimens using cephalosporins in order to prevent adverse outcomes in open fractures is the recommended approach. However, there is no conclusive evidence supporting prophylactic antimicrobial use in the management of small soft tissue upper extremity trauma and simple lacerations. The updated Surgical Infection Society guidelines recommend against administration of extended-spectrum antibiotic coverage compared with gram-positive coverage alone to decrease infections complications, hospital length of stay or mortality in type I or II open extremity fractures. In type III open extremity fractures, it is recommend to administer an antibiotic therapy for no more than 24 h after injury, in the absence of clinical signs of active infection, to decrease infectious complications, hospital length of stay or mortality. SIS recommends against extended antimicrobial coverage beyond gram-positive organisms to decrease infectious complications, hospital length of stay or mortality. In type III open extremity fractures with associated bone loss, it is recommended to administer antibiotic therapy in addition to systemic therapy to decrease infectious complications [ 316 ].\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis > Summary of evidence and discussion\nSeveral alternatives to opioids were proposed in literature. Recently methoxyflurane, an inhaled non-opioid analgesic with a rapid onset of pain relief was approved in low-dose for emergency relief of moderate-to-severe trauma-related pain in adults. A recent multicenter, randomized, controlled, open-label trial in adult patients (age range 19\u201391 years) showed that inhaled methoxyflurane (3 mL) is effective in providing superior short-term pain relief to intravenous morphine in patients with severe trauma pain [ 342 ].\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis > Neuraxial and peripheral regional anesthesia\nIn 2018, Steenberg et al. [ 350 ] made a systematic review of the literature (11 randomized and quasi-randomized controlled trials, with a total of 1062 patients) reported that the analgesic effect of fascia iliaca compartment block was superior to that of opioids during movement, resulting in lower preoperative analgesia consumption and a longer time for first request of analgesia, and reduced time to perform spinal anaesthesia. Block success rate was high and there were very few adverse effects. A Cochrane review (49 trials analyzed) was carried out to compare single shot PNBs used as perioperative, postoperative analgesia, or as a supplement to general anaesthesia versus no nerve block (or sham block) for adults with hip fracture. Three thousand sixty-one patients were enrolled; 1553 randomized to PNBs and 1508 to no nerve block with an average age of participants ranged from 59 to 89 years. PNBs reduced pain on movement within 30 min after block placement, risk of acute confusional state, chest infection, and time to first mobilization and probably costs [ 351 ].\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis > Neuraxial and peripheral regional anesthesia\nThe AnAnkle Trial, [ 355 ] a randomized blinded trial of two centers, which enrolled 150 patients reported that PNB anesthesia (ultrasound-guided popliteal sciatic and saphenous blocks with ropivacaine) decreased the postoperative pain intensity in primary ankle fracture surgery compared with spinal anesthesia and consequently the consumption of opioids, despite substantial rebound pain when PNBs subsided.\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis > Neuraxial and peripheral regional anesthesia\nThe prospective study carried out by Garlich et al. [ 356 ] in a level I trauma center focusing on 725 patients aged \u2265 65 yo reported that patients who received a preoperative fascia iliaca block (in single-shot, administering a 30- to 40-mL bolus of 0.25% bupivacaine with 1:200,000 epinephrine or in continuous, with a bolus of 10 to 20 mL of 0.2% bupivacaine, followed by a continuous infusion of 0.2% bupivacaine at 6 mL/h ending on the morning of postoperative Day 1) for hip fracture surgery consume less morphine preoperatively, with low rates of opioid-related adverse events.\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis > Neuraxial and peripheral regional anesthesia\nThompson et al. [ 357 ] prospectively randomized 44 patients into 2 groups to study the efficacy of a preoperative fascia iliaca compartment block in geriatric patients with fractures of the proximal femur. There was no significant difference in consumption of acetaminophen for mild pain, tramadol for moderate pain, or functional recovery between the 2 groups, but a statistically significant decrease in morphine consumption (0.4 mg vs. 19.4 mg, P = 0.05) and increase in patient-reported satisfaction (31%, P = 0.01). Using the same methodology in 97 patients randomized into 2 groups (experimental and no-block control), Schulte et al. [ 354 ] confirmed that single perioperative Fascia Iliaca Block (FIB) for patients with hip fracture surgery decrease opioid consumption and increase the likelihood to be discharged home. Similarly, the adoption of epidural analgesia (epidural infusion of bupivacaine/fentanyl or bupivacaine/morphine) and regional anesthesia are options for adequate pain relief in hip fractures [ 337 ].\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis > Thoracic trauma\nRib fractures occur in up to 40% of trauma patients. Overall mortality of patients having rib fractures is high, about 10% for all ages. Thoracic trauma is a common cause of trauma admission in elderly people. Mortality and morbidity from rib fractures primarily derive from pain-induced hypoventilation, pneumonia and respiratory failure. Acute pain management is importance to provide sufficient analgesia to allow respiratory rehabilitation and to prevent pulmonary complications [ 359 \u2013 362 ] as showed in Fig. 3 [ 360 ]. Fig. 3 Rib fracture analgesia algorithm (Ref. [ 360 ])\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis > Thoracic trauma\nSeveral indications have been proposed for considering surgical rib fracture repair including flail chest, severe pain and chest wall deformity [ 372 ].\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis > Thoracic trauma\nFocusing on elderly patients, Zhang et al. retrospectively analyzed data from 226 patients aged \u2265 60yo admitted for simple rib fractures managed operatively by internal fixation surgery and non-operatively. They showed that the pain score and fracture healing time were significantly improved in the operation group ( P < 0.05) as well the duration of painkiller use was significantly shorter ( P = 0.009). However, there was no significant differences in mortality, the incidence of bone nonunion, length of stay in the ICU, or duration of mechanical ventilation between the 2 groups [ 375 ].\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis > Summary of evidence and discussion\nTrauma patients are at high risk of VTE mainly due to the reduction of mobility and to the inflammatory state generated by the trauma itself. For this reason VTE prophylaxis is usually recommended in these patients [ 387 , 388 ]. The old age (> 60 years) has frequently been demonstrated to be an additional risk factor for VTE in trauma patients [ 389 \u2013 405 ], as well as clearly mentioned also in the EAST guidelines for the management of VTE in trauma patients [ 399 ]. As a matter of fact, stratified age is among the major predictors of risk of VTE used to calculate both the Greenfield Risk Assessment Profile (RAP) [ 400 ] ( Table 3 ) and the Trauma Embolic Scoring System (TESS) [ 401 ] ( Table 4 ) which used in the recent Western Trauma Association guidelines algorithm for the management of VTE in trauma patients [ 402 ]. The 10 years retrospective study by Kim et al. [ 393 ] included 2500 elderly trauma patients (> 65 years old). The rate of VTE was 3.2%. Traumatic brain injury ( P < 0.05); chest Abbreviated Injury Score > 3 ( P < 0.001); mechanical ventilation ( P < 0.001); major surgery ( P < 0.001); and history of VTE ( P < 0.05) were found to be independent predictors of VTE. Similarly, the 2 years retrospective study by Prabhkaran et al. based on a national trauma improvement program [ 392 ], selected 354,000 patients older than 65 years with post-traumatic VTE and demonstrated that being a male, ICU length of stay (LOS), overall LOS, spine injury, lower extremities injury, age > 75, severe traumatic brain injury, ventilator days, plasma transfusions within 24 h of admission were independent risk factors for deep vein thrombosis (DVT). Table 3 Greenfield score < 5: low risk, > = 5: high risk Predictor Greenfield Points Age (years) 40\u201359 2 60\u201374 3 \u2265 75 4 Obesity 2 Malignancy 2 Coagulopathy 2 History of TE 3 Femoral CVC > 24 h 2 Blood transfusions (> 4U in 24 h) 2 Surgery > 2 h 2 Vascular surgery 3 AIS chest/abdomen/head > 2 2 each GCS < 8 for > 4 h 3 Complex lower extremities fracture 3 Pelvic fracture 4 Spinal cord injury with para- or quadriplegia 4 Table 4 TESS score 0\u20132: low risk. 3\u20136: moderate. 7\u201314: high risk Predictor TESS Points Age (years) 18\u201329 0 30\u201364 1 \u2265 65 2 ISS 1\u20139 0 10\u201325 3 > 25 5 Obesity (BMI > 30) 1 Ventilation 4 Lower extremities fracture 2\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis > Summary of evidence and discussion\nThe large scale Norwegian national prospective observational study including 45.000 elderly patients undergoing osteosynthesis for hip fracture compared pre-operative and post-operative start of VTE prophylaxis. Pre-operative prophylaxis did not influence mortality or risk of reoperation in patients treated with osteosynthesis. However, post-operative prophylaxis decreased the risk of intraoperative bleeding complications for operations with hip compression screw, but not with intramedullary nail or screw osteosynthesis [ 405 ].\n\nAntibiotics, analgesia and anti-thrombotic prophylaxis > Summary of evidence and discussion\nThe retrospective cohort study by Campbell et al. based on a national database including 4000 elderly patients (> 60 years old), evaluated the effectiveness of factor XaI inhibitors compared to LMWH to prevent DVT after hip fracture surgery. Data did not show significant differences in DVT, bleeding or post-operative transfusions rates. However, the rate of PE was significantly higher in factor XaI inhibitors than LMWH (AR 2 vs -3.5). The authors concluded that factor XaI inhibitors may be a viable alternative to LMWH in view of patient\u2019s preference and better compliance, despite their increased cost and lower efficacy in preventing PE [ 406 ].\n\nManagement of the end of life in trauma setting for elderly patients > Summary of evidence and discussion\nIn the last twenty years there has been an increase of the elderly population (older than 65 years) rate among hospital trauma-related admissions. These patients require almost the 25% of trauma-related health care resources due to their comorbidities and the decrease of physiologic reserve with high mortality [ 432 \u2013 435 ]. The National Institutes of Health has estimated that the 5% of the most seriously ill Americans accounted for more than 50% of health care spending, with most costs occurring during the last 6 months of a patient\u2019s life [ 430 ]. Racial and socioeconomic disparities in terms of utilization of hospice services were reported [ 433 ]. In US, Asian, African American, and Hispanic patients received less hospice care than Caucasian patients (OR 0.65, 0.60, 0.73; P < 0.0001). Race and ethnicity are independent predictors of a trauma patient\u2019s transition to hospice care and significantly affect the length of stay [ 433 ]. However palliative management can be beneficial in the management of elderly injured patient. In such cases, when a patient sustains severe injuries that are unlikely to be fully recoverable, palliative care, including pain and symptom management, emotional and psychological support for the patient and his/her family, facilitating open and honest communication between the patient, their family and healthcare providers, can provide essential support and focus on the patient's comfort and quality of life, preserving the patient's dignity, comfort and enhancing their quality of life, regarding life-sustaining treatments and interventions. Palliative care teams collaboration in the setting of the end of life ensure that the patient's wishes regarding their care are known and respected, even if they become unable to communicate them later on [ 434 , 435 ].\n\nManagement of the end of life in trauma setting for elderly patients > Summary of evidence and discussion\nDavies et al. in a monocentric retrospective study analyzed the impact of palliative care in management of femur fracture in high-risk patients [ 441 ] . The results confirmed that an early (24\u201372 h) intervention of palliative care is successful, also if mortality rates remain high. Similar conclusions were reported by Schuijt et al. [ 442 ], who found that a patient-tailored treatment associated with a decision-making multidisciplinary team can be helpful. The decision making rely on discretion to identify patients most appropriate for palliative management.",
+        "body_excerpts_sha256": "2570ed7f38318d56333821ba3de0239e84b0d600365500d36b770234cb37abc0",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11140935/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "30470636",
+        "title": "Recommendations by the Spanish Society of Rheumatology on Osteoporosis.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30470636/",
+        "abstract": "To update the recommendations on osteoporosis (OP) of the Spanish Society of Rheumatology (SER) based on the best possible evidence.\nA panel of nine expert rheumatologists in OP was created, previously selected by the SER through an open call. The phases of the work were: identification of the key areas for updating the previous consensus, analysis and synthesis of the scientific evidence (using the SIGN levels of evidence) and formulation of recommendations based on this evidence and consensus techniques.\nThis revision of the recommendations implies an update in the diagnostic evaluation and treatment of OP. It proposes some criteria to consider the high risk of fracture and some indications to start treatment. The recommendations also address issues related to the safety of treatments and the management of special situations such as inflammatory diseases and treatment with glucocorticoids.\nWe present an update of SER recommendations on OP.",
+        "sha256": "05a0ceb8b4fffb14f8992d576c22261d42051bd03a075c8848984efb91a7b25b",
+        "retrieved_at": "2026-09-19T01:23:57.942549+00:00"
+      },
+      {
+        "id": "30299485",
+        "title": "Congress of Neurological Surgeons Systematic Review and Evidence-Based Guidelines on the Evaluation and Treatment of Patients With Thoracolumbar Spine Trauma: Novel Surgical Strategies.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30299485/",
+        "abstract": "Treatment of thoracolumbar burst fractures has traditionally involved spinal instrumentation with fusion performed with standard open surgical techniques. Novel surgical strategies, including instrumentation without fusion and percutaneous instrumentation alone, have been considered less invasive and more efficient treatments.\nTo review the current literature and determine the role of fusion in instrumented fixation, as well as the role of percutaneous instrumentation, in the treatment of patients with thoracolumbar burst fractures.\nThe task force members identified search terms/parameters and a medical librarian implemented the literature search, consistent with the literature search protocol (see Appendix I), using the National Library of Medicine PubMed database and the Cochrane Library for the period from January 1, 1946 to March 31, 2015.\nA total of 906 articles were identified and 38 were selected for full-text review. Of these articles, 12 articles met criteria for inclusion in this systematic review.\nThere is grade A evidence for the omission of fusion in instrumented fixation for thoracolumbar burst fractures. There is grade B evidence that percutaneous instrumentation is as effective as open instrumentation for thoracolumbar burst fractures.\nDoes the addition of arthrodesis to instrumented fixation improve outcomes in patients with thoracic and lumbar burst fractures?\nIt is recommended that in the surgical treatment of patients with thoracolumbar burst fractures, surgeons should understand that the addition of arthrodesis to instrumented stabilization has not been shown to impact clinical or radiological outcomes, and adds to increased blood loss and operative time. Strength of Recommendation: Grade A.\nHow does the use of minimally invasive techniques (including percutaneous instrumentation) affect outcomes in patients undergoing surgery for thoracic and lumbar fractures compared to conventional open techniques?\nStabilization using both open and percutaneous pedicle screws may be considered in the treatment of thoracolumbar burst fractures as the evidence suggests equivalent clinical outcomes. Strength of Recommendation: Grade B The full version of the guideline can be reviewed at: https://www.cns.org/guideline-chapters/congress-neurological-surgeons-systematic-review-evidence-based-guidelines/chapter_12.",
+        "sha256": "fd7a6dbb26ebcecef42c648cc5a0b95d01f8d140a7d273c833e869753db08b49",
+        "retrieved_at": "2026-09-19T01:23:57.942549+00:00"
+      },
+      {
+        "id": "41649842",
+        "title": "Evidence for Systemic Perioperative Antibiotic Prophylaxis for Prevention of Fracture-related Infections Following Open Fractures: Systematic Review and Meta-Analysis of Randomized, Controlled, Clinical Trials.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41649842/",
+        "abstract": "Clinical guidelines rely heavily on expert opinions and institution protocols to provide recommendations for administration of systemic antibiotic prophylaxis for open extremity fractures to prevent fracture-related infections. The purpose of this study was to determine evidence-based (1) durations; (2) types; (3) dosing regimens of systemic perioperative antibiotic prophylaxis following Gustilo-Anderson types I, I/II, II, III, and I/II/III, for upper and lower extremity open fractures, isolated upper extremity open fractures, and isolated lower extremity open fractures to prevent fracture-related infections.\nGuidelines from Preferred Reporting Items for Systematic Reviews and Meta-Analysis, Cochrane, and the GRADE approach were implemented to structure and synthesize this study. Five databases (PubMed, Cochrane Library, Web of Science, Scopus, CINAHL) were systematically and independently searched for randomized controlled trials (RCTs) meeting eligibility criteria. Included patients had open extremity fractures and were treated with prophylactic systemic antibiotics administered perioperatively (preoperative, intraoperative, postoperative). Meta-analyses were done of the data.\nTwenty-one (n = 21) RCTs met eligibility criteria (Gustilo-Anderson type I = 6, Gustilo-Anderson type II = 4, Gustilo-Anderson type I/II = 12, Gustilo-Anderson type III = 4, Gustilo-Anderson type I/II/III = 21). Summary tables were generated to provide evidence-based durations and types of systemic antibiotic prophylaxis after Gustilo-Anderson types I, I/II, II, III, and I/II/III, for upper and lower extremity open fractures, isolated upper extremity (hand) open fractures, and isolated lower extremity open fractures.\nAlthough data were derived primarily from older studies, we summarized the strongest available evidence from RCTs for antibiotic prophylaxis following Gustilo-Anderson types I, I/II, II, III, and I/II/III, for upper and lower extremity open fractures, isolated upper extremity open fractures, and isolated lower extremity open fractures.",
+        "sha256": "cb2c177f0a135956d77b4059ef2bc3295d706b81b26917b69eff90e604a4e99d",
+        "retrieved_at": "2026-09-19T01:23:59.064760+00:00"
+      },
+      {
+        "id": "30467055",
+        "title": "Managing the open calcaneal fracture: A systematic review.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30467055/",
+        "abstract": "Open fractures of the calcaneus are rare. They are mostly caused by high-energy trauma. There are several treatment options for calcaneal fractures. However, treatment of open calcaneal fractures might need a different approach, as open calcaneal fractures are associated with high rates of complications. The purpose of this study was to provide a literature overview on the management of open calcaneal fractures, and deduct a more standardized treatment algorithm.\nA literature review was conducted in the databases of PubMed, EMBASE and the Cochrane Library for articles describing the management of open calcaneal fractures. Excluded were studies with less than 10 patients, studies describing combat injuries and reviews. Only articles published from 1998 to 2017 were included and there were no language restrictions.\nA total of 18 articles were included with 616 open calcaneal fractures in 598 patients. Most wounds were Gustilo grade III and most fractures were Sanders type III. Definitive surgery was performed after a mean of 9.8days and in most cases in the form of ORIF via ELA. The complication rate was 21% and the mean AOFAS score was 73.7 points.\nThe complication rates of open calcaneal fractures are high and increase with the severity of the wound. A treatment algorithm is suggested. However, to produce a more evidence-based protocol and achieve consensus for treatment, additional research should be done, preferably in the form of a prospective multicenter database.",
+        "sha256": "c75f661346e7a00bba9aa2a8daf668a2251841d887515efbae38d69b54ef688f",
+        "retrieved_at": "2026-09-19T01:23:59.064760+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "This is a contaminated open tibial and fibular shaft fracture, for which systemic antibiotic prophylaxis should begin as soon as possible after immediate life threats are managed. The 2024 joint COT/OTA/ACEP/NAEMSP/NAEMT statement specifically recommends a first-generation cephalosporin, such as cefazolin, in a responsive patient without penicillin or cephalosporin allergy and advises against delaying administration. The WSES geriatric trauma guideline likewise strongly recommends antibiotic prophylaxis for open fractures in older adults. Operative debridement, cultures when clinically indicated, and definitive Gustilo-Anderson grading should not postpone the initial antibiotic dose. Subsequent antimicrobial management can be adjusted according to operative findings, contamination pattern, and local protocol.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "39356234"
+              ],
+              "reason": "The position statement directly recommends administering prophylactic antibiotics as soon as possible to reduce fracture-related infection and morbidity.",
+              "source_passage_ids": [
+                "39356234:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39356234",
+                  "quote": "One of the primary concerns associated with open fractures is the development of a fracture-related infection (FRI). To minimize the risk of developing an FRI and subsequent morbidity, prophylactic antibiotics should be administered to patients with open fractures as soon as possible. While the antibiotic recommendations for severe open fractures are somewhat debatable, the use of a cephalosporin remains a mainstay of prophylactic treatment. Though administration of prehospital antibiotics does represent an expansion of EMS responsibilities, there have been several other treatment expansions in the prehospital setting, such as the administration of tranexamic acid and the application of pelvic binders. The administration of antibiotics, specifically cefazolin, is inexpensive, technically simple, and does not require special storage."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39356234"
+              ],
+              "reason": "The source directly recommends a first-generation cephalosporin after management of life threats in a responsive patient without penicillin or cephalosporin allergy.",
+              "source_passage_ids": [
+                "39356234:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39356234",
+                  "quote": "The following recommendations are supported by and represent consensus of the COT, OTA, ACEP, NAEMSP and NAEMT with regards to prehospital antibiotic prophylaxis for suspected fractures: In a responsive patient with no history of penicillin or cephalosporin allergy, the administration by EMS of a 1st generation cephalosporin should be performed after the management of life threats. This intervention should not delay transport.In an obtunded patient, the administration by EMS of a 1st generation cephalosporin should be performed after the management of life-threats. This intervention should not delay transport.In a responsive patient with a documented penicillin allergy, the administration by EMS of a 1st generation cephalosporin should be performed with close monitoring after the management of life-threats. This intervention should not delay transport."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "39356234"
+              ],
+              "reason": "The recommendation places life-threat management first and explicitly states that antibiotic administration should not delay transport.",
+              "source_passage_ids": [
+                "39356234:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39356234",
+                  "quote": "The following recommendations are supported by and represent consensus of the COT, OTA, ACEP, NAEMSP and NAEMT with regards to prehospital antibiotic prophylaxis for suspected fractures: In a responsive patient with no history of penicillin or cephalosporin allergy, the administration by EMS of a 1st generation cephalosporin should be performed after the management of life threats. This intervention should not delay transport.In an obtunded patient, the administration by EMS of a 1st generation cephalosporin should be performed after the management of life-threats. This intervention should not delay transport.In a responsive patient with a documented penicillin allergy, the administration by EMS of a 1st generation cephalosporin should be performed with close monitoring after the management of life-threats. This intervention should not delay transport."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "38816766"
+              ],
+              "reason": "The geriatric trauma guideline directly recommends prophylaxis for open fractures in elderly patients to decrease septic complications.",
+              "source_passage_ids": [
+                "38816766:p24"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38816766",
+                  "quote": "Antibiotics, analgesia and anti-thrombotic prophylaxis The use of antibiotic prophylaxis as a protective factor for SSI after open reduction and internal fixation of ankle and closed extremity fractures is recommended (QoE A high). Antibiotics, analgesia and anti-thrombotic prophylaxis We recommend antibiotic prophylaxis in penetrating (abdominal, thoracic) trauma, in severely burned and in open fractures in elderly patients to decrease septic complications [Strong recommendation based on a high-moderate quality level of evidence 1A]. Antibiotics, analgesia and anti-thrombotic prophylaxis > Traumatic limb fractures Fractures are common in geriatric population and SSI is a significant post-operative complication after open reduction and internal fixation of traumatic fractures."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "38816766"
+              ],
+              "reason": "The guideline recommends short-course, single-agent cephalosporin prophylaxis for open fractures, which directly opposes withholding prophylaxis.",
+              "source_passage_ids": [
+                "38816766:p23",
+                "38816766:p26"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38816766",
+                  "quote": "Antibiotics, analgesia and anti-thrombotic prophylaxis The use of antibiotics for preventing infection in open limb fractures is recommended (QoE A high). Antibiotics, analgesia and anti-thrombotic prophylaxis In soft tissue penetrating injuries, broad spectrum, empirical, intravenous antibiotic therapy should be commenced once deep samples have been obtained, and then tailored once organisms and sensitivities are known. A short course, single agent regimens using cephalosporins in order to prevent adverse outcomes in soft tissue injuries associated with bony injury (open fractures) is recommended. Hand fractures do not require routine prophylaxis. (QoE B moderate). Antibiotics, analgesia and anti-thrombotic prophylaxis A specific antibiotic or preferred dosing when employing local antibiotics in the management of fracture related infections cannot be recommended. (QoE C low)."
+                },
+                {
+                  "source_id": "38816766",
+                  "quote": "Patients with diabetes mellitus are more likely to develop SSI [ 314 ]. Antibiotics, analgesia and anti-thrombotic prophylaxis > Traumatic limb fractures There is evidence supporting the use of antibiotic prophylaxis in the management of open fractures [ 315 ]. Short course, single agent regimens using cephalosporins in order to prevent adverse outcomes in open fractures is the recommended approach. However, there is no conclusive evidence supporting prophylactic antimicrobial use in the management of small soft tissue upper extremity trauma and simple lacerations. The updated Surgical Infection Society guidelines recommend against administration of extended-spectrum antibiotic coverage compared with gram-positive coverage alone to decrease infections complications, hospital length of stay or mortality in type I or II open extremity fractures."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "33485638"
+              ],
+              "reason": "The review identifies infection and non-union as serious complications and describes national guidelines as standardizing open lower-limb fracture care.",
+              "source_passage_ids": [
+                "33485638:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33485638",
+                  "quote": "Open fractures of the lower limb remain a potentially devastating group of injuries that are challenging to manage. The primary aims of treatment are to optimise limb function and avoid serious complications such as infection and non-union, which are costly for both the patient and healthcare system. The management of these fractures has evolved significantly, and this is evident following the creation of national open fracture guidelines and a formal trauma system. These have served to standardise care for these injuries in the United Kingdom. The aim of this review is to update our colleagues on the current standard of lower limb open fracture care in the United Kingdom, and the impact this has had on patient outcomes."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The chart confirms an open, contaminated tibial and fibular shaft fracture in an alert, stable patient with no reported beta-lactam allergy and no prior systemic antibiotic. The supplied evidence supports administering prophylactic antibiotics as soon as possible and specifically supports a first-generation cephalosporin after life threats have been managed. It does not support delaying prophylaxis for operative grading or culture collection. Although this appears to be a severe open fracture, the supplied geriatric guideline also supports short-course cephalosporin prophylaxis and recommends against withholding treatment; candidate A does not make an unsupported dosing or duration claim. Candidate B creates an unsafe delay. The question, title, imaging impression, and visible note establish the injury but do not disclose the intended antibiotic plan. The decision is also independent of the previous case, which concerned immediate operative treatment of compartment syndrome rather than antibiotic prophylaxis for an open fracture."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "This is a suspected/confirmed open tibial shaft fracture with contamination and exposed bone. The retrieved trauma/orthopedic sources support giving systemic prophylactic antibiotics for open fractures as early as possible after life threats are addressed. The 2024 COT/OTA/ACEP/NAEMSP/NAEMT position statement specifically states that responsive patients with suspected open fractures and no penicillin/cephalosporin allergy should receive a first-generation cephalosporin after management of life threats, without delaying transport. The WSES geriatric trauma guideline also recommends antibiotic prophylaxis for open fractures in elderly patients, with short-course cephalosporin-based regimens supported for open fractures. Waiting until operative debridement, cultures, or definitive Gustilo grading would inappropriately delay prophylaxis and is not supported for this scenario.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "39356234"
+              ],
+              "reason": "The source directly states that fracture-related infection is a primary concern in open fractures and that prophylactic antibiotics should be given as soon as possible to minimize that risk.",
+              "source_passage_ids": [
+                "39356234:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39356234",
+                  "quote": "One of the primary concerns associated with open fractures is the development of a fracture-related infection (FRI). To minimize the risk of developing an FRI and subsequent morbidity, prophylactic antibiotics should be administered to patients with open fractures as soon as possible. While the antibiotic recommendations for severe open fractures are somewhat debatable, the use of a cephalosporin remains a mainstay of prophylactic treatment. Though administration of prehospital antibiotics does represent an expansion of EMS responsibilities, there have been several other treatment expansions in the prehospital setting, such as the administration of tranexamic acid and the application of pelvic binders. The administration of antibiotics, specifically cefazolin, is inexpensive, technically simple, and does not require special storage."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39356234"
+              ],
+              "reason": "The source directly recommends a first-generation cephalosporin after life threats are managed in a responsive patient without penicillin or cephalosporin allergy.",
+              "source_passage_ids": [
+                "39356234:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39356234",
+                  "quote": "The following recommendations are supported by and represent consensus of the COT, OTA, ACEP, NAEMSP and NAEMT with regards to prehospital antibiotic prophylaxis for suspected fractures: In a responsive patient with no history of penicillin or cephalosporin allergy, the administration by EMS of a 1st generation cephalosporin should be performed after the management of life threats. This intervention should not delay transport.In an obtunded patient, the administration by EMS of a 1st generation cephalosporin should be performed after the management of life-threats. This intervention should not delay transport.In a responsive patient with a documented penicillin allergy, the administration by EMS of a 1st generation cephalosporin should be performed with close monitoring after the management of life-threats. This intervention should not delay transport."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "39356234"
+              ],
+              "reason": "The source states that first-generation cephalosporin administration should occur after life-threat management and should not delay transport, supporting the principle that antibiotics must not supersede immediate life-threat care.",
+              "source_passage_ids": [
+                "39356234:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39356234",
+                  "quote": "The following recommendations are supported by and represent consensus of the COT, OTA, ACEP, NAEMSP and NAEMT with regards to prehospital antibiotic prophylaxis for suspected fractures: In a responsive patient with no history of penicillin or cephalosporin allergy, the administration by EMS of a 1st generation cephalosporin should be performed after the management of life threats. This intervention should not delay transport.In an obtunded patient, the administration by EMS of a 1st generation cephalosporin should be performed after the management of life-threats. This intervention should not delay transport.In a responsive patient with a documented penicillin allergy, the administration by EMS of a 1st generation cephalosporin should be performed with close monitoring after the management of life-threats. This intervention should not delay transport."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "38816766"
+              ],
+              "reason": "The source specifically recommends antibiotic prophylaxis for open fractures in elderly patients to decrease septic complications.",
+              "source_passage_ids": [
+                "38816766:p1",
+                "38816766:p24"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38816766",
+                  "quote": "The management of elderly trauma patients requires knowledge of ageing physiology, a focused triage, including drug history, frailty assessment, nutritional status, and early activation of trauma protocol to improve outcomes. Acute trauma pain in the elderly has to be managed in a multimodal analgesic approach, to avoid side effects of opioid use. Antibiotic prophylaxis is recommended in penetrating (abdominal, thoracic) trauma, in severely burned and in open fractures elderly patients to decrease septic complications. Antibiotics are not recommended in blunt trauma in the absence of signs of sepsis and septic shock. Venous thromboembolism prophylaxis with LMWH or UFH should be administrated as soon as possible in high and moderate-risk elderly trauma patients according to the renal function, weight of the patient and bleeding risk."
+                },
+                {
+                  "source_id": "38816766",
+                  "quote": "Antibiotics, analgesia and anti-thrombotic prophylaxis The use of antibiotic prophylaxis as a protective factor for SSI after open reduction and internal fixation of ankle and closed extremity fractures is recommended (QoE A high). Antibiotics, analgesia and anti-thrombotic prophylaxis We recommend antibiotic prophylaxis in penetrating (abdominal, thoracic) trauma, in severely burned and in open fractures in elderly patients to decrease septic complications [Strong recommendation based on a high-moderate quality level of evidence 1A]. Antibiotics, analgesia and anti-thrombotic prophylaxis > Traumatic limb fractures Fractures are common in geriatric population and SSI is a significant post-operative complication after open reduction and internal fixation of traumatic fractures."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "38816766"
+              ],
+              "reason": "The source supports antibiotic prophylaxis for open fractures and identifies short-course, single-agent cephalosporin regimens as the recommended approach, which supports prophylaxis rather than withholding it.",
+              "source_passage_ids": [
+                "38816766:p23",
+                "38816766:p26"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "38816766",
+                  "quote": "Antibiotics, analgesia and anti-thrombotic prophylaxis The use of antibiotics for preventing infection in open limb fractures is recommended (QoE A high). Antibiotics, analgesia and anti-thrombotic prophylaxis In soft tissue penetrating injuries, broad spectrum, empirical, intravenous antibiotic therapy should be commenced once deep samples have been obtained, and then tailored once organisms and sensitivities are known. A short course, single agent regimens using cephalosporins in order to prevent adverse outcomes in soft tissue injuries associated with bony injury (open fractures) is recommended. Hand fractures do not require routine prophylaxis. (QoE B moderate). Antibiotics, analgesia and anti-thrombotic prophylaxis A specific antibiotic or preferred dosing when employing local antibiotics in the management of fracture related infections cannot be recommended. (QoE C low)."
+                },
+                {
+                  "source_id": "38816766",
+                  "quote": "Patients with diabetes mellitus are more likely to develop SSI [ 314 ]. Antibiotics, analgesia and anti-thrombotic prophylaxis > Traumatic limb fractures There is evidence supporting the use of antibiotic prophylaxis in the management of open fractures [ 315 ]. Short course, single agent regimens using cephalosporins in order to prevent adverse outcomes in open fractures is the recommended approach. However, there is no conclusive evidence supporting prophylactic antimicrobial use in the management of small soft tissue upper extremity trauma and simple lacerations. The updated Surgical Infection Society guidelines recommend against administration of extended-spectrum antibiotic coverage compared with gram-positive coverage alone to decrease infections complications, hospital length of stay or mortality in type I or II open extremity fractures."
+                }
+              ]
+            },
+            {
+              "index": 5,
+              "supported": true,
+              "source_ids": [
+                "33485638"
+              ],
+              "reason": "The source describes open lower-limb fractures as potentially devastating and identifies infection and non-union as serious complications that standardized care aims to avoid.",
+              "source_passage_ids": [
+                "33485638:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33485638",
+                  "quote": "Open fractures of the lower limb remain a potentially devastating group of injuries that are challenging to manage. The primary aims of treatment are to optimise limb function and avoid serious complications such as infection and non-union, which are costly for both the patient and healthcare system. The management of these fractures has evolved significantly, and this is evident following the creation of national open fracture guidelines and a formal trauma system. These have served to standardise care for these injuries in the United Kingdom. The aim of this review is to update our colleagues on the current standard of lower limb open fracture care in the United Kingdom, and the impact this has had on patient outcomes."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The clinical data establish an adult orthopedic trauma case: a hemodynamically stable, alert older man with a contaminated open tibial/fibular shaft fracture, exposed bone, intact distal neurovascular exam, and no reported penicillin or cephalosporin allergy. No systemic antibiotic was given before arrival. The appropriate systemic prophylaxis decision is to administer a first-generation cephalosporin promptly now that immediate life threats have been addressed. Candidate A matches this. Candidate B\u2019s plan to delay antibiotics until operative culture collection and definitive grading is unsafe because the supplied evidence emphasizes early prophylaxis for open fractures and cephalosporin use after life-threat management. The key is consistent with the chart and supported by the cited passages. The question/title/visible clinical material do not give away the specific answer beyond appropriately framing the clinical decision. This decision is distinct from the previous case, which concerned clinical diagnosis and immediate surgery for compartment syndrome rather than antibiotic prophylaxis for an open fracture."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "f695c7bf1986cd66c869e96d0382614917ac96cf69b8f338799f3b3f445cc655"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

@@ -1,0 +1,436 @@
+{
+  "task_id": "onboarding-examination-v1-3f575170e141e983093b-1",
+  "specialty": "transplant surgery",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Early postoperative review after adult split liver transplantation",
+    "question": "Which proposed approach most appropriately addresses this recipient's current postoperative thrombotic risk?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "transplant surgery",
+      "demographics": {
+        "age_band": "50-59",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Status post split liver transplantation",
+          "since": "2 days",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Hepatic arterial reconstruction using an interposition graft",
+          "since": "Transplant operation",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Resolved perioperative coagulopathic bleeding",
+          "since": "Transplant operation",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Tacrolimus",
+          "dose": null,
+          "route": "oral",
+          "freq": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "hemodynamic_status": "stable",
+        "temperature_status": "afebrile"
+      },
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Postoperative progress",
+          "author_role": "transplant surgery",
+          "text": "On the second postoperative day after split liver transplantation, the adult recipient is awake, afebrile, and hemodynamically stable. Complex donor arterial anatomy required an interposition graft for hepatic arterial reconstruction. Operative coagulopathic bleeding resolved before abdominal closure, and there has been no subsequent transfusion requirement or clinical evidence of ongoing hemorrhage. The abdominal examination is unchanged from the expected postoperative findings.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Doppler ultrasonography",
+          "label": "Post-transplant hepatic vascular examination",
+          "findings": "Flow is detected within the hepatic artery, portal vein, and hepatic veins. No vascular occlusion is identified on the current examination.",
+          "measurements": [],
+          "impression": "Patent transplant vasculature on the current postoperative study.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional examination case for onboarding; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the assessed decision",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "Aspirin prophylaxis is supported after liver transplantation to reduce hepatic artery thrombosis risk. This recipient has an interposition arterial graft, a technical feature associated with increased HAT risk, while Doppler ultrasonography demonstrates patency rather than established thrombosis. Expert-panel evidence identifies aspirin as standard postoperative HAT prophylaxis, and a meta-analysis found lower HAT risk without a significant increase in major bleeding. Therapeutic heparin followed by a vitamin K antagonist is not established as necessary solely because of this reconstruction; the expert review also reports increased bleeding with that strategy in some post-transplant studies.",
+        "evidence": null,
+        "key_data": [
+          "The recipient is an adult on the second postoperative day after liver transplantation.",
+          "Hepatic arterial reconstruction required an interposition graft, which is associated with increased hepatic artery thrombosis risk.",
+          "Current Doppler ultrasonography demonstrates patent hepatic arterial flow without occlusion.",
+          "Perioperative coagulopathic bleeding has resolved without a subsequent transfusion requirement.",
+          "There is no established vascular thrombosis on the current examination."
+        ]
+      },
+      "hard_hook": "Distinguishing evidence-supported HAT prophylaxis from unsupported escalation to therapeutic anticoagulation in a technically high-risk recipient.",
+      "reasoning_divergence": "The flawed approach equates elevated technical risk with a requirement for full therapeutic anticoagulation despite evidence specifically supporting aspirin after liver transplantation."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Begin aspirin prophylaxis after liver transplantation to reduce hepatic artery thrombosis risk, recognizing the elevated technical risk from the interposition arterial graft despite currently patent Doppler flow."
+      },
+      {
+        "id": "B",
+        "text": "Use therapeutic-dose heparin followed by a vitamin K antagonist instead of aspirin solely to prevent hepatic artery thrombosis, because the interposition graft makes full systemic anticoagulation necessary."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "hepatic artery thrombosis",
+      "liver transplantation",
+      "postoperative bleeding",
+      "therapeutic anticoagulation",
+      "interposition graft"
+    ],
+    "evidence_keywords": [
+      "aspirin prophylaxis",
+      "hepatic arterial reconstruction",
+      "split liver transplantation",
+      "major bleeding",
+      "graft patency"
+    ],
+    "error_tags": [
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "Aspirin should be considered standard care after liver transplantation for prevention of hepatic artery thrombosis.",
+        "source_ids": [
+          "35240723"
+        ]
+      },
+      {
+        "statement": "A meta-analysis found that aspirin prophylaxis reduced hepatic artery thrombosis without significantly increasing major bleeding.",
+        "source_ids": [
+          "41604958"
+        ]
+      },
+      {
+        "statement": "Interposition grafts used in split liver transplantation are associated with an increased risk of hepatic artery thrombosis.",
+        "source_ids": [
+          "34052472"
+        ]
+      },
+      {
+        "statement": "Therapeutic heparin and vitamin K antagonist thromboprophylaxis was associated with increased bleeding in some liver transplant studies.",
+        "source_ids": [
+          "35240723"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T02:21:42.727515+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "37925927",
+        "title": "Rates of hepatic artery thrombosis in liver transplantation with the use of a microscope: A systematic review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37925927/",
+        "abstract": "Hepatic artery anastomosis in liver transplantations requires a meticulous technique to minimize the risk of hepatic artery thrombosis (HAT). The microscope helped improve anastomosis techniques in pediatric patients with small caliber vessels. The aim of this review was to compare microsurgical and non-microsurgical techniques on the incidence of HAT in liver transplantations. The secondary objective was to compare HAT incidence between pediatric and adult cohorts and between plastic and transplant surgeons.\nA systematic review of the literature using Medline, Embase, and Cumulative Index to Nursing and Allied Health Literature (CINAHL) was conducted on studies involving HAT in liver transplantations with microsurgery. Three reviewers performed a full article review and data extraction for studies meeting the eligibility criteria of the study.\nForty-five studies were incorporated in the final analysis. A total of 7346 patients and 7506 liver transplants were included. The mean age was 17 years old with an equivalent distribution between pediatric (51%, n\u00a0=\u00a03218) and adult patients (49%, n\u00a0=\u00a03145). A total of 6351 of these transplantations underwent microsurgical repair, against 1157 with non-microsurgical techniques. The overall HAT rate was 4.9%, including 4.2% in the microsurgical group (n\u00a0=\u00a0268) and 8.5% in the non-microsurgical group (n\u00a0=\u00a098), a statistically significant increase of 4.3%. The occurrence of HAT was 2.6% with a plastic surgeon versus 4.6% with other types of surgeons. When using microsurgical techniques, the HAT rate was 4.2% with living donors versus 7.7% with deceased donors.\nHAT and subsequent liver transplant failure are lower when microsurgical techniques, living donors, and plastic surgeons with a microsurgical training are involved in the operation.",
+        "sha256": "1d86d2b133273c2b6aab391cc9a4e528717d2f233f799299060cf666eefaa478",
+        "retrieved_at": "2026-09-19T02:20:48.570550+00:00"
+      },
+      {
+        "id": "41604958",
+        "title": "Use of aspirin for prevention of hepatic artery thrombosis after liver transplantation: A systematic review and meta-analysis.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41604958/",
+        "abstract": "Hepatic artery thrombosis (HAT) is a leading cause of graft loss after liver transplantation. While aspirin is used for prophylaxis, its benefit is debated due to potential bleeding risks. We performed a systematic review and meta-analysis to assess the efficacy and safety of aspirin prophylaxis in liver transplant recipients.\nWe searched PubMed, Embase, and Cochrane Library for studies comparing aspirin prophylaxis to no aspirin. We computed risk ratios (RR) for binary outcomes, with 95% confidence intervals (CIs), and assessed heterogeneity using I2 statistics.\nWe included five studies with 4983 patients (2299 on aspirin). Aspirin significantly reduced HAT risk (RR 0.47; 95% CI: 0.24-0.94; p\u00a0=\u00a00.03) without increasing major bleeding risk (RR 0.81; 95% CI: 0.54-1.22; p\u00a0=\u00a00.31). Graft survival was higher in the aspirin group at 1\u00a0year (RR 1.06; p\u00a0=\u00a00.003) and 5\u00a0years (RR 1.06; p\u00a0<\u00a00.0001). Aspirin also reduced the incidence of acute cellular rejection at 1\u00a0year (RR 0.71; p\u00a0=\u00a00.03).\nOur meta-analysis suggests that aspirin prophylaxis after liver transplantation may reduce the incidence of hepatic artery thrombosis, particularly among high-risk patients, without a significant increase in major bleeding events.",
+        "sha256": "00d39d2b8e8e237127b1cfad8a7b19edcf3b6d99cfa1b940ee6d32b67153896b",
+        "retrieved_at": "2026-09-19T02:20:48.570550+00:00"
+      },
+      {
+        "id": "35240723",
+        "title": "What is the optimal management of thromboprophylaxis after liver transplantation regarding prevention of bleeding, hepatic artery, or portal vein thrombosis? A systematic review of the literature and expert panel recommendations.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/35240723/",
+        "abstract": "A key tenet of clinical management of patients post liver transplantation (LT) is the prevention of thrombotic and bleeding complications. This systematic review investigated the optimal management of thromboprophylaxis after LT regarding portal vein thrombosis (PVT) or hepatic artery thrombosis (HAT) and prevention of bleeding.\nSystematic review following PRISMA guidelines and recommendations using the GRADE approach derived from an international expert panel. Seven databases were used to conduct extensive literature searches focusing on the use of anticoagulation in LT and its impact on the following outcomes: PVT, HAT, and bleeding (CRD42021244288).\nOf the 2478 articles/abstracts screened, 16 studies were included in the final review. All articles were critically appraised by a panel of independent reviewers. There was wide variation regarding the anticoagulation protocols used. Thromboprophylaxis with therapeutic doses of heparin/Vitamin K antagonist combination did not decrease the risk of de novo or the recurrence of PVT but was associated with an increased risk of bleeding in some studies. Only the use of aspirin resulted in a small but significant decrease in the incidence of HAT post-LT, yet it did not increase the risk of bleeding.\nBased on existing data and expert opinion, thromboprophylaxis at therapeutic or prophylactic dose is not recommended for prevention of de novo PVT following LT in patients not at high risk. Aspirin should be considered as the standard of care following LT to prevent HAT. Thromboprophylaxis should be strongly considered in recipients at risk of HAT and PVT following LT.",
+        "sha256": "64173f6364afb8c2e956479db455b21168f7637ef4e767c1185f1176c67d96e1",
+        "retrieved_at": "2026-09-19T02:20:48.570550+00:00",
+        "pmcid": "PMC10078564"
+      },
+      {
+        "id": "33315357",
+        "title": "Hepatic Artery Microvascular Anastomosis in Liver Transplantation: A Systematic Review of the Literature.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33315357/",
+        "abstract": "The operating microscope is used in many centers for microvascular hepatic arterial reconstruction in living as well as deceased donor liver transplantation in adult and pediatric recipients. To date, a systematic review of the literature examining this topic is lacking.\nThis systematic review of the literature was conducted in accordance with the Preferred Reporting Items for Systematic Reviews and Meta-Analyses. Three different electronic databases (PubMed, Embase OVID, and Cochrane CENTRAL) were queried.\nA total of 34 studies were included. The rate of hepatic artery thrombosis (HAT) in noncomparative studies (28) ranged from 0% to 10%, with 8 studies reporting patient deaths resulting from HAT. Within comparative studies, the rate of HAT in patients who underwent arterial reconstruction using the operating microscope ranged from 0% to 5.3%, whereas the rate of HAT in patients who underwent arterial reconstruction using loupe magnification ranged from 0% up to 28.6%, and 2 studies reported patient deaths resulting from HAT. Two comparative studies did not find statistically significant differences between the 2 groups.\nOur comprehensive systematic review of the literature seems to suggest that overall, rates of HAT may be lower when the operating microscope is used for hepatic arterial reconstruction in liver transplantation. However, matched comparisons are lacking and surgical teams need to be mindful of the learning curve associated with the use of the operating microscope as compared with loupe magnification, as well as the logistical and time constraints associated with setup of the operating microscope.",
+        "sha256": "10948b0f24258657b5c43821316644f286f8eeb589d9405db861620d9f8d635d",
+        "retrieved_at": "2026-09-19T02:20:49.901936+00:00"
+      },
+      {
+        "id": "33093405",
+        "title": "Liver Transplantation for Propionic Acidemia: Evidence From a Systematic Review and Meta-analysis.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33093405/",
+        "abstract": "The worldwide experience of liver transplantation (LT) in the treatment of propionic acidemia (PA) remains limited and fragmented. This review aims to provide a comprehensive and quantitative understanding of posttransplant clinical outcomes in PA patients.\nMEDLINE, Embase, and the Cochrane Library databases were searched for studies focusing on PA patients who underwent LT. The pooled estimate rates and 95% confidence intervals (CIs) were calculated using a random-effects model with Freeman-Tukey double arcsine transformation.\nTwenty-one studies involving 70 individuals were included. The pooled estimate rates were 0.95 (95% CI, 0.80-1.00) for patient survival and 0.91 (95% CI, 0.72-1.00) for allograft survival. The pooled estimate rates were 0.20 (95% CI, 0.05-0.39) for rejection, 0.08 (95% CI, 0.00-0.21) for hepatic artery thrombosis, 0.14 (95% CI, 0.00-0.37) for cytomegalovirus/Epstein-Barr virus infection, and 0.03 (95% CI, 0.00-0.15) for biliary complications. The pooled estimate rates were 0.98 (95% CI, 0.88-1.00) for metabolic stability, 1.00 (95% CI, 0.79-1.00) for reversal of preexisting cardiomyopathy, and 0.97 (95% CI, 0.78-1.00) for improvement of neurodevelopmental delay. A large proportion of patients achieved liberalization of protein intake posttransplant (pooled estimate rate 0.66 [95% CI, 0.35-0.93]).\nDespite the risk of transplant-related complications, LT is a viable therapeutic option in PA patients with satisfactory survival rates and clinical outcomes. Given the diversity in neurological assessment methods and the inconsistency in the achievement of dietary protein liberalization across different studies, consensus on neurological evaluation methods and posttransplant protein intake is necessary. Longer-term clinical outcomes of LT for PA warrants further investigation.",
+        "sha256": "42b0d9201ad76c3a0e2a0d2dd80ea6f56e07b39096a45fc15171a3d540589fda",
+        "retrieved_at": "2026-09-19T02:20:49.901936+00:00"
+      },
+      {
+        "id": "34052472",
+        "title": "Addressing the challenges of split liver transplantation through technical advances. A systematic review.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34052472/",
+        "abstract": "Split liver transplantation addresses donor shortages by facilitating the transplant of two recipients using one donor liver. Some still consider these grafts inferior due to prolonged cold ischaemia time and at times difficult vascular reconstruction. Techniques such as in-situ splitting, machine perfusion and interposition grafts may address these challenges and thereby address these concerns. The aim of this review is to assess these technical advances in split liver transplantation, their utility and outcomes.\nA systematic review was performed according to the Preferred Reporting Items for Systematic Reviews and Meta-Analyses guidelines. Keywords included 'split liver transplantation', 'arterial reconstruction', and 'machine perfusion'. Data found was synthesised into sections including: methods of splitting, full-left full-right splitting, donor cholangiography, machine perfusion and arterial reconstruction.\nA total of 78 articles met inclusion criteria after screening of 151 eligible articles. These were subdivided into the following categories: in-situ (25), ex-vivo (25), full-left full-right splitting (15), donor cholangiography (2), machine perfusion (6), and arterial reconstruction (5). The in-situ splitting technique reduces the cold ischaemia time compared to the ex-vivo technique which may improve graft quality and liver splitting during normothermic machine perfusion is a novel technique with the potential to incorporate the best aspects of both techniques. Interposition grafts are often required during split liver transplantation but have an increased risk of hepatic artery thrombosis.\nAdvancements in technique have allowed many of the unique challenges of split liver transplantation to be overcome. Overall, this supports the use of split liver transplantation in broader and riskier settings and we advocate for liver transplant surgeons to not hesitate in using these grafts liberally and expanding their recipient selection criteria.",
+        "sha256": "ccdcc99f74988a1f19930b65f9b9aeed8c1b469fde27147d8683af51d7eed614",
+        "retrieved_at": "2026-09-19T02:20:50.525778+00:00"
+      },
+      {
+        "id": "31495539",
+        "title": "Right posterior segment graft for living donor liver transplantation: A systematic review.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31495539/",
+        "abstract": "The clinical significance of the right posterior segment (RPS) graft in living donor liver transplantation (LDLT) is unknown because of its limited use and technical concerns. This study aimed to review published studies investigating outcomes of RPS grafts. The systematic literature search was conducted to retrieve data from Embase, Medline Ovid, Web of Science, Cochrane CENTRAL, and Google Scholar. Among the 388 articles, six retrospective studies from Asian countries were included. The overall incidences of major and minor complications after RPS graft procurement were 5.6% and 34.6%, respectively and no donor deaths were reported. RPS graft recipients had the following postoperative complications: overall mortality rate, 14.5%; bile leakage, 8.7%, biliary stenosis, 18.8%, hepatic artery thrombosis, 8.7%, and liver re-transplantation, 2.9%. The RPS graft can be considered as an option for a living liver graft respecting donor safety under strict selection criteria and surgical strategy. The precise evaluation and understanding of anatomical variations and volumetric analyses is critical for selecting donors and planning the surgical strategy in the RPS grafts procurement. The RPS grafts procurement requires carefully dissection of the hepatic artery and portal vein, safely confirmation of the bile duct, and precisely parenchymal transection. However, further experience is needed to clarify the significance of the RPS graft in LDLT. The special technical requirements should limit this donor procedure to centers with a high level of experience in LDLT.",
+        "sha256": "c7f0b0339276c9407d9bb495f851a9085292acfcb23b5b78f4886921caa960f7",
+        "retrieved_at": "2026-09-19T02:20:50.525778+00:00"
+      },
+      {
+        "id": "36433721",
+        "title": "Outcome of liver transplantation in hepatic glycogen storage disease: A systematic review and meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36433721/",
+        "abstract": "Liver transplantation (LT) is the choice of therapeutic option for end-stage hepatic GSD patients; however, reports about the long-term outcome of LT in these patients have remained controversial.\nWe performed a systematic review and meta-analysis of observational studies published until Dec 31, 2021, that investigated\u00a0the long-term outcome of LT in hepatic GSD patients. A literature search in the MEDLINE/PubMed, EMBASE,Cochrane Library, Scopus and Web of Science Core Collection databases was performed.\n14 studies with 210 patients were included in our analysis. As the results showed, the pooled proportion of GSD patients with complications after liver transplant (e.g., hemorrhagic shock, biliary complications, tacrolimus encephalopathy, chronic hepatitis, hepatic artery thrombosis, hepatic adenoma, sepsis, liver dysfunction, chronic rejection, acute cellular rejection, and CMV infection) was 27.7% (95% CI: 20.42-35.67) without heterogeneity (I2 \u00a0=\u00a024.04%), as calculated by the random-effect model. The pooled proportion of GSD patients with complications related to GSD after LT, including HCC (Hepatocellular carcinoma), renal complication, muscle problems, delayed menarche, persistent neutropenia, pneumonitis, renal failure, and hepatic adenoma was 22.2% (95% CI: 7.97-40.01) with high heterogeneity (I2 \u00a0=\u00a082.47%). Subgroup analysis including the age of patients (adult/pediatric), duration of follow-up, and type of donor was conducted to investigate the resources of heterogeneity.\nAccording to our investigation and review analysis, most GSD patients showed significant outcome improvement after liver transplantation. Overall, our findings showed an excellent outcome of liver transplantation in GSD patients; however, it needs further investigations to be confirmed.",
+        "sha256": "1b9c2c732eb108cfafa41cb5329b89dff69978d9f9860fd4c5d5b13729c49edc",
+        "retrieved_at": "2026-09-19T02:20:50.525778+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "Aspirin is the better-supported strategy for preventing hepatic artery thrombosis after liver transplantation. Expert-panel recommendations identify aspirin as standard prophylaxis for HAT, and meta-analytic evidence suggests reduced HAT without a significant increase in major bleeding. This recipient has heightened technical risk because split-liver interposition arterial grafts are associated with increased HAT, despite currently patent Doppler flow. Her perioperative bleeding has resolved with no ongoing transfusion requirement, making initiation of aspirin reasonable if no other contraindication exists. In contrast, an interposition graft alone does not establish a need for therapeutic-dose heparin followed by a vitamin K antagonist; such systemic anticoagulation can increase bleeding and is not supported solely for HAT prevention.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "35240723"
+              ],
+              "reason": "The expert-panel systematic review explicitly recommends aspirin as standard care after liver transplantation to prevent hepatic artery thrombosis.",
+              "source_passage_ids": [
+                "35240723:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35240723",
+                  "quote": "Thromboprophylaxis with therapeutic doses of heparin/Vitamin K antagonist combination did not decrease the risk of de novo or the recurrence of PVT but was associated with an increased risk of bleeding in some studies. Only the use of aspirin resulted in a small but significant decrease in the incidence of HAT post-LT, yet it did not increase the risk of bleeding. Based on existing data and expert opinion, thromboprophylaxis at therapeutic or prophylactic dose is not recommended for prevention of de novo PVT following LT in patients not at high risk. Aspirin should be considered as the standard of care following LT to prevent HAT. Thromboprophylaxis should be strongly considered in recipients at risk of HAT and PVT following LT."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "41604958"
+              ],
+              "reason": "The meta-analysis directly reports significantly reduced hepatic artery thrombosis with aspirin and no statistically significant increase in major bleeding.",
+              "source_passage_ids": [
+                "41604958:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41604958",
+                  "quote": "Hepatic artery thrombosis (HAT) is a leading cause of graft loss after liver transplantation. While aspirin is used for prophylaxis, its benefit is debated due to potential bleeding risks. We performed a systematic review and meta-analysis to assess the efficacy and safety of aspirin prophylaxis in liver transplant recipients. We searched PubMed, Embase, and Cochrane Library for studies comparing aspirin prophylaxis to no aspirin. We computed risk ratios (RR) for binary outcomes, with 95% confidence intervals (CIs), and assessed heterogeneity using I2 statistics. We included five studies with 4983 patients (2299 on aspirin). Aspirin significantly reduced HAT risk (RR 0.47; 95% CI: 0.24-0.94; p = 0.03) without increasing major bleeding risk (RR 0.81; 95% CI: 0.54-1.22; p = 0.31)."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34052472"
+              ],
+              "reason": "The split-liver transplantation systematic review explicitly associates interposition grafts with increased hepatic artery thrombosis risk.",
+              "source_passage_ids": [
+                "34052472:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34052472",
+                  "quote": "Data found was synthesised into sections including: methods of splitting, full-left full-right splitting, donor cholangiography, machine perfusion and arterial reconstruction. A total of 78 articles met inclusion criteria after screening of 151 eligible articles. These were subdivided into the following categories: in-situ (25), ex-vivo (25), full-left full-right splitting (15), donor cholangiography (2), machine perfusion (6), and arterial reconstruction (5). The in-situ splitting technique reduces the cold ischaemia time compared to the ex-vivo technique which may improve graft quality and liver splitting during normothermic machine perfusion is a novel technique with the potential to incorporate the best aspects of both techniques. Interposition grafts are often required during split liver transplantation but have an increased risk of hepatic artery thrombosis."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "35240723"
+              ],
+              "reason": "The review reports that therapeutic-dose heparin plus vitamin K antagonist thromboprophylaxis was associated with increased bleeding in some liver-transplant studies.",
+              "source_passage_ids": [
+                "35240723:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35240723",
+                  "quote": "Thromboprophylaxis with therapeutic doses of heparin/Vitamin K antagonist combination did not decrease the risk of de novo or the recurrence of PVT but was associated with an increased risk of bleeding in some studies. Only the use of aspirin resulted in a small but significant decrease in the incidence of HAT post-LT, yet it did not increase the risk of bleeding. Based on existing data and expert opinion, thromboprophylaxis at therapeutic or prophylactic dose is not recommended for prevention of de novo PVT following LT in patients not at high risk. Aspirin should be considered as the standard of care following LT to prevent HAT. Thromboprophylaxis should be strongly considered in recipients at risk of HAT and PVT following LT."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "A is the independently supported choice. The recipient has patent hepatic arterial flow, so this is prophylaxis rather than treatment of established thrombosis. The interposition graft increases HAT risk, while resolved operative bleeding and absence of ongoing hemorrhage make the proposed aspirin prophylaxis coherent with the supplied evidence. Two independent sources substantively support aspirin after liver transplantation: the 2022 expert-panel systematic review identifies it as standard care for HAT prevention, and the 2026 meta-analysis reports reduced HAT without a significant increase in major bleeding. The split-liver review independently supports the stated technical risk from an interposition graft. Candidate B incorrectly treats technical risk as requiring therapeutic systemic anticoagulation; the supplied evidence does not establish that requirement and reports increased bleeding with therapeutic heparin/vitamin K antagonist regimens in some studies. The visible title, question, notes, and imaging do not disclose aspirin or the intended management choice. The prior case concerns diagnosis of kidney-allograft crystalline nephropathy rather than liver-transplant HAT prophylaxis, so the assessed decision is distinct."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The recipient has an elevated technical risk for hepatic artery thrombosis because split liver transplantation often requires complex arterial reconstruction, and interposition grafts are specifically associated with increased HAT risk. Current Doppler patency does not eliminate early postoperative risk. The cited systematic review and expert recommendations state that aspirin should be considered standard of care after liver transplantation to prevent HAT, with evidence of a small but significant reduction in HAT and no clear increase in bleeding. A later meta-analysis similarly found aspirin reduced HAT risk without significantly increasing major bleeding. In contrast, therapeutic-dose heparin followed by vitamin K antagonist is not supported solely for HAT prevention and is associated with increased bleeding risk in some studies. Given resolved bleeding and no ongoing hemorrhage, aspirin prophylaxis is the more appropriate approach.",
+          "confidence": 0.93
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "35240723"
+              ],
+              "reason": "The expert-panel systematic review explicitly states that aspirin should be considered standard care after liver transplantation to prevent hepatic artery thrombosis.",
+              "source_passage_ids": [
+                "35240723:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35240723",
+                  "quote": "Thromboprophylaxis with therapeutic doses of heparin/Vitamin K antagonist combination did not decrease the risk of de novo or the recurrence of PVT but was associated with an increased risk of bleeding in some studies. Only the use of aspirin resulted in a small but significant decrease in the incidence of HAT post-LT, yet it did not increase the risk of bleeding. Based on existing data and expert opinion, thromboprophylaxis at therapeutic or prophylactic dose is not recommended for prevention of de novo PVT following LT in patients not at high risk. Aspirin should be considered as the standard of care following LT to prevent HAT. Thromboprophylaxis should be strongly considered in recipients at risk of HAT and PVT following LT."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "41604958"
+              ],
+              "reason": "The meta-analysis reports a statistically significant reduction in hepatic artery thrombosis risk with aspirin and no significant increase in major bleeding.",
+              "source_passage_ids": [
+                "41604958:p0",
+                "41604958:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41604958",
+                  "quote": "Hepatic artery thrombosis (HAT) is a leading cause of graft loss after liver transplantation. While aspirin is used for prophylaxis, its benefit is debated due to potential bleeding risks. We performed a systematic review and meta-analysis to assess the efficacy and safety of aspirin prophylaxis in liver transplant recipients. We searched PubMed, Embase, and Cochrane Library for studies comparing aspirin prophylaxis to no aspirin. We computed risk ratios (RR) for binary outcomes, with 95% confidence intervals (CIs), and assessed heterogeneity using I2 statistics. We included five studies with 4983 patients (2299 on aspirin). Aspirin significantly reduced HAT risk (RR 0.47; 95% CI: 0.24-0.94; p = 0.03) without increasing major bleeding risk (RR 0.81; 95% CI: 0.54-1.22; p = 0.31)."
+                },
+                {
+                  "source_id": "41604958",
+                  "quote": "Graft survival was higher in the aspirin group at 1 year (RR 1.06; p = 0.003) and 5 years (RR 1.06; p < 0.0001). Aspirin also reduced the incidence of acute cellular rejection at 1 year (RR 0.71; p = 0.03). Our meta-analysis suggests that aspirin prophylaxis after liver transplantation may reduce the incidence of hepatic artery thrombosis, particularly among high-risk patients, without a significant increase in major bleeding events."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "34052472"
+              ],
+              "reason": "The split-liver transplantation review states that interposition grafts are often required and carry increased hepatic artery thrombosis risk.",
+              "source_passage_ids": [
+                "34052472:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34052472",
+                  "quote": "Data found was synthesised into sections including: methods of splitting, full-left full-right splitting, donor cholangiography, machine perfusion and arterial reconstruction. A total of 78 articles met inclusion criteria after screening of 151 eligible articles. These were subdivided into the following categories: in-situ (25), ex-vivo (25), full-left full-right splitting (15), donor cholangiography (2), machine perfusion (6), and arterial reconstruction (5). The in-situ splitting technique reduces the cold ischaemia time compared to the ex-vivo technique which may improve graft quality and liver splitting during normothermic machine perfusion is a novel technique with the potential to incorporate the best aspects of both techniques. Interposition grafts are often required during split liver transplantation but have an increased risk of hepatic artery thrombosis."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "35240723"
+              ],
+              "reason": "The expert-panel review reports increased bleeding in some studies with therapeutic-dose heparin/vitamin K antagonist thromboprophylaxis.",
+              "source_passage_ids": [
+                "35240723:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "35240723",
+                  "quote": "Thromboprophylaxis with therapeutic doses of heparin/Vitamin K antagonist combination did not decrease the risk of de novo or the recurrence of PVT but was associated with an increased risk of bleeding in some studies. Only the use of aspirin resulted in a small but significant decrease in the incidence of HAT post-LT, yet it did not increase the risk of bleeding. Based on existing data and expert opinion, thromboprophylaxis at therapeutic or prophylactic dose is not recommended for prevention of de novo PVT following LT in patients not at high risk. Aspirin should be considered as the standard of care following LT to prevent HAT. Thromboprophylaxis should be strongly considered in recipients at risk of HAT and PVT following LT."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is a transplant surgery postoperative liver-transplant thromboprophylaxis decision. The visible chart describes an adult recipient on postoperative day 2 after split liver transplantation with hepatic arterial reconstruction using an interposition graft, resolved perioperative bleeding, no ongoing hemorrhage, and patent hepatic arterial flow on Doppler. There is elevated HAT risk but no established thrombosis requiring treatment-dose anticoagulation. Candidate A appropriately recommends aspirin prophylaxis, which is supported by both an expert-panel systematic review and a newer meta-analysis showing reduced HAT without a significant major bleeding increase. Candidate B incorrectly escalates to therapeutic-dose heparin followed by vitamin K antagonist solely because of the interposition graft; the cited expert review does not establish that strategy for HAT prophylaxis and notes increased bleeding in some studies. The applicant-visible title/question do not disclose the intended answer, and the prior case involves a different specialty and clinical decision."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "546432691177567df74aecc5f488e595faed806de20380aa79c7eb1939aae675"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

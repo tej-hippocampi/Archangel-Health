@@ -1,0 +1,484 @@
+{
+  "task_id": "onboarding-practice-v1-a3f0529b322c9d257c29-1",
+  "specialty": "psychiatry",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Postpartum mood symptoms with prior episodic behavioral changes",
+    "question": "Which psychiatric approach is most appropriate at this outpatient encounter?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "psychiatry",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Persistent depressive symptoms beginning after delivery",
+          "since": "Postpartum week 2",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Prior episodes of reduced sleep and increased activity",
+          "since": "Several years before pregnancy",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Psychiatric assessment",
+          "author_role": "psychiatry",
+          "text": "At six weeks postpartum, the patient reports four weeks of low mood, loss of interest, guilt, fatigue, poor concentration, and difficulty completing household tasks. She is breastfeeding and has not taken psychiatric medication. She denies current suicidal thoughts, thoughts of harming the infant, hallucinations, or delusions. Before pregnancy, she experienced several distinct periods during which she slept approximately three hours nightly without fatigue, spoke more rapidly, felt unusually confident, and started numerous projects. Her partner noticed marked changes from her usual behavior during these periods. She has never received a formal mood-disorder diagnosis and has no current symptoms of elevated mood or increased activity.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Clinical questionnaire",
+          "label": "Mood Disorder Questionnaire",
+          "findings": "The patient endorsed 8 symptom items when the questionnaire was scored without its supplementary questions.",
+          "measurements": [
+            {
+              "analyte": "MDQ symptom-item score",
+              "loinc": null,
+              "value": 8,
+              "unit": "points",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "",
+              "ref_range_unusable": true
+            }
+          ],
+          "impression": null,
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "moderate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the stated decision",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "The depressive presentation is accompanied by collateral-confirmed prior episodes suggestive of hypomania and an MDQ score above the cited perinatal threshold. A positive MDQ does not establish bipolar disorder because only about half of positive perinatal results correspond to that diagnosis; it should be followed by diagnostic assessment. Current or past mania or hypomania must therefore be evaluated before medication selection. Candidate B is consequentially flawed because it dismisses the bipolar indicators and initiates antidepressant monotherapy during the early postpartum period, when such monotherapy is not an ideal strategy if bipolar disorder is present.",
+        "evidence": {
+          "framework": "Perinatal mood-disorder assessment and treatment recommendations"
+        },
+        "key_data": [
+          "The patient is six weeks postpartum and has persistent depressive symptoms.",
+          "The MDQ symptom-item score is 8 when supplementary questions are excluded.",
+          "She describes distinct prior periods of reduced need for sleep, increased speech, confidence, and goal-directed activity.",
+          "Her partner corroborates marked episodic changes from baseline behavior.",
+          "No unipolar or bipolar mood-disorder diagnosis has yet been established."
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Complete a diagnostic assessment for current or past mania, hypomania, and bipolar disorder, using the questionnaire result as one component rather than as a diagnosis. Do not default to antidepressant monotherapy while this treatment-altering distinction remains unresolved."
+      },
+      {
+        "id": "B",
+        "text": "Diagnose unipolar postpartum depression and begin sertraline monotherapy now. Regard the questionnaire and historical episodes as clinically unimportant because there is no current psychosis, suicidality, elevated mood, or previously documented bipolar diagnosis."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "postpartum depression",
+      "bipolar disorder",
+      "hypomania",
+      "antidepressant-induced mania",
+      "postpartum psychosis"
+    ],
+    "evidence_keywords": [
+      "Mood Disorder Questionnaire",
+      "diagnostic assessment",
+      "mania history",
+      "hypomania history",
+      "antidepressant monotherapy"
+    ],
+    "error_tags": [
+      "unsafe_recommendation",
+      "omission"
+    ],
+    "claims": [
+      {
+        "statement": "Perinatal patients presenting with depressive symptoms should be evaluated for a current or past history of mania or hypomania because that history may alter treatment.",
+        "source_ids": [
+          "39936923"
+        ]
+      },
+      {
+        "statement": "In perinatal populations, an MDQ score of at least 7 without the supplementary questions can identify possible bipolar disorder, but a positive result requires diagnostic assessment.",
+        "source_ids": [
+          "39936923"
+        ]
+      },
+      {
+        "statement": "Only about half of perinatal patients with a positive MDQ result have bipolar disorder, so the questionnaire result alone does not establish the diagnosis.",
+        "source_ids": [
+          "39936923"
+        ]
+      },
+      {
+        "statement": "Antidepressant monotherapy is not an ideal perinatal strategy for bipolar depression, particularly during the first three postpartum months and without mood-stabilizing medication.",
+        "source_ids": [
+          "39936923"
+        ]
+      },
+      {
+        "statement": "Published psychiatric recommendations describe postpartum bipolar depression treatment as quetiapine or an antidepressant added to a mood-stabilizing medication.",
+        "source_ids": [
+          "31317957"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T02:23:55.355353+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "37486661",
+        "title": "Treatment and Management of Mental Health Conditions During Pregnancy and Postpartum: ACOG Clinical Practice Guideline No. 5.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37486661/",
+        "abstract": "To assess the evidence regarding safety and efficacy of psychiatric medications to treat mental health conditions during pregnancy and lactation. The conditions reviewed include depression, anxiety and anxiety-related disorders, bipolar disorder, and acute psychosis. For information on screening and diagnosis, refer to American College of Obstetricians and Gynecologists (ACOG) Clinical Practice Guideline Number 4, \"Screening and Diagnosis of Mental Health Conditions During Pregnancy and Postpartum\" (1).\nPregnant or postpartum individuals with mental health conditions with onset that may have predated the perinatal period or may have occurred for the first time in pregnancy or the first year postpartum or may have been exacerbated in that time.\nThis guideline was developed using an a priori protocol in conjunction with a writing team consisting of one specialist in obstetrics and gynecology and one maternal-fetal medicine subspecialist appointed by the ACOG Committee on Clinical Practice Guidelines-Obstetrics and two external subject matter experts. ACOG medical librarians completed a comprehensive literature search for primary literature within Cochrane Library, Cochrane Collaboration Registry of Controlled Trials, EMBASE, PubMed, and MEDLINE. Studies that moved forward to the full-text screening stage were assessed by two authors from the writing team based on standardized inclusion and exclusion criteria. Included studies underwent quality assessment, and a modified GRADE (Grading of Recommendations Assessment, Development and Evaluation) evidence-to-decision framework was applied to interpret and translate the evidence into recommendation statements.\nThis Clinical Practice Guideline includes recommendations on treatment and management of perinatal mental health conditions including depression, anxiety, bipolar disorders, and acute postpartum psychosis, with a focus on psychopharmacotherapy. Recommendations are classified by strength and evidence quality. Ungraded Good Practice Points are included to provide guidance when a formal recommendation could not be made because of inadequate or nonexistent evidence.",
+        "sha256": "fc34b9f00540984a864ed5819690717ef9d40b21f17de545a0dd8eb336683679",
+        "retrieved_at": "2026-09-19T02:22:40.206318+00:00"
+      },
+      {
+        "id": "37486660",
+        "title": "Screening and Diagnosis of Mental Health Conditions During Pregnancy and Postpartum: ACOG Clinical Practice Guideline No. 4.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37486660/",
+        "abstract": "To review evidence on the current understanding of mental health conditions in pregnancy and postpartum, with a focus on mood and anxiety disorders, and to outline guidelines for screening and diagnosis that are consistent with best available scientific evidence. The conditions or symptoms reviewed include depression, anxiety and anxiety-related disorders, bipolar disorder, suicidality, and postpartum psychosis. For information on psychopharmacologic treatment and management, refer to American College of Obstetricians and Gynecologists (ACOG) Clinical Practice Guideline Number 5, \"Treatment and Management of Mental Health Conditions During Pregnancy and Postpartum\" (1).\nPregnant or postpartum individuals with mental health conditions. Onset of these conditions may have predated the perinatal period or may have occurred for the first time in pregnancy or the first year postpartum or may have been exacerbated in that time.\nThis guideline was developed using an a priori protocol in conjunction with a writing team consisting of one specialist in obstetrics and gynecology and one maternal-fetal medicine subspecialist appointed by the ACOG Committee on Clinical Practice Guidelines-Obstetrics and two external subject matter experts. ACOG medical librarians completed a comprehensive literature search for primary literature within Cochrane Library, Cochrane Collaboration Registry of Controlled Trials, EMBASE, PubMed, and MEDLINE. Studies that moved forward to the full-text screening stage were assessed by two authors from the writing team based on standardized inclusion and exclusion criteria. Included studies underwent quality assessment, and a modified GRADE (Grading of Recommendations Assessment, Development and Evaluation) evidence-to-decision framework was applied to interpret and translate the evidence into recommendation statements.\nThis Clinical Practice Guideline includes recommendations on the screening and diagnosis of perinatal mental health conditions including depression, anxiety, bipolar disorder, acute postpartum psychosis, and the symptom of suicidality. Recommendations are classified by strength and evidence quality. Ungraded Good Practice Points are included to provide guidance when a formal recommendation could not be made because of inadequate or nonexistent evidence.",
+        "sha256": "506ae36ccb3f5035191ed43900e0d338e05ad82d929c50411c9a4fe38faf1842",
+        "retrieved_at": "2026-09-19T02:22:40.206318+00:00"
+      },
+      {
+        "id": "39936923",
+        "title": "Canadian Network for Mood and Anxiety Treatments 2024 Clinical Practice Guideline for the Management of Perinatal Mood, Anxiety, and Related Disorders: Guide de pratique 2024 du Canadian Network for Mood and Anxiety Treatments pour le traitement des troubles de l'humeur, des troubles anxieux et des troubles connexes p\u00e9rinatals.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39936923/",
+        "abstract": "BackgroundThe Canadian Network for Mood and Anxiety Treatments (CANMAT) publishes clinical practice guidelines for mood and anxiety disorders. This CANMAT guideline aims to provide comprehensive clinical guidance for the pregnancy and postpartum (perinatal) management of mood, anxiety and related disorders.MethodsCANMAT convened a core editorial group of interdisciplinary academic clinicians and persons with lived experience (PWLE), and 3 advisory panels of PWLE and perinatal health and perinatal mental health clinicians. We searched for systematic reviews of prevention and treatment interventions for perinatal depressive, bipolar, anxiety, obsessive-compulsive and post-traumatic stress disorders (January 2013-October 2023). We prioritized evidence from reviews of randomized controlled trials (RCTs), except for the perinatal safety of medications where reviews of large high-quality observational studies were prioritized due to the absence of RCT data. Targeted searches for individual studies were conducted when systematic reviews were limited or absent. Recommendations were organized by lines of treatment based on CANMAT-defined levels of evidence quality, supplemented by editorial group consensus to balance efficacy, safety, tolerability and feasibility considerations.ResultsThe guideline covers 10 clinical sections in a question-and-answer format that maps onto the patient care journey: case identification; organization and delivery of care; non-pharmacological (lifestyle, psychosocial, psychological), pharmacological, neuromodulation and complementary and alternative medicine interventions; high-risk clinical situations; and mental health of the father or co-parent. Equity, diversity and inclusion considerations are provided.ConclusionsThis guideline's detailed evidence-based recommendations provide clinicians with key information to promote the delivery of effective and safe perinatal mental healthcare. It is hoped that the guideline will serve as a valuable tool for clinicians in Canada and around the world to help optimize clinical outcomes in the area of perinatal mental health.Plain Language Summary TitleThe Canadian Network for Mood and Anxiety Treatments 2024 Guideline for Helping People with Mood, Anxiety and Related Disorders During Pregnancy and Postpartum.",
+        "sha256": "5dad3a059f8eb6d9a504b67dfdec990fd99a8af7f2e80859148700047ca3fc68",
+        "retrieved_at": "2026-09-19T02:22:40.206318+00:00",
+        "pmcid": "PMC11985483",
+        "body_excerpts": "Foundations of Clinical Management > General Treatment Considerations\nInitial treatment selection depends on the nature and severity of the illness, previous response to treatment and patient preference. Severity (mild, moderate or severe) can be assessed based on the number of symptoms that a patient is presenting with, the severity of those symptoms and the social and occupational functional impact ( Figure 1 ). 16 For depression and anxiety symptom severity specifically, scores on brief patient-oriented outcome measures commonly and feasibly utilized in clinical practice such as the Edinburgh Postnatal Depression Scale (EPDS), Patient Health Questionnaire-9 (PHQ-9) and Generalized Anxiety Disorder 7-item (GAD-7) may be used to aid in the severity assessment. 80 The cut-off scores on these measures for the various severity levels in Figure 1 are meant only to be used to guide the severity assessment, and should be considered in the context of other aspects of the clinical picture (e.g., history, duration of symptoms, other comorbidities) to aid in decision-making about treatment.\n\nQuestion 1. What Are the Recommendations for Identification of PMADs?\nWhen a patient presents with symptoms of depression, anxiety or related disorders, it is also important to determine whether there is a current or past history of mania or hypomania because that may significantly alter the proposed treatment plan. The Mood Disorder Questionnaire (MDQ), a widely used instrument in non-perinatal populations, has evidence in the identification of BD in perinatal populations when a cut-off score of 7 or above is used and the supplementary questions are excluded (Level 3 ). 97 \u2013 100 The MDQ is excellent in ruling out the diagnosis of BD (>90% negative predictive value). However, positive cases need to be followed by a diagnostic assessment since only 50% of those scoring positive in the MDQ have a diagnosis of BD. The Highs, although less studied than the MDQ in non-perinatal populations, is the only instrument developed specifically for the detection of acute hypomania and mania symptoms in the postpartum period. The Highs is a 7-item questionnaire, where a score of 8 or higher can be used to detect BD, particularly when used at 1 and 6 weeks postpartum. 101 The MDQ would be best utilized for assessment of past and acute symptoms whereas the Highs is best utilized to measure the severity of acute symptoms.\n\nQuestion 1. What Are the Recommendations for Identification of PMADs?\nOne area of discussion has been whether standardized clinical questionnaires to identify PMADs should be used routinely with all perinatal patients. For perinatal depression, there is evidence that the use of a standardized questionnaire for case identification can improve identification rates, treatment rates and clinical outcomes (Level 2 ). 102 , 103 Given the high prevalence of perinatal depression, the fact that perinatal people may not disclose their mental health concerns when not asked about them, the well-established risks of untreated illness and the validity of various standardized scales in identifying perinatal depression, the US Preventive Services Task Force has positioned themselves in favour of this strategy, as have organizations from other countries. 102 , 104 In contrast, the Canadian Task Force on Preventive Health Care recommended against the routine use of standardized questionnaires with concern that the evidence in favour of the strategy was not strong enough to outweigh the potential economic costs and stress to patients of false-positive cases. 105 Although there is high acceptability of the use of standardized questionnaires for case identification in perinatal populations, 93 , 106 there was concern that use of a cut-off score on a standardized questionnaire on its own could lead to misdiagnosis or overdiagnosis, increased mental health stigma and unnecessary treatment. 107\n\nQuestion 1. What Are the Recommendations for Identification of PMADs?\nCANMAT believes that it is essential to ensure that cases of depression are identified as quickly and early as possible to promote timely and effective treatment, such that the evidence to date \u2013which includes the good validity and acceptability of questionnaires in case identification and the Level 2 evidence for improvement of clinical outcomes\u2014is sufficient to support the use of validated questionnaires to help in case identification. While standardized questionnaires may be helpful in identifying cases of PMADs other than depression as indicated previously, there is not yet evidence for how applying such tools routinely would impact on clinical outcomes. Further research on the feasibility and effectiveness of systematic or routine use of questionnaires to detect other PMADs is needed.\n\nQuestion 3. What Are the Recommendations for Lifestyle Interventions?\nTable 6. Lifestyle Interventions for the Prevention and Treatment of PMADs. Line of treatment Depressive symptoms Anxiety symptoms Intervention Level of evidence Intervention Level of evidence Prevention First-line Low to moderate-intensity exercise \u2014 Second-line \u2014 Low to moderate-intensity exercise Third-line a Sleep protection especially in at-risk groups \u2014 Not recommended Sleep education in non-clinical populations does not appear to prevent PPD \u2014 Infant behavioural sleep interventions in non-clinical populations may help with child sleep and maternal sleep quality but do not appear to prevent PPD Treatment First-line Low to moderate-intensity exercise \u2014 Bright light therapy (postpartum) Second-line \u2014 Low to moderate-intensity exercise Third-line a Sleep protection a Sleep protection Sleep protection interventions are highly recommended for the prevention of relapse in perinatal bipolar disorder, including to help prevent postpartum psychosis and are also essential in the treatment of these conditions (Level 4 ) (see Question 9 for additional details) Note . Exercise should be conducted under supervision to ensure clinical appropriateness. At-risk groups = those with a past history of, or current evidence of PMADs, and especially bipolar disorder and/or postpartum psychosis; CBT = cognitive\u2013behavioural therapy; PMAD = perinatal mood, anxiety and related disorders; PPD = postpartum depression. a Sleep protection interventions may range from minimizing the time a mother has to be awake at night (e.g., bottle-feeding by another adult with pumped breastmilk or formula) to evidence-based interventions to treat insomnia when it is present. CBT for insomnia, CBT-I, is a highly effective treatment for insomnia where there is specifically effectiveness demonstrated for improving sleep quality, insomnia severity, depression and anxiety symptoms in pregnancy (Level 1 ), and open-label evidence for its use for insomnia in postpartum depression specifically (Level 4 ).\n\nQuestion 5. What Are the Recommendations for the Use of Psychological Interventions? > Bipolar Disorder\nTable 8. Psychological Interventions for the Prevention of PMADs. Line of treatment Intervention Level of evidence Depression First-line CBT a IPT a Second-line Guided self-help psychological interventions a Anxiety First-line \u2014 Second-line Guided self-help psychological interventions a OCD n.d PTSD First-line Interventions with trauma-focused CBT components b Not recommended Psychological debriefing after traumatic childbirth Bipolar disorder First-line \u2014 Second-line \u2014 Third-line Adjunctive CBT (relapse prevention) Adjunctive family-focused therapy (relapse prevention) Adjunctive interpersonal and social rhythms therapy (relapse prevention) Note . CBT = cognitive\u2013behaviour therapy; IPT = interpersonal therapy; OCD = obsessive\u2013compulsive disorders; PMADs = perinatal mood, anxiety and related disorders; PTSD = post-traumatic stress disorder. a If risk factors for and/or subsyndromal symptoms of PMADs are present; b After preterm birth adjunctive = adjunctive to medication treatment; n/d = no data\n\nQuestion 5. What Are the Recommendations for the Use of Psychological Interventions? > Bipolar Disorder\nTable 9. Psychological Interventions for the Treatment of PMADs. PMAD Line of treatment Intervention Level of evidence Depression First-line CBT a IPT a Mindfulness-based therapies a BA a Guided internet-based self-help including iCBT and iBA in pregnancy Second-line Guided internet-based self-help interventions including iCBT and iBA postpartum Anxiety First-line CBT for anxiety symptoms Mindfulness-based therapies for anxiety symptoms Psychological therapies with CBT elements for symptoms of fear of childbirth Second-line Guided internet-based self-help for anxiety symptoms Third-line Guided iCBT for fear of childbirth OCD Second-line CBT with exposure and response prevention elements PTSD Third-line Trauma-focused psychological treatments with evidence in non-perinatal populations Not recommended Psychological debriefing after traumatic childbirth Bipolar disorder Third-line Adjunctive CBT for MDE and quality of life Adjunctive family-focused therapy for MDE and quality of life Adjunctive interpersonal and social rhythms therapy for MDE and quality of life Note . BA = behavioural activation; CBT = cognitive\u2013behaviour therapy; IPT = interpersonal therapy; MDE = major depressive episode; OCD = obsessive\u2013compulsive disorders; PMAD = perinatal mood, anxiety and related disorders; PTSD = post-traumatic stress disorder. a For MDE and for those with elevated depressive symptoms (with or without MDE diagnosis).\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Therapeutic Drug Monitoring > Antidepressants\nAntidepressants are first-line medications in depressive disorders, anxiety disorders, OCD and PTSD and are sometimes used in bipolar depression as an add-on medication. Most studies evaluating safety in pregnancy have focused on selective serotonin reuptake inhibitors (SSRIs), serotonin-norepinephrine reuptake inhibitors (SNRIs), tricyclic antidepressants (TCAs) and other antidepressants as a whole or as a class (e.g., SSRIs), with fewer focusing on specific medications within classes. This means that, with some exceptions, it is difficult to distinguish between safety within medication classes. Data (summarized in Box 1 ) show that links between most antidepressants and most adverse pregnancy outcomes are reduced signficantly when confounding by indication is well-managed. 260 , 261 Some experts advise tapering antidepressants near delivery to reduce the risk of poor neonatal adaptation syndrome (PNAS). While this approach is supported by evidence from a recent non-randomized case series, earlier evidence suggested that there was no difference in risk for neonatal respiratory distress between pregnancies where the antidepressant was and was not discontinued 14 days prior to delivery after accounting for maternal illness severity. 262 , 263 While CANMAT acknowledges this is a developing area, the benefits of tapering to reduce the risk of PNAS likely do not outweigh the risk of worsening maternal illness severity; hence reducing or discontinuing antidepressants near delivery is not recommended (Level 4 ).\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Therapeutic Drug Monitoring > Antidepressants\nLevel 3 evidence unless otherwise specified\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > Considerations of Monotherapy versus Combination Medication Treatment\nAs the combined use of 2 or more agents during pregnancy is associated with a slightly increased risk for adverse pregnancy and infant outcomes compared with monotherapy, 349 monotherapy treatment is preferred. Clinicians are encouraged to consider a higher dosage of a single medication (or augmenting with psychotherapy when available) before prescribing multiple medications. For those presenting on 2 or more agents, it is recommended that clinicians take a careful history of the indication for each medication and its effectiveness, to determine whether one or more medications can be safely discontinued. Caution is recommended not to expose, or maintain exposure, to medications that are not clearly effective. However, lowering the dose or minimizing the number medication exposures should not be at the expense of inadequate treatment response. In this guideline, given the minimal available safety evidence about medication combinations, Lines of Treatment are presented for monotherapies only. Because combination treatment is often needed (especially in severe depression, OCD, BD and/or postpartum psychosis), clinicians may need to use the available safety evidence for monotherapies or medication classes to inform the best approach for a specific patient.\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > MDD\nPharmacotherapy in pregnancy is reserved for individuals who have a severe MDE, those at high risk for relapse, those who are unable to access or have an inadequate response to psychotherapy, or those who prefer to use medication. For those already taking maintenance antidepressant medication, there should be counselling around the risk for relapse if medication were to be discontinued for pregnancy. Discontinuation of antidepressants in pregnancy has been associated with an elevated risk for relapse among those with a more severe depression history (i.e., multiple previous episodes, a greater severity of depression), but population-level studies suggest that those with mild-to-moderate depression severity may be not at significantly increased risk. 350 Patients should also be counselled on risk for antidepressant discontinuation syndrome, which could be particularly unpleasant if the patient is already experiencing nausea or other physical symptoms in pregnancy. The threshold for pharmacotherapy is lower in the postpartum because the main issue is transmission to infants via breast milk, and individuals could choose not to breastfeed if they have concerns about infant medication exposure.\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > MDD\nTable 11. Medications for Major Depressive Disorder in Lactation. Line of treatment Medications Level of evidence (efficacy vs. placebo) Justification for placement Non-perinatal Postpartum First-line Citalopram Escitalopram Most reassuring safety data of antidepressants Sertraline Second-line Bupropion Rare case reports of infant seizure Desvenlafaxine Less safety data than first-line agents Duloxetine Less safety data than first-line agents Fluoxetine Longer half-life and higher RID than first- and second-line agents, more side effects reported, no severe concerns Fluvoxamine Less tolerability at higher doses Mirtazapine Less safety data than first-line agents and potential for maternal sedation Venlafaxine Less tolerability than first-line agents Third-line Paroxetine Downgraded due to possible higher risk for CV malformations in a future pregnancy Quetiapine Maternal metabolic impacts, sedation Trazodone Maternal tolerability concerns at high doses Tricyclics (except doxepin) a Maternal tolerability concerns Not recommended Doxepin n/a n/a Concern about excessive infant sedation Insufficient data Agomelatine, brexanolone, dextromethorphan/bupropion, ketamine, levominacipran, mianserin, milnacipran, moclobemide, phenelzine, reboxetine, tranylcypromine, vilazodone, vortioxetine, zuranolone Note . Insufficient data = insufficient data on safety in pregnancy/lactation; not recommended = not recommended due to concerns about safety in lactation; n/a = not applicable as safety concerns outweigh the value of efficacy evidence. a One trial identified in the systematic review of antidepressant efficacy for PPD ( n = 58) found problem-solving therapy was superior to amitriptyline in the treatment of postpartum depression in Africa (Level 2 ). 353\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > PTSD\nThere are no RCTs evaluating pharmacological treatments for PTSD perinatally. As such, CANMAT recommends that the use of pharmacological treatment for PTSD perinatally follows the guidance from non-perinatal clinical practice guidelines for PTSD. Non-perinatal guidelines recommend psychological therapies as first-line treatments (i.e., before pharmacological therapies) unless these are not available, severity of illness is so high that patients are not able to engage in that type of therapy without stabilization with medication, or medication is preferred. 347 When pharmacological treatments are used, recent U.S. clinical practice guidelines (updated 2023) recommend only the antidepressant medications sertraline, venlafaxine and paroxetine, indicating that the evidence for other medications is either of low quality or that evident benefits do not outweigh potential harms or tolerability issues. 347 Fluoxetine was at one time also in the list in a previous version of this guideline, and other guidelines. 347 However a recent systematic review has raised questions about its efficacy. 357 Based on these recommendations, for pharmacological treatment of PTSD in perinatal populations, sertraline is considered first-line in pregnancy, with venlafaxine as second-line and paroxetine as third-line due to its risk profile ( Table 16 ). In the postpartum, sertraline remains the first-line treatment recommendation. If another pregnancy is not planned (and birth control measures are in place), then paroxetine may become second-line together with venlafaxine ( Table 17 ). Prazosin is a medication that has been inconsistently recommended in clinical practice guidelines for the treatment of nightmares specifically in PTSD. CANMAT does not recommend the use of prazosin perinatally as data during pregnancy are limited with some concerning fetal effects, and there are very minimal data available on its safety in lactation (Level 4 ). 358\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > Bipolar Disorder\nAlthough there are no RCTs for the pharmacotherapeutic treatment of BD perinatally, the mainstay of acute and maintenance treatment for BD in pregnancy and postpartum is medication, primarily certain antiepileptics, antipsychotics and lithium. The specific medications that are advised may differ depending on the type of illness (i.e., BD type I or type II), and phase of illness, namely acute depression, mania/mixed states and maintenance treatment. In the postpartum, if not considering lactation, treatment recommendations can be based on general CANMAT BD guidelines, except for postpartum psychosis (see Question 9). Clinical pearls for prescribing in perinatal bipolar disorder are in Box 7 .\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > Bipolar Disorder > Acute Treatment of Mania and Mixed Episodes\nMonotherapies considered first-line treatments for the traditional DSM-IV definition of a mixed state in BD (i.e., full criteria for depression and mania are met at the same time) are asenapine and aripiprazole. 361 As such, aripiprazole is the recommended first-line agent in pregnancy in this case. As yet, there are no medications that meet evidence levels to be first-line recommendations for the DSM-5 definitions of depression with mixed features or mania with mixed features. 361\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > Bipolar Disorder > Bipolar I Depression\nFor acute BD I depression, quetiapine and lamotrigine are first-line recommendations in pregnancy, although it may be sometimes challenging to reach therapeutic levels with lamotrigine (and thus a therapeutic effect) in pregnancy due to the significant increase in metabolism ( Table 20 ). Lithium, a first-line agent non-perinatally, is second-line in pregnancy due to its safety and use profile. As there are minimal safety data in pregnancy for lurasidone (another first-line agent non-perinatally) it is not included in the treatment recommendations here. Neither of the 2 non-perinatal second-line options (valproic acid and cariprazine) are recommend herein due to safety concerns and insufficient safety data, respectively. While olanzapine is efficacious, it is considered a third-line option outside of the perinatal period due to the potential for metabolic side effects. In pregnancy, however, due to its relatively favourable reproductive safety profile, it is a reasonable second-line medication in pregnancy, with a plan to change to a medication with a more favourable metabolic profile after lactation. Carbamazepine is considered a third-line option based on both its efficacy profile and the higher risk for congenital malformations than lamotrigine.\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > Bipolar Disorder > Bipolar I Depression\nTable 20. Medications for Acute Bipolar I Depression in Pregnancy. Line of treatment Medications Efficacy level of evidence Justification for placement Non-perinatal Pregnancy First-line Lamotrigine Safety data reassuring; less efficacy data than quetiapine Quetiapine Safety data reassuring, despite possible increased risk for gestational diabetes Second-line Lithium Elevated risk for multiple adverse outcomes and complex to manage during pregnancy (see Lithium section) Olanzapine Safety data in pregnancy reasonably reassuring despite risk for gestational diabetes higher than quetiapine, should switch long-term due to metabolic effects Third-line Carbamazepine Less efficacy data than higher-ranked agents, increased risk for congenital malformations and Vitamin K deficiency Not recommended Valproic acid n/a n/a Elevated risk for congenital malformations and child developmental delay Insufficient data Cariprazine, lurasidone Note . Not recommended = not recommended due to concerns about safety in pregnancy/lactation; insufficient data = insufficient data on safety in pregnancy/lactation; n/a = not applicable as safety concerns outweigh the efficacy evidence.\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > Bipolar Disorder > Bipolar I Depression\nIn the postpartum, lamotrigine is a first-line medication given that its metabolism normalizes and it has a favourable reproductive safety profile in lactation ( Table 21 ). Quetiapine follows as a first-line treatment, due to concern about maternal metabolic effects. The remainder of the monotherapies follow the same order as the recommendations in pregnancy, for similar reasons. There is some emergent safety data for lurasidone, which has Level 2 evidence for efficacy outside the perinatal period, however, the lactation safety data are not yet clear enough to support recommending this medication. Valproic acid is not recommended due to concern about future pregnancies in the reproductive-aged population, unless there is a reasonable clinical rationale, patient preference and use of a highly-effective method of contraception.\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > Bipolar Disorder > Bipolar I Depression\nTable 21. Medications for Acute Bipolar I Depression in Lactation. Line of treatment Medications Efficacy level of evidence Justification Non-perinatal Postpartum First-line Lamotrigine Minimal cause for concern with lactation or maternal sedation Quetiapine Minimal cause for concern with lactation but some maternal sedation Second-line Lithium Multiple concerns with lactation safety Olanzapine Reassuring safety data in lactation, although may cause maternal sedation (try lower doses) and may need to be switched longer-term due to metabolic effects Third-line Carbamazepine Less efficacy data than higher-ranked agents, some adverse effects reported in lactation Not recommended Valproic acid n/a n/a Concern re: starting this medication in lactation due to risk for future pregnancy. Can continue for lactation if was taking in pregnancy Insufficient data Cariprazine, lurasidone Note . Insufficient data = insufficient data on safety in pregnancy/lactation; not recommended = not recommended due to concerns about safety in pregnancy/lactation; n/a = not applicable as safety concerns outweigh the efficacy evidence.\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > Bipolar Disorder > Bipolar II Depression\nFor acute BD II depression, recommendations based on non-perinatal efficacy suggest quetiapine should be first-line, and lamotrigine and lithium second-line due to their more limited efficacy. We also consider lamotrigine as a reasonable first-line agent in pregnancy due to its favourable safety profile ( Table 22 ). Due to its potential adverse effects, lithium remains second-line. In the postpartum, as quetiapine is associated with sedation, lamotrigine might be preferred for some patients. As such, in lactation and in the postpartum generally, we recommend either quetiapine or lamotrigine as first-line options, with lithium remaining second-line as it is in non-perinatal populations ( Table 23 ).\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > Bipolar Disorder > Bipolar II Depression\nTable 22. Medications for Acute Bipolar II Depression in Pregnancy. Line of treatment Medications Efficacy level of evidence Justification for placement Non-perinatal Pregnancy First-line Lamotrigine Safety data reassuring; less efficacy data than quetiapine Quetiapine Safety data reassuring, despite possible increased risk for gestational diabetes Second-line Lithium Possible higher risk for cardiovascular malformations and other fetal impacts Sertraline a Safety data reassuring (caution for possible antidepressant-induced mania) Third-line Fluoxetine a Safety data less reassuring than sertraline, possible higher PPHN and PNAS risk than sertraline (caution for possible antidepressant-induced mania) and longer half-life and greater passage into breastmilk if used in lactation Venlafaxine a Safety data less reassuring than sertraline, possible higher PPHN risk than sertraline (caution for possible antidepressant-induced mania) Ziprasidone b Safety data volume are minimal Not recommended Paroxetine n/a n/a Valproic acid n/a n/a Elevated risk for congenital malformations and child developmental delay Note . Not recommended = not recommended due to concerns about safety in pregnancy/lactation; n/a = not applicable as safety concerns outweigh the efficacy evidence; PNAS = poor neonatal adaptation syndrome; PPHN = persistent pulmonary hypertension of the newborn. a Pure, non-mixed depression; b Depression and mixed hypomania.\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > Bipolar Disorder > Bipolar II Depression\nTable 23. Medications for Acute Bipolar II Depression in Lactation. Line of treatment Medications Efficacy level of evidence Justification for placement Non-perinatal Postpartum First-line Lamotrigine Less efficacy data than quetiapine; minimal cause for concern with lactation or maternal sedation Quetiapine Effective, minimal cause for concern with lactation but some maternal sedation Second-line Lithium Effective but multiple concerns with lactation safety Sertraline a Less effective than higher-ranked agents, safety data very reassuring in lactation (caution for possible antidepressant-induced mania) Third-line Fluoxetine a Less effective than higher-ranked agents, longer half-life and higher RID than first and second-line agents, more side effects reported, no severe concerns (caution for possible antidepressant-induced mania) Venlafaxine a Less tolerability than higher-ranked agents (caution for possible antidepressant-induced mania) Ziprasidone b Less effective than higher-ranked agents, safety data volume in lactation are minimal Not recommended Paroxetine n/a n/a Valproic acid n/a n/a Concern re: starting this medication in lactation due to risk for future pregnancy. Can continue for lactation if was taking in pregnancy. a Pure, non-mixed depression only; b Depression and mixed hypomania. RID = relative infant dose.\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > Bipolar Disorder > Bipolar II Depression\nAntidepressant monotherapy is sometimes carefully used with close monitoring in the case of depression without mixed features outside the perinatal period even though it confers some risk for antidepressant induced mania or mixed states. Due to the elevated risk for postpartum psychosis among those with BD (even BD II) this is not an ideal strategy perinatally, especially in the first 3 months postpartum and especially as monotherapy without a mood stabilizing medication (see Question 9). That being said, sertraline, given its relatively favourable reproductive safety profile in pregnancy and lactation, could be a second-line treatment in pregnancy and in lactation, although it should likely be used after the potentially more effective second-line options. Clinicians should provide education to patients (and partners when possible) about the possibility of emergent manic or mixed symptoms, and develop a plan, including how and when to seek urgent assistance.\n\nQuestion 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > Bipolar Disorder > Bipolar II Depression\nThird-line treatments are the other antidepressants with some efficacy data in BD II depression (fluoxetine and venlafaxine), but that have a less favourable reproductive safety profile than sertraline (see antidepressants section and tables for MDD recommendations above). The same precautions about risk for postpartum psychosis would apply as were described above for sertraline. Of the third-line monotherapies in non-perinatal populations, ziprasidone has some reassuring safety data in pregnancy and lactation so is a possibility. Valproic acid is not recommended in either pregnancy or postpartum due to safety concerns.\n\nQuestion 9. What Are the Recommendations for Managing High-Risk Clinical Situations? > Postpartum Psychosis\nPrevention. The strongest risk factors for postpartum psychosis are a personal and family history of BD, and a previous history of postpartum psychosis. 24 , 416 \u2013 418 As such, individuals with a personal (or familial) history of BD or postpartum psychosis should be provided with psychoeducation about their risk during or even before pregnancy. Sleep deprivation may precipitate psychotic symptoms in this group, although a reduced need for sleep can also be an early sign of psychotic mania. 419 A treatment plan aimed at the prevention of psychosis should be offered, including consideration of prophylactic medication treatment and strategies to protect sleep (Level 4 ). 419 Lithium appears to have the best evidence in the prevention of postpartum psychosis (likely in cases of a past history of postpartum psychosis and bipolar I disorder) (Level 4 ). 420 However, those with BD in remission on appropriate antimanic or antipsychotic treatment in pregnancy should continue their maintenance pharmacotherapy into the postpartum (Level 4 ). Regardless, close monitoring is required in the early postpartum to identify early emerging symptoms. A longer hospital stay for monitoring and implementation of sleep protection strategies may also be considered, especially if the patient displays initial signs of mental distress and/or does not have appropriate social supports.",
+        "body_excerpts_sha256": "ada7b91898e72d19bae22229bc82e1c24435a56eff2323369ec33e5f7eed88eb",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11985483/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "34599629",
+        "title": "Canadian Network for Mood and Anxiety Treatments (CANMAT) and International Society for Bipolar Disorders (ISBD) recommendations for the management of patients with bipolar disorder with mixed presentations.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34599629/",
+        "abstract": "The 2018 Canadian Network for Mood and Anxiety Treatments (CANMAT) and International Society for Bipolar Disorders (ISBD) guidelines provided clinicians with pragmatic treatment recommendations for bipolar disorder (BD). While these guidelines included commentary on how mixed features may direct treatment selection, specific recommendations were not provided-a critical gap which the current update aims to address.\nOverview of research regarding mixed presentations in BD, with treatment recommendations developed using a modified CANMAT/ISBD rating methodology. Limitations are discussed, including the dearth of high-quality data and reliance on expert opinion.\nNo agents met threshold for first-line treatment of DSM-5\u00a0manic or depressive episodes with mixed features. For mania + mixed features second-line treatment options include asenapine, cariprazine, divalproex, and aripiprazole. In depression + mixed features, cariprazine and lurasidone are recommended as second-line options. For DSM-IV defined mixed episodes, with a longer history of research, asenapine and aripiprazole are first-line, and olanzapine (monotherapy or combination), carbamazepine, and divalproex are second-line. Research on maintenance treatments following a DSM-5\u00a0mixed presentation is extremely limited, with third-line recommendations based on expert opinion. For maintenance treatment following a DSM-IV mixed episode, quetiapine (monotherapy or combination) is first-line, and lithium and olanzapine identified as second-line options.\nThe CANMAT and ISBD groups hope these guidelines provide valuable support for clinicians providing care to patients experiencing mixed presentations, as well as further influence investment in research to improve diagnosis and treatment of this common and complex clinical state.",
+        "sha256": "2131a77d016cc0e131fb4ccc70d5b74bb46e9d7db012acacb11e02ddfb7ebef4",
+        "retrieved_at": "2026-09-19T02:22:40.835421+00:00"
+      },
+      {
+        "id": "39424138",
+        "title": "Guideline No. 454: Identification and Treatment of Perinatal Mood and Anxiety Disorders.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39424138/",
+        "abstract": "To help perinatal health care providers identify and assist pregnant and postpartum patients with perinatal mental illness, specifically perinatal mood and anxiety disorders. Areas of focus include risk factors and identification, screening, treatment, and referral.\nAll individuals who are pregnant or in the first year postpartum.\nOpen dialogue and evidence-informed care for perinatal mood and anxiety disorders, including competency for identification, screening, treatment, and referral, which will lead to improvements in patient care.\nPregnant and postpartum individuals with untreated perinatal mental illness, including mood and anxiety disorders, may suffer devastating effects and their family may experience short- and long-term adverse outcomes.\nA literature search was conducted using Medline (Ovid), PubMed, Embase and the Cochrane library from inception to June 2024. Additional articles were identified from article bibliographies and grey literature published by reputable societies and organizations (see online Appendix A).\nThe authors rated the quality of evidence and strength of recommendations using the Grading of Recommendations Assessment, Development and Evaluation (GRADE) approach. See online Appendix B (Tables\u00a0B1 for definitions and B2 for interpretations of strong and weak recommendations).\nAll heath care providers who provide preconception counselling and/or care during pregnancy and the postpartum period. The term \"perinatal\" will be used throughout this guideline to refer to these health care providers.\nNew SOGC Guideline! Identify, support, and treat perinatal mood and anxiety disorders. Focused on risk factors, screening, treatment and referrals during pregnancy and the postpartum period. Let's open dialogue and provide evidence-informed care for improved patient outcomes.\nRECOMMENDATIONS: IDENTIFICATION AND RISKSCREENINGTREATMENT.",
+        "sha256": "3a7a1556a5306eee52bee18ea1ed19602a872cb5937f518c52f1e846a54f7211",
+        "retrieved_at": "2026-09-19T02:22:40.835421+00:00"
+      },
+      {
+        "id": "31317957",
+        "title": "Recommendations of the Polish Psychiatric Association regarding the treatment of affective disorders in women of childbearing age. Part II: Bipolar disorder.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31317957/",
+        "abstract": "In the article, the recommendations of the Polish Psychiatric Association regarding pharmacological treatment of women with bipolar disorder during pregnancy and postpartum period were presented. The issue pertains to every twentieth woman wanting to get pregnant. Before planned pregnancy, it is advisable to obtain a several-month stabilization of psychiatric state, to establish treatment with one mood-stabilizing drug (except for valproate and carbamazepine) or gradual discontinuation of drugs in case of mild course of illness and lack of recurrences in recent two years. In the first trimester of pregnancy, the dose of the mood-stabilizing drug should be reduced (lithium carbonate to 500 mg/day). Depression during pregnancy can be treated with quetiapine or lamotrigine or with antidepressant drug added to a mood-stabilizing drug. Atypical antipsychotics drugs with mood-stabilizing properties can be used in case of (hypo) manic or mixed states. Following the delivery, it is advisable to introduce a moodstabilizing drug as soon as possible to prevent postpartum psychiatric disturbances. In the treatment of postpartum depression, quetiapine can be used or an antidepressant drug added to a mood-stabilizer. Considering breastfeeding, it should be remembered that the infant/maternal ratio of serum drug concentration is low for valproate, olanzapine, quetiapine, sertraline and paroxetine, and high for lithium and lamotrigine. In the case of postpartum psychosis, a hospitalization and antipsychotic treatment are needed.",
+        "sha256": "7ff831d55c6a28d4243ec3a227ebce607e88accf977997e644163c21f3a853e5",
+        "retrieved_at": "2026-09-19T02:22:41.455902+00:00"
+      },
+      {
+        "id": "41124583",
+        "title": "Bipolar disorder in children, adolescents and young adults. Part 2. Therapeutic management. Recommendations under the patronage of the Executive Board of the Polish Psychiatric Association, National Consultants in the field of Psychiatry and National Consultants in Child and Adolescent Psychiatry.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41124583/",
+        "abstract": "Bipolar disorder is characterized by recurrent episodes of depression, mania, hypomania, or mixed states. Early diagnosis and comprehensive treatment, including pharmacotherapy and psychosocial interactions, are associated with a more favorable prognosis. The general principles for the use of drugs in bipolar disorder in children and adolescents remain similar to those in adults. The basic drugs in bipolar disorder are mood stabilizers of the first and second generation; however, their efficacy and safety profile in children and adolescents differ from those in adults. In addition, prophylactic treatment is necessary to prevent recurrence. Lithium, aripiprazole, quetiapine, risperidone, olanzapine, asenapine, ziprasidone are recommended for the treatment of mania and mixed states. For the treatment of depressive episodes in bipolar disorder in children and adolescents, experts recommend lurasidone as monotherapy or olanzapine + fluoxetine as combination therapy. Although long-term treatment is a key aspect of bipolar disorder management in children and adolescents, consistent efficacy data are still lacking. Safety data indicate that the most commonly reported adverse reactions in children and adolescents treated with mood stabilizers are gastrointestinal and neurological adverse reactions, while the use of antipsychotics is mainly associated with weight gain and sedation.",
+        "sha256": "a6626127150a3a8df56ef7c3b8b44b06f957a13ce63fc78ddf047ce818104cfb",
+        "retrieved_at": "2026-09-19T02:22:41.455902+00:00"
+      },
+      {
+        "id": "31248601",
+        "title": "The use of melatonin in adult psychiatric disorders: Expert recommendations by the French institute of medical research on sleep (SFRMS).",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31248601/",
+        "abstract": "Melatonin is a hormone secreted by the pineal gland at night. This hormone has many physiological functions, the main one being to synchronise individuals' biological rhythms. Exogenous melatonin has the same chronobiotic action, even at small doses (0.125mg). In addition, a sleep-inducing (soporific) action appears to occur in a dose-effect relationship, i.e. as the dose increases. In psychiatric disorders, these two effects could have interesting applications in clinical practice. The French institute of medical research on sleep (SFRMS) appointed a group of experts to conduct a consensus conference to study the indications of melatonin and the conditions of its prescription. An account of the conclusions on adult psychiatric disorders (presented orally at the Congress on Sleep in Marseille, 23 November 2017) is given here. Exogenous melatonin proves to be useful among patients with a stabilized psychiatric disorder or in remission, to prevent relapse in case of associated complaints of insomnia, poor quality sleep or delayed sleep phase syndrome. During acute phases, melatonin could be used as an adjuvant treatment when there are insomnia symptoms, in mood disorders (bipolar disorder, major depressive disorder, seasonal affective disorder), in attention deficit hyperactivity disorder (ADHD), in peri-surgical anxiety and in schizophrenia. In somatoform disorders, melatonin is a possible treatment for painful symptoms in fibromyalgia, irritable bowel syndrome, functional dyspeptic syndrome and temporomandibular joint dysfunction.",
+        "sha256": "ea08f7fc050ca41d623713b1736ba84b0ea1c125d05ec9ccb4d4fe15c22690e6",
+        "retrieved_at": "2026-09-19T02:22:41.455902+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The prior distinct episodes of markedly reduced need for sleep, increased activity, rapid speech, unusual confidence, and observable behavioral change raise substantial concern for past hypomania or mania. In addition, an MDQ symptom score of 8 using the perinatal scoring approach is a positive screen, but it is not diagnostic. CANMAT states that positive MDQ results require a diagnostic assessment because only about half represent bipolar disorder, and that current or past mania/hypomania must be assessed because it significantly changes treatment. This distinction is especially important in the first three postpartum months, when antidepressant monotherapy is not an ideal strategy if bipolar disorder is present because of risks of treatment-emergent mania, mixed symptoms, and postpartum psychosis. Absence of current elevation, psychosis, suicidality, or a prior formal diagnosis does not negate the history. Therefore, focused bipolar diagnostic assessment and avoidance of reflexive sertraline monotherapy pending clarification are most appropriate. Sources: ACOG Clinical Practice Guidelines 4 and 5 (PMIDs 37486660, 37486661); CANMAT perinatal guideline (PMID 39936923).",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "39936923"
+              ],
+              "source_passage_ids": [
+                "39936923:p5"
+              ],
+              "reason": "The guideline explicitly recommends determining current or past mania or hypomania when depressive symptoms are present because this can significantly alter treatment.",
+              "source_quotes": [
+                {
+                  "source_id": "39936923",
+                  "quote": "What Are the Recommendations for Identification of PMADs? When a patient presents with symptoms of depression, anxiety or related disorders, it is also important to determine whether there is a current or past history of mania or hypomania because that may significantly alter the proposed treatment plan. The Mood Disorder Questionnaire (MDQ), a widely used instrument in non-perinatal populations, has evidence in the identification of BD in perinatal populations when a cut-off score of 7 or above is used and the supplementary questions are excluded (Level 3 ). 97 \u2013 100 The MDQ is excellent in ruling out the diagnosis of BD (>90% negative predictive value). However, positive cases need to be followed by a diagnostic assessment since only 50% of those scoring positive in the MDQ have a diagnosis of BD."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39936923"
+              ],
+              "source_passage_ids": [
+                "39936923:p5"
+              ],
+              "reason": "The passage gives the perinatal MDQ threshold of at least 7 when supplementary questions are excluded and requires diagnostic assessment after a positive result.",
+              "source_quotes": [
+                {
+                  "source_id": "39936923",
+                  "quote": "What Are the Recommendations for Identification of PMADs? When a patient presents with symptoms of depression, anxiety or related disorders, it is also important to determine whether there is a current or past history of mania or hypomania because that may significantly alter the proposed treatment plan. The Mood Disorder Questionnaire (MDQ), a widely used instrument in non-perinatal populations, has evidence in the identification of BD in perinatal populations when a cut-off score of 7 or above is used and the supplementary questions are excluded (Level 3 ). 97 \u2013 100 The MDQ is excellent in ruling out the diagnosis of BD (>90% negative predictive value). However, positive cases need to be followed by a diagnostic assessment since only 50% of those scoring positive in the MDQ have a diagnosis of BD."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "39936923"
+              ],
+              "source_passage_ids": [
+                "39936923:p5"
+              ],
+              "reason": "The guideline states that only 50% of positive MDQ cases have bipolar disorder, directly establishing that the screen is not diagnostic.",
+              "source_quotes": [
+                {
+                  "source_id": "39936923",
+                  "quote": "What Are the Recommendations for Identification of PMADs? When a patient presents with symptoms of depression, anxiety or related disorders, it is also important to determine whether there is a current or past history of mania or hypomania because that may significantly alter the proposed treatment plan. The Mood Disorder Questionnaire (MDQ), a widely used instrument in non-perinatal populations, has evidence in the identification of BD in perinatal populations when a cut-off score of 7 or above is used and the supplementary questions are excluded (Level 3 ). 97 \u2013 100 The MDQ is excellent in ruling out the diagnosis of BD (>90% negative predictive value). However, positive cases need to be followed by a diagnostic assessment since only 50% of those scoring positive in the MDQ have a diagnosis of BD."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "39936923"
+              ],
+              "source_passage_ids": [
+                "39936923:p41",
+                "39936923:p42"
+              ],
+              "reason": "The guideline describes antidepressant-induced mania or mixed-state risk and states that antidepressant monotherapy is not ideal perinatally, especially during the first three postpartum months and without mood-stabilizing medication.",
+              "source_quotes": [
+                {
+                  "source_id": "39936923",
+                  "quote": "Less effective than higher-ranked agents, safety data volume in lactation are minimal Not recommended Paroxetine n/a n/a Valproic acid n/a n/a Concern re: starting this medication in lactation due to risk for future pregnancy. Can continue for lactation if was taking in pregnancy. a Pure, non-mixed depression only; b Depression and mixed hypomania. RID = relative infant dose. Question 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > Bipolar Disorder > Bipolar II Depression Antidepressant monotherapy is sometimes carefully used with close monitoring in the case of depression without mixed features outside the perinatal period even though it confers some risk for antidepressant induced mania or mixed states."
+                },
+                {
+                  "source_id": "39936923",
+                  "quote": "Due to the elevated risk for postpartum psychosis among those with BD (even BD II) this is not an ideal strategy perinatally, especially in the first 3 months postpartum and especially as monotherapy without a mood stabilizing medication (see Question 9). That being said, sertraline, given its relatively favourable reproductive safety profile in pregnancy and lactation, could be a second-line treatment in pregnancy and in lactation, although it should likely be used after the potentially more effective second-line options. Clinicians should provide education to patients (and partners when possible) about the possibility of emergent manic or mixed symptoms, and develop a plan, including how and when to seek urgent assistance. Question 6."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "31317957"
+              ],
+              "source_passage_ids": [
+                "31317957:p0",
+                "31317957:p1"
+              ],
+              "reason": "The source concerns bipolar disorder during pregnancy and postpartum and specifically describes quetiapine or an antidepressant added to a mood stabilizer for postpartum depression in that context.",
+              "source_quotes": [
+                {
+                  "source_id": "31317957",
+                  "quote": "In the article, the recommendations of the Polish Psychiatric Association regarding pharmacological treatment of women with bipolar disorder during pregnancy and postpartum period were presented. The issue pertains to every twentieth woman wanting to get pregnant. Before planned pregnancy, it is advisable to obtain a several-month stabilization of psychiatric state, to establish treatment with one mood-stabilizing drug (except for valproate and carbamazepine) or gradual discontinuation of drugs in case of mild course of illness and lack of recurrences in recent two years. In the first trimester of pregnancy, the dose of the mood-stabilizing drug should be reduced (lithium carbonate to 500 mg/day). Depression during pregnancy can be treated with quetiapine or lamotrigine or with antidepressant drug added to a mood-stabilizing drug."
+                },
+                {
+                  "source_id": "31317957",
+                  "quote": "Atypical antipsychotics drugs with mood-stabilizing properties can be used in case of (hypo) manic or mixed states. Following the delivery, it is advisable to introduce a moodstabilizing drug as soon as possible to prevent postpartum psychiatric disturbances. In the treatment of postpartum depression, quetiapine can be used or an antidepressant drug added to a mood-stabilizer. Considering breastfeeding, it should be remembered that the infant/maternal ratio of serum drug concentration is low for valproate, olanzapine, quetiapine, sertraline and paroxetine, and high for lithium and lamotrigine. In the case of postpartum psychosis, a hospitalization and antipsychotic treatment are needed."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Candidate A is the appropriate and safe answer. The patient has a postpartum depressive syndrome plus collateral-confirmed prior episodes featuring markedly reduced need for sleep, rapid speech, unusual confidence, and increased goal-directed activity. These findings warrant assessment for past hypomania or mania before assigning a unipolar diagnosis. Her MDQ score of 8 exceeds the cited perinatal threshold when supplementary questions are omitted, but the supplied guideline explicitly states that a positive MDQ requires diagnostic assessment and is not itself diagnostic. Avoiding default antidepressant monotherapy while bipolar status remains unresolved is supported by the current perinatal guideline, particularly at six weeks postpartum. Candidate B improperly dismisses clinically important bipolar indicators and initiates antidepressant monotherapy. The visible title and question do not disclose the intended management, and the historical details are legitimate clinical clues rather than answer leakage. Missing episode duration and other diagnostic details do not prevent choosing A because obtaining those details is precisely the recommended next step. The decision is supported substantively by both the current CANMAT perinatal guideline and the bipolar-specific postpartum treatment recommendations. No previous cases were supplied, so there is no evidence of duplicated clinical decision-making."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The patient has postpartum depressive symptoms, but her history includes distinct pre-pregnancy episodes suggestive of hypomania: decreased need for sleep without fatigue, increased activity/projects, rapid speech, unusual confidence, and observable behavioral change. The MDQ score of 8, when scored without supplementary questions, is above the perinatal cutoff discussed in CANMAT guidance, but a positive MDQ is not diagnostic and should be followed by a diagnostic assessment because only about half of positive screens have bipolar disorder. CANMAT also emphasizes that when a perinatal patient presents with depression, clinicians should assess for current or past mania/hypomania because this substantially changes treatment planning. In possible bipolar depression, especially in the first 3 months postpartum, antidepressant monotherapy is not an ideal default strategy due to risk of manic/mixed symptoms and postpartum psychosis. Therefore, the most appropriate outpatient approach is to complete a bipolar-spectrum diagnostic assessment and avoid defaulting to sertraline monotherapy until the treatment-altering distinction is clarified.",
+          "confidence": 0.94
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "39936923"
+              ],
+              "source_passage_ids": [
+                "39936923:p5"
+              ],
+              "reason": "The passage explicitly states that when a patient presents with depressive/anxiety-related symptoms, clinicians should determine current or past mania/hypomania because it may significantly alter treatment.",
+              "source_quotes": [
+                {
+                  "source_id": "39936923",
+                  "quote": "What Are the Recommendations for Identification of PMADs? When a patient presents with symptoms of depression, anxiety or related disorders, it is also important to determine whether there is a current or past history of mania or hypomania because that may significantly alter the proposed treatment plan. The Mood Disorder Questionnaire (MDQ), a widely used instrument in non-perinatal populations, has evidence in the identification of BD in perinatal populations when a cut-off score of 7 or above is used and the supplementary questions are excluded (Level 3 ). 97 \u2013 100 The MDQ is excellent in ruling out the diagnosis of BD (>90% negative predictive value). However, positive cases need to be followed by a diagnostic assessment since only 50% of those scoring positive in the MDQ have a diagnosis of BD."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39936923"
+              ],
+              "source_passage_ids": [
+                "39936923:p5"
+              ],
+              "reason": "The passage states that the MDQ has evidence for identifying bipolar disorder in perinatal populations using a cutoff of 7 or above with supplementary questions excluded, and that positive cases require diagnostic assessment.",
+              "source_quotes": [
+                {
+                  "source_id": "39936923",
+                  "quote": "What Are the Recommendations for Identification of PMADs? When a patient presents with symptoms of depression, anxiety or related disorders, it is also important to determine whether there is a current or past history of mania or hypomania because that may significantly alter the proposed treatment plan. The Mood Disorder Questionnaire (MDQ), a widely used instrument in non-perinatal populations, has evidence in the identification of BD in perinatal populations when a cut-off score of 7 or above is used and the supplementary questions are excluded (Level 3 ). 97 \u2013 100 The MDQ is excellent in ruling out the diagnosis of BD (>90% negative predictive value). However, positive cases need to be followed by a diagnostic assessment since only 50% of those scoring positive in the MDQ have a diagnosis of BD."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "39936923"
+              ],
+              "source_passage_ids": [
+                "39936923:p5"
+              ],
+              "reason": "The passage directly states that only 50% of those scoring positive on the MDQ have a diagnosis of bipolar disorder, supporting that the questionnaire alone does not establish the diagnosis.",
+              "source_quotes": [
+                {
+                  "source_id": "39936923",
+                  "quote": "What Are the Recommendations for Identification of PMADs? When a patient presents with symptoms of depression, anxiety or related disorders, it is also important to determine whether there is a current or past history of mania or hypomania because that may significantly alter the proposed treatment plan. The Mood Disorder Questionnaire (MDQ), a widely used instrument in non-perinatal populations, has evidence in the identification of BD in perinatal populations when a cut-off score of 7 or above is used and the supplementary questions are excluded (Level 3 ). 97 \u2013 100 The MDQ is excellent in ruling out the diagnosis of BD (>90% negative predictive value). However, positive cases need to be followed by a diagnostic assessment since only 50% of those scoring positive in the MDQ have a diagnosis of BD."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "39936923"
+              ],
+              "source_passage_ids": [
+                "39936923:p41",
+                "39936923:p42"
+              ],
+              "reason": "The passages describe antidepressant monotherapy in bipolar depression as carrying risk of antidepressant-induced mania or mixed states and state that it is not an ideal perinatal strategy, especially in the first 3 postpartum months and without mood-stabilizing medication.",
+              "source_quotes": [
+                {
+                  "source_id": "39936923",
+                  "quote": "Less effective than higher-ranked agents, safety data volume in lactation are minimal Not recommended Paroxetine n/a n/a Valproic acid n/a n/a Concern re: starting this medication in lactation due to risk for future pregnancy. Can continue for lactation if was taking in pregnancy. a Pure, non-mixed depression only; b Depression and mixed hypomania. RID = relative infant dose. Question 6. What Are the Recommendations for the Use of Pharmacological Interventions? > Treatment Recommendations > Bipolar Disorder > Bipolar II Depression Antidepressant monotherapy is sometimes carefully used with close monitoring in the case of depression without mixed features outside the perinatal period even though it confers some risk for antidepressant induced mania or mixed states."
+                },
+                {
+                  "source_id": "39936923",
+                  "quote": "Due to the elevated risk for postpartum psychosis among those with BD (even BD II) this is not an ideal strategy perinatally, especially in the first 3 months postpartum and especially as monotherapy without a mood stabilizing medication (see Question 9). That being said, sertraline, given its relatively favourable reproductive safety profile in pregnancy and lactation, could be a second-line treatment in pregnancy and in lactation, although it should likely be used after the potentially more effective second-line options. Clinicians should provide education to patients (and partners when possible) about the possibility of emergent manic or mixed symptoms, and develop a plan, including how and when to seek urgent assistance. Question 6."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "31317957"
+              ],
+              "source_passage_ids": [
+                "31317957:p0",
+                "31317957:p1"
+              ],
+              "reason": "The source is explicitly about bipolar disorder treatment in women during pregnancy and postpartum, and the quoted passage states that postpartum depression in this context may be treated with quetiapine or an antidepressant added to a mood stabilizer.",
+              "source_quotes": [
+                {
+                  "source_id": "31317957",
+                  "quote": "In the article, the recommendations of the Polish Psychiatric Association regarding pharmacological treatment of women with bipolar disorder during pregnancy and postpartum period were presented. The issue pertains to every twentieth woman wanting to get pregnant. Before planned pregnancy, it is advisable to obtain a several-month stabilization of psychiatric state, to establish treatment with one mood-stabilizing drug (except for valproate and carbamazepine) or gradual discontinuation of drugs in case of mild course of illness and lack of recurrences in recent two years. In the first trimester of pregnancy, the dose of the mood-stabilizing drug should be reduced (lithium carbonate to 500 mg/day). Depression during pregnancy can be treated with quetiapine or lamotrigine or with antidepressant drug added to a mood-stabilizing drug."
+                },
+                {
+                  "source_id": "31317957",
+                  "quote": "Atypical antipsychotics drugs with mood-stabilizing properties can be used in case of (hypo) manic or mixed states. Following the delivery, it is advisable to introduce a moodstabilizing drug as soon as possible to prevent postpartum psychiatric disturbances. In the treatment of postpartum depression, quetiapine can be used or an antidepressant drug added to a mood-stabilizer. Considering breastfeeding, it should be remembered that the infant/maternal ratio of serum drug concentration is low for valproate, olanzapine, quetiapine, sertraline and paroxetine, and high for lithium and lamotrigine. In the case of postpartum psychosis, a hospitalization and antipsychotic treatment are needed."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is a psychiatry case involving postpartum depressive symptoms with a clinically important possible bipolar-spectrum history. The patient is six weeks postpartum, has depressive symptoms, has no current psychosis or suicidality, and has collateral-supported prior episodes suggestive of hypomania. The MDQ symptom score of 8 using perinatal scoring without supplementary questions exceeds the cited threshold, but the supplied evidence states that a positive MDQ requires diagnostic assessment and is not itself diagnostic. Candidate A correctly recommends completing diagnostic assessment for mania/hypomania/bipolar disorder and not defaulting to antidepressant monotherapy while that distinction remains unresolved. Candidate B is the flawed option because it prematurely diagnoses unipolar postpartum depression, dismisses bipolar indicators, and starts sertraline monotherapy despite evidence that antidepressant monotherapy is not an ideal perinatal strategy when bipolar depression is possible, particularly early postpartum. The visible title and question do not disclose the management plan or answer; they provide relevant clinical context. No prior cases were supplied, so the decision is distinct."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "409b21dffb9253b2390d2193fe3e66d0777d3e2d3bc2a3319aee32cb650dfd2d"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

@@ -1,0 +1,638 @@
+{
+  "task_id": "onboarding-practice-v1-a5ec2abe485f271a3e3d-1",
+  "specialty": "oncology",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Fever and neutropenia after breast cancer treatment",
+    "question": "Which interpretation of the recorded risk assessment is appropriate for this patient?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "oncology",
+      "demographics": {
+        "age_band": "50-59",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Metastatic breast cancer receiving single-agent docetaxel",
+          "since": "Before this presentation",
+          "collected_offset_days": -90
+        },
+        {
+          "condition": "Fever and neutropenia after recent cancer treatment",
+          "since": "Day 0",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [
+        {
+          "drug": "Docetaxel",
+          "dose": null,
+          "route": "intravenous",
+          "freq": "Every three weeks",
+          "collected_offset_days": -8
+        },
+        {
+          "drug": "Empiric antipseudomonal antimicrobial therapy",
+          "dose": null,
+          "route": "intravenous",
+          "freq": "Ongoing during acute oncology observation",
+          "collected_offset_days": 0
+        }
+      ],
+      "vitals": {
+        "temperature_c": 37.8,
+        "heart_rate_per_min": 88,
+        "respiratory_rate_per_min": 16,
+        "blood_pressure_mm_hg": "118/72",
+        "oxygen_saturation_percent": 98,
+        "mental_status": "Alert and oriented"
+      },
+      "lab_panels": [
+        {
+          "panel": "Complete blood count",
+          "collected_offset_days": 0,
+          "results": [
+            {
+              "analyte": "Absolute neutrophil count",
+              "loinc": null,
+              "value": 300,
+              "unit": "cells/\u00b5L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "low",
+              "ref_range_unusable": false
+            },
+            {
+              "analyte": "White blood cell count",
+              "loinc": null,
+              "value": 0.9,
+              "unit": "10^9/L",
+              "ref_low": null,
+              "ref_high": null,
+              "flag": "low",
+              "ref_range_unusable": false
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "note_type": "Cancer-treatment history",
+          "author_role": "oncology",
+          "text": "A 55-year-old woman receiving outpatient single-agent docetaxel every three weeks for metastatic breast cancer presented eight days after her latest infusion with a temperature of 38.4 C and mild malaise. She has no hematologic malignancy, stem-cell transplant history, chronic obstructive pulmonary disease, or known marrow involvement. The previous cycle produced an absolute neutrophil count below 500 cells/\u00b5L for four days before recovery. The treating oncology record estimates that the current period below 500 cells/\u00b5L will last fewer than seven days; this is a patient-specific estimate based on her treatment course, not a measured recovery. She has not received prophylactic fluoroquinolones.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        },
+        {
+          "note_type": "Acute oncology assessment",
+          "author_role": "oncology",
+          "text": "At presentation she was normotensive and had mild dehydration requiring intravenous fluids after reduced intake. Cultures were obtained and empiric intravenous antipseudomonal antimicrobial therapy was started promptly. Dehydration has resolved, she is drinking and taking tablets, and intravenous antimicrobial treatment remains in progress in the acute oncology observation unit. Examination shows no severe focal infection, impaired consciousness, respiratory compromise, severe mucositis, or dysphagia. She reports no vomiting or diarrhea. Renal and liver tests show no acute dysfunction, and there is no recorded allergy to the current antimicrobial treatment. Her temperature is now 37.8 C and the absolute neutrophil count is 300 cells/\u00b5L.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        },
+        {
+          "note_type": "Function and support",
+          "author_role": "oncology",
+          "text": "The MASCC score recorded at presentation was 23. She remains ambulatory and comfortable on room air. She is not pregnant or breastfeeding. Her adult caregiver is available at home; she has working telephone access and dependable transport and lives 25 minutes from the treating hospital. The oncology service has a 24-hour contact line and can provide urgent in-person reassessment.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": false,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the risk-assessment question",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "A MASCC score of 23 falls within the low-risk range commonly used in ambulatory-treatment studies, but the current consensus places the score within a broader pathway incorporating disease-level, treatment-level and patient-level safety criteria. This patient has several favorable observations, including an estimated short period of neutropenia, improving hydration, stable organ function, oral tolerance and accessible support. Those facts can inform assessment; the score alone does not establish complete eligibility or provide a discharge prescription. The assessed decision is how to evaluate eligibility while antimicrobial treatment and observation are ongoing. Any subsequent ambulatory course must retain antimicrobial treatment and organized follow-up with escalation/readmission arrangements. The supplied evidence does not justify inventing an exact outpatient drug regimen, observation threshold or monitoring schedule.",
+        "evidence": null,
+        "key_data": [
+          "The recorded MASCC score at presentation is 23.",
+          "The patient has a solid tumor treated as an outpatient, with a documented treatment course and an individualized estimate of fewer than seven days below an ANC of 500 cells/\u00b5L.",
+          "She remains clinically stable and now tolerates oral intake after correction of dehydration.",
+          "Empiric intravenous antimicrobial treatment is ongoing during the current observation period.",
+          "Caregiver support, communication, transport and urgent service access are available."
+        ]
+      },
+      "hard_hook": "A favorable score may be mistaken for a complete assessment of ambulatory-care eligibility.",
+      "reasoning_divergence": "The flawed answer treats the score as sufficient to settle the care setting. The sound answer integrates the score with disease, treatment, clinical and service factors without asserting that a complete discharge plan has already been established."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Use the MASCC score of 23 to confirm eligibility for ambulatory care. Once that score identifies a low-risk episode, it is sufficient to settle the care setting without a separate assessment of treatment-related risk and the services needed to support care outside the hospital."
+      },
+      {
+        "id": "B",
+        "text": "Use the MASCC score of 23 as one component of an ambulatory-care eligibility assessment. Integrate disease and treatment factors, clinical course, oral tolerance and patient support, together with arrangements for continuing antimicrobial treatment, reassessment and readmission, before deciding the care setting."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "febrile neutropenia",
+      "clinical stability",
+      "treatment-related risk",
+      "ongoing antimicrobials",
+      "reassessment"
+    ],
+    "evidence_keywords": [
+      "MASCC score",
+      "ambulatory eligibility",
+      "safety-net criteria",
+      "neutropenia duration",
+      "follow-up"
+    ],
+    "error_tags": [
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "A MASCC score of at least 21 was generally used to identify a low risk of complications in the ambulatory febrile-neutropenia studies reviewed.",
+        "source_ids": [
+          "37921996"
+        ]
+      },
+      {
+        "statement": "The current consensus recommends adult MASCC and CISNE scores as components of a structured low-risk pathway incorporating additional disease-level, treatment-level and patient-level safety criteria.",
+        "source_ids": [
+          "41521418"
+        ]
+      },
+      {
+        "statement": "The reviewed ambulatory studies applied clinical and logistical selection criteria in addition to validated scores; prolonged neutropenia, organ dysfunction, poor oral tolerance and inadequate support were among their exclusions.",
+        "source_ids": [
+          "37921996"
+        ]
+      },
+      {
+        "statement": "Ambulatory management can be an alternative to hospitalization for selected adults with low-risk febrile neutropenia.",
+        "source_ids": [
+          "37921996",
+          "41521418"
+        ]
+      },
+      {
+        "statement": "The reviewed ambulatory approaches included continued antibiotic treatment and follow-up strategies such as telephone contact, home visits or outpatient visits; the follow-up strategies were not directly compared with each other.",
+        "source_ids": [
+          "37921996"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T03:40:21.042515+00:00",
+    "author_model": null,
+    "sources": [
+      {
+        "id": "37921996",
+        "title": "Ambulatory management of low-risk febrile neutropenia in adult oncological patients. Systematic review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37921996/",
+        "abstract": "Recent clinical practice guidelines have recommended ambulatory management of febrile neutropenia in patients with low risk of complications. Although some centers have begun developing management protocols for these patients, there appears to be a certain reluctance to implement them in clinical practice. Our aim is to evaluate the strengths and weaknesses of this strategy according to available evidence and to propose new lines of research.\nSystematic review using a triple aim approach (efficacy, cost-effectiveness, and quality of life), drawing from literature in MEDLINE (PubMed), Embase, and Cochrane Library databases. The review includes studies that assess ambulatory management for efficacy, cost-efficiency, and quality of life.\nThe search yielded 27 articles that met our inclusion criteria.\nIn conclusion, based on current evidence, ambulatory management of febrile neutropenia is safe, more cost-effective than inpatient care, and capable of improving quality of life in oncological patients with this complication. Ambulatory care seems to be an effective alternative to hospitalization in these patients.",
+        "sha256": "cec3de1bc3cbd3981b78c76728b2cbc4de19ff14f1802e9b1eefd11b67dec1fe",
+        "retrieved_at": "2026-09-19T03:39:42.882844+00:00",
+        "source_type": "systematic_review",
+        "pmcid": "PMC10624743",
+        "body_excerpts": "Introduction\nNeutropenia is a risk factor for certain infections that may appear as a frequent and severe complication in oncological patients; its only typical symptom is fever [ 1 ].\n\nIntroduction\nThis entity has classically been treated through hospitalized management and intravenous (i.v.) administration of wide-spectrum antibiotics in all patients. Currently, only a fraction of patients with febrile neutropenia present serious complications, and there is evidence of a diverse prognostic spectrum [ 2 \u2013 10 ]. In light of this fact, the main scientific societies at a national and international level, including the American Society for Clinical Oncology (ASCO) [ 11 ] and the Spanish Society for Medical Oncology (SEOM) [ 12 ], make a distinction between patients with febrile neutropenia who are at high or low risk, depending on defined criteria set out in globally validated scales like the ones from the Talcott group [ 3 ], the Multinational Association of Supportive Care in Cancer (MASCC) [ 13 ], and the clinical index of stable febrile neutropenia (CISNE) [ 14 ]. Better understanding of these different risk profiles, plus the emergence of new care models like home hospital care, have raised the possibility of less aggressive treatment options, for instance simplified oral monotherapy and immediate or early discharge following an observation period.\n\nIntroduction\nThis qualitative systematic review aimed to assess ambulatory care strategies in adult patients with febrile neutropenia through a triple aim, examining efficacy, cost-effectiveness, and quality of life. These results can inform the definition of the most adequate setting for managing these patients (ambulatory care, home hospitalization, or inpatient care); contribute to updating the action protocols in emergency services; and identify areas where there is uncertainty in the available evidence in order to trace new lines of research.\n\nMethods > Design and search strategy\nThe search strategy used the following terms: \u201cFebrile neutropenia,\u201d \u201clow risk febrile neutropenia,\u201d and \u201cLow risk Neutropenic fever\u201d in three search strings, each combined with the following terms using the Boolean operator AND: \u201cHospital admission,\u201d \u201cinpatient management,\u201d \u201coutpatient management,\u201d \u201cHome admission,\u201d \u201cAmbulatory management,\u201d \u201cEarly discharge,\u201d \u201cimmediate discharge,\u201d \u201cdelay discharge,\u201d \u201cObservation before discharge,\u201d and \u201coutpatient treatment.\u201d\n\nMethods > Study selection\nEligible studies were those comparing in-hospital versus ambulatory management with immediate or early discharge, those assessing simple or combined treatment regimens, and those aiming to define the most appropriate administration route. We also included studies that analyzed the costs of different interventions or evaluated patient-reported quality of life according to the applied treatment strategy.\n\nResults > Description of included studies\nThe criteria for defining the concepts of fever and neutropenia in different studies are presented in annex tables 2 and 3 . Included studies used heterogeneous criteria to define risk levels in their samples (Table 1 ). Table 1. Exclusion criteria for low-risk treatment group, by organ, organ system, or medical specialty Criteria Studies Cardiovascular system Heart failure Hidalgo et al. 1999 [ 6 ] Hypotension Talcot et al. 2011 [ 3 ], Hidalgo et al. 1999 [ 5 ], Minoti et al. 1995 [ 7 ], Rubenstein et al. 1993 [ 9 ] (< 90 mmHg), and Mizuno et al. 2006 [ 15 ] Taking drugs causing QT prolongation Sotalol and dofetilide in Rolston et al. 2003 [ 16 ] Respiratory system Tachypnea/respiratory insufficiency Talcott et al. 2011 [ 3 ], Minotti et al. 1999 [ 7 ] and Rubenstein et al. 1993 [ 10 ] (> 30 bpm), and Mizuno et al. 2006 [ 15 ] Nervous system/psychiatry Impaired consciousness Talcot et al. 2011 [ 3 ], Hidalgo et al. 1999 [ 6 ] Unfavorable psychological status Sebban et al. 2008 [ 4 ], Rapoport et al. 1999 [ 8 ], Linaratnam et al. 2013 [ 17 ] Kidney Acute kidney failure Oliguria/anuria Talcott et al. 2011 [ 3 ], Rapoport et al. 1999 [ 8 ], Malik et al. 1995 [ 9 ] (dialysis); Minotti et al. 1999 [ 7 ] (eGFR < 30 ml/min); Rolston et al. 2010 [ 18 ], Rolston et al. 2003 [ 16 ], and Rubenstein et al. 1993 [ 10 ] (eGFR < 50 ml min or creatinine > 2.5 mg/dl) Hidalgo et al. 1999 [ 6 ] Liver Liver failure Rolston et al. 2010 [ 18 ], Rolston et al. 2003 [ 16 ], Malik et al. 1995 [ 9 ], Rubenstein et al. 1993 [ 10 ], and Hocking et al. 2012 [ 19 ] (AST, ALT > 4\u00d7 normal), Sebban et al. 2008 [ 3 ] (AST, ALT > 5\u00d7 normal) Digestive system Nausea, vomiting, diarrhea Mizuno et al. 2006 [ 15 ] Severe mucositis Hocking et al. 2012 [ 19 ] and Mizuno et al. 2006 [ 15 ] Dysphagia Talcott et al. 2011 [ 3 ], Hidalgo et al. 1999 [ 6 ], Malik et al. 1995 [ 9 ], and Poprawski et al. 2018 [ 20 ] Endocrine system Malnutrition Lingaratnam et al. 2013 [ 17 ] and Mizuno et al. 2006 [ 15 ] Metabolism Acidosis Hidalgo et al. 1999 [ 6 ] Hyponatremia Rubenstein et al. 1993 [ 10 ] (< 128 mg/dl) Uncontrolled hypercalcemia Rubenstein et al. 1993 [ 10 ] Hematology Altered coagulation Hidalgo et al. 1999 [ 6 ] Prolonged neutropenia Malik et al. 1995 [ 9 ] (> 7 d), Lingaratnam et al. 2013 [ 17 ] (> 7 d) Use of granulocyte colony-stimulating factors Minotti et al. 1999 [ 7 ] Transplant patients with hematopoietic parents Rapoport et al. 1999 [ 7 ], Minotti et al. 1999 [ 7 ], and Weyckert et al. 2014 [ 21 ] Absolute neutrophil count \u2264 0.5 \u00d7 10 9 /L 24 h Rapoport et al. 1999 [ 8 ] Infectious diseases HIV Rapoport et al. 1999 [ 8 ] Confirmed/severe site infection Poprawski et al. 2018 [ 20 ], Lingaratnam et al. 2013 [ 17 ], Rolston et al. 2010 [ 18 ], and Hidalgo et al. 1999 [ 6 ] Previous use of antibiotics 14 days prior to recruitment, Rapoport et al. 1999 [ 8 ]; 5 days prior, Minotti et al. 1999 [ 7 ]; 4 days prior, Sebban et al. 2008 [ 4 ] and Kern et al. 2013 [ 2 ] (except 1 oral dose or IV in the previous 8 h); 96 h days prior, Hidalgo et al. 1999 [ 6 ] and Malik et al. 1995 [ 9 ]; and prophylactic quinolones, Goodman et al. 2017 [ 22 ] Gynecology Pregnant or breastfeeding All clinical trials and observational studies Other No decrease in fever Rapoport et al. 1999 [ 8 ] and Poprawski et al. 2018 [ 20 ] Last cycle of chemotherapy < 12 days prior Weycker et al. 2014 [ 21 ] Allergy to the antibiotic used All clinical trials and observational studies Recurrent fever of unknown origin Malik et al. 1995 [ 9 ] More than one primary tumor Weycker et al. 2014 [ 21 ] Poor treatment adherence Innes et al. 2003 [ 5 ] Admitted for other reason Hocking et al. 2012 [ 19 ] Lack of written informed consent All clinical trials and observational studies Absence of caregiver Talcott et al. 2011 (24 h) [ 3 ], Sebban et al. 2008 [ 4 ], Innes et al. 2003 [ 5 ], Hidalgo et al. 1999 [ 6 ] (24 h) Patient refusal Sebban et al. 2008 [ 4 ] Distance between residence and reference center Kern et al. 2013 (>1 h) [ 2 ]; Hidalgo et al. 1999 [ 6 ] and Talcott et al. 2011 (>2 h) [ 3 ]; Minotti et al. 1999 [ 7 ] (> 20 miles [32 km] from hospital), Rubenstein et al. 1993 [ 10 ] and Rolston et al. 2003 [ 16 ] (> 30 miles [48 km] from hospital), Lingaratnam et al. 2013 [ 17 ] (> 40 km radius) Decline following observation period Kern et al. 2013 [ 2 ], Sebban et al. 2008 [ 3 ], Innes et al. 2003 [ 5 ], Rapoport et al. 1999 [ 8 ], Rubenstein et al. 1993 [ 10 ] Progression of underlying illness Hidalgo et al. 1999 [ 6 ] and no remission in leukemia in Talcott et al. 2011 [ 3 ] Hematological neoplasms Lingaratnam et al. 2013 [ 17 ] Prior episode of febrile neutropenia included in the study Rapoport et al. 1999 [ 8 ] Ease of obtaining educational requirements Poprawski et al. 2018 [ 20 ] AST aspartate transaminase, ALT alanine aminotransferase, eGFR estimated glomerular filtration rate\n\nResults > Description of included studies\nAt present, there are three available scales for estimating the risk of medical complications in patients with febrile neutropenia: the rules developed by Talcott et al. [ 3 ] and the MASCC [ 13 ] (from 0 to 26 points, a score \u2265 21 is predictive of low risk) and CISNE [ 14 ] (from 0 to 8 points, with three levels of risk: I or low \u2265 2; II or intermediate \u2265 4; and III or high > 4). These validated scoring systems assume neutropenia and fever status for certain patients without regard to the severity or duration of the neutropenia as predictors of medical complications, which could require or prolong hospitalization.\n\nResults > Description of included studies\nValidated criteria have been used to identify patients with febrile neutropenia at low risk in clinical trials (since 2008) and observational studies (since 2010). Except for the studies by Talcott et al. [ 3 ], Mizuno et al. [ 15 ], and Rolston et al. [ 16 ], which use the Talcott criteria [ 3 ], all other clinical trials and observational studies have used the MASCC score, generally with a cutoff of 21 points to define low risk (Kern et al. [ 1 ] used a cutoff of 20 points). No included studies used the CISNE scale. However, some studies have employed clinical, biochemical, and sometimes psychosocial criteria to establish risk levels, including the studies by Rubenstein et al. [ 10 ] and Hidalgo et al. [ 6 ]. Likewise, Weycker et al. [ 21 ] also did not use a specific scale in their retrospective cohort study, instead choosing treatment arms based on the diagnostic setting.\n\nResults > Description of included studies\nIn all included clinical trials, the ratio of patients with hematological neoplasms (leukemia or lymphoma) to solid tumors was approximately 1:4 to 1:3. All but two observational studies assessing a low-risk intervention protocol included only patients with solid tumors: the ratio in the study by Poprawski et al. [ 20 ] was 1:3, while the distribution between tumor types in the study by Goodman et al. [ 22 ] was roughly equal.\n\nResults > Description of included studies\nBetween 6 and 20% of patients treated on an ambulatory basis were readmitted.\n\nResults > Analysis of efficacy\nAs for the results of the efficacy analysis, Rubenstein et al. [ 9 ], Minotti et al. [ 6 ], and Sebban et al. [ 4 ] did not find differences between oral versus intravenous administration in low-risk patients with neutropenia. The latter two studies evaluated a monotherapy antibiotic regimen. Malik et al. [ 9 ] found that oral fluoroquinolone monotherapy was equally effective whether administered in hospitals or other settings. Rapoport et al. [ 8 ] likewise obtained similar results in patients receiving classical inpatient care or early discharge with ambulatory therapeutic management. In line with these results, Hidalgo et al. [ 6 ] did not find differences in treatment response between an inpatient i.v. double regimen versus oral monotherapy, administered in ambulatory care following good response to the first dose in hospital and early discharge. These findings were also reproduced by Innes et al. in 2003 [ 5 ], who compared double i.v. therapy in-hospital versus double oral treatment in ambulatory care. For their part, Talcott et al. [ 3 ] did not observe a higher rate of complications using an ambulatory strategy. Finally, Kern et al. [ 2 ] reported similar results between double versus monotherapy in the ambulatory setting.\n\nResults > Analysis of efficacy\nIn the observational studies, Mizuno et al. [ 15 ] suggested that telephone follow-up could be an effective strategy to support ambulatory management. Cooksley et al. [ 23 ] drew similar conclusions, speculating that ambulatory treatment could be more feasible if clinical oncological support were available; this group provided such support in the form of an oncologist on call through a 24 h hotline. Rolston et al. [ 16 ] evaluated an early discharge strategy with gatifloxacin monotherapy 400 mg versus moxifloxacin 400 mg, suggesting that quinolone monotherapy could be a safe and effective intervention in low-risk patients selected using the Talcott criterio [ 3 ] and the MASCC score, respectively. In addition, Hocking et al. [ 19 ] implemented an ambulatory management strategy aligned with Australian practice guidelines in 2012, concluding that this could be a valid strategy for selected patients with solid tumors and low-risk febrile neutropenia. In their retrospective analysis, Weycker et al. [ 21 ] obtained similar results in a sample of patients with mostly solid tumors, a small proportion of whom were treated exclusively as outpatients. Goodman et al. in 2017 [ 22 ] and Poprawski in 2018 [ 20 ] also reached the same conclusion based on their studies, with ratios of 1:1 and 1:3, respectively, of hematological to solid tumors. Goodman et al. [ 22 ] noted that applying social and non-medical criteria in addition to the MASCC score complicated ambulatory treatment approaches in low-risk patients with febrile neutropenia. In the same line as Hocking et al. [ 19 ], Lingaratnam et al. [ 17 ] analyzed the successful implementation of the Australian protocol in a center in Victoria. Even though there was a sizable proportion of patients who could not initially be classified as low risk, their evolution permitted a change to the oral treatment group, and none presented treatment failure.\n\nResults > Cost-effectiveness analysis\nOur search strategy yielded a total of 8 articles with a focus on cost-effectiveness: 1 clinical trial, 2 cohort studies, and 5 other observational studies. The characteristics of the studies (research group, year of publication, country, definition of febrile neutropenia, mean age, design, perspective, source of economic data, length of hospital stay, direct and indirect costs, and summary of results) are shown in annex table 4 .\n\nResults > Cost-effectiveness analysis\nThree studies analyzed the direct costs derived from inpatient management of febrile neutropenia. Kuderer et al. [ 24 ] reported that the health care expenditure from each episode of febrile neutropenia arose mainly from the costs of the hospital stay along with associated infections and comorbidities. Mayordomo et al. [ 25 ] went into more detail, itemizing the costs for each classical intervention and showing that hospitalization accounted for 79% of the costs, followed by antibiotic treatment (10%), CSF (5%), complementary tests (4%), and transfusions (1%). Larger costs were incurred (in-hospital stay, interventions, and complementary tests) in patients with lymphoma compared to breast or lung cancers. Finally, O\u2019Brien et al. [ 26 ] added that health care costs in patients aged 65 years or older were significantly higher.\n\nResults > Cost-effectiveness analysis\nFive included studies assessed the economic impact of an ambulatory-based treatment strategy. In 2000, Elting et al. [ 27 ] found that an ambulatory strategy incurred lower costs than i.v. treatment during admission. In their 2008 cohort [ 28 ], the same group found no differences in the efficacy of hospital versus ambulatory treatment, and even though just 21% of the ambulatory group were readmitted, the cost in that arm was double. In 2011, Hendricks et al. [ 29 ] reported savings of USD 5354 using an ambulatory strategy with early discharge, considering the costs derived from the initial emergency department consultation, complementary studies, home interventions, pharmacological treatment, and daily nurse home visits. In 2017, Teh et al. [ 30 ] reported 2.65 times lower costs after applying an ambulatory strategy in low-risk patients compared to a comparable historic cohort in the same hospital. Finally, Borget et al. [ 31 ] aimed to identify where the largest economic burden came from, comparing the standard hospital strategy versus outpatient treatment in hospital and ambulatory treatment outside of it, reporting successive decreases in costs in each setting.\n\nResults > Analysis of patient-reported quality of life\nPatients\u2019 perceived health was only specifically analyzed in relation to ambulatory treatment strategies by Teuffel et al. in 2011 [ 32 ], who asked cancer patients to hypothetically consider what their preferred treatment strategy would be if they presented febrile neutropenia during the course of their disease. Authors observed that patients generally preferred early discharge plus ambulatory treatment with oral rather than i.v. administration. Patients were willing to renounce up to 10 weeks of their life and pay between USD 255 and USD 327 more if they could avoid hospitalization. However, in individual interviews, some perceptions changed substantially. Details of this research are presented in annex table 5 .\n\nResults > Analysis of patient-reported quality of life\nIn addition, two of the included clinical trials\u2014one by the Talcott group in 2011 and another by Sebban et al. in 2008 [ 4 ]\u2014performed a simple quality of life analysis using two questionnaires. The first applied the European Organization for Research and Treatment of Cancer quality of life questionnaire (EORTC QLQ-C30), a validated, self-administered instrument, finding a significant reduction in the perception of pain in patients from the ambulatory treatment arm. The second applied a quality of life questionnaire 24 h after finalizing treatment, finding no differences between intervention groups.\n\nDiscussion\nSince at least the early 1990s, with Rubenstein et al. [ 10 ], and possibly even before then, there has been recognition that the risk of complications is heterogeneous in populations with febrile neutropenia. The few studies available on this topic have been characterized by the diversity of their aims, approaches, and patient selection criteria. Factors contributing to this heterogeneity include evolving knowledge on the entity; the emergence of new oncological treatments (chemotherapies, CSFs, antibiotics); the growing tendency to simplify treatments to favor adherence and tolerability and to reduce adverse effects; and the decentralization of health care away from hospitals due to associated comorbidity, impaired quality of life, and increased cost.\n\nDiscussion\nThese changes are also reflected in the fact that Minotti et al. [ 7 ] excluded patients with neutrophil counts under 300/\u03bcL because at that time, severe neutropenia, especially with neutrophil counts of less than 100/\u03bcL, was considered a marker of high risk. Later studies do not reflect the application of this criterion. Indeed, the interpretation of our results must consider the variations in the neutrophil count of included and excluded patients. Kern et al. [ 1 ], Sebban et al. [ 4 ], Innes et al. [ 5 ], Hidalgo et al. [ 6 ], and Malik et al. [ 9 ] all included patients with moderate neutropenia (500\u20131000/\u03bcL) with the potential to become severe neutropenia (< 500/\u03bcL). However, only Malik et al. [ 9 ] clarified that the patients whose neutrophil counts did not drop below the 500/\u03bcL threshold were excluded. However, given the inclusion of patients with critical levels of neutropenia in other studies, this distinction may be irrelevant.\n\nDiscussion\nAnother fact suggestive of the diversity of selection criteria is that despite criticism of Talcott\u2019s group and the MASCC and CISNE scales for not considering the neutrophil count as a criterion for risk assessment, the risk associated with this aspect does not seem to determine the appropriateness of managing neutropenia on an ambulatory basis. Indeed, good outcomes were achieved with simplified therapies in the ambulatory setting regardless of the criteria for selecting candidates. In the studies that did report the proportion of patients with neutrophil counts that dipped below 100/\u03bcL (Kern et al. [ 2 ], Talcott et al. [ 3 ], Hidalgo et al. [ 6 ], Minotti et al. [ 7 ], Malik et al. [ 9 ], and Rubenstein et al. [ 10 ]), these proportions were described as similar between groups in all studies but Rubenstein et al.\u2019s, who did not specify.\n\nDiscussion\nRegarding the risk assessment scales, the ASCO 2018 [ 11 ] guidelines recommend the use of MASCC followed by CISNE, while the SEOM 2018 [ 12 ] guidelines prefer only the CISNE. However, the included studies did not evaluate the latter scale as a method to identify candidates for ambulatory care. Moreover, CISNE has not been validated in hematological patients, restricting the subgroups eligible for less aggressive interventions. Furthermore, Ahn et al. [ 33 ] demonstrated that the MASCC had greater discriminatory power than the CISNE for detecting low-risk patients, with greater sensitivity and negative predictive value, resulting in a smaller likelihood of including patients at true high risk of complications in ambulatory regimes. Thus, in 2013, Ahn et al. [ 34 ] already proposed procalcitonin values as an additional parameter for the MASCC to refine the probability of presenting bacteremia or septic shock, in patients at both low and high risk. Even within the latter group, the authors recognized heterogeneous prognoses, calling into question the need for indiscriminately applying aggressive management.\n\nDiscussion\nThe evidence on antibiotic treatment approaches, both for double therapy with amoxycillin/clavulanic acid (or clindamycin in patients with allergies) plus quinolone and for monotherapy with fluoroquinolone, shows good efficacy outcomes in and outside of the hospital setting (Kern et al. [ 2 ], Sebban et al. [ 4 ], Hidalgo et al. [ 6 ], Minotti et al. [ 7 ], Malik et al. [ 9 ]). Despite these results, the ASCO guidelines [ 11 ] continue advising against fluoroquinolone monotherapy for ambulatory management of low-risk patients, while SEOM affirms that the only alternative in penicillin-allergic patients is hospital admission and i.v. treatment.\n\nDiscussion\nIn 20 to 30% of febrile neutropenia cases, the germs responsible are identified, predominantly gram-positive rather than gram-negative bacteria, followed by polymicrobial and fungal infections (Malik et al. [ 9 ], Rapoport et al. [ 8 ], Hidalgo et al. [ 6 ], Minotti et al. [ 7 ], Sebban et al. [ 4 ]). These results are consistent with other available studies in the literature.\n\nDiscussion\nWith respect to the use of CSFs, it has been known for decades, as reported by studies like Mather et al. in 1994 [ 35 ], that these interventions are capable of reducing the mean duration of the neutropenia by 1 day as well as the total time needed for resolution, although not the total days of fever. No study has explained how authors decided to administer this treatment, describing the criteria, type of neoplasm, level of neutrophils, or timing of administration (from the last session of chemotherapy or emergency presentation). Similarly, the literature has not explored how CSFs may have influenced the outcome (patient recovery or the success of the treatment strategy). There are also gaps in research investigating whether prescribing CSFs would result in savings given the implicit pharmacological costs associated with hospitalizing these patients in a hospital or their home, and whether it would be possible to reduce the duration of antibiotic therapy in patients with a fever of unknown origin and negative culture.\n\nDiscussion\nSeveral strategies for ambulatory follow-up have been evaluated, including home visits from health professionals, hotlines, scheduled telephone calls, and outpatient hospital visits. However, no studies have compared these interventions with each other to assess treatment response, adverse effects, cost-efficiency, or quality of life. These aspects could be the focus of future lines of research.\n\nDiscussion\nAlthough teenagers were not included as population in our systematic review, because we excluded studies with population under 19 years old in our criteria research, in many countries, they are treated around 16 years old in emergency departments as adults. Authors, such as Klastersky et al. [ 36 ], carried on an early discharge strategy after 24 h, til 48 h in many of the episodes of febrile neutropenia in people that includeed 16 years old teenagers [ 36 ].\n\nDiscussion\nTheir results show that we could safely proceed in low-risk teenagers according to MASK score, in the same way as adults with an oral combination therapy of peniciline and quinolones, if not allergic, with a proposed followed up by phone, temperature control each/6 h, and blood control test each 48 h until accomplishing criteria of recovering. We should highlight in this investigation team, they first give a definition more than absence of hospital readmission as a criteria of succes of oral empirical therapy as 5 days without fever, no clinic symptoms, and signs of infection and pathogen erradication.\n\nDiscussion\nWithin the sphere of ambulatory management, four studies proposed that patients receive hemograms every 2 to 3 days after discharge, at least until achieving neutrophil counts of 1000/\u03bcL, indicating mild neutropenia (Goodman et al. [ 22 ], Kern et al. [ 2 ], Sebban et al. [ 4 ], Hocking et al. [ 19 ]). Although several studies have evaluated the cost of ambulatory follow-up, there has been no calculation of the specific cost of such controls, which could generate substantial amounts of research information. It may be appropriate to restrict these control visits to cases with poor evolution or to limit them to one visit at the end of treatment.\n\nDiscussion\nMany studies have limited ambulatory approaches to patients who live at some distance from the reference center or hospital (Kern et al. [ 2 ], Hidalgo et al. [ 6 ], Talcott et al. [ 3 ], Minotti et al. [ 7 ], Rubenstein et al. [ 10 ], Rolston et al. [ 18 ], Lingaratnam et al. [ 17 ]). To reduce the population of low-risk patients excluded from this strategy, future research could also assess the efficacy, patient satisfaction, and cost-efficiency associated with strategies in coordination with primary health care teams, for patients who live far from the hospital and whose only limitation for inclusion in an ambulatory regime is distance.\n\nDiscussion\nAvailable studies suggest than an ambulatory strategy for low-risk patients with febrile neutropenia is cost-efficient as well as effective. This is true for interventions assessed both in clinical trials (Hendricks et al. [ 29 ], Elting et al. [ 27 ]) and in prospective studies, for example, in those evaluating the implementation of new protocols compared to data from historical cohorts fulfilling the same criteria (Teh et al. [ 30 ], Mayordomo et al. [ 25 ]). Economic studies should be considered in light of potential differences in the source of economic data and their perspective. Establishing the most appropriate design to allow comparison with other studies can be complicated because health systems are not managed the same across different countries, nor is access to different therapeutic options the same in privately managed systems. Thus, in future studies, it will be necessary to establish quality criteria in order to favor reliability and comparability of the economic data obtained.\n\nDiscussion\nWith regard to quality of life, Teuffel et al. [ 37 ] suggested that patients prefer ambulatory strategies, although data did not show differences in the short quality of life evaluations performed in two clinical trials in people with febrile neutropenia. In any case, more structured trials that specifically aim to assess this domain are needed before drawing any firm conclusions.\n\nDiscussion\nDespite the positive evidence, fewer patients benefit from ambulatory strategies than expected (for clinical, socioeconomic, and geographic reasons). Health services still seem reluctant to implement the action protocols in low-risk patients that are recommended by national and international clinical practice guidelines, even though these tightly restrict the application of ambulatory models.\n\nDiscussion\nAvailable evidence on efficacy, quality of life, and cost-efficiency seems to support ambulatory approaches for low-risk patients with febrile neutropenia. The main societies and services involved in managing these patients should establish more standardized priorities and criteria to guide future research and reach more definitive conclusions. Studies are needed to analyze the facillitators and barriers for the instigation and maintenance of an ambulatory febrile neutropenia management programmes.",
+        "body_excerpts_sha256": "869443b672a8e81d03f285f9f6c0fda096dee1aebec24c33f923e3df9516740a",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10624743/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "41521418",
+        "title": "Consensus guidelines for ambulatory care for neutropenic fever.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41521418/",
+        "abstract": "These guidelines provide updated recommendations on ambulatory care for low-risk neutropenic fever in adult and paediatric patients. National and international data support the clinical, economic and psychosocial benefits of risk stratification, and home-based or reduced intensity treatment of neutropenic fever. Benefits include shortened in-hospital length of stay, reduced healthcare costs, early intravenous to oral switch and improved patient and caregiver quality of life. Since publication of the 2011 Australian consensus guidelines, additional adult and paediatric neutropenic fever clinical decision rules have been derived and validated. These rules assist clinicians in stratifying patients into lower or higher risk of serious infection. For adult patients the Multinational Association of Supportive Care in Cancer and the Clinical Index of Stable Febrile Neutropenia scores are recommended, whereas for paediatric patients the AUS rule has been prospectively derived and validated in the Australian setting. These rules are recommended as part of a structured low-risk neutropenic fever care pathway that incorporates additional disease-level, treatment-level and patient-level safety net criteria. Key infrastructure requirements for cost-effective and safe hospital-based ambulatory neutropenic fever care are discussed, as are recommended oral antimicrobial regimens and criteria for re-admission. Biomarkers and the use of new and wearable technologies are currently not routinely recommended as part of risk stratification or monitoring. Gaps in the literature are summarised and are anticipated to be the focus of future updates to these guidelines.",
+        "sha256": "58cb36d94c9e2c1714ad9988c344720c3472e0af596ba934c94955c9206bd6fd",
+        "retrieved_at": "2026-09-19T03:39:42.882844+00:00",
+        "source_type": "primary_society_consensus"
+      },
+      {
+        "id": "33230644",
+        "title": "Emerging challenges in the evaluation of fever in cancer patients at risk of febrile neutropenia in the era of COVID-19: a MASCC position paper.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33230644/",
+        "abstract": "Patients with cancer are at higher risk of more severe COVID-19 infection and have more associated complications. The position paper describes the management of cancer patients, especially those receiving anticancer treatment, during the COVID-19 pandemic. Dyspnea is a common emergency presentation in patients with cancer with a wide range of differential diagnoses, including pulmonary embolism, pleural disease, lymphangitis, and infection, of which SARS-CoV-2 is now a pathogen to be considered. Screening interviews to determine whether patients may be infected with COVID-19 are imperative to prevent the spread of infection, especially within healthcare facilities. Cancer patients testing positive with no or minimal symptoms may be monitored from home. Telemedicine is an option to aid in following patients without potential exposure. Management of complications of systemic anticancer treatment, such as febrile neutropenia (FN), is of particular importance during the COVID-19 pandemic where clinicians aim to minimize patients' risk of infection and need for hospital visits. Outpatient management of patients with low-risk FN is a safe and effective strategy. Although the MASCC score has not been validated in patients with suspected or confirmed SARS-CoV-2, it has nevertheless performed well in patients with a range of infective illnesses and, accordingly, it is reasonable to expect efficacy in the clinical setting of COVID-19. Risk stratification of patients presenting with FN is a vital tenet of the evolving sepsis and pandemic strategy, necessitating access to locally formulated services based on MASCC and other national and international guidelines. Innovative oncology services will need to utilize telemedicine, hospital at home, and ambulatory care services approaches not only to limit the number of hospital visits but also to anticipate the complications of the anticancer treatments.",
+        "sha256": "dd0da53b7f4615a70d66a24e90139eb33e1551637b237098c80521c508a28de6",
+        "retrieved_at": "2026-09-19T03:39:45.405641+00:00",
+        "pmcid": "PMC7682766"
+      },
+      {
+        "id": "42161653",
+        "title": "[Chinese guidelines for the clinical application of antibacterial drugs for febrile neutropenia (2026)].",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/42161653/",
+        "abstract": "Febrile neutropenia is associated with a high risk of infection-related mortality if appropriate antimicrobial therapy is not initiated promptly. In recent years, the diagnostic and therapeutic concepts for febrile neutropenia have substantially advanced, along with new epidemiological data on pathogens, particularly drug-resistant bacteria. According to evidence-based medical evidence from both domestic and international sources, the Chinese Society of Hematology, Chinese Medical Association and Chinese Medical Doctor Association, Hematology Branch organized experts in related fields to update the 2020 edition guidelines. The GRADE method was employed to develop revised recommendations for evidence quality assessment and recommendation strength grading.",
+        "sha256": "0fea09d6f48838ee123569d94076c1166265e510d0aef2ae6c39f674a590a1d0",
+        "retrieved_at": "2026-09-19T03:39:45.405641+00:00",
+        "pmcid": "PMC13195557"
+      },
+      {
+        "id": "36443464",
+        "title": "Dutch pharmacogenetics working group (DPWG) guideline for the gene-drug interaction between UGT1A1 and irinotecan.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36443464/",
+        "abstract": "The Dutch Pharmacogenetics Working Group (DPWG) aims to facilitate PGx implementation by developing evidence-based pharmacogenetics guidelines to optimize pharmacotherapy. This guideline describes the starting dose optimization of the anti-cancer drug irinotecan to decrease the risk of severe toxicity, such as (febrile) neutropenia or diarrhoea. Uridine diphosphate glucuronosyl transferase 1A1 (UGT1A1 encoded by the UGT1A1 gene) enzyme deficiency increases risk of irinotecan-induced toxicity. Gene variants leading to UGT1A1 enzyme deficiency (e.g. UGT1A1*6, *28 and *37) can be used to optimize an individual's starting dose thereby preventing carriers from toxicity. Homozygous or compound heterozygous carriers of these allele variants are defined as UGT1A1 poor metabolisers (PM). DPWG recommends a 70% starting dose in PM patients and no dose reduction in IM patients who start treatment with irinotecan. Based on the DPWG clinical implication score, UGT1A1 genotyping is considered \"essential\", indicating that UGT1A1 testing must be performed prior to initiating irinotecan treatment.",
+        "sha256": "f379187c261eccf1f9da939172885c80ee34f5a9d8691ebbaeb60313eebc6c0e",
+        "retrieved_at": "2026-09-19T03:39:46.536674+00:00",
+        "pmcid": "PMC10474017"
+      },
+      {
+        "id": "41740078",
+        "title": "WBC Growth Factors: ASCO Guideline Update.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41740078/",
+        "abstract": "To update the ASCO guideline on use of hematopoietic colony-stimulating factors (CSFs) in patients with cancer.\nA systematic review identified randomized controlled trials (RCTs), meta-analyses, and systematic reviews that addressed use of CSFs for the prevention or treatment of neutropenic events, or for mobilization of stem cells, in adults with cancer. PubMed and the Cochrane Library were searched for articles published from September 1, 2014, to August 22, 2025. ASCO convened an Expert Panel to review the evidence and formulate recommendations.\nThe updated systematic review included 33 RCTs and 16 systematic reviews. Additions to the body of evidence include approval of new CSFs and additional biosimilars, and approval of an additional CXCR4 inhibitor that may be used with CSFs for the mobilization of hematopoietic stem cells.\nProphylactic use of CSFs to reduce the risk of febrile neutropenia is warranted when the risk of febrile neutropenia from chemotherapy is approximately 20% or higher and no other equally effective and safe regimen that does not require CSFs is available. For patients receiving chemotherapy with a <20% risk of febrile neutropenia, primary prophylaxis with a CSF may be warranted if patients are at a high risk of febrile neutropenia based on age, medical history, or disease characteristics. For stem-cell mobilization, CSFs may be used either alone, after chemotherapy, or in combination with plerixafor or motixafortide. The guideline also provides information about the dosing and selection of CSFs.Additional information is available at www.asco.org/supportive-care-guidelines.",
+        "sha256": "3715a53aa783e645cb05365d882ba292644f79d41b2df39e4ebb62be138aaac9",
+        "retrieved_at": "2026-09-19T03:39:46.536674+00:00"
+      },
+      {
+        "id": "38099468",
+        "title": "Canadian Association of Radiologists Thoracic Imaging Referral Guideline.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38099468/",
+        "abstract": "The Canadian Association of Radiologists (CAR) Thoracic Expert Panel consists of radiologists, respirologists, emergency and family physicians, a patient advisor, and an epidemiologist/guideline methodologist. After developing a list of 24 clinical/diagnostic scenarios, a rapid scoping review was undertaken to identify systematically produced referral guidelines that provide recommendations for one or more of these clinical/diagnostic scenarios. Recommendations from 30 guidelines and contextualization criteria in the Grading of Recommendations, Assessment, Development, and Evaluations (GRADE) for guidelines framework were used to develop 48 recommendation statements across the 24 scenarios. This guideline presents the methods of development and the referral recommendations for screening/asymptomatic individuals, non-specific chest pain, hospital admission for non-thoracic conditions, long-term care admission, routine pre-operative imaging, post-interventional chest procedure, upper respiratory tract infection, acute exacerbation of asthma, acute exacerbation of chronic obstructive pulmonary disease, suspect pneumonia, pneumonia follow-up, immunosuppressed patient with respiratory symptoms/febrile neutropenia, chronic cough, suspected pneumothorax (non-traumatic), clinically suspected pleural effusion, hemoptysis, chronic dyspnea of non-cardiovascular origin, suspected interstitial lung disease, incidental lung nodule, suspected mediastinal lesion, suspected mediastinal lymphadenopathy, and elevated diaphragm on chest radiograph.",
+        "sha256": "df0001cab0b6706ba8b7d6d594cad796d39f099f4b2a0d28004618c67099e151",
+        "retrieved_at": "2026-09-19T03:39:47.149135+00:00"
+      },
+      {
+        "id": "38517658",
+        "title": "Effectiveness and safety of primary prophylaxis of granulocyte colony-stimulating factor during dose-dense chemotherapy for urothelial cancer: Clinical Practice Guidelines for the Use of G-CSF 2022.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38517658/",
+        "abstract": "Granulocyte colony-stimulating factor (G-CSF) decreases the incidence, duration, and severity of febrile neutropenia (FN); however, dose reduction or withdrawal is often preferred in the management of adverse events in the treatment of urothelial cancer. It is also important to maintain therapeutic intensity in order to control disease progression and thereby relieve symptoms, such as hematuria, infection, bleeding, and pain, as well as to prolong the survival. In this clinical question, we compared treatment with primary prophylactic administration of G-CSF to maintain therapeutic intensity with conventional standard therapy without G-CSF and examined the benefits and risks as major outcomes. A detailed literature search for relevant studies was performed using PubMed, Ichu-shi Web, and Cochrane Library. Data were extracted and evaluated independently by two reviewers. A qualitative analysis of the pooled data was performed, and the risk ratios with corresponding confidence intervals were calculated and summarized in a meta-analysis. Seven studies were included in the qualitative analysis, two of which were reviewed in the meta-analysis of dose-dense methotrexate, vinblastine, doxorubicin, and cisplatin (MVAC) therapy, and one randomized controlled study showed a reduction in the incidence of FN. Primary prophylactic administration of G-CSF may be beneficial, as shown in a randomized controlled study of dose-dense MVAC therapy. However, there are no studies on other regimens, and we made a \"weak recommendation to perform\" with an annotation of the relevant regimen (dose-dense MVAC).",
+        "sha256": "e734f293bdc763c1832cc6ac4b843ec3364725bf0652dc70184ab237b0a0022a",
+        "retrieved_at": "2026-09-19T03:39:47.149135+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "A MASCC score of 23 (\u226521) supports classification as low risk, but it does not by itself determine suitability for ambulatory care. The 2025 consensus guideline recommends using MASCC as part of a structured pathway that also assesses disease-, treatment-, and patient-level safety criteria. Relevant factors here include anticipated neutropenia lasting under 7 days, clinical stability after observation, absence of organ dysfunction or severe focal infection, ability to take oral medication, caregiver and transport availability, proximity to the hospital, 24-hour clinical access, and explicit plans for ongoing antimicrobials, reassessment, and rapid readmission. The systematic review likewise shows that ambulatory studies used additional clinical and psychosocial selection criteria and reported readmission rates of 6\u201320%. Thus, B appropriately interprets the score as one component rather than sufficient proof of ambulatory eligibility.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.97,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37921996"
+              ],
+              "source_passage_ids": [
+                "37921996:p11",
+                "37921996:p12"
+              ],
+              "reason": "The review states that MASCC scores of at least 21 predict low risk and that included studies generally used 21 as the cutoff.",
+              "source_quotes": [
+                {
+                  "source_id": "37921996",
+                  "quote": "2018 [ 20 ] AST aspartate transaminase, ALT alanine aminotransferase, eGFR estimated glomerular filtration rate Results > Description of included studies At present, there are three available scales for estimating the risk of medical complications in patients with febrile neutropenia: the rules developed by Talcott et al. [ 3 ] and the MASCC [ 13 ] (from 0 to 26 points, a score \u2265 21 is predictive of low risk) and CISNE [ 14 ] (from 0 to 8 points, with three levels of risk: I or low \u2265 2; II or intermediate \u2265 4; and III or high > 4). These validated scoring systems assume neutropenia and fever status for certain patients without regard to the severity or duration of the neutropenia as predictors of medical complications, which could require or prolong hospitalization."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "Results > Description of included studies Validated criteria have been used to identify patients with febrile neutropenia at low risk in clinical trials (since 2008) and observational studies (since 2010). Except for the studies by Talcott et al. [ 3 ], Mizuno et al. [ 15 ], and Rolston et al. [ 16 ], which use the Talcott criteria [ 3 ], all other clinical trials and observational studies have used the MASCC score, generally with a cutoff of 21 points to define low risk (Kern et al. [ 1 ] used a cutoff of 20 points). No included studies used the CISNE scale. However, some studies have employed clinical, biochemical, and sometimes psychosocial criteria to establish risk levels, including the studies by Rubenstein et al. [ 10 ] and Hidalgo et al. [ 6 ]. Likewise, Weycker et al."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "41521418"
+              ],
+              "source_passage_ids": [
+                "41521418:p1"
+              ],
+              "reason": "The consensus explicitly recommends adult MASCC and CISNE scores only as parts of a structured pathway that also incorporates disease-, treatment-, and patient-level safety criteria.",
+              "source_quotes": [
+                {
+                  "source_id": "41521418",
+                  "quote": "For adult patients the Multinational Association of Supportive Care in Cancer and the Clinical Index of Stable Febrile Neutropenia scores are recommended, whereas for paediatric patients the AUS rule has been prospectively derived and validated in the Australian setting. These rules are recommended as part of a structured low-risk neutropenic fever care pathway that incorporates additional disease-level, treatment-level and patient-level safety net criteria. Key infrastructure requirements for cost-effective and safe hospital-based ambulatory neutropenic fever care are discussed, as are recommended oral antimicrobial regimens and criteria for re-admission. Biomarkers and the use of new and wearable technologies are currently not routinely recommended as part of risk stratification or monitoring."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37921996"
+              ],
+              "source_passage_ids": [
+                "37921996:p5",
+                "37921996:p6",
+                "37921996:p7",
+                "37921996:p8",
+                "37921996:p9",
+                "37921996:p10",
+                "37921996:p12"
+              ],
+              "reason": "The review documents additional clinical, biochemical, psychosocial, and logistical criteria, including exclusions for prolonged neutropenia, organ dysfunction, gastrointestinal barriers to oral therapy, absent caregivers, excessive travel distance, and deterioration during observation.",
+              "source_quotes": [
+                {
+                  "source_id": "37921996",
+                  "quote": "We also included studies that analyzed the costs of different interventions or evaluated patient-reported quality of life according to the applied treatment strategy. Results > Description of included studies The criteria for defining the concepts of fever and neutropenia in different studies are presented in annex tables 2 and 3 . Included studies used heterogeneous criteria to define risk levels in their samples (Table 1 ). Table 1. Exclusion criteria for low-risk treatment group, by organ, organ system, or medical specialty Criteria Studies Cardiovascular system Heart failure Hidalgo et al. 1999 [ 6 ] Hypotension Talcot et al. 2011 [ 3 ], Hidalgo et al. 1999 [ 5 ], Minoti et al. 1995 [ 7 ], Rubenstein et al. 1993 [ 9 ] (< 90 mmHg), and Mizuno et al. 2006 [ 15 ] Taking drugs causing QT prolongation Sotalol and dofetilide in Rolston et al."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "2003 [ 16 ] Respiratory system Tachypnea/respiratory insufficiency Talcott et al. 2011 [ 3 ], Minotti et al. 1999 [ 7 ] and Rubenstein et al. 1993 [ 10 ] (> 30 bpm), and Mizuno et al. 2006 [ 15 ] Nervous system/psychiatry Impaired consciousness Talcot et al. 2011 [ 3 ], Hidalgo et al. 1999 [ 6 ] Unfavorable psychological status Sebban et al. 2008 [ 4 ], Rapoport et al. 1999 [ 8 ], Linaratnam et al. 2013 [ 17 ] Kidney Acute kidney failure Oliguria/anuria Talcott et al. 2011 [ 3 ], Rapoport et al. 1999 [ 8 ], Malik et al. 1995 [ 9 ] (dialysis); Minotti et al. 1999 [ 7 ] (eGFR < 30 ml/min); Rolston et al. 2010 [ 18 ], Rolston et al. 2003 [ 16 ], and Rubenstein et al. 1993 [ 10 ] (eGFR < 50 ml min or creatinine > 2.5 mg/dl) Hidalgo et al. 1999 [ 6 ] Liver Liver failure Rolston et al. 2010 [ 18 ], Rolston et al. 2003 [ 16 ], Malik et al. 1995 [ 9 ], Rubenstein et al."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "1993 [ 10 ], and Hocking et al. 2012 [ 19 ] (AST, ALT > 4\u00d7 normal), Sebban et al. 2008 [ 3 ] (AST, ALT > 5\u00d7 normal) Digestive system Nausea, vomiting, diarrhea Mizuno et al. 2006 [ 15 ] Severe mucositis Hocking et al. 2012 [ 19 ] and Mizuno et al. 2006 [ 15 ] Dysphagia Talcott et al. 2011 [ 3 ], Hidalgo et al. 1999 [ 6 ], Malik et al. 1995 [ 9 ], and Poprawski et al. 2018 [ 20 ] Endocrine system Malnutrition Lingaratnam et al. 2013 [ 17 ] and Mizuno et al. 2006 [ 15 ] Metabolism Acidosis Hidalgo et al. 1999 [ 6 ] Hyponatremia Rubenstein et al. 1993 [ 10 ] (< 128 mg/dl) Uncontrolled hypercalcemia Rubenstein et al. 1993 [ 10 ] Hematology Altered coagulation Hidalgo et al. 1999 [ 6 ] Prolonged neutropenia Malik et al. 1995 [ 9 ] (> 7 d), Lingaratnam et al. 2013 [ 17 ] (> 7 d) Use of granulocyte colony-stimulating factors Minotti et al."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "1999 [ 7 ] Transplant patients with hematopoietic parents Rapoport et al. 1999 [ 7 ], Minotti et al. 1999 [ 7 ], and Weyckert et al. 2014 [ 21 ] Absolute neutrophil count \u2264 0.5 \u00d7 10 9 /L 24 h Rapoport et al. 1999 [ 8 ] Infectious diseases HIV Rapoport et al. 1999 [ 8 ] Confirmed/severe site infection Poprawski et al. 2018 [ 20 ], Lingaratnam et al. 2013 [ 17 ], Rolston et al. 2010 [ 18 ], and Hidalgo et al. 1999 [ 6 ] Previous use of antibiotics 14 days prior to recruitment, Rapoport et al. 1999 [ 8 ]; 5 days prior, Minotti et al. 1999 [ 7 ]; 4 days prior, Sebban et al. 2008 [ 4 ] and Kern et al. 2013 [ 2 ] (except 1 oral dose or IV in the previous 8 h); 96 h days prior, Hidalgo et al. 1999 [ 6 ] and Malik et al. 1995 [ 9 ]; and prophylactic quinolones, Goodman et al."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "2017 [ 22 ] Gynecology Pregnant or breastfeeding All clinical trials and observational studies Other No decrease in fever Rapoport et al. 1999 [ 8 ] and Poprawski et al. 2018 [ 20 ] Last cycle of chemotherapy < 12 days prior Weycker et al. 2014 [ 21 ] Allergy to the antibiotic used All clinical trials and observational studies Recurrent fever of unknown origin Malik et al. 1995 [ 9 ] More than one primary tumor Weycker et al. 2014 [ 21 ] Poor treatment adherence Innes et al. 2003 [ 5 ] Admitted for other reason Hocking et al. 2012 [ 19 ] Lack of written informed consent All clinical trials and observational studies Absence of caregiver Talcott et al. 2011 (24 h) [ 3 ], Sebban et al. 2008 [ 4 ], Innes et al. 2003 [ 5 ], Hidalgo et al. 1999 [ 6 ] (24 h) Patient refusal Sebban et al. 2008 [ 4 ] Distance between residence and reference center Kern et al. 2013 (>1 h) [ 2 ]; Hidalgo et al."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "1999 [ 6 ] and Talcott et al. 2011 (>2 h) [ 3 ]; Minotti et al. 1999 [ 7 ] (> 20 miles [32 km] from hospital), Rubenstein et al. 1993 [ 10 ] and Rolston et al. 2003 [ 16 ] (> 30 miles [48 km] from hospital), Lingaratnam et al. 2013 [ 17 ] (> 40 km radius) Decline following observation period Kern et al. 2013 [ 2 ], Sebban et al. 2008 [ 3 ], Innes et al. 2003 [ 5 ], Rapoport et al. 1999 [ 8 ], Rubenstein et al. 1993 [ 10 ] Progression of underlying illness Hidalgo et al. 1999 [ 6 ] and no remission in leukemia in Talcott et al. 2011 [ 3 ] Hematological neoplasms Lingaratnam et al. 2013 [ 17 ] Prior episode of febrile neutropenia included in the study Rapoport et al. 1999 [ 8 ] Ease of obtaining educational requirements Poprawski et al."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "Results > Description of included studies Validated criteria have been used to identify patients with febrile neutropenia at low risk in clinical trials (since 2008) and observational studies (since 2010). Except for the studies by Talcott et al. [ 3 ], Mizuno et al. [ 15 ], and Rolston et al. [ 16 ], which use the Talcott criteria [ 3 ], all other clinical trials and observational studies have used the MASCC score, generally with a cutoff of 21 points to define low risk (Kern et al. [ 1 ] used a cutoff of 20 points). No included studies used the CISNE scale. However, some studies have employed clinical, biochemical, and sometimes psychosocial criteria to establish risk levels, including the studies by Rubenstein et al. [ 10 ] and Hidalgo et al. [ 6 ]. Likewise, Weycker et al."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37921996",
+                "41521418"
+              ],
+              "source_passage_ids": [
+                "37921996:p1",
+                "37921996:p16",
+                "41521418:p0",
+                "41521418:p1"
+              ],
+              "reason": "Both sources support ambulatory or reduced-intensity care for appropriately selected low-risk patients, including adults, as an alternative to routine hospitalization.",
+              "source_quotes": [
+                {
+                  "source_id": "37921996",
+                  "quote": "In conclusion, based on current evidence, ambulatory management of febrile neutropenia is safe, more cost-effective than inpatient care, and capable of improving quality of life in oncological patients with this complication. Ambulatory care seems to be an effective alternative to hospitalization in these patients. Introduction Neutropenia is a risk factor for certain infections that may appear as a frequent and severe complication in oncological patients; its only typical symptom is fever [ 1 ]. Introduction This entity has classically been treated through hospitalized management and intravenous (i.v.) administration of wide-spectrum antibiotics in all patients. Currently, only a fraction of patients with febrile neutropenia present serious complications, and there is evidence of a diverse prognostic spectrum [ 2 \u2013 10 ]."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "[ 16 ] evaluated an early discharge strategy with gatifloxacin monotherapy 400 mg versus moxifloxacin 400 mg, suggesting that quinolone monotherapy could be a safe and effective intervention in low-risk patients selected using the Talcott criterio [ 3 ] and the MASCC score, respectively. In addition, Hocking et al. [ 19 ] implemented an ambulatory management strategy aligned with Australian practice guidelines in 2012, concluding that this could be a valid strategy for selected patients with solid tumors and low-risk febrile neutropenia. In their retrospective analysis, Weycker et al. [ 21 ] obtained similar results in a sample of patients with mostly solid tumors, a small proportion of whom were treated exclusively as outpatients. Goodman et al."
+                },
+                {
+                  "source_id": "41521418",
+                  "quote": "These guidelines provide updated recommendations on ambulatory care for low-risk neutropenic fever in adult and paediatric patients. National and international data support the clinical, economic and psychosocial benefits of risk stratification, and home-based or reduced intensity treatment of neutropenic fever. Benefits include shortened in-hospital length of stay, reduced healthcare costs, early intravenous to oral switch and improved patient and caregiver quality of life. Since publication of the 2011 Australian consensus guidelines, additional adult and paediatric neutropenic fever clinical decision rules have been derived and validated. These rules assist clinicians in stratifying patients into lower or higher risk of serious infection."
+                },
+                {
+                  "source_id": "41521418",
+                  "quote": "For adult patients the Multinational Association of Supportive Care in Cancer and the Clinical Index of Stable Febrile Neutropenia scores are recommended, whereas for paediatric patients the AUS rule has been prospectively derived and validated in the Australian setting. These rules are recommended as part of a structured low-risk neutropenic fever care pathway that incorporates additional disease-level, treatment-level and patient-level safety net criteria. Key infrastructure requirements for cost-effective and safe hospital-based ambulatory neutropenic fever care are discussed, as are recommended oral antimicrobial regimens and criteria for re-admission. Biomarkers and the use of new and wearable technologies are currently not routinely recommended as part of risk stratification or monitoring."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37921996"
+              ],
+              "source_passage_ids": [
+                "37921996:p14",
+                "37921996:p15",
+                "37921996:p30"
+              ],
+              "reason": "The reviewed ambulatory strategies continued antimicrobial treatment and used telephone, hotline, home-visit, or outpatient follow-up; the review expressly states that these follow-up strategies were not compared with one another.",
+              "source_quotes": [
+                {
+                  "source_id": "37921996",
+                  "quote": "[ 4 ] did not find differences between oral versus intravenous administration in low-risk patients with neutropenia. The latter two studies evaluated a monotherapy antibiotic regimen. Malik et al. [ 9 ] found that oral fluoroquinolone monotherapy was equally effective whether administered in hospitals or other settings. Rapoport et al. [ 8 ] likewise obtained similar results in patients receiving classical inpatient care or early discharge with ambulatory therapeutic management. In line with these results, Hidalgo et al. [ 6 ] did not find differences in treatment response between an inpatient i.v. double regimen versus oral monotherapy, administered in ambulatory care following good response to the first dose in hospital and early discharge. These findings were also reproduced by Innes et al. in 2003 [ 5 ], who compared double i.v."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "therapy in-hospital versus double oral treatment in ambulatory care. For their part, Talcott et al. [ 3 ] did not observe a higher rate of complications using an ambulatory strategy. Finally, Kern et al. [ 2 ] reported similar results between double versus monotherapy in the ambulatory setting. Results > Analysis of efficacy In the observational studies, Mizuno et al. [ 15 ] suggested that telephone follow-up could be an effective strategy to support ambulatory management. Cooksley et al. [ 23 ] drew similar conclusions, speculating that ambulatory treatment could be more feasible if clinical oncological support were available; this group provided such support in the form of an oncologist on call through a 24 h hotline. Rolston et al."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "There are also gaps in research investigating whether prescribing CSFs would result in savings given the implicit pharmacological costs associated with hospitalizing these patients in a hospital or their home, and whether it would be possible to reduce the duration of antibiotic therapy in patients with a fever of unknown origin and negative culture. Discussion Several strategies for ambulatory follow-up have been evaluated, including home visits from health professionals, hotlines, scheduled telephone calls, and outpatient hospital visits. However, no studies have compared these interventions with each other to assess treatment response, adverse effects, cost-efficiency, or quality of life. These aspects could be the focus of future lines of research."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "Answer B is independently preferable. A MASCC score of 23 supports classification as low risk but does not by itself establish safe ambulatory disposition. The current consensus expressly places MASCC within a broader pathway incorporating disease, treatment, patient, and service-level safety criteria. The chart supplies relevant favorable factors\u2014solid tumor, anticipated neutropenia under seven days, restored oral intake, stable physiology and organ function, caregiver and transport access, and urgent reassessment capability\u2014but antimicrobial therapy is still ongoing, so B appropriately calls for integrated assessment and a continuing treatment, reassessment, and readmission plan rather than declaring discharge eligibility. It does not invent a drug regimen, observation interval, or monitoring schedule. Candidate A is the intentionally unsafe option because it treats the score as sufficient and disregards additional clinical and logistical assessment. The visible title, question, and notes do not state the intended answer or a discharge plan. This decision is distinct from the previous febrile-neutropenia case, which tested immediate empiric antibiotic initiation; the present case tests interpretation of risk stratification and ambulatory-care eligibility after initial treatment has begun."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "A MASCC score of 23 is above the commonly used low-risk cutoff of 21, so it supports considering ambulatory or early-discharge management. However, the sources do not support using MASCC alone to determine the care setting. The 2025 consensus guideline states that MASCC/CISNE scores should be used as part of a structured low-risk neutropenic fever pathway incorporating additional disease-level, treatment-level, and patient-level safety-net criteria. The systematic review similarly describes ambulatory care as safe for selected low-risk patients, with selection/exclusion criteria extending beyond MASCC, including expected duration of neutropenia, clinical stability, organ dysfunction, focal infection, mucositis/dysphagia, oral tolerance, pregnancy/breastfeeding, antibiotic allergy, caregiver availability, distance/transport, observation course, follow-up, and readmission arrangements. In this patient, the MASCC score is reassuring, but it should be integrated with her solid tumor/docetaxel context, expected neutropenia under 7 days, resolved dehydration, clinical stability, oral tolerance, home support, proximity to hospital, 24-hour contact line, and plans for antimicrobial continuation and urgent reassessment/readmission. Therefore B is the appropriate interpretation; A overstates the MASCC score as sufficient by itself.",
+          "confidence": 0.97
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "37921996"
+              ],
+              "reason": "The systematic review states that MASCC is a validated scale with score >=21 predictive of low risk, and that ambulatory clinical trials/observational studies generally used a MASCC cutoff of 21 to define low risk.",
+              "source_passage_ids": [
+                "37921996:p11",
+                "37921996:p12"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37921996",
+                  "quote": "2018 [ 20 ] AST aspartate transaminase, ALT alanine aminotransferase, eGFR estimated glomerular filtration rate Results > Description of included studies At present, there are three available scales for estimating the risk of medical complications in patients with febrile neutropenia: the rules developed by Talcott et al. [ 3 ] and the MASCC [ 13 ] (from 0 to 26 points, a score \u2265 21 is predictive of low risk) and CISNE [ 14 ] (from 0 to 8 points, with three levels of risk: I or low \u2265 2; II or intermediate \u2265 4; and III or high > 4). These validated scoring systems assume neutropenia and fever status for certain patients without regard to the severity or duration of the neutropenia as predictors of medical complications, which could require or prolong hospitalization."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "Results > Description of included studies Validated criteria have been used to identify patients with febrile neutropenia at low risk in clinical trials (since 2008) and observational studies (since 2010). Except for the studies by Talcott et al. [ 3 ], Mizuno et al. [ 15 ], and Rolston et al. [ 16 ], which use the Talcott criteria [ 3 ], all other clinical trials and observational studies have used the MASCC score, generally with a cutoff of 21 points to define low risk (Kern et al. [ 1 ] used a cutoff of 20 points). No included studies used the CISNE scale. However, some studies have employed clinical, biochemical, and sometimes psychosocial criteria to establish risk levels, including the studies by Rubenstein et al. [ 10 ] and Hidalgo et al. [ 6 ]. Likewise, Weycker et al."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "41521418"
+              ],
+              "reason": "The 2025 consensus abstract explicitly recommends adult MASCC and CISNE scores as part of a structured low-risk neutropenic fever pathway incorporating disease-level, treatment-level, and patient-level safety-net criteria.",
+              "source_passage_ids": [
+                "41521418:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "41521418",
+                  "quote": "For adult patients the Multinational Association of Supportive Care in Cancer and the Clinical Index of Stable Febrile Neutropenia scores are recommended, whereas for paediatric patients the AUS rule has been prospectively derived and validated in the Australian setting. These rules are recommended as part of a structured low-risk neutropenic fever care pathway that incorporates additional disease-level, treatment-level and patient-level safety net criteria. Key infrastructure requirements for cost-effective and safe hospital-based ambulatory neutropenic fever care are discussed, as are recommended oral antimicrobial regimens and criteria for re-admission. Biomarkers and the use of new and wearable technologies are currently not routinely recommended as part of risk stratification or monitoring."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37921996"
+              ],
+              "reason": "The systematic review describes heterogeneous non-score eligibility/exclusion criteria, including organ dysfunction, digestive intolerance features, prolonged neutropenia, caregiver/distance/logistical criteria, and notes that some studies used clinical, biochemical, and psychosocial criteria in addition to scores.",
+              "source_passage_ids": [
+                "37921996:p5",
+                "37921996:p6",
+                "37921996:p7",
+                "37921996:p8",
+                "37921996:p9",
+                "37921996:p10",
+                "37921996:p12"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37921996",
+                  "quote": "We also included studies that analyzed the costs of different interventions or evaluated patient-reported quality of life according to the applied treatment strategy. Results > Description of included studies The criteria for defining the concepts of fever and neutropenia in different studies are presented in annex tables 2 and 3 . Included studies used heterogeneous criteria to define risk levels in their samples (Table 1 ). Table 1. Exclusion criteria for low-risk treatment group, by organ, organ system, or medical specialty Criteria Studies Cardiovascular system Heart failure Hidalgo et al. 1999 [ 6 ] Hypotension Talcot et al. 2011 [ 3 ], Hidalgo et al. 1999 [ 5 ], Minoti et al. 1995 [ 7 ], Rubenstein et al. 1993 [ 9 ] (< 90 mmHg), and Mizuno et al. 2006 [ 15 ] Taking drugs causing QT prolongation Sotalol and dofetilide in Rolston et al."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "2003 [ 16 ] Respiratory system Tachypnea/respiratory insufficiency Talcott et al. 2011 [ 3 ], Minotti et al. 1999 [ 7 ] and Rubenstein et al. 1993 [ 10 ] (> 30 bpm), and Mizuno et al. 2006 [ 15 ] Nervous system/psychiatry Impaired consciousness Talcot et al. 2011 [ 3 ], Hidalgo et al. 1999 [ 6 ] Unfavorable psychological status Sebban et al. 2008 [ 4 ], Rapoport et al. 1999 [ 8 ], Linaratnam et al. 2013 [ 17 ] Kidney Acute kidney failure Oliguria/anuria Talcott et al. 2011 [ 3 ], Rapoport et al. 1999 [ 8 ], Malik et al. 1995 [ 9 ] (dialysis); Minotti et al. 1999 [ 7 ] (eGFR < 30 ml/min); Rolston et al. 2010 [ 18 ], Rolston et al. 2003 [ 16 ], and Rubenstein et al. 1993 [ 10 ] (eGFR < 50 ml min or creatinine > 2.5 mg/dl) Hidalgo et al. 1999 [ 6 ] Liver Liver failure Rolston et al. 2010 [ 18 ], Rolston et al. 2003 [ 16 ], Malik et al. 1995 [ 9 ], Rubenstein et al."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "1993 [ 10 ], and Hocking et al. 2012 [ 19 ] (AST, ALT > 4\u00d7 normal), Sebban et al. 2008 [ 3 ] (AST, ALT > 5\u00d7 normal) Digestive system Nausea, vomiting, diarrhea Mizuno et al. 2006 [ 15 ] Severe mucositis Hocking et al. 2012 [ 19 ] and Mizuno et al. 2006 [ 15 ] Dysphagia Talcott et al. 2011 [ 3 ], Hidalgo et al. 1999 [ 6 ], Malik et al. 1995 [ 9 ], and Poprawski et al. 2018 [ 20 ] Endocrine system Malnutrition Lingaratnam et al. 2013 [ 17 ] and Mizuno et al. 2006 [ 15 ] Metabolism Acidosis Hidalgo et al. 1999 [ 6 ] Hyponatremia Rubenstein et al. 1993 [ 10 ] (< 128 mg/dl) Uncontrolled hypercalcemia Rubenstein et al. 1993 [ 10 ] Hematology Altered coagulation Hidalgo et al. 1999 [ 6 ] Prolonged neutropenia Malik et al. 1995 [ 9 ] (> 7 d), Lingaratnam et al. 2013 [ 17 ] (> 7 d) Use of granulocyte colony-stimulating factors Minotti et al."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "1999 [ 7 ] Transplant patients with hematopoietic parents Rapoport et al. 1999 [ 7 ], Minotti et al. 1999 [ 7 ], and Weyckert et al. 2014 [ 21 ] Absolute neutrophil count \u2264 0.5 \u00d7 10 9 /L 24 h Rapoport et al. 1999 [ 8 ] Infectious diseases HIV Rapoport et al. 1999 [ 8 ] Confirmed/severe site infection Poprawski et al. 2018 [ 20 ], Lingaratnam et al. 2013 [ 17 ], Rolston et al. 2010 [ 18 ], and Hidalgo et al. 1999 [ 6 ] Previous use of antibiotics 14 days prior to recruitment, Rapoport et al. 1999 [ 8 ]; 5 days prior, Minotti et al. 1999 [ 7 ]; 4 days prior, Sebban et al. 2008 [ 4 ] and Kern et al. 2013 [ 2 ] (except 1 oral dose or IV in the previous 8 h); 96 h days prior, Hidalgo et al. 1999 [ 6 ] and Malik et al. 1995 [ 9 ]; and prophylactic quinolones, Goodman et al."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "2017 [ 22 ] Gynecology Pregnant or breastfeeding All clinical trials and observational studies Other No decrease in fever Rapoport et al. 1999 [ 8 ] and Poprawski et al. 2018 [ 20 ] Last cycle of chemotherapy < 12 days prior Weycker et al. 2014 [ 21 ] Allergy to the antibiotic used All clinical trials and observational studies Recurrent fever of unknown origin Malik et al. 1995 [ 9 ] More than one primary tumor Weycker et al. 2014 [ 21 ] Poor treatment adherence Innes et al. 2003 [ 5 ] Admitted for other reason Hocking et al. 2012 [ 19 ] Lack of written informed consent All clinical trials and observational studies Absence of caregiver Talcott et al. 2011 (24 h) [ 3 ], Sebban et al. 2008 [ 4 ], Innes et al. 2003 [ 5 ], Hidalgo et al. 1999 [ 6 ] (24 h) Patient refusal Sebban et al. 2008 [ 4 ] Distance between residence and reference center Kern et al. 2013 (>1 h) [ 2 ]; Hidalgo et al."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "1999 [ 6 ] and Talcott et al. 2011 (>2 h) [ 3 ]; Minotti et al. 1999 [ 7 ] (> 20 miles [32 km] from hospital), Rubenstein et al. 1993 [ 10 ] and Rolston et al. 2003 [ 16 ] (> 30 miles [48 km] from hospital), Lingaratnam et al. 2013 [ 17 ] (> 40 km radius) Decline following observation period Kern et al. 2013 [ 2 ], Sebban et al. 2008 [ 3 ], Innes et al. 2003 [ 5 ], Rapoport et al. 1999 [ 8 ], Rubenstein et al. 1993 [ 10 ] Progression of underlying illness Hidalgo et al. 1999 [ 6 ] and no remission in leukemia in Talcott et al. 2011 [ 3 ] Hematological neoplasms Lingaratnam et al. 2013 [ 17 ] Prior episode of febrile neutropenia included in the study Rapoport et al. 1999 [ 8 ] Ease of obtaining educational requirements Poprawski et al."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "Results > Description of included studies Validated criteria have been used to identify patients with febrile neutropenia at low risk in clinical trials (since 2008) and observational studies (since 2010). Except for the studies by Talcott et al. [ 3 ], Mizuno et al. [ 15 ], and Rolston et al. [ 16 ], which use the Talcott criteria [ 3 ], all other clinical trials and observational studies have used the MASCC score, generally with a cutoff of 21 points to define low risk (Kern et al. [ 1 ] used a cutoff of 20 points). No included studies used the CISNE scale. However, some studies have employed clinical, biochemical, and sometimes psychosocial criteria to establish risk levels, including the studies by Rubenstein et al. [ 10 ] and Hidalgo et al. [ 6 ]. Likewise, Weycker et al."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37921996",
+                "41521418"
+              ],
+              "reason": "Both sources support ambulatory or reduced-intensity care as an alternative for selected/low-risk febrile neutropenia patients, including adult patients.",
+              "source_passage_ids": [
+                "37921996:p0",
+                "37921996:p1",
+                "37921996:p3",
+                "41521418:p0",
+                "41521418:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37921996",
+                  "quote": "Recent clinical practice guidelines have recommended ambulatory management of febrile neutropenia in patients with low risk of complications. Although some centers have begun developing management protocols for these patients, there appears to be a certain reluctance to implement them in clinical practice. Our aim is to evaluate the strengths and weaknesses of this strategy according to available evidence and to propose new lines of research. Systematic review using a triple aim approach (efficacy, cost-effectiveness, and quality of life), drawing from literature in MEDLINE (PubMed), Embase, and Cochrane Library databases. The review includes studies that assess ambulatory management for efficacy, cost-efficiency, and quality of life. The search yielded 27 articles that met our inclusion criteria."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "In conclusion, based on current evidence, ambulatory management of febrile neutropenia is safe, more cost-effective than inpatient care, and capable of improving quality of life in oncological patients with this complication. Ambulatory care seems to be an effective alternative to hospitalization in these patients. Introduction Neutropenia is a risk factor for certain infections that may appear as a frequent and severe complication in oncological patients; its only typical symptom is fever [ 1 ]. Introduction This entity has classically been treated through hospitalized management and intravenous (i.v.) administration of wide-spectrum antibiotics in all patients. Currently, only a fraction of patients with febrile neutropenia present serious complications, and there is evidence of a diverse prognostic spectrum [ 2 \u2013 10 ]."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "Introduction This qualitative systematic review aimed to assess ambulatory care strategies in adult patients with febrile neutropenia through a triple aim, examining efficacy, cost-effectiveness, and quality of life. These results can inform the definition of the most adequate setting for managing these patients (ambulatory care, home hospitalization, or inpatient care); contribute to updating the action protocols in emergency services; and identify areas where there is uncertainty in the available evidence in order to trace new lines of research."
+                },
+                {
+                  "source_id": "41521418",
+                  "quote": "These guidelines provide updated recommendations on ambulatory care for low-risk neutropenic fever in adult and paediatric patients. National and international data support the clinical, economic and psychosocial benefits of risk stratification, and home-based or reduced intensity treatment of neutropenic fever. Benefits include shortened in-hospital length of stay, reduced healthcare costs, early intravenous to oral switch and improved patient and caregiver quality of life. Since publication of the 2011 Australian consensus guidelines, additional adult and paediatric neutropenic fever clinical decision rules have been derived and validated. These rules assist clinicians in stratifying patients into lower or higher risk of serious infection."
+                },
+                {
+                  "source_id": "41521418",
+                  "quote": "For adult patients the Multinational Association of Supportive Care in Cancer and the Clinical Index of Stable Febrile Neutropenia scores are recommended, whereas for paediatric patients the AUS rule has been prospectively derived and validated in the Australian setting. These rules are recommended as part of a structured low-risk neutropenic fever care pathway that incorporates additional disease-level, treatment-level and patient-level safety net criteria. Key infrastructure requirements for cost-effective and safe hospital-based ambulatory neutropenic fever care are discussed, as are recommended oral antimicrobial regimens and criteria for re-admission. Biomarkers and the use of new and wearable technologies are currently not routinely recommended as part of risk stratification or monitoring."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "37921996"
+              ],
+              "reason": "The review describes ambulatory antibiotic regimens and follow-up supports, including telephone follow-up, 24-hour hotline/on-call oncology support, home visits, scheduled calls, and outpatient visits, and states these follow-up strategies were not compared with each other.",
+              "source_passage_ids": [
+                "37921996:p14",
+                "37921996:p15",
+                "37921996:p30"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37921996",
+                  "quote": "[ 4 ] did not find differences between oral versus intravenous administration in low-risk patients with neutropenia. The latter two studies evaluated a monotherapy antibiotic regimen. Malik et al. [ 9 ] found that oral fluoroquinolone monotherapy was equally effective whether administered in hospitals or other settings. Rapoport et al. [ 8 ] likewise obtained similar results in patients receiving classical inpatient care or early discharge with ambulatory therapeutic management. In line with these results, Hidalgo et al. [ 6 ] did not find differences in treatment response between an inpatient i.v. double regimen versus oral monotherapy, administered in ambulatory care following good response to the first dose in hospital and early discharge. These findings were also reproduced by Innes et al. in 2003 [ 5 ], who compared double i.v."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "therapy in-hospital versus double oral treatment in ambulatory care. For their part, Talcott et al. [ 3 ] did not observe a higher rate of complications using an ambulatory strategy. Finally, Kern et al. [ 2 ] reported similar results between double versus monotherapy in the ambulatory setting. Results > Analysis of efficacy In the observational studies, Mizuno et al. [ 15 ] suggested that telephone follow-up could be an effective strategy to support ambulatory management. Cooksley et al. [ 23 ] drew similar conclusions, speculating that ambulatory treatment could be more feasible if clinical oncological support were available; this group provided such support in the form of an oncologist on call through a 24 h hotline. Rolston et al."
+                },
+                {
+                  "source_id": "37921996",
+                  "quote": "There are also gaps in research investigating whether prescribing CSFs would result in savings given the implicit pharmacological costs associated with hospitalizing these patients in a hospital or their home, and whether it would be possible to reduce the duration of antibiotic therapy in patients with a fever of unknown origin and negative culture. Discussion Several strategies for ambulatory follow-up have been evaluated, including home visits from health professionals, hotlines, scheduled telephone calls, and outpatient hospital visits. However, no studies have compared these interventions with each other to assess treatment response, adverse effects, cost-efficiency, or quality of life. These aspects could be the focus of future lines of research."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The clinically appropriate choice is B. A MASCC score of 23 is consistent with low-risk stratification, but the supplied evidence supports using MASCC as only one component of ambulatory-care eligibility rather than as a stand-alone discharge determinant. The patient\u2019s chart provides the necessary context for such an integrated assessment: solid tumor on outpatient chemotherapy, estimated short neutropenia duration, stable vitals and organ function, resolved dehydration, oral tolerance, no severe focal infection or respiratory/mental-status compromise, no pregnancy/breastfeeding, no quinolone prophylaxis, and available caregiver/transport/phone/24-hour oncology access. B is safe because it does not declare that she must be discharged or prescribe an unsupported regimen; it emphasizes continued antimicrobial treatment, reassessment, readmission planning, and service supports before deciding the care setting. A is the intended unsafe simplification because it treats the MASCC score alone as sufficient. The case remains within oncology/supportive-care practice, and it is distinct from the prior febrile-neutropenia case because the prior decision was immediate cultures and antipseudomonal antibiotics, whereas this decision is interpretation of risk assessment and ambulatory-care eligibility after initial treatment has begun. There is no answer leakage in the applicant-visible title, notes, or question beyond the clinically relevant fact that MASCC was recorded."
+        },
+        "image_sha256": null
+      }
+    ],
+    "authoring_method": "prepared_revision",
+    "entry_sha256": "e8fb3b3e3c356e1a4385de7632f05d0df8f157c21a1fe5b9301f82bd4614f242"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}

@@ -1,0 +1,933 @@
+{
+  "audit_version": 1,
+  "auditor": "independent Codex artifact auditor /root/audit_release_group1",
+  "audited_at": "2026-09-19T02:02:18.469131+00:00",
+  "scope": "First six entries of audit-openai-passes.json; static evidence, public payload, paired decision and integrity review. No artifact edits and no real-model calls.",
+  "counts": {
+    "clear": 6,
+    "hold": 0
+  },
+  "release_limit": "Clear means this independent retained-evidence/content audit found no blocking defect at the exact entry hash. These artifacts remain openai_only_trial with release_eligible=false; this audit does not substitute for the required two-provider release review or claim physician certification.",
+  "source_limit": "Audit uses the actual retained abstracts and applicable full retained body excerpts, including context around cited literal passages. The retention format contains selected open-access paragraphs, not necessarily the complete original publication.",
+  "artifacts": [
+    {
+      "task_id": "onboarding-practice-v1-c81048b60c5736de1ba4-1",
+      "specialty": "cardiothoracic surgery",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10573573993/trial-onboarding-practice-v1-c81048b60c5736de1ba4-1.json",
+      "entry_sha256": "66517ad2a9a30330033dd62588685837f13e589984197b916bdac7e71205b7b1",
+      "artifact_file_sha256": "da73b20a0b4a49659e1fc61b1c11566139a7cc64077330c95fb33de8671f5d12",
+      "verdict": "clear",
+      "blocking_findings": [],
+      "finding": "Clear. A confirmed acute type A dissection in an operable adult supports prompt standard open repair. The sources distinguish ascending type A repair from type B endovascular evidence and reserve emerging ascending endovascular techniques for selected patients.",
+      "population_scope": "Adult cardiothoracic surgery; acute ascending/type A disease with no prohibitive operative risk. Type B and chronic-dissection sources were not used to justify the decisive recommendation.",
+      "action_support": [
+        {
+          "action": "Standard open repair rather than routine ascending endovascular repair",
+          "source_ids": [
+            "33592292"
+          ],
+          "passage_ids": [
+            "33592292:p0",
+            "33592292:p2"
+          ],
+          "assessment": "Retained abstract directly calls open repair standard and requires clinical trials before routine endovascular practice; endovascular outcome conclusion is specifically for inoperable patients."
+        },
+        {
+          "action": "Avoid preventable delay in definitive repair",
+          "source_ids": [
+            "33415812"
+          ],
+          "passage_ids": [
+            "33415812:p0",
+            "33415812:p1"
+          ],
+          "assessment": "Retained review identifies acute aortic dissection as time-critical and discusses treatment/diagnostic delay. No unsupported dose, transport target, or anti-impulse regimen is asserted."
+        },
+        {
+          "action": "Do not treat emerging endovascular evidence as established routine practice",
+          "source_ids": [
+            "33169411"
+          ],
+          "passage_ids": [
+            "33169411:p1"
+          ],
+          "assessment": "Retained review reports short follow-up, limited mid/late outcomes and need for careful patient selection before wide introduction."
+        }
+      ],
+      "public_payload_assessment": "No favored open-versus-endovascular plan appears in visible notes, CTA report, title or question. Confirmed type A disease is supplied for a treatment question, so the imaging diagnosis is necessary data. Required modalities are empty; held-out answer metadata are removed by public_case.",
+      "pair_assessment": "Distinct from the bundled examination about whether symptomatic severe aortic stenosis warrants valve replacement. Different condition and management decision.",
+      "corrective_authoring_suggestion": "No corrective rewrite required. Preserve the operable acute-type-A context and the limitation of ascending endovascular evidence during cross-provider release review.",
+      "paired_case": {
+        "task_id": "onboarding-examination-v1-c81048b60c5736de1ba4-1",
+        "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-examination-v1-c81048b60c5736de1ba4-1.json",
+        "entry_sha256": "3f4685fb5b827b0dc95c327c8355c56968450ac5ccfe23f3e1e3653cdf56ce69",
+        "basis": "bundled case",
+        "distinct": true
+      },
+      "checks": {
+        "entry_hash_matches_manifest_and_validation": true,
+        "entry_schema_pass": true,
+        "review_schema_and_claim_quote_validation_pass": true,
+        "all_passage_ids_resolve_to_retained_exact_quotes": true,
+        "verified_quote_count": 11,
+        "public_case_held_out_metadata_absent": true,
+        "public_prompt_sha256": "36e2f15db476d74074728126efbb64972ccfb5a540d0b12e338e3f1f4b43ed73",
+        "all_decisive_actions_source_supported": true,
+        "specialty_and_population_match": true,
+        "visible_answer_cues_found": false,
+        "pair_distinct": true
+      },
+      "retained_source_checks": [
+        {
+          "source_id": "32001058",
+          "abstract_sha256": "2af3441dd305d8e589d2fdacfb78d9118d9c4c7df4e6747fb1e41633c1c5b052",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "41448425",
+          "abstract_sha256": "db42ed0b8beed2324460e40d8d14ef3cc0152167b6d40dd9bf07a2e96bc2b840",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "39792236",
+          "abstract_sha256": "88ab371fb5ae89e49fe441cdc55d34b81e3fdbe3dfb93b9ae007585da4c33466",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "30598351",
+          "abstract_sha256": "2b54601353f5ef6477f39e1f7382912537db50df0e48d3d22b254a3db9041046",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "33592292",
+          "abstract_sha256": "717f03818d1e53ee8b5dd40b10538a17faf41a6a5a2684742cd59cc604ffc78c",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        },
+        {
+          "source_id": "33169411",
+          "abstract_sha256": "624c45f8c240f2bd4b30d1435d8fe0f88ffdd78ab6cc201c628072b35615eb17",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        },
+        {
+          "source_id": "30578057",
+          "abstract_sha256": "d35e5614e4a707edfb16e75f872cfb7fce14e706f89a59e6356cbea898de6a32",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "33415812",
+          "abstract_sha256": "3c71ae182e9b54cb4dfe94d0e1ec2acc9dbcb8b2ca4d2024a90f964e942d15d7",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        }
+      ],
+      "trial_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_best_answer_id": "A",
+          "review_best_answer_id": "A",
+          "review_issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_best_answer_id": "A",
+          "review_best_answer_id": "A",
+          "review_issues": []
+        }
+      ],
+      "original_release_eligible": false,
+      "original_review_method": "openai_only_trial",
+      "physician_ratified": false
+    },
+    {
+      "task_id": "onboarding-examination-v1-b71cdb20a2f872d6b152-1",
+      "specialty": "emergency medicine",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10574053736/trial-onboarding-examination-v1-b71cdb20a2f872d6b152-1.json",
+      "entry_sha256": "2bc5af6ffd3fb68326d183fdb462dd1eac413646b280eab38eb6a59a671e44b3",
+      "artifact_file_sha256": "0014bff9729ca90cef9fcb28aa34260d60903d7a67d2f3fd23dcb34a3ae96dba",
+      "verdict": "clear",
+      "blocking_findings": [],
+      "finding": "Clear. The fluid-choice comparison is directly supported for adult sepsis with acute organ dysfunction; hypoalbuminemia and AKI do not reverse the retained guideline recommendation.",
+      "population_scope": "Adult emergency-medicine sepsis resuscitation. The question is scoped to initial intravascular fluid class; it does not purport to be the entire sepsis bundle or ask about fluid volume.",
+      "action_support": [
+        {
+          "action": "Use crystalloids rather than albumin for initial volume expansion",
+          "source_ids": [
+            "38771364"
+          ],
+          "passage_ids": [
+            "38771364:p1"
+          ],
+          "assessment": "The ESICM abstract explicitly gives a conditional recommendation in sepsis. The case excludes the cirrhosis exception and has not yet received resuscitation fluid."
+        },
+        {
+          "action": "Prefer balanced crystalloid over isotonic saline",
+          "source_ids": [
+            "38771364"
+          ],
+          "passage_ids": [
+            "38771364:p2"
+          ],
+          "assessment": "Explicit conditional recommendation for sepsis and kidney injury; no traumatic brain injury is present."
+        },
+        {
+          "action": "Avoid gelatin and consider albumin additively if large crystalloid volumes are required",
+          "source_ids": [
+            "40824313"
+          ],
+          "passage_ids": [
+            "40824313:p11",
+            "40824313:p12"
+          ],
+          "assessment": "The retained German guideline directly suggests no gelatin and additive albumin when large volumes are needed for hemodynamic stability. Recommendations are present in the body text, beyond the scope-only abstract."
+        },
+        {
+          "action": "Recognize infection-associated organ dysfunction; lactate already measured",
+          "source_ids": [
+            "40824313"
+          ],
+          "passage_ids": [
+            "40824313:p31",
+            "40824313:p7"
+          ],
+          "assessment": "Adult sepsis definition and lactate recommendation are explicit. Hypotension/AKI/confusion/lactate support the scenario. The key does not incorrectly assert that the formal post-fluid/vasopressor septic-shock definition has already been met."
+        }
+      ],
+      "public_payload_assessment": "Visible note ends before selection of fluid. Cultures, lactate and initial antibiotics are completed history. No preferred fluid or future plan appears outside the candidate answers and held-out fields.",
+      "pair_assessment": "Distinct from bundled practice asking about reperfusion in hemodynamically unstable pulmonary embolism.",
+      "corrective_authoring_suggestion": "No corrective rewrite required. Keep this limited to initial fluid choice and preserve the conditional guideline language in the rationale; do not expand it into a complete shock-management plan without further evidence.",
+      "paired_case": {
+        "task_id": "onboarding-practice-v1-b71cdb20a2f872d6b152-1",
+        "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-practice-v1-b71cdb20a2f872d6b152-1.json",
+        "entry_sha256": "cbba9841afc9b0a58f8a85b53388046e58f4ee69fce4311aa2d1a2e603b414bf",
+        "basis": "bundled case",
+        "distinct": true
+      },
+      "checks": {
+        "entry_hash_matches_manifest_and_validation": true,
+        "entry_schema_pass": true,
+        "review_schema_and_claim_quote_validation_pass": true,
+        "all_passage_ids_resolve_to_retained_exact_quotes": true,
+        "verified_quote_count": 12,
+        "public_case_held_out_metadata_absent": true,
+        "public_prompt_sha256": "5c03fefc659a302bbfbe21af314bc55832dd96f5c8d822b940c8502bc201e507",
+        "all_decisive_actions_source_supported": true,
+        "specialty_and_population_match": true,
+        "visible_answer_cues_found": false,
+        "pair_distinct": true
+      },
+      "retained_source_checks": [
+        {
+          "source_id": "40824313",
+          "abstract_sha256": "2946f8df394c02b41193b2488542ae13fec6202f95665ad58e3eff08d1ad0995",
+          "body_excerpts_sha256": "1f08c5eb7134e3a64fa14069fb9253d55f311022723aa405c9031f098787f5c6",
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        },
+        {
+          "source_id": "41028542",
+          "abstract_sha256": "e82ffc1781f6faa8136af5a30d736a7c731f194bdf196722aae575471af1b132",
+          "body_excerpts_sha256": "863fe988a1eba6d2864e2c686172591484218b8db100c68bf99f7017786bbf2a",
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "39676120",
+          "abstract_sha256": "4d9c537fea339ecfde2cb22d46a2332d7732036470d4f16a28278935fb466628",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "40929000",
+          "abstract_sha256": "bcdb9792fca4cf8b6110a79389b9f815a8af385c0edfe1760ec992e7b95d53d0",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "41028543",
+          "abstract_sha256": "88edde5ff66f968761629cea9dc4826931056085a24e3d03bbcbfb8bac60a410",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "32222812",
+          "abstract_sha256": "b457a92da597e5256139dd67aa565c2ec801de1ca8bb559f56ef6b594e74c3cd",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "30348463",
+          "abstract_sha256": "e01aaea0119c167ca00ba72342e0e4a78716776ab4229dea843955b88515d920",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "38771364",
+          "abstract_sha256": "6e32327eb75dbf199fbe6910fe09c2f2672800bbcc29218ba30ca4395f27b216",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        }
+      ],
+      "trial_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_best_answer_id": "B",
+          "review_best_answer_id": "B",
+          "review_issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_best_answer_id": "B",
+          "review_best_answer_id": "B",
+          "review_issues": []
+        }
+      ],
+      "original_release_eligible": false,
+      "original_review_method": "openai_only_trial",
+      "physician_ratified": false
+    },
+    {
+      "task_id": "onboarding-practice-v1-b0b91d66638590da5847-1",
+      "specialty": "family medicine",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10573603684/trial-onboarding-practice-v1-b0b91d66638590da5847-1.json",
+      "entry_sha256": "255834cc33e0ad60f570d1194b817c51917000a27382875d4408b64598b2ac15",
+      "artifact_file_sha256": "5f4deff23c04331a03e6a4b9991e21a1a51f6dfb534b12aefcc5324e07667dfa",
+      "verdict": "clear",
+      "blocking_findings": [],
+      "finding": "Clear. The retained USPSTF statement directly supports out-of-office confirmation before treatment in an adult without known hypertension; ambulatory monitoring is also explicitly supported in the retained MASLD comorbidity table.",
+      "population_scope": "Asymptomatic adult primary care, repeated office elevations around 147-148/91-93 mm Hg, no established hypertension or acute target-organ symptoms. Existing MASLD is compatible with the cited comorbidity-assessment source.",
+      "action_support": [
+        {
+          "action": "Interpret office measurement as screening and confirm outside the clinic before long-term treatment",
+          "source_ids": [
+            "33904861"
+          ],
+          "passage_ids": [
+            "33904861:p0",
+            "33904861:p1"
+          ],
+          "assessment": "Direct USPSTF adult population and confirmation recommendation; it is not extrapolated from hospital or pregnancy populations."
+        },
+        {
+          "action": "Use 24-hour ambulatory blood pressure monitoring as an example of confirmation",
+          "source_ids": [
+            "38869512"
+          ],
+          "passage_ids": [
+            "38869512:p25",
+            "38869512:p26",
+            "38869512:p27"
+          ],
+          "assessment": "Retained Table 2 lists ambulatory monitoring as a further cardiovascular investigation according to clinical evaluation and prior probability. Repeated clinic elevations make that use coherent; the candidate says such as, so it does not exclude other valid out-of-office methods."
+        },
+        {
+          "action": "Assess hypertension/cardiovascular comorbidity in MASLD",
+          "source_ids": [
+            "38869512"
+          ],
+          "passage_ids": [
+            "38869512:p23"
+          ],
+          "assessment": "Explicit recommendation; no unsupported liver treatment is added."
+        }
+      ],
+      "public_payload_assessment": "Clinical notes and study impressions only state measurements and the absence of prior out-of-office readings. They do not instruct the applicant to order confirmation. Both arithmetic means match the two readings at each visit.",
+      "pair_assessment": "Distinct from bundled examination about immediate imaging versus conservative care in acute low-back pain.",
+      "corrective_authoring_suggestion": "No corrective rewrite required. Preserve the asymptomatic screening population and do not add drug selection, urgent-treatment thresholds, or broad liver management to this narrow decision.",
+      "paired_case": {
+        "task_id": "onboarding-examination-v1-b0b91d66638590da5847-1",
+        "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-examination-v1-b0b91d66638590da5847-1.json",
+        "entry_sha256": "0cabac9f0565b0b3913bfe6be1db203772881dbb62df1536bc361150b9a0343e",
+        "basis": "bundled case",
+        "distinct": true
+      },
+      "checks": {
+        "entry_hash_matches_manifest_and_validation": true,
+        "entry_schema_pass": true,
+        "review_schema_and_claim_quote_validation_pass": true,
+        "all_passage_ids_resolve_to_retained_exact_quotes": true,
+        "verified_quote_count": 13,
+        "public_case_held_out_metadata_absent": true,
+        "public_prompt_sha256": "e308f0693c8c53a47afb761219d07fef175df2476649e86c0038065a73d155b0",
+        "all_decisive_actions_source_supported": true,
+        "specialty_and_population_match": true,
+        "visible_answer_cues_found": false,
+        "pair_distinct": true
+      },
+      "retained_source_checks": [
+        {
+          "source_id": "33904861",
+          "abstract_sha256": "06eb15655c0024f0a507cc9c6b1d819129d4b0b77b779c667d8ff91bcaeec069",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        },
+        {
+          "source_id": "40658480",
+          "abstract_sha256": "bab5f486f6ca000767cf3c7bc93d3736fbd23e007bae3fd0919593ae90684239",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "38851997",
+          "abstract_sha256": "084303772714bf95d14e88b83e25d4f9581ca988186eb377686f0239eb360317",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "42265997",
+          "abstract_sha256": "51736048ea82739fc5c8c92151ab0298cc6e8805eccd1618fafab399d624d482",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "36174643",
+          "abstract_sha256": "45703524834630f1c49e784f51f9329803d3cb85e39b2b70ab2a16dab5c31784",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "40044341",
+          "abstract_sha256": "0782240d3853609478b2ecb2eab55a9f0e5a6705350df5c5f65927fa8316bc17",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "36642627",
+          "abstract_sha256": "372e20b643ebb41e0b98e510a2b5ad1abe0217952d682f188f7c93f927cde119",
+          "body_excerpts_sha256": "2c797499a7e59b5431024ac0cbed7d9ccee0c4a0206e5c27c6b8dfb2de787a2a",
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "38869512",
+          "abstract_sha256": "c8859880e40eb1fa5f58ddc0ee1f037d9cef8b2696c358fb1413f70db0b66fb2",
+          "body_excerpts_sha256": "180ea4da5a146e48e39483f69e1d65b525d35fa25eccbc4060817ae3c5ff48aa",
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        }
+      ],
+      "trial_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_best_answer_id": "A",
+          "review_best_answer_id": "A",
+          "review_issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_best_answer_id": "A",
+          "review_best_answer_id": "A",
+          "review_issues": []
+        }
+      ],
+      "original_release_eligible": false,
+      "original_review_method": "openai_only_trial",
+      "physician_ratified": false
+    },
+    {
+      "task_id": "onboarding-examination-v1-558a055d93f6a8479019-1",
+      "specialty": "general surgery",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10574734426/trial-onboarding-examination-v1-558a055d93f6a8479019-1.json",
+      "entry_sha256": "cbdad2308d506cb039c49408149317960ceb4ed9965d414eebf24e3b9e621be9",
+      "artifact_file_sha256": "4b43240494662c49e376eb79d9a6a26414be9e331d4071e662ed1e05cdc2bd04",
+      "verdict": "clear",
+      "blocking_findings": [],
+      "finding": "Clear. Persistent peritoneal signs plus closed-loop obstruction, mesenteric edema, free fluid and raised lactate support urgent exploration rather than delay for a contrast challenge.",
+      "population_scope": "Adult general surgery with prior abdominal surgery. Although the main source concerns virgin abdomen, its retained assessment section explicitly states the emergency indications apply to SBO in general, and it repeatedly relates its care principles to postoperative adhesive SBO.",
+      "action_support": [
+        {
+          "action": "Proceed to urgent exploration rather than delaying for a water-soluble contrast trial",
+          "source_ids": [
+            "34217331"
+          ],
+          "passage_ids": [
+            "34217331:p8",
+            "34217331:p14"
+          ],
+          "assessment": "Explicit emergency indications include peritonitis, strangulation and ischemia. CT predictors include closed loop, mesenteric edema and free fluid. The actual chart contains these findings; neither perforation nor sustained hypotension is required by the retained passage."
+        },
+        {
+          "action": "Continue decompression and fluid/electrolyte correction while preparing for exploration; assess bowel viability",
+          "source_ids": [
+            "34217331"
+          ],
+          "passage_ids": [
+            "34217331:p19"
+          ],
+          "assessment": "The body names decompression and fluid/electrolyte replacement as supportive SBO care; its operative-management section describes urgent intervention for compromised bowel and surgical assessment of viability. The candidate does not specify an unsupported approach or resection extent."
+        },
+        {
+          "action": "Interpret elevated lactate/inflammatory markers as concern for ischemia rather than requiring normal-versus-abnormal exclusion",
+          "source_ids": [
+            "34217331"
+          ],
+          "passage_ids": [
+            "34217331:p9"
+          ],
+          "assessment": "Retained passage directly supports this interpretation and says normal values cannot exclude ischemia."
+        },
+        {
+          "action": "Do not derive a mandate for conservative treatment from comparative observational outcomes or water-soluble contrast studies",
+          "source_ids": [
+            "30788717",
+            "31485900",
+            "35837888"
+          ],
+          "passage_ids": [
+            "30788717:p1",
+            "30788717:p2",
+            "31485900:p1",
+            "35837888:p1"
+          ],
+          "assessment": "The evidence distinguishes emergent indications from non-emergent comparison groups. The 2020 abstract explicitly reports no surgery/mortality reduction; the 2022 RCT subset corroborates no significant operative-rate reduction, whereas observational results differ. The key correctly rests on emergency signs, not a claim that contrast never has value."
+        }
+      ],
+      "public_payload_assessment": "The visible CT reports a closed-loop diagnosis and observations but no instruction to operate. The title/question and note stop before the management choice. Diagnosis disclosure is appropriate for this management assessment.",
+      "pair_assessment": "Distinct from bundled practice about early cholecystectomy versus percutaneous drainage/delay in a surgically fit patient.",
+      "corrective_authoring_suggestion": "No blocking rewrite required. Optional editorial simplification: remove the peripheral water-soluble-contrast efficacy claim, or split it into separate surgery-rate and mortality statements, since the 2022 cited abstract does not report mortality and the 2020 abstract contains an internally awkward P-value presentation. The urgent-exploration key is independently supported.",
+      "paired_case": {
+        "task_id": "onboarding-practice-v1-558a055d93f6a8479019-1",
+        "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-practice-v1-558a055d93f6a8479019-1.json",
+        "entry_sha256": "9100c63322f2dd4d6f43c9549794f392b38950ee4b03557e5275f7fd749b16f4",
+        "basis": "bundled case",
+        "distinct": true
+      },
+      "checks": {
+        "entry_hash_matches_manifest_and_validation": true,
+        "entry_schema_pass": true,
+        "review_schema_and_claim_quote_validation_pass": true,
+        "all_passage_ids_resolve_to_retained_exact_quotes": true,
+        "verified_quote_count": 18,
+        "public_case_held_out_metadata_absent": true,
+        "public_prompt_sha256": "f5904b0b57e6bb238844bbe31279f9b03ae6f1f5e18e513b4c0c0e85bc7c81b3",
+        "all_decisive_actions_source_supported": true,
+        "specialty_and_population_match": true,
+        "visible_answer_cues_found": false,
+        "pair_distinct": true
+      },
+      "retained_source_checks": [
+        {
+          "source_id": "34217331",
+          "abstract_sha256": "d46160bb8f5771007de4648f52d31f8f475bee4d0c2967df723f3673e99b8537",
+          "body_excerpts_sha256": "025058531b543685cfff79f0f3e499fe44a7a1cac71b5ea9c013a101069aafe5",
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        },
+        {
+          "source_id": "38609340",
+          "abstract_sha256": "b3cf55a08598aab0ed94b746ec043b82a0544c0a80e7c630affe3d46e56bf677",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "39369214",
+          "abstract_sha256": "bc26d1518e8618eee546f1c1fd19c3e050448bdaf56659e2b1ab2df45217c806",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "30788717",
+          "abstract_sha256": "c1fdf6aac346095c073d64d0539a13d6ab3e6ad518abdfe3a4dbc077bd549839",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        },
+        {
+          "source_id": "31485900",
+          "abstract_sha256": "87fc0528682bf3c23c2c46ab3484f14b8fa2cf5ec06a3c140b89c18e2f07640f",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        },
+        {
+          "source_id": "32195994",
+          "abstract_sha256": "7cb5b81776f125233a2f95368c91a9c1ca3f3a2ab8741f66b0c5b2ce83fcb062",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "35837888",
+          "abstract_sha256": "f1eea7c232fe153b191ecdeb65039f890968900ba9fb1c2dbfa67fe527342174",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        },
+        {
+          "source_id": "36104043",
+          "abstract_sha256": "f2c042590dffbbf9d23af982fa8119dd7f6fe494ffc0e3b2b71ebf31d879c7d0",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        }
+      ],
+      "trial_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_best_answer_id": "B",
+          "review_best_answer_id": "B",
+          "review_issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_best_answer_id": "B",
+          "review_best_answer_id": "B",
+          "review_issues": []
+        }
+      ],
+      "original_release_eligible": false,
+      "original_review_method": "openai_only_trial",
+      "physician_ratified": false
+    },
+    {
+      "task_id": "onboarding-examination-v1-9cbe2b30e23c85c74ba0-1",
+      "specialty": "medical genetics",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10575445605/trial-onboarding-examination-v1-9cbe2b30e23c85c74ba0-1.json",
+      "entry_sha256": "8092f01a92959daa9113bdf0b7a426aaa3f3a0b5145e3c2efde09c89047277de",
+      "artifact_file_sha256": "a04864c32cd7cedfb36d5dc0042f747b2334ddfb33f10acc709817b4af152f59",
+      "verdict": "clear",
+      "blocking_findings": [],
+      "finding": "Clear. A BRCA2 VUS does not justify pathogenic-carrier management, and the retained ASCO-SSO recommendation directly supports reclassification follow-up and history-based genetics counseling.",
+      "population_scope": "Adult medical-genetics consultation after treated breast cancer, no active recurrence, significant personal/family cancer history and a VUS with no pathogenic/likely pathogenic finding. The breast-cancer guideline includes prior breast cancer without active disease.",
+      "action_support": [
+        {
+          "action": "Do not let the VUS alone trigger BRCA-specific management or risk-reducing surgery; follow for reclassification",
+          "source_ids": [
+            "38175972"
+          ],
+          "passage_ids": [
+            "38175972:p1"
+          ],
+          "assessment": "Direct recommendation that VUS should not affect management and should be followed for reclassification. The candidate appropriately says solely/independently rather than denying care that may be justified by family/personal history."
+        },
+        {
+          "action": "Provide individualized genetics interpretation and counseling based on personal/family risk",
+          "source_ids": [
+            "38175972"
+          ],
+          "passage_ids": [
+            "38175972:p2"
+          ],
+          "assessment": "The retained abstract expressly supports counseling people without pathogenic variants but with significant family history."
+        },
+        {
+          "action": "Distinguish actionable BRCA pathogenic/likely pathogenic variants from VUS",
+          "source_ids": [
+            "33406487"
+          ],
+          "passage_ids": [
+            "33406487:p0"
+          ],
+          "assessment": "NCCN retained abstract ties elevated BRCA cancer risk and intensive prevention consideration to pathogenic/likely pathogenic carriers; it is used with the direct ASCO VUS recommendation rather than inferred solely from scope."
+        },
+        {
+          "action": "Describe benefits associated with counseling without promising improved cancer mortality",
+          "source_ids": [
+            "31429902"
+          ],
+          "passage_ids": [
+            "31429902:p2"
+          ],
+          "assessment": "The source reports associated better risk understanding and lower worry/anxiety/depression in women without recently diagnosed cancer, matching this remote-treated presentation. No causal or mortality promise is asserted."
+        }
+      ],
+      "public_payload_assessment": "The laboratory VUS classification is necessary clinical data. No VUS management instruction appears in title, question, note or study impression. Held-out rationale and reasoning-divergence fields are removed from the public case.",
+      "pair_assessment": "No bundled genetics pair currently exists. Compared against the assigned practice trial, which asks gene-specific colonoscopy-start timing in a confirmed pathogenic MSH6 carrier. That is a distinct management decision and does not reveal VUS counseling as the exam answer.",
+      "corrective_authoring_suggestion": "No corrective rewrite required. Preserve the qualifying words solely and independently so family-history-based high-risk care is not incorrectly excluded.",
+      "paired_case": {
+        "task_id": "onboarding-practice-v1-9cbe2b30e23c85c74ba0-1",
+        "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10575445605/trial-onboarding-practice-v1-9cbe2b30e23c85c74ba0-1.json",
+        "entry_sha256": "c52ca37a2d107375d4ab00011c15518a5a0676e0965eb1f28a7c6f58e9787f9c",
+        "basis": "paired trial artifact; no bundled pair present",
+        "distinct": true
+      },
+      "checks": {
+        "entry_hash_matches_manifest_and_validation": true,
+        "entry_schema_pass": true,
+        "review_schema_and_claim_quote_validation_pass": true,
+        "all_passage_ids_resolve_to_retained_exact_quotes": true,
+        "verified_quote_count": 8,
+        "public_case_held_out_metadata_absent": true,
+        "public_prompt_sha256": "272aa130a4d1ac4d147a40e4db4a9141a7f765e12a6b609601c41661479682ea",
+        "all_decisive_actions_source_supported": true,
+        "specialty_and_population_match": true,
+        "visible_answer_cues_found": false,
+        "pair_distinct": true
+      },
+      "retained_source_checks": [
+        {
+          "source_id": "33406487",
+          "abstract_sha256": "3a4fc6e4edce3553fa8b118840e0259bba5070a7c359478a9f818e9a6ec74c97",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        },
+        {
+          "source_id": "39013199",
+          "abstract_sha256": "f196c69085f058436bb9ceffda14a63f5c4cb7da3e0604f7725682f31399c9db",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "38175972",
+          "abstract_sha256": "f5abeeb917ed633a5206dfbebb5cd521be35094640be5fbd5515a21e0bd5e643",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        },
+        {
+          "source_id": "32259785",
+          "abstract_sha256": "63544a26e96f66a175d9610c472784f68f1438259bff82abb0d0b99340aafc26",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "41002090",
+          "abstract_sha256": "749397aceb2b915624dffbb181848892b0c227768a8d00d14a1d617684b8b341",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "33625671",
+          "abstract_sha256": "d88683cc79fd55d32e378699578acd51c655db5a92d87b1c320ca982b0590cc9",
+          "body_excerpts_sha256": "01e7b82b94706e22e152e4f04149e011011425e2b1347ca682b020ea9d826794",
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "33131182",
+          "abstract_sha256": "ff48b5da6a6d70d6ae13e50ac03b623b128fe1a7afd9591ccb25d16da01ceaff",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "31429902",
+          "abstract_sha256": "4780d08e888f703fb1c2b622e724e069690721e4b5fb2d6000a4f7dcd011330a",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        }
+      ],
+      "trial_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_best_answer_id": "A",
+          "review_best_answer_id": "A",
+          "review_issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_best_answer_id": "A",
+          "review_best_answer_id": "A",
+          "review_issues": []
+        }
+      ],
+      "original_release_eligible": false,
+      "original_review_method": "openai_only_trial",
+      "physician_ratified": false
+    },
+    {
+      "task_id": "onboarding-practice-v1-9cbe2b30e23c85c74ba0-1",
+      "specialty": "medical genetics",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10575445605/trial-onboarding-practice-v1-9cbe2b30e23c85c74ba0-1.json",
+      "entry_sha256": "c52ca37a2d107375d4ab00011c15518a5a0676e0965eb1f28a7c6f58e9787f9c",
+      "artifact_file_sha256": "6d1e5f768161f0854b33791063fe358fa5056d71818cc5b504509eff175a8341",
+      "verdict": "clear",
+      "blocking_findings": [],
+      "finding": "Clear. In the explicitly named European framework, a 36-year-old pathogenic MSH6 carrier should start Lynch colonoscopic surveillance now; the dedicated-unit/high-definition recommendation is directly retained.",
+      "population_scope": "Adult medical-genetics hereditary-cancer surveillance counseling, confirmed pathogenic MSH6, no personal colorectal neoplasia and no previous colonoscopy. The question explicitly limits the framework to the supplied European guidance.",
+      "action_support": [
+        {
+          "action": "Start surveillance colonoscopy now rather than waiting until average-risk age 45",
+          "source_ids": [
+            "34043773",
+            "31597170"
+          ],
+          "passage_ids": [
+            "34043773:p33",
+            "31597170:p0"
+          ],
+          "assessment": "Both EHTG/ESCP body recommendation and ESGE abstract specify age 35 for MSH6; she is 36. The key does not invent a surveillance interval or conflate MSH6 with MLH1/MSH2 ages."
+        },
+        {
+          "action": "Use a dedicated hereditary-risk unit and high-definition endoscopy",
+          "source_ids": [
+            "31597170"
+          ],
+          "passage_ids": [
+            "31597170:p0"
+          ],
+          "assessment": "ESGE directly recommends both elements. No unsupported tumor biopsy, chromoendoscopy mandate, surgery or aspirin dose is added."
+        },
+        {
+          "action": "Do not apply average-risk colorectal-screening eligibility to Lynch syndrome",
+          "source_ids": [
+            "34003218"
+          ],
+          "passage_ids": [
+            "34003218:p1"
+          ],
+          "assessment": "The USPSTF retained population definition expressly excludes Lynch syndrome; asymptomatic status does not make her average risk."
+        },
+        {
+          "action": "Treat the established germline pathogenic MSH6 result as Lynch syndrome",
+          "source_ids": [
+            "34043773"
+          ],
+          "passage_ids": [
+            "34043773:p2"
+          ],
+          "assessment": "Retained definition links the syndrome to a pathogenic mismatch-repair variant; the case supplies that established result."
+        }
+      ],
+      "public_payload_assessment": "Visible chart supplies genotype, age, absent prior colonoscopy and family history but neither age-35 guidance nor the start-now recommendation. Repeated clarification that the result is pathogenic is redundant but does not disclose surveillance timing.",
+      "pair_assessment": "No bundled genetics pair currently exists. Compared with the assigned BRCA2 VUS examination trial: different gene/syndrome and different decision (surveillance timing versus uncertain-result actionability).",
+      "corrective_authoring_suggestion": "No corrective rewrite required. Optional cleanup can remove repeated VUS-negative wording from the note/study, but any changed entry would need a new hash and review. Preserve the explicitly named European framework.",
+      "paired_case": {
+        "task_id": "onboarding-examination-v1-9cbe2b30e23c85c74ba0-1",
+        "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10575445605/trial-onboarding-examination-v1-9cbe2b30e23c85c74ba0-1.json",
+        "entry_sha256": "8092f01a92959daa9113bdf0b7a426aaa3f3a0b5145e3c2efde09c89047277de",
+        "basis": "paired trial artifact; no bundled pair present",
+        "distinct": true
+      },
+      "checks": {
+        "entry_hash_matches_manifest_and_validation": true,
+        "entry_schema_pass": true,
+        "review_schema_and_claim_quote_validation_pass": true,
+        "all_passage_ids_resolve_to_retained_exact_quotes": true,
+        "verified_quote_count": 12,
+        "public_case_held_out_metadata_absent": true,
+        "public_prompt_sha256": "57f07b052aa47349641751cc41e98a3c8b6c27d0ec1becb220c8dea720f747cf",
+        "all_decisive_actions_source_supported": true,
+        "specialty_and_population_match": true,
+        "visible_answer_cues_found": false,
+        "pair_distinct": true
+      },
+      "retained_source_checks": [
+        {
+          "source_id": "34043773",
+          "abstract_sha256": "2fe00f00b282ee78c7f743befed4ffb520783ac6d0c1a67ddfbb1971fb4366a9",
+          "body_excerpts_sha256": "f1d41635ec6fc106a98aaf569c48a10a0a3080442478b66d4a343b1dc7673daf",
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        },
+        {
+          "source_id": "39516038",
+          "abstract_sha256": "259058675053ca458dafc87b2adc106c60e093088dfb3916c33f8daeff44f067",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "31597170",
+          "abstract_sha256": "b088e431c91bcbb0b2ad79ce98c4c67d70c379471858ff1ccd0af785d611ca2e",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        },
+        {
+          "source_id": "34003218",
+          "abstract_sha256": "6e11ee71e2e94e4fac31e43cc0a5ebf81f0958f680b86c64bdb2bfa1c6046ba5",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": true
+        },
+        {
+          "source_id": "39689429",
+          "abstract_sha256": "f3fd3d165b62968b768739a343a7b8f7f8d8ae286bf6e80f47e6374e73a0fd54",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "41195479",
+          "abstract_sha256": "d285652260e9c72f785e5fea9c3b7acd7248d161656c5ee0ba9a16e6f833a5e6",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "31780574",
+          "abstract_sha256": "bce68c08482d08d241ae026ec0be057adb3105a77c26a55fb3e9057ec437371a",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        },
+        {
+          "source_id": "31487681",
+          "abstract_sha256": "cb0c2e991b76f995ba3aae541730892d9eb32110c847933eb2107abcfc8f33cd",
+          "body_excerpts_sha256": null,
+          "retained_text_integrity": "verified",
+          "cited_by_entry": false
+        }
+      ],
+      "trial_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_best_answer_id": "A",
+          "review_best_answer_id": "A",
+          "review_issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_best_answer_id": "A",
+          "review_best_answer_id": "A",
+          "review_issues": []
+        }
+      ],
+      "original_release_eligible": false,
+      "original_review_method": "openai_only_trial",
+      "physician_ratified": false
+    }
+  ]
+}

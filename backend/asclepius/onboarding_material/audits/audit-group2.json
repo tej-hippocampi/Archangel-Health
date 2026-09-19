@@ -1,0 +1,373 @@
+{
+  "audit": "independent artifact audit, group 2",
+  "audited_at": "2026-09-19T02:01:07.616649+00:00",
+  "manifest_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/audit-openai-passes.json",
+  "manifest_indices": [
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "scope": "Read-only review of exact supplied candidate artifacts, redacted public payloads/rendered prompts, retained evidence and literal reviewer quotes, checksums, reviewer findings and available paired cases. No real-model calls and no artifact edits.",
+  "limitations": [
+    "This is an independent artifact/content audit, not physician ratification or certification.",
+    "All six source artifacts are marked openai_only_trial, physician_ratified=false and release_eligible=false. A clear result here does not change those release metadata or substitute for the release workflow.",
+    "Where an accepted paired case was unavailable, final pair distinctness remains to be checked when the repaired counterpart exists."
+  ],
+  "summary": {
+    "clear": 5,
+    "hold": 1,
+    "source_abstracts_checksum_verified": 48,
+    "literal_quote_references_verified": 108
+  },
+  "cases": [
+    {
+      "manifest_index": 6,
+      "task_id": "onboarding-examination-v1-f5b5b0bf5ff9d45ef6b3-1",
+      "specialty": "obstetrics and gynecology",
+      "kind": "examination",
+      "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10574749092/trial-onboarding-examination-v1-f5b5b0bf5ff9d45ef6b3-1.json",
+      "entry_sha256": "5111919d3822d773d7c0380a6165cd4e04b75d36b217db447ac0503d126eb407",
+      "verdict": "clear",
+      "findings": [],
+      "assessment": "The 650 mL objectively quantified, ongoing postpartum loss after vaginal birth supports prompt hemorrhage protocol activation despite stable vitals. FIGO retained text supports early treatment bundles, late vital-sign changes, quantified loss and reduced tolerance with anemia. The WHO/ACOG definition difference does not change the immediate response: the retained FIGO text also says ACOG considers >500 mL concerning and clinical context, including anemia, can justify treatment. The visible presentation supplies observations without prescribing the next step.",
+      "evidence_passages": [
+        "40985490:p5",
+        "40985490:p10",
+        "40985490:p16",
+        "40985490:p17",
+        "40985490:p39",
+        "40985490:p42",
+        "41031541:p3",
+        "41031541:p31",
+        "31764759:p0"
+      ],
+      "pair": {
+        "status": "no_accepted_pair_available",
+        "detail": "No paired practice artifact is in the accepted library or OpenAI pass manifest. The two retained rejected practice attempts concern early pregnancy/ectopic assessment and are distinct. Recheck the final replacement practice case before releasing the pair."
+      },
+      "mechanical_checks": {
+        "manifest_hash_matches": true,
+        "retained_validation_hash_matches": true,
+        "source_abstract_checksums_verified": 8,
+        "body_excerpt_checksums_verified": 2,
+        "literal_quote_references_verified": 28,
+        "public_case_internal_keys_absent": true,
+        "public_payload_and_rendered_prompt_inspected": true
+      },
+      "retained_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_best_answer": "A",
+          "review_best_answer": "A",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_best_answer": "A",
+          "review_best_answer": "A",
+          "issues": []
+        }
+      ],
+      "source_validation_metadata": {
+        "method": "openai_only_trial",
+        "physician_ratified": false,
+        "release_eligible": false
+      }
+    },
+    {
+      "manifest_index": 7,
+      "task_id": "onboarding-practice-v1-b83236bc7e0943e796cb-1",
+      "specialty": "occupational medicine",
+      "kind": "practice",
+      "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10573779702/trial-onboarding-practice-v1-b83236bc7e0943e796cb-1.json",
+      "entry_sha256": "d2dc5ff93e34e8a071878f714ae346df4d51d15cc9a0ee6d60037a033734835a",
+      "verdict": "clear",
+      "findings": [],
+      "assessment": "Established workplace-isocyanate asthma and continuing exposure support prompt removal/reassignment; the case asks exposure management rather than inferring diagnosis from symptoms. Sources address workers and low-molecular-weight agents, support removal over continued exposure and acknowledge employment consequences. The recommendation does not claim controls abolish risk. The very-low-quality Cochrane evidence is acknowledged in the retained reviewer narrative, and the separate isocyanate review directly recommends prompt avoidance. Visible notes and studies establish the diagnosis without disclosing the exposure-management answer.",
+      "evidence_passages": [
+        "34948791:p1",
+        "34948791:p38",
+        "34948791:p40",
+        "34948791:p43",
+        "33373055:p0",
+        "33373055:p1",
+        "36276967:p0"
+      ],
+      "pair": {
+        "status": "no_accepted_pair_available",
+        "detail": "No paired occupational-medicine examination artifact was found in the accepted library, pass manifest or retained output filenames. Distinctness must be checked when the replacement examination exists."
+      },
+      "mechanical_checks": {
+        "manifest_hash_matches": true,
+        "retained_validation_hash_matches": true,
+        "source_abstract_checksums_verified": 8,
+        "body_excerpt_checksums_verified": 3,
+        "literal_quote_references_verified": 17,
+        "public_case_internal_keys_absent": true,
+        "public_payload_and_rendered_prompt_inspected": true
+      },
+      "retained_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_best_answer": "A",
+          "review_best_answer": "A",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_best_answer": "A",
+          "review_best_answer": "A",
+          "issues": []
+        }
+      ],
+      "source_validation_metadata": {
+        "method": "openai_only_trial",
+        "physician_ratified": false,
+        "release_eligible": false
+      }
+    },
+    {
+      "manifest_index": 8,
+      "task_id": "onboarding-examination-v1-a5ec2abe485f271a3e3d-1",
+      "specialty": "oncology",
+      "kind": "examination",
+      "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10573933729/trial-onboarding-examination-v1-a5ec2abe485f271a3e3d-1.json",
+      "entry_sha256": "826f0e5d8daddf910dced9dca021913b0c577eb2cdc98e211855a6892f6e3c88",
+      "verdict": "clear",
+      "findings": [
+        {
+          "severity": "nonblocking",
+          "location": "validation.reviews[*].blind_solution.rationale",
+          "finding": "Both reviewers describe the diarrhea as grade 2 or grade-2-range, but four to five total stools versus one baseline means an increase of three to four and crosses the grade 1/2 boundary. The entry itself does not assign a grade, and its etiologic-assessment question does not require an exact grade.",
+          "suggestion": "Avoid treating the reviewers\u2019 grade assignment as verified; if grade becomes relevant in any revision, use a precise increase from baseline and re-review that revision."
+        }
+      ],
+      "assessment": "For this stable patient the question is which assessment most reliably establishes etiology. Retained MASCC text explicitly calls biopsy the diagnostic gold standard and useful to exclude alternatives, while pathology and ICI-specific evidence support microscopic disease despite normal gross appearance. This supports candidate A without asserting that all similar patients must wait for biopsy before receiving treatment. Candidate B overstates certainty from timing and frequency alone and defers tissue assessment until treatment failure. No visible plan or biopsy instruction is leaked.",
+      "evidence_passages": [
+        "32856210:p1",
+        "42070936:p0",
+        "35917654:p1"
+      ],
+      "pair": {
+        "status": "no_accepted_pair_available",
+        "detail": "No accepted paired practice artifact exists in the library/pass manifest. Retained rejected practice attempts concern febrile-neutropenia prophylaxis or care setting; the quarantined earlier practice case concerns pediatric febrile-neutropenia antibiotic duration. These are distinct, but the final replacement must be checked. All ten bundled oncology gold decisions were compared; ICI myocarditis emergency management is distinct from diarrhea etiologic assessment."
+      },
+      "mechanical_checks": {
+        "manifest_hash_matches": true,
+        "retained_validation_hash_matches": true,
+        "source_abstract_checksums_verified": 8,
+        "body_excerpt_checksums_verified": 0,
+        "literal_quote_references_verified": 12,
+        "public_case_internal_keys_absent": true,
+        "public_payload_and_rendered_prompt_inspected": true
+      },
+      "retained_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_best_answer": "A",
+          "review_best_answer": "A",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_best_answer": "A",
+          "review_best_answer": "A",
+          "issues": []
+        }
+      ],
+      "source_validation_metadata": {
+        "method": "openai_only_trial",
+        "physician_ratified": false,
+        "release_eligible": false
+      }
+    },
+    {
+      "manifest_index": 9,
+      "task_id": "onboarding-practice-v1-306f5a139a55f0c90a72-1",
+      "specialty": "orthopedic surgery",
+      "kind": "practice",
+      "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10574194923/trial-onboarding-practice-v1-306f5a139a55f0c90a72-1.json",
+      "entry_sha256": "f695c7bf1986cd66c869e96d0382614917ac96cf69b8f338799f3b3f445cc655",
+      "verdict": "clear",
+      "findings": [
+        {
+          "severity": "nonblocking",
+          "location": "entry.claims[1] and retained source 39356234:p1",
+          "finding": "The most specific first-generation-cephalosporin passage is an EMS/pre-hospital recommendation, while the vignette is now in the emergency department. Its preceding passage supports immediate prophylaxis for open fractures generally, and the independent geriatric trauma guideline supports cephalosporin prophylaxis in elderly open-fracture patients. The keyed action is an initial dose, without claiming a complete severe-fracture regimen, duration, or exclusive monotherapy.",
+          "suggestion": "For a future revision, cite a retained ED/in-hospital initial-regimen passage directly or frame the case at the prehospital decision point; do not expand this answer into a definitive regimen for a severe open fracture without additional support."
+        }
+      ],
+      "assessment": "The urgent-prophylaxis decision is supported for an alert older adult with an open fracture, life threats addressed, no relevant allergy and no prior dose. Retained sources support prompt antibiotics and cephalosporin prophylaxis, while the flawed candidate waits for operative cultures/grading. Candidate A does not claim that initial cefazolin is the entire operative antibiotic plan. Visible history establishes injury and prior care without naming the antibiotic.",
+      "evidence_passages": [
+        "39356234:p0",
+        "39356234:p1",
+        "38816766:p1",
+        "38816766:p23",
+        "38816766:p24",
+        "38816766:p26",
+        "33485638:p0"
+      ],
+      "pair": {
+        "status": "distinct",
+        "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-examination-v1-306f5a139a55f0c90a72-1.json",
+        "detail": "Accepted examination asks recognition and immediate decompression of acute forearm compartment syndrome; this practice case asks initial open-fracture antibiotic prophylaxis.",
+        "entry_sha256": "02017525fd9a4bd3caeec07898161b160bc948405c3bc17fe16e33cf2bcd636e"
+      },
+      "mechanical_checks": {
+        "manifest_hash_matches": true,
+        "retained_validation_hash_matches": true,
+        "source_abstract_checksums_verified": 8,
+        "body_excerpt_checksums_verified": 1,
+        "literal_quote_references_verified": 15,
+        "public_case_internal_keys_absent": true,
+        "public_payload_and_rendered_prompt_inspected": true
+      },
+      "retained_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_best_answer": "A",
+          "review_best_answer": "A",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_best_answer": "A",
+          "review_best_answer": "A",
+          "issues": []
+        }
+      ],
+      "source_validation_metadata": {
+        "method": "openai_only_trial",
+        "physician_ratified": false,
+        "release_eligible": false
+      }
+    },
+    {
+      "manifest_index": 10,
+      "task_id": "onboarding-examination-v1-a2344499dcd2cac5f8d6-1",
+      "specialty": "otolaryngology",
+      "kind": "examination",
+      "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10574003815/trial-onboarding-examination-v1-a2344499dcd2cac5f8d6-1.json",
+      "entry_sha256": "a826ffa2816536dddb44ef44672d7a4520a39e34d0f40da7468e83b5ffe545bf",
+      "verdict": "hold",
+      "findings": [
+        {
+          "severity": "blocking",
+          "location": "entry.claims[4]; validation.sources[id=34081420]",
+          "finding": "The only second cited source studies mortality after free-flap reconstruction in already diagnosed head-and-neck cancer. It does not support the diagnostic workup of an undiagnosed cystic neck mass, the PET-CT choice, or the consequences of diagnostic delay. All substantive diagnostic claims rely on 31186166. The first reviewer explicitly calls the mortality claim \"not material to the present diagnostic decision.\" This is evidence padding for the stated two-source requirement, not a second relevant basis for the case.",
+          "suggestion": "Replace the free-flap mortality claim/source with retained evidence relevant to adult cystic neck-mass diagnostic workup (and the particular post-nondiagnostic-FNA action), or revise the case to a decision supported by two relevant sources. Regenerate both independent reviews and the entry hash after edits."
+        }
+      ],
+      "assessment": "SFORL source 31186166 directly supports malignancy suspicion, ultrasound assessment, inability of CT/MRI alone to establish benignity and PET-CT particularly after inconclusive FNA. The adult source population matches the vignette. There is no unsupported decisive PET-CT instruction within that framework. Hold is for the unrelated second source, not for the primary guideline recommendation. Public CT/FNA impressions describe completed tests; they do not explicitly prescribe PET-CT.",
+      "evidence_passages": [
+        "31186166:p0",
+        "31186166:p1",
+        "34081420:p0",
+        "34081420:p1"
+      ],
+      "pair": {
+        "status": "distinct",
+        "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10574003815/trial-onboarding-practice-v1-a2344499dcd2cac5f8d6-1.json",
+        "entry_sha256": "67ed813ed13ca348ddef542c46d165bd24eb1212395c4e103cdbbebb7b1c8dc7",
+        "detail": "Paired practice is sudden sensorineural hearing loss and retrocochlear assessment; this exam is adult cystic neck-mass evaluation."
+      },
+      "mechanical_checks": {
+        "manifest_hash_matches": true,
+        "retained_validation_hash_matches": true,
+        "source_abstract_checksums_verified": 8,
+        "body_excerpt_checksums_verified": 1,
+        "literal_quote_references_verified": 12,
+        "public_case_internal_keys_absent": true,
+        "public_payload_and_rendered_prompt_inspected": true
+      },
+      "retained_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_best_answer": "B",
+          "review_best_answer": "B",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_best_answer": "B",
+          "review_best_answer": "B",
+          "issues": []
+        }
+      ],
+      "source_validation_metadata": {
+        "method": "openai_only_trial",
+        "physician_ratified": false,
+        "release_eligible": false
+      }
+    },
+    {
+      "manifest_index": 11,
+      "task_id": "onboarding-practice-v1-a2344499dcd2cac5f8d6-1",
+      "specialty": "otolaryngology",
+      "kind": "practice",
+      "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10574003815/trial-onboarding-practice-v1-a2344499dcd2cac5f8d6-1.json",
+      "entry_sha256": "67ed813ed13ca348ddef542c46d165bd24eb1212395c4e103cdbbebb7b1c8dc7",
+      "verdict": "clear",
+      "findings": [],
+      "assessment": "Adult unilateral audiometrically confirmed sudden sensorineural hearing loss matches the 2019 AAO-HNSF population and framework named neutrally in the question. Its retained action statements support MRI or ABR for retrocochlear disease and advise against routine nontargeted CT and routine labs. The Spanish consensus independently supports early MRI. Initial steroid counseling/treatment is documented as completed care, so the assessment question does not omit that unresolved treatment decision. The answer limits its CT rejection to routine nontargeted scans and therefore does not contradict the guideline\u2019s targeted-CT alternative. No visible imaging plan leaks the answer.",
+      "evidence_passages": [
+        "31369359:p5",
+        "31369359:p6",
+        "31369359:p9",
+        "31369349:p5",
+        "31369349:p6",
+        "31369349:p10",
+        "30093087:p0"
+      ],
+      "pair": {
+        "status": "distinct",
+        "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35412250353/10574003815/trial-onboarding-examination-v1-a2344499dcd2cac5f8d6-1.json",
+        "entry_sha256": "a826ffa2816536dddb44ef44672d7a4520a39e34d0f40da7468e83b5ffe545bf",
+        "detail": "Paired examination is adult cystic neck-mass diagnostic workup; this practice case concerns retrocochlear evaluation in sudden sensorineural hearing loss."
+      },
+      "mechanical_checks": {
+        "manifest_hash_matches": true,
+        "retained_validation_hash_matches": true,
+        "source_abstract_checksums_verified": 8,
+        "body_excerpt_checksums_verified": 0,
+        "literal_quote_references_verified": 24,
+        "public_case_internal_keys_absent": true,
+        "public_payload_and_rendered_prompt_inspected": true
+      },
+      "retained_reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_best_answer": "A",
+          "review_best_answer": "A",
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_best_answer": "A",
+          "review_best_answer": "A",
+          "issues": []
+        }
+      ],
+      "source_validation_metadata": {
+        "method": "openai_only_trial",
+        "physician_ratified": false,
+        "release_eligible": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,1274 @@
+{
+  "audit_version": 1,
+  "audited_at": "2026-09-19T02:34:33.327097+00:00",
+  "auditor": "Independent artifact auditor /root/audit_release_group1",
+  "scope": "All seven model-passed cases listed in audit-revision-batch3.json. Compared final bundled companion cases except psychiatry, for which both final trial artifacts were compared. No real-model calls and no repository edits.",
+  "manifest_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/audit-revision-batch3.json",
+  "manifest_sha256": "891ac35b0e00bcd8b656eab4fc36d75af6e1c8587d0ce512fe1143ef2e6fb90d",
+  "overall_disposition": "clear",
+  "physician_ratification": false,
+  "blocking_findings": [],
+  "method": [
+    "Read complete authored entries and retained reviewers; inspect actual public_case/blind_entry payload and rendered clinical prompts separately from the private key.",
+    "Independently assess decisive claims against retained abstracts and source body context, including population, acute versus chronic use, evidence limitations, contraindications and essential-care scope.",
+    "Verify canonical entry hashes, all retained abstract/body hashes, structural entry/review checks, and every literal source quotation against retained passage handles.",
+    "Read final companion cases and compare the actual clinical decisions."
+  ],
+  "literal_source_quote_instances_verified": 121,
+  "cases": [
+    {
+      "task_id": "onboarding-practice-v1-f5b5b0bf5ff9d45ef6b3-1",
+      "specialty": "obstetrics and gynecology",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10575404103/trial-onboarding-practice-v1-f5b5b0bf5ff9d45ef6b3-1.json",
+      "artifact_sha256": "7911917c61fc20b60d1befbbfb8325f8b19adb0af948c051536be67e6e3e7738",
+      "entry_sha256": "bdd7ad54db98eb2f3bd22bf17e1ff186ef51fabf300126abe946dc8b0052d3e4",
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "source_entailment_and_population",
+          "result": "clear",
+          "finding": "The SRU lexicon explicitly defines pregnancy of unknown location by a positive pregnancy status with neither definite nor probable intrauterine or ectopic pregnancy on transvaginal ultrasound. This adult has exactly those findings, hCG 620 IU/L, irregular dating, no prior documented normally sited pregnancy, and no substantial free fluid or instability. The source on intrauterine pregnancy loss excludes PUL and warns against incorrect loss diagnoses. The PID source directly supports the stated ectopic-risk history. All five claims are supported.",
+          "source_ids": [
+            "39198135",
+            "40349974",
+            "30878686"
+          ]
+        },
+        {
+          "check": "essential_care_and_scope",
+          "result": "clear",
+          "finding": "The question and both candidates ask only for classification at the assessment point. B neither declares the pregnancy viable/nonviable nor excludes future ectopic pregnancy, and it does not propose discharge, cessation of follow-up, or pregnancy-directed treatment. Serial testing and precautions remain outside this classification comparison; their absence is not represented as a complete management plan."
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The title, note and ultrasound impression state the location findings without using the answer term. The imaging impression is a factual description of nonvisualization rather than a named classification or management instruction. The actual public payload excludes the private key and grading/authoring metadata."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "Compared with the final bundled obstetrics examination case: early-pregnancy location classification differs from recognition and immediate protocol activation for quantified postpartum hemorrhage. The companion entry hash is pinned below."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-examination-v1-f5b5b0bf5ff9d45ef6b3-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-examination-v1-f5b5b0bf5ff9d45ef6b3-1.json",
+        "entry_sha256": "5111919d3822d773d7c0380a6165cd4e04b75d36b217db447ac0503d126eb407"
+      },
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "independent_correct_answer": "B",
+        "source_hashes_verified": [
+          {
+            "source_id": "33453378",
+            "abstract_sha256": "96e6266579362a91cc09004767106c6d2ea5ec2e98ae218ffdf480a639ac55e0"
+          },
+          {
+            "source_id": "32106976",
+            "abstract_sha256": "3a668e29e1d549ce9c89ffe5fe4d4a4cd7891b125aad23e947828dccdc61a034"
+          },
+          {
+            "source_id": "39198135",
+            "abstract_sha256": "8e035dc243763034d7a3f60b85530184cbbd832f0afeee3f03d330f9796682e2"
+          },
+          {
+            "source_id": "40349974",
+            "abstract_sha256": "81b4a5eb549b7035c7bcb6c542afba64b8dc27c58c496942f4df9a7040131327"
+          },
+          {
+            "source_id": "30878686",
+            "abstract_sha256": "c11302ede765c0372b4abc77bf6845821e827fc3c7e1b44269a771196952b9eb"
+          },
+          {
+            "source_id": "31972162",
+            "abstract_sha256": "55cb90244db9b955d4dece26d2ddbba6f1b2e84ffd2f54bf78ac93bd851dca0c"
+          },
+          {
+            "source_id": "41183782",
+            "abstract_sha256": "aab3365e04c665651c8ed8aa556d862976f5ab6247cae1332cda090b7104468a"
+          },
+          {
+            "source_id": "41069289",
+            "abstract_sha256": "69c3ea0468db290a9b129c9a8063292fb8b0d3f69027b999aba4509fb2af3210"
+          }
+        ],
+        "literal_quote_instances_verified": 10,
+        "public_payload_sha256": "b620ffc8cd7a61896379e6049bc068d73c22c290bb2e7b1a02f3faeb11d33152",
+        "public_boundary_verified": true
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_answer": "B",
+          "review_answer": "B",
+          "issues": [],
+          "claim_passages_verified": [
+            {
+              "claim_index": 0,
+              "source_passage_ids": [
+                "39198135:p0"
+              ]
+            },
+            {
+              "claim_index": 1,
+              "source_passage_ids": [
+                "39198135:p0"
+              ]
+            },
+            {
+              "claim_index": 2,
+              "source_passage_ids": [
+                "40349974:p0"
+              ]
+            },
+            {
+              "claim_index": 3,
+              "source_passage_ids": [
+                "40349974:p0"
+              ]
+            },
+            {
+              "claim_index": 4,
+              "source_passage_ids": [
+                "30878686:p1"
+              ]
+            }
+          ]
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_answer": "B",
+          "review_answer": "B",
+          "issues": [],
+          "claim_passages_verified": [
+            {
+              "claim_index": 0,
+              "source_passage_ids": [
+                "39198135:p0"
+              ]
+            },
+            {
+              "claim_index": 1,
+              "source_passage_ids": [
+                "39198135:p0"
+              ]
+            },
+            {
+              "claim_index": 2,
+              "source_passage_ids": [
+                "40349974:p0"
+              ]
+            },
+            {
+              "claim_index": 3,
+              "source_passage_ids": [
+                "40349974:p0"
+              ]
+            },
+            {
+              "claim_index": 4,
+              "source_passage_ids": [
+                "30878686:p1"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "onboarding-examination-v1-44054454697e27006b24-1",
+      "specialty": "sports medicine",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10575219343/trial-onboarding-examination-v1-44054454697e27006b24-1.json",
+      "artifact_sha256": "cd69d2a513e0a43f02c317044628e8d4a9582255869b47ee530422245e9611a4",
+      "entry_sha256": "41c19eb2beee89cd1db31e88f8b9a67de435f1fe9c66a7b3d2af2ad9090bb573",
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "source_entailment_and_population",
+          "result": "clear",
+          "finding": "The case is an adult on day 3 after an uncomplicated grade II lateral ankle sprain, with negative radiographs, ambulation possible, intact neurovascular findings, and no syndesmotic/medial/proximal-fibular findings. The guideline review and umbrella review support external functional support, early/progressive ambulation and mobilization, and rehabilitation. The exercise review includes adults with acute grade I/II injuries, including enrollment within 72 hours, so this is not an extrapolation from chronic instability or prevention-only cohorts.",
+          "source_ids": [
+            "36281183",
+            "35872766",
+            "35134061"
+          ]
+        },
+        {
+          "check": "evidence_limits",
+          "result": "clear",
+          "finding": "The exercise meta-analysis reports reduced recurrence in its primary analysis but loss of statistical significance in a sensitivity analysis; it does not establish an optimal content, volume, or universally best program. The entry asserts no numeric guaranteed benefit or superiority of supervised treatment and explicitly avoids a uniquely superior fixed regimen. The separate comparative review also states that an ideal protocol cannot be defined.",
+          "source_ids": [
+            "35134061",
+            "35363336",
+            "35872766"
+          ]
+        },
+        {
+          "check": "essential_care_and_safety",
+          "result": "clear",
+          "finding": "A selects rehabilitation as tolerated after fracture exclusion, rather than mandatory immediate unrestricted sport. B instead mandates weeks of non-weight-bearing/rigid immobilization, postpones motion until all symptoms resolve, and omits rehabilitation. No drug dose or unsupported return-to-sport clearance is included; a medication recommendation is not essential to resolve this rehabilitation comparison."
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The title/question and actual public clinical text describe injury, functional limitations, and negative imaging without disclosing functional treatment or grading cues. The rehabilitation-scope completeness label identifies the question domain but not the answer."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The final bundled sports practice case addresses withdrawal from competition after cycling head trauma and concussion findings. Ankle functional rehabilitation after a radiograph-negative sprain is a separate decision."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-practice-v1-44054454697e27006b24-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-practice-v1-44054454697e27006b24-1.json",
+        "entry_sha256": "7405724bdcba52010736c6f5aaa93be522bcfa6302db2aba52592d7737659750"
+      },
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "independent_correct_answer": "A",
+        "source_hashes_verified": [
+          {
+            "source_id": "33789434",
+            "abstract_sha256": "79a4f188a51c98c1135405549391f1de832d26f7cd51c438bf288b3319f0ded2"
+          },
+          {
+            "source_id": "36281183",
+            "abstract_sha256": "90ad8bb7d111766db1922fcb0c65fcbea1e6a1c6031c8ac4b0a3e05f12928bc6"
+          },
+          {
+            "source_id": "35134061",
+            "abstract_sha256": "a19d47d282299a5cb4989e7b238f5e678a1a63a4373176f169d30bcd009396fd",
+            "body_excerpts_sha256": "62568c756a94ecb0bdc75e45bf49da4b2e9a75d80993f85a79b971976f7bd7a5"
+          },
+          {
+            "source_id": "35872766",
+            "abstract_sha256": "4537ab23f0ef6994f7eb00c1a71abdd400a72928104d1109b069332b8e3cd4b2",
+            "body_excerpts_sha256": "f1dc5573eadeaab2f77f6d938e5671671e0cd361530f2e277d6d285e27f25668"
+          },
+          {
+            "source_id": "35363336",
+            "abstract_sha256": "2f1f6b4a59a41d859dab6536cb23d0d3b5afc6b9247aa3bf99a0115e70896ebb"
+          },
+          {
+            "source_id": "32067546",
+            "abstract_sha256": "936b03f67302ede44f6c030641fc5feb0797852ca8a420703d8f10b6fb8767a8"
+          },
+          {
+            "source_id": "33813154",
+            "abstract_sha256": "19edc9410c7367b5fa799727f0fd7feab208161b1b775f566f1eed5000b39172"
+          },
+          {
+            "source_id": "41385332",
+            "abstract_sha256": "67b9f619683a5dad1af2674dced3c4da0f147403788013630b94a64d6376ba2d"
+          }
+        ],
+        "literal_quote_instances_verified": 28,
+        "public_payload_sha256": "08a465b3a4b6f686b9fea64429215b596cffd6b895bf87b818d5e590001bd2fa",
+        "public_boundary_verified": true
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_answer": "A",
+          "review_answer": "A",
+          "issues": [],
+          "claim_passages_verified": [
+            {
+              "claim_index": 0,
+              "source_passage_ids": [
+                "35872766:p1",
+                "35872766:p22",
+                "35872766:p40"
+              ]
+            },
+            {
+              "claim_index": 1,
+              "source_passage_ids": [
+                "36281183:p1"
+              ]
+            },
+            {
+              "claim_index": 2,
+              "source_passage_ids": [
+                "35134061:p1",
+                "35134061:p2",
+                "35134061:p19",
+                "35134061:p35"
+              ]
+            },
+            {
+              "claim_index": 3,
+              "source_passage_ids": [
+                "35134061:p2",
+                "35134061:p21",
+                "35134061:p34",
+                "35134061:p35"
+              ]
+            },
+            {
+              "claim_index": 4,
+              "source_passage_ids": [
+                "35363336:p1",
+                "35363336:p2"
+              ]
+            }
+          ]
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_answer": "A",
+          "review_answer": "A",
+          "issues": [],
+          "claim_passages_verified": [
+            {
+              "claim_index": 0,
+              "source_passage_ids": [
+                "35872766:p30",
+                "35872766:p32",
+                "35872766:p40"
+              ]
+            },
+            {
+              "claim_index": 1,
+              "source_passage_ids": [
+                "36281183:p1"
+              ]
+            },
+            {
+              "claim_index": 2,
+              "source_passage_ids": [
+                "35134061:p0",
+                "35134061:p2",
+                "35134061:p35"
+              ]
+            },
+            {
+              "claim_index": 3,
+              "source_passage_ids": [
+                "35134061:p1",
+                "35134061:p2",
+                "35134061:p31",
+                "35134061:p35"
+              ]
+            },
+            {
+              "claim_index": 4,
+              "source_passage_ids": [
+                "35363336:p0",
+                "35363336:p1",
+                "35363336:p2"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "onboarding-practice-v1-35e2a2612a84e34c4349-1",
+      "specialty": "urology",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10575179075/trial-onboarding-practice-v1-35e2a2612a84e34c4349-1.json",
+      "artifact_sha256": "7330ad4dd92284cdba746c0a191547087779f29858fc02eafdde28417200b9a2",
+      "entry_sha256": "210844c246cb42eab5003145e4bc3b2d9278ef46aa74e91406fe4d0e5c180c25",
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "source_entailment_and_population",
+          "result": "clear",
+          "finding": "CT-confirmed ureteral obstruction/hydronephrosis, fever, tachycardia, pyuria/nitrite, leukocytosis, and creatinine doubling match infected obstructive urolithiasis populations. Both sources support prompt source control with urinary drainage plus antibiotics. The retained full text directly supports deferring definitive stone removal until infection has cleared.",
+          "source_ids": [
+            "38929478",
+            "41375849"
+          ]
+        },
+        {
+          "check": "modality_and_contraindications",
+          "result": "clear",
+          "finding": "The comparative meta-analysis finds no significant early efficacy difference between stenting and PCN, and the newer review supports choosing the route available fastest and most reliably. The older source identifies difficult retrograde access and uncorrected coagulopathy/platelet dysfunction as route constraints. This case supplies normal platelets/INR and absence of diversion, stricture, transplant, pregnancy and anticoagulant exposure, so neither route is inappropriately mandated. No claim of equal adverse-effect profiles is made.",
+          "source_ids": [
+            "38929478",
+            "41375849"
+          ]
+        },
+        {
+          "check": "essential_care_and_evidence_limits",
+          "result": "clear",
+          "finding": "Cultures, fluids and initial IV broad-spectrum antimicrobial therapy are already documented, and A continues antimicrobial treatment while arranging current-presentation drainage. It does not use hemodynamic stability to justify observation. Mortality/AKI claims are correctly framed as associations; the timing review is dominated by observational data and confounding, not a randomized proof of a particular hourly threshold. No unsupported hour cutoff or antibiotic dose is asserted.",
+          "source_ids": [
+            "41375849"
+          ]
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The public title and CT impression identify an obstructing calculus, which is clinical evidence for the management question. They do not disclose drainage, device choice, or deferred stone extraction. Private keys, claims and grading metadata are absent from the actual public payload."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The final bundled urology examination case tests completing the initial hematuria assessment before imaging. Urgent infected-obstruction source control is distinct."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-examination-v1-35e2a2612a84e34c4349-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-examination-v1-35e2a2612a84e34c4349-1.json",
+        "entry_sha256": "2bad59e0f403d47b415a10333ec63fa6c05fe6266eca1abfe5cf8f6afe0b1ac1"
+      },
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "independent_correct_answer": "A",
+        "source_hashes_verified": [
+          {
+            "source_id": "38929478",
+            "abstract_sha256": "ed6b4e3ff2faa51a5554767fdc0b3d597430c421490a4bcb9574fc164aff9c0d",
+            "body_excerpts_sha256": "fcf805e823cddd04ef49caed3a7fddedf18cd363d1dc27ad196297449c3efd5e"
+          },
+          {
+            "source_id": "41375849",
+            "abstract_sha256": "659d06aec45165514f0f531574fea48e740e95f63ae4c9d7c3d28a019fb59017",
+            "body_excerpts_sha256": "42d2c99a878ae13609266d6290de0b8f2b44c40b72a4fbf8d86ca8286c4fdcdb"
+          },
+          {
+            "source_id": "40583613",
+            "abstract_sha256": "b06548a1b0d30f4371ee7eed4602ffbe4e977f2221aa0a0d55cca9f2f6a5ab19"
+          },
+          {
+            "source_id": "37955353",
+            "abstract_sha256": "386c08b37da79f143aba1c26948ff364944738b3fc0b3206cb3674a91f014b00"
+          },
+          {
+            "source_id": "40029456",
+            "abstract_sha256": "f89b2b47fe82e103c540eef3a50bc5b25f681ccba68e377158d80327f9344c9e",
+            "body_excerpts_sha256": "6ddea717e6de566421506ece6fabe4168ca01c33183d41362a8174ccb2210700"
+          },
+          {
+            "source_id": "32892200",
+            "abstract_sha256": "07db598cb98ae87dd3d9c597ce322269f69ded326709ff5d4f04559573cf6d23"
+          },
+          {
+            "source_id": "35674819",
+            "abstract_sha256": "a7f96da08f8a0f6bec373255c35060c24751cf29633727b5ce238f4e72483344"
+          },
+          {
+            "source_id": "38819386",
+            "abstract_sha256": "242511bb06671a931a9fa3caf3c41e58a3335cdeae6318828a5b61d46616cfdb"
+          }
+        ],
+        "literal_quote_instances_verified": 24,
+        "public_payload_sha256": "f46eccb02ed20fb2d1fe7ad67f22c5380771342e524b2c1bab020703be60b001",
+        "public_boundary_verified": true
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_answer": "A",
+          "review_answer": "A",
+          "issues": [],
+          "claim_passages_verified": [
+            {
+              "claim_index": 0,
+              "source_passage_ids": [
+                "38929478:p3",
+                "38929478:p15",
+                "41375849:p2"
+              ]
+            },
+            {
+              "claim_index": 1,
+              "source_passage_ids": [
+                "38929478:p3",
+                "41375849:p4"
+              ]
+            },
+            {
+              "claim_index": 2,
+              "source_passage_ids": [
+                "38929478:p1",
+                "41375849:p3"
+              ]
+            },
+            {
+              "claim_index": 3,
+              "source_passage_ids": [
+                "41375849:p17",
+                "41375849:p18"
+              ]
+            },
+            {
+              "claim_index": 4,
+              "source_passage_ids": [
+                "38929478:p17"
+              ]
+            }
+          ]
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_answer": "A",
+          "review_answer": "A",
+          "issues": [],
+          "claim_passages_verified": [
+            {
+              "claim_index": 0,
+              "source_passage_ids": [
+                "38929478:p3",
+                "38929478:p15",
+                "41375849:p2",
+                "41375849:p9"
+              ]
+            },
+            {
+              "claim_index": 1,
+              "source_passage_ids": [
+                "38929478:p3",
+                "41375849:p4",
+                "41375849:p9"
+              ]
+            },
+            {
+              "claim_index": 2,
+              "source_passage_ids": [
+                "38929478:p1",
+                "41375849:p3",
+                "41375849:p25"
+              ]
+            },
+            {
+              "claim_index": 3,
+              "source_passage_ids": [
+                "41375849:p17",
+                "41375849:p18",
+                "41375849:p24"
+              ]
+            },
+            {
+              "claim_index": 4,
+              "source_passage_ids": [
+                "38929478:p17"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "onboarding-examination-v1-a3f0529b322c9d257c29-1",
+      "specialty": "psychiatry",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10575429229/trial-onboarding-examination-v1-a3f0529b322c9d257c29-1.json",
+      "artifact_sha256": "386f2d503af30ab47a711fabca260fb59a82ad68eb03490503b16bf17a7cc802",
+      "entry_sha256": "f53ec640a12f3ee5be79ddad4a51a959f5d3ebc37a21cf124b8fd320749f5c02",
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "source_entailment_and_population",
+          "result": "clear",
+          "finding": "The adult has recent overdose-related ideation, accessible medication, identifiable warning signs/coping, and a consenting willing partner. The qualitative SPI synthesis explicitly lists all six components and supports collaborative, person-centered planning, targeted lethal-means restriction and support-person involvement. The adult effectiveness review applies to general adult/veteran clinical populations and supports the appropriately qualified outcome claim.",
+          "source_ids": [
+            "39758449",
+            "33913799"
+          ]
+        },
+        {
+          "check": "app_evidence_and_essential_care",
+          "result": "clear",
+          "finding": "The mHealth review explicitly recommends knowledgeable clinical support for initial plan completion and reports small, nonrandomized and inconclusive outcome studies. B includes warning signs, internal coping, social distraction, trusted contacts, professional crisis services and concrete restriction of the implicated medication with consented partner involvement. It does not claim that an app, a no-harm promise, or a completed plan establishes discharge eligibility or replaces ongoing clinical assessment.",
+          "source_ids": [
+            "38546711",
+            "39758449"
+          ]
+        },
+        {
+          "check": "scope_and_safety",
+          "result": "clear",
+          "finding": "The immediate comparison concerns how to address the unresolved safety-planning task in an organized patient without current intent/plan. Neither the key nor B asserts no future risk, recommends discharge, or omits a stated urgent medical overdose problem; the chart explicitly says no ingestion occurred. The medication stockpile is addressed now rather than postponed to independent homework."
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The chart states that no written crisis strategy has been developed and describes available supports. These are the facts needed to compare planning methods, not a disclosed list of the correct plan components. Public title/question do not name the intended plan, and the public payload excludes private rationale and claims."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "Compared directly with the final psychiatry practice artifact in the same CI folder: this case tests collaborative suicide safety planning and lethal-means restriction; the companion tests perinatal bipolar diagnostic assessment before medication selection."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-practice-v1-a3f0529b322c9d257c29-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10575429229/trial-onboarding-practice-v1-a3f0529b322c9d257c29-1.json",
+        "entry_sha256": "409b21dffb9253b2390d2193fe3e66d0777d3e2d3bc2a3319aee32cb650dfd2d"
+      },
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "independent_correct_answer": "B",
+        "source_hashes_verified": [
+          {
+            "source_id": "38158127",
+            "abstract_sha256": "61236ed4b571c0669449059bffa8ccf14ca4ad7f09fc179d684c5e0b716524f3"
+          },
+          {
+            "source_id": "33913799",
+            "abstract_sha256": "260aa234a248234c8b06dd6024df27c48245a593fb299818da2fd163fd779c4c"
+          },
+          {
+            "source_id": "36324257",
+            "abstract_sha256": "9eb27150c3a461395b968952de8f5baa58a17298682e3e9391645d2b829b47a0"
+          },
+          {
+            "source_id": "39758449",
+            "abstract_sha256": "701043453c2c5b7a76a83112950206510a1dba0cda3208c4d77024bb871641a4",
+            "body_excerpts_sha256": "cf5461372fccdf00bd3a957ef04583c5ba777b8dbae43fadbfd0c07cb9b96ca0"
+          },
+          {
+            "source_id": "38546711",
+            "abstract_sha256": "30aabbcb9410df36234e729998779ace88ab7b528ec4c151e688044af8f8ec66",
+            "body_excerpts_sha256": "dcc8f53cc5fde672981664f86a19f53c129956f347491a57ef04493def2d68db"
+          },
+          {
+            "source_id": "41021221",
+            "abstract_sha256": "79024b9c671f5e85b2757599721661fbd79a95c276504407f2566500af1ca7b7"
+          },
+          {
+            "source_id": "35021912",
+            "abstract_sha256": "9e947639f5a0074416a7704249daa7ea11372b45dbd0e25bc8860a3ea34710da"
+          },
+          {
+            "source_id": "35583506",
+            "abstract_sha256": "d714d253ec862e02c15ad9778218fa1c03f9411c34a3befab5e54d08dcf1308a"
+          }
+        ],
+        "literal_quote_instances_verified": 24,
+        "public_payload_sha256": "767db6df33d2b85a114ed9f2374251fed32ea87b6a29b447f825c265764b3a60",
+        "public_boundary_verified": true
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_answer": "B",
+          "review_answer": "B",
+          "issues": [],
+          "claim_passages_verified": [
+            {
+              "claim_index": 0,
+              "source_passage_ids": [
+                "39758449:p3"
+              ]
+            },
+            {
+              "claim_index": 1,
+              "source_passage_ids": [
+                "39758449:p21",
+                "39758449:p30",
+                "39758449:p31"
+              ]
+            },
+            {
+              "claim_index": 2,
+              "source_passage_ids": [
+                "39758449:p33",
+                "39758449:p34"
+              ]
+            },
+            {
+              "claim_index": 3,
+              "source_passage_ids": [
+                "33913799:p1",
+                "33913799:p2"
+              ]
+            },
+            {
+              "claim_index": 4,
+              "source_passage_ids": [
+                "38546711:p3",
+                "38546711:p30",
+                "38546711:p39",
+                "38546711:p40"
+              ]
+            }
+          ]
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_answer": "B",
+          "review_answer": "B",
+          "issues": [],
+          "claim_passages_verified": [
+            {
+              "claim_index": 0,
+              "source_passage_ids": [
+                "39758449:p3"
+              ]
+            },
+            {
+              "claim_index": 1,
+              "source_passage_ids": [
+                "39758449:p21",
+                "39758449:p31",
+                "39758449:p32"
+              ]
+            },
+            {
+              "claim_index": 2,
+              "source_passage_ids": [
+                "39758449:p34"
+              ]
+            },
+            {
+              "claim_index": 3,
+              "source_passage_ids": [
+                "33913799:p0",
+                "33913799:p1",
+                "33913799:p2"
+              ]
+            },
+            {
+              "claim_index": 4,
+              "source_passage_ids": [
+                "38546711:p30",
+                "38546711:p3",
+                "38546711:p40",
+                "38546711:p44"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "onboarding-practice-v1-a3f0529b322c9d257c29-1",
+      "specialty": "psychiatry",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10575429229/trial-onboarding-practice-v1-a3f0529b322c9d257c29-1.json",
+      "artifact_sha256": "2d02e9b92458f9d2ba8e8356acd57929c1e117fc9cc025cd4e353e9cfe3780c1",
+      "entry_sha256": "409b21dffb9253b2390d2193fe3e66d0777d3e2d3bc2a3319aee32cb650dfd2d",
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "source_entailment_and_population",
+          "result": "clear",
+          "finding": "The CANMAT perinatal guideline directly requires evaluating past/current mania or hypomania when depressive symptoms are present. It gives the MDQ cutoff of at least 7 without supplementary questions, and states that a positive screen requires assessment because only about half are diagnosed with bipolar disorder. The patient is six weeks postpartum, has a score of 8 and collateral-confirmed episodic symptoms; A appropriately seeks diagnosis instead of treating the screen as diagnostic.",
+          "source_ids": [
+            "39936923"
+          ]
+        },
+        {
+          "check": "medication_and_evidence_limits",
+          "result": "clear",
+          "finding": "The full CANMAT context allows selected antidepressant use but describes monotherapy as not ideal in perinatal bipolar depression, especially the first three postpartum months. B dismisses meaningful bipolar indicators and immediately labels the illness unipolar. A postpones default antidepressant monotherapy while resolving that distinction; it does not impose a categorical lifetime ban or select a lactation-inappropriate drug. The Polish bipolar guideline independently supports the contextual claim about postpartum quetiapine or antidepressant adjunctive to a mood stabilizer.",
+          "source_ids": [
+            "39936923",
+            "31317957"
+          ]
+        },
+        {
+          "check": "essential_care",
+          "result": "clear",
+          "finding": "Missing precise episode durations and other diagnostic details are the information to obtain in the selected assessment, not facts needed to justify an already completed bipolar diagnosis. The chart explicitly excludes current suicidality, infant-harm thoughts, psychosis and elevated mood. The key does not prescribe prolonged withholding of care or claim a complete final treatment plan."
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The title, historical reduced sleep/activity changes, collateral report and raw MDQ score provide diagnostic clues. They do not state a bipolar diagnosis or instruct assessment before antidepressants. No private key or claims appear in the actual public payload."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The final trial psychiatry examination companion concerns suicide safety planning and access to medication, not perinatal diagnosis or antidepressant selection. Both trial entries were directly compared rather than relying on a reviewer claim that no prior case was supplied."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-examination-v1-a3f0529b322c9d257c29-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10575429229/trial-onboarding-examination-v1-a3f0529b322c9d257c29-1.json",
+        "entry_sha256": "f53ec640a12f3ee5be79ddad4a51a959f5d3ebc37a21cf124b8fd320749f5c02"
+      },
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "independent_correct_answer": "A",
+        "source_hashes_verified": [
+          {
+            "source_id": "37486661",
+            "abstract_sha256": "fc34b9f00540984a864ed5819690717ef9d40b21f17de545a0dd8eb336683679"
+          },
+          {
+            "source_id": "37486660",
+            "abstract_sha256": "506ae36ccb3f5035191ed43900e0d338e05ad82d929c50411c9a4fe38faf1842"
+          },
+          {
+            "source_id": "39936923",
+            "abstract_sha256": "5dad3a059f8eb6d9a504b67dfdec990fd99a8af7f2e80859148700047ca3fc68",
+            "body_excerpts_sha256": "ada7b91898e72d19bae22229bc82e1c24435a56eff2323369ec33e5f7eed88eb"
+          },
+          {
+            "source_id": "34599629",
+            "abstract_sha256": "2131a77d016cc0e131fb4ccc70d5b74bb46e9d7db012acacb11e02ddfb7ebef4"
+          },
+          {
+            "source_id": "39424138",
+            "abstract_sha256": "3a7a1556a5306eee52bee18ea1ed19602a872cb5937f518c52f1e846a54f7211"
+          },
+          {
+            "source_id": "31317957",
+            "abstract_sha256": "7ff831d55c6a28d4243ec3a227ebce607e88accf977997e644163c21f3a853e5"
+          },
+          {
+            "source_id": "41124583",
+            "abstract_sha256": "a6626127150a3a8df56ef7c3b8b44b06f957a13ce63fc78ddf047ce818104cfb"
+          },
+          {
+            "source_id": "31248601",
+            "abstract_sha256": "ea08f7fc050ca41d623713b1736ba84b0ea1c125d05ec9ccb4d4fe15c22690e6"
+          }
+        ],
+        "literal_quote_instances_verified": 14,
+        "public_payload_sha256": "eab48628748c26b65ce91cf0ec5baa548b0a1e26c8daa2d3770b1252c77631b0",
+        "public_boundary_verified": true
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_answer": "A",
+          "review_answer": "A",
+          "issues": [],
+          "claim_passages_verified": [
+            {
+              "claim_index": 0,
+              "source_passage_ids": [
+                "39936923:p5"
+              ]
+            },
+            {
+              "claim_index": 1,
+              "source_passage_ids": [
+                "39936923:p5"
+              ]
+            },
+            {
+              "claim_index": 2,
+              "source_passage_ids": [
+                "39936923:p5"
+              ]
+            },
+            {
+              "claim_index": 3,
+              "source_passage_ids": [
+                "39936923:p41",
+                "39936923:p42"
+              ]
+            },
+            {
+              "claim_index": 4,
+              "source_passage_ids": [
+                "31317957:p0",
+                "31317957:p1"
+              ]
+            }
+          ]
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_answer": "A",
+          "review_answer": "A",
+          "issues": [],
+          "claim_passages_verified": [
+            {
+              "claim_index": 0,
+              "source_passage_ids": [
+                "39936923:p5"
+              ]
+            },
+            {
+              "claim_index": 1,
+              "source_passage_ids": [
+                "39936923:p5"
+              ]
+            },
+            {
+              "claim_index": 2,
+              "source_passage_ids": [
+                "39936923:p5"
+              ]
+            },
+            {
+              "claim_index": 3,
+              "source_passage_ids": [
+                "39936923:p41",
+                "39936923:p42"
+              ]
+            },
+            {
+              "claim_index": 4,
+              "source_passage_ids": [
+                "31317957:p0",
+                "31317957:p1"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "onboarding-examination-v1-7c4ff9e6c4470cdf7d03-1",
+      "specialty": "colorectal surgery",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10575079303/trial-onboarding-examination-v1-7c4ff9e6c4470cdf7d03-1.json",
+      "artifact_sha256": "c14de863d8a97bcbc2ef1fe10b0cf4f4248f487d7ccd8d54bf64e43e9678ba9a",
+      "entry_sha256": "547296a6520f5b56f1e1d1f9416997386f8bf583272b23650d1e2c865052637f",
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "source_entailment_and_population",
+          "result": "clear",
+          "finding": "Biopsy-confirmed mid-rectal adenocarcinoma extending through muscularis propria into mesorectal fat places the case in the cT3-type population for which the retained ESGAR text recommends pelvic MRI for extramural extent, CRM, EMVI and other high-risk findings. The same source explicitly assigns chest/abdominal/pelvic CT to distant rectal-cancer staging. ACR independently explains the separate local/distant tasks and need for complementary modalities.",
+          "source_ids": [
+            "38418627",
+            "41193050"
+          ]
+        },
+        {
+          "check": "essential_care_and_evidence_limits",
+          "result": "clear",
+          "finding": "The case asks for completion of staging before treatment selection, and B provides local plus distant imaging. It does not treat ultrasound or CT alone as sufficient local assessment, prescribe an operation before staging, or claim CT excludes every small metastasis. The source reserves MRI/PET problem-solving for selected distant findings; none is described here. The nonobstructing presentation and absence of acute abdominal findings do not demand a competing emergency operation.",
+          "source_ids": [
+            "38418627"
+          ]
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The public title/question identify a staging task, while studies report pathology and extramural extension. Neither names pelvic MRI or the selected imaging combination. Private rationale, claims and grading cues are excluded from public_case/blind_entry."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The final bundled colorectal practice case concerns outpatient observation without routine antibiotics for uncomplicated diverticulitis. Rectal-cancer local/distant pretreatment staging is distinct."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-practice-v1-7c4ff9e6c4470cdf7d03-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-practice-v1-7c4ff9e6c4470cdf7d03-1.json",
+        "entry_sha256": "e6851254a9989350937ddeeb3afb55d20b743dd74f87208a04ca4d3270725442"
+      },
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "independent_correct_answer": "B",
+        "source_hashes_verified": [
+          {
+            "source_id": "41193050",
+            "abstract_sha256": "140c15263c891b145ea151556e3c0641f3951314f11da40ba802a18d33809e4c"
+          },
+          {
+            "source_id": "35523224",
+            "abstract_sha256": "adc38fb84ebbd0a15e563508d41e46648f632d1fa2136dfd81051057b186edf9"
+          },
+          {
+            "source_id": "32150483",
+            "abstract_sha256": "e51057ed8950f5b76e883d633ade847a299a68dd81ce1d65a2e2878ccc741297",
+            "body_excerpts_sha256": "7979cd5778849eeb2152cf6c3ca39a945883c9a3d84d3e4e706cf5d717a8ba1d"
+          },
+          {
+            "source_id": "38182303",
+            "abstract_sha256": "394a59718ce6a62b7727966cbd68cc59f51081e9c43191d26cf4c61df310dcef"
+          },
+          {
+            "source_id": "35550803",
+            "abstract_sha256": "61740f22b7d01b50eba4f23040fdd8e4db789de9fcf459259a41844f91e7070f"
+          },
+          {
+            "source_id": "37236742",
+            "abstract_sha256": "8051038defc56557adc594cc345d0166643a9f05fe506ad2f276b9ce52578be8"
+          },
+          {
+            "source_id": "40409890",
+            "abstract_sha256": "c8ffbf350c5915d062776cc9edbc76968d93d5128d3d2f8f16e7fa297a3472aa"
+          },
+          {
+            "source_id": "38418627",
+            "abstract_sha256": "a52d643ac37940ca9299cfac3f95ba03b415cb13731637d254e8c39d86364c9d",
+            "body_excerpts_sha256": "4069e02d51dcda8b95e6fe074d167f49ddb9d5fb095e29135374089065778222"
+          },
+          {
+            "source_id": "36949002",
+            "abstract_sha256": "b52bb42eda39caf020d8778cad5c0f5fb4658d1ccc99701378d8773dec405271"
+          }
+        ],
+        "literal_quote_instances_verified": 12,
+        "public_payload_sha256": "acdd918e7a10e89f919c585c9d444d263d6451f601cd803d8c419c2f12c6f314",
+        "public_boundary_verified": true
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_answer": "B",
+          "review_answer": "B",
+          "issues": [],
+          "claim_passages_verified": [
+            {
+              "claim_index": 0,
+              "source_passage_ids": [
+                "41193050:p0"
+              ]
+            },
+            {
+              "claim_index": 1,
+              "source_passage_ids": [
+                "38418627:p10",
+                "38418627:p11",
+                "38418627:p12"
+              ]
+            },
+            {
+              "claim_index": 2,
+              "source_passage_ids": [
+                "38418627:p15",
+                "38418627:p20"
+              ]
+            },
+            {
+              "claim_index": 3,
+              "source_passage_ids": [
+                "41193050:p0"
+              ]
+            }
+          ]
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_answer": "B",
+          "review_answer": "B",
+          "issues": [],
+          "claim_passages_verified": [
+            {
+              "claim_index": 0,
+              "source_passage_ids": [
+                "41193050:p0"
+              ]
+            },
+            {
+              "claim_index": 1,
+              "source_passage_ids": [
+                "38418627:p12"
+              ]
+            },
+            {
+              "claim_index": 2,
+              "source_passage_ids": [
+                "38418627:p15",
+                "38418627:p20"
+              ]
+            },
+            {
+              "claim_index": 3,
+              "source_passage_ids": [
+                "41193050:p0"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "onboarding-examination-v1-3f575170e141e983093b-1",
+      "specialty": "transplant surgery",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35415041635/10574999326/trial-onboarding-examination-v1-3f575170e141e983093b-1.json",
+      "artifact_sha256": "6a7b56c8d46946c484e0c1b104a668cfcab09804beb329ff4f244292f4ff9ce6",
+      "entry_sha256": "546432691177567df74aecc5f488e595faed806de20380aa79c7eb1939aae675",
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "source_entailment_and_population",
+          "result": "clear",
+          "finding": "The split-liver review explicitly identifies interposition grafts as a HAT risk feature. The expert-panel review recommends aspirin as standard post-LT HAT prophylaxis, and the newer aspirin meta-analysis reports lower HAT with no statistically significant increase in major bleeding. This adult has a technically high-risk reconstruction and patent Doppler flow, making the comparison prophylaxis rather than treatment of established occlusion.",
+          "source_ids": [
+            "34052472",
+            "35240723",
+            "41604958"
+          ]
+        },
+        {
+          "check": "anticoagulation_scope_and_evidence_limits",
+          "result": "clear",
+          "finding": "The heparin/VKA bleeding observation in the expert review arises from thromboprophylaxis studies discussing PVT; the report and entry must not interpret it as a direct randomized aspirin-versus-heparin HAT comparison. The entry accurately limits its claim to increased bleeding in some LT studies, while A rests independently on the explicit HAT aspirin recommendation. B claims full systemic anticoagulation is necessary solely for the reconstruction, which neither retained source establishes. Aspirin safety is an aggregate finding, not proof of zero individual bleeding risk.",
+          "source_ids": [
+            "35240723",
+            "41604958"
+          ]
+        },
+        {
+          "check": "essential_care_and_safety",
+          "result": "clear",
+          "finding": "The chart explicitly documents resolved operative bleeding before closure, no subsequent transfusion requirement, no ongoing hemorrhage and stable current status. It does not present established thrombosis or active bleeding requiring a different immediate action. A selects a prophylactic drug class without an unsupported dose, a therapeutic heparin bridge, or a claim that monitoring can stop."
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The title/question identify postoperative thrombotic risk. The interposition graft and Doppler findings are clinical evidence, with no aspirin recommendation in visible chart text. Private key, safety/evidence keywords and reasoning-divergence text are excluded from the actual public payload."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The final bundled transplant practice case concerns kidney-allograft crystalline nephropathy evaluation versus empiric repeat rejection treatment. Liver-transplant hepatic arterial prophylaxis is a separate decision. This was compared directly despite one model reviewer loosely calling the companion a different specialty."
+        }
+      ],
+      "corrective_authoring_suggestion": null,
+      "companion": {
+        "task_id": "onboarding-practice-v1-3f575170e141e983093b-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-practice-v1-3f575170e141e983093b-1.json",
+        "entry_sha256": "bd18db131442d3d9019e11bca96ce05253c8f4baa3c9ff8f7bda5c84b4bb9d7d"
+      },
+      "integrity": {
+        "manifest_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "independent_correct_answer": "A",
+        "source_hashes_verified": [
+          {
+            "source_id": "37925927",
+            "abstract_sha256": "1d86d2b133273c2b6aab391cc9a4e528717d2f233f799299060cf666eefaa478"
+          },
+          {
+            "source_id": "41604958",
+            "abstract_sha256": "00d39d2b8e8e237127b1cfad8a7b19edcf3b6d99cfa1b940ee6d32b67153896b"
+          },
+          {
+            "source_id": "35240723",
+            "abstract_sha256": "64173f6364afb8c2e956479db455b21168f7637ef4e767c1185f1176c67d96e1"
+          },
+          {
+            "source_id": "33315357",
+            "abstract_sha256": "10948b0f24258657b5c43821316644f286f8eeb589d9405db861620d9f8d635d"
+          },
+          {
+            "source_id": "33093405",
+            "abstract_sha256": "42b0d9201ad76c3a0e2a0d2dd80ea6f56e07b39096a45fc15171a3d540589fda"
+          },
+          {
+            "source_id": "34052472",
+            "abstract_sha256": "ccdcc99f74988a1f19930b65f9b9aeed8c1b469fde27147d8683af51d7eed614"
+          },
+          {
+            "source_id": "31495539",
+            "abstract_sha256": "c7f0b0339276c9407d9bb495f851a9085292acfcb23b5b78f4886921caa960f7"
+          },
+          {
+            "source_id": "36433721",
+            "abstract_sha256": "1b9c2c732eb108cfafa41cb5329b89dff69978d9f9860fd4c5d5b13729c49edc"
+          }
+        ],
+        "literal_quote_instances_verified": 9,
+        "public_payload_sha256": "54bea1be88187b30e279edce7e075f17e486a6f18b81cece88a8b376a689598d",
+        "public_boundary_verified": true
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_answer": "A",
+          "review_answer": "A",
+          "issues": [],
+          "claim_passages_verified": [
+            {
+              "claim_index": 0,
+              "source_passage_ids": [
+                "35240723:p1"
+              ]
+            },
+            {
+              "claim_index": 1,
+              "source_passage_ids": [
+                "41604958:p0"
+              ]
+            },
+            {
+              "claim_index": 2,
+              "source_passage_ids": [
+                "34052472:p1"
+              ]
+            },
+            {
+              "claim_index": 3,
+              "source_passage_ids": [
+                "35240723:p1"
+              ]
+            }
+          ]
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_answer": "A",
+          "review_answer": "A",
+          "issues": [],
+          "claim_passages_verified": [
+            {
+              "claim_index": 0,
+              "source_passage_ids": [
+                "35240723:p1"
+              ]
+            },
+            {
+              "claim_index": 1,
+              "source_passage_ids": [
+                "41604958:p0",
+                "41604958:p1"
+              ]
+            },
+            {
+              "claim_index": 2,
+              "source_passage_ids": [
+                "34052472:p1"
+              ]
+            },
+            {
+              "claim_index": 3,
+              "source_passage_ids": [
+                "35240723:p1"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

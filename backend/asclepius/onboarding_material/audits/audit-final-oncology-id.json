@@ -1,0 +1,493 @@
+{
+  "audit_version": 1,
+  "audited_at": "2026-09-19T03:49:48.255089+00:00",
+  "auditor": "Independent artifact auditor /root/audit_final_oncology_id",
+  "scope": "Exact accepted oncology practice revision3 and infectious-diseases examination revision4 CI artifacts only.",
+  "overall_disposition": "clear",
+  "physician_ratification": false,
+  "method": [
+    "Read repository AGENTS.md, full final entries/private keys, retained blind solutions/reviews, and actual bank.blind_entry public output. The successful artifact format does not retain a separate raw request payload; the pinned CI code constructs it using this exact allowlist.",
+    "Independently evaluate clinical coherence, adult population applicability, recommendation strength, each source-to-claim mapping, public answer cues and exact final companion distinctness; model agreement alone is insufficient.",
+    "Recompute prepared/committed/validated entry and artifact hashes; run validate_entry and both validate_review calls; validate both final bundled companions. Confirm library.validate rejects each original unpublished trial.",
+    "Verify four real OpenAI calls per case in retained trial summaries, distinct requested models and provider response-model identities, nonempty request identifiers, all clinical gates, blind choices and confidence thresholds.",
+    "Verify all16 retained source objects against preflight identity/abstract/body/license fields and hashes; reconstruct all4 retained bodies exactly from primary XML with the configured excerpt terms, including identity/license/restricted-illustration parser checks.",
+    "Regenerate source passage maps and verify every one of66 expanded source quote instances exactly matches its selected handle; separately assess substantive entailment.",
+    "Use primary PubMed/PMC, ASCO/IDSA MASCC guidance and current IDSA/ESCMID SAB guidance for independent clinical cross-checks without changing reviewer evidence or invoking real models locally."
+  ],
+  "blocking_findings": [],
+  "cases": [
+    {
+      "task_id": "onboarding-practice-v1-a5ec2abe485f271a3e3d-1",
+      "specialty": "oncology",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35419124341/10576674539/trial-onboarding-practice-v1-a5ec2abe485f271a3e3d-1.json",
+      "artifact_sha256": "b52ff8f0e09d1910a5bd3d060459810175730280f7a84bec8fed13868fef3f43",
+      "entry_sha256": "e8fb3b3e3c356e1a4385de7632f05d0df8f157c21a1fe5b9301f82bd4614f242",
+      "integrity": {
+        "committed_input_sha": "9da05bf6501f1ee4c1916f67dec95b0d27a66afd",
+        "prepared_input_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/prepared-oncology-revision3.json",
+        "prepared_input_sha256": "a464b94fe98c28f94b258efa2ee95f411bc22ef17332e7505e106ca0f41e298b",
+        "prepared_and_committed_entry_match": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "source_checks": [
+          {
+            "source_id": "37921996",
+            "abstract_sha256": "cec3de1bc3cbd3981b78c76728b2cbc4de19ff14f1802e9b1eefd11b67dec1fe",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/oncology-practice.json",
+            "original_sha256": "2ec6f12e5789276c179abd178217346d78d93f54478e6ff61602fa24029b8be3",
+            "retained_fields_match_preflight_original": true,
+            "body_excerpts_sha256": "869443b672a8e81d03f285f9f6c0fda096dee1aebec24c33f923e3df9516740a",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/",
+            "primary_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-PMC10624743.xml",
+            "primary_xml_sha256": "aa57a5dac20fe2378438f30120510ed0ad1d6fbf9e63fe740056a86e0e731105",
+            "primary_xml_reconstruction_matches": true
+          },
+          {
+            "source_id": "41521418",
+            "abstract_sha256": "58cb36d94c9e2c1714ad9988c344720c3472e0af596ba934c94955c9206bd6fd",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/oncology-practice.json",
+            "original_sha256": "2ec6f12e5789276c179abd178217346d78d93f54478e6ff61602fa24029b8be3",
+            "retained_fields_match_preflight_original": true
+          },
+          {
+            "source_id": "33230644",
+            "abstract_sha256": "dd0da53b7f4615a70d66a24e90139eb33e1551637b237098c80521c508a28de6",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/oncology-practice.json",
+            "original_sha256": "2ec6f12e5789276c179abd178217346d78d93f54478e6ff61602fa24029b8be3",
+            "retained_fields_match_preflight_original": true
+          },
+          {
+            "source_id": "42161653",
+            "abstract_sha256": "0fea09d6f48838ee123569d94076c1166265e510d0aef2ae6c39f674a590a1d0",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/oncology-practice.json",
+            "original_sha256": "2ec6f12e5789276c179abd178217346d78d93f54478e6ff61602fa24029b8be3",
+            "retained_fields_match_preflight_original": true
+          },
+          {
+            "source_id": "36443464",
+            "abstract_sha256": "f379187c261eccf1f9da939172885c80ee34f5a9d8691ebbaeb60313eebc6c0e",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/oncology-practice.json",
+            "original_sha256": "2ec6f12e5789276c179abd178217346d78d93f54478e6ff61602fa24029b8be3",
+            "retained_fields_match_preflight_original": true
+          },
+          {
+            "source_id": "41740078",
+            "abstract_sha256": "3715a53aa783e645cb05365d882ba292644f79d41b2df39e4ebb62be138aaac9",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/oncology-practice.json",
+            "original_sha256": "2ec6f12e5789276c179abd178217346d78d93f54478e6ff61602fa24029b8be3",
+            "retained_fields_match_preflight_original": true
+          },
+          {
+            "source_id": "38099468",
+            "abstract_sha256": "df0001cab0b6706ba8b7d6d594cad796d39f099f4b2a0d28004618c67099e151",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/oncology-practice.json",
+            "original_sha256": "2ec6f12e5789276c179abd178217346d78d93f54478e6ff61602fa24029b8be3",
+            "retained_fields_match_preflight_original": true
+          },
+          {
+            "source_id": "38517658",
+            "abstract_sha256": "e734f293bdc763c1832cc6ac4b843ec3364725bf0652dc70184ab237b0a0022a",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/oncology-practice.json",
+            "original_sha256": "2ec6f12e5789276c179abd178217346d78d93f54478e6ff61602fa24029b8be3",
+            "retained_fields_match_preflight_original": true
+          }
+        ],
+        "literal_source_quote_instances_verified": 35,
+        "literal_quotes_equal_selected_passages": true,
+        "public_boundary_verified": true,
+        "blind_entry_sha256": "f3686763b665b59e15a1003d87611b4ca29e5b20740c5b985e719c886c833397",
+        "unpublished_trial_rejected_by_library": "Real clinical review required: exact OpenAI artifact audit missing",
+        "call_summary_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35419124341/10576674539/trial-summary.json",
+        "call_summary_sha256": "310b6356bfcf85ae8bcaa872848c84f153aeca392c292c7edc2714f2dd951ab3",
+        "real_openai_calls": [
+          {
+            "model": "gpt-5.6-sol",
+            "response_model": "gpt-5.6-sol",
+            "provider": "openai",
+            "purpose": "onboarding_case_solve",
+            "request_id": "resp_017cc0f20345d3cb016aae04045d2c87d29d6b376f47343d5f",
+            "input_tokens": 11372,
+            "output_tokens": 195
+          },
+          {
+            "model": "gpt-5.5",
+            "response_model": "gpt-5.5-2026-04-23",
+            "provider": "openai",
+            "purpose": "onboarding_case_solve",
+            "request_id": "resp_01bffceb3c198514016aae0404578487d28e72b35f87d70973",
+            "input_tokens": 11372,
+            "output_tokens": 512
+          },
+          {
+            "model": "gpt-5.5",
+            "response_model": "gpt-5.5-2026-04-23",
+            "provider": "openai",
+            "purpose": "onboarding_case_review",
+            "request_id": "resp_05d9a303201db94d016aae040b35dc87d290378f03b7b93f5e",
+            "input_tokens": 26519,
+            "output_tokens": 1939
+          },
+          {
+            "model": "gpt-5.6-sol",
+            "response_model": "gpt-5.6-sol",
+            "provider": "openai",
+            "purpose": "onboarding_case_review",
+            "request_id": "resp_048538b93a14c9a1016aae0408a30887d2b0356ea1d47382a8",
+            "input_tokens": 26519,
+            "output_tokens": 1517
+          }
+        ]
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_choice": "B",
+          "blind_confidence": 0.99,
+          "review_choice": "B",
+          "review_confidence": 0.97,
+          "all_clinical_gates": true,
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_choice": "B",
+          "blind_confidence": 0.97,
+          "review_choice": "B",
+          "review_confidence": 0.93,
+          "all_clinical_gates": true,
+          "issues": []
+        }
+      ],
+      "companion": {
+        "task_id": "onboarding-examination-v1-a5ec2abe485f271a3e3d-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-examination-v1-a5ec2abe485f271a3e3d-1.json",
+        "artifact_sha256": "515917c4f7c0056a857cabea827d6639b634c083b81190b76a7e95fa2d9205f3",
+        "entry_sha256": "826f0e5d8daddf910dced9dca021913b0c577eb2cdc98e211855a6892f6e3c88"
+      },
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_decisive_support",
+          "result": "clear",
+          "finding": "Candidate B correctly treats the recorded MASCC23 as a component of ambulatory eligibility assessment. The adult low-risk febrile-neutropenia systematic review supports the >=21 threshold and additional clinical/logistical selection criteria; the Australasian consensus expressly requires disease, treatment and patient safety criteria within a structured pathway. These two sources support the decisive recommendation; six other retrieved sources are not counted toward it.",
+          "source_ids": [
+            "37921996",
+            "41521418"
+          ]
+        },
+        {
+          "check": "score_and_population_coherence",
+          "result": "clear",
+          "finding": "The 55-year-old outpatient with mild illness, normotension, no COPD and a solid tumor has a coherent presentation MASCC score: mild symptoms5 + no hypotension5 + no COPD4 + solid tumor4 + no-dehydration0 + outpatient3 + age<60 2 =23. IV-fluid-requiring dehydration at presentation properly loses three points despite subsequent resolution. The case concerns ordinary cytotoxic docetaxel in an adult, without transplant or checkpoint-combination extrapolation. The estimated short neutropenia duration is explicitly individualized and uncertain, supported by the previous cycle rather than asserted as a universal docetaxel property."
+        },
+        {
+          "check": "recommendation_bounds_and_safety",
+          "result": "clear",
+          "finding": "Prompt cultures and empiric IV antipseudomonal therapy are already documented, with therapy and observation ongoing. Candidate B assesses eligibility before a setting decision; it does not order discharge or assert that current facts prove complete eligibility. It retains continuing antimicrobial treatment, reassessment and readmission arrangements without inventing an outpatient agent, dose, observation threshold or monitoring schedule. Missing exact discharge protocols do not make this narrower interpretation question ambiguous.",
+          "source_ids": [
+            "37921996",
+            "41521418"
+          ]
+        },
+        {
+          "check": "claim_entailment_and_source_limitations",
+          "result": "clear",
+          "finding": "Both reviews select passages that substantively establish all five claims, including heterogeneous study exclusions, continuing antibiotics and the absence of direct comparisons among follow-up strategies. The retained review passage37921996:p11 includes apparently erroneous CISNE thresholds and its table includes unrelated unit/text errors; no authored claim, key or candidate adopts those details. Only the MASCC threshold from that passage is used. Retained source text and quote expansion remain unaltered."
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The blind_entry output from the actual accepted entry contains neutral clinical facts, the recorded score, treatment already in progress and service availability. It does not label the patient discharge-eligible, prescribe outpatient management or disclose a correct candidate. Private key, hard_hook, reasoning_divergence, claims and grading keywords are absent; case_provenance is null."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The exact bundled oncology examination concerns etiologic assessment of persistent diarrhea after nivolumab/ipilimumab using endoscopy and mucosal biopsy. The audited practice concerns febrile-neutropenia risk interpretation after initial treatment. These are distinct presentations and decisions. The reviewers also compared an older immediate-antibiotic FN case, but this independent audit separately checked the actual final bundled companion."
+        }
+      ],
+      "corrective_authoring_suggestion": null
+    },
+    {
+      "task_id": "onboarding-examination-v1-8e91610afd9fe9c9d129-1",
+      "specialty": "infectious diseases",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35419404122/10577725318/trial-onboarding-examination-v1-8e91610afd9fe9c9d129-1.json",
+      "artifact_sha256": "25798e1fa0e7305156705b199c5aaad1d0ce0d438fb5951defc19cc7e62167f9",
+      "entry_sha256": "8ab9c528b646a0cd9e34a0424db79c9755514ba5144e16ed2eb1a15935a6aca2",
+      "integrity": {
+        "committed_input_sha": "865d04214c227a6deb0e7d437bb1152113e306ff",
+        "prepared_input_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/prepared-id-revision4.json",
+        "prepared_input_sha256": "920b7cd4d5565aa34265991db1e516d0be7d83afdc17f0de3b6ece59ccf51851",
+        "prepared_and_committed_entry_match": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "source_checks": [
+          {
+            "source_id": "39387894",
+            "abstract_sha256": "5b5d4f9bc248bd5dba5ce88c643ce3502dce50ca3d6cb145ba419c56b39cda0b",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/infectious-diseases-examination.json",
+            "original_sha256": "87ca6b2cdb26b7579c7295918b7ffe6d2de8335c1d1fc25d5cae1e9f7f3949ae",
+            "retained_fields_match_preflight_original": true,
+            "body_excerpts_sha256": "bc5c16f0662d7f81302d546f8135efb5aca1c26a4ded339ff7a20580a9c55346",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/",
+            "primary_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/audit-final-PMC11732780.xml",
+            "primary_xml_sha256": "2d20b96d7a8481ee5343bfe06becbef2005df40a0ac914f790133c9d3a3b07e8",
+            "primary_xml_reconstruction_matches": true
+          },
+          {
+            "source_id": "35331165",
+            "abstract_sha256": "faa2628f0e4335fde0b786f57e163cdc2c8cffe1dc572966228be5e04e3a4b8d",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/infectious-diseases-examination.json",
+            "original_sha256": "87ca6b2cdb26b7579c7295918b7ffe6d2de8335c1d1fc25d5cae1e9f7f3949ae",
+            "retained_fields_match_preflight_original": true,
+            "body_excerpts_sha256": "e47d18517661541999a48f17ffeb028ae9b0900ed91c774ae8d2b0513b898dd6",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/",
+            "primary_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/audit-final-PMC8943998.xml",
+            "primary_xml_sha256": "f9a87eeed9e80d1fbacdc790310047b03717fc70df19a1a89038e68c6455cdd0",
+            "primary_xml_reconstruction_matches": true
+          },
+          {
+            "source_id": "39290168",
+            "abstract_sha256": "9508f5c07cd4b585132cdba983e8a835a6dcad956c08fe3f04da76813e9976ed",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/infectious-diseases-examination.json",
+            "original_sha256": "87ca6b2cdb26b7579c7295918b7ffe6d2de8335c1d1fc25d5cae1e9f7f3949ae",
+            "retained_fields_match_preflight_original": true
+          },
+          {
+            "source_id": "38411961",
+            "abstract_sha256": "7eec92d98c0d79d6018943925f3a1a871281e8349a38b110c565c9356e974fb4",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/infectious-diseases-examination.json",
+            "original_sha256": "87ca6b2cdb26b7579c7295918b7ffe6d2de8335c1d1fc25d5cae1e9f7f3949ae",
+            "retained_fields_match_preflight_original": true
+          },
+          {
+            "source_id": "29347812",
+            "abstract_sha256": "d88bb03e72bb972c00d367a9e700a9d2efbc99baa498513929d89af91f9a098a",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/infectious-diseases-examination.json",
+            "original_sha256": "87ca6b2cdb26b7579c7295918b7ffe6d2de8335c1d1fc25d5cae1e9f7f3949ae",
+            "retained_fields_match_preflight_original": true
+          },
+          {
+            "source_id": "32839217",
+            "abstract_sha256": "3e29c5ab813c860fbb135f592d31ddaba842e346ca796da3dde61b579a77b7b7",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/infectious-diseases-examination.json",
+            "original_sha256": "87ca6b2cdb26b7579c7295918b7ffe6d2de8335c1d1fc25d5cae1e9f7f3949ae",
+            "retained_fields_match_preflight_original": true,
+            "body_excerpts_sha256": "cadbb4b9ec5e42e42b4e2b68411c1f0daefd61ba8d7c00e5803e1dc28f2199fc",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/",
+            "primary_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/audit-final-PMC7577142.xml",
+            "primary_xml_sha256": "074333d6092627e03c0241713de4fb927ad85b03078b3b982d5556f42ea71748",
+            "primary_xml_reconstruction_matches": true
+          },
+          {
+            "source_id": "35728748",
+            "abstract_sha256": "d98d7a895cdd6fc1c365ee0df22b315a5e03856904bb7d4ac570c7799ecae8bd",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/infectious-diseases-examination.json",
+            "original_sha256": "87ca6b2cdb26b7579c7295918b7ffe6d2de8335c1d1fc25d5cae1e9f7f3949ae",
+            "retained_fields_match_preflight_original": true
+          },
+          {
+            "source_id": "35300514",
+            "abstract_sha256": "457e83b47a6e434f5d8dc749f3c1b85af16f2e28154036a2c8c636b633fdcd73",
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/infectious-diseases-examination.json",
+            "original_sha256": "87ca6b2cdb26b7579c7295918b7ffe6d2de8335c1d1fc25d5cae1e9f7f3949ae",
+            "retained_fields_match_preflight_original": true
+          }
+        ],
+        "literal_source_quote_instances_verified": 31,
+        "literal_quotes_equal_selected_passages": true,
+        "public_boundary_verified": true,
+        "blind_entry_sha256": "9dcbcf3213ffb47a54fe2e2c6541aec53aa02415f4b0a03f9a4ce0b896535577",
+        "unpublished_trial_rejected_by_library": "Real clinical review required: exact OpenAI artifact audit missing",
+        "call_summary_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35419404122/10577725318/trial-summary.json",
+        "call_summary_sha256": "0d637d63a1295fcba519260aea2e52b90d6de868bd97eda8b47f98d4ba079577",
+        "real_openai_calls": [
+          {
+            "model": "gpt-5.6-sol",
+            "response_model": "gpt-5.6-sol",
+            "provider": "openai",
+            "purpose": "onboarding_case_solve",
+            "request_id": "resp_06d7949bfc7a6dd6016aae055fb83487d2b2cb68086a014f7b",
+            "input_tokens": 26654,
+            "output_tokens": 262
+          },
+          {
+            "model": "gpt-5.5",
+            "response_model": "gpt-5.5-2026-04-23",
+            "provider": "openai",
+            "purpose": "onboarding_case_solve",
+            "request_id": "resp_0b99ac935e3e8d6d016aae055ff37887d28a55573869d0d3a5",
+            "input_tokens": 26654,
+            "output_tokens": 573
+          },
+          {
+            "model": "gpt-5.5",
+            "response_model": "gpt-5.5-2026-04-23",
+            "provider": "openai",
+            "purpose": "onboarding_case_review",
+            "request_id": "resp_051cb9f656676249016aae0568dc6887d28bdaf4fc301ffdaa",
+            "input_tokens": 55758,
+            "output_tokens": 1831
+          },
+          {
+            "model": "gpt-5.6-sol",
+            "response_model": "gpt-5.6-sol",
+            "provider": "openai",
+            "purpose": "onboarding_case_review",
+            "request_id": "resp_0bfbe97ba9a55e54016aae05652bfc87d297d43d29c58af15f",
+            "input_tokens": 55758,
+            "output_tokens": 1497
+          }
+        ]
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "blind_choice": "B",
+          "blind_confidence": 0.97,
+          "review_choice": "B",
+          "review_confidence": 0.98,
+          "all_clinical_gates": true,
+          "issues": []
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "blind_choice": "B",
+          "blind_confidence": 0.93,
+          "review_choice": "B",
+          "review_confidence": 0.93,
+          "all_clinical_gates": true,
+          "issues": []
+        }
+      ],
+      "companion": {
+        "task_id": "onboarding-practice-v1-8e91610afd9fe9c9d129-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-practice-v1-8e91610afd9fe9c9d129-1.json",
+        "artifact_sha256": "e7192c48e4774237a252c5e63eb5851d5dcb772806e08578aa4aee2b1da5ad2d",
+        "entry_sha256": "34ab9a6de9e98cf3a1b18f2f79ed13b101b3c8749cc8010a933f7fef6ffffbdd"
+      },
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_decisive_support",
+          "result": "clear",
+          "finding": "Candidate B appropriately continues evaluation for an additional infectious focus in an adult with community-onset MRSA bacteremia and positive day2/day4 cultures despite active therapy, verified drug exposure, source drainage and no residual forearm collection. A negative day5 TEE and absent focal signs do not settle extracardiac source evaluation. The SAB review supports clinically silent metastatic foci and patient-tailored evaluation; the adult EANM/SNMMI guideline directly recognizes PET evaluation of metastatic infection/septic emboli.",
+          "source_ids": [
+            "35331165",
+            "39387894"
+          ]
+        },
+        {
+          "check": "population_and_recommendation_bounds",
+          "result": "clear",
+          "finding": "The initial drained forearm source remains identified; the key does not falsely relabel it unknown-source SAB. The question concerns an additional unresolved focus. PET/CT is an optional adjunct when actionable findings could change source control or treatment; it is not mandatory, superior to every alternative, a substitute for echocardiography, or proven to cause a survival benefit. The current chart preserves ongoing IV treatment, completed antimicrobial reassessment and further cultures pending; the candidates do not prescribe unsupported salvage regimens or culture schedules."
+        },
+        {
+          "check": "claim_entailment_and_evidence_limits",
+          "result": "clear",
+          "finding": "All six final claims have substantive retained support. Claims4 and5 cite only35331165, which explicitly discusses patient-tailored use, indiscriminate testing concerns, nonrandomized studies and low-certainty mortality associations. Claim2 independently cites39387894 for the adult metastatic-infection PET indication. The review population is hospitalized adult SAB, with variable MRSA representation and five nonrandomized studies; it does not prove benefit for every subgroup. The guideline partly summarizes that same review, so the pair is not portrayed as two independent outcome datasets.",
+          "source_ids": [
+            "35331165",
+            "39387894"
+          ]
+        },
+        {
+          "check": "fresh_revision_gate_and_prior_rejection",
+          "result": "clear",
+          "finding": "Fresh revision4 exactly matches committed input and prepared hash8ab9c528b646a0cd9e34a0424db79c9755514ba5144e16ed2eb1a15935a6aca2. The rejected revision3 remains a separate held record. Its unsupported auxiliary recommendations and overbroad compound citation assignments were removed or narrowed before four new real OpenAI review calls. Both fresh reviewers pass every gate; no rejection flag, quote or source text was edited to obtain this result."
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The actual accepted entry yields a blind payload containing the observed culture timeline, treatment and source-control history, exposure review and descriptive negative TEE. It does not order further imaging, label occult dissemination established or identify the intended answer. Private key, hard_hook, reasoning_divergence, claims and grading keywords are absent; case_provenance is null."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The exact final bundled infectious-diseases practice concerns treatment of repeated asymptomatic E.coli bacteriuria during pregnancy. The audited examination concerns further source evaluation in persistent MRSA bloodstream infection. Both the clinical condition and decision are distinct."
+        },
+        {
+          "check": "current_primary_guidance_cross_check",
+          "result": "clear",
+          "finding": "The September9 2026 IDSA/ESCMID consensus independently confirms that positive follow-up cultures at>=48h prompt further diagnostic evaluation/source-control reassessment and describes PET or combinations of other imaging as options after appropriate initial assessment in increased-risk unknown-focus cases, with outcome uncertainty. This corroborates the narrowed principle; it is not retroactively treated as a source supplied to the reviewers or used to relabel the known initial forearm source."
+        }
+      ],
+      "corrective_authoring_suggestion": null
+    }
+  ],
+  "integrity_summary": {
+    "cases": 2,
+    "retained_sources_verified": 16,
+    "retained_fulltexts_reconstructed": 4,
+    "literal_source_quote_instances_verified": 66,
+    "fresh_real_openai_calls": 8,
+    "all_entry_hashes_match": true,
+    "all_public_boundaries_verified": true,
+    "all_companion_decisions_distinct": true
+  },
+  "superseded_held_artifacts": [
+    {
+      "task_id": "onboarding-examination-v1-8e91610afd9fe9c9d129-1",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35419124341/10577325293/trial-rejected-2ad6917dbd504abb92946cbecf581772.json",
+      "artifact_sha256": "71efeeebae56f00b5016758cac6bb7ea574d26d817009c67d41a71082e8733b0",
+      "entry_sha256": "6656b63c748e4a477b4d44c87a92ebc9a8df443a8d6d40829ee3b6bbc3a60642",
+      "disposition": "hold",
+      "superseded_by_entry_sha256": "8ab9c528b646a0cd9e34a0424db79c9755514ba5144e16ed2eb1a15935a6aca2",
+      "finding": "Original revision3 failed the gpt-5.6-sol evidence_supported gate: auxiliary continued-culture/antimicrobial-review instructions were not fully supported by the selected sources and claims4/5 over-attributed compound conclusions to39387894. This artifact is not cleared for import."
+    }
+  ],
+  "ci_runs": [
+    {
+      "run_id": "35419124341",
+      "sha": "9da05bf6501f1ee4c1916f67dec95b0d27a66afd",
+      "manifest_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35419124341.json",
+      "manifest_sha256": "0f77c73122d23df6b30c310d63bf7fd89c3762c4b57b0b44c2754764664327a5",
+      "scope": "Oncology practice passed; overall run failed due held IDrevision3."
+    },
+    {
+      "run_id": "35419404122",
+      "sha": "865d04214c227a6deb0e7d437bb1152113e306ff",
+      "manifest_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35419404122.json",
+      "manifest_sha256": "8e82863dc851e28515ef4794f2e0eab8874c32ab14a10a05ee8cb664538610bc",
+      "scope": "Fresh IDrevision4 passed; run completed successfully."
+    }
+  ],
+  "verification_script": {
+    "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/check_final_oncology_id.py",
+    "sha256": "2ff57c6c45268b45aa63ede277951a8cc376be995e008018b77a7acff545ffe2"
+  },
+  "limits": [
+    "Synthetic educational cases and public sources only; no health-system records are involved. Automated model review and this artifact audit are not physician ratification.",
+    "Clear applies only to the exact entry and retained validation hashes listed in cases. A revised entry or altered review needs a new audit. The separately listed held revision3 is not cleared.",
+    "No real-model calls, repository/case/source/reviewer edits, import, publication or clinical deployment were performed by this auditor.",
+    "The public payload check reproduces the pinned CI construction from the exact final entries; successful artifacts do not preserve separate raw solve-request payloads.",
+    "Primary source text and literal quotes were preserved, including incidental source typos and low-certainty limitations; no authored claim relies on the noted unrelated erroneous thresholds or units."
+  ],
+  "supplementary_sources": [
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/41521418/",
+      "purpose": "Verify adult MASCC/CISNE care-pathway plus additional safety criteria in current Australasian consensus abstract."
+    },
+    {
+      "url": "https://www.idsociety.org/globalassets/idsa/practice-guidelines/outpatient-management-of-fever-and-neutropenia.pdf",
+      "purpose": "ASCO/IDSA MASCC scoring cross-check: presentation dehydration requiring parenteral fluids loses3 points and age<60 contributes2; supports coherent score23."
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11732780/",
+      "purpose": "Verify adult bacteremia indication for PET evaluation of septic emboli/metastatic infection, and low-certainty outcome language."
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/35331165/",
+      "purpose": "Verify adult SAB systematic-review population, five nonrandomized studies and outcome certainty."
+    },
+    {
+      "url": "https://www.idsociety.org/practice-guideline/staphylococcus-aureus-bacteremia/",
+      "purpose": "Current September9 2026 consensus statements2/5: positive follow-up cultures warrant further evaluation; individualized imaging choices and outcome uncertainties."
+    }
+  ]
+}

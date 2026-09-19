@@ -1,0 +1,744 @@
+{
+  "audit_version": 1,
+  "audited_at": "2026-09-19T03:47:14.916905+00:00",
+  "auditor": "Independent artifact auditor /root/audit_final_vascular_pain_pmr",
+  "scope": "Exact vascular surgery practice, pain medicine practice and physical medicine and rehabilitation examination prepared-revision CI artifacts from run 35419124341 at commit 9da05bf6501f1ee4c1916f67dec95b0d27a66afd",
+  "manifest_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/audit-final-vascular-pain-pmr-manifest.json",
+  "manifest_sha256": "6eb8d13386362b3923fce1ddaf7cc8c4e00f25ae2bad79054fe46f6bf5ac8b13",
+  "overall_disposition": "clear",
+  "physician_ratification": false,
+  "method": [
+    "Read repository AGENTS and independently assess complete authored entries, answer keys, all blinded solver and clinical reviewer traces, and literal selected evidence passages.",
+    "Require exact identity with committed review_prepared inputs at the CI SHA and prepared revision3 artifacts; no prior model validation is reused.",
+    "Run validate_entry, both validate_review calls, canonical entry/artifact/source hashes, source handle expansion equality, exact model/provider and fresh four-call summary gates for each case.",
+    "Reconstruct the applicant-visible payload using the exact CI-revision blind_entry/public_case code; inspect every visible title, question, note and study impression for answer leakage.",
+    "Compare every retained source identity, abstract, body and licensing field with the exact preflight or independently audited primary-source originals. Independently reconstruct the two decisive licensed narrative-review bodies from original Europe PMC XML.",
+    "Compare each case with the immutable final bundled companion and independently evaluate the assessed clinical decision, population, safety, evidence strength and acknowledged scope limitations.",
+    "Confirm library.validate rejects every unpublished trial. This audit supplies independent exact-artifact findings; it does not itself mutate the library or publish a case."
+  ],
+  "blocking_findings": [],
+  "cases": [
+    {
+      "task_id": "onboarding-practice-v1-98d3f77f8d4d452b76d0-1",
+      "specialty": "vascular surgery",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35419124341/10576781312/trial-onboarding-practice-v1-98d3f77f8d4d452b76d0-1.json",
+      "artifact_sha256": "b05a438887aea9c0ecefa9bb1da48cccc32e1d5115793a3831df814766d206e2",
+      "entry_sha256": "6f4065514102eb405a6630efb04c239b45fbf822a8b460e33e9eb343cd2d8d55",
+      "integrity": {
+        "prepared_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "both_blind_solutions_and_reviews_choose": "B",
+        "retained_source_hashes_verified": [
+          {
+            "source_id": "40428785",
+            "abstract_sha256": "b35b1e9e4cb35e3e6291b0e9dc6cacebdd252d0bfe68438c0703c2f40dcfe514",
+            "body_excerpts_sha256": "859575764d296a8b48df3bf8e6b1a5aeab7f4aee35c8350a31e7c2eeb1d3dbb8",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "41232816",
+            "abstract_sha256": "3596f0e9f9cda0e797ed68a9242e77e49219cf1a287293bbe78a3f4e6a63963e"
+          },
+          {
+            "source_id": "42097877",
+            "abstract_sha256": "3dc51fcd079b262dcab5a7d0b42ba02f5050ffb92cb5bf70a40b62c45bc50068"
+          },
+          {
+            "source_id": "31416204",
+            "abstract_sha256": "0a2c234a577752632b8ee1276e104d8ac11d72d7b91df92d7b82b72637d0afce",
+            "body_excerpts_sha256": "9ba6d1907f75038629ca824dc9d15f96d24701d7b9255071eddcb3370033271c",
+            "body_license_url": "http://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "38743805",
+            "abstract_sha256": "85a4ce426de97adf57c3cee4f16e42a3cf9e58b3463f853f55c8131da42e0c63"
+          },
+          {
+            "source_id": "38752899",
+            "abstract_sha256": "85a4ce426de97adf57c3cee4f16e42a3cf9e58b3463f853f55c8131da42e0c63"
+          },
+          {
+            "source_id": "34023430",
+            "abstract_sha256": "64e090be4bdd0ca051998afba400c0fa6977fb154a37e66d7fcf72c15ae31856"
+          },
+          {
+            "source_id": "40409886",
+            "abstract_sha256": "a616186eb0616d4c7892b7eb324d5b14bad5b20aa95f8c00735eb9b024a52790"
+          }
+        ],
+        "literal_source_quote_instances_verified": 11,
+        "literal_quotes_equal_selected_passages": true,
+        "source_original_checks": [
+          {
+            "source_id": "40428785",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/vascular-surgery-practice.json",
+            "original_sha256": "89801287dde34d45af382300c6c021029375cfd40b7a0892d767bffb0e2a141c"
+          },
+          {
+            "source_id": "41232816",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/vascular-surgery-practice.json",
+            "original_sha256": "89801287dde34d45af382300c6c021029375cfd40b7a0892d767bffb0e2a141c"
+          },
+          {
+            "source_id": "42097877",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/vascular-surgery-practice.json",
+            "original_sha256": "89801287dde34d45af382300c6c021029375cfd40b7a0892d767bffb0e2a141c"
+          },
+          {
+            "source_id": "31416204",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/vascular-surgery-practice.json",
+            "original_sha256": "89801287dde34d45af382300c6c021029375cfd40b7a0892d767bffb0e2a141c"
+          },
+          {
+            "source_id": "38743805",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/vascular-surgery-practice.json",
+            "original_sha256": "89801287dde34d45af382300c6c021029375cfd40b7a0892d767bffb0e2a141c"
+          },
+          {
+            "source_id": "38752899",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/vascular-surgery-practice.json",
+            "original_sha256": "89801287dde34d45af382300c6c021029375cfd40b7a0892d767bffb0e2a141c"
+          },
+          {
+            "source_id": "34023430",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/vascular-surgery-practice.json",
+            "original_sha256": "89801287dde34d45af382300c6c021029375cfd40b7a0892d767bffb0e2a141c"
+          },
+          {
+            "source_id": "40409886",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/vascular-surgery-practice.json",
+            "original_sha256": "89801287dde34d45af382300c6c021029375cfd40b7a0892d767bffb0e2a141c"
+          }
+        ],
+        "public_boundary_verified": true,
+        "public_payload_sha256": "6c1412db82bba013ab4cc7083aa06734d54ed59f10dda3df38081890f7832762",
+        "public_payload_method": "Reconstructed with exact CI-revision blind_entry/public_case code and immutable passed entry; passed artifacts do not retain raw HTTP request bodies.",
+        "ci_sha": "9da05bf6501f1ee4c1916f67dec95b0d27a66afd",
+        "ci_code_hashes": {
+          "backend/asclepius/onboarding_cases.py": "0f835263093b9bd63620abd2b8bb586b730673a87ef3dc893476624444576226",
+          "backend/asclepius/cases.py": "adb358a9e4b22e5669fd4cd9b5236be6272e16cecce909a796071035a2d850b1",
+          "backend/asclepius/onboarding_evidence.py": "193f3bfb277d8a83a1fe5f097551ffaf316056d4f5050971904b0b227b040df4"
+        },
+        "fresh_model_calls_verified": [
+          {
+            "model": "gpt-5.6-sol",
+            "response_model": "gpt-5.6-sol",
+            "provider": "openai",
+            "purpose": "onboarding_case_solve",
+            "request_id": "resp_074ba72f32b8e451016aae040481d087d19756b61f728a6fb5",
+            "input_tokens": 12810,
+            "output_tokens": 276
+          },
+          {
+            "model": "gpt-5.5",
+            "response_model": "gpt-5.5-2026-04-23",
+            "provider": "openai",
+            "purpose": "onboarding_case_solve",
+            "request_id": "resp_002bc5a8a120c5a6016aae0404854487d19a4a194e2d7c7785",
+            "input_tokens": 12810,
+            "output_tokens": 483
+          },
+          {
+            "model": "gpt-5.5",
+            "response_model": "gpt-5.5-2026-04-23",
+            "provider": "openai",
+            "purpose": "onboarding_case_review",
+            "request_id": "resp_0c11624199545ec5016aae040baf8c87d193af602e259d95cb",
+            "input_tokens": 27014,
+            "output_tokens": 1672
+          },
+          {
+            "model": "gpt-5.6-sol",
+            "response_model": "gpt-5.6-sol",
+            "provider": "openai",
+            "purpose": "onboarding_case_review",
+            "request_id": "resp_019151658a4314ca016aae0409c87487d19864b6512a1bfa72",
+            "input_tokens": 27014,
+            "output_tokens": 1305
+          }
+        ],
+        "committed_prepared_row_matches": true,
+        "committed_revision_inputs_sha256": "6d70c0033b2805bad0c0d110d1a7fecbfb27a9f8b7769567ac5154700c741830",
+        "trial_summary_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35419124341/10576781312/trial-summary.json",
+        "trial_summary_sha256": "6a35b517113eac869b11d14914f8e557bb3ff95abe9e3ea1bb5b90b8cf2261ab",
+        "unpublished_trial_release_gate_rejection": "Real clinical review required: exact OpenAI artifact audit missing"
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "issues": [],
+          "blind_confidence": 0.99,
+          "review_confidence": 0.97
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "issues": [],
+          "blind_confidence": 0.98,
+          "review_confidence": 0.95
+        }
+      ],
+      "companion": {
+        "task_id": "onboarding-examination-v1-98d3f77f8d4d452b76d0-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-examination-v1-98d3f77f8d4d452b76d0-1.json",
+        "artifact_sha256": "768b4e350439a71e9277df910d5feafa509a4b73ba037b7d19825649f2f443c4",
+        "entry_sha256": "6888c0d2c285bf063b5fbb319590d37fb9b20b4fb025bc95b259a6cb1ba0d986"
+      },
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_decisive_support",
+          "result": "clear",
+          "finding": "Abrupt pain, pallor, coolness, absent pedal arterial signals and toe sensory loss with preserved movement and venous signal support a salvageable, marginally threatened acute limb ischemia presentation. Immediate UFH and emergency vascular-team involvement are directly supported by the retained 2019 review, with DUS/CTA for a viable or marginally threatened limb. The recent meta-analysis separately supports prompt, individually selected revascularization. Candidate A wrongly defers both anticoagulation and vascular-team activation while imaging is obtained.",
+          "source_ids": [
+            "31416204",
+            "42097877"
+          ]
+        },
+        {
+          "check": "population_safety_and_evidence_limits",
+          "result": "clear",
+          "finding": "This adult has no active or recent major bleeding, recent intracranial event or known HIT. The sound answer contains no exact UFH dose or universally preferred revascularization technique. The 2019 source is a secondary clinical review, not a primary guideline; it meets the unchanged calendar-year gate but is older than seven rolling years. Its retained blanket open-revascularization statement for nonviable limbs is not adopted. The authored entry explicitly limits the revascularization rationale to a salvageable limb, and the newer source supports patient-tailored modality selection. Imaging must be urgent and support prompt treatment, as the answer states.",
+          "source_ids": [
+            "31416204",
+            "42097877"
+          ]
+        },
+        {
+          "check": "literal_passage_entailment",
+          "result": "clear",
+          "finding": "Both reviewers select passage p12 for immediate UFH and continuous vascular-team access and p14 for DUS/CTA in stages I/IIa. The recent meta-analysis passages p0 and p3 substantiate urgency and multidisciplinary tailoring. The extra p8 selected by one reviewer reinforces viable-limb imaging. Each resolved quote equals its generated source handle; none relies only on a guideline title or scope abstract.",
+          "source_ids": [
+            "31416204",
+            "42097877"
+          ]
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The exact public payload reconstructed using the CI-revision code contains objective ischemic findings and contraindication history, without the private answer, hard hook, divergence metadata or source claims. The title, question and clinical note do not prescribe heparin, specialist activation, imaging order or a preferred candidate. Stating absence of prior HIT is clinically relevant safety data, not a completed management recommendation."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The bundled examination concerns expedited carotid endarterectomy after recent ipsilateral amaurosis fugax and confirmed severe carotid stenosis in a fit octogenarian. The practice entry concerns immediate anticoagulation and vascular-team activation for acute lower-limb ischemia. The decisions, anatomy, timescale and decisive contraindication assessment differ."
+        }
+      ],
+      "corrective_authoring_suggestion": null
+    },
+    {
+      "task_id": "onboarding-practice-v1-3e19e5ff97ee3c9c1348-1",
+      "specialty": "pain medicine",
+      "kind": "practice",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35419124341/10576861249/trial-onboarding-practice-v1-3e19e5ff97ee3c9c1348-1.json",
+      "artifact_sha256": "edfaa728bf2f59f191532035552fa14ed8291de9f336ab9291a7cffea1b3fc32",
+      "entry_sha256": "cafcae353ee92f2c7fcbdb9b1cebad8f6d4a57ff3e23bd4e42c037ea59604624",
+      "integrity": {
+        "prepared_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "both_blind_solutions_and_reviews_choose": "B",
+        "retained_source_hashes_verified": [
+          {
+            "source_id": "41481869",
+            "abstract_sha256": "4f988fe4e824bac79b4b8ffe7a186275c76ad1a48a28d63b609ac9cdb20bd152"
+          },
+          {
+            "source_id": "40665902",
+            "abstract_sha256": "b87bf05676c353e6233605577682fc90263c6fea0ed6b2d695b1bca615b84dea"
+          },
+          {
+            "source_id": "38101929",
+            "abstract_sha256": "c07fadf69ee504f2bb9d1e4a973ddfbb8341c6cee147ddad919b9c4f178aa79d"
+          },
+          {
+            "source_id": "39133736",
+            "abstract_sha256": "17cdc3bdca9289e4bd979c5432987d9a490b71953eac55df6e50bead090f33fd"
+          },
+          {
+            "source_id": "34051387",
+            "abstract_sha256": "25b0b8ef9953748bad0bbe839dd4a64167beee137fb6d8bddd56444dd21c938b"
+          },
+          {
+            "source_id": "32503359",
+            "abstract_sha256": "7525cbb246e850011b9990e6aa74f0cfda2f5bfc5bee51f72660e852f729d8d5"
+          },
+          {
+            "source_id": "41318933",
+            "abstract_sha256": "9485dd3750c7f82e9e975c18d63a80d82e7274ec75a1c7d241842831b4349a62"
+          },
+          {
+            "source_id": "38117465",
+            "abstract_sha256": "313320ea2be6ba8e31fafb195c9b97137423e422066c3e85aac69451d0d6b56b"
+          }
+        ],
+        "literal_source_quote_instances_verified": 13,
+        "literal_quotes_equal_selected_passages": true,
+        "source_original_checks": [
+          {
+            "source_id": "41481869",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/pain-medicine-practice.json",
+            "original_sha256": "0d2ea066df68bac06a66903d754fcca1dda5caf4f4bc9fd19b0aa9a61df280df"
+          },
+          {
+            "source_id": "40665902",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/pain-medicine-practice.json",
+            "original_sha256": "0d2ea066df68bac06a66903d754fcca1dda5caf4f4bc9fd19b0aa9a61df280df"
+          },
+          {
+            "source_id": "38101929",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/pain-medicine-practice.json",
+            "original_sha256": "0d2ea066df68bac06a66903d754fcca1dda5caf4f4bc9fd19b0aa9a61df280df"
+          },
+          {
+            "source_id": "39133736",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/pain-medicine-practice.json",
+            "original_sha256": "0d2ea066df68bac06a66903d754fcca1dda5caf4f4bc9fd19b0aa9a61df280df"
+          },
+          {
+            "source_id": "34051387",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/pain-medicine-practice.json",
+            "original_sha256": "0d2ea066df68bac06a66903d754fcca1dda5caf4f4bc9fd19b0aa9a61df280df"
+          },
+          {
+            "source_id": "32503359",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/pain-medicine-practice.json",
+            "original_sha256": "0d2ea066df68bac06a66903d754fcca1dda5caf4f4bc9fd19b0aa9a61df280df"
+          },
+          {
+            "source_id": "41318933",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/pain-medicine-practice.json",
+            "original_sha256": "0d2ea066df68bac06a66903d754fcca1dda5caf4f4bc9fd19b0aa9a61df280df"
+          },
+          {
+            "source_id": "38117465",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/pain-medicine-examination.json",
+            "original_sha256": "ae6af06ea17cf4ddf0f3c96e094eb7235d23c2d3ece289622045e8baf84ad387"
+          }
+        ],
+        "public_boundary_verified": true,
+        "public_payload_sha256": "3e586e9a6d677e51e4c573a1a42e9aa6609b4fb5fcf15d20ad07f378d8d46f38",
+        "public_payload_method": "Reconstructed with exact CI-revision blind_entry/public_case code and immutable passed entry; passed artifacts do not retain raw HTTP request bodies.",
+        "ci_sha": "9da05bf6501f1ee4c1916f67dec95b0d27a66afd",
+        "ci_code_hashes": {
+          "backend/asclepius/onboarding_cases.py": "0f835263093b9bd63620abd2b8bb586b730673a87ef3dc893476624444576226",
+          "backend/asclepius/cases.py": "adb358a9e4b22e5669fd4cd9b5236be6272e16cecce909a796071035a2d850b1",
+          "backend/asclepius/onboarding_evidence.py": "193f3bfb277d8a83a1fe5f097551ffaf316056d4f5050971904b0b227b040df4"
+        },
+        "fresh_model_calls_verified": [
+          {
+            "model": "gpt-5.6-sol",
+            "response_model": "gpt-5.6-sol",
+            "provider": "openai",
+            "purpose": "onboarding_case_solve",
+            "request_id": "resp_0db200350ca7cfda016aae0405bac887d083a7ec3d0711c01c",
+            "input_tokens": 7737,
+            "output_tokens": 321
+          },
+          {
+            "model": "gpt-5.5",
+            "response_model": "gpt-5.5-2026-04-23",
+            "provider": "openai",
+            "purpose": "onboarding_case_solve",
+            "request_id": "resp_0c5ea6e1a2e4eba8016aae0405b8e087d099a85b999e6de98d",
+            "input_tokens": 7737,
+            "output_tokens": 545
+          },
+          {
+            "model": "gpt-5.5",
+            "response_model": "gpt-5.5-2026-04-23",
+            "provider": "openai",
+            "purpose": "onboarding_case_review",
+            "request_id": "resp_0a72e9fd76be61c2016aae040c8d0087d08db5cb7470c963a5",
+            "input_tokens": 16965,
+            "output_tokens": 1729
+          },
+          {
+            "model": "gpt-5.6-sol",
+            "response_model": "gpt-5.6-sol",
+            "provider": "openai",
+            "purpose": "onboarding_case_review",
+            "request_id": "resp_0e1a6b4638b909ae016aae040c17c887d0bd0b71fa3645ea89",
+            "input_tokens": 16965,
+            "output_tokens": 1723
+          }
+        ],
+        "committed_prepared_row_matches": true,
+        "committed_revision_inputs_sha256": "6d70c0033b2805bad0c0d110d1a7fecbfb27a9f8b7769567ac5154700c741830",
+        "trial_summary_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35419124341/10576861249/trial-summary.json",
+        "trial_summary_sha256": "519510e0edf5e494fc5cca145baa4182ebf54cac5d00df4bc479d09506e37388",
+        "unpublished_trial_release_gate_rejection": "Real clinical review required: exact OpenAI artifact audit missing"
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "issues": [],
+          "blind_confidence": 0.99,
+          "review_confidence": 0.94
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "issues": [],
+          "blind_confidence": 0.97,
+          "review_confidence": 0.93
+        }
+      ],
+      "companion": {
+        "task_id": "onboarding-examination-v1-3e19e5ff97ee3c9c1348-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-examination-v1-3e19e5ff97ee3c9c1348-1.json",
+        "artifact_sha256": "5472a79201db2bdd62933c9a768835eb89cb60b9429eeec36e08f125bf5e55d8",
+        "entry_sha256": "222a86218badbe236134fa968bc3d793608a5bb293a8ab11b893b8853acc451f"
+      },
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_decisive_support",
+          "result": "clear",
+          "finding": "Diffuse nonradicular axial pain, nonspecific mild multilevel MRI degeneration and no established procedure target do not establish clinical necessity for immediate intradiscal PRP. The retained ASIPP 2025 recommendation expressly requires thorough diagnostic evaluation first; a moderate consensus recommendation does not remove that requirement. A separate low-back-pain guideline supports identifying chronicity risk and providing intensive multidisciplinary management if necessary. Functional decline, fear of movement and activity withdrawal make that second component relevant to this patient.",
+          "source_ids": [
+            "41481869",
+            "34051387"
+          ]
+        },
+        {
+          "check": "population_safety_and_evidence_limits",
+          "result": "clear",
+          "finding": "The entry concerns an adult elective pain-clinic decision with intact neurologic findings and no reported red flags. It asks for diagnostic assessment without prescribing an unsupported diagnostic procedure, drug, biologic dose or automatic rejection of later PRP. Candidate B and the key explicitly permit later regenerative therapy alone or with other modalities and do not require failure or completion of a comprehensive multimodal program. The ASIPP evidence is fair Level III with scarce high-quality research; its consensus rating is not proof of treatment necessity for this patient.",
+          "source_ids": [
+            "41481869",
+            "34051387"
+          ]
+        },
+        {
+          "check": "literal_passage_entailment",
+          "result": "clear",
+          "finding": "ASIPP passage p4 directly establishes diagnostic necessity, patient preferences, expectations, risks, costs and standalone or adjunctive use; p3 establishes Level III/fair intradiscal PRP evidence, with p4 supplying the research-quality limitation. The additional p5 chosen by one reviewer is consistent. The separate guideline p1 directly supports chronicity-risk identification and multidisciplinary care when necessary. All 13 quote instances are exact handle expansions.",
+          "source_ids": [
+            "41481869",
+            "34051387"
+          ]
+        },
+        {
+          "check": "reviewer_reasoning_limit",
+          "result": "clear",
+          "finding": "The blinded solver prose loosely suggests rehabilitation should precede any biologic procedure. This is not treated as evidence for a mandatory treatment sequence. The independently assessed authored answer, private key and final claim reviews expressly allow standalone later use and make diagnostic necessity the prerequisite. That distinction preserves the actual ASIPP statement."
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The title, question, consultation and descriptive MRI impression stop at the management decision. The patient request for an injection supplies the clinical choice, without instructing the applicant to accept or defer it. The private answer and grading fields are absent from the reconstructed public payload."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The bundled examination tests collaborative slow tapering of long-standing codeine overuse in established medication-overuse headache, together with preventive therapy. The practice entry tests assessment of necessity for a lumbar biologic procedure and chronicity risk. The treatment pathway, pain syndrome and consequential error differ."
+        }
+      ],
+      "corrective_authoring_suggestion": null
+    },
+    {
+      "task_id": "onboarding-examination-v1-0e0315b9abae6616594d-1",
+      "specialty": "physical medicine and rehabilitation",
+      "kind": "examination",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35419124341/10577570152/trial-onboarding-examination-v1-0e0315b9abae6616594d-1.json",
+      "artifact_sha256": "d1c1dffe0dcfc3ce310a5706cb01825355a750d9d00aa32caa26ce30fb20b9c4",
+      "entry_sha256": "28d5b30315b1ecd1753ef51810e069f6aa78ee40345eb632168d8ab8248e84be",
+      "integrity": {
+        "prepared_entry_hash_matches": true,
+        "validation_entry_hash_matches": true,
+        "validate_entry_passed": true,
+        "both_validate_review_passed": true,
+        "both_blind_solutions_and_reviews_choose": "A",
+        "retained_source_hashes_verified": [
+          {
+            "source_id": "42430939",
+            "abstract_sha256": "fcdbab5904d6fb5b90b15a7d60e6954e3d682decb9ac75397a5b58c740c20ffd"
+          },
+          {
+            "source_id": "38393175",
+            "abstract_sha256": "881df5d496b7cf9e4f80ce10c72296a78e73cfa41a57eecfebe48f47b259908c",
+            "body_excerpts_sha256": "77ddb2a378bed312f6efd0a9eb496dade784a0f319130649fc37953270cfbb6e",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "34495688",
+            "abstract_sha256": "26e8ede993b9caad2f46ff81d57e85bb7cabbc482cd5ff071bde7c9659ff5ce8"
+          },
+          {
+            "source_id": "34495687",
+            "abstract_sha256": "2977cdcd9b9344a77f6ee02777a2c78f1c79d26daa2fa6aef08109dab65bb3c8"
+          },
+          {
+            "source_id": "35962043",
+            "abstract_sha256": "6c435dedb6c0112048fb2b5b03bf3c4550d06193a1a1d6b57d5519014385c9f8"
+          },
+          {
+            "source_id": "35419369",
+            "abstract_sha256": "6b12fd0ddf544df27129a73f0301515f2e55469a632816869290468aaa10a838",
+            "body_excerpts_sha256": "04ee6dc1f0553fdb6d76ac438d0473c203eef495054de46f7f479b92d1154ad9",
+            "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+          },
+          {
+            "source_id": "38268066",
+            "abstract_sha256": "d5f2e5d8afb2c5beed99b6d655f6c7889a10149d3e4d4506c3c1a2e2f31623e1"
+          },
+          {
+            "source_id": "40008161",
+            "abstract_sha256": "f149c91746b77ad8d458f9cc39da8b7c6dde0b8a697d59c2479899f12fbf7f43"
+          }
+        ],
+        "literal_source_quote_instances_verified": 14,
+        "literal_quotes_equal_selected_passages": true,
+        "source_original_checks": [
+          {
+            "source_id": "42430939",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/physical-medicine-and-rehabilitation-examination.json",
+            "original_sha256": "45027f07df23218a08cb1e926b9a66244cd057d07d18530103d023ba838540e9"
+          },
+          {
+            "source_id": "38393175",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/physical-medicine-and-rehabilitation-examination.json",
+            "original_sha256": "45027f07df23218a08cb1e926b9a66244cd057d07d18530103d023ba838540e9"
+          },
+          {
+            "source_id": "34495688",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/physical-medicine-and-rehabilitation-examination.json",
+            "original_sha256": "45027f07df23218a08cb1e926b9a66244cd057d07d18530103d023ba838540e9"
+          },
+          {
+            "source_id": "34495687",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/physical-medicine-and-rehabilitation-examination.json",
+            "original_sha256": "45027f07df23218a08cb1e926b9a66244cd057d07d18530103d023ba838540e9"
+          },
+          {
+            "source_id": "35962043",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/physical-medicine-and-rehabilitation-examination.json",
+            "original_sha256": "45027f07df23218a08cb1e926b9a66244cd057d07d18530103d023ba838540e9"
+          },
+          {
+            "source_id": "35419369",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/physical-medicine-and-rehabilitation-examination.json",
+            "original_sha256": "45027f07df23218a08cb1e926b9a66244cd057d07d18530103d023ba838540e9"
+          },
+          {
+            "source_id": "38268066",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/physical-medicine-and-rehabilitation-examination.json",
+            "original_sha256": "45027f07df23218a08cb1e926b9a66244cd057d07d18530103d023ba838540e9"
+          },
+          {
+            "source_id": "40008161",
+            "exact_original_match": true,
+            "original_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/reference-preflight-sources/physical-medicine-and-rehabilitation-examination.json",
+            "original_sha256": "45027f07df23218a08cb1e926b9a66244cd057d07d18530103d023ba838540e9"
+          }
+        ],
+        "public_boundary_verified": true,
+        "public_payload_sha256": "72c9b44620d3cf067a44b27059acfda936947220e4c0bee94e1444641048764f",
+        "public_payload_method": "Reconstructed with exact CI-revision blind_entry/public_case code and immutable passed entry; passed artifacts do not retain raw HTTP request bodies.",
+        "ci_sha": "9da05bf6501f1ee4c1916f67dec95b0d27a66afd",
+        "ci_code_hashes": {
+          "backend/asclepius/onboarding_cases.py": "0f835263093b9bd63620abd2b8bb586b730673a87ef3dc893476624444576226",
+          "backend/asclepius/cases.py": "adb358a9e4b22e5669fd4cd9b5236be6272e16cecce909a796071035a2d850b1",
+          "backend/asclepius/onboarding_evidence.py": "193f3bfb277d8a83a1fe5f097551ffaf316056d4f5050971904b0b227b040df4"
+        },
+        "fresh_model_calls_verified": [
+          {
+            "model": "gpt-5.5",
+            "response_model": "gpt-5.5-2026-04-23",
+            "provider": "openai",
+            "purpose": "onboarding_case_solve",
+            "request_id": "resp_0ccd88909e8b208c016aae04440c9487d2b6dc6d769d33c3cd",
+            "input_tokens": 18388,
+            "output_tokens": 400
+          },
+          {
+            "model": "gpt-5.6-sol",
+            "response_model": "gpt-5.6-sol",
+            "provider": "openai",
+            "purpose": "onboarding_case_solve",
+            "request_id": "resp_09e27bbaaa9ba180016aae044408d487d2b866c9fee8400e4e",
+            "input_tokens": 18388,
+            "output_tokens": 350
+          },
+          {
+            "model": "gpt-5.5",
+            "response_model": "gpt-5.5-2026-04-23",
+            "provider": "openai",
+            "purpose": "onboarding_case_review",
+            "request_id": "resp_0c6bbdabfc487d50016aae0449238c87d2b2b9de746a362821",
+            "input_tokens": 39109,
+            "output_tokens": 2908
+          },
+          {
+            "model": "gpt-5.6-sol",
+            "response_model": "gpt-5.6-sol",
+            "provider": "openai",
+            "purpose": "onboarding_case_review",
+            "request_id": "resp_0651ee7bf20b59a7016aae044b0b8c87d284b99c2b0b324a9a",
+            "input_tokens": 39109,
+            "output_tokens": 2419
+          }
+        ],
+        "committed_prepared_row_matches": true,
+        "committed_revision_inputs_sha256": "6d70c0033b2805bad0c0d110d1a7fecbfb27a9f8b7769567ac5154700c741830",
+        "trial_summary_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/openai-trial-35419124341/10577570152/trial-summary.json",
+        "trial_summary_sha256": "acaac67021423d147fda4493938be96b4c3eac4a0723c71d6eb8b97eb4e8a6ad",
+        "unpublished_trial_release_gate_rejection": "Real clinical review required: exact OpenAI artifact audit missing"
+      },
+      "reviewers": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "issues": [],
+          "blind_confidence": 0.98,
+          "review_confidence": 0.97
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "openai",
+          "issues": [],
+          "blind_confidence": 0.95,
+          "review_confidence": 0.93
+        }
+      ],
+      "companion": {
+        "task_id": "onboarding-practice-v1-0e0315b9abae6616594d-1",
+        "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/cases/onboarding-practice-v1-0e0315b9abae6616594d-1.json",
+        "artifact_sha256": "22e479e3a35a2c7144e8ec23ce053b996a0d97f8d75145417d3310ef28cb2806",
+        "entry_sha256": "f450a73954b6b11820c4217d1f86d4c32e026a427fa630f841ce83c31a4a037f"
+      },
+      "disposition": "clear",
+      "findings": [
+        {
+          "check": "clinical_scope_and_decisive_support",
+          "result": "clear",
+          "finding": "Chronic C5 SCI, reproducible symptomatic hypertension during bladder filling, documented involuntary detrusor contractions and resolution with drainage establish bladder-triggered AD associated with NDO. Reliable caregiver-assisted intermittent catheterization and an ineffective, intolerable oral oxybutynin trial support discussing intradetrusor botulinum toxin with neuro-urology while maintaining reliable emptying. The retained narrative review supports this NDO treatment context and procedural risks; the 2026 systematic review independently supports possible reduction in AD episodes and severity. Lidocaine evidence is small and conflicting, and does not support replacing treatment of the documented bladder-filling trigger.",
+          "source_ids": [
+            "38393175",
+            "42430939",
+            "35962043"
+          ]
+        },
+        {
+          "check": "population_safety_and_evidence_limits",
+          "result": "clear",
+          "finding": "The patient is asymptomatic with baseline blood pressure and an emptied bladder at the visit. The assessed question is elective prevention, so the sound answer does not purport to supply an acute hypertensive AD algorithm. It acknowledges retention and procedure-associated AD, preserves catheterization, and promises no universal benefit. The evidence does not prove superiority over every alternative oral treatment or long-term cardiovascular benefit. The narrative source discusses onabotulinumtoxinA/Botox specifically; the entry proposes specialist discussion and does not claim formulation equivalence, prescribe dose substitutions or assert FDA approval for AD reduction. The 2026 review has a future October issue label but documented July 8 electronic publication.",
+          "source_ids": [
+            "38393175",
+            "42430939"
+          ]
+        },
+        {
+          "check": "literal_passage_entailment",
+          "result": "clear",
+          "finding": "The two reviewers select the same substantive passages: the 2026 review p0 for lesion-risk context and p1 for NDO-treatment results; the narrative review p33 for bladder-related triggers, p31 for refractory NDO indication and retention, and p32 for injection-provoked AD; the lidocaine review p1 for small inconsistent studies and inadequate evidence. All 14 resolved quote instances match these exact handles. Scope-only AUA abstract material is not used to establish an omitted acute management algorithm.",
+          "source_ids": [
+            "38393175",
+            "42430939",
+            "35962043"
+          ]
+        },
+        {
+          "check": "public_answer_cues",
+          "result": "clear",
+          "finding": "The public title, question, note, urodynamic findings and impression identify the syndrome and current stable state, without naming the preferred future preventive treatment. The private answer, hard hook and decision-scope key are absent. Prior oxybutynin intolerance and reliable catheterization are necessary treatment-selection facts, rather than instructions to choose the sound candidate."
+        },
+        {
+          "check": "pair_distinctness",
+          "result": "clear",
+          "finding": "The bundled practice concerns early poststroke focal plantarflexor overactivity and distinguishes tone reduction from orthotic mobility assistance. Although both entries discuss botulinum toxin, this examination assesses SCI-associated bladder NDO/AD prevention with retention and procedure-trigger risks. The neurologic disorder, target organ, indication, comparator, intended benefit and safety assessment differ."
+        }
+      ],
+      "corrective_authoring_suggestion": null
+    }
+  ],
+  "integrity_summary": {
+    "cases_checked": 3,
+    "all_exact_prepared_entries_matched": true,
+    "all_entry_and_review_validators_passed": true,
+    "fresh_openai_calls": 12,
+    "distinct_openai_models_per_case": [
+      "gpt-5.6-sol",
+      "gpt-5.5"
+    ],
+    "providers": [
+      "openai"
+    ],
+    "cross_provider_review": false,
+    "literal_quote_instances_verified": 38,
+    "retained_source_instances_verified": 24,
+    "all_retained_sources_match_originals": true,
+    "primary_body_reconstructions": [
+      {
+        "source_id": "31416204",
+        "primary_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-revision2-sources/evidence-gap-revision2-PMC6723825.xml",
+        "primary_xml_sha256": "3da9924876441ec7e4df692c2ae99237ca2633904202054656b9b5b798e23435",
+        "primary_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC6723825/fullTextXML",
+        "body_excerpts_sha256": "9ba6d1907f75038629ca824dc9d15f96d24701d7b9255071eddcb3370033271c",
+        "body_license_url": "http://creativecommons.org/licenses/by/4.0/",
+        "identity_license_and_body_reconstruction_passed": true
+      },
+      {
+        "source_id": "38393175",
+        "primary_xml_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/evidence-gap-palliative-pmr-sources/evidence-gap-palliative-pmr-PMC10892370.xml",
+        "primary_xml_sha256": "d2cc76d2f7150a33d091f40e6f8ba476d908c76954bce59b8d44d346727a68e0",
+        "primary_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10892370/fullTextXML",
+        "body_excerpts_sha256": "77ddb2a378bed312f6efd0a9eb496dade784a0f319130649fc37953270cfbb6e",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "identity_license_and_body_reconstruction_passed": true
+      }
+    ],
+    "all_public_boundaries_verified": true,
+    "all_unpublished_trial_release_gates_rejected": true,
+    "checker_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/specialty-onboarding/audit_final_vascular_pain_pmr_checks.py",
+    "checker_sha256": "6ebfe30d3f731ae63e7646da5229796b038de1d4f91f54dc77f5729c78e9746a"
+  },
+  "limits": [
+    "This is automated independent artifact review, not physician ratification. Two OpenAI models are one provider, not two independent providers.",
+    "All clinical scenarios are synthetic and sources are public. No partner case, applicant record or real patient information was used.",
+    "Passed artifacts retain solutions and reviews, not raw HTTP request bodies. Public/blinded input verification reconstructs the exact payload from the immutable entry and matching CI code; fresh request IDs and returned model names are verified against trial summaries.",
+    "Clear dispositions apply only to the exact artifact and entry hashes listed here. Source, entry or recommendation edits need fresh review.",
+    "Source strength and scope remain explicit: the 2019 ALI review is a narrowly used secondary source under a calendar-year recency rule; the ASIPP guideline does not mandate completed multimodal therapy; NDO treatment evidence does not establish guaranteed AD prevention or universal formulation equivalence.",
+    "No repository source, publication gate, model threshold, trial artifact or approval registry was changed during this audit."
+  ],
+  "supplementary_sources": [
+    {
+      "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/source_audits/evidence-gap-ali-review-audit.json",
+      "sha256": "c0e17f3fd38c2a47cf281ca7b4b66eca7eb8a411f9d5e17986b431ed08ee36eb"
+    },
+    {
+      "path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/specialty-case-library/backend/asclepius/onboarding_material/source_audits/evidence-gap-palliative-pmr-audit.json",
+      "sha256": "dea7718cfb96e0ec5e2aedf99f84447849a0fafa2231078364c648fc6ac17609"
+    }
+  ]
+}

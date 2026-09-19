@@ -1,0 +1,472 @@
+{
+  "task_id": "onboarding-practice-v1-9cbe2b30e23c85c74ba0-1",
+  "specialty": "medical genetics",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Genetic counseling follow-up after familial MSH6 testing",
+    "question": "Which recommendation should be made now regarding colorectal surveillance under the supplied European Lynch syndrome guidance?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "medical genetics",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Lynch syndrome due to a germline pathogenic MSH6 variant",
+          "since": "Confirmed through familial variant testing",
+          "collected_offset_days": -21
+        },
+        {
+          "condition": "Family history of colorectal cancer",
+          "since": "Mother diagnosed in her late 40s",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Genetic counseling follow-up",
+          "author_role": "medical genetics",
+          "text": "A 36-year-old woman returns after targeted testing for the familial MSH6 variant previously identified in her mother, who developed colorectal cancer in her late 40s. The patient\u2019s test detected the same germline pathogenic variant. She has no personal history of cancer, colorectal polyps, inflammatory bowel disease, rectal bleeding, persistent change in bowel habits, or unexplained weight loss. She has never undergone colonoscopy. Her records contain no prior colorectal tumor testing because she has not had cancer. The laboratory classified the result as pathogenic rather than a variant of uncertain significance.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Molecular genetics",
+          "label": "Targeted familial-variant analysis",
+          "findings": "The familial germline pathogenic MSH6 variant was detected. The report did not identify the finding as a variant of uncertain significance.",
+          "measurements": [],
+          "impression": "Positive targeted test for the known familial pathogenic MSH6 variant.",
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": -21
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional onboarding case; not patient care."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the surveillance decision",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "She is a confirmed pathogenic MSH6 carrier and is already 36 years old. Under the specified European guidance, surveillance colonoscopy for MSH6 carriers begins at age 35, so Lynch-specific surveillance should begin now rather than being deferred to the average-risk screening age. A dedicated surveillance service using high-definition endoscopy is consistent with the endoscopy guideline. The average-risk recommendation is inapplicable because it expressly excludes people with Lynch syndrome.",
+        "evidence": null,
+        "key_data": [
+          "The patient is 36 years old.",
+          "Targeted testing confirmed a germline pathogenic MSH6 variant.",
+          "She has never undergone colonoscopy.",
+          "European guidance starts surveillance colonoscopy at age 35 for MSH6 carriers.",
+          "Average-risk colorectal screening guidance excludes people with Lynch syndrome."
+        ]
+      },
+      "hard_hook": "Distinguishing gene-specific Lynch surveillance from average-risk colorectal screening",
+      "reasoning_divergence": "The flawed response applies an average-risk age threshold despite a confirmed pathogenic MSH6 variant."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Begin Lynch syndrome colonoscopic surveillance now, preferably through a dedicated hereditary-risk unit using a high-definition endoscopy system, because she is an MSH6 carrier older than 35 years."
+      },
+      {
+        "id": "B",
+        "text": "Defer Lynch-specific surveillance until age 45 and then enter routine average-risk colorectal screening; no dedicated hereditary-risk endoscopy pathway is necessary before that age."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "Lynch syndrome",
+      "MSH6",
+      "colorectal cancer",
+      "colonoscopy",
+      "pathogenic variant"
+    ],
+    "evidence_keywords": [
+      "germline MSH6",
+      "surveillance initiation",
+      "age 35",
+      "high-definition endoscopy",
+      "average-risk exclusion"
+    ],
+    "error_tags": [
+      "omission",
+      "unsafe_recommendation"
+    ],
+    "claims": [
+      {
+        "statement": "Lynch syndrome is caused by a pathogenic germline mismatch-repair gene variant.",
+        "source_ids": [
+          "34043773"
+        ]
+      },
+      {
+        "statement": "European hereditary-cancer guidance recommends initiating surveillance colonoscopy at age 35 for pathogenic MSH6 carriers.",
+        "source_ids": [
+          "34043773"
+        ]
+      },
+      {
+        "statement": "The ESGE guideline also recommends starting colonoscopy surveillance at age 35 for MSH6 mutation carriers.",
+        "source_ids": [
+          "31597170"
+        ]
+      },
+      {
+        "statement": "ESGE recommends dedicated Lynch syndrome surveillance units and routine use of high-definition endoscopy systems.",
+        "source_ids": [
+          "31597170"
+        ]
+      },
+      {
+        "statement": "USPSTF average-risk colorectal screening recommendations expressly exclude people with Lynch syndrome.",
+        "source_ids": [
+          "34003218"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "openai_only_trial",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-19T01:37:53.178150+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "34043773",
+        "title": "European guidelines from the EHTG and ESCP for Lynch syndrome: an updated third edition of the Mallorca guidelines based on gene and gender.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34043773/",
+        "abstract": "Lynch syndrome is the most common genetic predisposition for hereditary cancer but remains underdiagnosed. Large prospective observational studies have recently increased understanding of the effectiveness of colonoscopic surveillance and the heterogeneity of cancer risk between genotypes. The need for gene- and gender-specific guidelines has been acknowledged.\nThe European Hereditary Tumour Group (EHTG) and European Society of Coloproctology (ESCP) developed a multidisciplinary working group consisting of surgeons, clinical and molecular geneticists, pathologists, epidemiologists, gastroenterologists, and patient representation to conduct a graded evidence review. The previous Mallorca guideline format was used to revise the clinical guidance. Consensus for the guidance statements was acquired by three Delphi voting rounds.\nRecommendations for clinical and molecular identification of Lynch syndrome, surgical and endoscopic management of Lynch syndrome-associated colorectal cancer, and preventive measures for cancer were produced. The emphasis was on surgical and gastroenterological aspects of the cancer spectrum. Manchester consensus guidelines for gynaecological management were endorsed. Executive and layperson summaries were provided.\nThe recommendations from the EHTG and ESCP for identification of patients with Lynch syndrome, colorectal surveillance, surgical management of colorectal cancer, lifestyle and chemoprevention in Lynch syndrome that reached a consensus (at least 80 per cent) are presented.",
+        "sha256": "2fe00f00b282ee78c7f743befed4ffb520783ac6d0c1a67ddfbb1971fb4366a9",
+        "retrieved_at": "2026-09-19T01:36:35.423852+00:00",
+        "pmcid": "PMC10364896",
+        "body_excerpts": "Definitions used in these guidelines\nLynch syndrome (LS): the dominantly inherited cancer syndrome caused by the presence of a pathogenic mismatch repair gene variant\n\nExecutive summary of recommendations\nRecommendations for the identification of patients with Lynch syndrome (LS), colorectal surveillance, surgical management of colorectal cancer, lifestyle and chemoprevention that reached a consensus (at least 80 per cent) by a combined expert working group from the European Hereditary Tumour Group (EHTG; former Mallorca Group) and the European Society of Coloproctology (ESCP) are presented in Table 1 . In addition, there was agreement to endorse the Manchester consensus statement for gynaecological cancer in LS 1 . The summary of recommendations for healthcare professionals is as follows.\n\nExecutive summary of recommendations\nTable 1 Recommendations that achieved consensus based on GRADE Strength of recommendation % of voters agreeing Identification of LS Amsterdam criteria and/or revised Bethesda criteria are not sufficient to guide tumour testing owing to low sensitivity in detection of patients with LS Strong * 86 All colorectal cancers should be tested by MMR (MLH1, MSH2, MSH6, PMS2) immunohistochemistry or MSI testing (followed by possible MLH1 hypermethylation testing) to screen for LS Strong * 91 Immunohistochemistry performed on preoperative colorectal cancer biopsies is at least as accurate as that performed on resection specimens Strong * 81 Colorectal surveillance For path_MLH1 , path_MSH2 and path_MSH6 carriers, 2\u2010 or 3\u2010yearly colonoscopic surveillance is recommended \u2021 Strong * 75 For path_PMS2 carriers, colonoscopic surveillance should be performed to reduce mortality and incidence of colorectal cancer Strong * 82 For path_PMS 2 carriers, 5\u2010yearly surveillance may be considered Weak \u2020 80 For patients with LS with a history of CRC and segmental colectomy, biennial colonoscopies should be performed Strong * 88 For patients with LS with a history of CRC and segmental colectomy, biennial rectosigmoidoscopies should be performed Strong * 88 There is no evidence at the moment to support different surveillance colonoscopy intervals for men and women Strong * 100 Chromoendoscopy is equivalent to high\u2010definition white\u2010light endoscopy in specialist centres. It may be an adjunct to be considered in the absence of high\u2010definition endoscopy or in centres with lower adenoma detection rates Weak \u2020 92 If bowel preparation is not entirely adequate, a repeat procedure at 1 year is recommended. If the bowel preparation is completely inadequate or the examination incomplete, an immediate repeat colorectal surveillance procedure should be requested (within next 6 weeks) Weak, based on very low\u2010quality evidence (expertopinion) 85 Age at onset of surveillance colonoscopy should be stratified according to genotype Strong * 100 For path_MLH1 or path_MSH2 carriers, surveillance colonoscopies should be initiated at the age of 25 years Moderate \u2020 94 For path_MSH6 or path_PMS2 carriers, surveillance colonoscopies should be initiated at the age of 35 years Moderate \u2020 93 Age at onset of surveillance should not be stratified by gender Moderate * 88 Surgical management of colorectal cancer For a path_MLH1 or path_MSH2 carrier with a first colonic cancer, extended surgery with ileosigmoidal/ileorectal anastomosis is preferable to standard resection to reduce the risk of metachronous CRC Strong * 82 For a path_MSH6 or path_PMS2 carrier with a first colonic cancer, standard/segmental colonic resection should be offered Weak * 80 For a path_MMR carrier with a metachronous colonic cancer, the surgical treatment can be extended surgery with ileorectal/ileosigmoidal anastomosis. Weak, based on very low\u2010quality evidence 93 A decision on extended colorectal surgery for CRC should not be based on dMMR immunohistochemistry (loss of MLH1 , MSH2 , MSH6 or PMS2 ) and BRAF staining/ MLH1 hypermethylation from the preoperative endoscopic biopsy only Strong * 94 For a path_MMR carrier, the surgical treatment of a primary rectal cancer (occurring as the first colorectal cancer) should be standard resection (anterior resection or APR) Strong * 92 In a young path_MMR carrier with a rectal cancer and a synchronous neoplasia or a personal preference, extended surgery can be considered Weak, based on very low\u2010quality evidence 86 Ileoanal pouch surgery (in agreement with ECCO guidelines for pouch surgery in ulcerative colitis) should be performed in highly specialized colorectal surgical units Moderate \u2020 92 For endoscopically non\u2010removable polyps with advanced histology, an oncological approach is recommended, as for gene\u2010specific treatment for carcinoma Strong * 93 Prophylactic colorectal surgery in the absence of neoplastic lesions in the colorectum is not recommended for path_MMR carriers based on their pathogenic variant\u2010related risk only Strong * 97 Lifestyle and chemoprevention Path_MMR carriers should be advised that smoking increases the risk of colorectal cancer Weak \u2020 100 Path_MMR carriers should be advised that obesity increases the risk of colorectal cancer Weak \u2020 100 Path_MMR carriers should be advised that physical activity reduces the risk of colorectal cancer Weak \u2020 90 Path_MMR carriers should be advised that alcohol consumption increases the risk of colorectal cancer Weak \u2020 82 Path_MMR carriers should be advised that there is a high probability that daily aspirin will reduce cancer risk Weak# 90 Patients with path_MMR should be advised that there is a high probability that daily aspirin will reduce their cancer risk Weak * 100 The recommended aspirin dose should be a minimum of 75\u2013100 mg daily. This dose should be increased for people with above\u2010average body mass Weak \u2020 93 *Based on moderate\u2010quality evidence; \u2020 based on low\u2010quality evidence. \u2021 Consensus not reached between 2\u2010 and 3\u2010year interval. GRADE, Grading of Recommendations, Assessment, Development and Evaluation; LS, Lynch syndrome; MMR, mismatch repair; MSI, microsatellite instability; CRC, colorectal cancer; dMMR, deficient mismatch repair; APR, abdominoperineal resection; ECCO, European CanCer Organisation.\n\nExecutive summary of recommendations\nTable 2 Overview of chromoendoscopy studies in Lynch syndrome Reference Study outcomes Brown et al . 24 CE yielded more people with at least one neoplastic lesion (OR 1\u00b753, 95 per cent c.i. 1\u00b731 to 1\u00b779). However, the authors felt the evidence base was too small Kami\u0144ski et al . 25 The study strongly recommended the routine use of high\u2010definition pancolonic CE in patients with known or suspected LS (conventional CE, NBI, i\u2010SCAN), but acknowledged the low\u2010quality evidence Lecomte et al . 26 A small series reported that CE improved the adenoma detection rate in tandem colonoscopy studies Stoffel et al . 27 Patients underwent white\u2010light colonoscopy and were then randomized to CE versus intensive inspection (withdrawal time of at least 20 min). CE was superior to standard white\u2010light examination but not significantly different from intensive inspection Rahmi et al . 28 Patients underwent tandem colonoscopy with white light then CE. CE was superior, identifying 32 of 78 patients with one or more adenomas versus 18 of 78 ( P < 0\u00b7001) and an additional adenoma in 24 of 78 (31%). van Rijn et al . 29 A 20% adenoma miss rate in average\u2010risk cohorts was reported in a systematic review of tandem white\u2010light/CE studies East et al . 30 The authors reported a significantly increased adenoma detection rate with NBI. However, there was no randomization of the order in which NBI and white\u2010light colonoscopy were undertaken in this study, which is a major methodological criticism Bisschops et al . 31 An increased adenoma detection rate was reported with the use of i\u2010SCAN versus high\u2010definition white\u2010light colonoscopy in 61 patients with LS. Patients were randomized to i\u2010SCAN or white light first H\u00fcneburg et al . 32 In a comparison of white light with CE and virtual chromoendoscopy, CE was found to be significantly better than NBI and standard white\u2010light colonoscopy Rondagh et al . 33 Findings in patients with and without LS were compared. LS adenomas were more likely to be non\u2010polypoid (43 versus 17%; OR 3\u00b76, P < 0\u00b7001). This was particularly so for those in the proximal colon (58 versus 16%; OR 6\u00b793, P < 0\u00b7001). Advanced histology was more likely to be found in non\u2010polypoid adenomas in patients with LS than those without (4 of 5 versus 5 of 12). Serrated lesions were more likely to be non\u2010polypoid in LS (49 versus 20%; OR 3\u00b757, P < 0\u00b7001) CE, chromoendoscopy; OR, odds ratio; NBI, narrow\u2010band imaging; i\u2010SCAN, postprocessing software filter technology; LS, Lynch syndrome.\n\nExecutive summary of recommendations > Identification of carriers\nThe established clinical criteria may be used for selecting people without cancer to be genetically tested.\n\nIntroduction\nCarriers are at increased risk of developing cancers, including colorectal, endometrial, ovarian, stomach, pancreatic, small bowel, biliary tract, urinary tract, brain and skin cancer. In LS, these cancers may occur much earlier in life than their sporadic counterparts, but older age of onset is not infrequent, and penetrance and expression vary by gene and gender from very high to immeasurable. The International Society for Gastrointestinal Hereditary Tumours (InSiGHT), through the use of its international database ( http://insight\u2010database.org/ ) and expertise, categorizes MMR gene variants as being pathogenic (class 5) or likely to be pathogenic (class 4) (or as being of uncertain significance, likely not pathogenic or not pathogenic). This information can then be used to inform patient\u2010centred counselling in consultation with the Prospective Lynch Syndrome Database (PLSD) ( http://www.plsd.eu ). Potentially modifiable factors include acetylsalicylic acid (aspirin) prophylaxis and lifestyle. Typically, LS\u2010associated cancers have significantly better prognoses than sporadic cancers affecting the same organs, reflecting biological differences, including the marked immune responses that characterize LS cancers 5 . Patients with LS who are within cancer surveillance programmes benefit from a stage shift and earlier cancer diagnosis and usually survive their first cancers. Despite surveillance, those with LS can go on to develop metachronous cancers, with service planning implications 6 .\n\nMethods > Literature search\nA PICO (Patients, Intervention, Comparison, Outcome) model structure was created for each area of interest, based on previously published template questions 8 . A systematic literature search was performed using the PubMed database and the Cochrane Database of Systematic Reviews, and manual searches of relevant articles up until November 2018. The following Medical Subject Heading (MeSH) terms were used: \u2018hereditary nonpolyposis colorectal cancer\u2019[All Fields] OR \u2018Lynch syndrome\u2019[All Fields]; 3893 articles were identified. The titles were screened and relevant articles written in English were reviewed, and the level of evidence was graded as high, moderate, low or very low, according to GRADE (Grading of Recommendations, Assessment, Development and Evaluation) criteria ( http://www.gradeworkinggroup.org/ ) ( Table S3 , supporting information ).\n\nQuestion 1: how can the identification of Lynch syndrome be improved?\nLS carcinomas of the large bowel are associated with a highly cellular, medullary or mucinous appearance, with a marked increase in the number of intratumoral and peritumoral lymphocytes, a pushing border with a low frequency of budding and low stromal content. They have a lower rate of nodal spread. Although these phenotypic features are in keeping with aberrant MMR protein expression, they are not specific for LS.\n\nQuestion 1: how can the identification of Lynch syndrome be improved?\nThe clinical criteria for preselection of people for genetic testing (Amsterdam II 12 and revised Bethesda 13 criteria) are insensitive and lack specificity in identifying carriers ( Table S5 , supporting information ); testing of incident colorectal cancer cases has been recommended for over a decade. In parallel with the present work, a consensus guideline meeting on gynaecological cancer in LS recommended screening for LS in patients with endometrial and ovarian cancer (and also BRCA1/2 screening in ovarian cancer). Furthermore, identification of carriers provides the opportunity for cascade testing of relatives, which has the benefit of identifying healthy carriers. These approaches have been shown to be cost\u2010effective 14 , 15 .\n\nQuestion 1: how can the identification of Lynch syndrome be improved?\nLaboratory screening of patients with upper urinary tract cancer to identify LS was agreed by a majority (73 per cent) but did not reach consensus.\n\nQuestion 1: how can the identification of Lynch syndrome be improved? > Conclusions and recommendations\nAll colorectal cancers should be tested by MMR (MLH1, MSH2, MSH6, PMS2) immunohistochemistry or MSI testing (followed by possible MLH1 hypermethylation testing) to screen for LS.\n\nQuestion 1: how can the identification of Lynch syndrome be improved? > Conclusions and recommendations\nPatients with endometrial or ovarian cancer should be screened by immunohistochemistry or DNA testing as described in the Manchester consensus statement.\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 1: should colonoscopic surveillance be performed?\nData from largely observational studies conducted since the 1990s have supported the role of colonoscopic surveillance in patients with LS. J\u00e4rvinen and colleagues 16 , 17 reported on the outcomes of a cohort of patients with LS who underwent colonoscopic surveillance and compared them with a group who did not, and observed a 62 per cent reduction in colorectal cancer in the surveillance group. Similar observations were made in other studies 18\u201320 . Altogether, colonoscopic surveillance seems to lead to a 60\u201372 per cent decrease in colorectal cancer mortality. More recent data from prospective observational studies have questioned the previously reported benefits in earlier studies 16,17,20 of comparative colorectal cancer incidence. Specifically, nearly half of path_MLH1 and path_MSH2 carriers develop colorectal cancer under surveillance 6,21\u201323 , and the benefits of colonoscopic surveillance are mainly to improve survival by earlier detection compared with no surveillance.\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 1: should colonoscopic surveillance be performed? > Conclusions and recommendations\nThere was consensus agreement that for all path_MMR carriers colonoscopic surveillance should be performed to reduce mortality and incidence of colorectal cancer.\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 2: should chromoendoscopy/virtual chromoendoscopy be performed?\nChromoendoscopy (CE) uses contrast dyes (usually indigocarmine) to highlight the mucosal surface contours and enhance visualization. In virtual CE, filtering technology is built into the colonoscope system, which alters the white\u2010light image to highlight mucosal surface architecture and capillary pattern. Results with use of CE and virtual CE are summarized in Table 2 24\u201333 . These studies are largely methodologically flawed, which limits the conclusions that can be drawn. CE may be equivalent to high\u2010quality white\u2010light examination with prolonged withdrawal. However, given the conflicting results of studies, and the methodological flaws of most published studies, CE may still be a helpful adjunct to be considered in colonoscopic surveillance in LS.\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 2: should chromoendoscopy/virtual chromoendoscopy be performed? > Conclusions and recommendations\nChromoendoscopy is equivalent to high\u2010definition white\u2010light endoscopy in specialist centres. It may be an adjunct to be considered in the absence of high\u2010definition endoscopy or in centres with lower adenoma detection rates.\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 3: what is the appropriate colonoscopic surveillance interval?\nIn studies from the PLSD published by M\u00f8ller and colleagues 21 , the interval between last surveillance colonoscopy and colorectal cancer was analysed. Of 145 colorectal cancers, 100 were diagnosed more 2 years after the last colonoscopy (interval after colonoscopy range 0\u2013125 months). On the other hand, the high incidence of colorectal cancers in the PLSD despite colonoscopic surveillance was not due to the inclusion of a large cohort of Finnish path _ MLH1 carriers for whom a 2\u20133\u2010year interval between colonoscopies had been recommended 34 . The cumulative incidence of colorectal cancer or stage at detection did not differ between 1\u2010yearly, 2\u2010yearly and 2\u20133\u2010yearly colonoscopic surveillance strategies in a study of 2747 path_MLH1 , path_MSH2 and path_MSH6 carriers who were followed up for a total of 23 309 years by 16 327 colonoscopies 23 .\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 3: what is the appropriate colonoscopic surveillance interval? > Conclusions and recommendations\nFor path_MLH1 , path_MSH2 and path_MSH6 carriers, 2\u2010 or 3\u2010yearly colonoscopic surveillance is recommended (consensus not reached between 2 and 3 years).\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 3: what is the appropriate colonoscopic surveillance interval? > Conclusions and recommendations\nFor path_PMS2 carriers, 5\u2010yearly surveillance may be considered.\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 3: what is the appropriate colonoscopic surveillance interval? > Conclusions and recommendations\nFor patients with LS with a history of colorectal cancer and segmental or subtotal colectomy, biennial colonoscopies should be performed.\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 3: what is the appropriate colonoscopic surveillance interval? > Conclusions and recommendations\nThere is no evidence at the moment to support different surveillance colonoscopy intervals for men and women.\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 3: what is the appropriate colonoscopic surveillance interval? > Conclusions and recommendations\nIf bowel preparation is not entirely adequate, a repeat procedure at 1 year is recommended.\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 3: what is the appropriate colonoscopic surveillance interval? > Conclusions and recommendations\nIf the bowel preparation is completely inadequate or the examination incomplete, an immediate repeat colorectal surveillance procedure should be requested (within next 6 weeks).\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 4: at what age should surveillance colonoscopy be initiated?\nA number of studies have confirmed that the risk of developing colorectal cancer before the age of 25 years is very low ( Table 4 ) 6 , 8 , 21 , 22 , 37\u201348 .\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 4: at what age should surveillance colonoscopy be initiated?\nTable 4 Overview of studies about age and risk of developing colorectal cancer in Lynch syndrome Reference Study outcomes de Jong et al . 39 Only two of 246 patients (0\u00b78%) with LS developed CRC before the age of 20 years and another two between age 20 and 25 years Hendriks et al . 40 Quehenberger et al . 41 Hampel et al . 42 Jenkins et al . 43 These studies confirmed that the risk of developing CRC before the age of 25 years is very low Vasen et al . 8 Cairns et al . 44 Rubenstein et al . 45 These previous guidelines recommended starting surveillance colonoscopy at age 20\u201325 years. Jenkins et al . 46 This meta\u2010analysis for path_MLH1 and path_MSH2 carriers questioned whether the initiation of surveillance colonoscopy was justified before the age of 30 years Giardiello et al . 47 US multisociety task force guidelines recommended starting surveillance colonoscopy at 20\u201325 years (or 2\u20135 years younger than youngest affected if aged <25 years), but to consider starting at 30 and 35 years for path_MSH6 and path_PMS2 carriers respectively ten Broeke et al . 37 , 48 The study described a series of 377 patients with path_PMS2 and the observed median age at first CRC was 52 (range 26\u201386) years. The authors also noted gender differences in CRC risk. The cumulative risk in men aged <40, 40\u201349, 50\u201359 and 60\u201369 years was 1\u00b73, 4\u00b76, 7\u00b71 and 18\u00b78% respectively. The corresponding cumulative risks by age in women were 0\u00b75, 0\u00b79, 4\u00b77 and 10\u00b75%. It was recommended that starting colonoscopy surveillance could be deferred until age 30 years for both genders. ten Broeke et al . also published a large series of patients with path_PMS2, and reported only a 2\u20133 times increased cumulative incidence of CRC under surveillance compared with the general population. This is about the same level of CRC risk as when there is a positive family history of the disease but genetic testing for LS (and other hereditary CRC syndromes) proves negative Bonadona et al . 38 This nationwide French study of patients with LS supports a genotype\u2013phenotype correlation. There were no path_PMS2 carriers in this cohort. Overall, the cumulative CRC risk by 70 years was 38% in men and 31% women. When analysed by genotype, the cumulative CRC risks were 46% for path_MLH1 , 48% for path_MSH2 and 12% for path_MSH6 . Median age at diagnosis of CRC also varied by genotype: 45 (range 15\u201390) years for path_MLH1 , 44 (16\u201395) years for path_MSH2 and 54 (24\u201385) years for path_MSH6 M\u00f8ller et al . 6 , 21 , 22 In the 2017 PLSD report addressing incidence and survival of first cancers in patients with LS undergoing surveillance, the cumulative CRC incidence to age 70 years was 46% for path_MLH1 , 35% for path_MSH2 , 20% for path_MSH6 and 0% for path_PMS2 . Overall, when incidence was analysed by gender, no difference was observed between men and women. The recent report (2018) from the PLSD described cancer risks and survival up to age 75 years, analysing the data both by gene and gender. The cohort included 3119 patients with 24 475 observation years. The previously described genotype\u2010dependent penetrance was confirmed; the cumulative CRC risk to age 75 years by genotype was: 46% for path_MLH1 , 43% for path_MSH2 , 15% for path_MSH6 and 0% for path_PMS2 (although there were only 124 path_PMS2 carriers in this cohort, so no firm conclusions could be drawn regarding this subgroup). Path_MSH6 has a lower risk of early\u2010onset cancer; the cumulative CRC risk at age 40 years was 12% for path_MLH1 , 9% for path_MSH2 and 0% for path_MSH6 . There were no consistent gender differences for CRC within each genotype group LS, Lynch syndrome; CRC, colorectal cancer; PLSD, Prospective Lynch Syndrome Database.\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 4: at what age should surveillance colonoscopy be initiated?\nThe risk of a path_PMS2 carrier developing cancer at young age is low, and the median age for path_PMS2 \u2010related first colorectal cancers is 52 years 47 . Based on PLSD studies, path_MSH6 carriers also have a lower risk of early\u2010onset cancer; the cumulative colorectal cancer risk at age 40 years was 12 per cent for path_MLH1 , 9 per cent for path_MSH2 and 0 per cent for path_MSH6 . There is no convincing evidence to show that the age of onset is different between men and women.\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 4: at what age should surveillance colonoscopy be initiated? > Conclusions and recommendations\nFor path_MLH1 or path_MSH2 carriers, surveillance colonoscopies should be initiated at the age of 25 years.\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 4: at what age should surveillance colonoscopy be initiated? > Conclusions and recommendations\nFor path_MSH6 or path_PMS2 carriers, surveillance colonoscopies should be initiated at the age of 35 years.\n\nQuestion 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 4: at what age should surveillance colonoscopy be initiated? > Conclusions and recommendations\nAge at onset of surveillance should not be stratified by gender.\n\nQuestion 4: what is the appropriate surgical treatment for colorectal cancer? > Subquestion 1: should extended surgery for Lynch syndrome\u2010associated colonic cancer be recommended?\nA largely retrospective body of evidence supports the extension of surgical resection in path_MLH1 and path_MSH2 carriers, but the risk of metachronous colorectal cancer in path_MSH6 and path_PMS2 carriers is not high enough to warrant an extended approach ( Table 6 ).\n\nQuestion 4: what is the appropriate surgical treatment for colorectal cancer? > Subquestion 1: should extended surgery for Lynch syndrome\u2010associated colonic cancer be recommended? > Conclusions and recommendations\nFor a path_MLH1 or path_MSH2 carrier with a first colonic cancer, extended surgery with ileosigmoidal/ileorectal anastomosis is preferable to standard resection to reduce the risk of metachronous colorectal cancer.\n\nQuestion 4: what is the appropriate surgical treatment for colorectal cancer? > Subquestion 1: should extended surgery for Lynch syndrome\u2010associated colonic cancer be recommended? > Conclusions and recommendations\nFor a path_MSH6 or path_PMS2 pathogenic variant carrier with a first colonic cancer, standard/segmental colonic resection should be offered.\n\nQuestion 4: what is the appropriate surgical treatment for colorectal cancer? > Subquestion 1: should extended surgery for Lynch syndrome\u2010associated colonic cancer be recommended? > Conclusions and recommendations\nFor a path_MMR carrier with a metachronous colonic cancer, the surgical treatment can be extended surgery with ileorectal/ileosigmoidal anastomosis.\n\nQuestion 4: what is the appropriate surgical treatment for colorectal cancer? > Subquestion 1: should extended surgery for Lynch syndrome\u2010associated colonic cancer be recommended? > Conclusions and recommendations\nA decision on extended surgery for colorectal cancer should not be based on deficient MMR immunohistochemistry (loss of MLH1, MSH2, MSH6 or PMS2) and BRAF staining/ MLH1 hypermethylation from the preoperative endoscopic biopsy only.\n\nQuestion 4: what is the appropriate surgical treatment for colorectal cancer? > Subquestion 2: how should surgery for rectal cancer in Lynch syndrome be performed?\nStudies have reported metachronous cancer after rectal cancer in carriers 66 , 67 . Because the cumulative risk of a subsequent colonic cancer developing during surveillance is significant, extended surgery may be a personal preference, considering the higher degree of surgical morbidity associated with the procedure. Quality of life of patients with an ileoanal pouch may be comparable to that of patients with familial adenomatous polyposis rather than those with inflammatory bowel disease (IBD), because the worse overall outcome in the latter group is due to the underlying inflammatory condition. There is clear evidence that surgeons performing a high volume of procedures in high\u2010volume units (over 10 per year) achieve lower pouch failure rates as well as better pouch salvage than those with a lower throughput of these procedures 68 , 69 . Preferred surgical options by gene are shown in Table 7 .\n\nQuestion 4: what is the appropriate surgical treatment for colorectal cancer? > Subquestion 2: how should surgery for rectal cancer in Lynch syndrome be performed?\nTable 7 Surgical options for colorectal cancer in path_MMR carriers Path_MLH1 Path_MSH2 Path_MSH6 Path_PMS2 Additional risk factors Primary colonic cancer of a known LS pathogenic variant carrier Subtotal colectomy with ileosigmoidal (ileorectal) anastomosis Subtotal colectomy with ileosigmoidal (ileorectal) anastomosis Segmental colectomy (right, extended right or left colectomy) Segmental colectomy (right, extended right or left colectomy) Adenoma formation in a colonic segment other than the segment affected by colonic cancer Extended surgery such as colectomy with ileosigmoidal or ileorectal anastomosis. For young patients, consider more extensive surgery Metachronous colonic cancer in a known LS pathogenic variant carrier who has undergone previous segmental colectomy Subtotal colectomy with ileorectal anastomosis Subtotal colectomy with ileorectal anastomosis Subtotal colectomy with ileorectal anastomosis Subtotal colectomy with ileorectal anastomosis Primary rectal cancer in a known LS pathogenic variant carrier Anterior resection/APR Anterior resection/APR Anterior resection/APR Anterior resection/APR Rectal cancer after previous colonic cancer surgery in a known LS pathogenic variant carrier Proctectomy/proctocolectomy with ileoanal anastomosis with pouch or APR with permanent ileostomy Proctectomy/proctocolectomy with ileoanal anastomosis with pouch or APR with permanent ileostomy Proctectomy/proctocolectomy with ileoanal anastomosis with pouch or APR with permanent ileostomy LS, Lynch syndrome; APR, abdominoperineal resection.\n\nQuestion 4: what is the appropriate surgical treatment for colorectal cancer? > Subquestion 2: how should surgery for rectal cancer in Lynch syndrome be performed? > Conclusions and recommendations\nFor a path_MMR carrier, the surgical treatment of a primary rectal cancer (occurring as the first colorectal cancer) should be standard resection (anterior resection or abdominoperineal resection).\n\nQuestion 4: what is the appropriate surgical treatment for colorectal cancer? > Subquestion 2: how should surgery for rectal cancer in Lynch syndrome be performed? > Conclusions and recommendations\nIn a young path_MMR carrier with a synchronous colorectal neoplasm or a personal preference, extended surgery can be considered.\n\nQuestion 4: what is the appropriate surgical treatment for colorectal cancer? > Subquestion 2: how should surgery for rectal cancer in Lynch syndrome be performed? > Conclusions and recommendations\nIleoanal pouch surgery (in agreement with European CanCer Organisation guidelines for pouch surgery in ulcerative colitis) should be performed in highly specialized colorectal surgical units.\n\nQuestion 5: what is the influence of lifestyle factors on the development of adenoma or colorectal cancer in Lynch syndrome? > Conclusions and recommendations\nPath_MMR carriers should be advised that smoking and obesity increase the risk of colorectal cancer.\n\nQuestion 5: what is the influence of lifestyle factors on the development of adenoma or colorectal cancer in Lynch syndrome? > Conclusions and recommendations\nPath_MMR carriers should be advised that alcohol consumption increases the risk of colorectal cancer.\n\nQuestion 5: what is the influence of lifestyle factors on the development of adenoma or colorectal cancer in Lynch syndrome? > Conclusions and recommendations\nPath_MMR carriers should be advised that physical activity reduces the risk of colorectal cancer.\n\nQuestion 6: what is the role of acetylsalicylic acid (aspirin) in the management of Lynch syndrome? > Conclusions and recommendations\nPath_MMR carriers should be advised that daily acetylsalicylic acid intake will reduce colorectal cancer risk.\n\nQuestion 6: what is the role of acetylsalicylic acid (aspirin) in the management of Lynch syndrome? > Conclusions and recommendations\nThe recommended acetylsalicylic acid dose should be a minimum of 75\u2013100 mg daily. This dose should be increased for people with above\u2010average body mass.",
+        "body_excerpts_sha256": "f1d41635ec6fc106a98aaf569c48a10a0a3080442478b66d4a343b1dc7673daf",
+        "body_excerpts_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10364896/fullTextXML",
+        "body_license_url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      {
+        "id": "39516038",
+        "title": "The guidelines for clinical practice for carriers of germline mutations in the Lynch syndrome predisposition genes MLH1, MSH2, MSH6, PMS2 and large deletions of EPCAM (4.2024).",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39516038/",
+        "abstract": "The guidelines for clinical practice for carriers of pathogenic variants in clinically relevant genes predisposing to Lynch syndrome and colorectal cancer define the steps of primary and secondary prevention that should be provided to the individuals at high risk of developing hereditary cancer in the Czech Republic. The drafting of the guidelines was organized by the Oncogenetics Working Group of the Society for Medical Genetics and Genomics of J. E. Purkyn\u011b Czech Medical Society, in cooperation with representatives of oncology, oncogynecology, and gastroenterology. The guidelines are based on the current recommendations of the National Comprehensive Cancer Network (NCCN), European Society of Medical Oncology (ESMO) and take into account the capacity of the Czech healthcare system.",
+        "sha256": "259058675053ca458dafc87b2adc106c60e093088dfb3916c33f8daeff44f067",
+        "retrieved_at": "2026-09-19T01:36:35.423852+00:00"
+      },
+      {
+        "id": "31597170",
+        "title": "Endoscopic management of Lynch syndrome and of familial risk of colorectal cancer: European Society of Gastrointestinal Endoscopy (ESGE) Guideline.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31597170/",
+        "abstract": "ESGE recommends that individuals with Lynch syndrome should be followed in dedicated units that practice monitoring of compliance and endoscopic performance measures.Strong recommendation, low quality evidence, level of agreement 100\u200a%.ESGE recommends starting colonoscopy surveillance at the age of 25 years for MLH1 and MSH2 mutation carriers and at the age of 35 years for MSH6 and PMS2 mutation carriers.Strong recommendation, moderate quality evidence, level of agreement 100\u200a%. ESGE recommends the routine use of high-definition endoscopy systems in individuals with Lynch syndrome. Strong recommendation, high quality evidence, level of agreement 100\u200a%. ESGE suggests the use of chromoendoscopy may be of benefit in individuals with Lynch syndrome undergoing colonoscopy; however routine use must be balanced against costs, training, and practical considerations.Weak recommendation, moderate quality evidence, level of agreement 89\u200a%.ESGE recommends definition of familial risk of colorectal cancer as the presence of at least two first-degree relatives with colorectal cancer or at least one first-degree relative with colorectal cancer before the age of 50 years.Strong recommendation, moderate quality evidence, level of agreement 92\u200a%.ESGE recommends colonoscopy surveillance in first-degree relatives of colorectal cancer patients in families that fulfill the definition of familial risk of colorectal cancer.Strong recommendation, moderate quality evidence, level of agreement 100\u200a%.",
+        "sha256": "b088e431c91bcbb0b2ad79ce98c4c67d70c379471858ff1ccd0af785d611ca2e",
+        "retrieved_at": "2026-09-19T01:36:35.993632+00:00"
+      },
+      {
+        "id": "34003218",
+        "title": "Screening for Colorectal Cancer: US Preventive Services Task Force Recommendation Statement.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34003218/",
+        "abstract": "Colorectal cancer is the third leading cause of cancer death for both men and women, with an estimated 52\u202f980 persons in the US projected to die of colorectal cancer in 2021. Colorectal cancer is most frequently diagnosed among persons aged 65 to 74 years. It is estimated that 10.5% of new colorectal cancer cases occur in persons younger than 50 years. Incidence of colorectal cancer (specifically adenocarcinoma) in adults aged 40 to 49 years has increased by almost 15% from 2000-2002 to 2014-2016. In 2016, 26% of eligible adults in the US had never been screened for colorectal cancer and in 2018, 31% were not up to date with screening.\nTo update its 2016 recommendation, the US Preventive Services Task Force (USPSTF) commissioned a systematic review to evaluate the benefits and harms of screening for colorectal cancer in adults 40 years or older. The review also examined whether these findings varied by age, sex, or race/ethnicity. In addition, as in 2016, the USPSTF commissioned a report from the Cancer Intervention and Surveillance Modeling Network Colorectal Cancer Working Group to provide information from comparative modeling on how estimated life-years gained, colorectal cancer cases averted, and colorectal cancer deaths averted vary by different starting and stopping ages for various screening strategies.\nAsymptomatic adults 45 years or older at average risk of colorectal cancer (ie, no prior diagnosis of colorectal cancer, adenomatous polyps, or inflammatory bowel disease; no personal diagnosis or family history of known genetic disorders that predispose them to a high lifetime risk of colorectal cancer [such as Lynch syndrome or familial adenomatous polyposis]).\nThe USPSTF concludes with high certainty that screening for colorectal cancer in adults aged 50 to 75 years has substantial net benefit. The USPSTF concludes with moderate certainty that screening for colorectal cancer in adults aged 45 to 49 years has moderate net benefit. The USPSTF concludes with moderate certainty that screening for colorectal cancer in adults aged 76 to 85 years who have been previously screened has small net benefit. Adults who have never been screened for colorectal cancer are more likely to benefit.\nThe USPSTF recommends screening for colorectal cancer in all adults aged 50 to 75 years. (A recommendation) The USPSTF recommends screening for colorectal cancer in adults aged 45 to 49 years. (B recommendation) The USPSTF recommends that clinicians selectively offer screening for colorectal cancer in adults aged 76 to 85 years. Evidence indicates that the net benefit of screening all persons in this age group is small. In determining whether this service is appropriate in individual cases, patients and clinicians should consider the patient's overall health, prior screening history, and preferences. (C recommendation).",
+        "sha256": "6e11ee71e2e94e4fac31e43cc0a5ebf81f0958f680b86c64bdb2bfa1c6046ba5",
+        "retrieved_at": "2026-09-19T01:36:37.053113+00:00"
+      },
+      {
+        "id": "39689429",
+        "title": "Genetic/Familial High-Risk Assessment: Colorectal, Endometrial, and Gastric, Version 3.2024, NCCN Clinical Practice Guidelines In Oncology.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39689429/",
+        "abstract": "Multigene panel testing has allowed for the detection of a growing number of inherited pathogenic/likely pathogenic variants in people at high risk of cancer, including endometrial cancer (EC). Hereditary syndromes associated with EC include Lynch syndrome, PTEN hamartoma tumor syndrome, and Peutz-Jeghers syndrome. This manuscript provides the latest recommendations from the NCCN Guidelines for Genetic/Familial High-Risk Assessment: Colorectal, Endometrial, and Gastric on the screening and management of EC in patients at high risk for these syndromes, as well as the advantages and limitations of multigene panel testing. This manuscript also describes recent updates to these guidelines regarding de-implementation of colon cancer screening in individuals with CHEK2 pathogenic/likely pathogenic variants, based on the most up-to-date evidence regarding the association between CHEK2 pathogenic/likely pathogenic variants and colon cancer risk.",
+        "sha256": "f3fd3d165b62968b768739a343a7b8f7f8d8ae286bf6e80f47e6374e73a0fd54",
+        "retrieved_at": "2026-09-19T01:36:37.053113+00:00"
+      },
+      {
+        "id": "41195479",
+        "title": "Clinical Practice Guideline: Colorectal Cancer\u2014Diagnosis, Treatment, Prevention, and Long-Term Follow-Up Care.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41195479/",
+        "abstract": "Approximately 24 000 people die of colorectal cancer (CRC) in Germany each year. New developments in prevention, diagnosis, and treatment are improving long-term outcomes. These measures have been incorporated in the updated guideline and are presented here along with the findings of other new randomized controlled trials (RCTs).\nA systematic search (2022\u20132023) was conducted for guidelines, reviews/meta-analyses, and primary studies (search term \u201ccolorectal cancer\u201d; databases: international guideline registries, PubMed, Cochrane). 123 reviews were identified, evaluated, and used in the creation of the guideline.\nEarly detection is performed with colonoscopy every 10 years, sigmoidoscopy every 5 years, or an immunological stool test for occult blood every 1\u20132 years; it can lower cancer-related mortality by up to 30%. Hereditary forms (Lynch syndrome, polyposis) require more intensive monitoring. All diagnosed cases must be presented to a tumor board. In the case of low-risk pT1 carcinoma, extended resection is not indicated after complete endoscopic removal. In a recent RCT, the recurrence rate was lower after robotic surgery than after laparoscopy (3-year recurrence rate 1.6% and 4.0% respectively; adjusted hazard ratio, 0.39; 95% confidence interval: [0.19; 0.80]). Treatment of patients with mismatch repair deficiency (dMMR) or microsatellite instability-high (MSI-H) cancers with checkpoint inhibitors yields response above 90%. Further systemic therapies are based on the molecular tumor profile (dMMR/MSI-H, RAS, and BRAF). Organ sparing management may be an option for rectal cancer patients in complete remission after neoadjuvant therapy; however, this requires close follow-up monitoring.\nThe efficacy of early detection is undisputed. Less evidence is available concerning the optimal level of intensity of follow-up care. The clinical and molecular stratification of tumors enables differential treatment. Organ-preserving strategies after a complete response to therapy are an important area of current research.",
+        "sha256": "d285652260e9c72f785e5fea9c3b7acd7248d161656c5ee0ba9a16e6f833a5e6",
+        "retrieved_at": "2026-09-19T01:36:37.053113+00:00",
+        "pmcid": "PMC12947252"
+      },
+      {
+        "id": "31780574",
+        "title": "Guidelines for the management of hereditary colorectal cancer from the British Society of Gastroenterology (BSG)/Association of Coloproctology of Great Britain and Ireland (ACPGBI)/United Kingdom Cancer Genetics Group (UKCGG).",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31780574/",
+        "abstract": "Heritable factors account for approximately 35% of colorectal cancer (CRC) risk, and almost 30% of the population in the UK have a family history of CRC. The quantification of an individual's lifetime risk of gastrointestinal cancer may incorporate clinical and molecular data, and depends on accurate phenotypic assessment and genetic diagnosis. In turn this may facilitate targeted risk-reducing interventions, including endoscopic surveillance, preventative surgery and chemoprophylaxis, which provide opportunities for cancer prevention. This guideline is an update from the 2010 British Society of Gastroenterology/Association of Coloproctology of Great Britain and Ireland (BSG/ACPGBI) guidelines for colorectal screening and surveillance in moderate and high-risk groups; however, this guideline is concerned specifically with people who have increased lifetime risk of CRC due to hereditary factors, including those with Lynch syndrome, polyposis or a family history of CRC. On this occasion we invited the UK Cancer Genetics Group (UKCGG), a subgroup within the British Society of Genetic Medicine (BSGM), as a partner to BSG and ACPGBI in the multidisciplinary guideline development process. We also invited external review through the Delphi process by members of the public as well as the steering committees of the European Hereditary Tumour Group (EHTG) and the European Society of Gastrointestinal Endoscopy (ESGE). A systematic review of 10\u2009189 publications was undertaken to develop 67 evidence and expert opinion-based recommendations for the management of hereditary CRC risk. Ten research recommendations are also prioritised to inform clinical management of people at hereditary CRC risk.",
+        "sha256": "bce68c08482d08d241ae026ec0be057adb3105a77c26a55fb3e9057ec437371a",
+        "retrieved_at": "2026-09-19T01:36:37.645946+00:00",
+        "pmcid": "PMC7034349"
+      },
+      {
+        "id": "31487681",
+        "title": "NCCN Guidelines Insights: Genetic/Familial High-Risk Assessment: Colorectal, Version 2.2019.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31487681/",
+        "abstract": "Identifying individuals with hereditary syndromes allows for improved cancer surveillance, risk reduction, and optimized management. Establishing criteria for assessment allows for the identification of individuals who are carriers of pathogenic genetic variants. The NCCN Guidelines for Genetic/Familial High-Risk Assessment: Colorectal provide recommendations for the assessment and management of patients with high-risk colorectal cancer syndromes. These NCCN Guidelines Insights focus on criteria for the evaluation of Lynch syndrome and considerations for use of multigene testing in the assessment of hereditary colorectal cancer syndromes.",
+        "sha256": "cb0c2e991b76f995ba3aae541730892d9eb32110c847933eb2107abcfc8f33cd",
+        "retrieved_at": "2026-09-19T01:36:37.645946+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "She has a confirmed pathogenic germline MSH6 variant and is 36 years old. The EHTG/ESCP Mallorca guidance recommends initiating surveillance colonoscopy at age 35 for MSH6 carriers and performing it every 2\u20133 years. ESGE likewise recommends surveillance from age 35, follow-up in a dedicated unit, and routine use of high-definition endoscopy. Therefore, surveillance should begin now rather than be deferred to average-risk screening at age 45.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.99,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34043773"
+              ],
+              "reason": "The European guideline defines Lynch syndrome as an inherited cancer syndrome caused by a pathogenic mismatch-repair gene variant.",
+              "source_passage_ids": [
+                "34043773:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34043773",
+                  "quote": "Definitions used in these guidelines Lynch syndrome (LS): the dominantly inherited cancer syndrome caused by the presence of a pathogenic mismatch repair gene variant Executive summary of recommendations Recommendations for the identification of patients with Lynch syndrome (LS), colorectal surveillance, surgical management of colorectal cancer, lifestyle and chemoprevention that reached a consensus (at least 80 per cent) by a combined expert working group from the European Hereditary Tumour Group (EHTG; former Mallorca Group) and the European Society of Coloproctology (ESCP) are presented in Table 1 . In addition, there was agreement to endorse the Manchester consensus statement for gynaecological cancer in LS 1 . The summary of recommendations for healthcare professionals is as follows."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34043773"
+              ],
+              "reason": "The EHTG/ESCP guideline explicitly recommends initiating surveillance colonoscopy at age 35 for pathogenic MSH6 carriers.",
+              "source_passage_ids": [
+                "34043773:p33"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34043773",
+                  "quote": "Question 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 4: at what age should surveillance colonoscopy be initiated? > Conclusions and recommendations For path_MLH1 or path_MSH2 carriers, surveillance colonoscopies should be initiated at the age of 25 years. Question 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 4: at what age should surveillance colonoscopy be initiated? > Conclusions and recommendations For path_MSH6 or path_PMS2 carriers, surveillance colonoscopies should be initiated at the age of 35 years. Question 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 4: at what age should surveillance colonoscopy be initiated? > Conclusions and recommendations Age at onset of surveillance should not be stratified by gender."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "31597170"
+              ],
+              "reason": "The ESGE guideline explicitly recommends starting colonoscopic surveillance at age 35 for MSH6 mutation carriers.",
+              "source_passage_ids": [
+                "31597170:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31597170",
+                  "quote": "ESGE recommends that individuals with Lynch syndrome should be followed in dedicated units that practice monitoring of compliance and endoscopic performance measures.Strong recommendation, low quality evidence, level of agreement 100 %.ESGE recommends starting colonoscopy surveillance at the age of 25 years for MLH1 and MSH2 mutation carriers and at the age of 35 years for MSH6 and PMS2 mutation carriers.Strong recommendation, moderate quality evidence, level of agreement 100 %. ESGE recommends the routine use of high-definition endoscopy systems in individuals with Lynch syndrome. Strong recommendation, high quality evidence, level of agreement 100 %."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "31597170"
+              ],
+              "reason": "ESGE explicitly recommends both follow-up in dedicated units and routine use of high-definition endoscopy systems for people with Lynch syndrome.",
+              "source_passage_ids": [
+                "31597170:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "31597170",
+                  "quote": "ESGE recommends that individuals with Lynch syndrome should be followed in dedicated units that practice monitoring of compliance and endoscopic performance measures.Strong recommendation, low quality evidence, level of agreement 100 %.ESGE recommends starting colonoscopy surveillance at the age of 25 years for MLH1 and MSH2 mutation carriers and at the age of 35 years for MSH6 and PMS2 mutation carriers.Strong recommendation, moderate quality evidence, level of agreement 100 %. ESGE recommends the routine use of high-definition endoscopy systems in individuals with Lynch syndrome. Strong recommendation, high quality evidence, level of agreement 100 %."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "34003218"
+              ],
+              "reason": "The USPSTF recommendation defines its average-risk population as excluding people with known genetic disorders predisposing to colorectal cancer, expressly naming Lynch syndrome.",
+              "source_passage_ids": [
+                "34003218:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "34003218",
+                  "quote": "The review also examined whether these findings varied by age, sex, or race/ethnicity. In addition, as in 2016, the USPSTF commissioned a report from the Cancer Intervention and Surveillance Modeling Network Colorectal Cancer Working Group to provide information from comparative modeling on how estimated life-years gained, colorectal cancer cases averted, and colorectal cancer deaths averted vary by different starting and stopping ages for various screening strategies. Asymptomatic adults 45 years or older at average risk of colorectal cancer (ie, no prior diagnosis of colorectal cancer, adenomatous polyps, or inflammatory bowel disease; no personal diagnosis or family history of known genetic disorders that predispose them to a high lifetime risk of colorectal cancer [such as Lynch syndrome or familial adenomatous polyposis])."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The patient is 36, has a confirmed germline pathogenic MSH6 variant, and has never undergone colonoscopy. The supplied EHTG/ESCP and ESGE guidance both set the initiation age at 35 for MSH6 carriers, so surveillance should begin now. ESGE also supports management in a dedicated unit using high-definition endoscopy, making A fully supported and safe. Candidate B incorrectly applies an average-risk threshold to a patient with Lynch syndrome; the supplied USPSTF text expressly places such patients outside its average-risk population. The title, question, and clinical note identify the topic and relevant genotype but do not disclose the intended management choice. No previous cases were supplied, so there is no demonstrated duplication of the clinical decision."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.5",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The patient has confirmed Lynch syndrome due to a germline pathogenic MSH6 variant and is 36 years old. The supplied European Lynch syndrome guidance recommends genotype-stratified colonoscopic surveillance, with surveillance colonoscopy initiated at age 35 years for pathogenic MSH6 carriers. It also supports surveillance in dedicated units and the use of high-definition endoscopy systems for individuals with Lynch syndrome. Therefore, she should begin Lynch syndrome colonoscopic surveillance now rather than defer to average-risk screening at age 45.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.94,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "34043773"
+              ],
+              "source_passage_ids": [
+                "34043773:p2"
+              ],
+              "reason": "The supplied European guideline defines Lynch syndrome as a dominantly inherited cancer syndrome caused by a pathogenic mismatch-repair gene variant.",
+              "source_quotes": [
+                {
+                  "source_id": "34043773",
+                  "quote": "Definitions used in these guidelines Lynch syndrome (LS): the dominantly inherited cancer syndrome caused by the presence of a pathogenic mismatch repair gene variant Executive summary of recommendations Recommendations for the identification of patients with Lynch syndrome (LS), colorectal surveillance, surgical management of colorectal cancer, lifestyle and chemoprevention that reached a consensus (at least 80 per cent) by a combined expert working group from the European Hereditary Tumour Group (EHTG; former Mallorca Group) and the European Society of Coloproctology (ESCP) are presented in Table 1 . In addition, there was agreement to endorse the Manchester consensus statement for gynaecological cancer in LS 1 . The summary of recommendations for healthcare professionals is as follows."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "34043773"
+              ],
+              "source_passage_ids": [
+                "34043773:p2",
+                "34043773:p5",
+                "34043773:p33"
+              ],
+              "reason": "The EHTG/ESCP European guidance is identified as Lynch syndrome guidance and specifically recommends surveillance colonoscopy initiation at age 35 for path_MSH6 carriers.",
+              "source_quotes": [
+                {
+                  "source_id": "34043773",
+                  "quote": "Definitions used in these guidelines Lynch syndrome (LS): the dominantly inherited cancer syndrome caused by the presence of a pathogenic mismatch repair gene variant Executive summary of recommendations Recommendations for the identification of patients with Lynch syndrome (LS), colorectal surveillance, surgical management of colorectal cancer, lifestyle and chemoprevention that reached a consensus (at least 80 per cent) by a combined expert working group from the European Hereditary Tumour Group (EHTG; former Mallorca Group) and the European Society of Coloproctology (ESCP) are presented in Table 1 . In addition, there was agreement to endorse the Manchester consensus statement for gynaecological cancer in LS 1 . The summary of recommendations for healthcare professionals is as follows."
+                },
+                {
+                  "source_id": "34043773",
+                  "quote": "If the bowel preparation is completely inadequate or the examination incomplete, an immediate repeat colorectal surveillance procedure should be requested (within next 6 weeks) Weak, based on very low\u2010quality evidence (expertopinion) 85 Age at onset of surveillance colonoscopy should be stratified according to genotype Strong * 100 For path_MLH1 or path_MSH2 carriers, surveillance colonoscopies should be initiated at the age of 25 years Moderate \u2020 94 For path_MSH6 or path_PMS2 carriers, surveillance colonoscopies should be initiated at the age of 35 years Moderate \u2020 93 Age at onset of surveillance should not be stratified by gender Moderate * 88 Surgical management of colorectal cancer For a path_MLH1 or path_MSH2 carrier with a first colonic cancer, extended surgery with ileosigmoidal/ileorectal anastomosis is preferable to standard resection to reduce the risk of metachronous CRC"
+                },
+                {
+                  "source_id": "34043773",
+                  "quote": "Question 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 4: at what age should surveillance colonoscopy be initiated? > Conclusions and recommendations For path_MLH1 or path_MSH2 carriers, surveillance colonoscopies should be initiated at the age of 25 years. Question 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 4: at what age should surveillance colonoscopy be initiated? > Conclusions and recommendations For path_MSH6 or path_PMS2 carriers, surveillance colonoscopies should be initiated at the age of 35 years. Question 2: what is the optimal colorectal surveillance protocol for Lynch syndrome? > Subquestion 4: at what age should surveillance colonoscopy be initiated? > Conclusions and recommendations Age at onset of surveillance should not be stratified by gender."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "31597170"
+              ],
+              "source_passage_ids": [
+                "31597170:p0"
+              ],
+              "reason": "The ESGE abstract explicitly states that colonoscopy surveillance should start at age 35 for MSH6 and PMS2 mutation carriers.",
+              "source_quotes": [
+                {
+                  "source_id": "31597170",
+                  "quote": "ESGE recommends that individuals with Lynch syndrome should be followed in dedicated units that practice monitoring of compliance and endoscopic performance measures.Strong recommendation, low quality evidence, level of agreement 100 %.ESGE recommends starting colonoscopy surveillance at the age of 25 years for MLH1 and MSH2 mutation carriers and at the age of 35 years for MSH6 and PMS2 mutation carriers.Strong recommendation, moderate quality evidence, level of agreement 100 %. ESGE recommends the routine use of high-definition endoscopy systems in individuals with Lynch syndrome. Strong recommendation, high quality evidence, level of agreement 100 %."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "31597170"
+              ],
+              "source_passage_ids": [
+                "31597170:p0"
+              ],
+              "reason": "The ESGE passage explicitly recommends dedicated units for Lynch syndrome follow-up and routine high-definition endoscopy systems.",
+              "source_quotes": [
+                {
+                  "source_id": "31597170",
+                  "quote": "ESGE recommends that individuals with Lynch syndrome should be followed in dedicated units that practice monitoring of compliance and endoscopic performance measures.Strong recommendation, low quality evidence, level of agreement 100 %.ESGE recommends starting colonoscopy surveillance at the age of 25 years for MLH1 and MSH2 mutation carriers and at the age of 35 years for MSH6 and PMS2 mutation carriers.Strong recommendation, moderate quality evidence, level of agreement 100 %. ESGE recommends the routine use of high-definition endoscopy systems in individuals with Lynch syndrome. Strong recommendation, high quality evidence, level of agreement 100 %."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "34003218"
+              ],
+              "source_passage_ids": [
+                "34003218:p1"
+              ],
+              "reason": "The USPSTF average-risk population is defined as excluding persons with a personal diagnosis or family history of known genetic disorders conferring high lifetime colorectal cancer risk, including Lynch syndrome.",
+              "source_quotes": [
+                {
+                  "source_id": "34003218",
+                  "quote": "The review also examined whether these findings varied by age, sex, or race/ethnicity. In addition, as in 2016, the USPSTF commissioned a report from the Cancer Intervention and Surveillance Modeling Network Colorectal Cancer Working Group to provide information from comparative modeling on how estimated life-years gained, colorectal cancer cases averted, and colorectal cancer deaths averted vary by different starting and stopping ages for various screening strategies. Asymptomatic adults 45 years or older at average risk of colorectal cancer (ie, no prior diagnosis of colorectal cancer, adenomatous polyps, or inflammatory bowel disease; no personal diagnosis or family history of known genetic disorders that predispose them to a high lifetime risk of colorectal cancer [such as Lynch syndrome or familial adenomatous polyposis])."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The patient is a 36-year-old woman with confirmed germline pathogenic MSH6 Lynch syndrome variant and no prior colonoscopy. Under the supplied European Lynch syndrome guidance, surveillance colonoscopy for path_MSH6 carriers begins at age 35, so surveillance should begin now. ESGE also supports follow-up in dedicated units and routine high-definition endoscopy for individuals with Lynch syndrome. Candidate A matches these recommendations. Candidate B incorrectly applies average-risk colorectal screening timing despite confirmed Lynch syndrome; the cited USPSTF average-risk recommendation expressly excludes people with genetic syndromes such as Lynch syndrome. No required decisive data appear missing for the surveillance-start decision, and the case is within medical genetics/genetic counseling with hereditary cancer surveillance implications."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "c52ca37a2d107375d4ab00011c15518a5a0676e0965eb1f28a7c6f58e9787f9c"
+  },
+  "release_eligible": true,
+  "release_protocol": "audited_openai_models_v1"
+}
