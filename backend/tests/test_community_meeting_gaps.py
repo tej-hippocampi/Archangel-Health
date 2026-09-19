@@ -360,6 +360,9 @@ def _utc(y, m, d, hh=12):
 @pytest.fixture
 def webinar_world(monkeypatch):
     """A store with #events, wired so no post reaches a real member map."""
+    # These integration tests seed September 2's schedule. Event queries must
+    # share that clock, or all seeded occurrences expire as real time advances.
+    monkeypatch.setattr(community_store, "_utcnow_iso", lambda: "2026-09-02T12:00:00Z")
     store = _fresh_store()
     store.ensure_default_channels([])
     monkeypatch.setattr(cwebinars, "get_community_store", lambda: store)
@@ -419,8 +422,6 @@ def test_the_series_stays_at_the_local_hour_across_a_clock_change(monkeypatch):
 
 
 def test_the_next_few_occurrences_are_created_with_rsvp_and_a_join_link(webinar_world, monkeypatch):
-    # The event query and the scheduler must use the same fixed test clock.
-    monkeypatch.setattr("community.store._utcnow_iso", lambda: "2026-09-02T12:00:00Z")
     monkeypatch.setenv("COMMUNITY_WEBINAR_URL", "https://example.org/join")
     monkeypatch.setenv("COMMUNITY_WEBINAR_WEEKS_AHEAD", "3")
     result = asyncio.run(cwebinars.ensure_upcoming(now=_utc(2026, 9, 2)))
@@ -441,7 +442,6 @@ def test_the_next_few_occurrences_are_created_with_rsvp_and_a_join_link(webinar_
 def test_running_again_creates_nothing_new(webinar_world, monkeypatch):
     """The caller runs daily. An event duplicated once a day for a week is a
     channel nobody trusts."""
-    monkeypatch.setattr("community.store._utcnow_iso", lambda: "2026-09-02T12:00:00Z")
     monkeypatch.setenv("COMMUNITY_WEBINAR_URL", "https://example.org/join")
     at = _utc(2026, 9, 2)
     asyncio.run(cwebinars.ensure_upcoming(now=at))

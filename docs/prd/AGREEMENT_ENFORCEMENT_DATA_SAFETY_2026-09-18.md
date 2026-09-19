@@ -124,6 +124,15 @@ also pass. The former failing coverage assertion now validates all 86 cases.
 No test assertion, skip, or shard configuration was relaxed. The existing PR
 records final CI results for the updated commit.
 
+The first rerun on `e02920a` passed both original failing jobs, then exposed two
+calendar-dependent webinar tests: their scheduler used September 2 while the
+store queried upcoming events against September 19, after all seeded dates.
+Both failures were reproduced locally. The shared, function-scoped webinar
+fixture now freezes the store clock to the scheduler's existing test timestamp;
+pytest restores it after each test. All **35** tests in the module pass. An
+independent AST review confirmed all assertions/decorators are unchanged and
+production scheduler/store code is untouched.
+
 ## Release decision and recovery
 
 This is a staged code change, shipping with agreement enforcement disabled by
