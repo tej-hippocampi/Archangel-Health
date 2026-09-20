@@ -75,7 +75,7 @@
       d.batches.forEach(function (batch) {
         var children = [h('p', {}, batch.stripe_mode.toUpperCase() + ' · ' + batch.status + ' · Total ' + money(batch.total_cents)),
           table(h, ['Physician', 'Stripe account', 'Amount', 'Transfer', 'Action needed'], batch.items.map(function (i) {
-            return [i.email || i.user_id, i.destination, money(i.amount_cents), i.transfer_status || i.status, i.last_error || '—'];
+            return [i.email || i.user_id, i.destination, money(i.amount_cents), i.transfer_status || i.status, i.last_error || 'None'];
           }))];
         if (batch.status === 'draft') {
           var accept = h('input', {type: 'checkbox'});
@@ -99,7 +99,7 @@
       body.appendChild(card(h, 'Bank payouts', [
         h('p', {}, d.mode.toUpperCase() + ' environment. These show Stripe-to-bank deposits. A deposit may combine several earnings. A failed bank deposit must be resolved in Stripe; do not create another transfer.'),
         table(h, ['Stripe account', 'Payout', 'Amount', 'Currency', 'Bank status', 'Failure'], d.bank_payouts.map(function (p) {
-          return [p.account_id, p.payout_id, (p.amount_cents / 100).toFixed(2), p.currency.toUpperCase(), p.status, p.failure_code || '—'];
+          return [p.account_id, p.payout_id, (p.amount_cents / 100).toFixed(2), p.currency.toUpperCase(), p.status, p.failure_code || 'None'];
         })),
         !d.bank_payouts.length ? h('p', {}, 'No bank payout events received yet. This does not establish that no payouts occurred.') : null,
       ]));
