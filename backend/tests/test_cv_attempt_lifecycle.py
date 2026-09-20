@@ -356,6 +356,54 @@ def test_the_status_payload_is_labelled_with_the_attempt_that_wrote_it(store, pe
 
 # ── The client stops polling for a document it replaced ─────────────────────
 
+@pytest.mark.parametrize("succeeds", [True, False])
+def test_worker_terminal_callback_never_exposes_previous_specialty(store, person, monkeypatch, tmp_path, succeeds):
+    import sqlite3
+    from asclepius import credentialing
+    from routers.onboarding import _parse_cv_into_person, _record_cv_on_person
+    from scripts.data_inventory import snapshot, compare
+
+    hs_id, email = person
+    a = store.start_cv_attempt(hs_id, email, asset_sha="sha-a")
+    old = {"ok": True, "specialty": "nephrology"}
+    _record_cv_on_person(store, hs_id, email, sha="sha-a", mime="application/pdf",
+                         parsed=old, stage="done", attempt_id=a)
+    b = store.start_cv_attempt(hs_id, email, asset_sha="sha-b")
+    before = snapshot(store.db_path)
+    # SQLite's backup API includes committed WAL. This isolated restore is a
+    # fixture preservation check, not evidence of a production backup.
+    backup = tmp_path / "team-before.db"
+    with sqlite3.connect(store.db_path) as source, sqlite3.connect(backup) as restored:
+        source.backup(restored)
+    assert compare(before, snapshot(backup)) == []
+    expected = {"ok": succeeds, "specialty": "dermatology" if succeeds else None}
+    terminal_snapshots = []
+    merge = store.merge_asclepius_credentials
+
+    def poll_after_every_write(*args, **kwargs):
+        result = merge(*args, **kwargs)
+        credentials = store.get_asclepius_person(hs_id, email)["credentials"]
+        if credentials.get("cvAttemptId") == b and credentials.get("cvParseStage") in ("done", "failed"):
+            terminal_snapshots.append(credentials["cvParsed"])
+        return result
+
+    def parse(sha, *, mime, on_stage):
+        for stage in ("reading", "matching", "preparing", "done" if succeeds else "failed"):
+            on_stage(stage)
+        return expected
+
+    monkeypatch.setattr(store, "merge_asclepius_credentials", poll_after_every_write)
+    monkeypatch.setattr(credentialing, "parse_cv", parse)
+    _parse_cv_into_person(store, hs_id, email, "sha-b", "application/pdf", b)
+    assert terminal_snapshots == [expected]
+    assert store.get_cv_attempt(a)["state"] == "superseded"
+    assert store.get_cv_attempt(b)["result"] == expected
+    assert compare(before, snapshot(store.db_path), allowed=[
+        "asclepius_people.credentials_json", "asclepius_people.updated_at",
+        "asclepius_cv_attempts.state", "asclepius_cv_attempts.result_json",
+        "asclepius_cv_attempts.updated_at", "asclepius_cv_attempts.finished_at",
+    ]) == []
+
 def test_the_poll_carries_the_attempt_it_is_watching():
     assert "pollCvParse = useCallback(async (attemptId?: string)" in _WIZARD
     assert "cvAttemptRef" in _WIZARD

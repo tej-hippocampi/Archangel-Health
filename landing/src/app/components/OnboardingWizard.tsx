@@ -362,7 +362,6 @@ function applyCvParse(
 ): { patch: Partial<Credentials>; filled: string[] } {
   const patch: Partial<Credentials> = {};
   const filled: string[] = [];
-  if (!parsed || !parsed.ok) return { patch, filled };
 
   // Refresh only values still equal to our previous suggestion. Manual edits
   // (including an edited row) remain authoritative on replacement uploads.
@@ -375,6 +374,12 @@ function applyCvParse(
       (next as Record<string, unknown>)[key] = blank[key];
       (patch as Record<string, unknown>)[key] = blank[key];
     }
+  }
+  // A failed replacement must not leave the previous document's untouched
+  // suggestions in the review form. Physician edits remain authoritative.
+  if (!parsed || !parsed.ok) {
+    if (Object.keys(previousSuggestions).length) patch.cvSuggestions = {};
+    return { patch, filled };
   }
   current = next;
   const fill = (key: keyof Credentials, value: string | undefined | null) => {
@@ -389,7 +394,15 @@ function applyCvParse(
   // The DISPLAY spelling, not the registry key. The key is lowercase because
   // it is an identifier, and prefilling "nephrology" into a form asking a
   // physician to vouch for their credentials reads as carelessness.
-  fill("primarySpecialty", parsed.specialty_display || parsed.specialty);
+  if (!parsed.specialty_status || parsed.specialty_status === "resolved") {
+    if (parsed.specialty_status === "resolved" || !("specialty" in parsed)) {
+      fill("primarySpecialty", parsed.specialty_display || parsed.specialty);
+    } else {
+      // Older parses computed display independently and could turn an
+      // ambiguous or pediatric field into a different adult specialty.
+      fill("primarySpecialty", parsed.specialty);
+    }
+  }
   fill("linkedinUrl", parsed.linkedin_url);
   fill("healthSystem", parsed.employer);
   fill("phone", parsed.mobile_phone);
@@ -607,6 +620,29 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         resumeCvRef.current = { attemptId: d.director_credentials?.cvAttemptId || undefined };
       }
     }
+    const restoredCredentials = (() => {
+      const base = savedCreds
+        // withRowIds on the way IN: credentials saved before stable row ids
+        // existed arrive without them, and minting them here — once, on
+        // hydration — is what keeps the rest of the app from having to cope
+        // with their absence. Existing ids are never reassigned.
+        ? withRowIds({ ...emptyCredentials(fullLegal), ...d.director_credentials })
+        : emptyCredentials(fullLegal);
+      // Screen 1's state answer prefills the Review screen's licence block,
+      // so the same fact is not asked for twice. Never over a value the
+      // physician already has there: the same rule applyCvParse follows.
+      const fromStep1 = (d.director_license_state ?? "").trim();
+      const restored = fromStep1 && !base.licenseState
+        ? { ...base, licenseState: fromStep1 }
+        : base;
+      // Upload results live separately from the form until Review is saved.
+      // A reload must restore those suggestions while retaining manual edits.
+      if (cvBlock.stage === "done" || cvBlock.stage === "failed") {
+        const { patch } = applyCvParse(cvBlock.parsed ?? null, restored);
+        return { ...restored, ...patch };
+      }
+      return restored;
+    })();
     setDataState((prev) => ({
       ...prev,
       firstName,
@@ -619,29 +655,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       members: hydratedMembers,
       product,
       ascMembers,
-      credentials: (() => {
-        const base = savedCreds
-          // withRowIds on the way IN: credentials saved before stable row ids
-          // existed arrive without them, and minting them here — once, on
-          // hydration — is what keeps the rest of the app from having to cope
-          // with their absence. Existing ids are never reassigned.
-          ? withRowIds({ ...emptyCredentials(fullLegal), ...d.director_credentials })
-          : emptyCredentials(fullLegal);
-        // Screen 1's state answer prefills the Review screen's licence block,
-        // so the same fact is not asked for twice. Never over a value the
-        // physician already has there: the same rule applyCvParse follows.
-        const fromStep1 = (d.director_license_state ?? "").trim();
-        const restored = fromStep1 && !base.licenseState
-          ? { ...base, licenseState: fromStep1 }
-          : base;
-        // Upload results live separately from the form until Review is saved.
-        // A reload must restore those suggestions while retaining manual edits.
-        if (cvBlock.stage === "done") {
-          const { patch } = applyCvParse(cvBlock.parsed ?? null, restored);
-          return { ...restored, ...patch };
-        }
-        return restored;
-      })(),
+      credentials: restoredCredentials,
       attestations:
         d.director_attestations && Object.keys(d.director_attestations).length > 0
           ? { ...emptyAttestations(), ...d.director_attestations }
@@ -693,8 +707,6 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     // of showing a choice. Credentials/attestations don't bump the counter,
     // so for Asclepius we resume by inspecting what's already saved.
     const stepNum = Number(d.step) || 0;
-    const savedAtts =
-      d.director_attestations && Object.keys(d.director_attestations).length > 0;
     const kind = signupKindFor(d.signup_flavor);
     if (stepNum < 1 || (product === "asclepius" && kind === "physician"
         && !d.director_password_set)) setStep("identity");
@@ -714,7 +726,10 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       // stores suggestions under cvParsed, so an uploaded CV alone must not
       // skip Review. A submitted Review resumes at step 5, even before the
       // first attestation has been saved.
-      if (savedAtts || String(d.director_credentials?.primarySpecialty || "").trim()) setStep("attestations");
+      const reviewedSpecialty = String(d.director_credentials?.primarySpecialty || "").trim();
+      // A replacement CV may clear or change an untouched suggestion. Resume
+      // Review when that happens, even if the old form had been submitted.
+      if (reviewedSpecialty && restoredCredentials.primarySpecialty.trim() === reviewedSpecialty) setStep("attestations");
       else if (savedCreds || cv.uploaded) setStep("review");
       else setStep("cv");
     }

@@ -517,6 +517,9 @@ export type CvParsed = {
   specialty?: string | null;
   /* The same specialty spelled the way a person writes it. Prefill from THIS. */
   specialty_display?: string | null;
+  specialty_status?: "resolved" | "ambiguous" | "missing";
+  specialty_source?: string;
+  specialty_candidates?: { specialty: string; source: string }[];
   npi?: string | null;
   linkedin_url?: string | null;
   years_in_practice?: number | null;
@@ -2667,10 +2670,13 @@ export function Step5Credentials({
 
       <TextField
         label={lbl("primarySpecialty", "Primary specialty")}
-        placeholder="Nephrology"
+        placeholder="Your primary clinical specialty"
         value={c.primarySpecialty}
         onChange={(v) => set({ primarySpecialty: v })}
         requirement={reviewMode && !c.primarySpecialty.trim() ? "required" : undefined}
+        hint={data.cvParsed?.specialty_status === "ambiguous"
+          ? "Your CV lists more than one specialty. Choose your current primary specialty so both your practice and examination cases match your work."
+          : "Your practice and examination cases will match this specialty. Confirm it reflects your current clinical work."}
       />
 
       {/* ── Contact & corroboration (PRD-B Seam 4) ──────────────────────────

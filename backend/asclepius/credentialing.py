@@ -644,7 +644,7 @@ CV_MAX_BYTES = 10 * 1024 * 1024  # a 10 MB cap comfortably fits any real CV
 #: and a re-extraction cannot tell whether it would be an improvement or a
 #: no-op. Bump it whenever the extracted SHAPE or the field semantics change —
 #: not for a refactor that produces identical output.
-PARSER_VERSION = "cv-parse-2"
+PARSER_VERSION = "cv-parse-3"
 
 
 class CvUploadError(ValueError):
@@ -1093,36 +1093,20 @@ def _extract_linkedin(text: str) -> Optional[str]:
 
 
 def _extract_specialty(text: str, certs: List[str]) -> Optional[str]:
-    """Read the declared clinical field without confusing its board issuer."""
-    from asclepius.onboarding_specialties import match
+    """Compatibility accessor for the shared clinical-identity decision."""
+    return _specialty_evidence(text, certs)["specialty"]
 
-    for line in text[:2000].splitlines():
-        declared = re.match(r"(?:primary\s+)?specialt(?:y|ies)\s*:\s*(.+)$", line, re.I)
-        if declared:
-            return match(declared.group(1))
-    fields = set()
+
+def _specialty_evidence(text: str, certs: List[str]) -> Dict[str, Any]:
+    from asclepius.cv_specialty import specialty_evidence
+
+    fields = []
     for cert in certs:
         field = cert
         for board in sorted(_BOARDS.values(), key=len, reverse=True):
             field = re.sub(re.escape(board), "", field, flags=re.I)
-        hit = match(field) or (match(cert) if not field.strip(" —–-(),") else None)
-        if hit:
-            fields.add(hit)
-    specific = fields - {"internal medicine", "pediatrics", "general surgery"}
-    if len(specific) == 1:
-        return next(iter(specific))
-    if len(fields) == 1:
-        return next(iter(fields))
-    if fields:
-        return None
-    # Only the head: publications do not establish a physician's specialty.
-    for chunk in text[:2000].splitlines():
-        if "board of" in chunk.casefold():
-            continue
-        hit = match(chunk)
-        if hit:
-            return hit
-    return None
+        fields.append(field)
+    return specialty_evidence(text, fields)
 
 
 # ─── Board certifications, training, licence: the Review screen's prefill ────
@@ -1274,7 +1258,7 @@ def _known_field(value: str) -> str:
     than passed through, because the failure this replaces was a form
     confidently showing a physician a certification in "nephrologist with".
     """
-    from asclepius import specialties as _specialties
+    from asclepius.onboarding_specialties import match
 
     cleaned = _clean_field(value)
     if not cleaned or len(cleaned) > 60:
@@ -1283,7 +1267,7 @@ def _known_field(value: str) -> str:
     if low in _MEDICAL_FIELDS:
         return display_specialty(cleaned)
     # "Nephrologist" is the practitioner noun for a field we know.
-    hit = _specialties.match_specialty(cleaned)
+    hit = match(cleaned)
     if hit:
         return display_specialty(hit)
     return ""
@@ -1304,9 +1288,11 @@ def _extract_board_certifications(lines: List[str]) -> List[Dict[str, Any]]:
     "Board certified in Cardiology" without naming the issuer. It is far
     stricter in exchange: the field has to be one we recognise outright.
     """
+    from asclepius.cv_specialty import asserted_line
+
     merged = []
     for line in lines:
-        if re.search(r"\b(?:not|never|pending|eligible|eligibility|scheduled|candidate)\b", line, re.I):
+        if not asserted_line(line):
             continue
         if merged and _BOARD_ACRONYM.search(line) and not re.search(r"certif", line, re.I) and re.search(r"board[ -]*certif", merged[-1], re.I) and not _BOARD_ACRONYM.search(merged[-1]):
             merged[-1] += " (" + line + ")"
@@ -1573,13 +1559,7 @@ def _extract_employer(lines: List[str]) -> str:
 
 
 def _extract_display_specialty(lines: List[str], text: str, certs: List[str]) -> str:
-    # Onboarding accepts more specialties than the case-generation registry.
-    for line in lines:
-        match = re.match(r"(?:primary\s+)?specialt(?:y|ies)\s*:\s*(.+)$", line, re.I)
-        if match:
-            field = _known_field(match.group(1))
-            if field:
-                return field
+    # Display spelling must never reinterpret or de-specialize the decision.
     return display_specialty(_extract_specialty(text, certs) or "")
 
 
@@ -1603,6 +1583,8 @@ def _extract_contact_fields(text: str) -> Dict[str, Any]:
 
 
 def _parse_cv_text(text: str) -> Dict[str, Any]:
+    from asclepius.cv_specialty import applicant_lines
+
     lines = [ln.strip() for ln in text.splitlines()]
     lines = [ln for ln in lines if ln]
 
@@ -1619,12 +1601,15 @@ def _parse_cv_text(text: str) -> Dict[str, Any]:
     # of strings is kept alongside it under the SAME key the tier scorer and
     # the admin dossier have always read, so nothing downstream has to know
     # this changed. See _extract_board_certifications for what went wrong.
-    board_certs = _extract_board_certifications(lines)
+    applicant = [line for line, _ in applicant_lines(text) if line]
+    board_certs = _extract_board_certifications(applicant)
     certs: List[str] = []
     for entry in board_certs:
         label = " ".join(p for p in [entry.get("board"), entry.get("specialty")] if p)
         if label and label not in certs:
             certs.append(label)
+
+    specialty = _specialty_evidence(text, certs)
 
     years: Optional[int] = None
     m = _YEARS_EXPLICIT.search(text)
@@ -1675,12 +1660,12 @@ def _parse_cv_text(text: str) -> Dict[str, Any]:
         "training": _extract_training(lines),
         # The registry KEY, lowercase. propose_tier and the admin dossier read
         # this and must keep getting the identifier.
-        "specialty": _extract_specialty(text, certs),
+        **specialty,
         # The same thing spelled the way a person writes it. The Review screen
         # prefills from THIS one: putting "nephrology" in a box on a form that
         # is asking a physician to vouch for their credentials reads as
         # carelessness, and it is a correction they should not have to make.
-        "specialty_display": _extract_display_specialty(lines, text, certs),
+        "specialty_display": display_specialty(specialty["specialty"] or ""),
         # ── Added for the Review screen's prefill ──
         "board_certifications_structured": board_certs,
         "licenses": _extract_licenses(lines),
@@ -1709,6 +1694,8 @@ def _empty_parse(asset_sha: str, reason: str) -> Dict[str, Any]:
         # the docstring above is a note about three copies of this shape
         # drifting once already, and the Review screen indexes these directly.
         "specialty_display": None, "board_certifications_structured": [],
+        "specialty_source": "missing", "specialty_status": "missing",
+        "specialty_candidates": [],
         "licenses": [], "employer": None,
         "mobile_phone": None, "practice_city": None, "clinical_focus": None,
         "years_in_active_practice": None,

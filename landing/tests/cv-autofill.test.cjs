@@ -11,6 +11,23 @@ const rows=s.slice(s.indexOf('let rowSeq ='),s.indexOf('export type BoardCert'))
 const ctx={};vm.createContext(ctx);vm.runInContext(stripTypeScriptTypes(rows+'\n'+apply+'\n'+empty),ctx);
 const plain=v=>JSON.parse(JSON.stringify(v));
 const parsed={ok:true,employer:'Example Hospital',mobile_phone:'+1 555 010 4444',practice_city:'Boston',clinical_focus:'CKD',licenses:[{state:'CA',number:'A123456',current:'yes'}],board_certifications_structured:[{board:'ABIM',specialty:'Nephrology',subspecialty:'',active:null}],training:[{kind:'fellowship',institution:'Example Clinic',specialty:'Nephrology',end_year:'2020'}]};
+test('ambiguous replacement clears an untouched old specialty, preserving manual choice',()=>{
+ const first=ctx.applyCvParse({ok:true,specialty:'nephrology',specialty_display:'Nephrology',specialty_status:'resolved'},ctx.emptyCredentials());
+ const current={...ctx.emptyCredentials(),...first.patch};
+ const ambiguous={ok:true,specialty:null,specialty_display:'Nephrology',specialty_status:'ambiguous'};
+ assert.equal(ctx.applyCvParse(ambiguous,current).patch.primarySpecialty,'');
+ assert.equal(ctx.applyCvParse(ambiguous,{...current,primarySpecialty:'Dermatology',cvManualFields:['primarySpecialty']}).patch.primarySpecialty,undefined);
+ assert.equal(ctx.applyCvParse(ambiguous,ctx.emptyCredentials()).patch.primarySpecialty,undefined);
+});
+test('legacy display cannot bypass a null or pediatric specialty decision',()=>{
+ assert.equal(ctx.applyCvParse({ok:true,specialty:null,specialty_display:'Nephrology'},ctx.emptyCredentials()).patch.primarySpecialty,undefined);
+ assert.equal(ctx.applyCvParse({ok:true,specialty:'pediatric nephrology',specialty_display:'Nephrology'},ctx.emptyCredentials()).patch.primarySpecialty,'pediatric nephrology');
+});
+test('a resolved CV fills the specialty and preserves a doctor correction',()=>{
+ const cv={ok:true,specialty:'dermatology',specialty_display:'Dermatology',specialty_status:'resolved'};
+ assert.equal(ctx.applyCvParse(cv,ctx.emptyCredentials()).patch.primarySpecialty,'Dermatology');
+ assert.equal(ctx.applyCvParse(cv,{...ctx.emptyCredentials(),primarySpecialty:'Pathology',cvManualFields:['primarySpecialty']}).patch.primarySpecialty,undefined);
+});
 test('unknown board state stays unanswered including manual defaults',()=>{
  assert.equal(ctx.emptyCredentials().boardCertifications[0].active,null);
  assert.equal(ctx.applyCvParse(parsed,ctx.emptyCredentials()).patch.boardCertifications[0].active,null);
@@ -44,6 +61,14 @@ test('explicit contact facts reach their visible fields',()=>{
 });
 test('failed extraction never erases user answers',()=>{
  assert.deepEqual(plain(ctx.applyCvParse({ok:false},{...ctx.emptyCredentials(),fullLegalName:'Jane Smith'})),{patch:{},filled:[]});
+});
+test('failed or timed-out replacement clears only unchanged CV suggestions',()=>{
+ const first=ctx.applyCvParse({ok:true,specialty:'nephrology'},ctx.emptyCredentials());
+ for (const failure of [null,{ok:false}]) {
+  const current={...ctx.emptyCredentials(),...first.patch};
+  assert.equal(ctx.applyCvParse(failure,current).patch.primarySpecialty,'');
+  assert.equal(ctx.applyCvParse(failure,{...current,primarySpecialty:'Dermatology',cvManualFields:['primarySpecialty']}).patch.primarySpecialty,undefined);
+ }
 });
 test('saved suggestions refresh after reload without transient chips',()=>{
  const first=ctx.applyCvParse(parsed,ctx.emptyCredentials());
