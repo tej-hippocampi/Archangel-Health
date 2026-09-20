@@ -17,7 +17,8 @@ imports nothing from ``review.py`` or ``routing.py``.
 
 # DISBURSEMENT SEAM. This records that we consider these rows settled; it does
 # not move money. The rail will be Stripe Connect Express: physicians onboard
-# themselves, Stripe holds bank details and tax ids and files the 1099-NECs.
+# themselves; Stripe holds bank details and tax ids. Annual 1099 filing needs
+# separate tax configuration, reconciliation and submission in Stripe.
 # Nothing in this file should ever store a bank account number or a tax id — if
 # a change wants to, that is the signal it belongs behind Connect instead.
 
@@ -1334,6 +1335,16 @@ async def stripe_webhook(request: Request):
         outcome = _handle_account_updated(store, obj)
     elif event_type in rail.TRANSFER_EVENTS:
         outcome = _handle_transfer_event(store, event_type, obj)
+    elif event_type.startswith('payout.'):
+        from asclepius.payment_ops import PAYOUT_EVENTS, record_payout_event
+        if event_type in PAYOUT_EVENTS:
+            try:
+                outcome = record_payout_event(store, event)
+            except Exception:
+                log.exception('Could not synchronize connected bank payout')
+                raise HTTPException(status_code=503, detail='Bank payout synchronization needs retry.')
+        else:
+            outcome = 'ignored: unhandled payout type'
     else:
         # D4. Stripe adds event types, and a webhook that 500s on novelty gets
         # disabled by its own retry policy. Stored, stamped, and no action.

@@ -3830,6 +3830,8 @@ class AsclepiusStore:
                     lease_token TEXT
                 )
             """)
+            from asclepius.payment_ops import init_schema as _payment_ops_schema
+            _payment_ops_schema(conn)
             # ═══ END PAYMENTS RAIL §E ═══════════════════════════════════════
 
             # ═══ Export licensing + exclusivity (audit U5) ═══════════════════
@@ -15828,6 +15830,7 @@ class AsclepiusStore:
         self, *, payout_batch_id: str, paid_at: str,
         earning_ids: Optional[List[str]] = None, user_id: Optional[str] = None,
         stripe_mode: Optional[str] = None,
+        expected_payment: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Move ``approved`` rows to ``paid`` under one batch id, atomically.
 
@@ -15848,6 +15851,19 @@ class AsclepiusStore:
         conn = self._conn()
         try:
             self._immediate(conn)
+            if expected_payment is not None:
+                from asclepius.payment_ops import _eligible, OpsError
+                if earning_ids != [expected_payment['earning_id']] or payout_batch_id != expected_payment['batch_id']:
+                    raise OpsError('Payment selection differs from the approved batch.')
+                prior = conn.execute('SELECT * FROM stripe_transfer_intents WHERE earning_id = ?',
+                                     (expected_payment['earning_id'],)).fetchone()
+                if prior:
+                    if any(prior[k] != expected_payment[k] for k in ('user_id', 'destination', 'amount_cents')) or prior['payout_batch_id'] != payout_batch_id or prior['stripe_mode'] != stripe_mode:
+                        raise OpsError('Existing payment intent differs from this approval.')
+                else:
+                    fresh = _eligible(conn, expected_payment['earning_id'])
+                    if any(fresh[k] != expected_payment[k] for k in fresh):
+                        raise OpsError('Earning changed after approval; review before payment.')
             where, params = [], []
             if earning_ids:
                 where.append("earning_id IN (%s)" % ",".join("?" * len(earning_ids)))

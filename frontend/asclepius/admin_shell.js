@@ -1961,9 +1961,12 @@
    * value to the Referrals tab — so every stored deep link keeps working. */
   function renderAdminMoneySection(body) {
     clear(body);
+    body.appendChild(adminSubnav('money', [['earnings', 'Earnings'], ['operations', 'Payment operations']]));
     const inner = h('div', {});
     body.appendChild(inner);
-    if (window.AdminEarningsSection) {
+    if (state.adminSub.money === 'operations' && window.AdminPaymentOpsSection) {
+      window.AdminPaymentOpsSection.render(inner, adminSectionCtx());
+    } else if (window.AdminEarningsSection) {
       window.AdminEarningsSection.render(inner, adminSectionCtx(), 'earnings');
     } else sectionModuleMissing(inner, 'The Money section');
   }

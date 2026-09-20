@@ -110,6 +110,7 @@ from routers.asclepius_buyer import router as asclepius_buyer_router
 from routers.asclepius_verify import router as asclepius_verify_router
 from routers.asclepius_review import router as asclepius_review_router
 from routers.asclepius_payments import router as asclepius_payments_router
+from routers.asclepius_payment_ops import router as asclepius_payment_ops_router
 from routers.asclepius_score import router as asclepius_score_router
 from routers.asclepius_media import router as asclepius_media_router
 from routers.asclepius_card import router as asclepius_card_router
@@ -7096,6 +7097,25 @@ async def startup_community():
 _asclepius_task_notify_task = None
 
 
+@app.on_event('startup')
+async def startup_payment_ops():
+    from asclepius import payment_ops
+    app.state.payment_ops_task = None
+    if payment_ops.enabled():
+        app.state.payment_ops_task = asyncio.create_task(payment_ops.worker_loop())
+
+
+@app.on_event('shutdown')
+async def shutdown_payment_ops():
+    import contextlib
+    task = getattr(app.state, 'payment_ops_task', None)
+    if task:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        app.state.payment_ops_task = None
+
+
 def asclepius_task_notify_interval_sec() -> int:
     try:
         return max(15, int(os.getenv("ASCLEPIUS_TASK_NOTIFY_INTERVAL_SECONDS", "60")))
@@ -7484,6 +7504,7 @@ app.include_router(asclepius_sandbox_router)
 app.include_router(asclepius_verify_router)
 app.include_router(asclepius_review_router)
 app.include_router(asclepius_payments_router)
+app.include_router(asclepius_payment_ops_router)
 app.include_router(asclepius_score_router)
 app.include_router(asclepius_card_router)
 # ENV · Clinical RL Environments (agentic tier). Additive; mounted defensively so
