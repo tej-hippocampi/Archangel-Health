@@ -434,6 +434,12 @@
       // minutes of a senior physician's reading, and losing it to a stray
       // reload is how a reviewer learns not to trust the surface.
       drafts: sectionDraftStore('review'),
+      handleAgreementGate: (err) => {
+        if (!isAgreementGate(err)) return false;
+        teardownReview();
+        renderAgreementView({ onSigned: () => setPanel('review') });
+        return true;
+      },
       // The clinical chart, from the shared module — the SAME component the
       // labeler reads. Handing over the ctx rather than a rendered panel is what
       // keeps the reviewer's chart from becoming a second implementation.
@@ -1847,6 +1853,12 @@
     // the credential in their inbox stops working the moment they do this, and
     // that is the whole reason it is temporary.
     if (state.user.must_change_password) { renderRotateTempPassword(); return; }
+    // Shared entry for environment annotations and saved work awaiting a signature.
+    if (location.hash === '#agreement') {
+      history.replaceState(null, '', location.pathname + location.search);
+      renderAgreementView({});
+      return;
+    }
     // `/asclepius/review` redirects here with `#review` (PRD-1 §2.1). The old
     // standalone URL is in bookmarks and in email we have already sent, so it
     // has to land a reviewer on their work rather than on a generic dashboard.
@@ -2659,10 +2671,7 @@
    *  Structured `error` code and the header, never the message: same discipline
    *  as isPracticeGate, and for the same reason. */
   function isAgreementGate(err) {
-    if (!err || err.status !== 403) return false;
-    if (err.agreementGate) return true;  // the header, when the response carried it
-    const d = err.detail;
-    return !!(d && typeof d === 'object' && d.error === 'agreement_required');
+    return window.AsclepiusAgreementGate.isRequired(err);
   }
 
   /** The dashboard's one card when the terms in force have not been signed.
@@ -4532,6 +4541,11 @@
         if (e.status === 401) return;
         save.disabled = false;
         save.textContent = 'Save and continue';
+        if (isAgreementGate(e)) {
+          hint.textContent = 'Sign in the new tab, then return here and save your marks. ';
+          hint.appendChild(window.AsclepiusAgreementGate.signingLink());
+          return;
+        }
         toast('Could not save that: ' + (e.message || 'unknown error'), 'error');
       }
     });

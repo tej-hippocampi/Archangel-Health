@@ -28,7 +28,13 @@
 
   async function api(path, opts) {
     const res = await fetch(API + path, Object.assign({ headers: headers() }, opts || {}));
-    if (!res.ok) throw new Error((await res.text()) || res.status);
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      const detail = data && data.detail;
+      throw { status: res.status, detail: detail,
+        agreementGate: res.headers.get("X-Asclepius-Agreement-Gate"),
+        message: (detail && detail.message) || (typeof detail === "string" ? detail : "Request failed (" + res.status + ")") };
+    }
     return res.json();
   }
 
@@ -362,6 +368,13 @@
       if (msg) { msg.textContent = "Saved ✓: loading next…"; }
       setTimeout(() => location.reload(), 700);
     } catch (e) {
+      if (window.AsclepiusAgreementGate.isRequired(e)) {
+        if (msg) {
+          msg.textContent = "Sign in the new tab, then return here and save. Your annotations are still here. ";
+          msg.appendChild(window.AsclepiusAgreementGate.signingLink());
+        }
+        return;
+      }
       if (msg) msg.textContent = "Error: " + e.message;
     }
   }
@@ -405,5 +418,12 @@
   }
   function prefersReduced() { return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
 
-  boot().catch((e) => { root.innerHTML = '<div class="env-empty">Failed to load: ' + esc(e.message) + "</div>"; });
+  boot().catch((e) => {
+    if (window.AsclepiusAgreementGate.isRequired(e)) {
+      root.textContent = "Sign the contributor agreement, then refresh this page to open your queue. ";
+      root.appendChild(window.AsclepiusAgreementGate.signingLink());
+      return;
+    }
+    root.innerHTML = '<div class="env-empty">Failed to load: ' + esc(e.message) + "</div>";
+  });
 })();

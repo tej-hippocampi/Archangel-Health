@@ -58,6 +58,21 @@ _ASCLEPIUS_MEMBER_ROLES = {
 _ASCLEPIUS_DIRECTOR_ROLE_LABEL = "Director of Data Training"
 _ASCLEPIUS_TEAM_CAP = 10  # director + up to 10 invited clinicians
 
+# Exact wire names from the seven clinical signup checkboxes. A non-empty
+# draft (or a truthy string such as "false") is not affirmative consent.
+REQUIRED_ASCLEPIUS_ATTESTATIONS = (
+    "consentCredentialShare", "attestIndependentJudgment", "ipAssignment",
+    "noPhi", "attestConfidentiality", "attestNoDisciplinaryAction",
+    "attestWorkQuality",
+)
+
+
+def _attestations_complete(attestations: Any) -> bool:
+    return isinstance(attestations, dict) and all(
+        attestations.get(key) is True for key in REQUIRED_ASCLEPIUS_ATTESTATIONS
+    )
+
+
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
 log = logging.getLogger("onboarding")
 
@@ -2081,7 +2096,7 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
         creds_blob = director.get("credentials") or {}
         if not creds_blob:
             raise HTTPException(status_code=400, detail="Add your credentials before finishing.")
-        if not director.get("attestations"):
+        if not _attestations_complete(director.get("attestations")):
             raise HTTPException(status_code=400, detail="Sign the attestations before finishing.")
         missing = []
         if not (creds_blob.get("fullLegalName") or director.get("full_name") or "").strip():
@@ -2379,7 +2394,7 @@ async def member_finish(body: OnboardTokenBody, request: Request):
     person = ts.get_asclepius_person(hs["id"], person["email"]) or person
     if not person.get("credentials"):
         raise HTTPException(status_code=400, detail="Add your credentials before finishing.")
-    if not person.get("attestations"):
+    if not _attestations_complete(person.get("attestations")):
         raise HTTPException(status_code=400, detail="Sign the attestations before finishing.")
     if not person.get("email_verified_at"):
         raise HTTPException(status_code=403, detail="Please verify your email before finishing onboarding.")

@@ -149,6 +149,7 @@
         detail,
         message: detailToMessage(detail, res.status),
         authGate: res.headers.get(AUTH_GATE_HEADER),
+        agreementGate: res.headers.get("X-Asclepius-Agreement-Gate"),
       };
     }
     return data;
@@ -2063,7 +2064,7 @@
         toast('Approved ' + (res.approved || 0) + ' submission(s).', 'success');
         renderAdminQA(body); refreshQaBadge();
       } catch (e) {
-        clear(approveAllStatus); approveAllStatus.appendChild(h('span', { class: 'asc-inline-error' }, e.message));
+        clear(approveAllStatus); approveAllStatus.appendChild(qaError(e));
         approveAllBtn.removeAttribute('disabled'); approveAllBtn.textContent = '✓ Approve all pending';
       }
     });
@@ -2080,6 +2081,15 @@
     body.appendChild(listCard);
     body.appendChild(detailCard);
     loadQaQueue();
+  }
+
+  function qaError(err) {
+    if (window.AsclepiusAgreementGate.isRequired(err)) {
+      return h('div', { class: 'asc-card-pad' },
+        'Sign in the new tab, then return here and retry. ',
+        window.AsclepiusAgreementGate.signingLink());
+    }
+    return h('div', { class: 'asc-inline-error' }, err.message);
   }
 
   async function loadQaQueue() {
@@ -2126,7 +2136,7 @@
       listCard.appendChild(h('div', { class: 'asc-card-pad' }, table));
     } catch (e) {
       clear(listCard);
-      listCard.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message)));
+      listCard.appendChild(h('div', { class: 'asc-card-pad' }, qaError(e)));
     }
   }
 
@@ -2197,7 +2207,7 @@
       detail.appendChild(pad);
     } catch (e) {
       clear(detail);
-      detail.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message)));
+      detail.appendChild(h('div', { class: 'asc-card-pad' }, qaError(e)));
     }
   }
 
@@ -2226,7 +2236,7 @@
       if (detail) { clear(detail); detail.setAttribute('hidden', ''); }
       loadQaQueue(); refreshQaBadge();
     } catch (e) {
-      status.appendChild(h('div', { class: 'asc-inline-error' }, e.message));
+      status.appendChild(qaError(e));
       buttons.forEach((b) => b.removeAttribute('disabled'));
     }
   }

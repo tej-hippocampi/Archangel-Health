@@ -77,7 +77,8 @@ CREDS = {
     "languages": ["English", "Spanish"],
 }
 ATTS = {
-    "consentCredentialShare": True,
+    "attestConfidentiality": True, "attestNoDisciplinaryAction": True,
+    "attestWorkQuality": True, "consentCredentialShare": True,
     "attestIndependentJudgment": True,
     "ipAssignment": True,
     "noPhi": True,

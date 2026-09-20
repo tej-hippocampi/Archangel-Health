@@ -42,19 +42,39 @@ keys and paid data paths are not modified by this change.
 
 ## Deployment, operational limits and rollback
 
-On 2026-09-19, the production version endpoint and Railway deployment metadata
+At the initial 2026-09-19 inspection, the production version endpoint and Railway deployment metadata
 both reported main commit `333896355790e89dd58b7e1cd6fe90ffb61c0ff5` (PR167).
 That verifies the case library release is running; it does not verify an individual
 applicant's stored specialty or previously submitted examination.
 
-A read-only Railway inspection confirmed the `/data` volume and available
-capacity, but the available tools did not expose backup schedules, successful
-backup timestamps or retention. No project webhooks were returned. Notification
-history does not establish configured alert coverage. Build-container snapshots
-are not database or mounted-volume backup evidence. Consequently current backup
-and alert coverage remain unverified; no claim of recovery readiness is made.
-The repository's operational release gate remains open until that evidence is
-available. No restoration or operational configuration change was attempted.
+Subsequent owner-authorized Railway protection setup and API readback verified:
+
+- Production `/data` volume instance `d8d049d8-f88f-4722-82e5-59da70988db3`,
+  Ready, approximately 266.4 MB used of 5,000 MB.
+- Retained native snapshot `3c92a291-db4f-4606-81ed-d2cc5fe27c21`, created
+  2026-09-20 00:06:15 UTC, with 264 MB referenced. Its presence is provider
+  evidence; this new snapshot has not itself been restored.
+- Daily backups retained for 6 days and weekly backups retained for 27 days.
+- Disk monitor `5b16c4d1-6909-46a8-ba9a-25655b40c2c8`, above 4 GB,
+  attached to the single `DISK_USAGE_GB` widget for the correct production volume.
+  This verifies configured native alerting; end-to-end alert delivery is untested.
+- Refreshed production `/healthz`: healthy databases, durable paths under `/data`,
+  no storage warnings, and no storage-gate override.
+
+The September 14 off-Railway encrypted data/key capsules remain present with
+matching recorded sizes and SHA-256 hashes. The earlier isolated recovery
+verified six databases and 1,943 files. Current configuration metadata supports
+key continuity since that recovery; live cryptographic equality was not tested.
+Railway volume snapshots cover `/data`, not every historical recovery file or
+environment secret. No production restore, data replacement or key change was
+performed.
+
+Independent auditor `audit_protection_release` cleared the affected-scope
+backup/capacity-alert hold after inspecting this evidence. The policy does not
+require particular build/crash email switches or Gmail access for this CV-only
+change. Those preferences remain unverified. Application email-provider outcome
+testing is outside this PR's unchanged email paths, not a passed check. The
+broader platform must not be described as comprehensively recovery-verified.
 
 Rollback reverts application code. Do not roll back databases, delete new CV
 attempts, erase manual edits, or replace submitted assessments. The new parse

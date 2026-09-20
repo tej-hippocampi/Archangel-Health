@@ -2,7 +2,7 @@
 
 ## Finding and corrected behavior
 
-PR167 is running in production at commit
+At the initial inspection, PR167 was running in production at commit
 `333896355790e89dd58b7e1cd6fe90ffb61c0ff5`. Its full 86-case library is present.
 The remaining reproduced defects occur before case selection: CV display parsing
 could override an ambiguous or pediatric specialty, a reference physician's
@@ -56,7 +56,8 @@ These results validate software behavior and fixture preservation. They do not
 establish perfect extraction of arbitrary CV layouts, physician verification,
 clinical ratification of cases, or production backup/restore coverage. Unsupported
 wording and uncertainty deliberately require the physician to confirm their field.
-The data-safety change record documents the open operational release gate.
+The data-safety change record documents the subsequent operational verification
+and its limitations.
 
 ## CI clock regression
 
@@ -66,3 +67,23 @@ the real current date. Both failures reproduced locally. The shared webinar test
 fixture now uses the same fixed clock as its seeded scenarios. All original
 assertions remain; no community production behavior changed. The complete file
 passes **35 tests**, independently rerun and cleared by the fresh auditor.
+
+## Final integration and operational verification
+
+Main subsequently advanced to `80c6dbb5ca28c6087426c1d385152aa074ca0759`
+(PR166). Both branches independently fixed the same webinar fixture clock.
+The merge retains main's exact fixture, including removal of redundant per-test
+clock patches. Separate CV and seven-attestation changes remain intact in the
+two automatically merged onboarding files. The combined worktree passed **288
+tests** covering webinars, all-specialty CV-to-case routing, case endpoints,
+attestation persistence and physician agreements. The independent auditor
+confirmed the merge resolution and reran all **35** webinar tests successfully.
+GitHub must validate the new merge head before release; the prior head's 19 green
+checks do not establish completion of that new run.
+
+The production `/data` volume now has a retained native snapshot, daily/weekly
+backup schedules, and a correctly bound disk-usage monitor above 4 GB. Refreshed
+health reports healthy databases, durable stores and no storage warnings. The
+independent operational auditor cleared the backup/capacity-alert hold, scoped
+to this CV-only change. See the data-safety record for restore, key-continuity
+and alert-delivery limitations.

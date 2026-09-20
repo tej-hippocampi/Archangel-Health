@@ -286,7 +286,8 @@
       loadNext();
     }).catch(function (err) {
       if (stale(gen)) return;
-      if (err && err.status === 401) return;   // the shell owns the bounce
+      if (err && err.status === 401) return;
+      if (CTX.handleAgreementGate && CTX.handleAgreementGate(err)) return;   // the shell owns the bounce
       renderFatal(errText(err));
     });
   }
@@ -353,6 +354,7 @@
       if (stale(gen)) return;
       drawing = false;
       if (err && err.status === 401) return;
+      if (CTX.handleAgreementGate && CTX.handleAgreementGate(err)) return;
       renderFatal(errText(err));
     });
   }
@@ -438,7 +440,10 @@
           'A case is waiting for its second independent label (specialty: '
           + (data.task.specialty || 'any') + '): open it from your dashboard.'));
       }
-    }).catch(function () { /* pointer is best-effort */ });
+    }).catch(function (err) {
+      if (stale(gen)) return;
+      if (CTX.handleAgreementGate) CTX.handleAgreementGate(err);
+    });
     mount(header(), previewBanner(), card);
   }
 
@@ -1177,6 +1182,15 @@
       })
       .catch(function (err) {
         if (stale(gen)) return;
+        // Keep every input mounted, including step-level divergence judgments
+        // which the ordinary draft cache does not persist across navigation.
+        if (window.AsclepiusAgreementGate.isRequired(err)) {
+          clear(errLine);
+          errLine.appendChild(document.createTextNode('Sign in the new tab, then return here and submit. '));
+          errLine.appendChild(window.AsclepiusAgreementGate.signingLink());
+          refreshSubmit();
+          return;
+        }
         clear(errLine);
         errLine.appendChild(document.createTextNode(errText(err)));
         refreshSubmit();

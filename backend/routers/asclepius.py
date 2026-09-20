@@ -3636,20 +3636,16 @@ AGREEMENT_GATE_HEADER = "X-Asclepius-Agreement-Gate"
 def require_current_agreement(
     user: Dict[str, Any] = Depends(require_first_run_stops),
 ) -> Dict[str, Any]:
-    """The fourth gate: has this physician signed the terms in force today.
+    """Require current signed terms for new draws and covered work writes.
 
-    IT SITS ON THE DRAW AND NOT ON THE SUBMIT, and that is the whole design.
-    A physician halfway through a case when a new version ships has already
-    read a chart, formed a judgment and spent twenty minutes on it; taking that
-    away to make a legal point would be both cruel and self-defeating, and the
-    label they are about to write was produced under the terms they did sign.
-    So they finish the case, and the next one they ask for is the one that
-    stops. ``/submissions``, ``/tasks/{id}`` and ``/tasks/{id}/reveal``
-    deliberately keep the practice gate and do not take this one.
+    The shared dependency also enforces eligibility, practice and first-run
+    requirements, even while signature enforcement is disabled.
 
-    Exemptions match ``practice_gate_reason`` exactly rather than being
-    re-derived: an admin does not draw from the queue, and the mock contributor
-    is the demo account the sales walkthrough runs on.
+    ``/submissions``, ``/tasks/{id}`` and ``/tasks/{id}/reveal`` deliberately
+    retain their existing gates so a physician can finish a case after terms
+    change. Those legacy exceptions do not themselves prove a prior draw.
+
+    Admin and mock exemptions match the existing practice-gate policy.
     """
     from asclepius import physician_agreement as asc_pagreement
 
@@ -4764,7 +4760,7 @@ async def trajectory_outcome(
 @router.post("/tasks/{task_id}/trajectory-self-score")
 async def trajectory_self_score(
     task_id: str, body: TrajectorySelfScore,
-    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+    user: Dict[str, Any] = Depends(require_current_agreement),
 ):
     """Record which of the physician's own expectations held (§4 Phase 4).
 
@@ -5812,7 +5808,7 @@ async def transcribe_audio(
     return {"text": res.get("text", ""), "provider": res.get("provider")}
 
 
-@router.get("/submissions")
+@router.get("/submissions", dependencies=[Depends(require_current_agreement)])
 async def list_submissions(
     status: Optional[str] = None,
     specialty: Optional[str] = None,
@@ -5824,7 +5820,7 @@ async def list_submissions(
     return {"submissions": subs}
 
 
-@router.get("/submissions/{submission_id}")
+@router.get("/submissions/{submission_id}", dependencies=[Depends(require_current_agreement)])
 async def get_submission(
     submission_id: str, _qa: Dict[str, Any] = Depends(asc_auth.require_qa)
 ):
@@ -5868,7 +5864,7 @@ def _contributor_identity(store: Any, sub: Dict[str, Any]) -> Dict[str, Any]:
     return ident
 
 
-@router.get("/qa/queue")
+@router.get("/qa/queue", dependencies=[Depends(require_current_agreement)])
 async def qa_queue(_qa: Dict[str, Any] = Depends(asc_auth.require_qa)):
     store = _store()
     subs = store.list_submissions(status="needs_qa",
@@ -5879,7 +5875,7 @@ async def qa_queue(_qa: Dict[str, Any] = Depends(asc_auth.require_qa)):
     return {"submissions": subs}
 
 
-@router.post("/qa/approve-all")
+@router.post("/qa/approve-all", dependencies=[Depends(require_current_agreement)])
 async def qa_approve_all(reviewer: Dict[str, Any] = Depends(asc_auth.require_qa)):
     """Approve every submission currently held in QA in one step, moving them all
     to ``export_ready``. Lets a solo admin clear the QA backlog and export
@@ -5897,7 +5893,7 @@ async def qa_approve_all(reviewer: Dict[str, Any] = Depends(asc_auth.require_qa)
     return {"approved": approved}
 
 
-@router.post("/qa/{submission_id}/decision")
+@router.post("/qa/{submission_id}/decision", dependencies=[Depends(require_current_agreement)])
 async def qa_decision(
     submission_id: str,
     body: QADecisionRequest,

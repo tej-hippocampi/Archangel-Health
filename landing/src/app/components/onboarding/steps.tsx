@@ -3230,7 +3230,7 @@ export function Step6Attestations({
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={allChecked ? "var(--green)" : "var(--ink-faint)"} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <polyline points="20 6 9 17 4 12" />
           </svg>
-          {allChecked ? "Clear all six" : "Agree to all six"}
+          {allChecked ? "Clear all seven" : "Agree to all seven"}
         </button>
       </div>
 
