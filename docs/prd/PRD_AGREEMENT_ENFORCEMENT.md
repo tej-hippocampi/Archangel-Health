@@ -49,7 +49,7 @@ false; a string, integer, or non-empty initials field is not consent.
 
 | Symbol | Verified current location |
 |---|---|
-| require_current_agreement | `require_current_agreement` at backend/routers/asclepius.py:3636 |
+| require_current_agreement | `require_current_agreement` at backend/routers/asclepius.py:3640 |
 | next_double_label | `next_double_label` at backend/routers/asclepius_review.py:800 |
 | next_review | `next_review` at backend/routers/asclepius_review.py:386 |
 | next_review_pair | `next_review_pair` at backend/routers/asclepius_review.py:242 |
@@ -58,17 +58,17 @@ false; a string, integer, or non-empty initials field is not consent.
 | annotation_queue | `annotation_queue` at backend/routers/asclepius_env.py:161 |
 | get_run_for_annotation | `get_run_for_annotation` at backend/routers/asclepius_env.py:187 |
 | annotate_environment | `annotate_environment` at backend/routers/asclepius_env.py:202 |
-| trajectory_self_score | `trajectory_self_score` at backend/routers/asclepius.py:4761 |
-| qa_queue | `qa_queue` at backend/routers/asclepius.py:5868 |
-| qa_decision | `qa_decision` at backend/routers/asclepius.py:5897 |
-| qa_approve_all | `qa_approve_all` at backend/routers/asclepius.py:5879 |
-| list_submissions | `list_submissions` at backend/routers/asclepius.py:5812 |
-| get_submission | `get_submission` at backend/routers/asclepius.py:5824 |
+| trajectory_self_score | `trajectory_self_score` at backend/routers/asclepius.py:4765 |
+| qa_queue | `qa_queue` at backend/routers/asclepius.py:5872 |
+| qa_decision | `qa_decision` at backend/routers/asclepius.py:5901 |
+| qa_approve_all | `qa_approve_all` at backend/routers/asclepius.py:5883 |
+| list_submissions | `list_submissions` at backend/routers/asclepius.py:5816 |
+| get_submission | `get_submission` at backend/routers/asclepius.py:5828 |
 | save_asclepius_attestations | `save_asclepius_attestations` at backend/team_store.py:2177 |
 | provision_user | `provision_user` at backend/asclepius/store.py:4030 |
 | _attestations_complete | `_attestations_complete` at backend/routers/onboarding.py:70 |
 | isRequired | `isRequired` at frontend/asclepius/agreement_gate.js:5 |
-| `async renderAgreementView` | frontend/asclepius/asclepius.js:2709 |
+| `async renderAgreementView` | frontend/asclepius/asclepius.js:2734 |
 | qaError | `qaError` at frontend/asclepius/admin_shell.js:2089 |
 
 There are 16 covered route/method pairs, including the two original gated routes.
