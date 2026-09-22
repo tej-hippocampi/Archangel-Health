@@ -195,7 +195,7 @@
       // beside the public form that writes it). Everything else defaults to
       // API_BASE, so no caller has to know the prefix exists.
       res = await fetch((opts.base || API_BASE) + path,
-                        { method: opts.method || 'GET', headers, body });
+                        { method: opts.method || 'GET', headers, body, signal: opts.signal });
     } catch (e) {
       throw { status: 0, detail: 'Network error. Is the backend running?', message: 'Network error' };
     }
@@ -243,6 +243,7 @@
   }
 
   function handleUnauthorized() {
+    teardownFirstRun();
     // Same reasoning as logout(): a session that expired mid-case did not
     // un-work the case. Persist before the clock stops and the chrome goes.
     saveDraft();
@@ -547,9 +548,8 @@
     // through the rail replaces the screen without telling the module, so those
     // handlers would outlive the screen they belong to — and a stray Esc on the
     // dashboard would then defer a physician's remaining stops and bounce them
-    // somewhere they did not ask to go. Teardown is idempotent, so calling it on
-    // every navigation is cheaper than reasoning about which ones need it.
-    teardownFirstRun();
+    // somewhere they did not ask to go. Tear down only when replacing this
+    // screen: opening a community tab or refusing a destination leaves it here.
     if (dest === 'community') { openCommunity(); return; }
     // PRD-1 §2.1: the expert review console is a VIEW IN THIS SHELL, not a
     // second page in a new tab. It keeps the rail, the session and the design
@@ -557,6 +557,7 @@
     // string — the rail hides it and this re-checks it.
     if (dest === 'review') {
       if (!sessionCan('review')) return;
+      teardownFirstRun();
       state.reviewPreview = false;   // a real reviewer, never an admin preview
       switchView('review');
       return;
@@ -572,7 +573,7 @@
     // land them on a dashboard built for physicians. (The API 403s regardless.)
     if (dest === 'tasks' && !sessionHasSurface('real_work')
         && !sessionHasSurface('tutorial')) return;
-    if (dest === 'verification') { state.panel = dest; renderVerificationPanel(); return; }
+    if (dest === 'verification') { teardownFirstRun(); state.panel = dest; renderVerificationPanel(); return; }
     // TASKS FROM INSIDE A CASE.
     //
     // A physician in a case already has state.panel === 'tasks', so the
@@ -584,6 +585,7 @@
     // Handled BEFORE the early return rather than by weakening it, so every
     // other destination keeps its "already here, do not refetch" behaviour.
     if (dest === 'tasks' && state.panel === 'tasks' && state.view !== 'home') {
+      teardownFirstRun();
       saveDraft();
       if (state.view === 'review') teardownReview();
       state.view = 'home';
@@ -591,7 +593,9 @@
       renderDashboardView();
       return;
     }
-    if (dest === state.panel) return; // already here: no needless re-render/refetch
+    const walkthroughOpen = window.FirstRunWalkthrough && window.FirstRunWalkthrough.isOpen();
+    if (dest === state.panel && !walkthroughOpen) return;
+    teardownFirstRun();
     // Leaving the review surface for another rail destination is a no-work
     // transition: Agent P's beats must stop and the keyboard handler must come
     // off the document, or a session accrues paid time against the Guide.
@@ -1951,6 +1955,7 @@
   }
 
   function logout() {
+    teardownFirstRun();
     // §5.2: the elapsed on record must be the elapsed actually worked. Save
     // before anything is torn down — saveDraft() reads state.draft and a live
     // getElapsed() — then stop, so the clock cannot run on past the session.
@@ -11219,6 +11224,7 @@
 
   // ─── Start / skip / submit ─────────────────────────────────────────────────
   async function startTutorial(opts) {
+    teardownFirstRun();
     opts = opts || {};
     // THE DRAFT SURVIVES, and the pointer does not.
     //

@@ -298,6 +298,89 @@ def test_nobody_can_download_another_physicians_signed_agreement():
     assert client.get(url, headers=A.headers_for(b)).status_code == 404
 
 
+def test_download_preserves_signed_bytes_after_profile_name_changes(tmp_path, monkeypatch):
+    from asclepius import assets
+    from scripts.data_inventory import snapshot, compare
+    import sqlite3
+    import shutil
+
+    monkeypatch.setenv("ASCLEPIUS_ASSET_STORE", str(tmp_path / "assets"))
+    doc = _physician()
+    _store().update_own_profile(doc["id"], full_name="Asha Rao")
+    signed = _sign(doc, typed_name="Asha Rao").json()["signed"]
+    row = _store().latest_physician_agreement(doc["id"])
+    original, _ = assets.load_asset(row["pdf_sha256"], verify=True)
+    _store().update_own_profile(doc["id"], full_name="Asha Rao Patel")
+    before = snapshot(_store().db_path, {"agreements": tmp_path / "assets"})
+    backup = tmp_path / "before.db"
+    with sqlite3.connect(_store().db_path) as source, sqlite3.connect(backup) as dest:
+        source.backup(dest)
+    restored_assets = tmp_path / "restored-assets"
+    shutil.copytree(tmp_path / "assets", restored_assets)
+    assert compare(before, snapshot(backup, {"agreements": restored_assets})) == []
+
+    got = client.get(signed["pdf_url"], headers=A.headers_for(doc))
+    assert got.status_code == 200
+    assert got.content == original
+    assert got.headers["X-Asclepius-Pdf-Matches-Signature"] == "1"
+    assert compare(before, snapshot(_store().db_path, {"agreements": tmp_path / "assets"})) == []
+
+
+def test_signature_timestamp_matches_the_filed_pdf(monkeypatch):
+    monkeypatch.setattr(PA, "utcnow_iso", lambda: "2026-09-21T23:59:59Z")
+    doc = _physician()
+    _store().update_own_profile(doc["id"], full_name="Asha Rao")
+    assert _sign(doc).status_code == 200
+    assert _store().latest_physician_agreement(doc["id"])["signed_at"] == "2026-09-21T23:59:59Z"
+
+
+@pytest.mark.parametrize("changed_name", [False, True])
+def test_missing_signed_blob_recovers_only_matching_original(monkeypatch, changed_name):
+    from asclepius import assets
+    doc = _physician()
+    _store().update_own_profile(doc["id"], full_name="Asha Rao")
+    url = _sign(doc, typed_name="Asha Rao").json()["signed"]["pdf_url"]
+    row = _store().latest_physician_agreement(doc["id"])
+    original, _ = assets.load_asset(row["pdf_sha256"], verify=True)
+    if changed_name:
+        _store().update_own_profile(doc["id"], full_name="Asha Rao Patel")
+
+    def unavailable(*args, **kwargs):
+        raise assets.AssetError("storage unavailable")
+    monkeypatch.setattr(assets, "load_asset", unavailable)
+    got = client.get(url, headers=A.headers_for(doc))
+    assert got.status_code == 200
+    assert got.content == original
+    assert _store().latest_physician_agreement(doc["id"]) == row
+
+
+def test_missing_blob_never_returns_a_different_signed_contract(monkeypatch):
+    from asclepius import assets
+    doc = _physician()
+    _store().update_own_profile(doc["id"], full_name="Asha Rao")
+    url = _sign(doc, typed_name="Asha R. Rao").json()["signed"]["pdf_url"]
+    row = _store().latest_physician_agreement(doc["id"])
+    _store().update_own_profile(doc["id"], full_name="Asha Rao Patel")
+
+    def unavailable(*args, **kwargs):
+        raise assets.AssetError("storage unavailable")
+    monkeypatch.setattr(assets, "load_asset", unavailable)
+    got = client.get(url, headers=A.headers_for(doc))
+    assert got.status_code == 503
+    assert _store().latest_physician_agreement(doc["id"]) == row
+
+
+def test_signature_storage_failure_does_not_create_a_signature(monkeypatch):
+    from asclepius import assets
+    doc = _physician()
+
+    def full_disk(*args, **kwargs):
+        raise OSError("No space left on device")
+    monkeypatch.setattr(assets, "_write_blob", full_disk)
+    assert _sign(doc).status_code == 503
+    assert _store().latest_physician_agreement(doc["id"]) is None
+
+
 # ─── Supersession ────────────────────────────────────────────────────────────
 def test_a_never_signed_physician_and_a_current_one_are_told_apart():
     """Two different conversations, so two different tokens rather than one

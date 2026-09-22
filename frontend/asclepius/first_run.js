@@ -126,6 +126,9 @@
   var returnTo = null;     // set while ONE stop was opened from the re-entry page
   var demoOpener = null;
   var objectUrl = null;    // blob: URL for the authenticated video, revoked on close
+  var generation = 0;     // invalidates requests when the walkthrough is left
+  var saving = false;
+  var active = false;
 
   function h() { return ctx.h.apply(null, arguments); }
 
@@ -173,21 +176,54 @@
     return (isFinite(n) && n >= 1) ? n : 1;
   }
 
-  /** Record a transition and move on.
-   *
-   *  The local map is updated FIRST and the request is fire-and-forget, on
-   *  purpose: a physician clicking through must not wait on a round trip to see
-   *  the next screen, and the worst case of a dropped write is that one stop
-   *  reappears on their next login. The opposite trade — blocking the UI on the
-   *  network — makes every stop feel broken on a hotel connection. It is also
-   *  why the server's required-stop gate refuses only what a correct client
-   *  would never send: a dropped PATCH must cost one extra screen, never access
-   *  to work.
-   *
-   *  `done` is monotonic on both sides. `deferred` is rewritten every session
-   *  it is offered and declined, so unlike the old `skipped` it does NOT guard
-   *  on "already closed" — only on "already done", which a defer must never
-   *  undo. */
+  // Bound optional media reads and checklist saves, including a connection
+  // which never resolves. Retrying a checklist transition is idempotent.
+  function request(context, path, opts, timeout) {
+    var controller = new AbortController();
+    var timer;
+    var expired = new Promise(function (_, reject) {
+      timer = setTimeout(function () {
+        controller.abort();
+        reject(new Error('Request timed out'));
+      }, timeout);
+    });
+    return Promise.race([
+      context.api(path, Object.assign({}, opts, { signal: controller.signal })), expired,
+    ]).finally(function () { clearTimeout(timer); });
+  }
+
+  // Advance only after the server records the choice. A failed save leaves the
+  // same controls available for retry instead of replaying completed screens
+  // on the next login. Ignore responses from a screen/session already left.
+  function save(body, apply, next) {
+    if (saving) return;
+    saving = true;
+    var owner = ctx, version = generation;
+    var buttons = Array.from(document.body.querySelectorAll('.asc-fr-stage button'))
+      .filter(function (button) { return !button.disabled; });
+    buttons.forEach(function (button) { button.disabled = true; });
+    function unlock() {
+      saving = false;
+      buttons.forEach(function (button) { button.disabled = false; });
+    }
+    request(owner, '/me/first-run', { method: 'PATCH', body: body }, 12000)
+      .then(function (user) {
+        if (version !== generation) return;
+        unlock();
+        if (apply) apply();
+        if (user) {
+          owner.user = user;
+          if (owner.onUser) owner.onUser(user);
+        }
+        if (typeof next === 'function') next();
+      }, function () {
+        if (version !== generation) return;
+        unlock();
+        owner.toast('Could not save your progress. Please try again.', 'error');
+      });
+  }
+
+  /** Record one stop, preserving monotonic done and retryable deferrals. */
   function write(id, outcome, next) {
     if (isRequired(id) && outcome !== DONE) {
       // Unreachable through the UI — required stops render no skip control —
@@ -196,13 +232,9 @@
       outcome = DONE;
     }
     if (!isDone(id)) {
-      stops[id] = outcome;
-      ctx.api('/me/first-run', {
-        method: 'PATCH',
-        body: { action: outcome === DEFERRED ? 'defer' : 'done', stop: id },
-      }).then(function (user) {
-        if (user && ctx.onUser) ctx.onUser(user);
-      }).catch(function () { /* best-effort: see above */ });
+      save({ action: outcome === DEFERRED ? 'defer' : 'done', stop: id },
+        function () { stops[id] = outcome; }, next);
+      return;
     }
     if (typeof next === 'function') next();
   }
@@ -218,10 +250,10 @@
   function deferAll(next) {
     var remaining = optionalRemaining();
     if (remaining.length) {
-      remaining.forEach(function (id) { stops[id] = DEFERRED; });
-      ctx.api('/me/first-run', { method: 'PATCH', body: { action: 'defer_all' } })
-        .then(function (user) { if (user && ctx.onUser) ctx.onUser(user); })
-        .catch(function () { /* best-effort: see above */ });
+      save({ action: 'defer_all' }, function () {
+        remaining.forEach(function (id) { stops[id] = DEFERRED; });
+      }, next);
+      return;
     }
     if (typeof next === 'function') next();
   }
@@ -809,18 +841,15 @@
     ctx.setRoot(stopShell({
       body: body,
       primary: primaryBtn('Go to my dashboard →', function () {
-        dismiss();
-        ctx.exit();
+        dismiss(function () { ctx.exit(); });
       }),
     }));
   }
 
   /** Collapse the checklist for good. Only offered at the end, and only ever by
    *  a deliberate click — nothing dismisses this on the physician's behalf. */
-  function dismiss() {
-    ctx.api('/me/first-run', { method: 'PATCH', body: { action: 'dismiss' } })
-      .then(function (user) { if (user && ctx.onUser) ctx.onUser(user); })
-      .catch(function () { /* best-effort */ });
+  function dismiss(next) {
+    save({ action: 'dismiss' }, null, next);
   }
 
   /* ═══════════════════════════════════════════════════════════════════════
@@ -920,8 +949,7 @@
    *  server-side, and a client that also counted would run the cadence at the
    *  speed of page loads. */
   function leaveReentry() {
-    unbindReentryEsc();
-    deferAll(function () { ctx.exit(); });
+    deferAll(function () { unbindReentryEsc(); ctx.exit(); });
   }
 
   /** Open ONE optional stop from the re-entry page, and come back here after.
@@ -958,6 +986,10 @@
      ═══════════════════════════════════════════════════════════════════════ */
 
   function teardownChrome() {
+    generation++;
+    saving = false;
+    active = false;
+    current = null;
     closeDemo();
     unbindReentryEsc();
   }
@@ -987,15 +1019,21 @@
    *  to "no demo" rather than leaving the probe pending forever — stop 2 waits
    *  on this promise, so a probe that never settles would hang the screen. */
   function probeDemo() {
+    var version = generation;
     demoMeta = null;
-    demoProbe = ctx.api('/assets/onboarding-demo/meta')
-      .then(function (meta) { demoMeta = meta || { available: false }; })
-      .catch(function () { demoMeta = { available: false }; });
+    demoProbe = request(ctx, '/assets/onboarding-demo/meta', {}, 5000)
+      .then(function (meta) {
+        if (version === generation) demoMeta = meta || { available: false };
+      })
+      .catch(function () {
+        if (version === generation) demoMeta = { available: false };
+      });
     return demoProbe;
   }
 
   window.FirstRunWalkthrough = {
     STOPS: STOPS,
+    isOpen: function () { return active; },
 
     /** Should the walkthrough open on this login?
      *
@@ -1069,9 +1107,12 @@
      *  the card out rather than offering a button that does nothing.
      */
     playDemo: function (context) {
+      teardownChrome();
       ctx = context;
+      var version = generation;
       standaloneDemo = true;
       return probeDemo().then(function () {
+        if (version !== generation) return false;
         if (!demoMeta || !demoMeta.available) { standaloneDemo = false; return false; }
         openDemo();
         return true;
@@ -1096,6 +1137,8 @@
 
     /** Open the walkthrough at the first unfinished stop. */
     start: function (context) {
+      teardownChrome();
+      active = true;
       ctx = context;
       stops = readState(context.user);
       returnTo = null;
@@ -1109,6 +1152,8 @@
      *  dashboard chip. Re-probes, because a resume can be minutes or days after
      *  the start and the demo may have been uploaded in between. */
     resume: function (context) {
+      teardownChrome();
+      active = true;
       ctx = context;
       stops = readState(context.user);
       returnTo = null;
@@ -1122,6 +1167,8 @@
      *  `mode()` and calls this or `resume()`. One question, one answer, one
      *  place. */
     reentry: function (context) {
+      teardownChrome();
+      active = true;
       ctx = context;
       stops = readState(context.user);
       returnTo = null;

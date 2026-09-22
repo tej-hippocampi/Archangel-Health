@@ -139,6 +139,80 @@ def _ctx(user: dict | None = None, demo: dict | None = None) -> str:
 # The stops
 # ═════════════════════════════════════════════════════════════════════════════
 
+def test_failed_welcome_write_keeps_the_stop_open_for_retry():
+    out = _run_node(_ctx() + """
+      var originalApi = ctx.api, errors = [];
+      ctx.toast = function (message) { errors.push(message); };
+      ctx.api = function (path, opts) {
+        if (path === '/me/first-run') return Promise.reject(new Error('offline'));
+        return originalApi(path, opts);
+      };
+      window.FirstRunWalkthrough.start(ctx);
+      done(function () {
+        find(rootNode, 'asc-btn-primary')[0].dispatch('click');
+        done(function () {
+          console.log(JSON.stringify({ text: textOf(rootNode), errors: errors }));
+        });
+      });
+    """)
+    assert "Welcome to Archangel Health." in out["text"]
+    assert out["errors"] == ["Could not save your progress. Please try again."]
+
+
+def test_demo_probe_cannot_reopen_walkthrough_after_exit():
+    out = _run_node(_ctx(user={"first_run": {"stops": {"welcome": "done"}}}) + """
+      var resolveMeta;
+      ctx.api = function () { return new Promise(function (resolve) { resolveMeta = resolve; }); };
+      window.FirstRunWalkthrough.start(ctx);
+      window.FirstRunWalkthrough.teardown();
+      rootNode = h('div', {}, 'Dashboard');
+      resolveMeta(DEMO);
+      done(function () {
+        console.log(JSON.stringify({ text: textOf(rootNode) }));
+      });
+    """)
+    assert out["text"] == "Dashboard"
+
+
+def test_stalled_demo_probe_does_not_block_starting_practice():
+    out = _run_node(_ctx(user={"first_run": {"stops": {"welcome": "done"}}}) + """
+      var realTimer = setTimeout, aborted = false;
+      globalThis.setTimeout = function (fn, ms) { return realTimer(fn, ms === 5000 ? 0 : ms); };
+      ctx.api = function (path, opts) {
+        opts.signal.addEventListener('abort', function () { aborted = true; });
+        return new Promise(function () {});
+      };
+      window.FirstRunWalkthrough.start(ctx);
+      done(function () { done(function () {
+        console.log(JSON.stringify({ text: textOf(rootNode), aborted: aborted }));
+      }); });
+    """)
+    assert "Start the practice case" in out["text"]
+    assert "One moment" not in out["text"]
+    assert out["aborted"]
+
+
+def test_late_save_cannot_update_the_next_account_or_screen():
+    out = _run_node(_ctx() + """
+      var originalApi = ctx.api, resolveSave, updates = [];
+      ctx.onUser = function (user) { updates.push(user.id); };
+      ctx.api = function (path, opts) {
+        if (path === '/me/first-run') return new Promise(function (resolve) { resolveSave = resolve; });
+        return originalApi(path, opts);
+      };
+      window.FirstRunWalkthrough.start(ctx);
+      find(rootNode, 'asc-btn-primary')[0].dispatch('click');
+      window.FirstRunWalkthrough.teardown();
+      var nextContext = Object.assign({}, ctx, {api: originalApi, user: {id: 'second', first_run: {stops: {}}}});
+      window.FirstRunWalkthrough.start(nextContext);
+      resolveSave({id:'first', first_run:{stops:{welcome:'done'}}});
+      done(function () {
+        console.log(JSON.stringify({ text: textOf(rootNode), updates: updates, handoffs: handoffs }));
+      });
+    """)
+    assert "Welcome to Archangel Health." in out["text"]
+    assert out["updates"] == out["handoffs"] == []
+
 def test_a_fresh_physician_lands_in_the_welcome_letter():
     out = _run_node(_ctx() + """
       window.FirstRunWalkthrough.start(ctx);
@@ -190,8 +264,10 @@ def test_no_stop_ever_shows_two_primaries_or_two_ways_to_do_one_thing():
         // The right-hand choice card is the way forward now that this required
         // stop has no skip control.
         find(rootNode, 'asc-fr-choice').slice(-1)[0].dispatch('click');
-        snapshot('practice-handoff');
-        console.log(JSON.stringify({ seen: seen, handoffs: handoffs }));
+        done(function () {
+          snapshot('practice-handoff');
+          console.log(JSON.stringify({ seen: seen, handoffs: handoffs }));
+        });
       }); });
     """)
     start = out["seen"][0]
@@ -428,12 +504,14 @@ def test_the_manual_stop_offers_the_founders_intro_and_finishes_the_checklist():
           });
         })(rootNode);
         find(rootNode, 'asc-fr-skip')[0].dispatch('click');
+        done(function () {
         console.log(JSON.stringify({
           links: links,
           finished: textOf(rootNode),
           handoffs: handoffs,
           calls: apiCalls.filter(function (c) { return c.path === '/me/first-run'; }),
         }));
+        });
       });
     """)
     # ONE physician calendar. This and the welcome email pointed at two
@@ -514,10 +592,12 @@ def test_the_finish_card_dismisses_the_checklist_for_good():
       window.FirstRunWalkthrough.resume(ctx);
       done(function () {
         find(rootNode, 'asc-btn-primary')[0].dispatch('click');
+        done(function () {
         console.log(JSON.stringify({
           calls: apiCalls.filter(function (c) { return c.path === '/me/first-run'; }),
           handoffs: handoffs,
         }));
+        });
       });
     """)
     assert {"path": "/me/first-run", "method": "PATCH",
@@ -714,14 +794,17 @@ def test_skipping_practice_keeps_each_remaining_stop_interactive():
       var community = textOf(rootNode);
       var count = textOf(find(rootNode, 'asc-fr-check-count')[0]);
       find(rootNode, 'asc-btn-primary')[0].dispatch('click');
+      done(function () {
       var earnings = textOf(rootNode);
       find(rootNode, 'asc-fr-skip')[0].dispatch('click');
+      done(function () {
       var manual = textOf(rootNode);
       find(rootNode, 'asc-btn-primary')[0].dispatch('click');
       done(function () { console.log(JSON.stringify({
         community: community, earnings: earnings, manual: manual,
         count: count, calls: apiCalls, handoffs: handoffs,
       })); });
+      }); });
     """)
     assert "This is our Slack." in out["community"]
     assert "skipped" in out["community"]

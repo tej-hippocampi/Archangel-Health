@@ -64,7 +64,7 @@ def test_tasks_works_from_inside_a_case():
     would have left the browser's Back as the only way out of a case.
     """
     panel = _CODE[_CODE.index("function setPanel"):][:4000]
-    guard = panel.index("if (dest === state.panel) return;")
+    guard = panel.index("if (dest === state.panel && !walkthroughOpen) return;")
     reset = panel.index("dest === 'tasks' && state.panel === 'tasks'")
     assert reset < guard, "the Tasks reset is behind the early return again"
 

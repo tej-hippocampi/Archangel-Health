@@ -533,8 +533,9 @@ def test_the_shell_tears_the_walkthrough_down_on_every_navigation():
     assert "function teardownFirstRun()" in js
     assert "window.FirstRunWalkthrough.teardown()" in js
     setpanel = js[js.index("function setPanel(dest)"):]
-    setpanel = setpanel[:setpanel.index("if (dest === 'community')")]
+    setpanel = setpanel[:setpanel.index("\n  }")]
     assert "teardownFirstRun();" in setpanel, "the rail can navigate away untorn-down"
+    assert setpanel.index("if (dest === 'community')") < setpanel.index("teardownFirstRun();")
     ctx_fn = js[js.index("function firstRunCtx()"):]
     ctx_fn = ctx_fn[:ctx_fn.index("\n  }")]
     assert "teardownFirstRun();" in ctx_fn, "exit can leave handlers behind"
