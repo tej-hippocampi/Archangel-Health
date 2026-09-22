@@ -718,8 +718,7 @@
     var body = h('div', {},
       h('h1', { class: 'asc-fr-title' }, 'How you get paid.'),
       h('p', { class: 'asc-fr-body' },
-        'Every case you complete accrues in Earnings, $75 per completed case, '
-        + 'visible immediately.'),
+        'Every case you complete accrues in earnings, visible immediately'),
       // Disabled and clearly labelled, per §6 stop 5, until the payments rail is
       // live. It is architecture on screen: the card and the `bank_link_status`
       // field exist now, and Stripe lands on the payments track. A card that
