@@ -433,7 +433,7 @@ def test_video_failure_keeps_a_retry_and_does_not_block_exam():
 
 def test_approved_physician_who_skipped_does_not_reenter_practice_on_signin():
     from tests.test_first_run_dom import _ctx, _run_node
-    result = _run_node(_ctx() + _fn('enterApp') + """
+    result = _run_node(_ctx() + _fn('readBankLinkHash') + _fn('enterApp') + """
       var location = {hash: ''};
       var state = {user: {role: 'evaluator', verification_status: 'approved',
         tutorial: {gate_state: 'locked'}, first_run: {dismissed_at: 'saved'}}};

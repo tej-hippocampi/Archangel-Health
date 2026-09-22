@@ -170,7 +170,13 @@
   // The tag popover is portaled to <body>, so clearing #ascRoot no longer takes
   // it with it. Every re-render goes through here; close it on the way past or
   // it outlives the chip it belongs to.
-  function setRoot(node) { closeTagPopover(); const r = root(); clear(r); r.appendChild(node); }
+  function setRoot(node) {
+    closeTagPopover();
+    // A departed screen cannot start onboarding or redirect a later session.
+    if (window.EarningsSection && window.EarningsSection.reset) window.EarningsSection.reset();
+    if (window.FirstRunWalkthrough && window.FirstRunWalkthrough.cancelBankLink) window.FirstRunWalkthrough.cancelBankLink();
+    const r = root(); clear(r); r.appendChild(node);
+  }
 
   // ─── Fetch helper (injects Bearer, parses JSON, handles 401) ────────────────
   async function api(path, opts) {
@@ -424,7 +430,9 @@
    * physician's referral card has no business being handed an upload-specialty
    * resolver or a jump into Task Routing. */
   function sectionCtx() {
-    return { h, api, clear, toast, loadingCard, fmtDate, avatarBlob: loadAvatarBlob };
+    const token = state.token;
+    return { h, api, clear, toast, loadingCard, fmtDate, avatarBlob: loadAvatarBlob,
+      isCurrentSession: () => !!token && token === state.token };
   }
 
   function reviewSectionCtx() {
@@ -1814,6 +1822,15 @@
     return true;
   }
 
+  function readBankLinkHash() {
+    const actions = { '#earnings': 'return', '#earnings?stripe=return': 'return', '#earnings?stripe=refresh': 'refresh' };
+    const action = actions[location.hash || ''];
+    if (!action) return null;
+    try { history.replaceState(null, '', location.pathname + location.search); }
+    catch (e) { /* the in-memory action is still consumed once by this entry */ }
+    return action;
+  }
+
   function enterApp() {
     // Land on the dashboard (home), not straight into a case. The dashboard
     // routes into the existing eval flow when the doctor picks or starts a case.
@@ -1853,6 +1870,12 @@
     // the credential in their inbox stops working the moment they do this, and
     // that is the whole reason it is temporary.
     if (state.user.must_change_password) { renderRotateTempPassword(); return; }
+    const bankLinkAction = readBankLinkHash();
+    if (bankLinkAction && sessionHasSurface('earnings')) {
+      state.bankLinkAction = bankLinkAction;
+      setPanel('earnings');
+      return;
+    }
     // Shared entry for environment annotations and saved work awaiting a signature.
     if (location.hash === '#agreement') {
       history.replaceState(null, '', location.pathname + location.search);
@@ -2078,8 +2101,10 @@
   //  rail and the routes it hands off to. This is the whole seam between them.
   // ═══════════════════════════════════════════════════════════════════════════
   function firstRunCtx() {
+    const token = state.token;
     return {
       h, api, toast, setRoot,
+      isCurrentSession: () => !!token && token === state.token,
       user: state.user,
       // Every stop transition returns the refreshed user, so the session's copy
       // of the checklist stays current without a second fetch — which is what
@@ -10364,7 +10389,12 @@
     const body = h('div', { id: 'ascEarningsBody' });
     setRoot(h('div', { class: 'asc-wrap' }, body));
     if (window.EarningsSection && typeof window.EarningsSection.render === 'function') {
-      window.EarningsSection.render(body, sectionCtx());
+      const ctx = Object.assign(sectionCtx(), {
+        bankLinkEnabled: !!state.user.bank_link_enabled && !sessionIsProvisional(),
+        bankLinkAction: state.bankLinkAction || null,
+      });
+      state.bankLinkAction = null;
+      window.EarningsSection.render(body, ctx);
       return;
     }
     // A VISIBLE error, never a quiet placeholder — and never a reassuring $0.

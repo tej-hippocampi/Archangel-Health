@@ -1782,6 +1782,7 @@ def _bank_link_dark(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
     dependencies=[Depends(rate_limiter("asclepius_bank_link_start", 20, 600))],
 )
 async def start_bank_link(
+    response: Response,
     # An APPLICANT must not begin Stripe Connect onboarding. This was
     # get_current_account, which admits anyone whose account is alive, so a
     # physician nobody had verified could open a payout account against our
@@ -1808,6 +1809,7 @@ async def start_bank_link(
     from asclepius import referrals as _asc_referrals      # noqa: PLC0415
 
     store = _store()
+    response.headers['Cache-Control'] = 'no-store'
     if not stripe_rail.enabled():
         return _bank_link_dark(store, user)
 
@@ -1847,6 +1849,7 @@ async def start_bank_link(
 
 @router.get("/me/bank-link")
 async def get_bank_link(
+    response: Response,
     # Same gate as starting one, for the same reason: this reads live Stripe
     # state for an account that should not exist yet.
     user: Dict[str, Any] = Depends(asc_auth.require_full_access),
@@ -1867,6 +1870,7 @@ async def get_bank_link(
     from asclepius import stripe_rail                      # noqa: PLC0415
 
     store = _store()
+    response.headers['Cache-Control'] = 'no-store'
     if not stripe_rail.enabled():
         return {"ok": True, "bank_link_status": "coming_soon"}
 
