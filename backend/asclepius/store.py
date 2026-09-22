@@ -13575,6 +13575,7 @@ class AsclepiusStore:
         signer_email: Optional[str] = None, pdf_sha256: Optional[str] = None,
         ip: Optional[str] = None, user_agent: Optional[str] = None,
         attestations: Optional[Dict[str, Any]] = None,
+        signed_at: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Insert one signature. There is no update counterpart, by design and by
         trigger: a corrected agreement is a new document version and a new row,
@@ -13586,7 +13587,7 @@ class AsclepiusStore:
         changes an answer must not silently change what their signed agreement
         recorded, which is the whole reason the row is append-only."""
         agreement_id = uuid.uuid4().hex
-        now = _utcnow_iso()
+        now = signed_at or _utcnow_iso()
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO physician_agreements (agreement_id, user_id, doc_version, "

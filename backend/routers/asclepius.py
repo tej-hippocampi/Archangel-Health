@@ -1232,7 +1232,7 @@ async def sign_my_agreement(
         doc_sha256=sha, pdf_sha256=pdf_sha, signer_email=row.get("email") or "",
         typed_name=typed_name, signed_initials=initials, consent_esign=True,
         ip=signature["ip"], user_agent=signature["user_agent"],
-        attestations=attestations)
+        attestations=attestations, signed_at=signed_at)
     store.log_event(
         entity_type="user", entity_id=user["id"],
         event_type="physician_agreement_signed", actor=user.get("email"),
@@ -1255,11 +1255,9 @@ async def my_agreement_pdf(
     signer's executed contract into a document they never saw. That is the
     single most important property of this endpoint.
 
-    Rebuilt rather than served from the blob, and then CHECKED against the
-    stored hash: the row is the record, so a lost blob is an inconvenience
-    rather than the loss of a contract. A mismatch is said plainly in a header
-    instead of being hidden, because a document that differs from the one that
-    was hashed and emailed is a different document.
+    Serve the hash-verified original. A profile-name change must never rewrite
+    the executed contract. Rebuild only when the stored blob is unavailable
+    and the result matches the bytes filed at signature.
     """
     from asclepius import physician_agreement as asc_pagreement
 
@@ -1270,13 +1268,27 @@ async def my_agreement_pdf(
     me = store.get_user_by_id(user["id"]) or {}
     who = me.get("full_name") or me.get("email") or ""
     try:
-        pdf = asc_pagreement.pdf_from_row(physician=who, row=row)
-    except asc_pagreement.AgreementError:
-        log.exception("signed physician agreement %s cannot be rebuilt", agreement_id)
-        raise HTTPException(
-            status_code=503,
-            detail="Your signed copy could not be rebuilt just now. The "
-                   "signature record itself is unaffected.")
+        pdf, _ = asc_assets.load_asset(row.get("pdf_sha256") or "", verify=True)
+    except (asc_assets.AssetError, OSError, ValueError):
+        pdf = None
+        # Historical rows have no immutable profile-name column. A name is a
+        # candidate only: the signed PDF checksum must prove the reconstruction.
+        for candidate in dict.fromkeys((who, row.get("typed_name"), row.get("signer_email"))):
+            if not candidate:
+                continue
+            try:
+                rebuilt = asc_pagreement.pdf_from_row(physician=candidate, row=row)
+            except asc_pagreement.AgreementError:
+                continue
+            if hashlib.sha256(rebuilt).hexdigest() == row.get("pdf_sha256"):
+                pdf = rebuilt
+                break
+        if pdf is None:
+            log.error("signed physician agreement %s cannot be recovered with its original hash", agreement_id)
+            raise HTTPException(
+                status_code=503,
+                detail="Your signed copy could not be fetched just now. The "
+                       "signature record itself is unaffected. Please contact support.")
     matches = hashlib.sha256(pdf).hexdigest() == (row.get("pdf_sha256") or "")
     filename = asc_pagreement.pdf_filename(
         physician=who, version=str(row.get("doc_version") or ""))

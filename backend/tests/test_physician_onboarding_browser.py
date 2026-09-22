@@ -551,6 +551,87 @@ def test_accepted_doctor_sees_waiting_state_after_welcome(accepted_portal):
     assert not portal.errors, portal.errors
 
 
+@pytest.mark.parametrize("width", [1440, 390])
+def test_accepted_welcome_save_failure_can_be_retried(accepted_portal, width):
+    from playwright.sync_api import expect
+
+    portal = accepted_portal(welcome_complete=False, width=width)
+    page = portal.page
+    page.goto("http://testserver/asclepius")
+    portal.overrides["/api/asclepius/me/first-run"] = (503, {"detail": "Temporarily unavailable"})
+    page.get_by_role("button", name="Let’s get you started →", exact=True).click()
+    expect(page.get_by_text("Could not save your progress. Please try again.", exact=True)).to_be_visible()
+    expect(page.get_by_role("heading", name="Welcome to Archangel Health.", exact=True)).to_be_visible()
+    assert "welcome" not in portal.store.get_first_run(portal.user["id"])["stops"]
+    del portal.overrides["/api/asclepius/me/first-run"]
+    page.get_by_role("button", name="Let’s get you started →", exact=True).click()
+    expect(page.get_by_role("heading", name="Where would you like to start?", exact=True)).to_be_visible()
+    assert portal.store.get_first_run(portal.user["id"])["stops"]["welcome"] == "done"
+    page.reload()
+    expect(page.get_by_role("heading", name="Where would you like to start?", exact=True)).to_be_visible()
+    assert not portal.errors, portal.errors
+
+
+@pytest.mark.parametrize("destination", ["tasks", "community"])
+def test_accepted_welcome_navigation_during_save(accepted_portal, destination):
+    from playwright.sync_api import expect
+
+    portal = accepted_portal(welcome_complete=False)
+    page, pending = portal.page, []
+    page.route("**/api/asclepius/me/first-run", lambda route: pending.append(route))
+    page.goto("http://testserver/asclepius")
+    button = page.get_by_role("button", name="Let’s get you started →", exact=True)
+    button.click()
+    expect(button).to_be_disabled()
+    if destination == "tasks":
+        page.get_by_role("button", name="Tasks", exact=True).click()
+        expect(page.get_by_text(_WAITING_COPY, exact=True)).to_be_visible()
+    else:
+        with page.expect_popup() as popup:
+            page.get_by_role("button", name="Community (opens in a new tab)", exact=True).click()
+        popup.value.wait_for_load_state()
+        popup.value.close()
+        expect(button).to_be_disabled()
+    assert len(pending) == 1
+    request = pending[0].request
+    response = portal.client.patch("/api/asclepius/me/first-run",
+        content=request.post_data_buffer, headers=request.headers)
+    pending[0].fulfill(status=response.status_code, json=response.json())
+    if destination == "tasks":
+        expect(page.get_by_text(_WAITING_COPY, exact=True)).to_be_visible()
+        expect(page.locator(".asc-fr-stage")).to_have_count(0)
+    else:
+        expect(page.get_by_role("heading", name="Where would you like to start?", exact=True)).to_be_visible()
+    assert not portal.errors, portal.errors
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_accepted_welcome_opens_community_and_manual(accepted_portal, width):
+    from playwright.sync_api import expect
+
+    portal = accepted_portal(welcome_complete=False, width=width)
+    portal.store.set_first_run(portal.user["id"], {"version": 1,
+        "stops": {"welcome": "done", "start": "done"},
+        "practice_skipped_at": "2026-09-21T00:00:00Z"})
+    page = portal.page
+    page.goto("http://testserver/asclepius")
+    page.get_by_role("button", name="Finish these now", exact=True).click()
+    with page.expect_popup() as popup:
+        page.get_by_role("button", name="Open the community", exact=True).click()
+    popup.value.wait_for_load_state()
+    expect(popup.value.locator("#cmRoot")).to_contain_text("introductions")
+    popup.value.close()
+    expect(page.get_by_role("heading", name="How you get paid.", exact=True)).to_be_visible()
+    page.get_by_role("button", name="Do this later", exact=True).click()
+    page.get_by_role("button", name="Open the manual", exact=True).click()
+    expect(page.locator(".asc-guide-h1")).to_have_text("How to produce a premium record")
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    state = portal.store.get_first_run(portal.user["id"])
+    assert state["stops"]["community"] == state["stops"]["manual"] == "done"
+    assert state["practice_skipped_at"]
+    assert not portal.errors, portal.errors
+
+
 def test_assigned_review_card_never_claims_there_is_no_review_work(accepted_portal):
     from playwright.sync_api import expect
 
