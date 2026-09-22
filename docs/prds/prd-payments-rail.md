@@ -16,6 +16,17 @@ The original plan below describes the flag-gated Connect rail. The September
 contract; notification touchpoints remain product requirements, not evidence of
 deployment or provider acceptance.
 
+## September 19, 2026 operations amendment
+
+The [payment operations runbook](../payments/OPERATIONS.md) and
+[data-preservation record](../data-safety/2026-09-19-payment-automation.md)
+supersede earlier assumptions that Express onboarding automatically files 1099s.
+Tax collection, W-9 certification, annual form settings, reconciliation, delivery
+and explicit filing are separate steps. Every new payment batch requires manual
+approval; the worker only dispatches that frozen selection. Bank payouts are
+tracked independently of transfers. Tax reviews and bank status are mode-scoped.
+New processing and live execution remain disabled by default.
+
 ## Original problem (from the meeting)
 
 Physicians are paid for labeled cases and the meeting treats payouts plus 1099
@@ -195,17 +206,17 @@ bank account number or a tax id. This PRD builds exactly that commitment.
 ## Current code map
 
 - `mark_paid` in `backend/asclepius/payments.py:2003` owns the ledger decision.
-- `mark_paid` in `backend/routers/asclepius_payments.py:975` and
-  `admin_pay_earnings` in `backend/routers/asclepius_payments.py:1758` dispatch
+- `mark_paid` in `backend/routers/asclepius_payments.py:976` and
+  `admin_pay_earnings` in `backend/routers/asclepius_payments.py:1769` dispatch
   transfers only after the ledger commit, with the rail enabled.
 - `register_bank_link_interest` in `backend/routers/asclepius.py:1741` records
   the waiting list while the rail is disabled.
 - `comingSoonBankCard` in `frontend/asclepius/first_run.js:646` and `liveBankCard`
   in `frontend/asclepius/first_run.js:667` render the flag-dependent bank card.
-- `claim_stripe_transfer` in `backend/asclepius/store.py:6700` enforces the
+- `claim_stripe_transfer` in `backend/asclepius/store.py:6740` enforces the
   durable retry window; `recover_stripe_transfer` in
-  `backend/asclepius/store.py:6741` reconciles matching signed webhooks.
-- `webhook_storage_object` in `backend/asclepius/stripe_rail.py:328` defines
+  `backend/asclepius/store.py:6781` reconciles matching signed webhooks.
+- `webhook_storage_object` in `backend/asclepius/stripe_rail.py:354` defines
   the persisted allowlist. The SDK is pinned in `backend/requirements.txt`.
 
 ## Gaps / changes per file

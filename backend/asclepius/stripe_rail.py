@@ -9,9 +9,8 @@ in the same deploy as the code that will one day move money.
 
 WHAT WE STORE, IN FULL: a physician's Connect account id, and a status word.
 Not a bank account number, not a routing number, not an SSN, not an EIN, not a
-TIN. Stripe collects tax identity during Express onboarding and files the
-1099-NECs, and delegating that is only defensible while we hold nothing worth
-breaching. Anything richer than id plus status is READ from Stripe at the
+TIN. Configure tax information collection and 1099 filing separately in Stripe;
+Express onboarding alone does not file tax forms. Compliance state is READ from Stripe at the
 moment an admin asks and never cached, because a cached copy of compliance
 state is a stale copy from the moment Stripe updates it.
 
@@ -79,6 +78,10 @@ def secret_key() -> str:
 
 def webhook_secret() -> str:
     return (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
+
+
+def connect_webhook_secret() -> str:
+    return (os.getenv('STRIPE_CONNECT_WEBHOOK_SECRET') or '').strip()
 
 
 def mode() -> str:
@@ -152,12 +155,10 @@ def create_express_account(*, email: Optional[str] = None,
     account = stripe.Account.create(
         type="express",
         email=email or None,
-        # Express, so Stripe owns the onboarding form, the identity documents and
-        # the tax forms. Requesting card_payments would make us a merchant of
-        # record for these accounts, which is a different regulatory posture for
-        # no benefit: we send money out and never take it in.
+        # Stripe hosts identity and bank onboarding. Request only transfers:
+        # these accounts receive contractor compensation, not customer charges.
         capabilities={"transfers": {"requested": True}},
-        business_type="individual",
+        # Hosted onboarding collects the actual payee type (individual/company).
         # Our id, on their object, so a Stripe-side investigation can be traced
         # back without us storing a second copy of their identity.
         metadata={"asclepius_user_id": user_id or ""},
@@ -178,6 +179,10 @@ def create_account_link(account_id: str, *, portal_url: str) -> Dict[str, Any]:
     """
     stripe = sdk()
     base = (portal_url or "").rstrip("/")
+    if os.getenv('ASCLEPIUS_US_TAX_COLLECTION_ENABLED', '0') == '1':
+        account = stripe.Account.retrieve(account_id)
+        if _field(account, 'country') == 'US':
+            enable_us_tax_collection(account_id)
     link = stripe.AccountLink.create(
         account=account_id,
         # Refresh is where Stripe sends a physician whose link expired mid-form.
@@ -194,6 +199,21 @@ def create_account_link(account_id: str, *, portal_url: str) -> Dict[str, Any]:
 def retrieve_account(account_id: str) -> Any:
     stripe = sdk()
     return stripe.Account.retrieve(account_id)
+
+
+def available_balance_cents() -> int:
+    balance = sdk().Balance.retrieve()
+    return sum(int(_field(b, 'amount', 0)) for b in (_field(balance, 'available') or [])
+               if _field(b, 'currency') == 'usd')
+
+
+def enable_us_tax_collection(account_id: str) -> None:
+    """Collect 1099-MISC/NEC identity fields; this does NOT enable tax filing or certify a W-9."""
+    stripe = sdk()
+    account = stripe.Account.retrieve(account_id)
+    if _field(account, 'country') != 'US':
+        raise RailUnavailable('US tax collection requires a US connected account.')
+    stripe.Account.modify(account_id, capabilities={'tax_reporting_us_1099_misc': {'requested': True}})
 
 
 def status_for_account(account: Any) -> str:
@@ -302,11 +322,15 @@ def construct_event(payload: bytes, signature: Optional[str]) -> Dict[str, Any]:
     stripe = sdk(need_webhook_secret=True)
     if not signature:
         raise SignatureInvalid("No Stripe-Signature header.")
-    try:
-        event = stripe.Webhook.construct_event(payload, signature, webhook_secret())
-    except Exception as exc:
-        raise SignatureInvalid(str(exc) or "Signature verification failed.") from exc
-    return _as_event_dict(event)
+    # Platform transfers and connected-account bank payouts have different
+    # Stripe event destinations, each with its own signing secret.
+    for secret in dict.fromkeys(s for s in (webhook_secret(), connect_webhook_secret()) if s):
+        try:
+            event = stripe.Webhook.construct_event(payload, signature, secret)
+            return _as_event_dict(event)
+        except Exception:
+            continue
+    raise SignatureInvalid('Signature verification failed.')
 
 
 def _as_event_dict(event: Any) -> Dict[str, Any]:
@@ -321,6 +345,8 @@ def _as_event_dict(event: Any) -> Dict[str, Any]:
         "id": _field(event, "id"),
         "type": _field(event, "type"),
         "livemode": _field(event, "livemode"),
+        "account": _field(event, "account"),
+        "created": _field(event, "created"),
         "object": obj if isinstance(obj, dict) else {},
     }
 
@@ -333,7 +359,8 @@ def webhook_storage_object(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     obj = event.get('object') or {}
     event_type = event.get('type')
-    prefix = 'acct' if event_type == 'account.updated' else 'tr' if event_type in TRANSFER_EVENTS else None
+    from asclepius.payment_ops import PAYOUT_EVENTS
+    prefix = 'acct' if event_type == 'account.updated' else 'tr' if event_type in TRANSFER_EVENTS else 'po' if event_type in PAYOUT_EVENTS else None
     out: Dict[str, Any] = {}
     identifier = _field(obj, 'id')
     if prefix and isinstance(identifier, str) and re.fullmatch(rf'{prefix}_[A-Za-z0-9_]+', identifier):
@@ -343,6 +370,10 @@ def webhook_storage_object(event: Dict[str, Any]) -> Dict[str, Any]:
         out['restricted'] = bool(_field(_field(obj, 'requirements'), 'disabled_reason'))
     elif event_type in TRANSFER_EVENTS:
         out['reversed'] = transfer_status_from_event(event_type, obj) == 'reversed'
+    elif event_type in PAYOUT_EVENTS:
+        account = event.get('account')
+        if isinstance(account, str) and re.fullmatch(r'acct_[A-Za-z0-9_]+', account):
+            out['account'] = account
     return out
 
 

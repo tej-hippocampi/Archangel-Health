@@ -65,11 +65,11 @@ false; a string, integer, or non-empty initials field is not consent.
 | list_submissions | `list_submissions` at backend/routers/asclepius.py:5812 |
 | get_submission | `get_submission` at backend/routers/asclepius.py:5824 |
 | save_asclepius_attestations | `save_asclepius_attestations` at backend/team_store.py:2177 |
-| provision_user | `provision_user` at backend/asclepius/store.py:4028 |
+| provision_user | `provision_user` at backend/asclepius/store.py:4030 |
 | _attestations_complete | `_attestations_complete` at backend/routers/onboarding.py:70 |
 | isRequired | `isRequired` at frontend/asclepius/agreement_gate.js:5 |
 | `async renderAgreementView` | frontend/asclepius/asclepius.js:2709 |
-| qaError | `qaError` at frontend/asclepius/admin_shell.js:2086 |
+| qaError | `qaError` at frontend/asclepius/admin_shell.js:2089 |
 
 There are 16 covered route/method pairs, including the two original gated routes.
 No endpoints are added or removed. Existing reviewer and QA guards remain alongside
