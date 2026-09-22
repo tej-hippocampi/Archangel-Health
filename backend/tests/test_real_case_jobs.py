@@ -172,6 +172,51 @@ def test_stale_worker_cannot_insert_after_lease_reassignment(store, monkeypatch)
     assert store.trajectory_points(queued['trajectory_id']) == []
 
 
+@pytest.mark.parametrize('dimension', ['coherence', 'multimodal_necessity', 'reasoning_divergence_potential', 'unavailable'])
+def test_interval_quality_failure_preserves_diagnostics_and_saved_prefix(store, monkeypatch, dimension):
+    from asclepius import critic
+    _stub_model_legs(monkeypatch)
+    visits = []
+    fail = True
+
+    async def judge(case, case_source='synthetic', **context):
+        visits.append(context)
+        result = {'skipped': False, 'coherence': .95, 'multimodal_necessity': .95,
+                  'reasoning_divergence_potential': .95, 'explanation': 'Insufficient reasoning evidence.'}
+        if fail and context.get('point_class') == 'interval':
+            if dimension == 'unavailable':
+                return {'skipped': True}
+            result[dimension] = .1
+        return result
+
+    monkeypatch.setattr(critic, 'run_case_judge', judge)
+    _, ic, admin, _, body, bg, queued = _queue(store)
+    asyncio.run(bg())
+    failed = jobs.view(jobs.get(store, queued['job_id']))
+    assert failed['status'] == 'failed'
+    assert failed['progress']['generated'] == 2
+    failure = failed['progress']['failure']
+    assert failure['encounter_index'] == 2
+    assert failure['code'] == ('case_judge_unavailable' if dimension == 'unavailable' else 'quality_rejected')
+    assert 'Insufficient reasoning evidence' not in json.dumps(failed['progress'])
+    saved = [p['task_id'] for p in store.trajectory_points(queued['trajectory_id'])]
+    with store._conn() as conn:
+        audit = json.loads(conn.execute("SELECT payload_json FROM events WHERE event_type='real_case_generation_failed' ORDER BY rowid DESC LIMIT 1").fetchone()[0])
+    assert audit['job_id'] == queued['job_id']
+    if dimension != 'unavailable':
+        assert audit['scores'][dimension] == .1
+        assert audit['judges']['explanation'] == 'Insufficient reasoning evidence.'
+    assert visits[-1]['question'] and visits[-1]['encounter_window'] == [0, 0]
+    fail = False
+    bg = BackgroundTasks()
+    asyncio.run(routes.generate_real_cases(ic['ingest_case_id'], body, bg, admin))
+    asyncio.run(bg())
+    complete = jobs.view(jobs.get(store, queued['job_id']))
+    assert complete['status'] == 'completed'
+    assert complete['result']['task_ids'][:2] == saved
+    assert complete['progress']['failure'] is None
+
+
 def test_background_preserves_purpose_and_dry_run_gates(store):
     client, ic, _, headers = _generation_context(store)
     url = f"/api/asclepius/ingestion/cases/{ic['ingest_case_id']}/generate"

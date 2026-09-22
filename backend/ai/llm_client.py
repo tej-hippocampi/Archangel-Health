@@ -93,10 +93,22 @@ class _LLMResult:
     """Anthropic-shaped: `.content[0].text`, `.usage.input_tokens/output_tokens`,
     `._request_id` — so first_text/_record read it exactly like an Anthropic resp."""
 
-    def __init__(self, text: str, input_tokens=None, output_tokens=None, request_id=None):
+    def __init__(self, text: str, input_tokens=None, output_tokens=None, request_id=None, stop_reason=None):
         self.content = [_TextBlock(text)]
         self.usage = _Usage(input_tokens, output_tokens)
         self._request_id = request_id
+        self.stop_reason = stop_reason
+
+
+def _openai_stop_reason(resp, choice=None):
+    if choice is not None:
+        reason = getattr(choice, "finish_reason", None)
+        return "max_tokens" if reason == "length" else reason
+    status = getattr(resp, "status", None)
+    if status == "incomplete":
+        reason = getattr(getattr(resp, "incomplete_details", None), "reason", None)
+        return "max_tokens" if reason == "max_output_tokens" else "incomplete"
+    return status
 
 
 def first_text(resp: Any) -> str:
@@ -266,6 +278,7 @@ def _record(
         "prompt": prompt,
         "purpose": purpose,
         "latency_ms": int((time.monotonic() - t0) * 1000),
+        "stop_reason": getattr(resp, "stop_reason", None),
         "usage": {
             "input_tokens": getattr(getattr(resp, "usage", None), "input_tokens", None),
             "output_tokens": getattr(getattr(resp, "usage", None), "output_tokens", None),
@@ -309,7 +322,7 @@ async def _openai_create_async(model: str, system: str, messages: list[dict[str,
         return _LLMResult(text,
                           getattr(usage, "input_tokens", None),
                           getattr(usage, "output_tokens", None),
-                          getattr(resp, "id", None))
+                          getattr(resp, "id", None), _openai_stop_reason(resp))
     except (AttributeError, TypeError):
         # Older SDK / shape mismatch → chat.completions with reasoning-safe params.
         if has_images:
@@ -342,7 +355,7 @@ async def _openai_create_async(model: str, system: str, messages: list[dict[str,
         return _LLMResult(text,
                           getattr(usage, "prompt_tokens", None),
                           getattr(usage, "completion_tokens", None),
-                          getattr(resp, "id", None))
+                          getattr(resp, "id", None), _openai_stop_reason(resp, choice))
 
 
 #: The API's wording when a model refuses a pinned sampling parameter:
@@ -507,7 +520,7 @@ def _openai_create_sync(model: str, system: str, messages: list[dict[str, Any]],
         return _LLMResult(getattr(resp, "output_text", "") or "",
                           getattr(usage, "input_tokens", None),
                           getattr(usage, "output_tokens", None),
-                          getattr(resp, "id", None))
+                          getattr(resp, "id", None), _openai_stop_reason(resp))
     except (AttributeError, TypeError):
         params = {"model": model,
                   "messages": [{"role": "system", "content": system},
@@ -524,7 +537,7 @@ def _openai_create_sync(model: str, system: str, messages: list[dict[str, Any]],
         return _LLMResult(getattr(getattr(choice, "message", None), "content", "") or "",
                           getattr(usage, "prompt_tokens", None),
                           getattr(usage, "completion_tokens", None),
-                          getattr(resp, "id", None))
+                          getattr(resp, "id", None), _openai_stop_reason(resp, choice))
 
 
 def call_llm_sync(

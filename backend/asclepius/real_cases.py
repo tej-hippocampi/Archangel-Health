@@ -2016,12 +2016,17 @@ def assert_question_has_no_leakage(question: str, held_out: Dict[str, Any]) -> N
                 f"instead of asking for it (overlap: {sorted(set(overlap))[:4]})")
 
 
-def _fallback_question(visible: Dict[str, Any], specialty: Optional[str]) -> str:
+def _fallback_question(visible: Dict[str, Any], specialty: Optional[str], *,
+                       point_class: Optional[str] = None) -> str:
     """A deterministic, case-SPECIFIC question built from the visible window.
 
     Not a per-specialty default string — that is the thing this replaces. It names
     the patient, the most abnormal visible datum and the active problem, then asks
     for the call and the reason, in the register of ``gold_cases``."""
+    if point_class == "interval":
+        return ("Based on the observations recorded at this interval visit and the preceding "
+                "chart, would you continue or change the existing management plan? "
+                "State the next step and explain which findings support it.")
     demo = visible.get("demographics") or {}
     who = " ".join(x for x in [
         (f"A {demo['age_band']}" if demo.get("age_band") else "A patient"),
@@ -2052,6 +2057,7 @@ def _fallback_question(visible: Dict[str, Any], specialty: Optional[str]) -> str
 
 async def derive_clinical_question(
     visible: Dict[str, Any], held_out: Dict[str, Any], specialty: Optional[str],
+    *, point_class: Optional[str] = None, encounter_window: Optional[List[int]] = None,
 ) -> Tuple[str, str]:
     """``(question, source)`` — a case-specific question authored from the VISIBLE
     window only. ``source`` is ``"model"`` or ``"deterministic"``.
@@ -2064,7 +2070,7 @@ async def derive_clinical_question(
     DISCARDED for the deterministic one — a leaking question is not repairable by
     asking again, and shipping it burns the case.
     """
-    fallback = _fallback_question(visible, specialty)
+    fallback = _fallback_question(visible, specialty, point_class=point_class)
     try:
         from ai.llm_client import call_llm, first_text
         from asclepius.cases import render_case_prompt
@@ -2083,6 +2089,15 @@ async def derive_clinical_question(
         "  * is answerable from the case as shown.\n"
         "Reply with the question text and nothing else. No preamble, no quotes."
     )
+    if point_class == "interval":
+        system += ("\nThis is an INTERVAL VISIT in a longitudinal chart walk. Ask whether the "
+                   "observations recorded at this visit warrant continuing or changing the "
+                   "existing plan. Earlier symptoms, diagnoses and treatments are historical "
+                   "context: do not recast an earlier acute presentation as today's event. "
+                   "Do not invent a new diagnosis or treatment decision, or copy all the chart "
+                   "evidence into the question stem.")
+        if encounter_window is not None:
+            system += f"\nCurrent visible encounter window in relative days: {encounter_window}."
     try:
         resp, _rec = await call_llm(
             role="asclepius_prompt_gen",
@@ -2444,7 +2459,10 @@ async def plan_cases(
             if wanted_q is not None and p["encounter_index"] not in wanted_q:
                 continue
             q, src = await derive_clinical_question(
-                p["case"], p["held_out"], p.get("specialty"))
+                p["case"], p["held_out"], p.get("specialty"),
+                **({"point_class": p.get("point_class"), "encounter_window": [
+                    min(0, day - p["index_event_offset"]) for day in p["encounter_span"]]}
+                   if trajectory else {}))
             p["question"], p["question_source"] = q, src
 
     generatable = [p for p in proposals if p.get("generatable")]

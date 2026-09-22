@@ -211,7 +211,7 @@ def _stub_model_legs(monkeypatch):
     from asclepius import critic, empirical_difficulty, real_cases
     import routers.asclepius as R
 
-    async def _question(case, held_out, specialty):
+    async def _question(case, held_out, specialty, **context):
         return ("Bilirubin continues to rise while the cholestatic enzymes fall. "
                 "What is your assessment and what do you do next?"), "model"
 
@@ -248,7 +248,7 @@ def _stub_model_legs(monkeypatch):
         return {"skipped": False, "hardness_score": 0.78,
                 "hardness_axes": ["counterintuitive lab trend", "timing of re-intervention"]}
 
-    async def _case_judge(case, case_source="synthetic"):
+    async def _case_judge(case, case_source="synthetic", **context):
         return {"skipped": False, "coherence": 0.93, "multimodal_necessity": 0.88,
                 "reasoning_divergence_potential": 0.81}
 

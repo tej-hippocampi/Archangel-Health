@@ -77,7 +77,44 @@ that planner drift leaves saved points unchanged, all three routing paths reject
 incomplete walks with zero assignments, and notification-boundary recovery
 completes 7/7 with seven generation calls and one unchanged outbox row.
 
-Read-only Railway diagnostics found the earlier preview request returning 200, but no recorded upstream error for the attempted bulk generation. SQL inspection is unavailable without a registered SSH key, so the two live task rows have not been examined.
+## Production inspection and additional fixes
+
+After explicit user approval, a temporary Railway SSH key was registered for
+read-only inspection and removed afterward. SQLite connections used `mode=ro`
+and `query_only`; the deterministic replay additionally rejected network calls,
+file writes and writable database connections. No live records were modified.
+
+The bulk request continued until 05:23:46 UTC and persisted two points out of
+seven, with three quality rejections and two failures. A concurrent single-row
+request produced a separate one-point walk. This explains both the partial walk
+and the independently numbered case in the screenshots. The source chart still
+plans seven points, all passing content, temporal and leakage checks, with six
+verifiable outcomes.
+
+The two failed candidate calls each emitted exactly 2,000 tokens and were not
+followed by judges. Their configured budget is 2,000. Truncation is strongly
+supported but not proven because historic telemetry omitted stop reasons and
+did not retain raw output. Individual scores for the three rejected points are
+unavailable; aggregate rejection counts do not authorize bypassing quality gates.
+
+The additional fix retries an incomplete or invalid candidate pair once with a
+larger budget, validates answer text and source-ID mapping, and rejects even
+parseable output when the provider reports truncation. OpenAI completion status
+is preserved in both adapters, and future telemetry includes stop reasons.
+Questions, fallback questions and the real-chart judge now use interval context
+and the actual clinical question. All numeric quality floors remain unchanged.
+Jobs retain structured failure scores; internal failure events retain the judge
+explanation without adding raw clinical text to polling diagnostics.
+
+The repeated frozen-fixture preservation bracket is `verified4-before.json` and
+`verified4.db`, with backup `verified4-restore-copy.db`. Seven linked points and
+six verifiable outcomes were generated; the inventory found no lost IDs or
+changed baselined fields/files beyond the same three intended ingest-case fields.
+These are deterministic local model tests, not proof of live model acceptance.
+
+Current Railway backup metadata confirms a daily snapshot at 16:57 UTC on
+22 September, daily/weekly schedules, and approximately 273 MB used of 5 GB.
+The earlier isolated recovery drill remains separate operational evidence.
 
 These tests do not certify live model output, production backup/restore readiness,
 or completion of the user's live chart. Those require operational verification.

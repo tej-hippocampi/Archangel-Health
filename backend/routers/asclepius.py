@@ -8159,7 +8159,7 @@ async def _generate_one_real_case(
     # question rather than inserting a prompt that asks nothing.
     question = p.get("question") or ""
     if not question.strip():
-        question = real_cases._fallback_question(case, specialty)
+        question = real_cases._fallback_question(case, specialty, point_class=p.get("point_class"))
         p["question_source"] = "deterministic"
     result: Dict[str, Any] = {"encounter_index": p.get("encounter_index"),
                               "task_id": None, "failures": [], "error": None}
@@ -8207,6 +8207,7 @@ async def _generate_one_real_case(
         asc_ingestion.assert_no_answer_leakage(case, {"answer_key": sealed_key})
     except Exception as exc:
         result["error"] = f"content/leakage gate: {exc}"
+        result["error_code"] = "content_or_leakage"
         return result
 
     # ── §3.6 difficulty, measured ────────────────────────────────────────────
@@ -8230,15 +8231,22 @@ async def _generate_one_real_case(
         result["error"] = ("Candidate generation produced no usable pair: "
                            + (cg.get("reason") or "no reason reported "
                               "(is an LLM key configured?)"))
+        result["error_code"] = cg.get("error_code") or "candidate_unavailable"
         return result
 
     # ── the gates that must stay ─────────────────────────────────────────────
     hj = await run_hardness_judge(prompt, candidates)
     hardness = (None if hj.get("skipped")
                 else {"score": hj.get("hardness_score"), "axes": hj.get("hardness_axes") or []})
-    cj = await run_case_judge(case, case_source="real_deid")
+    judge_context = {"question": question}
+    if trajectory_id is not None:
+        judge_context["point_class"] = p.get("point_class")
+        judge_context["encounter_window"] = [
+            min(0, day - p["index_event_offset"]) for day in (p.get("encounter_span") or [])]
+    cj = await run_case_judge(case, case_source="real_deid", **judge_context)
     if cj.get("skipped"):
         result["error"] = "Case judge unavailable. The real-case gate requires it; try again."
+        result["error_code"] = "case_judge_unavailable"
         return result
     case_judge = {k: cj.get(k) for k in (
         "coherence", "multimodal_necessity", "reasoning_divergence_potential")}
@@ -8250,7 +8258,10 @@ async def _generate_one_real_case(
             failures.append(f"{key} {cj.get(key)} < {floor}")
     if failures:
         result["failures"] = failures
-        result["judges"] = {"case_judge": case_judge, "hardness": hardness}
+        result["error_code"] = "quality_rejected"
+        result["judges"] = {"case_judge": case_judge, "hardness": hardness,
+                            "explanation": str(cj.get("explanation") or "")[:2000],
+                            "model": cj.get("model")}
         return result
 
     # ── §4 the tag contract — a generated V4 case is tagged like a V3 one ────
@@ -8530,7 +8541,7 @@ async def _execute_real_case_generation(
         job.checkpoint(total=len(selected), generated=0, phase='generating', plan_hash=plan_hash)
     for p in selected:
         if job:
-            job.checkpoint(encounter_index=p['encounter_index'], generated=len(generated))
+            job.checkpoint(encounter_index=p['encounter_index'], generated=len(generated), failure=None)
             existing = store.get_task(job.task_id(p['encounter_index']))
             if existing:
                 generation = existing.get('generation') or {}
@@ -8545,7 +8556,10 @@ async def _execute_real_case_generation(
                 continue
             if body.derive_questions:
                 p['question'], p['question_source'] = await real_cases.derive_clinical_question(
-                    p['case'], p['held_out'], p.get('specialty'))
+                    p['case'], p['held_out'], p.get('specialty'),
+                    **({'point_class': p.get('point_class'), 'encounter_window': [
+                        min(0, day - p['index_event_offset']) for day in p['encounter_span']]}
+                       if trajectory_mode else {}))
         try:
             r = await _generate_one_real_case(
                 store, ic, p, admin,
@@ -8585,6 +8599,18 @@ async def _execute_real_case_generation(
             continue
         if job and not r.get('task_id'):
             reason = r.get('error') or '; '.join(r.get('failures') or []) or 'Generation returned no task.'
+            # Polling gets structured scores, not clinical text. Retain the judge's
+            # explanation in the internal event log so a timed-out browser cannot
+            # erase the evidence needed to diagnose a rejected point.
+            failure = {'encounter_index': p['encounter_index'],
+                       'code': r.get('error_code') or 'generation_failed',
+                       'scores': (r.get('judges') or {}).get('case_judge'),
+                       'failures': r.get('failures') or []}
+            job.checkpoint(failure=failure)
+            store.log_event(entity_type='ingest_case', entity_id=ingest_case_id,
+                            event_type='real_case_generation_failed', actor=admin['id'],
+                            payload={**failure, 'job_id': job.row['job_id'],
+                                     'judges': r.get('judges') or {}})
             raise RuntimeError(f"Encounter {p['encounter_index'] + 1}: {reason} Completed points are saved; retry to resume.")
         if r.get("task_id"):
             generated.append(r)

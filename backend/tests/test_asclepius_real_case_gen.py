@@ -819,7 +819,7 @@ def test_generation_produces_fully_tagged_tasks_with_a_measured_difficulty(monke
     async def _hardness(prompt, candidates):
         return {"skipped": False, "hardness_score": 0.8, "hardness_axes": ["multi_step"]}
 
-    async def _case_judge(case, case_source="synthetic"):
+    async def _case_judge(case, case_source="synthetic", **context):
         return {"skipped": False, "coherence": 0.9, "multimodal_necessity": 0.9,
                 "reasoning_divergence_potential": 0.9}
 
@@ -940,7 +940,7 @@ def test_promote_does_not_spend_frontier_tokens_unless_measurement_is_enabled(mo
     async def _hardness(prompt, candidates):
         return {"skipped": True}
 
-    async def _judge(case, case_source="synthetic"):
+    async def _judge(case, case_source="synthetic", **context):
         return {"skipped": False, "coherence": 0.9, "multimodal_necessity": 0.9,
                 "reasoning_divergence_potential": 0.9}
 
@@ -993,7 +993,7 @@ def test_a_task_is_never_created_with_an_empty_question(monkeypatch):
     async def _hardness(prompt, candidates):
         return {"skipped": True}
 
-    async def _judge(case, case_source="synthetic"):
+    async def _judge(case, case_source="synthetic", **context):
         return {"skipped": False, "coherence": 0.9, "multimodal_necessity": 0.9,
                 "reasoning_divergence_potential": 0.9}
 
@@ -1033,7 +1033,7 @@ def test_the_case_judge_fails_closed_on_the_real_path(monkeypatch):
     async def _hardness(prompt, candidates):
         return {"skipped": True}
 
-    async def _judge_unavailable(case, case_source="synthetic"):
+    async def _judge_unavailable(case, case_source="synthetic", **context):
         return {"skipped": True}
 
     monkeypatch.setattr(ed, "measure_empirical_difficulty", _measured)

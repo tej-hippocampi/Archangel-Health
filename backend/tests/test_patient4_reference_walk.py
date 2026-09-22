@@ -160,7 +160,7 @@ def test_downgraded_middle_point_keeps_the_chain_bounded(monkeypatch):
         if middle['start_offset'] <= note['collected_offset_days'] <= middle['end_offset']:
             note['note_type'] = 'Radiology'
     calls = []
-    async def author(case, held, specialty):
+    async def author(case, held, specialty, **context):
         calls.append(case)
         return 'A question grounded in the current encounter.', 'test'
     monkeypatch.setattr(RC, 'derive_clinical_question', author)
