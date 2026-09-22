@@ -152,6 +152,7 @@ def create_express_account(*, email: Optional[str] = None,
     back about the account is compliance state we deliberately do not keep.
     """
     stripe = sdk()
+    request_options = {"idempotency_key": f"connect-account:{mode()}:{user_id}"} if user_id else {}
     account = stripe.Account.create(
         type="express",
         email=email or None,
@@ -162,6 +163,7 @@ def create_express_account(*, email: Optional[str] = None,
         # Our id, on their object, so a Stripe-side investigation can be traced
         # back without us storing a second copy of their identity.
         metadata={"asclepius_user_id": user_id or ""},
+        **request_options,
     )
     account_id = _field(account, "id")
     if not account_id:
@@ -185,12 +187,11 @@ def create_account_link(account_id: str, *, portal_url: str) -> Dict[str, Any]:
             enable_us_tax_collection(account_id)
     link = stripe.AccountLink.create(
         account=account_id,
-        # Refresh is where Stripe sends a physician whose link expired mid-form.
-        # It points back at the portal's earnings surface, which re-POSTs start
-        # and mints another link, so an expiry is a round trip rather than a
-        # dead end.
-        refresh_url=f"{base}/#earnings",
-        return_url=f"{base}/#earnings",
+        # The authenticated portal consumes the action once. An expired link
+        # renews through POST /me/bank-link/start; returning checks Stripe state
+        # and must never be interpreted as proof that onboarding is complete.
+        refresh_url=f"{base}/#earnings?stripe=refresh",
+        return_url=f"{base}/#earnings?stripe=return",
         type="account_onboarding",
     )
     return {"url": _field(link, "url"), "expires_at": _field(link, "expires_at")}

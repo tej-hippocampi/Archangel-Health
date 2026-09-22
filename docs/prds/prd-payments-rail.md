@@ -27,6 +27,16 @@ approval; the worker only dispatches that frozen selection. Bank payouts are
 tracked independently of transfers. Tax reviews and bank status are mode-scoped.
 New processing and live execution remain disabled by default.
 
+## September 21, 2026 bank-link amendment
+
+The bank card uses the portal’s green and lime tokens, keyboard focus, and a
+single in-flight opening state. Earnings shows live bank status independently
+of ledger loading or failure. Stripe returns to Earnings for a status check;
+expired links use a separate action to request a fresh link for the current
+physician. Neither return proves that onboarding is complete. Navigation and
+session changes invalidate pending reads and redirects. See the
+[bank-link change record](../data-safety/2026-09-21-bank-link.md).
+
 ## Original problem (from the meeting)
 
 Physicians are paid for labeled cases and the meeting treats payouts plus 1099
@@ -35,15 +45,16 @@ the ledger half existed: accrual, quality holds, an admin mark-paid that "record
 settled; does not move money" (`backend/routers/asclepius_payments.py:18`).
 With the rail disabled, no money moves and the physician-facing surface is a
 disabled "Link your bank account / coming soon"
-card (`frontend/asclepius/first_run.js:646-655`) backed by a
+card (`frontend/asclepius/first_run.js:647-655`) backed by a
 `bank_link_status='coming_soon'` interest register
 (`backend/routers/asclepius.py:1740-1756`).
 
 The codebase has already committed to the shape of the fix, in the payments
 router's header (`backend/routers/asclepius_payments.py:18-22`): the rail uses Stripe
 Connect Express, physicians onboard themselves, Stripe holds bank details and
-tax ids and files the 1099-NECs, and nothing in this codebase may ever store a
-bank account number or a tax id. This PRD builds exactly that commitment.
+tax ids, and nothing in this codebase may ever store a bank account number or a
+tax id. Annual 1099 configuration, reconciliation and filing are separate
+operations under the September 19 amendment.
 
 ## Design and invariants
 
@@ -55,7 +66,8 @@ bank account number or a tax id. This PRD builds exactly that commitment.
   until then: flag off means exact current behavior.
 - 1099 is fully delegated to Stripe: 1099-NEC via Connect tax forms. We never
   generate a tax form, never collect a W-9, never see a TIN. Stripe collects
-  tax identity during Express onboarding and files.
+  tax identity through Stripe-hosted flows; annual filing requires separate
+  configuration, reconciliation and explicit submission.
 - No new dependency beyond the `stripe` python SDK.
 
 **Made here, with rationale:**
@@ -131,7 +143,9 @@ bank account number or a tax id. This PRD builds exactly that commitment.
   Express account on first call (storing only its id), then returns a fresh
   account-link URL (`account_onboarding` type, with return and refresh URLs
   back into the portal). Idempotent: an existing account id gets a new link,
-  never a second account.
+  never replacing the stored account. Initial creation uses a physician- and
+  mode-scoped idempotency key for retries within Stripe’s retention window;
+  this does not promise permanent provider deduplication.
 - **B2.** `GET /api/asclepius/me/bank-link` returns `bank_link_status` and,
   when an account exists and the flag is on, live payouts-enabled state read
   from Stripe.
@@ -141,10 +155,16 @@ bank account number or a tax id. This PRD builds exactly that commitment.
   (`backend/routers/asclepius.py:1748`, "reads this column to find who has been
   waiting"); when the flag flips live, those users get the go-live nudge (see
   email touchpoints).
-- **B4.** `frontend/asclepius/first_run.js:646-715`: flag on (surfaced via the
+- **B4.** `frontend/asclepius/first_run.js:647-715`: flag on (surfaced via the
   bootstrap payload) replaces the disabled card with a live "Link your bank
   account" button opening the account-link URL; flag off renders the card
   exactly as today, including the interest POST.
+- **B6.** Return and refresh actions land on Earnings after authentication.
+  Return checks live status without starting onboarding; refresh renews a link
+  only for the current connected account that still needs setup. Failed status
+  reads show a retry, never a cached claim that payouts are enabled. Both bank
+  endpoints use `Cache-Control: no-store`. Sign-out/navigation invalidates stale
+  client responses; the server selects the account from the session.
 - **B5.** Flag off: both new endpoints return the current placeholder behavior
   (`{"ok": true, "bank_link_status": "coming_soon"}` shape), so no client can
   tell the rail exists.
@@ -211,12 +231,12 @@ bank account number or a tax id. This PRD builds exactly that commitment.
   transfers only after the ledger commit, with the rail enabled.
 - `register_bank_link_interest` in `backend/routers/asclepius.py:1741` records
   the waiting list while the rail is disabled.
-- `comingSoonBankCard` in `frontend/asclepius/first_run.js:646` and `liveBankCard`
-  in `frontend/asclepius/first_run.js:667` render the flag-dependent bank card.
+- `comingSoonBankCard` in `frontend/asclepius/first_run.js:647` and `liveBankCard`
+  in `frontend/asclepius/first_run.js:668` render the flag-dependent bank card.
 - `claim_stripe_transfer` in `backend/asclepius/store.py:6740` enforces the
   durable retry window; `recover_stripe_transfer` in
   `backend/asclepius/store.py:6781` reconciles matching signed webhooks.
-- `webhook_storage_object` in `backend/asclepius/stripe_rail.py:354` defines
+- `webhook_storage_object` in `backend/asclepius/stripe_rail.py:355` defines
   the persisted allowlist. The SDK is pinned in `backend/requirements.txt`.
 
 ## Gaps / changes per file
