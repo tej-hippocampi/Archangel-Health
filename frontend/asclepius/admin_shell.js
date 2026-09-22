@@ -2877,6 +2877,35 @@
       'Below the decision-point gate: ' + (d.reasons || []).join('; '));
   }
 
+  async function generateChartCases(ic, body, status) {
+    // A longitudinal row is part of the chart, never an independent one-point
+    // trajectory. Every control resumes the same complete walk.
+    const request = { ...body, background: true };
+    if (request.trajectory) delete request.encounter_indices;
+    const base = '/ingestion/cases/' + encodeURIComponent(ic.ingest_case_id);
+    let job = await api(base + '/generate', { method: 'POST', body: request });
+    if (!job.job_id) return job; // compatibility during rolling deployment
+    let pollFailures = 0;
+    while (true) {
+      const progress = job.progress || {};
+      clear(status);
+      status.appendChild(h('div', { class: 'asc-card-sub', role: 'status', 'aria-live': 'polite' },
+        'Saved ' + (progress.generated || 0) + ' of ' + (progress.total || 'planned') + ' encounters'
+        + (progress.encounter_index != null && job.status === 'running'
+          ? ' · generating encounter ' + (progress.encounter_index + 1) : ' · ' + job.status)
+        + '. You can reopen this chart to check progress or resume.'));
+      if (job.status === 'completed') return job.result;
+      if (job.status === 'failed') throw new Error(job.error || 'Generation paused. Retry to resume saved progress.');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      try {
+        job = await api(base + '/generation-jobs/' + encodeURIComponent(job.job_id));
+        pollFailures = 0;
+      } catch (e) {
+        if (++pollFailures >= 5) throw new Error('Progress connection interrupted. Generation continues in the background. Reopen the chart and generate again to reconnect to the saved run.');
+      }
+    }
+  }
+
   function renderProposalRow(ic, p, refresh, trajectory = false, includeIntervalPoints = true, setPending = null) {
     const wrap = h('div', {
       class: 'asc-card-pad',
@@ -2959,21 +2988,18 @@
 
     const status = h('div', { style: 'margin-top:10px' });
     const btn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', style: 'margin-top:10px' },
-      'Generate this case');
+      trajectory ? 'Generate chart walk' : 'Generate this case');
     btn.addEventListener('click', async () => {
       if (setPending && !setPending(true)) return;
       btn.setAttribute('disabled', '');
       btn.textContent = 'Measuring difficulty and generating…';
       clear(status);
       try {
-        const r = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate', {
-          method: 'POST',
-          body: { dry_run: false, trajectory, encounter_indices: [p.encounter_index],
-            ...(trajectory ? { include_interval_points: includeIntervalPoints } : {}) },
-        });
+        const r = await generateChartCases(ic, { dry_run: false, trajectory, encounter_indices: [p.encounter_index],
+          ...(trajectory ? { include_interval_points: includeIntervalPoints } : {}) }, status);
         const ok = (r.task_ids || []).length;
         status.appendChild(h('div', { class: ok ? 'asc-inline-ok' : 'asc-inline-warn' },
-          ok ? 'Created task ' + r.task_ids[0]
+          ok ? (trajectory ? 'Created chart walk with ' + ok + ' points. Ready in Task Routing.' : 'Created task ' + r.task_ids[0])
              : 'Gated: ' + JSON.stringify(((r.details || {}).gated || (r.details || {}).failed || []))));
         if (ok && refresh) refresh();
       } catch (e) {
@@ -2981,7 +3007,7 @@
           errText(e, 'Generation failed.')));
       }
       btn.removeAttribute('disabled');
-      btn.textContent = 'Generate this case';
+      btn.textContent = trajectory ? 'Generate chart walk' : 'Generate this case';
       if (setPending) setPending(false);
     });
     wrap.appendChild(btn);
@@ -3051,9 +3077,8 @@
       allBtn.textContent = 'Generating…';
       clear(status);
       try {
-        const r = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate',
-          { method: 'POST', body: { dry_run: false, trajectory,
-            ...(trajectory ? { include_interval_points: includeIntervalPoints } : {}) } });
+        const r = await generateChartCases(ic, { dry_run: false, trajectory,
+          ...(trajectory ? { include_interval_points: includeIntervalPoints } : {}) }, status);
         overlay.remove();
         clear(statusBox);
         statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
@@ -3138,9 +3163,8 @@
       trajBtn.textContent = 'Generating trajectory…';
       clear(status);
       try {
-        const r = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate',
-          { method: 'POST', body: { dry_run: false, trajectory: true,
-            include_interval_points: includeIntervalPoints } });
+        const r = await generateChartCases(ic, { dry_run: false, trajectory: true,
+          include_interval_points: includeIntervalPoints }, status);
         overlay.remove();
         clear(statusBox);
         statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
@@ -3179,7 +3203,7 @@
         return scores;
       }, {})).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => key + ' ' + value.toFixed(2)).join(' / ')),
       h('div', { class: 'asc-card-sub', style: 'margin-bottom:6px' },
-        'Nothing here has been written. Difficulty is measured only when you generate, '
+        'Generation saves each completed point. Repeating the same request resumes its saved run. Difficulty is measured when you generate, '
         + 'a band shown as "proposed" is the structural prior, not a frontier failure rate.'),
       h('div', { class: 'asc-card-sub', style: 'margin-bottom:14px' },
         trajectory
@@ -3444,7 +3468,7 @@
               clear(statusBox);
               statusBox.appendChild(h('div', { class: 'asc-card-sub' }, chartWalkSummary(plan)));
               openCasePlanModal(upload, first, plan, statusBox, {
-                trajectory: true, reviewOnly: first.status === 'promoted',
+                trajectory: true,
                 // A specialty set from inside the modal re-plans the walk (§A5)
                 // and refreshes the rows, so the chip on the row agrees with it.
                 replan: () => { load(); previewLongitudinal(upload, statusBox); },

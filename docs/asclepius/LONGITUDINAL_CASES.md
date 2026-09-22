@@ -81,6 +81,24 @@ plan, then use `dry_run: false` to generate. Interval points are included by
 default. The admin checkbox changes both the preview and generation selection.
 The chart's declared specialty applies to the entire walk.
 
+The admin uses `background: true` for generation: the server accepts a durable
+job immediately, and the page polls its progress. Repeating the same request
+resumes that job and preserves completed task IDs. A failed point pauses the walk;
+the status includes its failure category and quality scores. The internal audit
+event retains the judge explanation. Incomplete jobs cannot be allocated, sent
+as a relay, or reassigned to physicians.
+
+Interval questions and their deterministic fallback ask about reassessing the
+existing plan at the current visit. The real-chart judge receives that actual
+question and the visible relative encounter window. Its rubric permits a dated
+note, report or order to ground an interval reassessment; it does not require a
+new acute presentation or lab panel. Coherence, evidence-necessity and divergence
+floors remain unchanged, as do the content and leakage checks. Low quality is
+reported as a rejection; formatting recovery never reruns a quality judge to
+seek a passing score. Incomplete
+candidate-answer responses receive one formatting retry with a larger output
+budget, without repeating completed points or empirical difficulty measurement.
+
 The plan reports encounters, decision/interval counts, ready points, verifiable
 points and downgrade reasons. Generation selects `qualifies_as_point` proposals
 that are `generatable`; `apply_density_gate: false` includes every generatable

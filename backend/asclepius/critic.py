@@ -19,6 +19,7 @@ from asclepius.prompts import (
     ASCLEPIUS_CANDIDATE_GEN_SYSTEM,
     ASCLEPIUS_CASE_GEN_SYSTEM,
     ASCLEPIUS_CASE_JUDGE_SYSTEM,
+    ASCLEPIUS_REAL_CASE_JUDGE_SYSTEM,
     ASCLEPIUS_CRITIC_SYSTEM,
     ASCLEPIUS_GROUNDING_SYSTEM,
     ASCLEPIUS_HARDNESS_JUDGE_SYSTEM,
@@ -292,7 +293,7 @@ async def generate_candidates_ex(
     on failure (no LLM key / parse error). ``intended_flawed_id`` (the answer the
     model deliberately made weaker, PRD §7.2, §16) is kept server-side only — the
     blinded eval screen never sees it. Never raises."""
-    def _empty(reason: str) -> Dict[str, Any]:
+    def _empty(reason: str, code: str = "candidate_unavailable") -> Dict[str, Any]:
         # ``reason`` exists because the caller used to report every empty result
         # as "no LLM key configured?", which is right for exactly one of the three
         # ways this fails and actively misleading for the other two. A response
@@ -301,7 +302,7 @@ async def generate_candidates_ex(
         # a missing credential otherwise — and someone will spend an afternoon on
         # the wrong problem.
         return {"candidates": [], "model": None, "intended_flawed_id": None,
-                "reason": reason}
+                "reason": reason, "error_code": code}
 
     try:
         from ai.llm_client import call_llm, first_text
@@ -310,34 +311,57 @@ async def generate_candidates_ex(
     user = f"Specialty: {specialty}\n\nPROMPT:\n{prompt}"
     if ai_failure_mode:
         user += f"\n\nAI_FAILURE_MODE (key the flawed answer to this): {ai_failure_mode}"
-    try:
-        resp, rec = await call_llm(
-            role="asclepius_candidate_gen",
-            system=ASCLEPIUS_CANDIDATE_GEN_SYSTEM,
-            messages=[{"role": "user", "content": user}],
-            prompt_id="asclepius_candidate_gen",
-            purpose="asclepius_candidate_generation",
-        )
-    except Exception as exc:
-        log.info("asclepius candidate-gen unavailable: %s", exc)
-        return _empty(f"model call failed: {exc}")
-    raw = first_text(resp)
-    parsed = _extract_json(raw) or {}
-    cands = parsed.get("candidate_answers") or []
-    if not cands:
-        # Name the actual failure. ``max_tokens`` means the answer was CUT OFF,
-        # which on a thinking model usually means the budget went on thinking —
-        # see llm_client._anthropic_output_cap.
+    for attempt in range(2):
+        # Regenerate only an incomplete/invalid response, once. Do not retry a
+        # rejected clinical case or provider exception here. The client already
+        # handles transient transport failures.
+        overrides = {}
+        retry_note = ""
+        if attempt:
+            from ai.model_config import resolve
+            budget = int(resolve("asclepius_candidate_gen")["max_tokens"])
+            overrides["max_tokens"] = max(budget, min(16384, max(6000, budget * 2)))
+            retry_note = ("\n\nThe previous response was incomplete or invalid. Return a fresh, complete "
+                          "JSON object with exactly two distinct, non-empty candidate answers. "
+                          "Keep each answer focused on the clinical question; finish both answers "
+                          "and the intended_flawed_id field.")
+        try:
+            resp, rec = await call_llm(
+                role="asclepius_candidate_gen",
+                system=ASCLEPIUS_CANDIDATE_GEN_SYSTEM,
+                messages=[{"role": "user", "content": user + retry_note}],
+                prompt_id="asclepius_candidate_gen",
+                purpose="asclepius_candidate_generation",
+                **overrides,
+            )
+        except Exception as exc:
+            log.info("asclepius candidate-gen unavailable: %s", exc)
+            return _empty(f"model call failed: {exc}", "candidate_provider_error")
+        raw = first_text(resp)
+        parsed = _extract_json(raw)
+        cands = parsed.get("candidate_answers") if isinstance(parsed, dict) else None
         stop = getattr(resp, "stop_reason", None)
-        if stop == "max_tokens":
-            return _empty(
-                f"the model's answer was truncated at the token budget "
-                f"(stop_reason=max_tokens, {len(raw)} chars returned), so the JSON "
-                f"could not be parsed. On a thinking-capable model the budget is "
-                f"spent on thinking before the answer starts, raise the role's "
-                f"max_tokens or LLM_ANTHROPIC_THINKING_RESERVE.")
-        return _empty(f"the model replied but no candidate_answers could be parsed "
-                      f"from it ({len(raw)} chars, stop_reason={stop})")
+        complete = (isinstance(cands, list) and len(cands) == 2
+                    and all(isinstance(c, dict) and isinstance(c.get("text"), str)
+                            and c["text"].strip() for c in cands)
+                    and cands[0]["text"].strip() != cands[1]["text"].strip())
+        if complete:
+            source_ids = [c.get("id") or ("A" if i == 0 else "B") for i, c in enumerate(cands)]
+            complete = (all(isinstance(value, str) for value in source_ids)
+                        and source_ids[0] != source_ids[1]
+                        and (parsed.get("intended_flawed_id") is None
+                             or parsed["intended_flawed_id"] in source_ids))
+        # Even parseable JSON is unfinished when the provider reports truncation.
+        if stop not in ("max_tokens", "length", "incomplete", "failed", "cancelled", "content_filter") and complete:
+            break
+    else:
+        if stop in ("max_tokens", "length"):
+            return _empty("the model's answer was truncated at the token budget after one "
+                          "larger-budget retry (stop_reason=max_tokens); no partial answer was saved.",
+                          "candidate_truncated")
+        return _empty("two complete, distinct candidate_answers could not be parsed and validated "
+                      f"after one retry (stop_reason={stop}).",
+                      "candidate_invalid_pair")
     model = (rec or {}).get("model")
     flawed_src = parsed.get("intended_flawed_id")
 
@@ -854,7 +878,9 @@ async def generate_case(
     return {"case": None, "question": None, "model": last_model, "skipped": False, "error": last_error}
 
 
-async def run_case_judge(case: Dict[str, Any], case_source: str = "synthetic") -> Dict[str, Any]:
+async def run_case_judge(case: Dict[str, Any], case_source: str = "synthetic", *,
+                         question: Optional[str] = None, point_class: Optional[str] = None,
+                         encounter_window: Optional[List[int]] = None) -> Dict[str, Any]:
     """Score a case on multimodal dimensions ONLY (hardness is judged separately by
     ``run_hardness_judge``). Returns
     ``{skipped, coherence, ground_truth_determinable, multimodal_necessity,
@@ -874,7 +900,7 @@ async def run_case_judge(case: Dict[str, Any], case_source: str = "synthetic") -
 
     is_real = (case_source == "real_deid")
     cd = as_dict(case) or {}
-    serialized = render_case_prompt(cd, "(case under review)")   # PUBLIC render (no key)
+    serialized = render_case_prompt(cd, question or "(case under review)")  # PUBLIC render (no key)
     gt = cd.get("ground_truth") or {}
     if is_real:
         internal = (
@@ -882,6 +908,23 @@ async def run_case_judge(case: Dict[str, Any], case_source: str = "synthetic") -
             "Do NOT judge ground_truth_determinable (return null for it); judge "
             "coherence, multimodal_necessity, and reasoning_divergence_potential only."
         )
+        internal += ("\nThis chart is intentionally truncated at the current encounter. Prior diagnoses "
+                     "and treatments are historical context, not contradictory new events. Judge the "
+                     "actual clinical question against the visible chart; do not assume a synthetic "
+                     "puzzle or require a hidden answer key.")
+        if point_class == "interval":
+            internal += ("\nPOINT CLASS: interval visit in a longitudinal chart walk. The task is to "
+                         "reassess the existing plan using the recorded observation at this visit. "
+                         "A new acute presentation, new diagnosis, or new lab panel is not required. "
+                         "For multimodal_necessity, assess whether answering requires integrating "
+                         "the dated note, report, order, or labs with the preceding clinical context. "
+                         "For reasoning_divergence_potential, assess whether a clinically meaningful "
+                         "shortcut or omission could lead to an unsound reassessment. Do not reward "
+                         "missing evidence or invent a decision; retain low scores for an incoherent "
+                         "chart, a stem-only answer, or a visit with no meaningful reasoning to assess.")
+            if (isinstance(encounter_window, list) and len(encounter_window) == 2
+                    and all(isinstance(day, int) and not isinstance(day, bool) for day in encounter_window)):
+                internal += f"\nCurrent encounter window, days relative to this point: {encounter_window}."
     else:
         internal = (
             "\n\nINTERNAL (for judging ground_truth_determinable + divergence only):\n"
@@ -892,9 +935,9 @@ async def run_case_judge(case: Dict[str, Any], case_source: str = "synthetic") -
     try:
         resp, rec = await call_llm(
             role="asclepius_case_judge",
-            system=ASCLEPIUS_CASE_JUDGE_SYSTEM,
+            system=(ASCLEPIUS_REAL_CASE_JUDGE_SYSTEM if is_real else ASCLEPIUS_CASE_JUDGE_SYSTEM),
             messages=[{"role": "user", "content": serialized + internal}],
-            prompt_id="asclepius_case_judge",
+            prompt_id="asclepius_real_case_judge" if is_real else "asclepius_case_judge",
             purpose="asclepius_case_judge",
         )
     except Exception as exc:

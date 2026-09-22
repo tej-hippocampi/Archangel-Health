@@ -14,6 +14,7 @@ from .gold import GOLD_DRAFT_NOTE_SYSTEM, GOLD_DEID_SYSTEM
 from asclepius.prompts import (
     ASCLEPIUS_CRITIC_SYSTEM,
     ASCLEPIUS_CANDIDATE_GEN_SYSTEM,
+    ASCLEPIUS_REAL_CASE_JUDGE_SYSTEM,
     ASCLEPIUS_GROUNDING_SYSTEM,
     ASCLEPIUS_PRELABEL_SYSTEM,
     ASCLEPIUS_PROMPT_GEN_SYSTEM,
@@ -251,6 +252,14 @@ PROMPT_REGISTRY: dict = {
         "content": ASCLEPIUS_CRITIC_SYSTEM,
         "file": "backend/asclepius/prompts.py",
         "variable": "ASCLEPIUS_CRITIC_SYSTEM",
+        "type": "system",
+        "version": "1.0.0",
+    },
+    "asclepius_real_case_judge": {
+        "label": "Archangel Health: Real Chart and Interval Quality",
+        "content": ASCLEPIUS_REAL_CASE_JUDGE_SYSTEM,
+        "file": "backend/asclepius/prompts.py",
+        "variable": "ASCLEPIUS_REAL_CASE_JUDGE_SYSTEM",
         "type": "system",
         "version": "1.0.0",
     },

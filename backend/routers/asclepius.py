@@ -2442,7 +2442,7 @@ def _insert_tasks_from_dicts(
 
 async def _notify_new_tasks(
     store: Any, background_tasks: Optional[BackgroundTasks], created: List[Dict[str, Any]],
-    *, admin_id: str,
+    *, admin_id: str, batch_id: Optional[str] = None,
 ) -> None:
     """Enqueue the outbox rows synchronously (fast), then drain in the
     background so the admin's request never blocks on ~1000 emails. Also
@@ -2459,7 +2459,7 @@ async def _notify_new_tasks(
     """
     if not created:
         return
-    batch_id = uuid.uuid4().hex
+    batch_id = batch_id or uuid.uuid4().hex
     asc_task_notify.enqueue_for_batch(store, batch_id=batch_id, created_tasks=created)
     if background_tasks is not None:
         background_tasks.add_task(asc_task_notify.drain_outbox, store)
@@ -8126,6 +8126,7 @@ async def _generate_one_real_case(
     # "inherit the column default", which is 'open' and is what every ordinary V4
     # batch wants; the trajectory batch passes 'assigned_only'.
     distribution: Optional[str] = None,
+    job=None,
 ) -> Dict[str, Any]:
     """One proposed case → a gated, fully-tagged V4 task. Returns a result dict;
     never raises for a per-case failure, so one bad encounter cannot fail a batch.
@@ -8158,7 +8159,7 @@ async def _generate_one_real_case(
     # question rather than inserting a prompt that asks nothing.
     question = p.get("question") or ""
     if not question.strip():
-        question = real_cases._fallback_question(case, specialty)
+        question = real_cases._fallback_question(case, specialty, point_class=p.get("point_class"))
         p["question_source"] = "deterministic"
     result: Dict[str, Any] = {"encounter_index": p.get("encounter_index"),
                               "task_id": None, "failures": [], "error": None}
@@ -8206,6 +8207,7 @@ async def _generate_one_real_case(
         asc_ingestion.assert_no_answer_leakage(case, {"answer_key": sealed_key})
     except Exception as exc:
         result["error"] = f"content/leakage gate: {exc}"
+        result["error_code"] = "content_or_leakage"
         return result
 
     # ── §3.6 difficulty, measured ────────────────────────────────────────────
@@ -8229,15 +8231,22 @@ async def _generate_one_real_case(
         result["error"] = ("Candidate generation produced no usable pair: "
                            + (cg.get("reason") or "no reason reported "
                               "(is an LLM key configured?)"))
+        result["error_code"] = cg.get("error_code") or "candidate_unavailable"
         return result
 
     # ── the gates that must stay ─────────────────────────────────────────────
     hj = await run_hardness_judge(prompt, candidates)
     hardness = (None if hj.get("skipped")
                 else {"score": hj.get("hardness_score"), "axes": hj.get("hardness_axes") or []})
-    cj = await run_case_judge(case, case_source="real_deid")
+    judge_context = {"question": question}
+    if trajectory_id is not None:
+        judge_context["point_class"] = p.get("point_class")
+        judge_context["encounter_window"] = [
+            min(0, day - p["index_event_offset"]) for day in (p.get("encounter_span") or [])]
+    cj = await run_case_judge(case, case_source="real_deid", **judge_context)
     if cj.get("skipped"):
         result["error"] = "Case judge unavailable. The real-case gate requires it; try again."
+        result["error_code"] = "case_judge_unavailable"
         return result
     case_judge = {k: cj.get(k) for k in (
         "coherence", "multimodal_necessity", "reasoning_divergence_potential")}
@@ -8249,7 +8258,10 @@ async def _generate_one_real_case(
             failures.append(f"{key} {cj.get(key)} < {floor}")
     if failures:
         result["failures"] = failures
-        result["judges"] = {"case_judge": case_judge, "hardness": hardness}
+        result["error_code"] = "quality_rejected"
+        result["judges"] = {"case_judge": case_judge, "hardness": hardness,
+                            "explanation": str(cj.get("explanation") or "")[:2000],
+                            "model": cj.get("model")}
         return result
 
     # ── §4 the tag contract — a generated V4 case is tagged like a V3 one ────
@@ -8307,7 +8319,11 @@ async def _generate_one_real_case(
             "downgraded": p.get("downgraded"),
             "sealed_outcome": p["sealed_outcome"],
         })
+    if job:
+        generation['real_case_job_id'] = job.row['job_id']
     task = store.insert_task(
+        **({'task_id': job.task_id(p['encounter_index']),
+            'generation_lease': (job.row['job_id'], job.owner)} if job else {}),
         prompt=prompt, specialty=specialty,
         # MEASURED, not hardcoded. This is the line the PRD is about.
         difficulty=difficulty["band"],
@@ -8336,26 +8352,7 @@ async def _generate_one_real_case(
     return result
 
 
-@router.post("/ingestion/cases/{ingest_case_id}/generate")
-async def generate_real_cases(
-    ingest_case_id: str, body: GenerateRealCasesRequest,
-    background_tasks: BackgroundTasks,
-    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
-):
-    """One ingested real chart → many tagged V4 tasks (Real-Case Generation PRD §5).
-
-    ``dry_run`` (the default) returns the FULL plan — every proposed case with its
-    index event, question, tags and difficulty band — and writes nothing.
-
-    A live run is EXPENSIVE and synchronous: each case costs a k-sample frontier
-    difficulty probe plus a candidate generation, a hardness judge and a case
-    judge. Generating a whole chart in one request is deliberate (the admin asked
-    for the batch), but ``encounter_indices`` exists so the per-case button costs
-    one case, and ``max_cases`` bounds the batch.
-    """
-    from asclepius import real_cases
-
-    store = _store()
+def _real_case_generation_input(store, ingest_case_id, body, admin):
     ic = store.get_ingest_case(ingest_case_id)
     if not ic:
         raise HTTPException(status_code=404, detail="Ingested case not found")
@@ -8393,11 +8390,55 @@ async def generate_real_cases(
         raise HTTPException(status_code=422,
                             detail="Set an enabled specialty for this chart walk.")
 
+    return ic, hint
+
+
+@router.get("/ingestion/cases/{ingest_case_id}/generation-jobs/{job_id}")
+async def real_case_generation_status(
+    ingest_case_id: str, job_id: str,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    from asclepius import real_case_jobs
+    row = real_case_jobs.get(_store(), job_id)
+    if not row or row['ingest_case_id'] != ingest_case_id:
+        raise HTTPException(status_code=404, detail="Generation job not found")
+    return real_case_jobs.view(row)
+
+
+@router.post("/ingestion/cases/{ingest_case_id}/generate")
+async def generate_real_cases(
+    ingest_case_id: str, body: GenerateRealCasesRequest,
+    background_tasks: BackgroundTasks,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    if body.background and not body.dry_run:
+        import realm
+        from asclepius import real_case_jobs
+        store = _store()
+        ic, hint = _real_case_generation_input(store, ingest_case_id, body, admin)
+        # Freeze the resolved specialty so changing the upload cannot change a
+        # partially completed walk on recovery.
+        body = body.model_copy(update={'specialty': hint})
+        row = real_case_jobs.enqueue(store, ic, body, admin['id'])
+        if row['status'] != 'completed':
+            background_tasks.add_task(real_case_jobs.run, store, row['job_id'], realm.current())
+        return JSONResponse(status_code=202, content=real_case_jobs.view(row))
+    return await _execute_real_case_generation(ingest_case_id, body, background_tasks, admin)
+
+
+async def _execute_real_case_generation(
+    ingest_case_id: str, body: GenerateRealCasesRequest,
+    background_tasks: BackgroundTasks, admin: Dict[str, Any], *, job=None,
+):
+    """Shared generation gates for synchronous clients and durable jobs."""
+    from asclepius import real_cases
+    store = _store()
+    ic, hint = _real_case_generation_input(store, ingest_case_id, body, admin)
     try:
         plan = await real_cases.plan_cases(
             ic.get("case") or {}, max_cases=body.max_cases,
             min_gap_days=max(1, int(body.min_gap_days or 7)),
-            specialty_hint=hint, derive_questions=body.derive_questions, trajectory=body.trajectory,
+            specialty_hint=hint, derive_questions=body.derive_questions and job is None, trajectory=body.trajectory,
             include_interval_points=body.include_interval_points,
             # On a live per-case generate, author ONLY the question we are about to
             # use. A dry run authors all of them, which is the point of the preview.
@@ -8428,7 +8469,7 @@ async def generate_real_cases(
         if body.apply_density_gate:
             selected = [p for p in selected if p.get("qualifies_as_point")]
         selected = sorted(selected, key=lambda p: p["encounter_index"])
-        trajectory_id = asc_trajectory.new_trajectory_id()
+        trajectory_id = job.row["trajectory_id"] if job else asc_trajectory.new_trajectory_id()
 
     response: Dict[str, Any] = {
         "ingest_case_id": ingest_case_id,
@@ -8490,10 +8531,39 @@ async def generate_real_cases(
     # walk is dense 0…n−1 even when an encounter fails its case judge. Each seal
     # retains its original chart boundary independently of that numbering.
     seq = 0
+    if job:
+        plan_hash = hashlib.sha256(json.dumps([
+            {key: p.get(key) for key in ('encounter_index', 'index_event_offset', 'encounter_span',
+                                         'point_class', 'specialty', 'case', 'held_out', 'sealed_outcome')}
+            for p in selected], sort_keys=True).encode()).hexdigest()
+        if job.progress.get('plan_hash') and job.progress['plan_hash'] != plan_hash:
+            raise RuntimeError('The chart plan changed since this run started. Saved points are preserved; review the changed plan before generating a new walk.')
+        job.checkpoint(total=len(selected), generated=0, phase='generating', plan_hash=plan_hash)
     for p in selected:
+        if job:
+            job.checkpoint(encounter_index=p['encounter_index'], generated=len(generated), failure=None)
+            existing = store.get_task(job.task_id(p['encounter_index']))
+            if existing:
+                generation = existing.get('generation') or {}
+                if existing.get('trajectory_id') != trajectory_id or (
+                        trajectory_mode and existing.get('sequence_index') != seq):
+                    raise RuntimeError('Saved point order disagrees with this walk. Review is required before resuming.')
+                generated.append({'task_id': existing['task_id'], 'encounter_index': p['encounter_index'],
+                                  'specialty': existing.get('specialty'),
+                                  'outcome_verifiable': bool((generation.get('sealed_outcome') or {}).get('outcome'))})
+                seq += 1
+                job.checkpoint(generated=len(generated))
+                continue
+            if body.derive_questions:
+                p['question'], p['question_source'] = await real_cases.derive_clinical_question(
+                    p['case'], p['held_out'], p.get('specialty'),
+                    **({'point_class': p.get('point_class'), 'encounter_window': [
+                        min(0, day - p['index_event_offset']) for day in p['encounter_span']]}
+                       if trajectory_mode else {}))
         try:
             r = await _generate_one_real_case(
                 store, ic, p, admin,
+                **({'job': job} if job else {}),
                 # PRD 2 §9.6 — trajectory points are SINGLE-LABELLED. They are
                 # excluded from the κ pool by construction (§4.2.4), so a second
                 # label buys no agreement statistic; it buys a second independent
@@ -8523,17 +8593,36 @@ async def generate_real_cases(
         except Exception as exc:  # pragma: no cover - per-case isolation
             log.warning("real-case generation failed for %s encounter %s: %s",
                         ingest_case_id, p.get("encounter_index"), exc)
+            if job:
+                raise RuntimeError(f"Encounter {p['encounter_index'] + 1}: {exc}") from exc
             failed.append({"encounter_index": p.get("encounter_index"), "error": str(exc)})
             continue
+        if job and not r.get('task_id'):
+            reason = r.get('error') or '; '.join(r.get('failures') or []) or 'Generation returned no task.'
+            # Polling gets structured scores, not clinical text. Retain the judge's
+            # explanation in the internal event log so a timed-out browser cannot
+            # erase the evidence needed to diagnose a rejected point.
+            failure = {'encounter_index': p['encounter_index'],
+                       'code': r.get('error_code') or 'generation_failed',
+                       'scores': (r.get('judges') or {}).get('case_judge'),
+                       'failures': r.get('failures') or []}
+            job.checkpoint(failure=failure)
+            store.log_event(entity_type='ingest_case', entity_id=ingest_case_id,
+                            event_type='real_case_generation_failed', actor=admin['id'],
+                            payload={**failure, 'job_id': job.row['job_id'],
+                                     'judges': r.get('judges') or {}})
+            raise RuntimeError(f"Encounter {p['encounter_index'] + 1}: {reason} Completed points are saved; retry to resume.")
         if r.get("task_id"):
             generated.append(r)
             seq += 1
+            if job:
+                job.checkpoint(generated=len(generated))
         elif r.get("failures"):
             gated.append(r)
         else:
             failed.append(r)
 
-    if generated:
+    if generated and not job:
         # The chart is promoted once, on the first task it produced. The ingest case
         # keeps pointing at that task so the existing V4 wall (an unreviewed case
         # must not be served) still resolves through it.
@@ -8543,10 +8632,11 @@ async def generate_real_cases(
                     event_type="real_cases_generated", actor=admin["id"],
                     payload={"generated": len(generated), "gated": len(gated),
                              "failed": len(failed)})
-    # One chart can produce many tasks; they announce as one batch.
-    await _notify_new_tasks(
-        store, background_tasks, _notifiable(generated), admin_id=admin["id"]
-    )
+    if not trajectory_mode:  # Unrouted walks stay quiet; Send owns their notifications.
+        await _notify_new_tasks(
+            store, background_tasks, _notifiable(generated), admin_id=admin["id"],
+            **({'batch_id': job.row['job_id']} if job else {}),
+        )
     response.update({
         "generated": len(generated), "gated": len(gated), "failed": len(failed),
         "task_ids": [g["task_id"] for g in generated],

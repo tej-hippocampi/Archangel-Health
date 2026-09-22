@@ -192,6 +192,7 @@ class GenerateRealCasesRequest(BaseModel):  # noqa: D401  (see docstring)
     unless ``derive_questions`` asks for one."""
 
     dry_run: bool = True
+    background: bool = False
     max_cases: Optional[int] = None
     min_gap_days: int = 7
     # Encounter indices to generate. Empty/None means "every generatable proposal",

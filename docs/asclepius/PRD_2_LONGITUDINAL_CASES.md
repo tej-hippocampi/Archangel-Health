@@ -178,7 +178,7 @@ future the physician is being asked to predict.
 
 **`ClinicalCase` does not change.** A truncated case is the same object with fewer items in
 the timed collections. `lab_panels`, `notes`, `studies`, `medications` and `problem_list`
-already carry `collected_offset_days` (`real_cases.py:59, 95`), so truncation is a filter,
+already carry `collected_offset_days` (`asclepius/real_cases.py:96`), so truncation is a filter,
 not a new shape. `extra="forbid"` stays untouched.
 
 Four things around it do change. The first is a trap.
@@ -195,7 +195,7 @@ if comp["missing"]:
         f"shipping an unanswerable case")
 ```
 
-`completeness_check` (`ingestion.py:1205`) returns `{present, missing, unresolved}` and
+`completeness_check` (`asclepius/ingestion.py:1275`) returns `{present, missing, unresolved}` and
 **only `missing` quarantines** — a token it recognised and confirmed absent.
 
 A case truncated at encounter *k* **legitimately lacks** modalities the full chart carries.
@@ -228,7 +228,7 @@ sequence_index   INTEGER  -- 0-based position; ordering is the whole point
 ```
 
 **Do not put these in `env_runs`.** That table already carries trajectory vocabulary
-(`store.py:722`: *"a `mode='rollout'` row is one agent trajectory over that environment,
+(`asclepius/store.py:1183`: *"a `mode='rollout'` row is one agent trajectory over that environment,
 sharing `task_id`"*) — but it holds **agent rollouts for V5**, not physician sessions.
 Same word, different actor. Merging them makes "trajectory" ambiguous in exactly the table a
 buyer audits.
@@ -243,8 +243,8 @@ falsifier corpus (§7) ships invisible.
 
 This is subtle and will not announce itself.
 
-`agreement.py:32` requires `blinded = True` to enter the κ computation, and `_blinded_only`
-(line 193) enforces it. But **blinding is about not seeing the other labeler's identity — it
+`_blinded_only` (`asclepius/agreement.py:228`) requires an explicitly true blinding flag
+to enter the κ computation. But **blinding is about not seeing the other labeler's identity — it
 says nothing about temporal independence.**
 
 A physician who labels encounter *k* and then *k+1* is blinded on both. Both observations
@@ -260,7 +260,7 @@ number a buyer audits.
 # carry outcome verification instead, which is a stronger claim than agreement.
 ```
 
-Report them as their own named metric, for the same reason `export.py:331` keeps review
+Report them as their own named metric, for the same reason `asclepius/export.py:604` keeps review
 acceptance and κ separately named.
 
 #### 4.2.5 The export is per-record; a trajectory is not
@@ -350,14 +350,16 @@ Run against `Archangel-Health-main (21)`. Everything below is verified in code, 
 
 ### 9.1 BLOCKER — the queue's priority sort breaks the seal
 
-`store.py:232`:
+`asclepius/store.py:297`:
 
 ```python
-_PRD_R_PRIORITY_ORDER = f"ORDER BY {_PRD_R_LABEL_COUNT} DESC, t.created_at ASC"
+_PRD_R_PRIORITY_ORDER = (
+    f"ORDER BY {_PRD_ASSIGN_MINE} DESC, {_PRD_R_LABEL_COUNT} DESC, t.created_at ASC"
+)
 ```
 
-**Label count is the PRIMARY sort key.** A task carrying one label is offered before every
-unlabelled task (PRD R §1.2 — a case awaiting its second label jumps the queue). `created_at`
+**Assignment priority comes first, then label count.** Within the same assignment tier,
+a task carrying one label is offered before unlabelled tasks (PRD R §1.2). `created_at`
 only breaks ties.
 
 Now put patient-1's 13 decision points in that queue, inserted in sequence order:
@@ -404,18 +406,18 @@ the physician has the task id in the URL.
 
 ### 9.2 `insert_task` needs a signature change
 
-`store.py:3554` is keyword-only with every parameter written out explicitly. Adding
+`asclepius/store.py:7021` is keyword-only with every parameter written out explicitly. Adding
 `trajectory_id` and `sequence_index` means editing that signature, the INSERT, and the
 `tasks` table.
 
-Follow the pattern `open_to_all_specialties` already set (line 3575) — additive column,
+Follow the explicit-caller pattern of `open_to_all_specialties` — additive column,
 explicit caller decision, never derived, with the migration written as
 `if col not in cols("tasks"): ALTER TABLE ... ADD COLUMN` and **no DEFAULT**, matching the
-house rule at `store.py:1957`.
+house rule at `asclepius/store.py:2638`.
 
 ### 9.3 Cost — state it before you generate 21 of these
 
-`payments.py:198` — `tl_rate_cents()` is **$75 per completed submission**, and a decision
+`asclepius/payments.py:224` — `tl_rate_cents()` is **$75 per completed submission**, and a decision
 point is a submission.
 
 | | Points | Single-labelled | Double-labelled (`PAIR_LABELS = 2`) |
@@ -434,11 +436,11 @@ are double-labelled at all — see 9.6.
 | Dedupe by `patient_key` blocking 13 cases from one chart | No such guard exists |
 | A "one case per patient per labeler" rule | None in `routing.py` |
 | Draft collisions across points | Drafts key on `task_id` (`DRAFT_PREFIX`), so distinct |
-| `assert_no_answer_leakage` misfiring on truncation | Explicitly written not to quarantine notes that legitimately state a diagnosis (`ingestion.py:1443`) |
+| `assert_no_answer_leakage` misfiring on truncation | Explicitly written not to quarantine notes that legitimately state a diagnosis (`asclepius/ingestion.py:1584`) |
 
 ### 9.5 `study_findings_policy` will vary across one trajectory
 
-`ingestion.py:1871` sets it per case: `"hidden" if any_asset else "visible"`. A truncation
+`asclepius/ingestion.py:2028` sets it per case: `"hidden" if any_asset else "visible"`. A truncation
 with no imaging gets `visible`; a later one carrying a study asset gets `hidden`.
 
 That is defensible — findings visibility should reflect what that window contains — but it
@@ -448,7 +450,7 @@ it in the data dictionary rather than discovering it in a buyer's diligence.
 
 ### 9.6 Each point carries its own phase; nothing chains them
 
-`routing.py:40` — `PHASES = (awaiting_first, awaiting_second, review_ready, adjudicated)` is
+`asclepius/routing.py:41` — `PHASES = (awaiting_first, awaiting_second, review_ready, adjudicated)` is
 per task. Thirteen points means thirteen independent phases. A trajectory can therefore sit
 half-adjudicated, and `wants_second_label` may lift capacity on point 7 while point 3 has no
 first label.
@@ -473,3 +475,19 @@ independent trajectory, which is a different and more expensive product. Set
 Steps 1–4 are invisible to physicians and safe to ship alone. **Do not create a trajectory
 task before step 2 lands** — the first one will be served out of order and the seal cannot
 be un-broken after a physician has read forward.
+
+## Tests
+
+`test_patient4_reference_walk.py` verifies seven encounter windows and six
+verifiable outcomes. `test_real_case_jobs.py` covers durable progress, interrupted
+generation, repeated requests, routing guards and preservation of saved points.
+`test_real_case_model_recovery.py` covers truncated candidates, provider failures,
+interval question context and exclusion of hidden answers from judge inputs.
+`test_asclepius_longitudinal_e2e.py` exercises ordered physician access and reveals.
+
+## Do-not-touch invariants
+
+Preserve source charts and existing tasks, submissions, assignments and evidence.
+Do not expose future clinical content, lower the encounter density thresholds,
+waive real-case quality floors, or route an incomplete durable generation job.
+Migrations remain additive; rollback retains generated tasks and job checkpoints.
