@@ -24,9 +24,9 @@ building a complete walk from a legacy chart creates a separate complete walk.
   Plan fingerprints additionally prevent resumed jobs from mixing planner
   versions. Task IDs derive from job ID and encounter index; insert transactions
   verify the current worker lease. Completed evidence is never overwritten.
-- Jobs checkpoint after each task. Recovery handles both task-before-checkpoint
-  crashes and notification-before-completion crashes. The notification batch ID
-  is stable. Worker startup resumes queued/expired jobs in the correct realm.
+- Jobs checkpoint after each task and recover committed tasks after a crash.
+  Worker startup resumes queued/expired jobs in the correct realm. Unrouted
+  walks send no email or community announcement; explicit routing owns delivery.
 - Intentional fixture changes: `ingest_cases.status`, `.task_id`, and `.updated_at`
   when a task is inserted; new tasks, jobs and audit events. Source clinical
   chart bytes and relationships are preserved.
@@ -74,8 +74,18 @@ Fresh-context auditor reviewed the implementation against
 
 No outstanding actionable findings. Independent temporary-database checks proved
 that planner drift leaves saved points unchanged, all three routing paths reject
-incomplete walks with zero assignments, and notification-boundary recovery
-completes 7/7 with seven generation calls and one unchanged outbox row.
+incomplete walks with zero assignments. The original notification-boundary check
+completed 7/7 with seven generation calls and one unchanged outbox row; a final
+correction now suppresses announcements for unrouted walks entirely. Synchronous
+and background generation both preserve seven points, six verifiable outcomes,
+zero assignments and an empty notification outbox.
+
+The final notification-boundary regression selection passed 36 tests. The
+`verified5-*` frozen fixture bracket generated all seven points with six
+verifiable outcomes and no notification rows; its inventory preserved every
+baseline identity, field and original file, permitting only the three documented
+ingest-case status/link/timestamp fields. Its consistent pre-run SQLite backup
+is retained as `verified5-restore-copy.db`.
 
 ## Production inspection and additional fixes
 

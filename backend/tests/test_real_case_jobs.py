@@ -70,6 +70,41 @@ def test_acknowledges_before_models_and_generates_seven_linked_points(store, mon
     assert client.get('/api/asclepius/tasks/' + tasks[1]['task_id'], headers=A.headers_for(doctor)).status_code == 409
 
 
+@pytest.mark.parametrize('background', [False, True])
+def test_unrouted_walk_does_not_notify_physicians(store, monkeypatch, background):
+    _stub_model_legs(monkeypatch)
+    _, ic, admin, _ = _generation_context(store)
+    doctor = A.make_user(store, role='evaluator', specialty='cardiology')
+    assert store.list_evaluators_by_specialty('cardiology')
+    announcements = []
+
+    async def capture_announcement(*args, **kwargs):
+        announcements.append(kwargs)
+        return True
+
+    monkeypatch.setattr(routes.asc_task_notify, 'post_community_announcement', capture_announcement)
+    body = GenerateRealCasesRequest(dry_run=False, trajectory=True, background=background)
+    bg = BackgroundTasks()
+    response = asyncio.run(routes.generate_real_cases(ic['ingest_case_id'], body, bg, admin))
+    if background:
+        queued = json.loads(response.body)
+        asyncio.run(bg())
+        completed = jobs.view(jobs.get(store, queued['job_id']))
+        assert completed['status'] == 'completed', completed
+        result = completed['result']
+    else:
+        result = response
+    assert result['generated'] == 7
+    assert result['walk_verifiable_points'] == 6
+    assert announcements == []
+    with store._conn() as conn:
+        assert conn.execute('SELECT COUNT(*) FROM task_notify_outbox').fetchone()[0] == 0
+    for task_id in result['task_ids']:
+        assert store.get_task(task_id)['distribution'] == 'assigned_only'
+        assert not store.assignments_for_task(task_id)
+    assert not store.assignments_for_user(doctor['id'])
+
+
 def test_failure_after_first_point_resumes_same_walk_without_duplicates(store, monkeypatch):
     _stub_model_legs(monkeypatch)
     original = routes._generate_one_real_case

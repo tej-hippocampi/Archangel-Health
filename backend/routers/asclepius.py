@@ -8632,11 +8632,11 @@ async def _execute_real_case_generation(
                     event_type="real_cases_generated", actor=admin["id"],
                     payload={"generated": len(generated), "gated": len(gated),
                              "failed": len(failed)})
-    # One chart can produce many tasks; they announce as one batch.
-    await _notify_new_tasks(
-        store, background_tasks, _notifiable(generated), admin_id=admin["id"],
-        **({'batch_id': job.row['job_id']} if job else {}),
-    )
+    if not trajectory_mode:  # Unrouted walks stay quiet; Send owns their notifications.
+        await _notify_new_tasks(
+            store, background_tasks, _notifiable(generated), admin_id=admin["id"],
+            **({'batch_id': job.row['job_id']} if job else {}),
+        )
     response.update({
         "generated": len(generated), "gated": len(gated), "failed": len(failed),
         "task_ids": [g["task_id"] for g in generated],
