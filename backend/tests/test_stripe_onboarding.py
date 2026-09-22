@@ -108,8 +108,9 @@ def test_start_creates_account_once_and_stores_only_id_and_status(stripe_fake):
     assert stripe_fake.account_link_calls[0]["type"] == "account_onboarding"
     # Return and refresh both come back into the portal, so an expired link is a
     # round trip rather than a dead end.
-    assert stripe_fake.account_link_calls[0]["return_url"]
-    assert stripe_fake.account_link_calls[0]["refresh_url"]
+    assert stripe_fake.account_link_calls[0]["return_url"].endswith('/#earnings?stripe=return')
+    assert stripe_fake.account_link_calls[0]["refresh_url"].endswith('/#earnings?stripe=refresh')
+    assert first.headers['cache-control'] == 'no-store'
 
 
 def test_start_asks_stripe_for_transfers_only(stripe_fake):
@@ -120,6 +121,32 @@ def test_start_asks_stripe_for_transfers_only(stripe_fake):
     capabilities = stripe_fake.account_create_calls[0]["capabilities"]
     assert set(capabilities) == {"transfers"}
     assert stripe_fake.account_create_calls[0]["type"] == "express"
+
+
+def test_lost_account_create_response_retries_the_same_stripe_account(stripe_fake, monkeypatch):
+    """A retry after Stripe accepts the request must not orphan a second payee."""
+    doctor = _doctor()
+    original = sys.modules['stripe'].Account.create
+    first = True
+
+    def interrupted(**kwargs):
+        nonlocal first
+        account = original(**kwargs)
+        if first:
+            first = False
+            raise RuntimeError('Simulated lost account-create response')
+        return account
+
+    monkeypatch.setattr(sys.modules['stripe'].Account, 'create', interrupted)
+    with pytest.raises(RuntimeError, match='Simulated lost'):
+        client.post('/api/asclepius/me/bank-link/start', headers=A.headers_for(doctor))
+    assert not _store().get_user_by_id(doctor['id']).get('stripe_account_id')
+    retry = client.post('/api/asclepius/me/bank-link/start', headers=A.headers_for(doctor))
+    assert retry.status_code == 200
+    assert len(stripe_fake.accounts) == 1
+    assert len(stripe_fake.account_create_calls) == 2
+    assert stripe_fake.account_create_calls[0]['idempotency_key'] == stripe_fake.account_create_calls[1]['idempotency_key']
+    assert _store().get_user_by_id(doctor['id'])['stripe_account_id'] == next(iter(stripe_fake.accounts))
 
 
 def test_a_waiting_list_row_keeps_its_meaning_until_onboarding_starts(stripe_fake):
@@ -192,6 +219,7 @@ def test_get_bank_link_reads_payouts_state_live_and_caches_nothing(stripe_fake):
 
     read = client.get("/api/asclepius/me/bank-link", headers=headers)
     assert read.status_code == 200
+    assert read.headers['cache-control'] == 'no-store'
     assert read.json()["payouts_enabled"] is False
     assert read.json()["bank_link_status"] == "onboarding"
 
@@ -365,7 +393,8 @@ def test_the_earnings_stop_renders_a_live_card_behind_the_flag():
     """)
     assert out["live"], "the live card did not render behind the flag"
     assert "coming soon" not in out["text"]
-    assert "Stripe collects your bank and tax details" in out["text"]
+    assert "Securely add your bank and tax details on Stripe" in out["text"]
+    assert "files your 1099" not in out["text"]
     assert "POST /me/bank-link/start" in out["calls"]
     assert out["href"] == "https://connect.stripe.test/setup/1"
     # The waiting-list POST is pointless once there is nothing left to wait for.

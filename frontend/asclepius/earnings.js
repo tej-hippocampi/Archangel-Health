@@ -467,6 +467,8 @@
   var loadError = null;
   var unsubscribe = null;
   var pollTimer = null;
+  var bankPanel = null;
+  var visit = 0;
 
   function money(cents) {
     var n = Math.round(Number(cents || 0)) / 100;
@@ -492,10 +494,71 @@
   };
 
   function render(body, ctx) {
+    teardown();
+    visit += 1;
     rootEl = body; rootCtx = ctx;
+    data = null; loadError = null; bankPanel = null;
     ctx.clear(body);
     body.appendChild(ctx.h('div', { class: 'asc-pay-loading' }, 'Loading your earnings…'));
+    if (ctx.bankLinkEnabled) loadBankLink(ctx, visit);
+    rerender();
     load();
+  }
+
+  function loadBankLink(ctx, currentVisit) {
+    function isCurrent() {
+      return visit === currentVisit && rootCtx === ctx
+        && (!ctx.isCurrentSession || ctx.isCurrentSession());
+    }
+    if (!isCurrent()) return;
+    var h = ctx.h;
+    if (!bankPanel) bankPanel = h('section', { class: 'asc-pay-bank', 'aria-label': 'Bank connection', 'aria-live': 'polite' });
+    var panel = bankPanel;
+    var refreshLink = ctx.bankLinkAction === 'refresh';
+    ctx.bankLinkAction = null;
+    ctx.clear(panel);
+    panel.appendChild(h('h3', {}, 'Bank connection'));
+    panel.appendChild(h('p', {}, 'Checking your connection with Stripe…'));
+    ctx.api('/me/bank-link').then(function (bank) {
+      if (!isCurrent()) return;
+      ctx.clear(panel);
+      panel.appendChild(h('h3', {}, 'Bank connection'));
+      if (bank.live === false) { unavailable(); return; }
+      if (bank.live === true && bank.bank_link_status === 'active' && bank.payouts_enabled === true) {
+        panel.appendChild(h('p', { class: 'asc-pay-bank-active' }, 'Bank account connected. Stripe has enabled bank payouts.'));
+        return;
+      }
+      if (typeof bank.connected !== 'boolean') {
+        panel.appendChild(h('p', {}, 'Payment setup is temporarily unavailable. Please try again later.'));
+        return;
+      }
+      var message = bank.bank_link_status === 'restricted'
+        ? 'Stripe needs more information before it can enable your bank payouts.'
+        : bank.details_submitted
+          ? 'Your details are submitted. Stripe is checking whether anything else is needed.'
+          : 'Connect your bank account to receive payments for approved work.';
+      panel.appendChild(h('p', {}, message));
+      if (!window.FirstRunWalkthrough || !window.FirstRunWalkthrough.bankCard) { unavailable(); return; }
+      var button = window.FirstRunWalkthrough.bankCard(ctx, {
+        title: bank.connected ? 'Continue Stripe setup' : 'Link your bank account',
+        isCurrent: isCurrent,
+      });
+      panel.appendChild(button);
+      // Only Stripe's explicit expiry path renews automatically, after the
+      // signed-in account has been checked. Completion merely refreshes state.
+      if (refreshLink && bank.connected) button.click();
+    }).catch(function () {
+      if (!isCurrent()) return;
+      unavailable();
+    });
+    function unavailable() {
+      ctx.clear(panel);
+      panel.appendChild(h('h3', {}, 'Bank connection'));
+      panel.appendChild(h('p', {}, 'We could not confirm your bank connection with Stripe. Your earnings are unchanged.'));
+      panel.appendChild(h('button', { type: 'button', class: 'asc-btn', onClick: function () {
+        loadBankLink(ctx, currentVisit);
+      } }, 'Check connection again'));
+    }
   }
 
   function rerender() {
@@ -513,15 +576,18 @@
           'Your earnings could not be loaded, so nothing below is a real number. '
           + loadError + ' Reload the page; if it persists this is a deploy problem, '
           + 'not a change to what you are owed.'))));
+      if (bankPanel) rootEl.appendChild(bankPanel);
       return;
     }
     if (!data) {
       rootEl.appendChild(h('div', { class: 'asc-pay-loading' }, 'Loading your earnings…'));
+      if (bankPanel) rootEl.appendChild(bankPanel);
       return;
     }
 
     rootEl.appendChild(h('h2', { class: 'asc-pay-title' }, 'Earnings'));
     rootEl.appendChild(headline(h));
+    if (bankPanel) rootEl.appendChild(bankPanel);
     // The countdown is about TIME, which an unpaid account works like anyone
     // else — so the session widget shows for them too.
     var live = sessionWidget(h);
@@ -756,16 +822,19 @@
   /* ─── Data ─────────────────────────────────────────────────── */
   function load() {
     var ctx = rootCtx;
+    var currentVisit = visit;
     if (!ctx) return;
     // ctx.api already prefixes API_BASE = '/api/asclepius' (asclepius.js). The
     // path here is RELATIVE to that — writing '/asclepius/earnings' doubled the
     // segment into /api/asclepius/asclepius/earnings, which matches no route, so
     // every physician's Earnings tab hard-404'd.
     ctx.api('/earnings').then(function (payload) {
+      if (visit !== currentVisit || rootCtx !== ctx) return;
       data = payload; loadError = null;
       rerender();
       watchSession();
     }).catch(function (err) {
+      if (visit !== currentVisit || rootCtx !== ctx) return;
       data = null;
       loadError = (err && (err.detail || err.message)) || 'The server did not respond.';
       rerender();
@@ -790,9 +859,12 @@
     if (!data.open_session) return;
 
     var id = data.open_session.session_id;
+    var ctx = rootCtx;
+    var currentVisit = visit;
     var every = ((data.params && data.params.beat_interval_seconds) || 15) * 1000;
     pollTimer = setInterval(function () {
-      rootCtx.api('/sessions/' + encodeURIComponent(id)).then(function (s) {
+      ctx.api('/sessions/' + encodeURIComponent(id)).then(function (s) {
+        if (visit !== currentVisit || rootCtx !== ctx) return;
         data.open_session = s.ended ? null : s;
         rerender();
         if (s.ended) { clearInterval(pollTimer); pollTimer = null; load(); }
@@ -809,9 +881,9 @@
     render: render,
     reset: function () {
       teardown();
+      visit += 1;
+      bankPanel = null; rootEl = null; rootCtx = null;
       data = null; loadError = null;
-      // The referral form's draft is per-visit state. Leaving it behind would
-      // put one physician's half-typed colleague in front of the next render.
-      },
+    },
   };
 })();

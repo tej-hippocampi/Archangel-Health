@@ -5393,13 +5393,41 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
    rather than a new component: it is the same promise, kept, and a physician
    who has seen the placeholder should recognise it. */
 .asc-fr-bank-live {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
   border-style: solid;
-  border-color: var(--asc-line);
+  border-color: var(--green-line);
+  background: var(--green-wash);
   cursor: pointer;
   opacity: 1;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
-.asc-fr-bank-live:hover { border-color: var(--asc-line-strong); }
-.asc-fr-bank-live[disabled] { cursor: progress; opacity: 0.6; }
+.asc-fr-bank-live .asc-fr-bank-title { color: var(--green-deep); font-weight: 500; }
+.asc-fr-bank-copy { min-width: 0; }
+.asc-fr-bank-arrow { font-size: 25px; line-height: 1; color: var(--green-deep); }
+.asc-fr-bank-live:hover:not([disabled]) {
+  background: var(--lime-wash);
+  border-color: var(--green-deep);
+  box-shadow: var(--shadow-card);
+  transform: translateY(-1px);
+}
+.asc-fr-bank-live:focus-visible {
+  outline: 2px solid var(--green-deep);
+  outline-offset: 4px;
+  background: var(--lime-wash);
+}
+.asc-fr-bank-live:active:not([disabled]) { transform: translateY(0); }
+.asc-fr-bank-live[disabled] { cursor: progress; opacity: 0.7; }
+.asc-pay-bank { margin: 24px 0; padding: 20px; border: 1px solid var(--asc-line); border-radius: var(--r-md); background: var(--asc-surface); }
+.asc-pay-bank h3 { margin: 0 0 8px; font-size: var(--t-h3); font-weight: 500; }
+.asc-pay-bank p { margin: 0 0 12px; font-size: var(--t-sm); line-height: var(--lh-body); color: var(--asc-muted); }
+.asc-pay-bank .asc-pay-bank-active { color: var(--green-deep); }
+@media (prefers-reduced-motion: reduce) {
+  .asc-fr-bank-live { transition: none; }
+  .asc-fr-bank-live:hover:not([disabled]) { transform: none; }
+}
 
 /* ── The persistent checklist. Passive: it reports, it never interrupts. ── */
 .asc-fr-checklist {

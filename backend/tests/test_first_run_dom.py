@@ -469,7 +469,7 @@ def test_a_walkthrough_resumed_after_the_practice_case_lands_on_the_community():
     assert out["handoffs"] == [], "resuming must not navigate on its own"
 
 
-def test_the_earnings_stop_states_the_rate_and_labels_the_bank_card_disabled():
+def test_the_earnings_stop_describes_accrual_and_labels_the_bank_card_disabled():
     out = _run_node(_ctx(user={"first_run": {"version": 1, "stops": {
         "welcome": "done", "start": "done", "practice": "done", "community": "done"}}}) + """
       window.FirstRunWalkthrough.resume(ctx);
@@ -482,7 +482,8 @@ def test_the_earnings_stop_states_the_rate_and_labels_the_bank_card_disabled():
         }));
       });
     """)
-    assert "$75 per completed case" in out["text"]
+    assert "Every case you complete accrues in earnings, visible immediately" in out["text"]
+    assert "$75 per completed case" not in out["text"]
     assert "coming soon" in out["text"]
     assert "we’ll DM you the moment it does" in out["text"]
     # Architecture on screen, not a control that pretends to work.

@@ -109,6 +109,7 @@
 
   /* ── Live state. Torn down on exit; nothing survives a sign-out. ── */
   var ctx = null;          // { h, api, toast, onUser, startTutorial, openCommunity, setPanel, exit }
+  var bankLinkEpoch = 0;   // invalidated by shell navigation, including sign-out
   var stops = {};          // { stopId: 'done' | 'deferred' }
   var current = null;      // stop id on screen
   var demoMeta = null;     // { available, url, version } once probed
@@ -696,38 +697,60 @@
    *  The subtitle is not decoration. A doctor is about to type a bank account
    *  number and a tax id into a form, and saying whose form it is, before they
    *  leave, is the honest version of asking. */
-  function liveBankCard() {
-    var btn = h('button', {
+  function liveBankCard(context, options) {
+    var cardCtx = context || ctx;
+    var el = cardCtx.h;
+    options = options || {};
+    var title = el('span', { class: 'asc-fr-bank-title' }, options.title || 'Link your bank account');
+    var busy = false;
+    var btn = el('button', {
       class: 'asc-fr-bank asc-fr-bank-live', type: 'button',
       onclick: function () {
+        if (busy || !currentCard()) return;
+        var epoch = bankLinkEpoch;
+        function stillCurrent() { return epoch === bankLinkEpoch && currentCard(); }
+        busy = true;
         btn.setAttribute('disabled', '');
-        ctx.api('/me/bank-link/start', { method: 'POST' }).then(function (res) {
+        btn.setAttribute('aria-busy', 'true');
+        title.textContent = 'Opening Stripe…';
+        Promise.resolve().then(function () {
+          if (!stillCurrent()) return;
+          return cardCtx.api('/me/bank-link/start', { method: 'POST' });
+        }).then(function (res) {
+          if (!stillCurrent()) return;
           if (res && res.url) { window.location.href = res.url; return; }
-          btn.removeAttribute('disabled');
-          ctx.toast('Could not open bank linking just now. Try again in a moment.');
+          failed();
         }).catch(function () {
-          btn.removeAttribute('disabled');
-          ctx.toast('Could not open bank linking just now. Try again in a moment.');
+          if (stillCurrent()) failed();
         });
       },
     },
-      h('span', { class: 'asc-fr-bank-title' }, 'Link your bank account'),
-      h('span', { class: 'asc-fr-bank-sub' },
-        'Stripe collects your bank and tax details and files your 1099. '
-        + 'We never see them.'));
+      el('span', { class: 'asc-fr-bank-copy' }, title,
+        el('span', { class: 'asc-fr-bank-sub' }, 'Securely add your bank and tax details on Stripe.')),
+      el('span', { class: 'asc-fr-bank-arrow', 'aria-hidden': 'true' }, '↗'));
+    function currentCard() {
+      return (!cardCtx.isCurrentSession || cardCtx.isCurrentSession())
+        && (!options.isCurrent || options.isCurrent());
+    }
+    function failed() {
+      busy = false;
+      btn.removeAttribute('disabled');
+      btn.removeAttribute('aria-busy');
+      title.textContent = options.title || 'Link your bank account';
+      cardCtx.toast('Could not open bank linking just now. Try again in a moment.');
+    }
     return btn;
   }
 
   function renderEarnings() {
     current = 'earnings';
     var live = bankRailLive();
-    var bankBtn = live ? liveBankCard() : comingSoonBankCard();
+    var bankBtn = live ? liveBankCard(ctx) : comingSoonBankCard();
 
     var body = h('div', {},
       h('h1', { class: 'asc-fr-title' }, 'How you get paid.'),
       h('p', { class: 'asc-fr-body' },
-        'Every case you complete accrues in Earnings, $75 per completed case, '
-        + 'visible immediately.'),
+        'Every case you complete accrues in earnings, visible immediately'),
       // Disabled and clearly labelled, per §6 stop 5, until the payments rail is
       // live. It is architecture on screen: the card and the `bank_link_status`
       // field exist now, and Stripe lands on the payments track. A card that
@@ -1153,6 +1176,8 @@
       renderReentry();
     },
 
+    bankCard: liveBankCard,
+    cancelBankLink: function () { bankLinkEpoch += 1; },
     teardown: teardownChrome,
   };
 })();

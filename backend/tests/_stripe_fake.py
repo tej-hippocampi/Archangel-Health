@@ -57,6 +57,7 @@ class FakeStripe:
         self.api_keys: List[str] = []
         self.accounts: Dict[str, Dict[str, Any]] = {}
         self.account_create_calls: List[Dict[str, Any]] = []
+        self.account_requests: Dict[str, str] = {}
         self.account_link_calls: List[Dict[str, Any]] = []
         #: idempotency key -> the transfer object returned the FIRST time.
         self.transfers: Dict[str, Dict[str, Any]] = {}
@@ -95,6 +96,9 @@ def install(monkeypatch, *, secret_key: str = "sk_test_rail",
         @staticmethod
         def create(**kw: Any) -> Dict[str, Any]:
             fake.account_create_calls.append(kw)
+            request_key = kw.get('idempotency_key')
+            if request_key in fake.account_requests:
+                return dict(fake.accounts[fake.account_requests[request_key]])
             account_id = f"acct_{len(fake.accounts) + 1}"
             fake.accounts[account_id] = {
                 "id": account_id,
@@ -105,6 +109,8 @@ def install(monkeypatch, *, secret_key: str = "sk_test_rail",
                 "requirements": {"disabled_reason": None},
                 "metadata": kw.get("metadata") or {},
             }
+            if request_key:
+                fake.account_requests[request_key] = account_id
             return dict(fake.accounts[account_id])
 
         @staticmethod
