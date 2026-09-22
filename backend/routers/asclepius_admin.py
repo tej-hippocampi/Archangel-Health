@@ -3702,6 +3702,19 @@ def _depth_fields_present(user: Dict[str, Any]) -> List[str]:
     return sorted(n for n in present if n in known)
 
 
+def _require_complete_generation(store, task_ids):
+    from asclepius import real_case_jobs
+    for task_id in task_ids:
+        task = store.get_task(task_id) or {}
+        job_id = (task.get('generation') or {}).get('real_case_job_id')
+        if job_id:
+            job = real_case_jobs.get(store, job_id)
+            if not job or job['status'] != 'completed':
+                raise HTTPException(status_code=409, detail={
+                    'error': 'chart_walk_incomplete',
+                    'message': 'This chart walk is still generating or needs a retry. Complete it before routing to physicians.'})
+
+
 def _allocation_inputs(store: Any, task_ids: List[str]):
     """Build the allocator's pure inputs from the store.
 
@@ -3715,6 +3728,7 @@ def _allocation_inputs(store: Any, task_ids: List[str]):
     from asclepius import review as _review
     from asclepius import tiering as _tiering
 
+    _require_complete_generation(store, task_ids)
     cases = []
     for tid in task_ids:
         t = store.get_task(tid)
@@ -3819,6 +3833,8 @@ async def admin_send_relay(
     points = store.trajectory_points(body.trajectory_id)
     if not points:
         raise HTTPException(status_code=404, detail="No such trajectory.")
+
+    _require_complete_generation(store, [p['task_id'] for p in points])
 
     # Re-sending would write a second rotation over the first, and a doctor
     # already told "point 4 is yours" would lose it with nobody informed.
@@ -3934,6 +3950,7 @@ async def admin_reassign_point(
     task = store.get_task(body.task_id)
     if not task or task.get("trajectory_id") != trajectory_id:
         raise HTTPException(status_code=404, detail="That point is not in this walk.")
+    _require_complete_generation(store, [body.task_id])
     if store.submissions_for_task(body.task_id):
         raise HTTPException(status_code=409, detail={
             "error": "already_answered",

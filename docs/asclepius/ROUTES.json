@@ -1,5 +1,5 @@
 {
-  "count": 686,
+  "count": 687,
   "routes": [
     "DELETE /api/asclepius/hs/media/files/{fid}",
     "DELETE /api/asclepius/hs/uploads/sessions/{session_id}",
@@ -128,6 +128,7 @@
     "GET /api/asclepius/hs/uploads",
     "GET /api/asclepius/hs/uploads/sessions/{session_id}",
     "GET /api/asclepius/ingestion/cases",
+    "GET /api/asclepius/ingestion/cases/{ingest_case_id}/generation-jobs/{job_id}",
     "GET /api/asclepius/ingestion/quarantine",
     "GET /api/asclepius/ingestion/uploads",
     "GET /api/asclepius/ingestion/uploads/{upload_id}",

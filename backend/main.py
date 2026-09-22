@@ -7098,6 +7098,25 @@ _asclepius_task_notify_task = None
 
 
 @app.on_event('startup')
+async def startup_real_case_jobs():
+    from asclepius import real_case_jobs
+    app.state.real_case_jobs_task = None
+    if os.getenv('ASCLEPIUS_REAL_CASE_WORKER_ENABLED', '1') == '1':
+        app.state.real_case_jobs_task = asyncio.create_task(real_case_jobs.worker_loop())
+
+
+@app.on_event('shutdown')
+async def shutdown_real_case_jobs():
+    import contextlib
+    task = getattr(app.state, 'real_case_jobs_task', None)
+    if task:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        app.state.real_case_jobs_task = None
+
+
+@app.on_event('startup')
 async def startup_payment_ops():
     from asclepius import payment_ops
     app.state.payment_ops_task = None

@@ -6,7 +6,7 @@ from tests.test_asclepius_longitudinal_ui import ADMIN_JS, DOM_SHIM, _extract_fu
 
 def _script(body):
     functions = '\n'.join(_extract_function(ADMIN_JS, n) for n in (
-        'h', 'appendChildren', 'chartWalkSummary', 'renderDensityLine', 'renderProposalRow', 'openCasePlanModal',
+        'h', 'appendChildren', 'generateChartCases', 'chartWalkSummary', 'renderDensityLine', 'renderProposalRow', 'openCasePlanModal',
         'previewLongitudinal', 'doneRow'))
     return f"""
 require({str(DOM_SHIM)!r});
@@ -64,8 +64,43 @@ const button = all(row).find(n=>n.tagName==='BUTTON');
 await button._listeners.click[0]({});
 console.log(JSON.stringify(calls[0]));
 """))
-    assert result['body'] == {'dry_run': False, 'trajectory': True, 'encounter_indices': [6],
+    assert result['body'] == {'dry_run': False, 'trajectory': True, 'background': True,
                               'include_interval_points': True}
+
+
+def test_background_generation_polls_progress_and_returns_full_walk():
+    result = _run_node(_script("""
+globalThis.setTimeout = fn => setImmediate(fn);
+let polls = 0;
+api = async (path, req) => {
+ calls.push({path,...req});
+ if (req) return {job_id:'job',status:'queued',progress:{}};
+ polls++;
+ return polls === 1 ? {job_id:'job',status:'running',progress:{generated:1,total:7,encounter_index:1}}
+   : {job_id:'job',status:'completed',progress:{generated:7,total:7},result:{generated:7,trajectory_points:7}};
+};
+const status = h('div',{});
+const result = await generateChartCases({ingest_case_id:'ic'}, {dry_run:false,trajectory:true,encounter_indices:[6]}, status);
+console.log(JSON.stringify({calls,result,text:status.textContent}));
+"""))
+    assert len(result['calls']) == 3
+    assert result['calls'][0]['body'] == {'dry_run': False, 'trajectory': True, 'background': True}
+    assert result['calls'][1]['path'] == '/ingestion/cases/ic/generation-jobs/job'
+    assert result['result']['trajectory_points'] == 7
+    assert 'Saved 7 of 7' in result['text']
+
+
+def test_background_failure_reports_saved_partial_progress_without_success():
+    result = _run_node(_script("""
+api = async () => ({job_id:'job',status:'failed',progress:{generated:1,total:7},error:'Encounter 2: upstream unavailable; retry to resume.'});
+const status = h('div',{});
+let error;
+try { await generateChartCases({ingest_case_id:'ic'}, {dry_run:false,trajectory:true}, status); }
+catch(e) { error = e.message; }
+console.log(JSON.stringify({error,text:status.textContent}));
+"""))
+    assert 'Encounter 2' in result['error']
+    assert 'Saved 1 of 7' in result['text']
 
 
 def test_modal_counts_all_walk_points_without_a_narrative_hold_warning():
@@ -109,7 +144,7 @@ console.log(JSON.stringify({calls,staticReplanned}));
     assert all(call['body']['trajectory'] for call in result['calls'])
 
 
-def test_completed_upload_keeps_read_only_plan_access():
+def test_promoted_upload_can_resume_an_incomplete_walk():
     result = _run_node(_script("""
 api = async (path, req) => {
  calls.push({path,...req});
@@ -122,8 +157,8 @@ await new Promise(resolve=>setImmediate(resolve));
 const buttons = all(document.body).filter(n=>n.tagName==='BUTTON' && /^(Chain|Generate)/.test(n.textContent));
 console.log(JSON.stringify({calls,text:document.body.textContent,disabled:buttons.every(n=>n.hasAttribute('disabled'))}));
 """))
-    assert 'Read-only chart review' in result['text']
-    assert result['disabled']
+    assert 'Read-only chart review' not in result['text']
+    assert not result['disabled']
     requests = [c for c in result['calls'] if c['path'].endswith('/generate')]
     assert requests[0]['body'] == {'dry_run': True, 'trajectory': True, 'derive_questions': False}
 
@@ -150,13 +185,13 @@ await button._listeners.click[0]({});
 console.log(JSON.stringify({defaultChecked,calls,confirmations}));
 """))
     assert result['defaultChecked']
-    assert result['calls'][0]['body'] == {'dry_run': False, 'trajectory': True, 'include_interval_points': True}
+    assert result['calls'][0]['body'] == {'dry_run': False, 'trajectory': True, 'background': True, 'include_interval_points': True}
     assert '7-point' in result['confirmations'][0]
     assert '6 of the 7' in result['confirmations'][0]
     assert '$525' in result['confirmations'][0]
 
 
-@pytest.mark.parametrize('action', ['Chain', 'Generate all', 'Generate this'])
+@pytest.mark.parametrize('action', ['Chain', 'Generate all', 'Generate chart walk'])
 def test_toggle_replans_and_every_generation_path_preserves_the_selection(action):
     result = _run_node(_script("""
 const filtered = {...plan, walk_points:3, ready_walk_points:3, interval_points:0,
@@ -231,7 +266,7 @@ console.log(JSON.stringify({calls}));
     assert result['calls'][0]['body']['trajectory'] is True
 
 
-@pytest.mark.parametrize('action', ['Chain', 'Generate all', 'Generate this'])
+@pytest.mark.parametrize('action', ['Chain', 'Generate all', 'Generate chart walk'])
 def test_pending_generation_cannot_replan_or_start_another_write(action):
     result = _run_node(_script("""
 let reject;

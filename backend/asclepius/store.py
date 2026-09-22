@@ -850,6 +850,26 @@ class AsclepiusStore:
                 CREATE INDEX IF NOT EXISTS idx_genjobs_specialty ON generation_jobs(specialty);
                 CREATE INDEX IF NOT EXISTS idx_genjobs_created ON generation_jobs(created_at);
 
+                -- Durable manual real-chart generation. Existing evidence is untouched.
+                CREATE TABLE IF NOT EXISTS real_case_generation_jobs (
+                    job_id TEXT PRIMARY KEY,
+                    request_key TEXT NOT NULL UNIQUE,
+                    ingest_case_id TEXT NOT NULL,
+                    request_json TEXT NOT NULL,
+                    created_by TEXT NOT NULL,
+                    trajectory_id TEXT,
+                    status TEXT NOT NULL DEFAULT 'queued',
+                    progress_json TEXT NOT NULL DEFAULT '{}',
+                    result_json TEXT,
+                    error TEXT,
+                    lease_owner TEXT,
+                    lease_until REAL NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_real_case_jobs_case
+                    ON real_case_generation_jobs(ingest_case_id);
+
                 -- V4 image asset index (V4 Image Embedding PRD §4). Resolves an
                 -- asset_id → sha256/mime/owning-task in ONE indexed lookup so serving
                 -- an image never scans the tasks table. The image BYTES live in the
@@ -7035,6 +7055,7 @@ class AsclepiusStore:
         # future single-point send would need to set one without the other.
         distribution: Optional[str] = None,
         ingest_case_id: Optional[str] = None,
+        generation_lease: Optional[tuple[str, str]] = None,
     ) -> Dict[str, Any]:
         from asclepius.constants import normalize_independent_mode
 
@@ -7109,6 +7130,13 @@ class AsclepiusStore:
         )
         with self._conn() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            if generation_lease:
+                import time
+                lease = conn.execute("SELECT 1 FROM real_case_generation_jobs WHERE job_id = ? "
+                                     "AND lease_owner = ? AND status = 'running' AND lease_until > ?",
+                                     (*generation_lease, time.time())).fetchone()
+                if not lease:
+                    raise ValueError('Generation lease expired; resume the saved job.')
             if conn.execute("SELECT 1 FROM tasks WHERE task_id = ?", (tid,)).fetchone():
                 raise ValueError("task_id already exists; create a new task revision instead of replacing evidence")
             if ingest_case_id is not None:
