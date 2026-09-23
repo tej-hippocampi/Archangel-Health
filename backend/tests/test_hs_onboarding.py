@@ -1101,7 +1101,7 @@ def test_the_agreement_reads_as_a_document_not_as_markdown():
     assert sha == asc_dla.sha256_of(text)
 
     # And the PDF prints the same document, headings and all.
-    from PyPDF2 import PdfReader
+    from pypdf import PdfReader
 
     pdf = asc_dla.render_pdf(
         organization="St Mary's Health", version=asc_dla.CURRENT_VERSION,

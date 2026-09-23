@@ -73,8 +73,11 @@ def test_forced_reset_then_upload_ingests_a_real_case():
     assert client.post("/api/asclepius/provider/uploads", headers=h,
                        files=[("files", ("x.txt", b"note", "text/plain"))]).status_code == 403
     # forced reset (blank current password — the token is the proof)
-    assert client.post("/api/asclepius/provider/password", headers=h,
-                       json={"new_password": "BrandNewPass-456!"}).status_code == 200
+    reset = client.post("/api/asclepius/provider/password", headers=h,
+                        json={"new_password": "BrandNewPass-456!"})
+    assert reset.status_code == 200, reset.text
+    assert client.get("/api/asclepius/provider/me", headers=h).status_code == 401
+    h = {"Authorization": f"Bearer {reset.json()['token']}"}
     assert client.get("/api/asclepius/provider/me", headers=h).json()["must_reset_password"] is False
 
     # upload loose files (server zips them + injects the specialty manifest)
@@ -111,8 +114,10 @@ def test_single_loose_file_is_wrapped_and_ingested():
     store = A.fresh_store()
     _provision(store)
     h = {"Authorization": f"Bearer {_login()}"}
-    client.post("/api/asclepius/provider/password", headers=h,
-                json={"new_password": "BrandNewPass-456!"})
+    reset = client.post("/api/asclepius/provider/password", headers=h,
+                        json={"new_password": "BrandNewPass-456!"})
+    assert reset.status_code == 200, reset.text
+    h = {"Authorization": f"Bearer {reset.json()['token']}"}
     csv = (b"patient_key,panel,analyte,value,unit,collected_at\n"
            b"p1,BMP,Creatinine,2.4,mg/dL,2025-03-08")
     up = client.post("/api/asclepius/provider/uploads", headers=h,

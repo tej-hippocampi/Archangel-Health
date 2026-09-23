@@ -8,6 +8,7 @@ import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 
+from card_html import sanitize_card_html
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -165,7 +166,7 @@ async def start_teachback(
     authorization: Optional[str] = Header(None),
 ):
     staff = await get_staff_context_optional(authorization)
-    require_patient_session(staff)
+    require_patient_session(staff, patient_id)
     if track not in _VALID_TRACKS:
         raise HTTPException(status_code=400, detail="Invalid track")
     team_store = request.app.state.team_store
@@ -231,7 +232,7 @@ async def start_teachback(
         session_id=session_id,
         track=track,
         questions=questions,
-        battlecard_html=anchored_html,
+        battlecard_html=sanitize_card_html(anchored_html),
     )
 
 
@@ -244,7 +245,7 @@ async def answer_teachback(
     authorization: Optional[str] = Header(None),
 ):
     staff = await get_staff_context_optional(authorization)
-    require_patient_session(staff)
+    require_patient_session(staff, patient_id)
     if track not in _VALID_TRACKS:
         raise HTTPException(status_code=400, detail="Invalid track")
     team_store = request.app.state.team_store
@@ -254,7 +255,7 @@ async def answer_teachback(
         if body.session_id is not None
         else team_store.get_latest_teachback_session(patient_id=patient_id, track=track)
     )
-    if not session or str(session.get("track")) != track:
+    if not session or session.get("patient_id") != patient_id or str(session.get("track")) != track:
         raise HTTPException(status_code=404, detail="Teach-back session not found")
     if bool(session.get("completed")):
         return {"ok": True, "completed": True, "results": session.get("results") or {}}
@@ -393,7 +394,7 @@ async def get_teachback_session_state(
     authorization: Optional[str] = Header(None),
 ):
     staff = await get_staff_context_optional(authorization)
-    require_patient_session(staff)
+    require_patient_session(staff, patient_id)
     if track not in _VALID_TRACKS:
         raise HTTPException(status_code=400, detail="Invalid track")
     _resolve_patient(request, patient_id)

@@ -30,13 +30,19 @@ jobs:
           pip install -r backend/requirements.txt
           pip install pip-audit
       - name: Audit installed dependencies
-        # Reports known vulnerabilities in our dependencies. Introduced as
-        # NON-BLOCKING so a pre-existing backlog doesn't halt the team — Dependabot
-        # PRs chip away at it. Once the backlog is triaged, REMOVE continue-on-error
-        # to make new CVEs fail the build. Use --ignore-vuln <id> to accept a
-        # specific, justified finding.
-        continue-on-error: true
         run: pip-audit --progress-spinner off
+
+  npm-audit:
+    name: Frontend dependency vulnerability scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Audit production and build dependencies
+        working-directory: landing
+        run: npm audit --audit-level=low
 
   gitleaks:
     name: Secret scan (gitleaks)
@@ -46,13 +52,14 @@ jobs:
         with:
           fetch-depth: 0 # full history so committed-then-deleted secrets are caught
       - name: Run gitleaks
-        # Non-blocking initially: the first scan over existing history can match
-        # placeholder values (e.g. .env.example) as false positives. Review the
-        # findings, allowlist real false positives in a .gitleaks.toml, then REMOVE
-        # continue-on-error so a genuinely committed secret fails the build.
-        continue-on-error: true
         run: |
-          VERSION=8.18.4
+          set -euo pipefail
+          VERSION=8.30.1
+          ARCHIVE="gitleaks_${VERSION}_linux_x64.tar.gz"
           curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
-            | tar -xz gitleaks
-          ./gitleaks detect --source . --no-banner --redact --verbose
+            -o "$ARCHIVE"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_checksums.txt" \
+            -o checksums.txt
+          grep "  ${ARCHIVE}$" checksums.txt | sha256sum --check --strict
+          tar -xzf "$ARCHIVE" gitleaks
+          ./gitleaks git . --no-banner --redact

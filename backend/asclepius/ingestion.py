@@ -978,6 +978,7 @@ def _read_entry_streamed(zf: zipfile.ZipFile, info: zipfile.ZipInfo,
 
 
 def _gunzip_bounded(data: bytes, *, remaining_budget: int,
+                    spend: Optional[List[int]] = None,
                     ) -> Tuple[Optional[bytes], Optional[str]]:
     """Decompress a gzip member with the SAME produced-byte accounting as the zip
     reader. Without this the ``.gz`` carve-out would be the hole that the archive
@@ -1011,6 +1012,11 @@ def _gunzip_bounded(data: bytes, *, remaining_budget: int,
         raise
     except (OSError, EOFError, zlib.error) as exc:
         return None, f"unreadable gzip member ({exc})"
+    finally:
+        # Rejected/corrupt members still consumed decompression work. Charge
+        # their produced bytes just as _read_entry_streamed does for ZIPs.
+        if spend is not None:
+            spend[0] = written
     return out.getvalue(), None
 
 
@@ -1095,12 +1101,18 @@ def unpack_bundle_from_path(zip_path: str, *, spill: bool = True) -> Dict[str, A
                                     "reason": "nested archive (not extracted)"})
                     continue
                 if data[:2] == _GZIP_MAGIC or lower.endswith(_GZIP_EXTS):
-                    data, reject = _gunzip_bounded(data, remaining_budget=budget)
+                    gzip_spend = [0]
+                    data, reject = _gunzip_bounded(data, remaining_budget=budget,
+                                                  spend=gzip_spend)
+                    budget -= gzip_spend[0]
                     if reject is not None:
                         entries.append({"name": name, "kind": "rejected",
                                         "reason": reject})
+                        if budget <= 0:
+                            raise _OutputBudgetExceeded(
+                                "decompressed output exceeded the bundle budget "
+                                "(zip-bomb defense)")
                         continue
-                    budget -= len(data)
                     # Classify on the INNER name: export.ndjson.gz is ndjson.
                     name_for_kind, lower = name[:-3], lower[:-3]
                 else:

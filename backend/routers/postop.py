@@ -180,7 +180,7 @@ async def post_daily_checkin(
 ):
     """Patient-submitted daily check-in. Pass-4: patient-session only."""
     staff = await _resolve_staff(authorization)
-    require_patient_session(staff)
+    require_patient_session(staff, patient_id)
     patient = _resolve_patient(request, patient_id, staff)
     team_store = _team_store(request)
     episode_day = int(body.episode_day or _episode_day_for_now(patient))
@@ -244,7 +244,7 @@ async def post_dayx_survey(
         raise HTTPException(status_code=400, detail="day must be 7, 14, or 30")
     staff = await _resolve_staff(authorization)
     # Patient-submitted survey. Pass-4: patient-session only.
-    require_patient_session(staff)
+    require_patient_session(staff, patient_id)
     patient = _resolve_patient(request, patient_id, staff)
     team_store = _team_store(request)
     family = patient.get("anchor_procedure_family")
@@ -295,7 +295,7 @@ async def post_med_adherence(
 ):
     """Patient-submitted med-adherence response. Pass-4: patient-session only."""
     staff = await _resolve_staff(authorization)
-    require_patient_session(staff)
+    require_patient_session(staff, patient_id)
     patient = _resolve_patient(request, patient_id, staff)
     team_store = _team_store(request)
     episode_day = int(body.episode_day or _episode_day_for_now(patient))
@@ -337,7 +337,7 @@ async def post_video_event(
 ):
     """Patient-submitted post-op video event. Pass-4: patient-session only."""
     staff = await _resolve_staff(authorization)
-    require_patient_session(staff)
+    require_patient_session(staff, patient_id)
     _resolve_patient(request, patient_id, staff)
     team_store = _team_store(request)
     team_store.record_postop_video_event(
@@ -380,7 +380,7 @@ async def post_self_flag(
 ):
     """Patient one-tap self-flag. Pass-4: patient-session only."""
     staff = await _resolve_staff(authorization)
-    require_patient_session(staff)
+    require_patient_session(staff, patient_id)
     _resolve_patient(request, patient_id, staff)
     team_store = _team_store(request)
     flag_id = team_store.create_self_flag(
@@ -417,7 +417,8 @@ async def post_self_flag_resolve(
     require_roles(staff, {"rn_coordinator"})
     _resolve_patient(request, patient_id, staff)
     team_store = _team_store(request)
-    ok = team_store.resolve_self_flag(flag_id=body.flag_id, resolved_by=body.resolved_by)
+    ok = team_store.resolve_self_flag(flag_id=body.flag_id, resolved_by=body.resolved_by,
+                                      patient_id=patient_id)
     if not ok:
         raise HTTPException(status_code=404, detail="self-flag not found or already resolved")
     team_store.log_event(

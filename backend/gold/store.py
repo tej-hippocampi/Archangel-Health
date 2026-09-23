@@ -12,7 +12,7 @@ QA panel and export can read them without a key — by definition they no longer
 contain PHI once the de-id step + human QA have run.
 
 SSE progress queues for the async draft pipeline are ephemeral and kept in a
-module-level in-memory registry keyed by ``gold_visit_id`` (the eligibility
+module-level in-memory registry keyed by realm and ``gold_visit_id`` (the eligibility
 router uses the same in-memory queue/ring pattern).
 """
 
@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import sqlite3
 import threading
 from collections import deque
@@ -28,6 +27,7 @@ from datetime import datetime
 from typing import Any, Deque, Dict, List, Optional
 
 import field_crypto
+import realm
 from team_store import connect_team_db
 
 _LOCK = threading.Lock()
@@ -68,8 +68,7 @@ _EXTRA_COLUMNS = {
 
 
 def _db_path() -> str:
-    base_dir = os.path.dirname(os.path.dirname(__file__))
-    return os.getenv("TEAM_DB_PATH") or os.path.join(base_dir, "team.db")
+    return realm.paths()["team"]
 
 
 def _conn() -> sqlite3.Connection:
@@ -155,6 +154,11 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
     for col, decl in _EXTRA_COLUMNS.items():
         if col not in existing:
             conn.execute(f"ALTER TABLE gold_visits ADD COLUMN {col} {decl}")
+    declined_columns = {r[1] for r in conn.execute("PRAGMA table_info(gold_declined_events)").fetchall()}
+    if "created_by" not in declined_columns:
+        # Historical anonymous counts have no recoverable creator. Preserve
+        # them with NULL ownership; never assign them to an arbitrary account.
+        conn.execute("ALTER TABLE gold_declined_events ADD COLUMN created_by TEXT")
 
 
 def init() -> None:
@@ -242,12 +246,16 @@ def list_visits(
     tenant_scoped: bool,
     status: Optional[str] = None,
     limit: int = 500,
+    created_by: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     clauses: List[str] = []
     params: List[Any] = []
     if tenant_scoped:
         clauses.append("IFNULL(tenant_id,'') = ?")
         params.append(tenant_id or "")
+    if created_by is not None:
+        clauses.append("created_by = ?")
+        params.append(created_by)
     if status:
         clauses.append("status = ?")
         params.append(status)
@@ -301,34 +309,40 @@ def delete_visit(visit_id: str) -> None:
             conn.execute("DELETE FROM gold_visits WHERE id = ?", (visit_id,))
 
 
-def record_declined(tenant_id: Optional[str]) -> None:
+def record_declined(tenant_id: Optional[str], *, created_by: Optional[str] = None) -> None:
     with _LOCK:
         with _conn() as conn:
             _ensure_tables(conn)
             conn.execute(
-                "INSERT INTO gold_declined_events (tenant_id, created_at) VALUES (?,?)",
-                (tenant_id or "", _utcnow_iso()),
+                "INSERT INTO gold_declined_events (tenant_id, created_at, created_by) VALUES (?,?,?)",
+                (tenant_id or "", _utcnow_iso(), created_by),
             )
 
 
-def declined_count(tenant_id: Optional[str], tenant_scoped: bool) -> int:
+def _scope_filter(tenant_id: Optional[str], tenant_scoped: bool,
+                  created_by: Optional[str]) -> tuple[str, List[Any]]:
+    clauses, params = [], []
+    if tenant_scoped:
+        clauses.append("IFNULL(tenant_id,'') = ?")
+        params.append(tenant_id or "")
+    if created_by is not None:
+        clauses.append("created_by = ?")
+        params.append(created_by)
+    return (" WHERE " + " AND ".join(clauses) if clauses else ""), params
+
+
+def declined_count(tenant_id: Optional[str], tenant_scoped: bool, *,
+                   created_by: Optional[str] = None) -> int:
+    where, params = _scope_filter(tenant_id, tenant_scoped, created_by)
     with _conn() as conn:
         _ensure_tables(conn)
-        if tenant_scoped:
-            row = conn.execute(
-                "SELECT COUNT(*) AS c FROM gold_declined_events WHERE IFNULL(tenant_id,'') = ?",
-                (tenant_id or "",),
-            ).fetchone()
-        else:
-            row = conn.execute("SELECT COUNT(*) AS c FROM gold_declined_events").fetchone()
+        row = conn.execute(f"SELECT COUNT(*) AS c FROM gold_declined_events{where}", params).fetchone()
     return int(row["c"]) if row else 0
 
 
-def status_counts(tenant_id: Optional[str], tenant_scoped: bool) -> Dict[str, int]:
-    where, params = "", []
-    if tenant_scoped:
-        where = " WHERE IFNULL(tenant_id,'') = ?"
-        params = [tenant_id or ""]
+def status_counts(tenant_id: Optional[str], tenant_scoped: bool, *,
+                  created_by: Optional[str] = None) -> Dict[str, int]:
+    where, params = _scope_filter(tenant_id, tenant_scoped, created_by)
     with _conn() as conn:
         _ensure_tables(conn)
         rows = conn.execute(
@@ -337,11 +351,9 @@ def status_counts(tenant_id: Optional[str], tenant_scoped: bool) -> Dict[str, in
     return {r["status"]: int(r["c"]) for r in rows}
 
 
-def contributions_by_clinician(tenant_id: Optional[str], tenant_scoped: bool) -> Dict[str, int]:
-    where, params = "", []
-    if tenant_scoped:
-        where = " WHERE IFNULL(tenant_id,'') = ?"
-        params = [tenant_id or ""]
+def contributions_by_clinician(tenant_id: Optional[str], tenant_scoped: bool, *,
+                               created_by: Optional[str] = None) -> Dict[str, int]:
+    where, params = _scope_filter(tenant_id, tenant_scoped, created_by)
     with _conn() as conn:
         _ensure_tables(conn)
         rows = conn.execute(
@@ -374,32 +386,34 @@ def expired_audio_visits(retention_days: int) -> List[Dict[str, Any]]:
 
 
 # ─── Ephemeral SSE queues for the async draft pipeline ────────────────────────
-_QUEUES: Dict[str, "asyncio.Queue"] = {}
-_RINGS: Dict[str, Deque[Dict[str, Any]]] = {}
+_QUEUES: Dict[tuple[str, str], "asyncio.Queue"] = {}
+_RINGS: Dict[tuple[str, str], Deque[Dict[str, Any]]] = {}
 
 
 def new_queue(visit_id: str) -> "asyncio.Queue":
     q: "asyncio.Queue" = asyncio.Queue()
-    _QUEUES[visit_id] = q
-    _RINGS[visit_id] = deque(maxlen=50)
+    key = (realm.current(), visit_id)
+    _QUEUES[key] = q
+    _RINGS[key] = deque(maxlen=50)
     return q
 
 
 def get_queue(visit_id: str) -> Optional["asyncio.Queue"]:
-    return _QUEUES.get(visit_id)
+    return _QUEUES.get((realm.current(), visit_id))
 
 
 def get_ring(visit_id: str) -> Deque[Dict[str, Any]]:
-    return _RINGS.get(visit_id, deque(maxlen=50))
+    return _RINGS.get((realm.current(), visit_id), deque(maxlen=50))
 
 
 def emit(visit_id: str, event: str, data: Any) -> None:
     """Push an SSE event onto the visit's live queue + ring buffer (if any)."""
     entry = {"event": event, "data": data}
-    ring = _RINGS.get(visit_id)
+    key = (realm.current(), visit_id)
+    ring = _RINGS.get(key)
     if ring is not None:
         ring.append(entry)
-    q = _QUEUES.get(visit_id)
+    q = _QUEUES.get(key)
     if q is not None:
         q.put_nowait(entry)
 
@@ -407,11 +421,12 @@ def emit(visit_id: str, event: str, data: Any) -> None:
 def finalize_stream(visit_id: str) -> None:
     """Pipeline reached a terminal state — drop the live queue so no client
     blocks waiting on it. The ring is kept briefly for late-connect replay."""
-    _QUEUES.pop(visit_id, None)
+    _QUEUES.pop((realm.current(), visit_id), None)
 
 
 def drop_streams(visit_id: str) -> None:
     """Fully release a visit's SSE state (queue + ring) — call once a late
     client has replayed the terminal event."""
-    _QUEUES.pop(visit_id, None)
-    _RINGS.pop(visit_id, None)
+    key = (realm.current(), visit_id)
+    _QUEUES.pop(key, None)
+    _RINGS.pop(key, None)

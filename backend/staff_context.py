@@ -108,8 +108,10 @@ def assert_staff_patient_scope(
         raise HTTPException(status_code=404, detail="Patient not found")
     hs_id = str(patient.get("health_system_id") or "")
     if staff.source == "tenant":
-        if hs_id and (not staff.tenant_id or hs_id != str(staff.tenant_id)):
-            raise HTTPException(status_code=404, detail="Patient not found")
-        return
-    if staff.source == "landing" and hs_id and hs_id != str(landing_health_system_id):
+        expected = str(staff.tenant_id or "")
+    elif staff.source == "landing":
+        expected = str(landing_health_system_id or "")
+    else:
+        expected = ""
+    if not expected.strip() or not hs_id.strip() or hs_id != expected:
         raise HTTPException(status_code=404, detail="Patient not found")

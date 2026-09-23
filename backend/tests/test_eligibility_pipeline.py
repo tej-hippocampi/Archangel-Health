@@ -255,7 +255,7 @@ def test_segments_fanout_creates_one_patient_per_segment(monkeypatch, tmp_path):
             fmt="OTHER",
             content=multi_text.encode("utf-8"),
             llm_text=multi_text,
-            hs_id=None,
+            hs_id="synthetic-fanout-owner",
             actor="tester",
             app=fake_app,
             batch_rec=batch_rec,
@@ -281,6 +281,7 @@ def test_segments_fanout_creates_one_patient_per_segment(monkeypatch, tmp_path):
     ])
 
     for p in fake_app.state.patient_store.values():
+        assert p["health_system_id"] == "synthetic-fanout-owner"
         sd = p.get("structured_data") or {}
         assert sd.get("pre_op_instructions"), f"missing prep notes for {p['name']}"
         assert p["name"].split()[0].lower() in sd["pre_op_instructions"].lower()
@@ -327,7 +328,7 @@ def test_segments_fanout_single_patient_uses_fast_path(monkeypatch, tmp_path):
             fmt="PDF",
             content=b"%PDF-1.4 fake bytes",
             llm_text=text,
-            hs_id=None,
+            hs_id="synthetic-fanout-owner",
             actor="tester",
             app=fake_app,
             batch_rec=batch_rec,
@@ -341,6 +342,7 @@ def test_segments_fanout_single_patient_uses_fast_path(monkeypatch, tmp_path):
     assert len(fake_app.state.patient_store) == 1
     pid = next(iter(fake_app.state.patient_store))
     p = fake_app.state.patient_store[pid]
+    assert p["health_system_id"] == "synthetic-fanout-owner"
     assert p["name"] == "Solo Patient"
     assert (p["structured_data"] or {}).get("pre_op_instructions") == "Solo prep instructions"
 

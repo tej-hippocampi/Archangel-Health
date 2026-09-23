@@ -1140,8 +1140,17 @@ def test_review_status_is_indexed():
 def test_next_double_label_for_is_bounded():
     """A-3.6: it fetchall()'d the entire open-task table; next_review_for beside
     it correctly used a LIMIT."""
-    import inspect
-    src = inspect.getsource(asc_store.AsclepiusStore.next_double_label_for)
+    import ast
+    # Match the named method in a single source snapshot. inspect.getsource()
+    # uses the imported code object's line number, which can point at a neighbor
+    # if store.py is edited while the long-running suite is already imported.
+    source = Path(asc_store.__file__).read_text(encoding="utf-8")
+    store_class = next(node for node in ast.parse(source).body
+                       if isinstance(node, ast.ClassDef) and node.name == "AsclepiusStore")
+    methods = [node for node in store_class.body
+               if isinstance(node, ast.FunctionDef) and node.name == "next_double_label_for"]
+    assert len(methods) == 1
+    src = ast.get_source_segment(source, methods[0])
     assert "LIMIT ?" in src
 
 

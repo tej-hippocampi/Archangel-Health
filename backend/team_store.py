@@ -2339,6 +2339,30 @@ class TeamStore:
         with self._conn() as conn:
             conn.execute("DELETE FROM preop_intake_sessions WHERE patient_id = ?", (patient_id,))
 
+    def claim_patient_owner(self, patient_id: str, health_system_id: str) -> bool:
+        """Reserve an unused patient ID before processing can create side effects.
+
+        Existing ownership, including an unknown owner, is never replaced.
+        Keep a successful reservation after pipeline failure so retries remain
+        with the original tenant, including after a process restart.
+        """
+        if not health_system_id or not health_system_id.strip():
+            return False
+        today = date.today()
+        with self._conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT health_system_id FROM episodes WHERE patient_id = ?",
+                               (patient_id,)).fetchone()
+            if row:
+                return row["health_system_id"] == health_system_id
+            conn.execute(
+                "INSERT INTO episodes (patient_id, open_date, close_date, status, "
+                "health_system_id, created_at) VALUES (?, ?, ?, 'open', ?, ?)",
+                (patient_id, today.isoformat(), (today + timedelta(days=29)).isoformat(),
+                 health_system_id, _utcnow_iso()),
+            )
+        return True
+
     def ensure_episode(
         self,
         *,
@@ -4538,6 +4562,7 @@ class TeamStore:
         flag_id: int,
         resolved_by: str,
         resolved_at: Optional[str] = None,
+        patient_id: Optional[str] = None,
     ) -> bool:
         ts = resolved_at or _utcnow_iso()
         with self._conn() as conn:
@@ -4546,8 +4571,9 @@ class TeamStore:
                 UPDATE patient_self_flags
                 SET resolved_at = ?, resolved_by = ?
                 WHERE id = ? AND resolved_at IS NULL
+                  AND (? IS NULL OR patient_id = ?)
                 """,
-                (ts, resolved_by, int(flag_id)),
+                (ts, resolved_by, int(flag_id), patient_id, patient_id),
             )
             return cur.rowcount > 0
 
@@ -5017,9 +5043,14 @@ class TeamStore:
         track: Optional[str] = None,
         prompt_version: Optional[str] = None,
         since: Optional[str] = None,
+        health_system_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         clauses: List[str] = []
         params: List[Any] = []
+        if health_system_id is not None:
+            clauses.append("EXISTS (SELECT 1 FROM episodes e WHERE "
+                           "e.patient_id = grounding_check_reports.patient_id AND e.health_system_id = ?)")
+            params.append(health_system_id)
         if verdict:
             clauses.append("verdict = ?")
             params.append(verdict.upper())
@@ -5057,9 +5088,14 @@ class TeamStore:
         prompt_id: Optional[str] = None,
         prompt_version: Optional[str] = None,
         since: Optional[str] = None,
+        health_system_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         clauses = ["event_type = 'llm_call'"]
         params: List[Any] = []
+        if health_system_id is not None:
+            clauses.append("EXISTS (SELECT 1 FROM episodes e WHERE "
+                           "e.patient_id = event_logs.patient_id AND e.health_system_id = ?)")
+            params.append(health_system_id)
         if since:
             clauses.append("occurred_at >= ?")
             params.append(since)
@@ -5113,12 +5149,19 @@ class TeamStore:
                 break
         return out
 
-    def llm_call_stats(self, *, window_days: int = 30) -> Dict[str, Any]:
+    def llm_call_stats(self, *, window_days: int = 30,
+                       health_system_id: Optional[str] = None) -> Dict[str, Any]:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=window_days)).strftime("%Y-%m-%dT%H:%M:%S")
+        scope = ""
+        params: List[Any] = [cutoff]
+        if health_system_id is not None:
+            scope = (" AND EXISTS (SELECT 1 FROM episodes e WHERE "
+                     "e.patient_id = event_logs.patient_id AND e.health_system_id = ?)")
+            params.append(health_system_id)
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT payload_json FROM event_logs WHERE event_type='llm_call' AND occurred_at >= ?",
-                (cutoff,),
+                "SELECT payload_json FROM event_logs WHERE event_type='llm_call' AND occurred_at >= ?" + scope,
+                tuple(params),
             ).fetchall()
         by_role: Dict[str, Dict[str, Any]] = {}
         total_in = 0
@@ -5158,11 +5201,18 @@ class TeamStore:
             "models_in_use": sorted(models_in_use),
         }
 
-    def get_grounding_report(self, report_id: int) -> Optional[Dict[str, Any]]:
+    def get_grounding_report(self, report_id: int, *,
+                             health_system_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        scope = ""
+        params: List[Any] = [report_id]
+        if health_system_id is not None:
+            scope = (" AND EXISTS (SELECT 1 FROM episodes e WHERE "
+                     "e.patient_id = grounding_check_reports.patient_id AND e.health_system_id = ?)")
+            params.append(health_system_id)
         with self._conn() as conn:
             row = conn.execute(
-                "SELECT * FROM grounding_check_reports WHERE id = ?",
-                (report_id,),
+                "SELECT * FROM grounding_check_reports WHERE id = ?" + scope,
+                tuple(params),
             ).fetchone()
         if not row:
             return None
@@ -5174,16 +5224,23 @@ class TeamStore:
             rec["report"] = {}
         return rec
 
-    def grounding_summary_stats(self, *, window_days: int = 30) -> Dict[str, Any]:
+    def grounding_summary_stats(self, *, window_days: int = 30,
+                                health_system_id: Optional[str] = None) -> Dict[str, Any]:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=window_days)).strftime("%Y-%m-%dT%H:%M:%S")
+        scope = ""
+        params: List[Any] = [cutoff]
+        if health_system_id is not None:
+            scope = (" AND EXISTS (SELECT 1 FROM episodes e WHERE "
+                     "e.patient_id = grounding_check_reports.patient_id AND e.health_system_id = ?)")
+            params.append(health_system_id)
         with self._conn() as conn:
             rows = conn.execute(
                 """
                 SELECT track, verdict, coverage_pct, faithfulness_pct
                 FROM grounding_check_reports
                 WHERE created_at >= ?
-                """,
-                (cutoff,),
+                """ + scope,
+                tuple(params),
             ).fetchall()
         total = len(rows)
         pass_n = sum(1 for r in rows if r["verdict"] == "PASS")

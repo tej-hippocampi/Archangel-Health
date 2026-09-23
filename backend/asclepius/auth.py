@@ -79,6 +79,9 @@ def create_token(user: Dict[str, Any]) -> str:
         # time: an attacker holding a token keeps the account for the remaining
         # seven days, which is most of what a reset is supposed to stop.
         "iat": _epoch_utc(now),
+        # Exact credential version also invalidates sessions issued in the
+        # same second as a password change.
+        "pwdv": user.get("password_changed_at") or "",
         "exp": expire,
     }
     # Sandbox PRD §1.3: a token is born in a realm and only ever works there.
@@ -150,24 +153,22 @@ def _epoch_utc(dt: datetime) -> int:
 def _token_predates_password_change(payload: Dict[str, Any], user: Dict[str, Any]) -> bool:
     """True when this token was minted before the account's password last changed.
 
-    Both halves fail open by design, and each for its own reason. A token with
-    no ``iat`` predates this feature, and a user with no ``password_changed_at``
-    has never used the chosen-password flow, which is every account that existed
-    before it shipped. Treating either as suspect would log out the entire user
-    base on deploy.
+    Existing sessions remain valid until their credential changes. New tokens
+    bind the exact password version; legacy tokens use their issue time.
     """
     changed = (user.get("password_changed_at") or "").strip()
+    if "pwdv" in payload:
+        return payload["pwdv"] != changed
     iat = payload.get("iat")
-    if not changed or not isinstance(iat, (int, float)):
+    if not changed:
         return False
+    if not isinstance(iat, (int, float)):
+        return True
     try:
         changed_at = datetime.fromisoformat(changed)
     except ValueError:
-        return False
-    # One second of slack: the stamp is written at second resolution, so a token
-    # minted in the same second as the change (the reset endpoint signs the user
-    # straight back in) must not invalidate itself.
-    return float(iat) < (_epoch_utc(changed_at) - 1)
+        return True
+    return float(iat) < changed_at.replace(tzinfo=timezone.utc).timestamp()
 
 
 def decode_token(token: str) -> Optional[Dict[str, Any]]:
@@ -182,7 +183,7 @@ def decode_token(token: str) -> Optional[Dict[str, Any]]:
 
 def authenticate(store: AsclepiusStore, email: str, password: str) -> Optional[Dict[str, Any]]:
     user = store.get_user_by_email(email)
-    if not user or not user.get("active"):
+    if not user or not user.get("active") or (user.get("is_mock") and not mock_enabled()):
         return None
     if not verify_password(password, user["password_hash"]):
         return None
@@ -421,7 +422,7 @@ def get_current_user_optional(
     if not _realm.token_matches(payload):
         return None
     user = get_store().get_user_by_id(payload.get("sub", ""))
-    if not user or not user.get("active"):
+    if not user or not user.get("active") or (user.get("is_mock") and not mock_enabled()):
         return None
     if _token_predates_password_change(payload, user):
         return None
@@ -439,7 +440,9 @@ def get_current_account(
     password. It is deliberately NOT the default, so a new endpoint that forgets
     to pick one is restrictive rather than open.
     """
-    if user is None:
+    # Ticket-based media also enters this gate directly. Turning off the mock
+    # must reject existing sessions/tickets, not just skip future provisioning.
+    if user is None or (user.get("is_mock") and not mock_enabled()):
         raise HTTPException(status_code=401, detail="Archangel Health authentication required")
     # Deny-by-default (EHR PRD §4): a ``data_partner`` may use ONLY the locked-down
     # provider portal endpoints (``require_data_partner``). Since every evaluator /

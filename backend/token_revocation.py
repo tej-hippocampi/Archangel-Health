@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import jwt
@@ -46,7 +46,7 @@ def _ensure_table(conn: sqlite3.Connection) -> None:
 
 
 def _now_ts() -> int:
-    return int(datetime.utcnow().timestamp())
+    return int(datetime.now(timezone.utc).timestamp())
 
 
 def revoke_jti(jti: str, exp_ts: int) -> None:
@@ -65,16 +65,14 @@ def revoke_jti(jti: str, exp_ts: int) -> None:
 def is_revoked(jti: Optional[str]) -> bool:
     if not jti:
         return False
-    # Called on every token decode. Fail OPEN on a DB hiccup (locked/unavailable):
-    # the token is still cryptographically valid + unexpired, and revocation is a
-    # secondary control — a transient DB error must not 500 all authentication.
+    # Unavailable revocation state cannot authorize a possibly revoked session.
     try:
         with _conn() as conn:
             _ensure_table(conn)
             row = conn.execute("SELECT 1 FROM revoked_tokens WHERE jti = ?", (jti,)).fetchone()
         return row is not None
     except sqlite3.Error:
-        return False
+        return True
 
 
 def revoke_token(token: str, *, secret: str = AUTH_SECRET) -> bool:

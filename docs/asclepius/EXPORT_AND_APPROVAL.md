@@ -64,7 +64,9 @@ invite someone to "fix" that into withholding every clean submission behind a
 payment decision, which is not what anyone asked for.
 
 So: **three code sites** may write `export_ready` — the convergent function
-above, `pipeline.apply_qa_decision`, and the happy path.
+above, `pipeline.apply_qa_decision`, and the happy path through
+`store.set_submission_pipeline_state`. The latter commits submission and record
+states together for restart recovery; it does not introduce a ledger prerequisite.
 `test_exactly_three_code_paths_can_make_a_record_exportable` pins the set by
 parsing the call sites, so a genuine fourth cannot appear quietly.
 

@@ -20,6 +20,7 @@ def _seed_escalation(*, email: str = "patient@example.com", tier: int = 3) -> tu
     pid = f"intervention_case_{uuid.uuid4().hex[:8]}"
     app.state.patient_store[pid] = {
         "id": pid,
+        "health_system_id": main_module.DEMO_HEALTH_SYSTEM_ID,
         "name": "John Doe",
         "email": email,
         "phase": "post_op",

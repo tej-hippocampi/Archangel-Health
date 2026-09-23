@@ -22,10 +22,11 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from fastapi import (
-    APIRouter, Depends, File, HTTPException, Query, Request, UploadFile,
+    APIRouter, Depends, File, Header, HTTPException, Query, Request, UploadFile,
     WebSocket, WebSocketDisconnect,
 )
 from fastapi.responses import HTMLResponse, Response
+from starlette.concurrency import run_in_threadpool
 
 from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
@@ -49,6 +50,7 @@ from community import store as cstore_mod
 from community.store import get_community_store
 from community.ws import hub
 from ratelimit import rate_limiter
+from upload_limits import read_capped
 
 log = logging.getLogger("community.router")
 
@@ -114,6 +116,10 @@ def _verified_colleague(user: Dict[str, Any], cred: Optional[Dict[str, Any]]) ->
 def _passes_gate(user: Optional[Dict[str, Any]]) -> bool:
     """Contributor (verified evaluator) or Archangel staff; nobody else."""
     if not user or not user.get("active"):
+        return False
+    # A later refusal supersedes an older credential-vault approval. The vault
+    # is historical evidence; it must not keep a rejected account connected.
+    if (user.get("verification_status") or "").strip().lower() == "rejected":
         return False
     if _cstore().is_banned(user["id"]):
         return False
@@ -1938,10 +1944,14 @@ async def upload_attachment(
     file: UploadFile = File(...),
     user: Dict[str, Any] = Depends(require_verified_member),
 ):
-    data = await file.read()
+    limit = catt.max_attachment_bytes()
+    data = await read_capped(file, limit, detail={
+        "code": "too_large", "message": f"Attachments are limited to {limit // (1024 * 1024)} MB.",
+        "categories": [],
+    })
     mime = file.content_type or ""
     try:
-        clean, out_mime = catt.process_attachment(data, mime)
+        clean, out_mime = await run_in_threadpool(catt.process_attachment, data, mime)
     except catt.AttachmentRejected as exc:
         payload = exc.payload
         if payload.get("code") == "phi_detected":
@@ -2335,11 +2345,11 @@ async def redeem_handoff(body: HandoffRedeem):
 # SINGLE-USE ticket and connects with ``?ticket=``. ``?token=`` remains
 # accepted for API clients; both paths run the identical §1 gate.
 _WS_TICKET_TTL_SEC = 60
-_ws_tickets: Dict[str, tuple] = {}  # ticket -> (user_id, expires_monotonic)
+_ws_tickets: Dict[str, tuple] = {}  # ticket -> (user_id, expires_monotonic, realm, session_token)
 _ws_tickets_lock = __import__("threading").Lock()
 
 
-def _mint_ws_ticket(user_id: str) -> str:
+def _mint_ws_ticket(user_id: str, *, session_token: str = "") -> str:
     import secrets as _secrets
     import time as _time
     import realm as _realm  # noqa: PLC0415
@@ -2352,26 +2362,39 @@ def _mint_ws_ticket(user_id: str) -> str:
         # Sandbox PRD §1.3: the ticket is bound to the realm it was minted in.
         # The map is process-global, so without this a sandbox ticket could be
         # redeemed on a live socket (or vice versa).
-        _ws_tickets[ticket] = (user_id, now + _WS_TICKET_TTL_SEC, _realm.current())
+        _ws_tickets[ticket] = (user_id, now + _WS_TICKET_TTL_SEC, _realm.current(), session_token)
     return ticket
 
 
-def _redeem_ws_ticket(ticket: str) -> Optional[str]:
+def _redeem_ws_ticket_session(ticket: str) -> Optional[tuple]:
     import time as _time
     import realm as _realm  # noqa: PLC0415
     with _ws_tickets_lock:
         entry = _ws_tickets.pop(ticket, None)  # single use
     if not entry:
         return None
-    user_id, expires, minted_in = entry
+    user_id, expires, minted_in, session_token = entry
     if minted_in != _realm.current():
         return None   # a ticket authenticates only in the realm it was minted in
-    return user_id if _time.monotonic() <= expires else None
+    return (user_id, session_token) if _time.monotonic() <= expires else None
+
+
+def _redeem_ws_ticket(ticket: str) -> Optional[str]:
+    """Compatibility helper for callers that only need the ticket's identity."""
+    entry = _redeem_ws_ticket_session(ticket)
+    return entry[0] if entry else None
 
 
 @router.post("/ws-ticket")
-async def ws_ticket(user: Dict[str, Any] = Depends(require_member)):
-    return {"ticket": _mint_ws_ticket(user["id"]), "expires_in": _WS_TICKET_TTL_SEC}
+async def ws_ticket(
+    user: Dict[str, Any] = Depends(require_member),
+    authorization: Optional[str] = Header(None),
+):
+    # Keep the original credential server-side. The opaque URL ticket must not
+    # turn a reset, expired session or disabled account into a fresh session.
+    return {"ticket": _mint_ws_ticket(
+        user["id"], session_token=asc_auth._bearer(authorization) or ""),
+        "expires_in": _WS_TICKET_TTL_SEC}
 
 
 # Per-socket typing relay floor — a client cannot flood every member's socket
@@ -2386,17 +2409,27 @@ async def community_ws(websocket: WebSocket):
     gate as every REST call. A failed gate closes with 4401/4403 and never
     joins the hub."""
     await websocket.accept()
-    user = None
+    import realm as _realm  # noqa: PLC0415
+
+    connection_realm = _realm.current()
+    session_token = ""
+    ticket_user_id = None
     ticket = websocket.query_params.get("ticket") or ""
     if ticket:
-        uid = _redeem_ws_ticket(ticket)
-        if uid:
-            user = _astore().get_user_by_id(uid)
+        entry = _redeem_ws_ticket_session(ticket)
+        if entry:
+            ticket_user_id, session_token = entry
     else:
-        payload = asc_auth.decode_token(websocket.query_params.get("token") or "")
-        if payload:
-            user = _astore().get_user_by_id(payload.get("sub", ""))
-    if not user or not user.get("active"):
+        session_token = websocket.query_params.get("token") or ""
+
+    def current_user():
+        # Fan-out can originate in a different request context. Authentication
+        # and the membership/ban checks must use this socket's realm every time.
+        with _realm.scoped(connection_realm):
+            return asc_auth.get_current_user_optional("Bearer " + session_token)
+
+    user = current_user()
+    if not user or (ticket_user_id is not None and user["id"] != ticket_user_id):
         await websocket.close(code=4401)
         return
     if not _passes_gate(user):
@@ -2407,15 +2440,12 @@ async def community_ws(websocket: WebSocket):
 
     members = member_map()
     me_member = members.get(user["id"]) or dict(_GHOST_MEMBER)
-    authorize = None
-    if asc_caps.account_kind(user) == asc_caps.ADVISOR:
-        # Capture this connection's store, not the broadcasting request's realm.
-        # Rejection must also stop delivery to sessions opened before the decision.
-        connection_store = _astore()
-        def authorize():
-            current = connection_store.get_user_by_id(user["id"])
-            return bool(current and current.get("active") and
-                        asc_caps.can_surface(current, asc_caps.COMMUNITY_READ))
+
+    def authorize():
+        with _realm.scoped(connection_realm):
+            current = current_user()
+            return bool(current and current["id"] == user["id"] and _passes_gate(current))
+
     first = await hub.connect(websocket, user["id"], authorize=authorize)
     last_typing_relay = 0.0
     try:
@@ -2430,7 +2460,7 @@ async def community_ws(websocket: WebSocket):
                 raw = await websocket.receive_text()
             except WebSocketDisconnect:
                 break
-            if authorize is not None and not authorize():
+            if not authorize():
                 await websocket.close(code=4403)
                 break
             try:

@@ -549,6 +549,10 @@ async def _segment_document(llm_text: str) -> List[Dict[str, Any]]:
     return _dedupe_segments(flat)
 
 
+MAX_BATCH_EXPANDED_BYTES = 200 * 1024 * 1024
+MAX_BATCH_ENTRIES = 1000
+
+
 def _split_batch_payload(payloads: List[Tuple[str, bytes]]) -> List[Tuple[str, str, bytes]]:
     """Flatten zips + split multi-subscriber X12 envelopes.
 
@@ -561,20 +565,38 @@ def _split_batch_payload(payloads: List[Tuple[str, bytes]]) -> List[Tuple[str, s
     pair inside the fragment.
     """
     out: List[Tuple[str, str, bytes]] = []
+    expanded = 0
+
+    def append_entry(name: str, fmt: str, data: bytes) -> None:
+        nonlocal expanded
+        expanded += len(data)
+        if expanded > MAX_BATCH_EXPANDED_BYTES or len(out) >= MAX_BATCH_ENTRIES:
+            raise ValueError("Expanded batch exceeds its processing limit")
+        out.append((name, fmt, data))
+
     for filename, content in payloads:
         lower = filename.lower()
         if lower.endswith(".zip"):
             try:
                 with zipfile.ZipFile(io.BytesIO(content)) as zf:
-                    for name in zf.namelist():
-                        if name.endswith("/") or not zf.getinfo(name).file_size:
+                    if len(zf.infolist()) > MAX_BATCH_ENTRIES:
+                        raise ValueError("Archive contains too many entries")
+                    for info in zf.infolist():
+                        name = info.filename
+                        if info.is_dir() or not info.file_size:
                             continue
+                        limit = min(max(format_detect.MAX_SIZE_BY_FORMAT.values()),
+                                    MAX_BATCH_EXPANDED_BYTES - expanded)
+                        if info.file_size > limit:
+                            raise ValueError("Expanded archive entry exceeds its processing limit")
                         with zf.open(name) as fh:
-                            inner = fh.read()
+                            inner = fh.read(limit + 1)
+                            if len(inner) > limit:
+                                raise ValueError("Expanded archive entry exceeds its processing limit")
                             fmt = format_detect.detect_format(name, inner[:4096])
-                            out.append((name, fmt, inner))
+                            append_entry(name, fmt, inner)
             except zipfile.BadZipFile:
-                out.append((filename, "OTHER", content))
+                append_entry(filename, "OTHER", content)
             continue
         fmt = format_detect.detect_format(filename, content[:4096])
         if fmt == "X12_271":
@@ -589,9 +611,9 @@ def _split_batch_payload(payloads: List[Tuple[str, bytes]]) -> List[Tuple[str, s
             if len(tx_fragments) > 1 and isa_hdr:
                 for idx, part in enumerate(tx_fragments, 1):
                     combined = (isa_hdr + part).encode("utf-8")
-                    out.append((f"{filename}#st{idx}", "X12_271", combined))
+                    append_entry(f"{filename}#st{idx}", "X12_271", combined)
                 continue
-        out.append((filename, fmt, content))
+        append_entry(filename, fmt, content)
     return out
 
 
@@ -615,9 +637,9 @@ async def _process_batch_split(
     store_dict = app.state.patient_store
 
     doc_id = uuid.uuid4().hex
-    from routers.eligibility import UPLOAD_DIR
+    from routers.eligibility import upload_root
 
-    tmp_dir = UPLOAD_DIR / "batch-staging"
+    tmp_dir = upload_root() / "batch-staging"
     tmp_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     ext = Path(filename).suffix.lower() or ".bin"
     dest = tmp_dir / f"{doc_id}{ext}"
@@ -863,10 +885,10 @@ async def _register_one_segment_and_enqueue(
         sd = store_dict[pid].setdefault("structured_data", {})
         sd["pre_op_instructions"] = pre_op_instructions
 
-    from routers.eligibility import UPLOAD_DIR
+    from routers.eligibility import upload_root
     from pathlib import Path as _P
 
-    patient_dir = UPLOAD_DIR / pid
+    patient_dir = upload_root() / pid
     patient_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     doc_id = original_doc_id or uuid.uuid4().hex
     suffix = _P(filename).suffix.lower() or (".txt" if fmt == "OTHER" else ".bin")
@@ -993,13 +1015,17 @@ async def _run_patient_in_batch(check_id, patient, docs, notes, surgery_date, ba
 
 
 def _create_or_merge_patient(store_dict: Dict[str, Any], identity: Dict[str, Any], hs_id: Optional[str]) -> Tuple[str, bool]:
-    """Create a draft patient. If an existing patient has the same MBI, merge.
+    """Merge matching MBI only within the explicit owner and active records.
 
     Returns (patient_id, merged).
     """
+    if not hs_id or not hs_id.strip():
+        raise ValueError("Patient ownership is required for batch registration")
     mbi = (identity or {}).get("mbi") or ""
     if mbi:
         for pid, d in store_dict.items():
+            if d.get("health_system_id") != hs_id or d.get("archived_at"):
+                continue
             sd = d.get("structured_data") or {}
             if str(sd.get("mbi") or d.get("mbi") or "").upper().strip() == mbi.upper().strip():
                 return pid, True

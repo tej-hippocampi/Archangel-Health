@@ -22,16 +22,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 os.environ.setdefault("ADMIN_AUTH_TOKEN", "test-admin-token")
 
-from main import app  # noqa: E402
+from main import app, DEMO_HEALTH_SYSTEM_ID  # noqa: E402
+from patient_session import create_patient_session  # noqa: E402
 from tests._role_auth import auth_headers  # noqa: E402
 
 
 @pytest.fixture()
 def client():
-    """Anonymous TestClient. Pass-4: patient-submitted endpoints
-    (`checkin`, `survey`, `med-adherence`, `video-event`, `self-flag`)
-    accept anonymous; clinical endpoints reject 401 here — those tests
-    use the `staff_client` / `rn_client` fixtures below."""
+    """Tests bind a patient cookie after seeding; staff tests use separate clients."""
     with TestClient(app) as c:
         yield c
 
@@ -56,6 +54,7 @@ def _seed_patient(*, floor: str = "TIER_1", days_post_discharge: int = 3) -> str
     discharge_at = (datetime.utcnow() - timedelta(days=days_post_discharge)).replace(microsecond=0).isoformat()
     app.state.patient_store[pid] = {
         "id": pid,
+        "health_system_id": DEMO_HEALTH_SYSTEM_ID,
         "phase": "post_op",
         "current_tier": floor,
         "post_intraop_tier": floor,
@@ -112,6 +111,7 @@ def test_post_discharge_records_timestamp(staff_client):
 
 def test_daily_checkin_clean_returns_green(client):
     pid = _seed_patient()
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
     r = client.post(f"/api/episodes/{pid}/postop/checkin", json=_checkin_payload())
     assert r.status_code == 200
     body = r.json()
@@ -122,6 +122,7 @@ def test_daily_checkin_clean_returns_green(client):
 
 def test_daily_checkin_red_flag_chip_forces_tier_3(client):
     pid = _seed_patient()
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
     r = client.post(
         f"/api/episodes/{pid}/postop/checkin",
         json=_checkin_payload(red_flag_symptoms=["CHEST_PAIN"]),
@@ -136,6 +137,7 @@ def test_daily_checkin_red_flag_chip_forces_tier_3(client):
 
 def test_daily_checkin_invalid_payload(client):
     pid = _seed_patient()
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
     r = client.post(f"/api/episodes/{pid}/postop/checkin", json={"answers": {"pain_nrs": 99}})
     assert r.status_code == 422
 
@@ -168,6 +170,7 @@ def _survey_answers(*, with_red_flag: bool = False):
 
 def test_dayx_survey_d7_clean_green(client):
     pid = _seed_patient(days_post_discharge=7)
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
     # Engaged patient: log the chat session BEFORE the video event so
     # the first signal-triggered re-tier doesn't pick up the day-7 zero-
     # engagement contributor (Triage Suite Pass 3 §3.3) and shove the
@@ -187,12 +190,14 @@ def test_dayx_survey_d7_clean_green(client):
 
 def test_dayx_invalid_day(client):
     pid = _seed_patient()
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
     r = client.post(f"/api/episodes/{pid}/postop/survey/5", json=_survey_answers())
     assert r.status_code == 400
 
 
 def test_dayx_red_flag_propagates_to_hard_escalator(client):
     pid = _seed_patient(days_post_discharge=7)
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
     r = client.post(
         f"/api/episodes/{pid}/postop/survey/7",
         json=_survey_answers(with_red_flag=True),
@@ -211,6 +216,7 @@ def test_dayx_red_flag_propagates_to_hard_escalator(client):
 
 def test_med_adherence_yes_records(client):
     pid = _seed_patient()
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
     r = client.post(
         f"/api/episodes/{pid}/postop/med-adherence",
         json={"response": "YES"},
@@ -224,6 +230,7 @@ def test_med_adherence_yes_records(client):
 
 def test_video_played_event_recorded(client):
     pid = _seed_patient()
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
     r = client.post(
         f"/api/episodes/{pid}/postop/video-event",
         json={
@@ -240,7 +247,8 @@ def test_video_played_event_recorded(client):
 
 def test_self_flag_creates_and_resolves(client, rn_client):
     pid = _seed_patient()
-    # Patient creates the self-flag (anonymous).
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
+    # The bound patient creates the self-flag.
     r = client.post(
         f"/api/episodes/{pid}/postop/self-flag",
         json={"free_text": "Something feels off"},
@@ -302,6 +310,7 @@ def test_manual_retier_run_returns_event(staff_client):
 
 def test_retier_events_list_grows_after_signal(client, staff_client):
     pid = _seed_patient()
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
     # Audit list = clinical read; check-in = patient-only.
     initial = staff_client.get(f"/api/episodes/{pid}/postop-retier-events").json()["events"]
     client.post(f"/api/episodes/{pid}/postop/checkin", json=_checkin_payload())

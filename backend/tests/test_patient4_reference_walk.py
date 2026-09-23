@@ -206,6 +206,7 @@ def test_auto_generation_builds_patient4_walk_without_holds(store, monkeypatch):
     uid = res['bundles'][0]['upload_id']
     store.set_upload_purpose(uid, 'task_creation')
     store.set_upload_task_mode(uid, 'longitudinal')
+    store.set_upload_auto_generate(uid, True)
     seen = []
     original = router._generate_one_real_case
     async def checked(st, ic, point, admin, **kw):
@@ -254,6 +255,7 @@ def test_all_report_encounters_generate_as_interval_points(store, monkeypatch):
     uid = res['bundles'][0]['upload_id']
     store.set_upload_purpose(uid, 'task_creation')
     store.set_upload_task_mode(uid, 'longitudinal')
+    store.set_upload_auto_generate(uid, True)
     ic = store.list_ingest_cases(upload_id=uid)[0]
     chart = ic['case']
     for note in chart['notes']:

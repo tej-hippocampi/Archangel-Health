@@ -166,11 +166,12 @@ def test_stream_batch_refuses_another_tenant(client):
 
 
 def test_stream_batch_refuses_another_tenant_via_query_token(client):
-    """The EventSource path gets the same tenant filter as the header path."""
+    """Reusable staff sessions no longer authenticate from query strings."""
     _seed_batch("batch-a", HS_A)
     tok = tenant_token(email=f"staff@{HS_B}.example", health_system_id=HS_B)
     r = client.get(f"/api/eligibility-batches/batch-a/stream?token={tok}")
-    assert r.status_code == 404, r.text
+    assert r.status_code == 401, r.text
+    assert client.post("/api/eligibility-batches/batch-a/stream-ticket", headers=_headers(HS_B)).status_code == 404
 
 
 def test_stream_batch_refuses_anonymous(client):
@@ -180,10 +181,13 @@ def test_stream_batch_refuses_anonymous(client):
 
 
 def test_stream_batch_still_serves_the_owning_tenant(client):
-    """The console's real flow: EventSource with ?token= for its own batch."""
+    """The console exchanges header auth for a scoped EventSource ticket."""
     _seed_batch("batch-a", HS_A)
     tok = tenant_token(email=f"staff@{HS_A}.example", health_system_id=HS_A)
-    r = client.get(f"/api/eligibility-batches/batch-a/stream?token={tok}")
+    ticket = client.post("/api/eligibility-batches/batch-a/stream-ticket",
+                         headers={"Authorization": f"Bearer {tok}"})
+    assert ticket.status_code == 200, ticket.text
+    r = client.get("/api/eligibility-batches/batch-a/stream", params={"ticket": ticket.json()["ticket"]})
     assert r.status_code == 200, r.text
     assert r.headers["content-type"].startswith("text/event-stream")
     assert "event: done" in r.text
@@ -285,4 +289,5 @@ def test_check_stream_refuses_a_missing_staff_context(client):
     )
     assert client.get("/api/eligibility-checks/chk-a/stream").status_code == 401
     tok = tenant_token(email=f"staff@{HS_B}.example", health_system_id=HS_B)
-    assert client.get(f"/api/eligibility-checks/chk-a/stream?token={tok}").status_code == 404
+    assert client.get(f"/api/eligibility-checks/chk-a/stream?token={tok}").status_code == 401
+    assert client.post("/api/eligibility-checks/chk-a/stream-ticket", headers=_headers(HS_B)).status_code == 404

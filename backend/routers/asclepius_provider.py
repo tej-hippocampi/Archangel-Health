@@ -404,7 +404,10 @@ async def provider_password(
     store.clear_provider_password_reset(provider_user["id"])
     store.log_event(entity_type="data_provider", entity_id=provider_user["id"],
                     event_type="password_reset", actor=provider_user["id"])
-    return {"ok": True}
+    # Retire prior sessions while allowing this authenticated caller to continue
+    # the existing reset-and-upload flow with the new credential version.
+    fresh = store.get_user_by_id(provider_user["id"])
+    return {"ok": True, "token": asc_auth.create_token(fresh)}
 
 
 def _bundle_zip(files: List[Dict[str, Any]], *, specialty: Optional[str]) -> bytes:

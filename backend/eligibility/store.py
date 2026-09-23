@@ -11,20 +11,75 @@ import asyncio
 import threading
 import time
 from collections import defaultdict, deque
+from collections.abc import MutableMapping, MutableSequence
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+import realm
+
+
+class _RealmMap(MutableMapping):
+    """Keep existing mapping callers while resolving the request realm each time."""
+    def __init__(self, factory=dict):
+        self._stores = {name: factory() for name in realm.REALMS}
+
+    def _current(self):
+        return self._stores[realm.current()]
+
+    def __getitem__(self, key):
+        return self._current()[key]
+
+    def __setitem__(self, key, value):
+        self._current()[key] = value
+
+    def __delitem__(self, key):
+        del self._current()[key]
+
+    def __iter__(self):
+        return iter(self._current())
+
+    def __len__(self):
+        return len(self._current())
+
+    def clear(self):
+        self._current().clear()
+
+
+class _RealmList(MutableSequence):
+    def __init__(self):
+        self._stores = {name: [] for name in realm.REALMS}
+
+    def _current(self):
+        return self._stores[realm.current()]
+
+    def __getitem__(self, key):
+        return self._current()[key]
+
+    def __setitem__(self, key, value):
+        self._current()[key] = value
+
+    def __delitem__(self, key):
+        del self._current()[key]
+
+    def __len__(self):
+        return len(self._current())
+
+    def insert(self, index, value):
+        self._current().insert(index, value)
+
+    def clear(self):
+        self._current().clear()
 
 # ─── Module-level stores ────────────────────────────────────────────────────
-ELIGIBILITY_CHECKS: Dict[str, Dict[str, Any]] = {}
-ELIGIBILITY_DOCS: Dict[str, Dict[str, Any]] = {}
-BATCHES: Dict[str, Dict[str, Any]] = {}
-AUDIT_LOG: List[Dict[str, Any]] = []
+ELIGIBILITY_CHECKS = _RealmMap()
+ELIGIBILITY_DOCS = _RealmMap()
+BATCHES = _RealmMap()
+AUDIT_LOG = _RealmList()
 AUDIT_LOG_MAX = 10_000  # FIFO trim once we hit the cap; older entries fall off
 
 # ─── Rate limiting (PRD §10.2: 30/hour/coordinator) ─────────────────────────
 _RATE_LIMIT_WINDOW_SEC = 3600
 _RATE_LIMIT_MAX = 30
-_RATE_BUCKETS: Dict[str, deque] = defaultdict(deque)
+_RATE_BUCKETS = _RealmMap(lambda: defaultdict(deque))
 _RATE_LOCK = threading.Lock()
 
 
@@ -37,16 +92,22 @@ def save_doc(doc_id: str, record: Dict[str, Any]) -> None:
     ELIGIBILITY_DOCS[doc_id] = record
 
 
-def get_doc(doc_id: str) -> Optional[Dict[str, Any]]:
-    return ELIGIBILITY_DOCS.get(doc_id)
+def get_doc(doc_id: str, *, include_archived: bool = False) -> Optional[Dict[str, Any]]:
+    rec = ELIGIBILITY_DOCS.get(doc_id)
+    return rec if rec and (include_archived or not rec.get("archived_at")) else None
 
 
 def delete_doc(doc_id: str) -> Optional[Dict[str, Any]]:
-    return ELIGIBILITY_DOCS.pop(doc_id, None)
+    """Detach from active use while retaining accepted bytes and source metadata."""
+    rec = ELIGIBILITY_DOCS.get(doc_id)
+    if rec:
+        rec.setdefault("archived_at", _utc_iso())
+    return rec
 
 
 def list_docs_for_patient(patient_id: str) -> List[Dict[str, Any]]:
-    return [d for d in ELIGIBILITY_DOCS.values() if d.get("patient_id") == patient_id]
+    return [d for d in ELIGIBILITY_DOCS.values()
+            if d.get("patient_id") == patient_id and not d.get("archived_at")]
 
 
 # ─── Eligibility check records ──────────────────────────────────────────────

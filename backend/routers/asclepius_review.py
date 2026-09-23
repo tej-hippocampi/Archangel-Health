@@ -27,7 +27,7 @@ from asclepius import label_view as asc_label_view
 from asclepius import review as asc_review
 from asclepius import routing as asc_routing
 from asclepius.store import get_store
-from routers.asclepius import require_current_agreement
+from routers.asclepius import _require_real_data_access, require_current_agreement
 
 log = logging.getLogger("asclepius.review")
 
@@ -120,6 +120,10 @@ def _store():
 
 def _require_assigned_review(store, task_id, reviewer, claim):
     """A live held claim may finish even if its assignment changes meanwhile."""
+    task = store.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    _require_real_data_access(task, reviewer)
     held = (claim["status"] == "in_review" and not claim["expired"]
             and claim["holder"] == reviewer["id"])
     if (asc_case_access.assignment_required(reviewer) and not held

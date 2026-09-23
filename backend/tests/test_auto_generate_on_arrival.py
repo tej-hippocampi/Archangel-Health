@@ -211,7 +211,7 @@ def test_a_per_case_failure_isolates_and_the_batch_continues(monkeypatch):
 
     calls = {"n": 0}
 
-    async def _fake_generate(ingest_case_id, body, background, admin):
+    async def _fake_generate(store, upload_id, ingest_case_id, body, actor):
         calls["n"] += 1
         if calls["n"] == 2:
             raise RuntimeError("case judge rejected every encounter")
@@ -221,7 +221,7 @@ def test_a_per_case_failure_isolates_and_the_batch_continues(monkeypatch):
                             "failed": []}}
 
     import routers.asclepius as R
-    monkeypatch.setattr(R, "generate_real_cases", _fake_generate)
+    monkeypatch.setattr(AG, "_generate_case", _fake_generate)
 
     report = asyncio.run(AG.run_upload(store, uid, "admin"))
     assert calls["n"] == 3, "the run must not stop at the failing case"
@@ -250,11 +250,11 @@ def test_a_clean_run_grows_no_failure_chip(monkeypatch):
     store.insert_ingest_case(upload_id=uid, patient_key="pk-0", specialty="hepatology",
                              status="ingested", case={"case_source": "real_deid"}, report={})
 
-    async def _fake_generate(ingest_case_id, body, background, admin):
+    async def _fake_generate(store, upload_id, ingest_case_id, body, actor):
         return {"generated": 3, "gated": 0, "failed": 0, "details": {}}
 
     import routers.asclepius as R
-    monkeypatch.setattr(R, "generate_real_cases", _fake_generate)
+    monkeypatch.setattr(AG, "_generate_case", _fake_generate)
     asyncio.run(AG.run_upload(store, uid, "admin"))
     assert AG.failure_summary(store.get_ingest_upload(uid)) is None
 
@@ -266,13 +266,13 @@ def test_the_run_passes_the_uploads_declared_mode(monkeypatch):
     store = _store()
     seen = {}
 
-    async def _fake_generate(ingest_case_id, body, background, admin):
+    async def _fake_generate(store, upload_id, ingest_case_id, body, actor):
         seen["trajectory"] = body.trajectory
         seen["dry_run"] = body.dry_run
         return {"generated": 1, "gated": 0, "failed": 0, "details": {}}
 
     import routers.asclepius as R
-    monkeypatch.setattr(R, "generate_real_cases", _fake_generate)
+    monkeypatch.setattr(AG, "_generate_case", _fake_generate)
 
     for mode, expected in (("longitudinal", True), ("static", False)):
         uid = _upload(store, purpose="task_creation", mode=mode, armed=True)

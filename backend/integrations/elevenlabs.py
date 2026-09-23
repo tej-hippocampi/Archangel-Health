@@ -7,6 +7,7 @@ Docs: https://elevenlabs.io/docs/api-reference/text-to-speech
 
 import os
 import re
+import uuid
 from pathlib import Path
 from typing import List, Optional
 
@@ -101,11 +102,12 @@ class ElevenLabsClient:
         """
         Save audio to disk and return a URL.
 
-        Production: upload to S3/GCS instead and return a signed CDN URL.
-        Development: serve from local /tmp via FastAPI static endpoint.
+        Only generated audio goes in this isolated tree. The opaque filename
+        carries no patient identifier and cannot be guessed from a patient ID.
         """
-        filename = f"audio_{patient_id}.mp3"
-        filepath = Path("/tmp") / filename
+        from audio_storage import audio_root
+        filename = f"{uuid.uuid4().hex}.mp3"
+        filepath = audio_root() / filename
 
         filepath.write_bytes(audio_bytes)
 

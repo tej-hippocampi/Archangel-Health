@@ -25,7 +25,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 os.environ.setdefault("ADMIN_AUTH_TOKEN", "test-admin-token")
 
-from main import app  # noqa: E402
+from main import app, DEMO_HEALTH_SYSTEM_ID  # noqa: E402
+from patient_session import create_patient_session  # noqa: E402
 from tests._role_auth import auth_headers  # noqa: E402
 
 
@@ -39,6 +40,7 @@ def _seed_preop_patient() -> str:
     pid = f"role_pre_{uuid.uuid4().hex[:8]}"
     app.state.patient_store[pid] = {
         "id": pid,
+        "health_system_id": DEMO_HEALTH_SYSTEM_ID,
         "phase": "pre_op",
         "specialty": "General Surgery",
         "current_tier": "TIER_1",
@@ -58,6 +60,7 @@ def _seed_postop_patient() -> str:
     pid = f"role_post_{uuid.uuid4().hex[:8]}"
     app.state.patient_store[pid] = {
         "id": pid,
+        "health_system_id": DEMO_HEALTH_SYSTEM_ID,
         "phase": "post_op",
         "current_tier": "TIER_1",
         "post_intraop_tier": "TIER_1",
@@ -75,6 +78,7 @@ def _seed_intraop_patient() -> str:
     pid = f"role_intra_{uuid.uuid4().hex[:8]}"
     app.state.patient_store[pid] = {
         "id": pid,
+        "health_system_id": DEMO_HEALTH_SYSTEM_ID,
         "structured_data": {"procedure_name": "Total Knee Arthroplasty"},
     }
     from triage.intraop.patient_state import ensure_intraop_patient_state
@@ -288,8 +292,9 @@ def test_staff_blocked_on_patient_video_event(base_client):
     assert r.status_code == 403
 
 
-def test_anon_can_submit_patient_pam(base_client):
+def test_patient_session_can_submit_patient_pam(base_client):
     pid = _seed_preop_patient()
+    base_client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
     r = base_client.post(
         f"/api/episodes/{pid}/pam",
         json={"responses": [{"item_index": i, "value": 4} for i in range(1, 14)]},

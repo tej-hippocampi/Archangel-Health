@@ -30,7 +30,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth_roles import ALL_CLINICAL, ALL_STAFF, WRITE_CLINICAL, require_roles
-from staff_context import StaffContext, get_staff_context_optional
+from staff_context import StaffContext, assert_staff_patient_scope, get_staff_context_optional
 from triage import assign_initial_tier, get_config
 from triage.types import InitialTierInput, Tier, TierAssignment
 
@@ -62,9 +62,7 @@ def _resolve_patient(
     patient = store.get(patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    if staff and staff.source == "tenant" and staff.tenant_id:
-        if (patient.get("health_system_id") or "") != staff.tenant_id:
-            raise HTTPException(status_code=404, detail="Patient not found")
+    assert_staff_patient_scope(patient=patient, staff=staff)
     return patient
 
 

@@ -2557,6 +2557,71 @@
       return data;
     }
 
+    // Staff SSE transport: mint a single-use ticket for each connection, including
+    // reconnects. Only the authenticated POST carries the reusable session token.
+    function openStaffStream(path) {
+      const listeners = new Map();
+      let closed = false, source = null, retryTimer = null;
+      const handle = {
+        onerror: null,
+        addEventListener(type, listener) {
+          if (!listeners.has(type)) {
+            listeners.set(type, []);
+            if (source && type !== "error") bind(source, type);
+          }
+          listeners.get(type).push(listener);
+        },
+        close() {
+          closed = true;
+          if (retryTimer !== null) clearTimeout(retryTimer);
+          if (source) source.close();
+          source = null;
+        },
+      };
+      function dispatch(type, event) {
+        if (closed) return;
+        for (const listener of listeners.get(type) || []) listener(event);
+        if (type === "error" && typeof handle.onerror === "function") handle.onerror(event);
+      }
+      function bind(stream, type) {
+        stream.addEventListener(type, (event) => {
+          if (source === stream) dispatch(type, event);
+        });
+      }
+      function reconnect() {
+        if (!closed) retryTimer = setTimeout(connect, 1000);
+      }
+      async function connect() {
+        if (closed) return;
+        try {
+          const receipt = await apiJson(path + "-ticket", { method: "POST" });
+          if (closed) return;
+          const query = new URLSearchParams({ ticket: receipt.ticket, realm: receipt.realm });
+          const stream = new EventSource(`${API}${path}?${query}`);
+          source = stream;
+          for (const type of listeners.keys()) if (type !== "error") bind(stream, type);
+          stream.onerror = (event) => {
+            if (closed || source !== stream) return;
+            if (typeof event.data === "string") {
+              dispatch("error", event); // The server's application error event.
+              return;
+            }
+            stream.close();
+            source = null;
+            if (typeof handle.onerror === "function") handle.onerror(event);
+            reconnect();
+          };
+        } catch (error) {
+          if (closed) return;
+          if (error instanceof TypeError) { reconnect(); return; } // Network failure.
+          dispatch("error", { data: JSON.stringify({ message: error.message || "Stream unavailable." }) });
+          handle.close();
+        }
+      }
+      connect();
+      return handle;
+    }
+
     async function streamGeneration(path, body, onEvent) {
       const res = await fetch(`${API}${path}`, {
         method: "POST",
@@ -5367,8 +5432,7 @@
 
     function subscribeCheckStream(checkId) {
       if (teamFlow.es) { try { teamFlow.es.close(); } catch (_e) {} }
-      const tokenQ = authToken ? `?token=${encodeURIComponent(authToken)}` : "";
-      const es = new EventSource(`${API}/api/eligibility-checks/${encodeURIComponent(checkId)}/stream${tokenQ}`);
+      const es = openStaffStream(`/api/eligibility-checks/${encodeURIComponent(checkId)}/stream`);
       teamFlow.es = es;
       es.addEventListener("status", (e) => {
         try { const d = JSON.parse(e.data); if (d.stage) setStage(d.stage); } catch (_e) {}
@@ -5550,8 +5614,7 @@
       }
       teamFlow.batchId = data.id;
       const summary = { created: [], needsReview: [], errors: [] };
-      const tokenQ = authToken ? `?token=${encodeURIComponent(authToken)}` : "";
-      const es = new EventSource(`${API}/api/eligibility-batches/${encodeURIComponent(data.id)}/stream${tokenQ}`);
+      const es = openStaffStream(`/api/eligibility-batches/${encodeURIComponent(data.id)}/stream`);
       teamFlow.es = es;
       es.addEventListener("status", (e) => {
         try { const d = JSON.parse(e.data); if (d.stage) setBatchStage(d.stage); } catch (_e) {}

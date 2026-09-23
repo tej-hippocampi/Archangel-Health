@@ -85,6 +85,7 @@ def test_contributor_detail_and_submissions_have_identity():
     # Give the evaluator a real name so the admin can see it (never exported).
     store.provision_user(email=ev["email"], password="pw-12345678", role="evaluator",
                          full_name="Dr. Casey Jones", org_name="Riverside Nephrology Associates")
+    ev = store.get_user_by_id(ev["id"])
     _submit_export_ready(admin_h, A.headers_for(ev))
     idh = ev["id_hashed"]
 
@@ -123,6 +124,7 @@ def test_qa_queue_has_contributor_identity(monkeypatch):
     ev = _evaluator()
     store.provision_user(email=ev["email"], password="pw-12345678", role="evaluator",
                          full_name="Dr. Pat Rivera", org_name="Riverside Nephrology Associates")
+    ev = store.get_user_by_id(ev["id"])
     # Force this submission into QA so it appears in /qa/queue.
     monkeypatch.setattr(asc_pipeline, "_should_sample", lambda: True)
     tid = client.post(f"{B}/tasks", json={"tasks": [{

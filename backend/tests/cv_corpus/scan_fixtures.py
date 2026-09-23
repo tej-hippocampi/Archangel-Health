@@ -6,7 +6,7 @@ from pathlib import Path
 import pymupdf
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
-from PyPDF2 import PdfReader, PdfWriter
+from pypdf import PdfReader, PdfWriter
 root=Path(__file__).parent
 source=root/'pdfs/cv-000.pdf'
 doc=pymupdf.open(source)

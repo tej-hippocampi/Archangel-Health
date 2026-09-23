@@ -57,7 +57,7 @@ contract alone establishes neither method. [HHS de-identification guidance](http
   session in one transaction. Failed commits preserve parts and allow retry;
   post-commit cleanup, event or convenience-default failures cannot undo success
   or suppress ingestion dispatch.
-- Evidence: `insert_ingest_upload` at backend/asclepius/store.py:5833;
+- Evidence: `insert_ingest_upload` at backend/asclepius/store.py:5861;
   `finalize` at backend/asclepius/uploads.py:437;
   `atomic_write` at backend/durable_files.py:23;
   `purge_expired_raw` at backend/asclepius/ingestion.py:538.
@@ -89,12 +89,12 @@ contract alone establishes neither method. [HHS de-identification guidance](http
   Sent means provider acceptance, not inbox delivery.
   Large-file collections and their receipt/hash histories paginate for both admin
   and health-system users; they remain separate from clinical case ingestion.
-- Evidence: `approve_hs_organization` at backend/asclepius/store.py:13383;
-  `decline_hs_organization` at backend/asclepius/store.py:13412;
-  `record_signed_agreement` at backend/asclepius/store.py:13539;
-  `complete_hs_signup` at backend/asclepius/store.py:12851;
+- Evidence: `approve_hs_organization` at backend/asclepius/store.py:13560;
+  `decline_hs_organization` at backend/asclepius/store.py:13589;
+  `record_signed_agreement` at backend/asclepius/store.py:13716;
+  `complete_hs_signup` at backend/asclepius/store.py:13028;
   `message` at backend/asclepius/hs_mail.py:15;
-  `_drain_admin_notifications` at backend/main.py:783.
+  `_drain_admin_notifications` at backend/main.py:784.
 
 ### Source-to-case correctness
 
@@ -112,10 +112,10 @@ contract alone establishes neither method. [HHS de-identification guidance](http
 - Unsupported/partially parsed bundles and failed per-patient writes can no longer
   report successful complete ingestion. Bulk video remains stored/reviewed media;
   it does not automatically create clinical tasks or go to model APIs.
-- Evidence: `unify_patient_keys` at backend/asclepius/ingestion.py:1688;
-  `_merge_fragments` at backend/asclepius/ingestion.py:1160;
-  `process_upload` at backend/asclepius/ingestion.py:1759;
-  `insert_task` at backend/asclepius/store.py:7021.
+- Evidence: `unify_patient_keys` at backend/asclepius/ingestion.py:1700;
+  `_merge_fragments` at backend/asclepius/ingestion.py:1172;
+  `process_upload` at backend/asclepius/ingestion.py:1771;
+  `insert_task` at backend/asclepius/store.py:7049.
 
 ### Future PRD enforcement
 

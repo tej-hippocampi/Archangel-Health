@@ -38,6 +38,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 import field_crypto
+import realm
 from audit import audit_log
 from auth_roles import require_roles
 from compliance import subprocessors
@@ -48,6 +49,8 @@ from gold import schema as gold_schema
 from gold import store
 from gold.deid import deidentify
 from staff_context import StaffContext, get_staff_context_optional
+from staff_stream import mint_staff_stream_ticket, resolve_staff_stream
+from upload_limits import read_capped
 
 log = logging.getLogger("gold.router")
 
@@ -113,9 +116,17 @@ def _require_operator(staff: Optional[StaffContext]) -> StaffContext:
 def _tenant_scope(staff: StaffContext) -> tuple[Optional[str], str]:
     """Return (tenant_id, tenant_slug) for storing/scoping a visit."""
     if staff.source == "tenant":
+        if not (staff.tenant_id or "").strip():
+            raise HTTPException(status_code=403, detail="Tenant scope required.")
         return staff.tenant_id, (staff.tenant_slug or "")
-    # Landing/demo users have no tenant_id — scope them to the NULL tenant.
+    if staff.source != "landing" or not (staff.email or "").strip():
+        raise HTTPException(status_code=403, detail="Visit ownership required.")
+    # A NULL tenant is a personal workspace, never a shared authorization scope.
     return None, (staff.health_system_code or "")
+
+
+def _personal_creator(staff: StaffContext) -> Optional[str]:
+    return _actor_id(staff) if staff.source == "landing" else None
 
 
 def _assert_visit_access(visit: Optional[Dict[str, Any]], staff: StaffContext) -> Dict[str, Any]:
@@ -123,6 +134,8 @@ def _assert_visit_access(visit: Optional[Dict[str, Any]], staff: StaffContext) -
         raise HTTPException(status_code=404, detail="Visit not found")
     tenant_id, _slug = _tenant_scope(staff)
     if (visit.get("tenant_id") or None) != (tenant_id or None):
+        raise HTTPException(status_code=404, detail="Visit not found")
+    if staff.source == "landing" and visit.get("created_by") != _actor_id(staff):
         raise HTTPException(status_code=404, detail="Visit not found")
     return visit
 
@@ -153,16 +166,6 @@ def _baa_on_file() -> bool:
     """Tenant BAA gate (PRD §10). Default on for the single-tenant pilot where the
     BAA is handled outside the app; flip ``GOLD_BAA_ON_FILE=0`` to block export."""
     return (os.getenv("GOLD_BAA_ON_FILE") or "1").strip().lower() not in ("0", "false", "no", "off")
-
-
-async def _resolve_staff_with_query_fallback(request: Request) -> Optional[StaffContext]:
-    auth_header = request.headers.get("authorization")
-    if auth_header and auth_header.lower().startswith("bearer "):
-        return await get_staff_context_optional(authorization=auth_header)
-    tok = request.query_params.get("token")
-    if tok:
-        return await get_staff_context_optional(authorization=f"Bearer {tok}")
-    return None
 
 
 def _public_visit(visit: Dict[str, Any]) -> Dict[str, Any]:
@@ -286,7 +289,7 @@ async def record_consent(
     if not body.consent_given:
         # Declined → discard everything; keep only an anonymous declined counter.
         tenant_id, _slug = _tenant_scope(staff)
-        store.record_declined(tenant_id)
+        store.record_declined(tenant_id, created_by=visit.get("created_by"))
         store.delete_visit(visit_id)
         _audit(staff, request, "gold_consent_declined", resource=visit_id)
         return {"id": visit_id, "status": store.ST_CONSENT_DECLINED}
@@ -328,11 +331,9 @@ async def upload_audio(
             detail=f"Audio already received for this visit (status {visit.get('status')}).",
         )
 
-    contents = await file.read()
+    contents = await read_capped(file, MAX_AUDIO_BYTES, detail="Audio exceeds 200 MB limit")
     if not contents:
         raise HTTPException(status_code=400, detail="Audio file is empty")
-    if len(contents) > MAX_AUDIO_BYTES:
-        raise HTTPException(status_code=413, detail="Audio exceeds 200 MB limit")
 
     mime = file.content_type or "audio/webm"
     ext = ".webm"
@@ -346,7 +347,8 @@ async def upload_audio(
         ext = ".mp3"
 
     slug = (visit.get("tenant_slug") or "default").replace("/", "_") or "default"
-    visit_dir = GOLD_DIR / slug / visit_id
+    audio_root = GOLD_DIR / realm.SANDBOX if realm.is_sandbox() else GOLD_DIR
+    visit_dir = audio_root / slug / visit_id
     visit_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     dest = visit_dir / f"audio{ext}"
 
@@ -420,7 +422,8 @@ async def list_visits(
     staff = _require_staff(staff)
     require_roles(staff, CAPTURE_ROLES | {"system_admin"})
     tenant_id, _slug = _tenant_scope(staff)
-    visits = store.list_visits(tenant_id=tenant_id, tenant_scoped=True, status=status)
+    visits = store.list_visits(tenant_id=tenant_id, tenant_scoped=True, status=status,
+                              created_by=_personal_creator(staff))
     return {"visits": [_list_item(v) for v in visits]}
 
 
@@ -441,9 +444,19 @@ def _format_sse(event: str, data: Any) -> str:
     return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
 
 
+@router.post("/visits/{visit_id}/stream-ticket")
+async def visit_stream_ticket(
+    visit_id: str, request: Request,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    staff = _require_staff(staff)
+    _assert_visit_access(store.get_visit(visit_id), staff)
+    return mint_staff_stream_ticket(request)
+
+
 @router.get("/visits/{visit_id}/stream")
 async def stream_visit(visit_id: str, request: Request):
-    staff = await _resolve_staff_with_query_fallback(request)
+    staff = await resolve_staff_stream(request)
     staff = _require_staff(staff)
     visit = _assert_visit_access(store.get_visit(visit_id), staff)
 
@@ -675,8 +688,9 @@ async def get_stats(
     staff = _require_staff(staff)
     require_roles(staff, CAPTURE_ROLES | {"system_admin"})
     tenant_id, _slug = _tenant_scope(staff)
-    counts = store.status_counts(tenant_id, tenant_scoped=True)
-    declined = store.declined_count(tenant_id, tenant_scoped=True)
+    creator = _personal_creator(staff)
+    counts = store.status_counts(tenant_id, tenant_scoped=True, created_by=creator)
+    declined = store.declined_count(tenant_id, tenant_scoped=True, created_by=creator)
 
     needs_review = counts.get(store.ST_NEEDS_REVIEW, 0)
     needs_deid = counts.get(store.ST_NEEDS_QA, 0) + counts.get(store.ST_DEIDENTIFYING, 0)
@@ -686,7 +700,7 @@ async def get_stats(
 
     # Surgeon contribution: visits whose clinician hash matches this actor.
     my_hash = gold_schema.hash_clinician(_actor_id(staff))
-    contributions = store.contributions_by_clinician(tenant_id, tenant_scoped=True)
+    contributions = store.contributions_by_clinician(tenant_id, tenant_scoped=True, created_by=creator)
     my_contrib = contributions.get(my_hash, 0)
 
     rate = float(os.getenv("GOLD_RATE_PER_RECORD_USD") or "25")
@@ -732,7 +746,8 @@ async def export_records(
     staff = _require_operator(staff)
     tenant_id, _slug = _tenant_scope(staff)
 
-    all_ready = store.list_visits(tenant_id=tenant_id, tenant_scoped=True, status=store.ST_EXPORT_READY)
+    all_ready = store.list_visits(tenant_id=tenant_id, tenant_scoped=True, status=store.ST_EXPORT_READY,
+                                  created_by=_personal_creator(staff))
     by_id = {v["id"]: v for v in all_ready}
 
     if body.visit_ids:

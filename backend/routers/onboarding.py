@@ -1694,7 +1694,7 @@ async def asclepius_cv_upload(
     ``cvAssetSha`` would be an unvalidated reference into the shared asset
     store — which also holds de-identified clinical images.
 
-    Parsing happens AFTER the response is sent (B-1.1): pdfminer/PyPDF2 and
+    Parsing happens AFTER the response is sent (B-1.1): pdfminer/pypdf and
     especially the OCR fallback are tens of CPU-seconds, and nothing about the
     CV needs to be parsed before the form returns.
     """

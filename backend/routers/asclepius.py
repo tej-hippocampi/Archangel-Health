@@ -1321,7 +1321,7 @@ async def update_my_profile(
     return await my_profile(user=store.get_user_by_id(user["id"]) or user)
 
 
-@router.post("/me/password")
+@router.post("/me/password", dependencies=[Depends(rate_limiter("asclepius_pw_change", 10, 300))])
 async def change_my_password(
     body: PasswordChange,
     user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE)),
@@ -1338,8 +1338,10 @@ async def change_my_password(
     row = store.get_user_by_id(user["id"]) or {}
     if not _verify_password(body.current_password, row.get("password_hash") or ""):
         raise HTTPException(status_code=403, detail="That is not your current password.")
-    if len(body.new_password) < 8:
-        raise HTTPException(status_code=422, detail="Use at least 8 characters.")
+    try:
+        asc_passwords.validate(body.new_password, email=user.get("email", ""), legacy_profile=True)
+    except asc_passwords.PasswordRejected as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     if body.new_password == body.current_password:
         raise HTTPException(status_code=422, detail="That is the password you already have.")
     store.set_user_password(user["id"], body.new_password)
@@ -1347,7 +1349,7 @@ async def change_my_password(
         entity_type="user", entity_id=user["id"], event_type="password_self_changed",
         actor=user.get("email"), payload={},
     )
-    return {"ok": True}
+    return {"ok": True, "token": asc_auth.create_token(store.get_user_by_id(user["id"]))}
 
 
 # ─── Profile picture ──────────────────────────────────────────────────────────
@@ -4912,6 +4914,13 @@ async def submit(
     # existing result rather than double-capturing.
     existing = store.get_submission(sid)
     if existing:
+        if existing.get("evaluator_id") != user["id"]:
+            raise HTTPException(status_code=403, detail="Not your submission")
+        from asclepius import background_jobs
+        import realm
+        if existing["status"] in background_jobs.TRANSIENT:
+            background_jobs.enqueue_submission(store, sid)
+            background.add_task(background_jobs.run, store, "submission", sid, realm.current())
         records = store.records_for_submission(sid)
         return {
             "submission_id": sid,
@@ -5281,15 +5290,22 @@ async def submit(
     # immediately so the UI can poll GET /submissions/{id}/status for real,
     # backend-stamped phases. The default path stays synchronous (200 + result)
     # so existing API clients are unchanged.
+    from asclepius import background_jobs
+    import realm
+    background_jobs.enqueue_submission(store, sid)
     if async_pipeline:
         store.set_submission_progress(sid, phase="queued", pct=5, detail="Queued for processing")
-        background.add_task(_finalize_submission, store, body.task_id, sid, user["id"])
+        background.add_task(background_jobs.run, store, "submission", sid, realm.current())
         return JSONResponse(
             status_code=202,
             content={"submission_id": sid, "status": "processing", "accepted": True},
         )
 
-    result = await _finalize_submission(store, body.task_id, sid, user["id"])
+    result = await background_jobs.run(store, "submission", sid, realm.current())
+    if result is None:
+        # A concurrent replay/recovery owns the lease, or storage requires retry.
+        # The original submission and durable job remain available to polling.
+        return JSONResponse(status_code=202, content={"submission_id": sid, "status": "processing", "accepted": True})
     return result
 
 
@@ -5313,7 +5329,16 @@ async def _finalize_submission(
                 "record_count": 0}
 
     try:
-        result = await asc_pipeline.process_submission(store, task, submission)
+        from asclepius.background_jobs import TRANSIENT
+        if submission["status"] in TRANSIENT:
+            result = await asc_pipeline.process_submission(store, task, submission)
+        else:
+            # A restart after the terminal commit still completes the durable
+            # post-processing without packaging the physician's work again.
+            result = {"submission_id": sid, "status": submission["status"],
+                      "issues": (submission.get("qa_reason") or "").split(",") if submission.get("qa_reason") else [],
+                      "record_count": len(store.records_for_submission(sid)),
+                      "critic": submission.get("critic"), "agreement_score": submission.get("agreement_score")}
 
         # If another clinician already flagged this prompt as invalid, a grading that
         # races in afterward must not silently export (Eval Flow Upgrade §2). Route it
@@ -5322,14 +5347,15 @@ async def _finalize_submission(
         # seen. (refresh_task_status leaves the prompt_flagged task as-is.)
         _cur = store.get_task(task_id) or {}
         if _cur.get("status") == PROMPT_FLAGGED_TASK_STATUS and result.get("status") in ("auto_validated", "export_ready"):
-            store.update_submission(sid, status="needs_qa", qa_reason="prompt_flagged")
-            store.update_records_status_for_submission(sid, "needs_qa")
+            prompt_status = store.set_submission_pipeline_state(
+                sid, "needs_qa", qa_reason="prompt_flagged",
+                allowed_states=("submitted", "auto_validated", "qa_checked", "export_ready"))
             store.set_submission_progress(sid, phase="needs_qa", pct=100, detail="Routed to QA review")
             store.log_event(
                 entity_type="submission", entity_id=sid, event_type="routed_to_qa",
                 actor=actor_id, payload={"reason": "prompt_flagged", "task_id": task_id},
             )
-            result["status"] = "needs_qa"
+            result["status"] = prompt_status
             result["issues"] = sorted(set((result.get("issues") or []) + ["prompt_flagged"]))
 
         # Frontier-model failure capture (FEAT-1): if this task's A/B pair was real
@@ -5366,7 +5392,11 @@ async def _finalize_submission(
         # must exist even if the other throws its way out of the try above.
         asc_route_notify.notify_relay_unlock(store, task=store.get_task(task_id))
         return result
-    except Exception:
+    except Exception as exc:
+        import sqlite3
+        from asclepius.background_jobs import LeaseLost
+        if isinstance(exc, (sqlite3.Error, LeaseLost, OSError)):
+            raise  # Storage/ownership failures remain durably retryable.
         # BUG-5 review (3b): the pipeline runs as a BACKGROUND job in the async
         # path, so an unexpected exception here would die silently and strand the
         # submission at a NON-terminal status ('submitted'/'auto_validated') — the
@@ -5376,8 +5406,7 @@ async def _finalize_submission(
         # which is strictly better: the work is captured, not lost.
         log.exception("asclepius: submission pipeline failed for %s", sid)
         try:
-            store.update_submission(sid, status="needs_qa", qa_reason="pipeline_error")
-            store.update_records_status_for_submission(sid, "needs_qa")
+            store.set_submission_pipeline_state(sid, "needs_qa", qa_reason="pipeline_error")
             store.set_submission_progress(sid, phase="needs_qa", pct=100, detail="Routed to QA (pipeline error)")
             store.log_event(
                 entity_type="submission", entity_id=sid, event_type="routed_to_qa",
@@ -5387,7 +5416,7 @@ async def _finalize_submission(
         except Exception:
             log.exception("asclepius: could not stamp terminal state for %s", sid)
         return {
-            "submission_id": sid, "status": "needs_qa", "issues": ["pipeline_error"],
+            "submission_id": sid, "status": (store.get_submission(sid) or {}).get("status", "needs_qa"), "issues": ["pipeline_error"],
             "record_count": len(store.records_for_submission(sid)),
             "critic": None, "agreement_score": None,
         }
@@ -8594,6 +8623,9 @@ async def _execute_real_case_generation(
             log.warning("real-case generation failed for %s encounter %s: %s",
                         ingest_case_id, p.get("encounter_index"), exc)
             if job:
+                import sqlite3
+                if isinstance(exc, (sqlite3.Error, OSError)):
+                    raise
                 raise RuntimeError(f"Encounter {p['encounter_index'] + 1}: {exc}") from exc
             failed.append({"encounter_index": p.get("encounter_index"), "error": str(exc)})
             continue
