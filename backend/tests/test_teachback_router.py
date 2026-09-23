@@ -12,7 +12,8 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("ADMIN_AUTH_TOKEN", "test-admin-token")
 
-from main import app  # noqa: E402
+from main import app, DEMO_HEALTH_SYSTEM_ID  # noqa: E402
+from patient_session import create_patient_session  # noqa: E402
 
 
 @pytest.fixture()
@@ -25,6 +26,7 @@ def _seed_patient() -> str:
     pid = f"tb_{uuid.uuid4().hex[:8]}"
     app.state.patient_store[pid] = {
         "id": pid,
+        "health_system_id": DEMO_HEALTH_SYSTEM_ID,
         "phase": "post_op",
         "pipeline_type": "post_op",
         "current_tier": "TIER_1",
@@ -42,6 +44,7 @@ def _seed_patient() -> str:
 
 def test_preop_teachback_full_flow(client, monkeypatch):
     pid = _seed_patient()
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
 
     async def _fake_generate(**_kwargs):
         questions = [
@@ -141,6 +144,7 @@ def test_preop_teachback_full_flow(client, monkeypatch):
 
 def test_postop_diagnosis_teachback_starts_without_video_events(client, monkeypatch):
     pid = _seed_patient()
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
 
     async def _fake_generate(**_kwargs):
         return (

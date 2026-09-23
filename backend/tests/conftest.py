@@ -42,6 +42,7 @@ import pytest
 
 os.environ.setdefault("RATE_LIMIT_ENABLED", "0")
 os.environ["ASCLEPIUS_REAL_CASE_WORKER_ENABLED"] = "0"
+os.environ["ASCLEPIUS_BACKGROUND_WORKER_ENABLED"] = "0"
 os.environ.setdefault("EMAIL_DEV_MODE", "1")
 # Existing open-queue regression scenarios explicitly retain that deployment
 # mode. Assignment-access tests clear this variable to exercise the shipped

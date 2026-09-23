@@ -31,7 +31,8 @@ from auth_roles import (
     require_patient_session,
     require_roles,
 )
-from staff_context import StaffContext, get_staff_context_optional
+from staff_context import StaffContext, assert_staff_patient_scope, get_staff_context_optional
+from patient_session import current_patient_session
 from triage.preop_retier import get_config, re_tier_preop, score_pam
 from triage.preop_retier.apply import apply_preop_retier
 from triage.preop_retier.locks import with_episode_lock
@@ -72,8 +73,11 @@ def _resolve_patient(
     patient = store.get(patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    if staff and staff.source == "tenant" and staff.tenant_id:
-        if (patient.get("health_system_id") or "") != staff.tenant_id:
+    if staff is not None:
+        assert_staff_patient_scope(patient=patient, staff=staff)
+    else:
+        session = current_patient_session()
+        if session is None or session.patient_id != patient_id:
             raise HTTPException(status_code=404, detail="Patient not found")
     ensure_preop_retier_patient_state(patient)
     return patient
@@ -182,11 +186,11 @@ async def post_pam_submission(
     """Score PAM, persist, then synchronously re-tier inside the episode lock.
 
     Pass-4: patient-session only — staff can't submit PAM responses on a
-    patient's behalf. The patient app currently runs anonymously; if a
-    staff Bearer is presented, return 403.
+    patient's behalf. A patient session must match this episode; if a staff
+    Bearer is presented, return 403.
     """
     staff = await _resolve_staff(authorization)
-    require_patient_session(staff)
+    require_patient_session(staff, episode_id)
     patient = _resolve_patient(request, episode_id, staff)
     team_store = _team_store(request)
 
@@ -264,7 +268,7 @@ async def post_preop_video_event(
     events; the patient app posts these directly.
     """
     staff = await _resolve_staff(authorization)
-    require_patient_session(staff)
+    require_patient_session(staff, body.episode_id)
     _resolve_patient(request, body.episode_id, staff)
     team_store = _team_store(request)
 
@@ -323,7 +327,7 @@ async def post_battlecard_event(
     Pass-4: patient-session only — same rationale as `/api/events/preop-video`.
     """
     staff = await _resolve_staff(authorization)
-    require_patient_session(staff)
+    require_patient_session(staff, body.episode_id)
     _resolve_patient(request, body.episode_id, staff)
     team_store = _team_store(request)
 

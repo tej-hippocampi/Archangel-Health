@@ -367,7 +367,8 @@ async def buyer_password(
     store.clear_buyer_password_reset(buyer_user["id"])
     store.log_event(entity_type="buyer_account", entity_id=buyer_user["id"],
                     event_type="password_reset", actor=buyer_user["id"])
-    return {"ok": True}
+    fresh = store.get_user_by_id(buyer_user["id"])
+    return {"ok": True, "token": asc_auth.create_token(fresh)}
 
 
 @router.get("/buyer/deliveries")

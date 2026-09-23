@@ -461,10 +461,11 @@ def test_exactly_three_code_paths_can_make_a_record_exportable():
          PRD added, serving admin Approve, reviewer accept, the 14-day
          auto-approve, and the §4 backfill. All of these resolve the ledger.
       2. ``pipeline.apply_qa_decision``  — the QA tab.
-      3. ``pipeline.process_submission`` — the AUTO-VALIDATION HAPPY PATH: a
+      3. ``store.set_submission_pipeline_state``, called by
+         ``pipeline.process_submission`` — the AUTO-VALIDATION HAPPY PATH: a
          clean, unsampled submission is export_ready at capture, with no ledger
-         involvement at all. It predates this work and PRD §7 says explicitly not
-         to touch it.
+         involvement at all. The store helper commits submission and record
+         states together so restart recovery cannot leave them split.
 
     So the invariant this PRD establishes is ONE-DIRECTIONAL:
 
@@ -513,7 +514,7 @@ def test_exactly_three_code_paths_can_make_a_record_exportable():
         f"{sorted(found)}. If that is deliberate, make sure the new one also "
         "resolves the ledger, and update this test and PRD §3.")
     files = sorted({f.split(":")[0] for f in found})
-    assert files == ["asclepius/payments.py", "asclepius/pipeline.py"], files
+    assert files == ["asclepius/payments.py", "asclepius/pipeline.py", "asclepius/store.py"], files
 
 
 def test_the_happy_path_makes_a_record_exportable_without_any_ledger_row():

@@ -196,7 +196,8 @@
       btn.disabled = true;
       btn.textContent = "Saving…";
       try {
-        await apiPost("/buyer/password", { current_password: "", new_password: pw });
+        const data = await apiPost("/buyer/password", { current_password: "", new_password: pw });
+        setToken(data.token);
         okBox.textContent = "Password updated. Opening your workspace…";
         okBox.hidden = false;
         if (currentUser) currentUser.must_reset_password = false;

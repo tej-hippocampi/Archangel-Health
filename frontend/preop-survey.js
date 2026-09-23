@@ -3,6 +3,7 @@
   const params = new URLSearchParams(window.location.search);
   const WINDOW = (params.get("window") || "").toLowerCase();
   const PATIENT_ID = (params.get("patient") || "").trim();
+  const REALM = params.get("realm") === "sandbox" ? "sandbox" : "live";
   const root = document.getElementById("surveyRoot");
 
   const SYMPTOM_LABELS = {
@@ -21,7 +22,10 @@
   }
 
   async function apiJson(path, options = {}) {
-    const res = await fetch(`${API}${path}`, options);
+    const res = await fetch(`${API}${path}`, {
+      ...options,
+      headers: { ...options.headers, "X-Asclepius-Realm": REALM },
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || `Request failed: ${res.status}`);
     return data;

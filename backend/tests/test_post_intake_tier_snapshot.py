@@ -207,6 +207,7 @@ def test_patients_endpoint_serializes_tier_chain(client):
     _seed_preop_t1(client, pid)
     app.state.patient_store[pid].update({
         "name": "Chain Patient",
+        "health_system_id": "demo_hs",
         "phone": "555-0100",
         "email": "chain@example.com",
         "pipeline_type": "pre_op",

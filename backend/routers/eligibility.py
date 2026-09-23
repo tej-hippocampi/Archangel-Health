@@ -46,12 +46,16 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
+import realm
 
 from eligibility import evaluate as eval_mod
 from eligibility import format_detect, pipeline, store
 from eligibility.parse_x12 import InvalidX12Error
 from eligibility.parse_pdf import PDFEncryptedError
-from staff_context import StaffContext, get_staff_context_optional, require_clinical_auth
+from staff_context import StaffContext, assert_staff_patient_scope, get_staff_context_optional, require_clinical_auth
+from staff_stream import mint_staff_stream_ticket, resolve_staff_stream
+from tenant_constants import DEMO_HEALTH_SYSTEM_ID
+from upload_limits import read_capped
 
 log = logging.getLogger("eligibility.router")
 
@@ -59,6 +63,11 @@ router = APIRouter(tags=["eligibility"])
 
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/tmp/elysium-eligibility")).resolve()
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+
+def upload_root() -> Path:
+    """Keep live source paths stable and isolate new sandbox uploads."""
+    return UPLOAD_DIR / realm.SANDBOX if realm.is_sandbox() else UPLOAD_DIR
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
@@ -74,32 +83,20 @@ def _actor_id(staff: Optional[StaffContext]) -> str:
     return f"{staff.source}:{staff.email or ''}"
 
 
-# KNOWN RISK, deliberately left in place for launch: the resolver below accepts
-# a full 7-day staff JWT from the query string, which is copied into access
-# logs, proxy logs and browser history, so whoever reads a log gets a week of
-# staff access. There is no short-lived token in this codebase that resolves to
-# a StaffContext (the media and websocket tickets are bound to the Asclepius and
-# Community user models, not to tenant staff JWTs), and minting a new token type
-# is not a launch-night change. Containment until then: use this resolver ONLY
-# on routes an EventSource actually opens. Every other route, including the
-# batch JSON read below, takes the header path via
-# Depends(get_staff_context_optional) so this surface does not grow.
-async def _resolve_staff_with_query_fallback(request: Request) -> Optional[StaffContext]:
-    """EventSource can't set headers — fall back to ?token= for SSE routes."""
-    auth_header = request.headers.get("authorization")
-    if auth_header and auth_header.lower().startswith("bearer "):
-        return await get_staff_context_optional(authorization=auth_header)
-    tok = request.query_params.get("token")
-    if tok:
-        return await get_staff_context_optional(authorization=f"Bearer {tok}")
-    return None
-
-
 def _patient_store(request: Request) -> Dict[str, Any]:
     return request.app.state.patient_store
 
 
-def _assert_patient_access(patient_id: str, staff: Optional[StaffContext], store_dict: Dict[str, Any]) -> None:
+def _staff_owner(staff: Optional[StaffContext]) -> str:
+    staff = require_clinical_auth(staff)
+    owner = staff.tenant_id if staff.source == "tenant" else DEMO_HEALTH_SYSTEM_ID if staff.source == "landing" else ""
+    if not owner or not owner.strip():
+        raise HTTPException(status_code=403, detail="Patient ownership required")
+    return owner
+
+
+def _assert_patient_access(patient_id: str, staff: Optional[StaffContext], store_dict: Dict[str, Any],
+                           *, include_archived: bool = False) -> None:
     """Gate one patient record for one staff member. Fails CLOSED.
 
     This used to skip straight past the tenant check when ``staff`` was None,
@@ -115,12 +112,10 @@ def _assert_patient_access(patient_id: str, staff: Optional[StaffContext], store
     vs 200 to an anonymous caller would leak which patient ids exist.
     """
     staff = require_clinical_auth(staff)
-    if patient_id not in store_dict:
+    patient = store_dict.get(patient_id)
+    assert_staff_patient_scope(patient=patient, staff=staff)
+    if patient.get("archived_at") and not include_archived:
         raise HTTPException(status_code=404, detail="Patient not found")
-    if staff.source == "tenant" and staff.tenant_id:
-        d = store_dict[patient_id]
-        if (d.get("health_system_id") or "") != staff.tenant_id:
-            raise HTTPException(status_code=404, detail="Patient not found")
 
 
 def _assert_batch_access(rec: Optional[Dict[str, Any]], staff: Optional[StaffContext]) -> None:
@@ -132,11 +127,12 @@ def _assert_batch_access(rec: Optional[Dict[str, Any]], staff: Optional[StaffCon
     rather than 403 so the batch id space stays opaque to a prober.
     """
     staff = require_clinical_auth(staff)
-    if not rec:
-        raise HTTPException(status_code=404, detail="Batch not found")
-    if staff.source == "tenant" and staff.tenant_id:
-        if (rec.get("health_system_id") or "") != staff.tenant_id:
-            raise HTTPException(status_code=404, detail="Batch not found")
+    try:
+        assert_staff_patient_scope(patient=rec, staff=staff)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            raise HTTPException(status_code=404, detail="Batch not found") from exc
+        raise
 
 
 # ─── Draft patient lifecycle ────────────────────────────────────────────────
@@ -156,6 +152,8 @@ async def create_draft_patient(
     body: DraftPatientRequest,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
+    staff = require_clinical_auth(staff)
+    hs_id = _staff_owner(staff)
     name = (body.name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Patient name is required")
@@ -170,7 +168,6 @@ async def create_draft_patient(
     if body.dob:
         _validate_iso_date(body.dob, "dob")
 
-    hs_id = staff.tenant_id if (staff and staff.source == "tenant") else None
     clinic_guess = ""
     if staff and staff.source == "tenant":
         clinic_guess = (staff.health_system_code or "").strip().upper()
@@ -180,6 +177,8 @@ async def create_draft_patient(
     # rather than silently creating a duplicate.
     if mbi:
         for existing_pid, existing in list(store_dict.items()):
+            if existing.get("archived_at"):
+                continue
             existing_mbi = str((existing.get("structured_data") or {}).get("mbi") or existing.get("mbi") or "").upper().strip()
             if existing_mbi and existing_mbi == mbi:
                 same_tenant = (existing.get("health_system_id") or "") == (hs_id or "")
@@ -238,35 +237,31 @@ async def delete_draft_patient(
     request: Request,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
-    """Hard-delete a draft patient and all attached eligibility docs (PRD AC-S9).
+    """Cancel a draft, retaining accepted originals and their source metadata.
 
     Refuses to delete patients without ``is_draft=True`` so it cannot be
     misused to evict a finalized patient from the roster.
     """
+    staff = require_clinical_auth(staff)
+    _staff_owner(staff)
     store_dict = _patient_store(request)
     rec = store_dict.get(patient_id)
     if not rec:
+        return {"ok": True, "already_gone": True}
+    _assert_patient_access(patient_id, staff, store_dict, include_archived=True)
+    if rec.get("archived_at"):
         return {"ok": True, "already_gone": True}
     if not rec.get("is_draft"):
         # Refuse to delete non-draft patients via this endpoint
         raise HTTPException(status_code=409, detail="Cannot hard-delete a finalized patient via this endpoint")
 
-    if staff and staff.source == "tenant" and staff.tenant_id:
-        if (rec.get("health_system_id") or "") != staff.tenant_id:
-            raise HTTPException(status_code=404, detail="Patient not found")
-
-    # Remove uploaded docs
+    # Cancel active access without destroying acknowledged source documents.
     for doc_id in list(rec.get("relevant_files") or []):
         d = store.get_doc(doc_id)
-        if d:
-            try:
-                p = Path(d["path"])
-                if p.exists():
-                    p.unlink()
-            except Exception as e:
-                log.warning("Failed to unlink %s: %s", d.get("path"), e)
+        if d and d.get("patient_id") == patient_id:
             store.delete_doc(doc_id)
-    store_dict.pop(patient_id, None)
+    rec["archived_at"] = _utc_iso()
+    rec["archived_by"] = _actor_id(staff)
     store.append_audit(
         action="patient_deleted",
         actor=_actor_id(staff),
@@ -289,7 +284,8 @@ async def upload_eligibility_document(
     # store (draft has is_draft=True). The same access check applies.
     _assert_patient_access(patientId, staff, store_dict)
 
-    contents = await file.read()
+    contents = await read_capped(file, max(format_detect.MAX_SIZE_BY_FORMAT.values()),
+                                 detail="File exceeds 25MB limit")
     size = len(contents)
     if size == 0:
         raise HTTPException(status_code=400, detail="File is empty")
@@ -316,7 +312,7 @@ async def upload_eligibility_document(
 
     ext = os.path.splitext(file.filename or "")[1].lower() or ".bin"
     doc_id = uuid.uuid4().hex
-    patient_dir = UPLOAD_DIR / patientId.replace("/", "_")
+    patient_dir = upload_root() / patientId.replace("/", "_")
     patient_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     dest = patient_dir / f"{doc_id}{ext}"
     dest.write_bytes(contents)
@@ -376,7 +372,7 @@ async def list_patient_eligibility_documents(
     out: List[Dict[str, Any]] = []
     for did in patient.get("relevant_files") or []:
         d = store.get_doc(did)
-        if not d:
+        if not d or d.get("patient_id") != patient_id:
             continue
         out.append({
             "id": d["id"],
@@ -396,22 +392,14 @@ async def delete_eligibility_document(
     request: Request,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
-    rec = store.get_doc(doc_id)
+    staff = require_clinical_auth(staff)
+    rec = store.get_doc(doc_id, include_archived=True)
     if not rec:
         raise HTTPException(status_code=404, detail="Document not found")
     store_dict = _patient_store(request)
     pid = rec.get("patient_id", "")
-    # Allow deleting a doc whose patient was already removed (orphan cleanup),
-    # but still enforce tenant access if the patient is around.
-    if pid and pid in store_dict:
-        _assert_patient_access(pid, staff, store_dict)
-
-    try:
-        p = Path(rec["path"])
-        if p.exists():
-            p.unlink()
-    except Exception as e:
-        log.warning("Failed to unlink %s: %s", rec.get("path"), e)
+    # Missing ownership is never permission to erase an accepted original.
+    _assert_patient_access(pid, staff, store_dict)
 
     store.delete_doc(doc_id)
     if pid in store_dict:
@@ -485,7 +473,7 @@ async def create_eligibility_check(
         # Defense-in-depth: ensure the doc actually belongs to this patient.
         # Without this check, a doctor could attach another patient's docs to
         # their own check by guessing IDs.
-        if d.get("patient_id") and d.get("patient_id") != body.patientId:
+        if d.get("patient_id") != body.patientId:
             raise HTTPException(
                 status_code=403,
                 detail=f"Document {did} does not belong to patient {body.patientId}",
@@ -565,9 +553,22 @@ async def get_check(
     return _serialize_check(rec)
 
 
+@router.post("/api/eligibility-checks/{check_id}/stream-ticket")
+async def check_stream_ticket(
+    check_id: str, request: Request,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    require_clinical_auth(staff)
+    rec = store.get_check(check_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Check not found")
+    _assert_patient_access(rec["patient_id"], staff, _patient_store(request))
+    return mint_staff_stream_ticket(request)
+
+
 @router.get("/api/eligibility-checks/{check_id}/stream")
 async def stream_check(check_id: str, request: Request):
-    staff = await _resolve_staff_with_query_fallback(request)
+    staff = await resolve_staff_stream(request)
     rec = store.get_check(check_id)
     if not rec:
         raise HTTPException(status_code=404, detail="Check not found")
@@ -814,6 +815,8 @@ async def create_eligibility_batch(
     files: List[UploadFile] = File(...),
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
+    staff = require_clinical_auth(staff)
+    hs_id = _staff_owner(staff)
     if len(files) == 0:
         raise HTTPException(status_code=400, detail="No files provided")
     if len(files) > 50:
@@ -828,15 +831,14 @@ async def create_eligibility_batch(
     payloads: List[tuple[str, bytes]] = []
     total = 0
     for f in files:
-        content = await f.read()
+        content = await read_capped(f, 200 * 1024 * 1024 - total,
+                                    detail="Batch exceeds 200 MB total")
         if not content:
             raise HTTPException(status_code=400, detail=f"File '{f.filename or 'unknown'}' is empty")
         total += len(content)
         if total > 200 * 1024 * 1024:
             raise HTTPException(status_code=413, detail="Batch exceeds 200 MB total")
         payloads.append((f.filename or "unknown", content))
-
-    hs_id = staff.tenant_id if (staff and staff.source == "tenant") else None
 
     batch_id = uuid.uuid4().hex
     queue = store.new_check_queue()
@@ -874,17 +876,24 @@ async def get_batch(
     batch_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
-    # Header auth only, unlike the /stream sibling below: this is a plain JSON
-    # poll made by fetch(), never by an EventSource, so it has no reason to
-    # accept a staff JWT in the query string.
+    # The JSON poll uses headers; stream tickets cannot authorize this route.
     rec = store.get_batch(batch_id)
     _assert_batch_access(rec, staff)
     return _serialize_batch(rec)
 
 
+@router.post("/api/eligibility-batches/{batch_id}/stream-ticket")
+async def batch_stream_ticket(
+    batch_id: str, request: Request,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    _assert_batch_access(store.get_batch(batch_id), staff)
+    return mint_staff_stream_ticket(request)
+
+
 @router.get("/api/eligibility-batches/{batch_id}/stream")
 async def stream_batch(batch_id: str, request: Request):
-    staff = await _resolve_staff_with_query_fallback(request)
+    staff = await resolve_staff_stream(request)
     rec = store.get_batch(batch_id)
     _assert_batch_access(rec, staff)
 
@@ -1079,29 +1088,22 @@ async def list_audit_events(
     limit: int = 500,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
 ):
-    """Return recent audit events. Requires an authenticated staff context.
-
-    For tenant-scoped staff, results are filtered to events belonging to
-    patients in their own tenant. Landing/demo doctors see all events that
-    don't carry a tenant scope.
-    """
-    if not staff:
-        raise HTTPException(status_code=401, detail="Authentication required")
-
+    """Return recent events only when patient or batch ownership is provable."""
+    owner = _staff_owner(staff)
     capped = min(max(limit, 1), 2000)
-    events = store.list_audit(limit=capped)
-
-    if staff.source == "tenant" and staff.tenant_id:
-        store_dict = _patient_store(request)
-        tenant_id = staff.tenant_id
-        filtered: List[Dict[str, Any]] = []
-        for e in events:
-            pid = e.get("patient_id")
-            if not pid:
-                # Tenant-agnostic events (batch starts, anonymous actions) — show
-                continue
-            d = store_dict.get(pid)
-            if d and (d.get("health_system_id") or "") == tenant_id:
-                filtered.append(e)
-        events = filtered
+    store_dict = _patient_store(request)
+    events = []
+    # Scope before applying the visible limit: foreign traffic cannot crowd out
+    # a caller's own history, and unowned legacy events are never made public.
+    for event in store.list_audit(limit=store.AUDIT_LOG_MAX):
+        pid = event.get("patient_id")
+        if pid:
+            record = store_dict.get(pid)
+        else:
+            batch_id = (event.get("meta") or {}).get("batch_id")
+            record = store.get_batch(batch_id) if batch_id else None
+        if record and record.get("health_system_id") == owner:
+            events.append(event)
+            if len(events) >= capped:
+                break
     return {"events": events}

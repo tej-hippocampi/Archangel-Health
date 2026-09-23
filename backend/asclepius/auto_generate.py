@@ -23,13 +23,13 @@ where two of them both see "not started yet" and both launch, which on a
 there; this module removes a click from BUILDING and not one from SENDING.
 Nothing reaches a physician until an admin routes it from Task Routing.
 
-**One code path, not two.** The run calls the same
-``POST /ingestion/cases/{id}/generate`` handler the button calls — same plan, same
+**One generation path.** The run uses the same durable generation engine as
+``POST /ingestion/cases/{id}/generate`` — same plan, same
 density gate, same per-encounter isolation, same ``max_labels`` forcing, same
 notifications. A parallel implementation would be a second place for the gates to
 drift, and the gates are the product.
 
-**Failures are isolated and recorded, never raised.** ``generate_real_cases``
+**Case failures are isolated; storage failures retry.** ``generate_real_cases``
 already isolates a per-encounter failure so one bad case judge cannot fail the
 batch. What was missing was anywhere to READ that afterwards: a run reports
 success having dropped three encounters, and the chart is quietly short. The
@@ -41,6 +41,8 @@ points built out of 25 is a result, not an error.
 from __future__ import annotations
 
 import logging
+import json
+import sqlite3
 from typing import Any, Callable, Dict, List, Optional
 
 log = logging.getLogger("asclepius.auto_generate")
@@ -79,8 +81,8 @@ def maybe_start(
     ``schedule`` is ``BackgroundTasks.add_task`` from the triggering request, so
     generation never runs in the request path — a 25-encounter chart is minutes of
     frontier calls, and the admin who just clicked "Task creation" is waiting on a
-    200. With no scheduler the claim is released and nothing runs, rather than
-    blocking the caller.
+    200. With no scheduler nothing is claimed. A scheduling failure after the
+    claim leaves a durable receipt for the recovery worker.
 
     Returns ``{"started": bool, "reason": str}``. Never raises: this is called
     from the tail of three ordinary admin requests, and an auto-generation that
@@ -94,13 +96,12 @@ def maybe_start(
             return {"started": False, "reason": "already run"}
         if not is_armed(upload):
             return {"started": False, "reason": "trigger not satisfied"}
-        if not store.claim_auto_generate(upload_id):
+        if schedule is None:
+            return {"started": False, "reason": "no scheduler available"}
+        if not store.claim_auto_generate(upload_id, actor=actor):
             # Lost the race, or the condition changed under us between the read
             # and the claim. Either way somebody else owns this run.
             return {"started": False, "reason": "claimed by another run"}
-        if schedule is None:
-            store.release_auto_generate_claim(upload_id)
-            return {"started": False, "reason": "no scheduler available"}
         schedule(run_upload, store, upload_id, actor)
         store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                         event_type="auto_generate_scheduled", actor=actor,
@@ -111,16 +112,48 @@ def maybe_start(
         return {"started": False, "reason": f"error: {exc}"}
 
 
+class RecoveryPending(RuntimeError):
+    """A child is still leased elsewhere; the durable parent should retry."""
+
+
 async def run_upload(store: Any, upload_id: str, actor: str) -> Dict[str, Any]:
-    """Generate every eligible case in one upload, unattended.
+    from asclepius import background_jobs
+    import realm
+    if background_jobs.get(store, "auto_upload", upload_id) is None:
+        store.claim_auto_generate(upload_id, actor=actor)
+    result = await background_jobs.run(store, "auto_upload", upload_id, realm.current())
+    return result or (store.get_ingest_upload(upload_id) or {}).get("auto_generate_report") or {}
 
-    Runs OUTSIDE the request path (see ``maybe_start``). Every exception is caught
-    and recorded: this has no caller to report to, so a traceback that escaped
-    here would land in the logs and nowhere an operator looks.
-    """
-    from fastapi import BackgroundTasks
 
+async def _generate_case(store, upload_id, ingest_case_id, body, actor):
+    """Use the button's durable generation engine and freeze the parent-child link."""
+    from asclepius import real_case_jobs
+    from routers.asclepius import _real_case_generation_input
+    from fastapi import HTTPException
+    import realm
+    with store._conn() as conn:
+        linked = conn.execute("SELECT job_id FROM auto_generation_cases WHERE upload_id=? AND ingest_case_id=?",
+                              (upload_id, ingest_case_id)).fetchone()
+    if linked:
+        row = real_case_jobs.get(store, linked["job_id"])
+    else:
+        ic, hint = _real_case_generation_input(store, ingest_case_id, body, {"id": actor})
+        body = body.model_copy(update={"specialty": hint})
+        row = real_case_jobs.enqueue(store, ic, body, actor, auto_upload_id=upload_id)
+    if row["status"] not in ("completed", "failed"):
+        await real_case_jobs.run(store, row["job_id"], realm.current())
+        row = real_case_jobs.get(store, row["job_id"])
+    if row["status"] == "failed":
+        failure = json.loads(row["result_json"] or "{}").get("failure")
+        raise HTTPException(status_code=422, detail=failure or row["error"])
+    if row["status"] != "completed":
+        raise RecoveryPending("Generation is still running")
+    return json.loads(row["result_json"])
+
+
+async def _run_upload(store: Any, upload_id: str, actor: str, *, job) -> Dict[str, Any]:
     from asclepius.schemas import GenerateRealCasesRequest
+    from asclepius.background_jobs import LeaseLost
 
     report: Dict[str, Any] = {
         "upload_id": upload_id, "cases": [], "generated": 0, "gated": 0,
@@ -132,37 +165,42 @@ async def run_upload(store: Any, upload_id: str, actor: str) -> Dict[str, Any]:
         "failed": 0, "cases_failed": 0, "review_required_points": 0,
         "trajectories": [], "errors": [],
     }
-    try:
-        upload = store.get_ingest_upload(upload_id)
-        mode = (upload or {}).get("task_mode") or "static"
-        trajectory = (mode == "longitudinal")
+    progress = json.loads(job["progress_json"])
+    params = json.loads(job["request_json"])
+    if progress.get("report"):
+        report = progress["report"]
+    mode = params.get("mode") or "static"
+    trajectory = mode == "longitudinal"
+    if "case_ids" not in progress:
         rows = [c for c in store.list_ingest_cases(upload_id=upload_id)
-                if c.get("status") == "ingested"]
+                if c.get("status") == "ingested" or
+                (params.get("legacy_recovery") and c.get("status") == "promoted")]
         report["mode"] = mode
         report["eligible_cases"] = len(rows)
         if len(rows) > MAX_CASES_PER_RUN:
-            # Said out loud rather than silently truncated: an operator who sent 40
-            # charts and got 25 needs to know the other 15 are waiting for a click,
-            # not that they failed.
             report["errors"].append(
                 f"{len(rows)} eligible case(s); this run promoted the first "
                 f"{MAX_CASES_PER_RUN}. Promote the rest from Task creation.")
-            rows = rows[:MAX_CASES_PER_RUN]
-
-        # The SAME handler the button calls (see the module docstring). Imported
-        # here rather than at module scope because ``routers.asclepius`` imports
-        # half the package and this module is imported from inside it.
-        from routers.asclepius import generate_real_cases
-
+        progress = store.checkpoint(case_ids=[c["ingest_case_id"] for c in rows[:MAX_CASES_PER_RUN]], report=report)
+    done = {c["ingest_case_id"] for c in report["cases"]}
+    rows = [{"ingest_case_id": cid} for cid in progress["case_ids"] if cid not in done]
+    try:
         for case in rows:
             entry: Dict[str, Any] = {"ingest_case_id": case["ingest_case_id"]}
-            bg = BackgroundTasks()
             try:
-                res = await generate_real_cases(
-                    case["ingest_case_id"],
-                    GenerateRealCasesRequest(dry_run=False, trajectory=trajectory),
-                    bg, {"id": actor},
-                )
+                if params.get("legacy_recovery"):
+                    with store._conn() as conn:
+                        existing = conn.execute("SELECT task_id FROM tasks WHERE json_extract(generation_json, '$.ingest_case_id')=?",
+                                                (case["ingest_case_id"],)).fetchall()
+                    if existing:
+                        # Old non-durable runs did not retain the per-encounter
+                        # plan/identity. Preserve them and report the ambiguity;
+                        # silently repeating model calls would create duplicates.
+                        raise ValueError(f"Preserved {len(existing)} existing task(s) from an interrupted legacy run; review the chart before generating remaining points.")
+                res = await _generate_case(store, upload_id, case["ingest_case_id"],
+                                           GenerateRealCasesRequest(dry_run=False, trajectory=trajectory), actor)
+            except (LeaseLost, RecoveryPending, sqlite3.Error, OSError):
+                raise
             except Exception as exc:
                 # Per-CASE isolation, mirroring the per-ENCOUNTER isolation inside
                 # the handler: one chart that cannot be planned must not stop the
@@ -175,21 +213,14 @@ async def run_upload(store: Any, upload_id: str, actor: str) -> Dict[str, Any]:
                                   "dropped": _review_drops(detail["held"])})
                     report["review_required_points"] += entry["review_required_points"]
                     report["cases"].append(entry)
+                    store.checkpoint(report=report)
                     continue
                 log.warning("auto-generate failed for %s: %s", case["ingest_case_id"], exc)
                 entry.update({"error": _readable(exc)})
                 report["cases_failed"] += 1
                 report["cases"].append(entry)
+                store.checkpoint(report=report)
                 continue
-            # The handler queued its new-task notifications on the BackgroundTasks
-            # it was handed. Nothing else will ever run them here, so they are run
-            # now — otherwise an auto-generated batch is the one batch nobody is
-            # told about.
-            try:
-                await bg()
-            except Exception:  # pragma: no cover
-                log.exception("auto-generate: task notifications failed for %s",
-                              case["ingest_case_id"])
             entry.update({
                 "generated": res.get("generated", 0),
                 "gated": res.get("gated", 0),
@@ -214,19 +245,20 @@ async def run_upload(store: Any, upload_id: str, actor: str) -> Dict[str, Any]:
             if entry.get("trajectory_id"):
                 report["trajectories"].append(entry["trajectory_id"])
             report["cases"].append(entry)
-    except Exception as exc:  # pragma: no cover
+            store.checkpoint(report=report)
+    except (LeaseLost, RecoveryPending, sqlite3.Error, OSError):
+        raise
+    except Exception as exc:
         log.exception("auto-generate run failed for %s", upload_id)
         report["errors"].append(_readable(exc))
 
-    try:
-        store.set_upload_auto_generate_report(upload_id, report)
-        store.log_event(entity_type="ingest_upload", entity_id=upload_id,
-                        event_type="auto_generate_finished", actor=actor,
-                        payload={k: report[k] for k in
-                                 ("generated", "gated", "failed", "cases_failed",
-                                  "trajectories")})
-    except Exception:  # pragma: no cover
-        log.exception("auto-generate: could not record the report for %s", upload_id)
+    # Storage failures must leave the parent retryable, not mark it completed
+    # without the report the UI uses to explain the accepted work.
+    store.set_upload_auto_generate_report(upload_id, report)
+    store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                    event_type="auto_generate_finished", actor=actor,
+                    payload={k: report[k] for k in
+                             ("generated", "gated", "failed", "cases_failed", "trajectories")})
     return report
 
 

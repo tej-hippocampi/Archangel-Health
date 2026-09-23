@@ -10327,7 +10327,11 @@
       button.textContent = 'Changing…';
       api('/me/password', { method: 'POST', body: {
         current_password: current.value, new_password: next.value,
-      } }).then(() => {
+      } }).then((res) => {
+        if (res.token) {
+          state.token = res.token;
+          try { localStorage.setItem(TOKEN_KEY, res.token); } catch (_) { /* ignore quota */ }
+        }
         note.className = 'asc-ref-msg';
         note.textContent = 'Password changed.';
         note.style.display = '';

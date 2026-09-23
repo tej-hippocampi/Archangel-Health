@@ -24,11 +24,12 @@ import os
 import sqlite3
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from http.cookies import SimpleCookie
 from typing import Any, Dict, Optional
 
 import jwt
+import realm
 
 from team_store import connect_team_db
 
@@ -54,8 +55,9 @@ class PatientSession:
 # ─── jti store (single-use entry tokens + session revocation) ────────────────
 def _db_path() -> str:
     """Resolve at call time so tests can point TEAM_DB_PATH at a temp file."""
-    base_dir = os.path.dirname(__file__)
-    return os.getenv("TEAM_DB_PATH") or os.path.join(base_dir, "team.db")
+    # Preserve the existing live revocation ledger, including its default path.
+    live_path = os.getenv("TEAM_DB_PATH") or os.path.join(os.path.dirname(__file__), "team.db")
+    return realm.sandbox_db_path(live_path) if realm.is_sandbox() else live_path
 
 
 def _conn() -> sqlite3.Connection:
@@ -79,28 +81,28 @@ def _ensure_table(conn: sqlite3.Connection) -> None:
 
 
 def _now_ts() -> int:
-    return int(datetime.utcnow().timestamp())
+    return int(datetime.now(timezone.utc).timestamp())
 
 
-def _record_jti(jti: str, kind: str, exp_ts: int) -> None:
+def _record_jti(jti: str, kind: str, exp_ts: int) -> bool:
     if not jti:
-        return
+        return False
     with _conn() as conn:
         _ensure_table(conn)
-        conn.execute(
+        result = conn.execute(
             "INSERT OR IGNORE INTO patient_session_jti (jti, kind, exp, created_at) "
             "VALUES (?, ?, ?, ?)",
             (jti, kind, int(exp_ts), datetime.utcnow().replace(microsecond=0).isoformat()),
         )
         # Opportunistic GC of long-expired rows.
         conn.execute("DELETE FROM patient_session_jti WHERE exp < ?", (_now_ts() - 86400,))
+        return result.rowcount == 1
 
 
 def _has_jti(jti: str, kind: str) -> bool:
     if not jti:
         return False
-    # Fail open on a DB hiccup so a transient lock can't 500 the auth path; the
-    # JWT itself is still validated cryptographically by the caller.
+    # If revocation state is unavailable, do not authorize the session.
     try:
         with _conn() as conn:
             _ensure_table(conn)
@@ -110,7 +112,7 @@ def _has_jti(jti: str, kind: str) -> bool:
             ).fetchone()
         return row is not None
     except sqlite3.Error:
-        return False
+        return True
 
 
 # ─── Token mint / decode ─────────────────────────────────────────────────────
@@ -120,21 +122,26 @@ def _encode(payload: Dict[str, Any]) -> str:
 
 def _decode(token: str) -> Optional[Dict[str, Any]]:
     try:
-        return jwt.decode(token, AUTH_SECRET, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, AUTH_SECRET, algorithms=[ALGORITHM])
+        return payload if realm.token_matches(payload) else None
     except jwt.PyJWTError:
         return None
 
 
-def create_entry_token(patient_id: str, health_system_id: Optional[str]) -> str:
-    exp = datetime.utcnow() + timedelta(minutes=ENTRY_TOKEN_TTL_MIN)
+def create_entry_token(
+    patient_id: str, health_system_id: Optional[str], *, ttl_minutes: int = ENTRY_TOKEN_TTL_MIN
+) -> str:
+    # Interactive code exchanges keep their five-minute lifetime. Scheduled
+    # patient email links may explicitly allow time to open the message.
+    exp = datetime.utcnow() + timedelta(minutes=max(1, min(ttl_minutes, 24 * 60)))
     return _encode(
-        {
+        realm.stamp({
             "typ": "patient_entry",
             "pid": patient_id,
             "tid": health_system_id or "",
             "jti": uuid.uuid4().hex,
             "exp": exp,
-        }
+        })
     )
 
 
@@ -148,23 +155,25 @@ def consume_entry_token(token: str) -> Optional[PatientSession]:
     pid = str(payload.get("pid") or "")
     if not jti or not pid:
         return None
-    if _has_jti(jti, "entry_consumed"):
-        return None  # already used
     exp_ts = int(payload.get("exp") or 0)
-    _record_jti(jti, "entry_consumed", exp_ts or (_now_ts() + ENTRY_TOKEN_TTL_MIN * 60))
+    try:
+        if not _record_jti(jti, "entry_consumed", exp_ts or (_now_ts() + ENTRY_TOKEN_TTL_MIN * 60)):
+            return None
+    except sqlite3.Error:
+        return None
     return PatientSession(patient_id=pid, health_system_id=(payload.get("tid") or None), jti=jti)
 
 
 def create_patient_session(patient_id: str, health_system_id: Optional[str]) -> str:
     exp = datetime.utcnow() + timedelta(minutes=PATIENT_SESSION_TTL_MIN)
     return _encode(
-        {
+        realm.stamp({
             "typ": "patient",
             "pid": patient_id,
             "tid": health_system_id or "",
             "jti": uuid.uuid4().hex,
             "exp": exp,
-        }
+        })
     )
 
 
@@ -174,7 +183,7 @@ def decode_patient_session(token: str) -> Optional[PatientSession]:
         return None
     jti = str(payload.get("jti") or "")
     pid = str(payload.get("pid") or "")
-    if not pid:
+    if not pid or not jti:
         return None
     if jti and _has_jti(jti, "session_revoked"):
         return None  # logged out / revoked
@@ -191,10 +200,14 @@ def revoke_patient_session(token: str) -> None:
 
 
 # ─── Cookie helpers (centralized attributes) ─────────────────────────────────
+def patient_cookie_name() -> str:
+    return COOKIE_NAME + "_sandbox" if realm.is_sandbox() else COOKIE_NAME
+
+
 def set_patient_session_cookie(response, patient_id: str, health_system_id: Optional[str]) -> None:
     token = create_patient_session(patient_id, health_system_id)
     response.set_cookie(
-        key=COOKIE_NAME,
+        key=patient_cookie_name(),
         value=token,
         max_age=PATIENT_SESSION_TTL_MIN * 60,
         httponly=True,
@@ -205,7 +218,7 @@ def set_patient_session_cookie(response, patient_id: str, health_system_id: Opti
 
 
 def clear_patient_session_cookie(response) -> None:
-    response.delete_cookie(key=COOKIE_NAME, path="/")
+    response.delete_cookie(key=patient_cookie_name(), path="/")
 
 
 # ─── Per-request ContextVar + ASGI middleware ────────────────────────────────
@@ -239,7 +252,7 @@ class PatientSessionMiddleware:
             if cookie_blob:
                 jar = SimpleCookie()
                 jar.load(cookie_blob)
-                morsel = jar.get(COOKIE_NAME)
+                morsel = jar.get(patient_cookie_name())
                 if morsel and morsel.value:
                     ps = decode_patient_session(morsel.value)
         except Exception:

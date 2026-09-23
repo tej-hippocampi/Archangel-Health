@@ -26,7 +26,9 @@ import os
 import re
 import secrets
 import sqlite3
+import time
 import threading
+from contextlib import nullcontext
 import realm as _realm
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -869,6 +871,20 @@ class AsclepiusStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_real_case_jobs_case
                     ON real_case_generation_jobs(ingest_case_id);
+
+                CREATE TABLE IF NOT EXISTS background_work (
+                    kind TEXT NOT NULL, ref_id TEXT NOT NULL, actor TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'queued', request_json TEXT NOT NULL DEFAULT '{}',
+                    progress_json TEXT NOT NULL DEFAULT '{}', result_json TEXT, error TEXT,
+                    lease_token TEXT, lease_until REAL NOT NULL DEFAULT 0,
+                    attempts INTEGER NOT NULL DEFAULT 0, next_attempt REAL NOT NULL DEFAULT 0,
+                    created_at REAL NOT NULL, updated_at REAL NOT NULL,
+                    PRIMARY KEY(kind, ref_id)
+                );
+                CREATE TABLE IF NOT EXISTS auto_generation_cases (
+                    upload_id TEXT NOT NULL, ingest_case_id TEXT NOT NULL, job_id TEXT NOT NULL,
+                    PRIMARY KEY(upload_id, ingest_case_id)
+                );
 
                 -- V4 image asset index (V4 Image Embedding PRD §4). Resolves an
                 -- asset_id → sha256/mime/owning-task in ONE indexed lookup so serving
@@ -4197,7 +4213,7 @@ class AsclepiusStore:
         is what makes a reset actually end an attacker's existing session
         instead of merely changing what they would have to type next time.
         """
-        now = datetime.utcnow().replace(microsecond=0).isoformat()
+        now = datetime.utcnow().isoformat()
         with self._conn() as conn:
             # ``must_change_password`` is cleared in the SAME statement that
             # writes the hash, and only here. Onboarding v2 §0.1: the flag means
@@ -4211,6 +4227,18 @@ class AsclepiusStore:
                     "UPDATE users SET password_hash = ?, password_changed_at = ?, "
                     "must_change_password = 0 WHERE id = ?",
                     (hash_password(new_password), now, user_id),
+                )
+                conn.execute(
+                    "UPDATE password_resets SET invalidated_at = ? "
+                    "WHERE user_id = ? AND consumed_at IS NULL AND invalidated_at IS NULL",
+                    (now, user_id),
+                )
+                # A pre-password mailbox link must not open a new session
+                # after the owner has chosen or changed their credential.
+                conn.execute(
+                    "UPDATE signin_links SET used_at = ? "
+                    "WHERE user_id = ? AND used_at IS NULL",
+                    (now, user_id),
                 )
             else:
                 conn.execute(
@@ -8567,7 +8595,7 @@ class AsclepiusStore:
             )
         return self.get_submission(submission_id)  # type: ignore[return-value]
 
-    def update_submission(self, submission_id: str, **fields: Any) -> None:
+    def update_submission(self, submission_id: str, *, _connection=None, **fields: Any) -> None:
         if not fields:
             return
         json_cols = {"validation", "critic", "qa"}
@@ -8582,7 +8610,7 @@ class AsclepiusStore:
         sets.append("updated_at = ?")
         params.append(_utcnow_iso())
         params.append(submission_id)
-        with self._conn() as conn:
+        with nullcontext(_connection) if _connection is not None else self._conn() as conn:
             conn.execute(
                 f"UPDATE submissions SET {', '.join(sets)} WHERE submission_id = ?",
                 tuple(params),
@@ -8642,11 +8670,12 @@ class AsclepiusStore:
         specialty: Optional[str],
         payload: Dict[str, Any],
         status: str = "submitted",
+        _connection=None,
     ) -> str:
         rid = _new_id("rec")
         payload = dict(payload)
         payload.setdefault("record_id", rid)
-        with self._conn() as conn:
+        with nullcontext(_connection) if _connection is not None else self._conn() as conn:
             conn.execute(
                 """
                 INSERT INTO records
@@ -8666,6 +8695,65 @@ class AsclepiusStore:
             )
         return rid
 
+    def saved_submission_package(self, submission_id: str):
+        """A package receipt and its original records, including an empty package."""
+        with self._conn() as conn:
+            complete = conn.execute("SELECT 1 FROM events WHERE entity_type='submission' "
+                                    "AND entity_id=? AND event_type='packaged' LIMIT 1",
+                                    (submission_id,)).fetchone()
+            if not complete:
+                return None
+            rows = conn.execute("SELECT * FROM records WHERE submission_id=? ORDER BY created_at, record_id",
+                                (submission_id,)).fetchall()
+        return [self._record_row(row) for row in rows]
+
+    def save_submission_package(self, task, submission, packaged):
+        """Insert the complete package once; preserve legacy partial records verbatim."""
+        sid = submission["submission_id"]
+        with self._conn() as conn:
+            self._immediate(conn)
+            rows = [self._record_row(row) for row in conn.execute(
+                "SELECT * FROM records WHERE submission_id=? ORDER BY created_at, record_id", (sid,))]
+            complete = conn.execute("SELECT 1 FROM events WHERE entity_type='submission' "
+                                    "AND entity_id=? AND event_type='packaged' LIMIT 1", (sid,)).fetchone()
+            if complete:
+                return rows
+            # Older interrupted pipelines may have inserted only part of their
+            # package. Match existing occurrences by type and retain their IDs
+            # and complete payloads; never replace them with regenerated output.
+            available = {}
+            for row in rows:
+                available[row["type"]] = available.get(row["type"], 0) + 1
+            for rec in packaged:
+                if available.get(rec["type"], 0):
+                    available[rec["type"]] -= 1
+                    continue
+                self.insert_record(submission_id=sid, task_id=task["task_id"],
+                                   rtype=rec["type"], specialty=task.get("specialty"),
+                                   payload=rec, status="submitted", _connection=conn)
+            rows = [self._record_row(row) for row in conn.execute(
+                "SELECT * FROM records WHERE submission_id=? ORDER BY created_at, record_id", (sid,))]
+            conn.execute("INSERT INTO events (entity_type, entity_id, event_type, actor, occurred_at, payload_json) "
+                         "VALUES ('submission', ?, 'packaged', ?, ?, ?)",
+                         (sid, submission.get("evaluator_id"), _utcnow_iso(),
+                          json.dumps({"record_count": len(rows), "types": [r["type"] for r in rows]})))
+        return rows
+
+    def set_submission_pipeline_state(self, submission_id, status, *, allowed_states=None, **fields):
+        """Publish a pipeline phase and all record states atomically, preserving human decisions."""
+        allowed = allowed_states or ("submitted", "auto_validated", "qa_checked")
+        with self._conn() as conn:
+            self._immediate(conn)
+            row = conn.execute("SELECT status FROM submissions WHERE submission_id=?", (submission_id,)).fetchone()
+            if not row:
+                raise ValueError("Submission is missing")
+            if row["status"] not in allowed and row["status"] != status:
+                return row["status"]
+            self.update_submission(submission_id, status=status, _connection=conn, **fields)
+            self.update_records_status_for_submission(submission_id, status, _connection=conn,
+                                                      only_from=allowed)
+        return status
+
     @staticmethod
     def _record_row(row: sqlite3.Row) -> Dict[str, Any]:
         rec = dict(row)
@@ -8680,12 +8768,15 @@ class AsclepiusStore:
             ).fetchall()
         return [self._record_row(r) for r in rows]
 
-    def update_records_status_for_submission(self, submission_id: str, status: str) -> None:
-        with self._conn() as conn:
-            conn.execute(
-                "UPDATE records SET status = ? WHERE submission_id = ?",
-                (status, submission_id),
-            )
+    def update_records_status_for_submission(self, submission_id: str, status: str,
+                                            *, _connection=None, only_from=None) -> int:
+        sql = "UPDATE records SET status = ? WHERE submission_id = ?"
+        params = [status, submission_id]
+        if only_from is not None:
+            sql += " AND status IN (%s)" % ",".join("?" * len(only_from))
+            params.extend(only_from)
+        with nullcontext(_connection) if _connection is not None else self._conn() as conn:
+            return conn.execute(sql, params).rowcount
 
     def patch_record_payload(self, record_id: str, patch: Dict[str, Any]) -> None:
         with self._conn() as conn:
@@ -8824,7 +8915,8 @@ class AsclepiusStore:
         * ``needs_qa`` is a human decision that is still PENDING. A backfill that
           approved it would decide a QA question by running a migration.
         * ``rejected`` and the stage-1 flags are decisions somebody already made.
-        * ``export_ready`` / ``exported`` are already fine.
+        * ``export_ready`` can have lagging records after a historical partial
+          approval; repair those. ``exported`` must never be downgraded.
 
         And only submissions that HAVE records: one with none is a packaging
         failure, a different problem, and flipping its status would hide it.
@@ -8838,7 +8930,7 @@ class AsclepiusStore:
                 JOIN submissions s ON s.submission_id = e.ref_id
                 WHERE e.kind = 'task'
                   AND e.status IN ('approved', 'paid')
-                  AND s.status IN ('submitted', 'auto_validated', 'qa_checked')
+                  AND s.status IN ('submitted', 'auto_validated', 'qa_checked', 'export_ready')
                   AND EXISTS (SELECT 1 FROM records r
                                WHERE r.submission_id = s.submission_id)
                   AND NOT EXISTS (SELECT 1 FROM records r
@@ -8974,10 +9066,10 @@ class AsclepiusStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def mark_records_exported(self, record_ids: List[str], export_id: str) -> None:
+    def mark_records_exported(self, record_ids: List[str], export_id: str, *, _connection=None) -> None:
         if not record_ids:
             return
-        with self._conn() as conn:
+        with nullcontext(_connection) if _connection is not None else self._conn() as conn:
             conn.executemany(
                 "UPDATE records SET status = 'exported', export_id = ? WHERE record_id = ?",
                 [(export_id, rid) for rid in record_ids],
@@ -9054,6 +9146,70 @@ class AsclepiusStore:
         return out
 
     # ─── Exports ────────────────────────────────────────────────────────────--
+    def commit_export(self, *, manifest: Dict[str, Any], record_ids: List[str],
+                      submission_ids: List[str], license_terms: Optional[Dict[str, Any]] = None,
+                      submission_states: Optional[Dict[str, str]] = None) -> None:
+        """Publish an already-durable bundle and all its commitments atomically.
+
+        The early builder check is advisory: a second builder may have licensed
+        these records while files were being prepared. Serialize the final check
+        with every export/license/state write. Unregistered directories remain
+        private recovery artifacts after a failure, never downloadable exports.
+        """
+        from asclepius.export import enforce_exclusivity
+
+        export_id = manifest["export_id"]
+        actor = manifest.get("created_by")
+        with self._conn() as conn:
+            self._immediate(conn)
+            # Holding the SQLite writer reservation prevents any competing
+            # license writer from committing between this read and our commit.
+            enforce_exclusivity(self, record_ids,
+                                licensed_to=(license_terms or {}).get("buyer_key"))
+            for rid in record_ids:
+                row = conn.execute("SELECT status FROM records WHERE record_id = ?", (rid,)).fetchone()
+                if not row or row["status"] not in ("export_ready", "exported"):
+                    raise ValueError("An export record changed during packaging. Reload the export preview.")
+            for sid in submission_ids:
+                row = conn.execute("SELECT status FROM submissions WHERE submission_id = ?", (sid,)).fetchone()
+                # Legacy imported records can lack submission rows; an existing
+                # submission's QA decision must never be overwritten by export.
+                # Older individually approved records can retain a transient
+                # submission phase. Preserve that existing export path only if
+                # the phase is unchanged since packaging; a QA hold/rejection
+                # is never eligible, even when the record status still lags.
+                legacy_ready = (row and row["status"] in ("submitted", "auto_validated", "qa_checked")
+                                and row["status"] == (submission_states or {}).get(sid))
+                if row and row["status"] not in ("export_ready", "exported") and not legacy_ready:
+                    raise ValueError("An export submission changed during packaging. Reload the export preview.")
+            self.insert_export(export_id=export_id, created_by=actor,
+                               record_count=manifest["record_count"], filters=manifest["filters"],
+                               dir_path=manifest["dir_path"], manifest=manifest, _connection=conn)
+            self.mark_records_exported(record_ids, export_id, _connection=conn)
+            events = []
+            for sid in submission_ids:
+                self.update_submission(sid, status="exported", _connection=conn)
+                events.append(("submission", sid, "exported", {"export_id": export_id}))
+            if license_terms:
+                self.create_export_license(export_id=export_id, record_ids=record_ids,
+                                           created_by=actor, _connection=conn, **license_terms)
+                events.append(("export", export_id, "export_licensed", {
+                    "license_id": license_terms["license_id"],
+                    "buyer_key": license_terms["buyer_key"],
+                    "exclusivity": license_terms["exclusivity"],
+                    "record_count": len(record_ids), "expires_at": license_terms.get("expires_at"),
+                }))
+            events.append(("export", export_id, "export_built", {
+                "record_count": manifest["record_count"], "filters": manifest["filters"],
+            }))
+            # These provenance events have no notification side effects and
+            # belong to the same commit as the export they describe.
+            conn.executemany("INSERT INTO events "
+                             "(entity_type, entity_id, event_type, actor, occurred_at, payload_json) "
+                             "VALUES (?, ?, ?, ?, ?, ?)",
+                             [(kind, identity, event, actor, _utcnow_iso(), json.dumps(payload))
+                              for kind, identity, event, payload in events])
+
     def insert_export(
         self,
         *,
@@ -9063,8 +9219,9 @@ class AsclepiusStore:
         filters: Dict[str, Any],
         dir_path: str,
         manifest: Dict[str, Any],
+        _connection=None,
     ) -> None:
-        with self._conn() as conn:
+        with nullcontext(_connection) if _connection is not None else self._conn() as conn:
             conn.execute(
                 """
                 INSERT INTO exports
@@ -9151,6 +9308,7 @@ class AsclepiusStore:
         note: Optional[str] = None,
         case_ids: Optional[List[str]] = None,
         created_by: Optional[str] = None,
+        _connection=None,
     ) -> Dict[str, Any]:
         """Record what a built export was licensed to a buyer under, together with
         the exact records it covers."""
@@ -9161,7 +9319,7 @@ class AsclepiusStore:
         excl = "exclusive" if exclusivity == "exclusive" else "non_exclusive"
         rids = sorted({r for r in (record_ids or []) if r})
         now = _utcnow_iso()
-        with self._conn() as conn:
+        with nullcontext(_connection) if _connection is not None else self._conn() as conn:
             conn.execute(
                 """INSERT INTO export_licenses
                    (license_id, export_id, buyer_key, buyer_label, exclusivity, status,
@@ -9176,6 +9334,9 @@ class AsclepiusStore:
                 "VALUES (?, ?)",
                 [(lid, rid) for rid in rids],
             )
+            if _connection is not None:
+                return self._export_license_row(conn.execute(
+                    "SELECT * FROM export_licenses WHERE license_id = ?", (lid,)).fetchone())
         return self.get_export_license(lid)  # type: ignore[return-value]
 
     @staticmethod
@@ -10318,6 +10479,12 @@ class AsclepiusStore:
     ) -> str:
         fid = _new_id("mf")
         with self._conn() as conn:
+            self._immediate(conn)
+            existing = conn.execute(
+                "SELECT failure_id FROM model_failures WHERE submission_id=? AND task_id=? AND model=? LIMIT 1",
+                (submission_id, task_id, model)).fetchone()
+            if existing:
+                return existing["failure_id"]
             conn.execute(
                 """INSERT INTO model_failures
                    (failure_id, task_id, submission_id, model, provider, verdict, error_tags_json,
@@ -11134,19 +11301,29 @@ class AsclepiusStore:
         """Assigned review work, plus a live claim already held by this reviewer.
 
         A pre-existing claim may finish across an assignment change, but an
-        expired claim cannot reopen work that is no longer assigned.
+        expired claim cannot reopen work that is no longer assigned. Neither an
+        assignment nor a held claim overrides revoked real-data approval. Read
+        that approval inside the query so the claim transition rechecks it too.
         """
+        assert task_alias in ("t", "s") and claim_alias in ("t", "s")
+        privacy_sql = (
+            "EXISTS (SELECT 1 FROM users review_user JOIN tasks review_task "
+            f"ON review_task.task_id = {task_alias}.task_id "
+            "WHERE review_user.id = ? AND ("
+            "COALESCE(review_task.case_source, '') != 'real_deid' "
+            "OR review_user.role IN ('admin', 'qa_reviewer') "
+            "OR review_user.real_data_approved = 1))")
         if assignment_only is None:
             assignment_only = _case_access.assignment_required(self.get_user_by_id(user_id) or {})
         if not assignment_only:
-            return "1 = 1", []
+            return privacy_sql, [user_id]
         cutoff = _iso_minus_seconds(max(1, int(lease_minutes)) * 60)
         return (
-            f"({_case_access.active_assignment_sql('review', task_alias=task_alias)} OR "
+            f"({privacy_sql} AND ({_case_access.active_assignment_sql('review', task_alias=task_alias)} OR "
             f"({claim_alias}.review_status = 'in_review' "
             f"AND {claim_alias}.review_claimed_by = ? "
-            f"AND {claim_alias}.review_claimed_at >= ?))",
-            [user_id, user_id, cutoff],
+            f"AND {claim_alias}.review_claimed_at >= ?)))",
+            [user_id, user_id, user_id, cutoff],
         )
 
     def next_review_for(
@@ -14602,7 +14779,7 @@ class AsclepiusStore:
                 "WHERE upload_id = ?", (_utcnow_iso(), upload_id))
         return True
 
-    def claim_auto_generate(self, upload_id: str) -> bool:
+    def claim_auto_generate(self, upload_id: str, *, actor: str = "automatic-generation") -> bool:
         """Claim the ONE auto-generation run this upload gets. Atomic.
 
         Returns True to exactly one caller, ever. Every path that could trigger a
@@ -14616,6 +14793,7 @@ class AsclepiusStore:
         Python and then wrote the timestamp would have a window between the two.
         """
         with self._conn() as conn:
+            self._immediate(conn)
             cur = conn.execute(
                 "UPDATE ingest_uploads SET auto_generate_started_at = ?, updated_at = ? "
                 " WHERE upload_id = ? "
@@ -14624,6 +14802,13 @@ class AsclepiusStore:
                 "   AND purpose = 'task_creation' "
                 "   AND task_mode IS NOT NULL AND task_mode != ''",
                 (_utcnow_iso(), _utcnow_iso(), upload_id))
+            if cur.rowcount:
+                mode = conn.execute("SELECT task_mode FROM ingest_uploads WHERE upload_id=?", (upload_id,)).fetchone()[0]
+                now = time.time()
+                conn.execute("INSERT OR IGNORE INTO background_work "
+                             "(kind, ref_id, actor, request_json, created_at, updated_at) "
+                             "VALUES ('auto_upload', ?, ?, ?, ?, ?)",
+                             (upload_id, actor, json.dumps({"mode": mode}), now, now))
             return cur.rowcount == 1
 
     def release_auto_generate_claim(self, upload_id: str) -> None:
@@ -15815,11 +16000,12 @@ class AsclepiusStore:
         self, *, earning_id: str, user_id: str, kind: str, ref_id: str,
         amount_cents: int, rate_cents: int, status: str, accrued_at: str,
         resolved_at: Optional[str] = None, note: Optional[str] = None,
+        _connection=None,
     ) -> Optional[Dict[str, Any]]:
         """Write one ledger row. Returns None when ``UNIQUE(kind, ref_id)`` already
         holds a row — the caller learns "already accrued" without an exception, and
         without a check-then-insert race in between."""
-        with self._conn() as conn:
+        with nullcontext(_connection) if _connection is not None else self._conn() as conn:
             cur = conn.execute(
                 "INSERT OR IGNORE INTO earnings "
                 "(earning_id, user_id, kind, ref_id, amount_cents, rate_cents, "
@@ -15829,6 +16015,8 @@ class AsclepiusStore:
             )
             if cur.rowcount == 0:
                 return None
+            if _connection is not None:
+                return dict(conn.execute("SELECT * FROM earnings WHERE earning_id = ?", (earning_id,)).fetchone())
         return self.get_earning(kind=kind, ref_id=ref_id)
 
     def get_earning(self, *, kind: str, ref_id: str) -> Optional[Dict[str, Any]]:
@@ -15840,6 +16028,7 @@ class AsclepiusStore:
     def resolve_earning(
         self, *, kind: str, ref_id: str, status: str, resolved_at: str,
         note: Optional[str] = None, only_from: Optional[List[str]] = None,
+        _connection=None,
     ) -> bool:
         """Move a ledger row to a decided state. ``only_from`` is a compare-and-set
         on the current status, so a transition can be expressed as a fact about
@@ -15851,7 +16040,7 @@ class AsclepiusStore:
         if only_from:
             sql += " AND status IN (%s)" % ",".join("?" * len(only_from))
             params.extend(only_from)
-        with self._conn() as conn:
+        with nullcontext(_connection) if _connection is not None else self._conn() as conn:
             cur = conn.execute(sql, params)
             return cur.rowcount > 0
 
@@ -16065,7 +16254,7 @@ class AsclepiusStore:
         return agg
 
     def void_earning(self, earning_id: str, *, reason: str,
-                     voided_by: str) -> Dict[str, Any]:
+                     voided_by: str, apply_record_gate: bool = False) -> Dict[str, Any]:
         """Void one ledger row. Idempotent on ``earning_id``.
 
         The guarded UPDATE is the arbiter, not a read-then-write: a double-click
@@ -16098,6 +16287,13 @@ class AsclepiusStore:
                 "WHERE earning_id = ? AND status IN ('accrued', 'approved')",
                 (reason, voided_by, now, now, earning_id))
             changed = bool(cur.rowcount)
+            gate = None
+            if changed and apply_record_gate:
+                from asclepius.payments import apply_ledger_decision_to_records, submission_ref
+                gate = apply_ledger_decision_to_records(
+                    self, submission_id=submission_ref(row["kind"], row["ref_id"]),
+                    decision="reject", reason="admin_voided", actor=voided_by,
+                    _connection=conn, _raise_on_error=True)
             after = dict(conn.execute("SELECT * FROM earnings WHERE earning_id = ?",
                                       (earning_id,)).fetchone())
             conn.execute("COMMIT")
@@ -16110,7 +16306,7 @@ class AsclepiusStore:
         finally:
             conn.close()
         return {"row": after, "changed": changed,
-                "reason_code": "voided" if changed else "already_void"}
+                "reason_code": "voided" if changed else "already_void", "gate": gate}
 
     # ─── Community invites (Admin Launch PRD §5.1) ───────────────────────────
     def create_community_invite(self, *, user_id: str, email: str, token_hash: str,

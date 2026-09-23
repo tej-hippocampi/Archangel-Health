@@ -1703,7 +1703,8 @@ async def admin_void_earning(
     if earning is None:
         raise HTTPException(status_code=404, detail="No such ledger row.")
 
-    result = store.void_earning(earning_id, reason=reason, voided_by=admin["email"])
+    result = store.void_earning(earning_id, reason=reason, voided_by=admin["email"],
+                               apply_record_gate=True)
     if result["reason_code"] == "already_paid":
         raise HTTPException(
             status_code=409,
@@ -1719,10 +1720,7 @@ async def admin_void_earning(
         # declined to pay for still queued to ship. Non-terminal states only:
         # an already-``exported`` case is with a buyer and cannot be recalled by
         # a payment decision.
-        gate = asc_payments.apply_ledger_decision_to_records(
-            store, submission_id=asc_payments.submission_ref(
-                earning.get("kind"), earning.get("ref_id")),
-            decision="reject", reason="admin_voided", actor=admin["email"])
+        gate = result["gate"]
         store.log_event(
             entity_type="earning", entity_id=earning_id, event_type="earning_voided",
             actor=admin["email"],

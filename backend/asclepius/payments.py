@@ -96,6 +96,7 @@ import realm as _realm
 import statistics
 import time
 import uuid
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -1347,6 +1348,7 @@ REJECTABLE_SUBMISSION_STATES = APPROVABLE_SUBMISSION_STATES + ("export_ready",)
 def apply_ledger_decision_to_records(
     store, *, submission_id: Optional[str], decision: str, reason: str,
     actor: Optional[str] = None,
+    _connection=None, _raise_on_error: bool = False,
 ) -> Dict[str, Any]:
     """Make the export gate agree with the ledger for ONE submission.
 
@@ -1354,11 +1356,10 @@ def apply_ledger_decision_to_records(
     (→ ``rejected``). Returns a small dict describing what happened:
     ``{"moved": bool, "submission_id", "prior_status", "status", "outcome"}``.
 
-    **Never raises, and never returns an error to a caller who is settling
-    money.** Three of the four approval paths run inside a payment write, and a
-    records table that would not move must not roll back a physician's pay — the
-    ledger decision stands either way and the mismatch is visible in the export
-    preview's excluded list. Failures are logged loudly instead.
+    Submission, records and provenance change in one transaction. Ledger
+    decision callers pass their transaction and propagate failures so a retry
+    can repeat the entire approval. Existing settled payments are never undone.
+    Standalone repair callers receive an error outcome on storage failure.
 
     ``outcome`` distinguishes the cases the caller may want to report:
       * ``moved``        — the submission and its records changed
@@ -1377,34 +1378,37 @@ def apply_ledger_decision_to_records(
     if not submission_id:
         return result
     try:
-        sub = store.get_submission(submission_id)
-    except Exception:  # noqa: BLE001 — a read failure must not fail a payment
-        log.warning("payments: could not read submission %s while applying a "
-                    "ledger decision", submission_id, exc_info=True)
-        result["outcome"] = "error"
-        return result
-    if not sub:
-        result["outcome"] = "missing"
-        return result
-    prior = sub.get("status")
-    result["prior_status"] = prior
-    result["status"] = prior
-    if prior == target:
-        result["outcome"] = "already"
-        return result
-    if prior not in allowed:
-        result["outcome"] = "terminal"
-        return result
-    try:
-        store.update_submission(submission_id, status=target, qa_reason=reason)
-        store.update_records_status_for_submission(submission_id, target)
-        store.log_event(
-            entity_type="submission", entity_id=submission_id,
-            event_type=("export_ready" if decision == "approve" else "records_rejected"),
-            actor=actor,
-            payload={"via": reason, "prior_status": prior, "status": target},
-        )
+        with nullcontext(_connection) if _connection is not None else store._conn() as conn:
+            if _connection is None:
+                store._immediate(conn)
+            sub = conn.execute("SELECT status FROM submissions WHERE submission_id = ?",
+                               (submission_id,)).fetchone()
+            if not sub:
+                result["outcome"] = "missing"
+                return result
+            prior = sub["status"]
+            result.update(prior_status=prior, status=prior)
+            if prior != target and prior not in allowed:
+                result["outcome"] = "terminal"
+                return result
+            # Even an already-approved submission can have lagging records from
+            # an older partial write. Repair those, without reviving rejected
+            # records or downgrading anything that has already shipped.
+            changed_records = store.update_records_status_for_submission(
+                submission_id, target, _connection=conn, only_from=allowed)
+            if prior == target and not changed_records:
+                result["outcome"] = "already"
+                return result
+            store.update_submission(submission_id, status=target, qa_reason=reason, _connection=conn)
+            conn.execute("INSERT INTO events "
+                         "(entity_type, entity_id, event_type, actor, occurred_at, payload_json) "
+                         "VALUES ('submission', ?, ?, ?, ?, ?)",
+                         (submission_id, "export_ready" if decision == "approve" else "records_rejected",
+                          actor, _ledger_ts(_now()),
+                          json.dumps({"via": reason, "prior_status": prior, "status": target})))
     except Exception:  # noqa: BLE001
+        if _raise_on_error:
+            raise
         log.exception("payments: could not move submission %s to %s (%s)",
                       submission_id, target, reason)
         result["outcome"] = "error"
@@ -1413,6 +1417,20 @@ def apply_ledger_decision_to_records(
     result["status"] = target
     result["outcome"] = "moved"
     return result
+
+
+def _resolve_earning_with_records(store, *, reason, actor=None, **decision):
+    """Commit a new approval and its export gate together; failures stay retryable."""
+    with store._conn() as conn:
+        store._immediate(conn)
+        changed = store.resolve_earning(**decision, _connection=conn)
+        gate = None
+        if changed:
+            gate = apply_ledger_decision_to_records(
+                store, submission_id=submission_ref(decision["kind"], decision["ref_id"]),
+                decision="approve", reason=reason, actor=actor,
+                _connection=conn, _raise_on_error=True)
+    return changed, gate
 
 
 def submission_ref(kind: Optional[str], ref_id: Optional[str]) -> Optional[str]:
@@ -1479,14 +1497,12 @@ def approve_earning(
             log.warning("payments: could not read submission %s before approval",
                         sub_id, exc_info=True)
 
-    if not store.resolve_earning(
+    changed, gate = _resolve_earning_with_records(
+            store, reason="admin_approved", actor=actor,
             kind=kind, ref_id=ref_id, status=APPROVED, resolved_at=_ledger_ts(now),
-            note=(note or "").strip() or "Admin approved", only_from=[ACCRUED]):
+            note=(note or "").strip() or "Admin approved", only_from=[ACCRUED])
+    if not changed:
         return {"ok": False, "refusal": "raced", "earning": earning}
-
-    gate = apply_ledger_decision_to_records(
-        store, submission_id=sub_id, decision="approve", reason="admin_approved",
-        actor=actor)
 
     store.log_event(
         entity_type="earning", entity_id=earning_id,
@@ -1576,15 +1592,23 @@ def reconcile_task_accruals(
         # acts, even when the verdict would otherwise approve it: an automated
         # pay cut and a proposed cut a person approves are different objects.
         held = bool(terms and terms["proposed"])
-        written = store.insert_earning(
-            earning_id=_new_id("earn"), user_id=row["evaluator_id"], kind=KIND_TASK,
-            ref_id=ref, amount_cents=amount, rate_cents=rate,
-            status=(implied if (implied and not held) else (VOID if implied == VOID else ACCRUED)),
-            accrued_at=accrued_at,
-            resolved_at=_ledger_ts(now) if (implied and not held) else None,
-            note=(VALIDITY_VOID_NOTE if attestation_found_false(row)
-                  else (_reject_note(row) if implied == VOID else None)),
-        )
+        with store._conn() as conn:
+            store._immediate(conn)
+            written = store.insert_earning(
+                earning_id=_new_id("earn"), user_id=row["evaluator_id"], kind=KIND_TASK,
+                ref_id=ref, amount_cents=amount, rate_cents=rate,
+                status=(implied if (implied and not held) else (VOID if implied == VOID else ACCRUED)),
+                accrued_at=accrued_at,
+                resolved_at=_ledger_ts(now) if (implied and not held) else None,
+                note=(VALIDITY_VOID_NOTE if attestation_found_false(row)
+                      else (_reject_note(row) if implied == VOID else None)),
+                _connection=conn,
+            )
+            gate = None
+            if written is not None and written["status"] == APPROVED:
+                gate = apply_ledger_decision_to_records(
+                    store, submission_id=ref, decision="approve", reason="reviewer_accepted",
+                    _connection=conn, _raise_on_error=True)
         if written is not None and terms is not None:
             store.set_earning_quality(
                 written["earning_id"], multiplier=terms["multiplier"],
@@ -1598,9 +1622,7 @@ def reconcile_task_accruals(
                 # The verdict landed before this sweep noticed the submission, so
                 # the row is born APPROVED and pass 2 will never look at it again.
                 # Same rule as pass 2: approved money, exportable record.
-                if apply_ledger_decision_to_records(
-                        store, submission_id=ref, decision="approve",
-                        reason="reviewer_accepted")["moved"]:
+                if gate["moved"]:
                     counts["records_exportable"] = counts.get("records_exportable", 0) + 1
             store.log_event(
                 entity_type="earning", entity_id=written["earning_id"],
@@ -1660,18 +1682,17 @@ def reconcile_task_accruals(
                 counts["quality_held"] = counts.get("quality_held", 0) + 1
                 continue
         if implied == APPROVED and status in (ACCRUED, VOID):
-            if store.resolve_earning(kind=KIND_TASK, ref_id=ref, status=APPROVED,
-                                     resolved_at=_ledger_ts(now),
-                                     only_from=[ACCRUED, VOID]):
+            changed, gate = _resolve_earning_with_records(
+                store, reason="reviewer_accepted", kind=KIND_TASK, ref_id=ref, status=APPROVED,
+                resolved_at=_ledger_ts(now), only_from=[ACCRUED, VOID])
+            if changed:
                 counts["approved"] += 1
                 touched.add(row.get("user_id") or user_id)
                 # A reviewer's accept approves the MONEY and, from here on, the
                 # EXPORT too. Before this line a reviewer-accepted case was paid
                 # and still unshippable, because nothing between the verdict and
                 # `records.status` existed (PRD §1.1, §3).
-                if apply_ledger_decision_to_records(
-                        store, submission_id=ref, decision="approve",
-                        reason="reviewer_accepted")["moved"]:
+                if gate["moved"]:
                     counts["records_exportable"] = counts.get("records_exportable", 0) + 1
         elif implied == VOID and status == ACCRUED:
             if store.resolve_earning(kind=KIND_TASK, ref_id=ref, status=VOID,
@@ -1973,11 +1994,13 @@ def _auto_approve(store, *, now: datetime, user_id: Optional[str] = None,
     cutoff = _ledger_ts(now - timedelta(days=days))
     moved = 0
     for row in store.accrued_earnings_before(cutoff, user_id=user_id):
-        if store.resolve_earning(
+        changed, _gate = _resolve_earning_with_records(
+            store, reason="auto_approved",
             kind=row["kind"], ref_id=row["ref_id"], status=APPROVED,
             resolved_at=_ledger_ts(now), only_from=[ACCRUED],
             note=f"Auto-approved after {days} days without a review",
-        ):
+        )
+        if changed:
             moved += 1
             # An auto-approval is an approval: a physician whose referrer has been
             # waiting fourteen days for a review that never came still delivered,
@@ -1988,9 +2011,6 @@ def _auto_approve(store, *, now: datetime, user_id: Optional[str] = None,
             # timer-approved case paid the physician and then silently never
             # shipped, because the 14-day sweep wrote the ledger and nothing else
             # (PRD §1.1).
-            apply_ledger_decision_to_records(
-                store, submission_id=submission_ref(row["kind"], row.get("ref_id")),
-                decision="approve", reason="auto_approved")
             store.log_event(
                 entity_type="earning", entity_id=row["earning_id"],
                 event_type="earning_auto_approved", actor=None,

@@ -178,3 +178,54 @@ def test_demo_credentials_omits_mock_when_disabled(monkeypatch):
     from demo_credentials import list_demo_credentials
     accounts = list_demo_credentials(cedar_password="x")
     assert not any(a.get("id") == "asclepius-mock-contributor" for a in accounts)
+
+
+@pytest.mark.parametrize('disabled_value', ['0', 'false', 'NO', ' off '])
+def test_disabling_existing_mock_blocks_login_sessions_and_media_without_mutating_evidence(monkeypatch, disabled_value):
+    from fastapi import HTTPException
+    from routers import asclepius_media
+    from scripts.data_inventory import snapshot, compare
+
+    monkeypatch.setenv('ENV', 'production')
+    monkeypatch.setenv('ASCLEPIUS_MOCK_ENABLED', '1')
+    monkeypatch.setenv('ASCLEPIUS_MOCK_PASSWORD', 'synthetic-local-mock-test-password')
+    store = _store()
+    mock = asc_auth.ensure_mock_contributor(store)
+    cfg = asc_auth.mock_credentials()
+    headers = A.headers_for(mock)
+    ticket = asc_auth.create_media_ticket(mock, slot=asclepius_media.DEMO_SLOT)
+    assert client.get('/api/asclepius/auth/me', headers=headers).status_code == 200
+    assert asclepius_media._viewer(None, ticket)['id'] == mock['id']
+    before = snapshot(store.db_path)
+
+    monkeypatch.setenv('ASCLEPIUS_MOCK_ENABLED', disabled_value)
+    assert asc_auth.ensure_mock_contributor(store) is None
+    assert asc_auth.authenticate(store, cfg['email'], cfg['password']) is None
+    assert client.post('/api/asclepius/auth/login',
+                       json={'email': cfg['email'], 'password': cfg['password']}).status_code == 401
+    assert client.get('/api/asclepius/auth/me', headers=headers).status_code == 401
+    assert asc_auth.get_current_user_optional(headers['Authorization']) is None
+    with pytest.raises(HTTPException) as denied:
+        asclepius_media._viewer(None, ticket)
+    assert denied.value.status_code == 401
+    assert compare(before, snapshot(store.db_path)) == []
+
+
+@pytest.mark.parametrize('enabled_value', [None, '1'])
+def test_mock_remains_enabled_by_default_and_by_explicit_flag(monkeypatch, enabled_value):
+    if enabled_value is None:
+        monkeypatch.delenv('ASCLEPIUS_MOCK_ENABLED', raising=False)
+    else:
+        monkeypatch.setenv('ASCLEPIUS_MOCK_ENABLED', enabled_value)
+    mock = asc_auth.ensure_mock_contributor(_store())
+    cfg = asc_auth.mock_credentials()
+    assert asc_auth.authenticate(_store(), cfg['email'], cfg['password']) is not None
+    assert client.get('/api/asclepius/auth/me', headers=A.headers_for(mock)).status_code == 200
+
+
+def test_disabling_mock_does_not_block_ordinary_contributor_or_admin(monkeypatch):
+    monkeypatch.setenv('ASCLEPIUS_MOCK_ENABLED', '0')
+    for role in ('evaluator', 'admin'):
+        user = A.make_user(_store(), role=role)
+        assert client.get('/api/asclepius/auth/me', headers=A.headers_for(user)).status_code == 200
+        assert asc_auth.get_current_account(user)['id'] == user['id']

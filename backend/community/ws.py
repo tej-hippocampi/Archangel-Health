@@ -1,9 +1,10 @@
 """Community WebSocket hub (PRD §4, §6): connect, presence, typing, broadcast.
 
-One process-wide :class:`Hub`. Every gated member connection receives every
-community event (three fixed channels, small membership — fan-out filtering
-would be premature). REST handlers call :func:`broadcast` after a successful
-write; the client's polling fallback covers a dropped socket (PRD §4).
+One process-wide :class:`Hub` with realm-scoped connections and delivery.
+REST handlers broadcast public channel events within their current realm and
+target private events to its participants. Every delivery rechecks the original
+session and current community eligibility; the client's polling fallback covers
+a dropped socket (PRD §4).
 
 Hardening (audit findings):
   * Sends fan out CONCURRENTLY and each is bounded by ``SEND_TIMEOUT_SEC`` —
@@ -26,6 +27,8 @@ from typing import Any, Callable, Dict, List, Optional, Set
 
 from fastapi import WebSocket
 
+import realm
+
 log = logging.getLogger("community.ws")
 
 SEND_TIMEOUT_SEC = 5.0
@@ -34,6 +37,7 @@ SEND_TIMEOUT_SEC = 5.0
 class Hub:
     def __init__(self) -> None:
         self._sockets: Dict[WebSocket, str] = {}  # socket -> user_id
+        self._realms: Dict[WebSocket, str] = {}
         self._authorizers: Dict[WebSocket, Callable[[], bool]] = {}
         self._lock = asyncio.Lock()
 
@@ -42,8 +46,13 @@ class Hub:
         """Register an accepted socket. Returns True when this is the user's
         first live connection (a presence transition)."""
         async with self._lock:
-            was_online = user_id in self._sockets.values()
+            connection_realm = realm.current()
+            was_online = any(
+                uid == user_id and self._socket_realm(sock) == connection_realm
+                for sock, uid in self._sockets.items()
+            )
             self._sockets[ws] = user_id
+            self._realms[ws] = connection_realm
             if authorize is not None:
                 self._authorizers[ws] = authorize
             return not was_online
@@ -55,20 +64,39 @@ class Hub:
         the presence transition)."""
         async with self._lock:
             user_id = self._sockets.pop(ws, None)
+            connection_realm = self._realms.pop(ws, realm.LIVE)
             self._authorizers.pop(ws, None)
             if user_id is None:
                 return None
-            still_online = user_id in self._sockets.values()
+            still_online = any(
+                uid == user_id and self._socket_realm(sock) == connection_realm
+                for sock, uid in self._sockets.items()
+            )
             return None if still_online else user_id
+
+    def _socket_realm(self, sock: WebSocket) -> str:
+        # Connections made through connect() always have an explicit realm.
+        # The live default preserves older in-process callers/test fixtures.
+        return self._realms.get(sock, realm.LIVE)
+
+    def _authorized(self, sock: WebSocket) -> bool:
+        authorize = self._authorizers.get(sock)
+        try:
+            return authorize is None or bool(authorize())
+        except Exception:
+            # A failed account/store check must stop delivery, not bypass it.
+            return False
 
     async def online_user_ids(self) -> List[str]:
         async with self._lock:
-            return sorted(set(self._sockets.values()))
+            return sorted({
+                uid for sock, uid in self._sockets.items()
+                if self._socket_realm(sock) == realm.current() and self._authorized(sock)
+            })
 
     async def _send_one(self, sock: WebSocket, event: Dict[str, Any]) -> bool:
         try:
-            authorize = self._authorizers.get(sock)
-            if authorize is not None and not authorize():
+            if self._socket_realm(sock) != realm.current() or not self._authorized(sock):
                 return False
             await asyncio.wait_for(sock.send_json(event), timeout=SEND_TIMEOUT_SEC)
             return True
@@ -86,13 +114,18 @@ class Hub:
         dead = [s for s, ok in zip(targets, results) if not ok]
         if not dead:
             return
-        went_offline: Set[str] = set()
+        offline_realms: Set[str] = set()
         async with self._lock:
             for sock in dead:
                 user_id = self._sockets.pop(sock, None)
+                connection_realm = self._realms.pop(sock, realm.LIVE)
                 self._authorizers.pop(sock, None)
-                if user_id is not None and user_id not in self._sockets.values():
-                    went_offline.add(user_id)
+                still_online = any(
+                    uid == user_id and self._socket_realm(other) == connection_realm
+                    for other, uid in self._sockets.items()
+                )
+                if user_id is not None and not still_online:
+                    offline_realms.add(connection_realm)
         # Close the reaped sockets CONCURRENTLY with a tight bound — a batch of
         # dead sockets must never stack serial 5s timeouts inside the awaiting
         # write request (this fan-out sits on the message-post path).
@@ -102,14 +135,16 @@ class Hub:
             except Exception:
                 pass
         await asyncio.gather(*(_close_quiet(s) for s in dead))
-        if went_offline:
+        for connection_realm in offline_realms:
             # Recursion is bounded: each level strictly shrinks the socket set.
-            await self.broadcast({"type": "presence", "online": await self.online_user_ids()})
+            with realm.scoped(connection_realm):
+                await self.broadcast({"type": "presence", "online": await self.online_user_ids()})
 
     async def broadcast(self, event: Dict[str, Any], *, exclude: Optional[WebSocket] = None) -> None:
-        """Send one event to every connected socket."""
+        """Send one event to connected sockets in the originating realm."""
         async with self._lock:
-            targets = [s for s in self._sockets.keys() if s is not exclude]
+            targets = [s for s in self._sockets.keys()
+                       if s is not exclude and self._socket_realm(s) == realm.current()]
         await self._deliver(targets, event)
 
     async def send_to_users(
@@ -125,7 +160,7 @@ class Hub:
         async with self._lock:
             targets = [
                 s for s, uid in self._sockets.items()
-                if uid in want and s is not exclude
+                if uid in want and s is not exclude and self._socket_realm(s) == realm.current()
             ]
         await self._deliver(targets, event)
 

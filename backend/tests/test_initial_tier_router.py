@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 os.environ.setdefault("ADMIN_AUTH_TOKEN", "test-admin-token")
 
-from main import app  # noqa: E402
+from main import app, DEMO_HEALTH_SYSTEM_ID  # noqa: E402
 from tests._role_auth import auth_headers  # noqa: E402
 
 
@@ -33,8 +33,7 @@ from tests._role_auth import auth_headers  # noqa: E402
 def client():
     """Pass-4: attach a `surgeon` Bearer by default so every request to the
     triage routers passes `require_roles(staff, WRITE_CLINICAL)`. Use a
-    landing-flavored token so seeded patients (without health_system_id)
-    aren't filtered by the tenant-scope guard in `_resolve_patient`.
+    landing-flavored token with explicitly owned demo patients.
     """
     with TestClient(app, headers=auth_headers("surgeon", source="landing")) as c:
         yield c
@@ -44,6 +43,7 @@ def _seed_patient() -> str:
     pid = f"initial_tier_{uuid.uuid4().hex[:8]}"
     app.state.patient_store[pid] = {
         "id": pid,
+        "health_system_id": DEMO_HEALTH_SYSTEM_ID,
         "phase": "pre_op",
         "structured_data": {"procedure_name": "Total Knee Arthroplasty"},
         "anchor_procedure_family": "LEJR",

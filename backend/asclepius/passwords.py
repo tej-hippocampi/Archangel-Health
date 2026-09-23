@@ -23,8 +23,8 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Tuple
 
-#: Twelve, matching the floor the provider portal already enforces. One floor,
-#: not two.
+#: Default floor, matching the provider portal. The existing profile form has
+#: an explicit eight-character compatibility exception in validate().
 MIN_LENGTH = 12
 MAX_LENGTH = 200
 
@@ -49,10 +49,14 @@ class PasswordRejected(ValueError):
     """Raised with a message written to be shown to the person typing."""
 
 
-def validate(password: str, *, email: str = "") -> None:
+def validate(password: str, *, email: str = "", legacy_profile: bool = False) -> None:
+    # The existing in-product form explicitly promises eight characters. Keep
+    # that established floor while sharing every other password check; signup
+    # and recovery continue to use the twelve-character policy above.
+    minimum = 8 if legacy_profile else MIN_LENGTH
     pw = password or ""
-    if len(pw) < MIN_LENGTH:
-        raise PasswordRejected(f"Use at least {MIN_LENGTH} characters.")
+    if len(pw) < minimum:
+        raise PasswordRejected(f"Use at least {minimum} characters.")
     if len(pw) > MAX_LENGTH:
         raise PasswordRejected(f"Use at most {MAX_LENGTH} characters.")
     if pw.strip() != pw:

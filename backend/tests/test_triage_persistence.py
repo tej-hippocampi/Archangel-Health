@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("ADMIN_AUTH_TOKEN", "test-admin-token")
 
 from main import app  # noqa: E402
+from tenant_constants import DEMO_HEALTH_SYSTEM_ID  # noqa: E402
 from triage.preop_retier.apply import _gather_state as _preop_gather_state  # noqa: E402
 from triage.postop.apply import _gather_state as _postop_gather_state  # noqa: E402
 from triage.preop_retier.algo import re_tier_preop  # noqa: E402
@@ -52,6 +53,7 @@ def client():
 def _seed_preop(pid: str, *, surgery_iso: str = "2099-12-15T07:00:00") -> None:
     app.state.patient_store[pid] = {
         "id": pid,
+        "health_system_id": DEMO_HEALTH_SYSTEM_ID,
         "phase": "pre_op",
         "specialty": "General Surgery",
         "current_tier": "TIER_3",
@@ -68,6 +70,7 @@ def _seed_preop(pid: str, *, surgery_iso: str = "2099-12-15T07:00:00") -> None:
 def _seed_postop(pid: str) -> None:
     app.state.patient_store[pid] = {
         "id": pid,
+        "health_system_id": DEMO_HEALTH_SYSTEM_ID,
         "phase": "post_op",
         "specialty": "Orthopedics",
         "current_tier": "TIER_2",
@@ -129,6 +132,7 @@ def test_initial_tier_was_hard_escalator_survives_restart(client):
     del app.state.patient_store[pid]
     app.state.patient_store[pid] = {
         "id": pid,
+        "health_system_id": DEMO_HEALTH_SYSTEM_ID,
         "phase": "pre_op",
         "specialty": "General Surgery",
         "current_tier": "TIER_3",

@@ -18,7 +18,7 @@ Verified against `Archangel-Health-main (32)`.
 
 ## §0 Why isolation must be a boundary, not a filter
 
-The existing mock concept (`auth.py:590-653`, `asclepius/store.py:6366 mock_annotator_id_hashes`)
+The existing mock concept (`auth.py:590-653`, `asclepius/store.py:6394 mock_annotator_id_hashes`)
 works by *filtering mock hashes out* — in 30 call sites across 7 files. That is an
 allow-list: every new query that forgets the filter leaks. The sandbox uses the
 opposite mechanism: **sandbox rows live in different files.** The real admin opens
@@ -50,7 +50,7 @@ realms — so production and sandbox can't drift in config, which is the point.
 
 ### 1.2 Store selection becomes per-realm — four stores, one pattern, one trap
 
-`asclepius/store.py:15727 get_store()` (29 call sites, all through this function or the routers'
+`asclepius/store.py:15912 get_store()` (29 call sites, all through this function or the routers'
 `_store()` wrappers at `asclepius.py:189`, `asclepius_admin.py:48`):
 ```python
 _STORES: Dict[str, AsclepiusStore] = {}
@@ -64,7 +64,7 @@ Same change for `community/store.py:1769 get_community_store()` and
 DB always has the live schema.
 
 **The trap — the team store is pinned at import, not accessed through a function.**
-`main.py:238` is `_team_store = TeamStore()`, a module-level instance referenced
+`main.py:246` is `_team_store = TeamStore()`, a module-level instance referenced
 **137 times** in `main.py` (including the live `/api/auth/login` and `/register`
 handlers) and exposed to routers as `request.app.state.team_store`
 (`onboarding.py:125-126`, `asclepius_admin.py:1930`). Two more import-time pins:
@@ -81,7 +81,7 @@ _team_store = _RealmTeamStore()
 app.state.team_store = _team_store
 ```
 with `team_store.get_team_store(realm)` keeping one `TeamStore` per realm
-(`team_store.py:5492` keys `_STORES` per realm; it was a single pin before this PRD). Every
+(`team_store.py:5549` keys `_STORES` per realm; it was a single pin before this PRD). Every
 existing `_team_store.foo()` call resolves the realm at call time. The same proxy
 pattern replaces `llm_client._event_store`, so sandbox AI-call telemetry lands in
 the sandbox team DB. A test asserts no module in `backend/` (outside `_retired`
@@ -92,7 +92,7 @@ and flag-gated legacy) instantiates `TeamStore()`, `AsclepiusStore()`, or
 - **Login** (`/auth/login`, `/hs/login`, provider/buyer logins, and every onboarding
   entry): reads header `X-Asclepius-Realm` (default `live`).
 - **Serving the sandbox UI:** add `/sandbox/asclepius`, `/sandbox/admin`,
-  `/sandbox/provider`, `/sandbox/buyer` aliases beside `main.py:2745`, `:7033`,
+  `/sandbox/provider`, `/sandbox/buyer` aliases beside `main.py:2758`, `:7033`,
   `:2825` (and the buyer route) that serve the identical HTML with
   `<script>window.__REALM='sandbox'</script>` injected. The SPA's `api()` helper
   sends the header from `window.__REALM` and keys `localStorage` tokens as
@@ -110,7 +110,7 @@ and flag-gated legacy) instantiates `TeamStore()`, `AsclepiusStore()`, or
   because the live DB has no such user. That asymmetry is the design: a sandbox
   account cannot land in live, and a real doctor cannot stumble into the sandbox.
   The sandbox admin's Accounts tab links carry the param so it is never typed.
-- **Token**: `auth.create_token` (`asclepius/auth.py:85`, the `realm` stamp) adds claim `realm`. Middleware sets
+- **Token**: `auth.create_token` (`asclepius/auth.py:88`, the `realm` stamp) adds claim `realm`. Middleware sets
   the context var from the token claim; the header is consulted only on unauthenticated
   entry points. **A token's realm always wins over the header** — a sandbox token can
   never touch live stores, and vice versa; mismatch is a 401 `realm_mismatch`.

@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("ADMIN_AUTH_TOKEN", "test-admin-token")
 
 from main import app  # noqa: E402
+from tenant_constants import DEMO_HEALTH_SYSTEM_ID  # noqa: E402
 from tests._role_auth import auth_headers  # noqa: E402
 
 
@@ -21,6 +22,7 @@ def _seed_escalation_case() -> tuple[str, int]:
     now = datetime.utcnow().replace(microsecond=0)
     app.state.patient_store[pid] = {
         "id": pid,
+        "health_system_id": DEMO_HEALTH_SYSTEM_ID,
         "name": "Maria Gonzalez",
         "email": "maria@example.com",
         "phase": "post_op",
@@ -45,7 +47,7 @@ def _seed_escalation_case() -> tuple[str, int]:
     }
 
     ts = app.state.team_store
-    ts.ensure_episode(patient_id=pid)
+    ts.ensure_episode(patient_id=pid, health_system_id=DEMO_HEALTH_SYSTEM_ID)
     esc_id = ts.create_escalation(
         patient_id=pid,
         tier=2,
@@ -142,6 +144,7 @@ def test_postop_source_classifies_post_op_without_surgery_timestamps():
     now = datetime.utcnow().replace(microsecond=0)
     app.state.patient_store[pid] = {
         "id": pid,
+        "health_system_id": DEMO_HEALTH_SYSTEM_ID,
         "name": "No OR Timestamps Patient",
         "email": "noor@example.com",
         "phase": "post_op",
@@ -153,7 +156,7 @@ def test_postop_source_classifies_post_op_without_surgery_timestamps():
     }
 
     ts = app.state.team_store
-    ts.ensure_episode(patient_id=pid)
+    ts.ensure_episode(patient_id=pid, health_system_id=DEMO_HEALTH_SYSTEM_ID)
     esc_id = ts.create_escalation(
         patient_id=pid,
         tier=3,

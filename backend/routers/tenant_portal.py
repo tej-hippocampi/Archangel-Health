@@ -3,11 +3,12 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, EmailStr
 
 from tenant_constants import TRIAGE_DEMO_SLUG
 from tenant_jwt import create_tenant_staff_token, decode_tenant_staff_token
+from ratelimit import global_rate_limiter, rate_limiter
 
 logger = logging.getLogger("tenant_portal")
 
@@ -23,7 +24,8 @@ def _require_tenant_staff(authorization: Optional[str], slug: str) -> dict:
         raise HTTPException(status_code=401, detail="Not authenticated")
     token = authorization.removeprefix("Bearer ").strip()
     td = decode_tenant_staff_token(token)
-    if not td or (td.get("slug") or "").lower() != (slug or "").lower():
+    if (not td or not td.get("tid")
+            or (td.get("slug") or "").lower() != (slug or "").lower()):
         raise HTTPException(status_code=401, detail="Invalid session")
     return td
 
@@ -33,7 +35,10 @@ class TenantLoginBody(BaseModel):
     password: str
 
 
-@router.post("/{slug}/auth/login")
+@router.post("/{slug}/auth/login", dependencies=[
+    Depends(rate_limiter("tenant_login", 10, 60)),
+    Depends(global_rate_limiter("tenant_login", 120, 60)),
+])
 async def tenant_auth_login(slug: str, body: TenantLoginBody, request: Request):
     ts = _ts(request)
     authd = ts.authenticate_team_member(slug, str(body.email), body.password)
@@ -104,7 +109,7 @@ async def tenant_audit_log(slug: str, request: Request, authorization: Optional[
     return {"entries": rows}
 
 
-# ─── Grounding (tenant-scoped; global demo data — TODO: filter per health system) ─
+# ─── Grounding (scoped by the authenticated tenant's persisted episodes) ─
 
 @router.get("/{slug}/grounding/reports")
 async def tenant_list_grounding_reports(
@@ -117,11 +122,12 @@ async def tenant_list_grounding_reports(
     since: Optional[str] = None,
     limit: int = 100,
 ):
-    _require_tenant_staff(authorization, slug)
+    td = _require_tenant_staff(authorization, slug)
     team_store = _ts(request)
     patient_store = getattr(request.app.state, "patient_store", {}) or {}
     rows = team_store.list_grounding_reports(
-        limit=min(limit, 500), verdict=verdict, track=track, prompt_version=prompt_version, since=since
+        limit=min(limit, 500), verdict=verdict, track=track, prompt_version=prompt_version, since=since,
+        health_system_id=td["tid"],
     )
     for row in rows:
         pid = row.get("patient_id")
@@ -138,9 +144,9 @@ async def tenant_get_grounding_report(
     request: Request,
     authorization: Optional[str] = Header(None),
 ):
-    _require_tenant_staff(authorization, slug)
+    td = _require_tenant_staff(authorization, slug)
     team_store = _ts(request)
-    row = team_store.get_grounding_report(report_id)
+    row = team_store.get_grounding_report(report_id, health_system_id=td["tid"])
     if not row:
         raise HTTPException(status_code=404, detail="Report not found")
     patient_store = getattr(request.app.state, "patient_store", {}) or {}
@@ -157,9 +163,9 @@ async def tenant_grounding_stats(
     authorization: Optional[str] = Header(None),
     window_days: int = 30,
 ):
-    _require_tenant_staff(authorization, slug)
+    td = _require_tenant_staff(authorization, slug)
     team_store = _ts(request)
-    return team_store.grounding_summary_stats(window_days=window_days)
+    return team_store.grounding_summary_stats(window_days=window_days, health_system_id=td["tid"])
 
 
 @router.get("/{slug}/grounding/inspector-recall")
@@ -176,7 +182,7 @@ async def tenant_grounding_inspector_recall(
     return {"available": True, **snap}
 
 
-# ─── AI Call Log (tenant-scoped; global demo data — TODO: filter per health system) ─
+# ─── AI Call Log (scoped before querying, pagination and aggregation) ─
 
 @router.get("/{slug}/ai-calls/stats")
 async def tenant_ai_call_stats(
@@ -185,9 +191,9 @@ async def tenant_ai_call_stats(
     authorization: Optional[str] = Header(None),
     window_days: int = 30,
 ):
-    _require_tenant_staff(authorization, slug)
+    td = _require_tenant_staff(authorization, slug)
     team_store = _ts(request)
-    return team_store.llm_call_stats(window_days=window_days)
+    return team_store.llm_call_stats(window_days=window_days, health_system_id=td["tid"])
 
 
 @router.get("/{slug}/ai-calls")
@@ -201,7 +207,7 @@ async def tenant_ai_calls(
     since: Optional[str] = None,
     limit: int = 200,
 ):
-    _require_tenant_staff(authorization, slug)
+    td = _require_tenant_staff(authorization, slug)
     team_store = _ts(request)
     calls = team_store.list_llm_calls(
         limit=min(limit, 500),
@@ -209,6 +215,7 @@ async def tenant_ai_calls(
         prompt_id=prompt_id,
         prompt_version=prompt_version,
         since=since,
+        health_system_id=td["tid"],
     )
     patient_store = getattr(request.app.state, "patient_store", {}) or {}
     for row in calls:

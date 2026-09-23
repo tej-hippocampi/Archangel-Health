@@ -7,11 +7,10 @@ Every upload passes through here BEFORE any byte reaches the asset store:
     ``asclepius.assets`` strip), then OCR'd (pytesseract) and the recovered
     text run through the §7 PHI scanner. A screenshot of an EHR screen is the
     single most likely leak in a physician chat.
-  * **PDFs** — text extracted (pdfminer.six) and scanned; a textless PDF (a
-    scan/fax) is rasterized and OCR'd page-by-page instead, or refused when
-    the OCR toolchain is unavailable (fail closed: we will not store what we
-    cannot scan). The document is rewritten (PyPDF2) so document-info/XMP
-    metadata is dropped.
+  * **PDFs** — extracted text and every rendered page are screened, including
+    images on pages that also contain text. Rendering/OCR proceeds one page at
+    a time within page, pixel and execution budgets; incomplete screening is
+    refused. The document is rewritten (pypdf) to drop document-info metadata.
   * **Plain text (txt/csv/md)** — decoded and scanned directly.
 
 On any PHI hit the upload is rejected with the same masked, category-only
@@ -29,8 +28,14 @@ operator choice, never silently.
 from __future__ import annotations
 
 import io
+import html
 import logging
+import math
 import os
+from pathlib import Path
+import subprocess
+import tempfile
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from community import phi_gate
@@ -45,6 +50,17 @@ ACCEPTED_MIMES = {
     "text/csv": "csv",
     "text/markdown": "md",
 }
+
+# These are supported-document limits, never a prefix to silently accept.
+MAX_PDF_PAGES = 25
+PDF_OCR_DPI = 200
+MAX_PDF_PAGE_PIXELS = 10_000_000
+MAX_PDF_PAGE_DIMENSION = 5000
+MAX_PDF_TOTAL_PIXELS = 100_000_000
+MAX_PDF_SCREEN_SECONDS = 60
+MAX_PDF_SCREEN_TEXT = 1_000_000
+MAX_PDF_OBJECTS = 50_000
+MAX_PDF_OBJECT_DEPTH = 100
 
 
 class AttachmentRejected(ValueError):
@@ -125,67 +141,213 @@ def _process_image(data: bytes, mime: str) -> Tuple[bytes, str]:
     return clean, out_mime
 
 
-def _ocr_pdf_text(data: bytes, *, max_pages: int = 10) -> Optional[str]:
-    """OCR a textless (scanned) PDF page-by-page. Returns the recovered text,
-    or None when the raster/OCR toolchain is unavailable."""
+def _ocr_pdf_text(data: bytes, *, max_pages: int = MAX_PDF_PAGES) -> Optional[str]:
+    """Screen EVERY rendered page; return None if any page cannot be screened.
+
+    Bounds are checked before rendering, and each raster is released before
+    the next page is loaded. A partial OCR result is never returned.
+    """
     try:
         import pytesseract
-        from pdf2image import convert_from_bytes
+        from PIL import Image
+        from pypdf import PdfReader
     except Exception:
         return None
     try:
-        pages = convert_from_bytes(data, dpi=200, first_page=1, last_page=max_pages)
-        return "\n".join(pytesseract.image_to_string(p) or "" for p in pages)
+        reader = PdfReader(io.BytesIO(data))
+        page_count = len(reader.pages)
+        if reader.is_encrypted or not 0 < page_count <= min(max_pages, MAX_PDF_PAGES):
+            return None
+        total_pixels, page_dimensions = 0, []
+        for page in reader.pages:
+            scale = float(page.get("/UserUnit", 1)) * PDF_OCR_DPI / 72
+            width, height = float(page.mediabox.width) * scale, float(page.mediabox.height) * scale
+            if not all(math.isfinite(v) and 0 < v <= MAX_PDF_PAGE_DIMENSION for v in (width, height)):
+                return None
+            pixels = math.ceil(width) * math.ceil(height)
+            total_pixels += pixels
+            if pixels > MAX_PDF_PAGE_PIXELS or total_pixels > MAX_PDF_TOTAL_PIXELS:
+                return None
+            page_dimensions.append(math.ceil(max(width, height)))
+        deadline = time.monotonic() + MAX_PDF_SCREEN_SECONDS
+        text_parts, text_size = [], 0
+        with tempfile.TemporaryDirectory(prefix="community_pdf_screen_") as work:
+            source = Path(work) / "source.pdf"
+            source.write_bytes(data)
+            output = Path(work) / "page"
+            for page_number in range(1, page_count + 1):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return None
+                # No output for a later page must fail, never reuse the
+                # previous page's successfully screened disposable raster.
+                output.with_suffix(".png").unlink(missing_ok=True)
+                # Call the renderer directly: pdf2image's timeout does not
+                # cover its preliminary pdfinfo subprocess. Output stays on
+                # disk, and exactly one bounded page is decoded at a time.
+                subprocess.run(
+                    ["pdftoppm", "-f", str(page_number), "-l", str(page_number),
+                     "-r", str(PDF_OCR_DPI), "-scale-to", str(page_dimensions[page_number - 1]),
+                     "-singlefile", "-png", str(source), str(output)],
+                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    timeout=min(10, remaining),
+                )
+                with Image.open(output.with_suffix(".png")) as page:
+                    if page.width * page.height > MAX_PDF_PAGE_PIXELS:
+                        return None
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        return None
+                    text = pytesseract.image_to_string(page, timeout=min(10, remaining)) or ""
+                    text_size += len(text)
+                    if text_size > MAX_PDF_SCREEN_TEXT or time.monotonic() > deadline:
+                        return None
+                    text_parts.append(text)
+        return "\n".join(text_parts)
     except Exception:
         return None
+
+
+def _sanitize_pdf_objects(reader) -> None:
+    """Remove reachable XMP and inspect content not exposed by page rendering.
+
+    Ordinary text/link/markup annotations remain intact. Embedded files,
+    forms, executable actions and multimedia need their own screening path,
+    so those containers are refused rather than copied with unchecked bytes.
+    Parent/page references create legitimate cycles; visited references plus
+    explicit work/depth budgets keep that traversal finite.
+    """
+    from pypdf.generic import (
+        ArrayObject, ByteStringObject, DictionaryObject, IndirectObject,
+        NameObject, NullObject, TextStringObject,
+    )
+
+    unsupported_keys = {"/AcroForm", "/XFA", "/EmbeddedFiles", "/EF", "/AF",
+                        "/Collection", "/RichMediaContent", "/PieceInfo", "/AA"}
+    annotation_types = {"/Text", "/FreeText", "/Link", "/Line", "/Square", "/Circle",
+                        "/Polygon", "/PolyLine", "/Highlight", "/Underline", "/Squiggly",
+                        "/StrikeOut", "/Stamp", "/Caret", "/Ink", "/Popup"}
+    text_fields = {"/Contents", "/T", "/Subj", "/RC", "/NM", "/TU", "/TM", "/URI"}
+    seen_refs, seen_objects, texts = set(), set(), []
+    work, text_size = 0, 0
+
+    def unsupported():
+        raise _reject("attachment_unscannable",
+                      "This PDF contains content that could not be fully screened, so it was not uploaded. "
+                      "Export a standard PDF or paste the relevant text instead.")
+
+    def inspect_text(value):
+        nonlocal text_size
+        if isinstance(value, IndirectObject):
+            value = value.get_object()
+        if value is None or isinstance(value, NullObject):
+            return
+        if not isinstance(value, TextStringObject) or isinstance(value, NameObject):
+            # Stream-backed/rich binary payloads cannot be treated as an empty
+            # comment simply because they do not decode to a plain string.
+            unsupported()
+        text = html.unescape(str(value))
+        text_size += len(text)
+        if text_size > MAX_PDF_SCREEN_TEXT:
+            unsupported()
+        texts.append(text)
+
+    reader.trailer.pop("/Info", None)
+    pending = [(reader.trailer, 0, False)]
+    while pending:
+        obj, depth, annotation = pending.pop()
+        work += 1
+        if work > MAX_PDF_OBJECTS or depth > MAX_PDF_OBJECT_DEPTH:
+            unsupported()
+        if isinstance(obj, IndirectObject):
+            ref = (id(obj.pdf), obj.idnum, obj.generation, annotation)
+            if ref in seen_refs:
+                continue
+            seen_refs.add(ref)
+            obj = obj.get_object()
+        if not isinstance(obj, (DictionaryObject, ArrayObject)):
+            continue
+        identity = (id(obj), annotation)
+        if identity in seen_objects:
+            continue
+        seen_objects.add(identity)
+        if isinstance(obj, DictionaryObject):
+            obj.pop("/Metadata", None)
+            if unsupported_keys.intersection(obj):
+                unsupported()
+            if obj.get("/Type") in ("/Filespec", "/EmbeddedFile", "/Metadata"):
+                unsupported()
+            action = obj.get("/S")
+            if action in ("/JavaScript", "/Launch", "/SubmitForm", "/ImportData", "/Rendition", "/GoToE", "/GoToR", "/Sound", "/Movie"):
+                unsupported()
+            if annotation or obj.get("/Type") == "/Annot":
+                if obj.get("/Subtype") not in annotation_types:
+                    unsupported()
+                for key, value in obj.items():
+                    if key in text_fields or isinstance(value, (TextStringObject, ByteStringObject)):
+                        inspect_text(value)
+            elif "/URI" in obj:
+                inspect_text(obj.raw_get("/URI"))
+            children = [(value, depth + 1, key == "/Annots") for key, value in obj.items()]
+        else:
+            children = [(value, depth + 1, annotation) for value in obj]
+        if work + len(pending) + len(children) > MAX_PDF_OBJECTS:
+            unsupported()
+        pending.extend(children)
+    findings = phi_gate.scan_text("\n".join(texts))
+    if findings:
+        raise _phi_reject(phi_gate.categories_of(findings))
 
 
 def _process_pdf(data: bytes) -> Tuple[bytes, str]:
-    """Extract + scan text, then rewrite the document without metadata."""
+    """Screen pages and hidden containers; remove document-info and XMP metadata."""
     try:
         from pdfminer.high_level import extract_text
-        text = extract_text(io.BytesIO(data)) or ""
+        # The OCR leg checks the actual total page count before acceptance.
+        text = extract_text(io.BytesIO(data), maxpages=MAX_PDF_PAGES) or ""
+        if len(text) > MAX_PDF_SCREEN_TEXT:
+            raise ValueError("PDF text exceeds screening budget")
     except Exception:
         raise _reject(
             "attachment_unscannable",
             "This PDF could not be screened for identifiers, so it was not uploaded. "
             "Export it again or paste the relevant text instead.",
         )
-    if not text.strip():
-        # No text layer — a scanned chart or fax, exactly the highest-risk
-        # artifact (audit finding: pdfminer returns "" here, it does not
-        # raise). OCR the rendered pages; with no OCR toolchain, refuse.
-        text = _ocr_pdf_text(data)
-        if text is None:
-            raise _reject(
-                "attachment_unscannable",
-                "This PDF has no extractable text (it looks like a scan) and image "
-                "screening is unavailable, so it was not uploaded. Attach the page "
-                "as a PNG/JPEG screenshot or paste the relevant text instead.",
-            )
     findings = phi_gate.scan_text(text)
     if findings:
         raise _phi_reject(phi_gate.categories_of(findings))
-    # Metadata strip: copy pages into a fresh document (no /Info, no XMP).
+    # Text on one page (or even on the same page) does not prove its image
+    # content is clean. Every page must complete visual screening as well.
+    image_text = _ocr_pdf_text(data)
+    if image_text is None:
+        raise _reject(
+            "attachment_unscannable",
+            "This PDF could not be fully screened for identifiers, so it was not uploaded. "
+            "Attach individual pages as PNG/JPEG screenshots or paste the relevant text instead.",
+        )
+    findings = phi_gate.scan_text(image_text)
+    if findings:
+        raise _phi_reject(phi_gate.categories_of(findings))
+    # Sanitize BEFORE cloning: otherwise orphaned metadata stream objects can
+    # remain in the output even when their dictionary reference is removed.
     try:
-        from PyPDF2 import PdfReader, PdfWriter
+        from pypdf import PdfReader, PdfWriter
         reader = PdfReader(io.BytesIO(data))
+        _sanitize_pdf_objects(reader)
         writer = PdfWriter()
+        writer.metadata = None
         for page in reader.pages:
             writer.add_page(page)
         out = io.BytesIO()
         writer.write(out)
         return out.getvalue(), "application/pdf"
+    except AttachmentRejected:
+        raise
     except Exception:
-        # Text is verified clean; losing the metadata strip is worse than
-        # losing the upload only in strict deployments.
-        if ocr_strict():
-            raise _reject(
-                "attachment_unscannable",
-                "This PDF could not be sanitized, so it was not uploaded.",
-            )
-        log.warning("community PDF metadata strip failed; storing original bytes", exc_info=True)
-        return data, "application/pdf"
+        raise _reject(
+            "attachment_unscannable",
+            "This PDF could not be sanitized, so it was not uploaded.",
+        )
 
 
 def _process_text(data: bytes, mime: str) -> Tuple[bytes, str]:

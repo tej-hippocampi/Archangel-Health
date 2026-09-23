@@ -47,7 +47,9 @@ from auth_roles import (
     WRITE_CLINICAL,
     require_roles,
 )
-from staff_context import StaffContext, get_staff_context_optional
+from staff_context import StaffContext, assert_staff_patient_scope, get_staff_context_optional
+from upload_limits import read_capped
+import realm
 from triage.intraop.apply import apply_intraop_reassessment
 from triage.intraop.delta import compute_intraop_delta
 from triage.intraop.extraction_job import run_extraction_job
@@ -93,14 +95,14 @@ def _team_store(request: Request):
     return request.app.state.team_store
 
 
-def _resolve_patient(request: Request, patient_id: str, staff: Optional[StaffContext]) -> Dict[str, Any]:
+def _resolve_patient(request: Request, patient_id: str, staff: Optional[StaffContext], *,
+                     verified_admin: bool = False) -> Dict[str, Any]:
     store = _patient_store(request)
     patient = store.get(patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    if staff and staff.source == "tenant" and staff.tenant_id:
-        if (patient.get("health_system_id") or "") != staff.tenant_id:
-            raise HTTPException(status_code=404, detail="Patient not found")
+    if not verified_admin:
+        assert_staff_patient_scope(patient=patient, staff=staff)
     ensure_intraop_patient_state(patient)
     return patient
 
@@ -533,9 +535,10 @@ async def list_intraop_forms(
     for r in rows:
         pid = r.get("patient_id")
         patient = pstore.get(pid) if pid else None
-        if staff and staff.source == "tenant" and staff.tenant_id:
-            if not patient or (patient.get("health_system_id") or "") != staff.tenant_id:
-                continue
+        try:
+            assert_staff_patient_scope(patient=patient, staff=staff)
+        except HTTPException:
+            continue
         meta = {
             "patientName": (patient or {}).get("name") if patient else None,
             "currentTier": (patient or {}).get("current_tier") if patient else None,
@@ -581,7 +584,7 @@ async def reopen_intraop_form(
             )
         actor_label = staff.email or "surgeon"
 
-    patient = _resolve_patient(request, patient_id, staff if not is_admin else None)
+    patient = _resolve_patient(request, patient_id, staff, verified_admin=is_admin)
     store = _team_store(request)
     reopened = store.reopen_intraop_form(patient_id=patient_id)
     if reopened is None:
@@ -655,16 +658,13 @@ async def upload_intraop_pdf(
     patient = _resolve_patient(request, patient_id, staff)
     store = _team_store(request)
 
-    contents = await file.read()
     max_bytes = EXTRACTION["max_pdf_size_mb"] * 1024 * 1024
-    if len(contents) > max_bytes:
-        raise HTTPException(
-            status_code=413,
-            detail=f"PDF exceeds {EXTRACTION['max_pdf_size_mb']} MB limit",
-        )
+    contents = await read_capped(file, max_bytes,
+                                detail=f"PDF exceeds {EXTRACTION['max_pdf_size_mb']} MB limit")
 
     # Persist the upload to disk under $UPLOAD_DIR/intraop/<patient>/<ext>.pdf.
-    target_dir = _INTRAOP_UPLOAD_DIR / patient_id
+    upload_root = _INTRAOP_UPLOAD_DIR / realm.SANDBOX if realm.is_sandbox() else _INTRAOP_UPLOAD_DIR
+    target_dir = upload_root / patient_id
     target_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     extraction_id = uuid.uuid4().hex
     target_path = target_dir / f"{extraction_id}.pdf"
@@ -712,6 +712,7 @@ async def get_intraop_extraction(extraction_id: str, request: Request):
     rec = store.get_intraop_extraction(extraction_id)
     if not rec:
         raise HTTPException(status_code=404, detail="Extraction not found")
+    assert_staff_patient_scope(patient=_patient_store(request).get(rec.get("patient_id")), staff=staff)
     return JSONResponse({
         "id":               rec["id"],
         "status":           rec["status"],
@@ -732,12 +733,21 @@ async def stream_intraop_extraction(extraction_id: str, request: Request):
     staff = await get_staff_context_optional(request.headers.get("authorization"))
     require_roles(staff, ALL_CLINICAL)
     store = _team_store(request)
+    initial = store.get_intraop_extraction(extraction_id)
+    if not initial:
+        raise HTTPException(status_code=404, detail="Extraction not found")
+    assert_staff_patient_scope(patient=_patient_store(request).get(initial.get("patient_id")), staff=staff)
 
     async def generator():
         last_status: Optional[str] = None
         for _ in range(120):  # ~2 minutes ceiling
             rec = store.get_intraop_extraction(extraction_id)
             if not rec:
+                yield _format_sse("error", {"message": "Extraction not found"})
+                return
+            try:
+                assert_staff_patient_scope(patient=_patient_store(request).get(rec.get("patient_id")), staff=staff)
+            except HTTPException:
                 yield _format_sse("error", {"message": "Extraction not found"})
                 return
             if rec["status"] != last_status:

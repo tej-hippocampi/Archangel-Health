@@ -810,7 +810,7 @@ def _scrub_pdf_metadata(data: bytes) -> bytes:
     optional evidence and admin-only.
     """
     try:
-        from PyPDF2 import PdfReader, PdfWriter
+        from pypdf import PdfReader, PdfWriter
         reader = PdfReader(io.BytesIO(data))
         if getattr(reader, "is_encrypted", False):
             return data
@@ -871,7 +871,7 @@ def _pdf_text(data: bytes) -> str:
     A text cover sheet must not disable OCR of the actual CV behind it.
     Bounds match the upload's small-document purpose; no unbounded rasterization.
     """
-    from PyPDF2 import PdfReader, PdfWriter
+    from pypdf import PdfReader, PdfWriter
     reader = PdfReader(io.BytesIO(data))
     if len(reader.pages) > 30:
         raise ValueError("cv_page_limit_exceeded")
@@ -1742,7 +1742,7 @@ def parse_cv(
         _stage("failed")
         return _empty_parse(asset_sha, f"load_failed:{type(exc).__name__}")
     try:
-        # "Reading your CV…" — pdfminer/PyPDF2, and the OCR fallback behind them,
+        # "Reading your CV…" — pdfminer/pypdf, and the OCR fallback behind them,
         # which is where the tens of CPU-seconds actually go.
         _stage("reading")
         text = extract_cv_text(data, mime)

@@ -222,31 +222,15 @@ async def process_submission(
     # Pass the store so packaging can hydrate a missing annotator credential from
     # the source of truth and fail closed rather than shipping 'unspecified'
     # (Buyer Response PRD §6 E1).
-    packaged = package_submission(task, submission, store)
-
-    # Rubric Rigor FIX-2/FIX-8 (V3/V4 only): run the package-time grader META-EVAL
-    # (validity + reliability + hackability) and patch the rubric record before storage.
-    # Degrades to skipped with no LLM key; never blocks or breaks the submit.
-    await _augment_rubric_record(packaged, task, submission)
-
-    record_ids: List[str] = []
-    for rec in packaged:
-        rid = store.insert_record(
-            submission_id=sid,
-            task_id=task["task_id"],
-            rtype=rec["type"],
-            specialty=task.get("specialty"),
-            payload=rec,
-            status="submitted",
-        )
-        record_ids.append(rid)
-    store.log_event(
-        entity_type="submission",
-        entity_id=sid,
-        event_type="packaged",
-        actor=submission.get("evaluator_id"),
-        payload={"record_count": len(record_ids), "types": [r["type"] for r in packaged]},
-    )
+    saved = store.saved_submission_package(sid)
+    if saved is None:
+        packaged = package_submission(task, submission, store)
+        await _augment_rubric_record(packaged, task, submission)
+        saved = store.save_submission_package(task, submission, packaged)
+    # Retries validate the exact accepted package, including legacy partial
+    # records retained during recovery, without regenerating or replacing it.
+    record_ids = [rec["record_id"] for rec in saved]
+    packaged = [rec["payload"] for rec in saved]
 
     # "Did the doctor catch it?" (PRD §16): on a generated task that carries a
     # server-side intended-flawed candidate, record whether the evaluator
@@ -296,8 +280,7 @@ async def process_submission(
 
     if not vres["valid"]:
         _progress("needs_qa", 100, "Routed to QA review")
-        store.update_submission(sid, status="needs_qa", qa_reason=",".join(vres["issues"]))
-        store.update_records_status_for_submission(sid, "needs_qa")
+        status = store.set_submission_pipeline_state(sid, "needs_qa", qa_reason=",".join(vres["issues"]))
         store.log_event(
             entity_type="submission",
             entity_id=sid,
@@ -307,7 +290,7 @@ async def process_submission(
         )
         return {
             "submission_id": sid,
-            "status": "needs_qa",
+            "status": status,
             "issues": vres["issues"],
             "record_count": len(record_ids),
             "critic": None,
@@ -315,8 +298,11 @@ async def process_submission(
             **value_fields,
         }
 
-    store.update_submission(sid, status="auto_validated")
-    store.update_records_status_for_submission(sid, "auto_validated")
+    status = store.set_submission_pipeline_state(sid, "auto_validated")
+    if status != "auto_validated":
+        return {"submission_id": sid, "status": status, "issues": [],
+                "record_count": len(record_ids), "critic": None,
+                "agreement_score": agreement_score, **value_fields}
     store.log_event(
         entity_type="submission", entity_id=sid, event_type="auto_validated", payload={}
     )
@@ -344,8 +330,7 @@ async def process_submission(
             reason = "low_agreement"
         else:
             reason = "sampled_for_qa"
-        store.update_submission(sid, status="needs_qa", qa_reason=reason)
-        store.update_records_status_for_submission(sid, "needs_qa")
+        status = store.set_submission_pipeline_state(sid, "needs_qa", qa_reason=reason)
         store.log_event(
             entity_type="submission",
             entity_id=sid,
@@ -354,7 +339,7 @@ async def process_submission(
         )
         return {
             "submission_id": sid,
-            "status": "needs_qa",
+            "status": status,
             "issues": [reason],
             "record_count": len(record_ids),
             "critic": critic,
@@ -364,8 +349,7 @@ async def process_submission(
 
     # 5. Passed validation + critic + grounding, agreed, not sampled -> export-ready.
     _progress("complete", 100, "Complete: export-ready")
-    store.update_submission(sid, status="export_ready")
-    store.update_records_status_for_submission(sid, "export_ready")
+    status = store.set_submission_pipeline_state(sid, "export_ready")
     store.log_event(
         entity_type="submission", entity_id=sid, event_type="qa_checked", payload={"auto": True}
     )
@@ -374,7 +358,7 @@ async def process_submission(
     )
     return {
         "submission_id": sid,
-        "status": "export_ready",
+        "status": status,
         "issues": [],
         "record_count": len(record_ids),
         "critic": critic,

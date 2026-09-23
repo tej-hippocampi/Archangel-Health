@@ -1,0 +1,32 @@
+title = "Archangel Health secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Exact, reviewed synthetic credentials in tests and email previews only"
+condition = "AND"
+paths = ['''(^|/)backend/(tests/.*\.py|scripts/email_preview\.py)$''']
+regexTarget = "secret"
+regexes = [
+  '''^harbor-thistle-meadow-41$''',
+  '''^correct-horse-battery-9876$''',
+  '''^test-internal-secret-0123456789$''',
+  '''^asclepius-test-secret-0123456789-abcdefXYZ$''',
+  '''^Kf3-tQ92mXbW7p$''',
+  '''^cedar-lagoon-quartz-b7$''',
+]
+
+[[allowlists]]
+description = "Source-file SHA256 hashes in the recorded CV source manifest"
+condition = "AND"
+paths = ['''(^|/)docs/prd/onboarding-master/evidence/cv-extraction-evidence/source_manifest\.json$''']
+regexTarget = "secret"
+regexes = ['''^[a-f0-9]{64}$''']
+
+[[allowlists]]
+description = "Public section identifier, not a credential"
+condition = "AND"
+paths = ['''(^|/)backend/intake_section_chat\.py$''']
+regexTarget = "secret"
+regexes = ['''^section5_medicationsAllergies$''']

@@ -12,6 +12,7 @@ from typing import Optional
 from uuid import uuid4
 
 from anthropic import APIConnectionError as AnthropicConnectionError, APIStatusError as AnthropicStatusError
+from card_html import sanitize_card_html
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
@@ -283,7 +284,7 @@ async def run_prompt(body: RunRequest, authorization: Optional[str] = Header(Non
     if prompt_type == "battlecard":
         return {
             "type": "battlecard",
-            "battlecard_html": full_text,
+            "battlecard_html": sanitize_card_html(full_text),
         }
 
     # Voice prompt — return script + 30-second audio preview only

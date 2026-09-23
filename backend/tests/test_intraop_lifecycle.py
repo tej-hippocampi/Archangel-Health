@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("UPLOAD_DIR", "/tmp/elysium-intraop-tests")
 os.environ.setdefault("ADMIN_AUTH_TOKEN", "test-admin-token")
 
-from main import app  # noqa: E402
+from main import app, DEMO_HEALTH_SYSTEM_ID  # noqa: E402
 from tests._role_auth import auth_headers  # noqa: E402
 from triage.intraop.extractor import MockIntraopExtractor  # noqa: E402
 
@@ -39,6 +39,7 @@ def _seed_patient() -> str:
     pid = f"intraop_lc_{uuid.uuid4().hex[:8]}"
     app.state.patient_store[pid] = {
         "id": pid,
+        "health_system_id": DEMO_HEALTH_SYSTEM_ID,
         "structured_data": {"procedure_name": "CABG x3"},
     }
     from triage.intraop.patient_state import ensure_intraop_patient_state

@@ -255,7 +255,9 @@ def register_user(
     users = _get_users()
     key = email.lower().strip()
     if key in users:
-        if users[key].get("email_verified"):
+        if users[key].get("email_verified") or not _verify_password(
+            password, users[key].get("password_hash") or ""
+        ):
             raise ValueError("An account with this email already exists.")
         return {
             "email": users[key]["email"],

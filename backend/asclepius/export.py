@@ -2125,9 +2125,8 @@ def build_export(
     # Exclusivity gate (audit U5). Placed here and not earlier because ``emitted``
     # is the first point at which we know precisely which records would leave the
     # building: ``records`` still contains lines the buyer profile drops. Placed
-    # here and not later because nothing below this point is undoable. The next
-    # statement creates the bundle directory, and after that the records are
-    # marked exported and the submissions move on.
+    # here to avoid unnecessary file work. The authoritative check repeats under
+    # the store's write transaction when the prepared bundle is published.
     licensed_key = (licensed_to or "").strip().lower() or None
     emitted_ids = [r["record_id"] for r in emitted]
     enforce_exclusivity(store, emitted_ids, licensed_to=licensed_key)
@@ -2398,53 +2397,48 @@ def build_export(
     if date_free:
         _assert_date_free_bundle(out_dir, companion_files)
 
-    # 6. mark exported + provenance
+    # A committed export must never refer to bytes that only reached the page
+    # cache. Until commit_export succeeds, this unique directory is a private,
+    # unregistered recovery artifact. Retain it on failure; no accepted original
+    # or previous export is removed or overwritten.
+    _sync_bundle(out_dir)
+
+    # 6. Publish metadata, record/submission states and licensing together.
     record_ids = [r["record_id"] for r in emitted]
     submission_ids = sorted({r["submission_id"] for r in emitted})
-    store.mark_records_exported(record_ids, export_id)
-    for sid in submission_ids:
-        store.update_submission(sid, status="exported")
-        store.log_event(
-            entity_type="submission", entity_id=sid, event_type="exported",
-            actor=created_by, payload={"export_id": export_id},
-        )
-
-    store.insert_export(
-        export_id=export_id,
-        created_by=created_by,
-        record_count=len(emitted),
-        filters=filters,
-        dir_path=str(out_dir),
-        manifest=manifest,
-    )
+    license_terms = None
     if licensed_key and license_id:
-        store.create_export_license(
+        license_terms = dict(
             license_id=license_id,
-            export_id=export_id,
             buyer_key=licensed_key,
             buyer_label=license_label,
             exclusivity=(EXCLUSIVE if license_exclusivity == EXCLUSIVE else NON_EXCLUSIVE),
-            record_ids=emitted_ids,
             case_ids=sorted({(r.get("task_id") or (r.get("payload") or {}).get("task_id"))
                              for r in emitted} - {None}),
             expires_at=license_expires_at,
             note=license_note,
-            created_by=created_by,
         )
-        store.log_event(
-            entity_type="export", entity_id=export_id, event_type="export_licensed",
-            actor=created_by,
-            payload={"license_id": license_id, "buyer_key": licensed_key,
-                     "exclusivity": (EXCLUSIVE if license_exclusivity == EXCLUSIVE
-                                     else NON_EXCLUSIVE),
-                     "record_count": len(emitted_ids),
-                     "expires_at": license_expires_at},
-        )
-    store.log_event(
-        entity_type="export", entity_id=export_id, event_type="export_built",
-        actor=created_by, payload={"record_count": len(emitted), "filters": filters},
-    )
+    store.commit_export(manifest=manifest, record_ids=record_ids,
+                        submission_ids=submission_ids, license_terms=license_terms,
+                        submission_states={sid: sub["status"] for sid, sub in _subs_by_sid.items() if sub})
     return manifest
+
+
+def _sync_bundle(directory: Path) -> None:
+    """Flush all prepared files and directory entries before their DB receipt."""
+    directories = [directory]
+    for path in directory.rglob("*"):
+        if path.is_dir():
+            directories.append(path)
+        elif path.is_file():
+            with path.open("rb") as source:
+                os.fsync(source.fileno())
+    for path in sorted(directories, key=lambda p: len(p.parts), reverse=True) + [directory.parent, directory.parent.parent]:
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
 
 
 # Manifest keys that are OURS, not the buyer's. `batch.json` is a file inside a

@@ -128,12 +128,13 @@ def test_create_draft_patient_duplicate_mbi_returns_existing(client):
     assert body["existing_name"] == "Original Patient"
 
 
-def test_delete_draft_patient_removes_record(client):
+def test_delete_draft_patient_archives_record(client):
     r = client.post("/api/eligibility-draft-patient", json={"name": "Bob"})
     pid = r.json()["id"]
     d = client.delete(f"/api/eligibility-draft-patients/{pid}")
     assert d.status_code == 200
-    assert pid not in app.state.patient_store
+    assert app.state.patient_store[pid]["archived_at"]
+    assert client.get(f"/api/patient/{pid}/eligibility-documents").status_code == 404
 
 
 def test_delete_draft_patient_refuses_non_draft(client):
@@ -917,19 +918,25 @@ def test_override_refused_after_finalize(client, stub_pipeline):
     assert o.status_code == 409
 
 
-def test_orphan_doc_can_be_deleted(client):
-    """A document attached to a patient that was already deleted should still be deletable."""
+def test_orphan_doc_is_preserved_without_provable_ownership(client):
+    """Losing the parent record must not authorize removal of an original."""
     r = client.post("/api/eligibility-draft-patient", json={"name": "Bob"})
     pid = r.json()["id"]
     files = {"file": ("test.x12", _make_x12_271(), "application/octet-stream")}
     up = client.post("/api/eligibility-documents", data={"patientId": pid}, files=files)
     doc_id = up.json()["id"]
+    from eligibility import store as eligibility_store
+    original = eligibility_store.get_doc(doc_id)
+    original_path = Path(original["path"])
+    original_bytes = original_path.read_bytes()
 
     # Forcibly drop the patient from the store, leaving the doc orphaned
     app.state.patient_store.pop(pid, None)
 
     d = client.delete(f"/api/eligibility-documents/{doc_id}")
-    assert d.status_code == 200
+    assert d.status_code == 404
+    assert eligibility_store.get_doc(doc_id) == original
+    assert original_path.read_bytes() == original_bytes
 
 
 def test_audit_log_trimmed_to_max(client):
@@ -976,6 +983,7 @@ def test_roster_surfaces_first_failing_rule_for_ineligible_patient(client):
     )
     app.state.patient_store[pid] = {
         "name": "Robert Hayes",
+        "health_system_id": "demo_hs",
         "structured_data": {
             "patient_name": "Robert Hayes",
             "procedure_name": "Total Hip Replacement",
@@ -1018,6 +1026,7 @@ def test_roster_failing_rule_null_for_eligible_patient(client):
     app.state.patient_store[pid] = {
         "name": "Margaret O'Sullivan",
         "structured_data": {"procedure_name": "TKR", "procedure_date": "2026-06-15"},
+        "health_system_id": "demo_hs",
         "eligibility_status": "ELIGIBLE",
         "eligibility_check_id": check_id,
         "pipeline_type": "pre_op",
@@ -1051,6 +1060,7 @@ def test_roster_failing_rule_picks_highest_priority_first(client):
     )
     app.state.patient_store[pid] = {
         "name": "Patricia Lin",
+        "health_system_id": "demo_hs",
         "structured_data": {"procedure_name": "Spine", "procedure_date": "2026-07-10"},
         "eligibility_status": "INELIGIBLE",
         "eligibility_check_id": check_id,

@@ -27,15 +27,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 os.environ.setdefault("ADMIN_AUTH_TOKEN", "test-admin-token")
 
-from main import app  # noqa: E402
+from main import app, DEMO_HEALTH_SYSTEM_ID  # noqa: E402
+from patient_session import create_patient_session  # noqa: E402
 from tests._role_auth import auth_headers  # noqa: E402
 
 
 @pytest.fixture()
 def client():
-    """Anonymous TestClient for patient-only endpoints (`/pam`,
-    `/api/events/preop-video`, `/api/events/battlecard`).
-    """
+    """Patient-only tests bind their seeded patient's session cookie."""
     with TestClient(app) as c:
         yield c
 
@@ -52,6 +51,7 @@ def _seed_preop(*, initial_tier: str = "TIER_1") -> str:
     pid = f"preop_retier_{uuid.uuid4().hex[:8]}"
     app.state.patient_store[pid] = {
         "id": pid,
+        "health_system_id": DEMO_HEALTH_SYSTEM_ID,
         "phase": "pre_op",
         "specialty": "General Surgery",
         "current_tier": initial_tier,
@@ -129,6 +129,7 @@ def test_run_unknown_patient_returns_404(staff_client):
 
 def test_pam_submit_persists_row_and_runs_retier(client):
     pid = _seed_preop()
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
     responses = [{"item_index": i, "value": 4} for i in range(1, 14)]
     r = client.post(f"/api/episodes/{pid}/pam", json={"responses": responses})
     assert r.status_code == 200, r.text
@@ -146,6 +147,7 @@ def test_pam_submit_persists_row_and_runs_retier(client):
 
 def test_pam_submit_rejects_invalid_value(client):
     pid = _seed_preop()
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
     responses = [{"item_index": 1, "value": 9}]
     r = client.post(f"/api/episodes/{pid}/pam", json={"responses": responses})
     assert r.status_code == 422
@@ -156,6 +158,7 @@ def test_pam_submit_rejects_invalid_value(client):
 
 def test_preop_video_event_logged_and_dedupes(client):
     pid = _seed_preop()
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
     body = {
         "episode_id": pid, "session_id": "sess-1",
         "duration_sec": 30, "completed_session": False,
@@ -176,6 +179,7 @@ def test_preop_video_event_logged_and_dedupes(client):
 
 def test_battlecard_event_logged_and_dedupes(client):
     pid = _seed_preop()
+    client.cookies.set("pt_session", create_patient_session(pid, DEMO_HEALTH_SYSTEM_ID))
     body = {"episode_id": pid, "dwell_ms": 2500, "scroll_depth_pct": 80}
     r1 = client.post("/api/events/battlecard", json=body)
     r2 = client.post("/api/events/battlecard", json=body)

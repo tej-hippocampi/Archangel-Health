@@ -13,7 +13,7 @@ The trace, end to end:
   `post_system_message` (`community/system_posts.py:292`), which inserts into
   `community_messages` and queues the email fan-out. The read path
   (`router.py channel_messages` → `store.list_messages` → `_serialize_messages`,
-  which explicitly handles the `u-system` author at `community/router.py:925`) is correct. Realm
+  which explicitly handles the `u-system` author at `community/router.py:931`) is correct. Realm
   scoping of the loop, the notify flush, and the email transport is correct.
 - The community store resolves its file as `COMMUNITY_DB_PATH` **or
   `backend/community.db` inside the container** (`realm.py:127-128
@@ -28,7 +28,7 @@ The trace, end to end:
   `/healthz`), deliberately not fail-closed.
 - So: 13:00 UTC the digest posts and emails everyone → you deploy (you deploy many
   times a day) → the container is replaced → `community.db` is gone →
-  `ensure_default_channels()` (`community/store.py:711`, `main.py:6937`) re-creates the seven
+  `ensure_default_channels()` (`community/store.py:711`, `main.py:6977`) re-creates the seven
   empty channels at boot → Kalpesh opens `#medical-ai-news` and sees the empty-state
   hero. The email is the only surviving evidence the post existed.
 
@@ -49,7 +49,7 @@ the roster twice.
    **before** the beside-the-code path — the durable directory is already known to the
    process, and the sandbox realm already derives its paths this way. A deploy that
    forgets the variable then still lands on the volume.
-3. **Fail closed in production:** extend the `main.py:6630` production gate to the
+3. **Fail closed in production:** extend the `main.py:6670` production gate to the
    community and tenant stores. The comment's reason for WARN-only ("would brick every
    legitimate local run") is handled by the gate already keying on `ENV=production`;
    the reason "would take down a running deployment" is exactly the point — a
@@ -159,14 +159,14 @@ generated from the structure (headline per line) for search and for old clients.
 
 | Area | Finding | Action |
 |---|---|---|
-| Message read path | `list_messages` clauses correct (channel, top-level, id paging, `community/store.py:1015`); tombstones handled; the `u-system` author is serialized by `_serialize_messages` (`community/router.py:925`) | none |
+| Message read path | `list_messages` clauses correct (channel, top-level, id paging, `community/store.py:1015`); tombstones handled; the `u-system` author is serialized by `_serialize_messages` (`community/router.py:931`) | none |
 | Digest loop realm scoping | `with _realm.scoped(r)` per realm (`digest.py:618`); notify flush per realm; sandbox → outbox | none |
 | **Durability** | community.db ephemeral (§1) | **fix** |
 | **Dedup ledger** | lives in community.db → wiped with it → duplicate digests/emails after a same-day redeploy | fixed by §1; add a test that a restart on the same day does not re-post |
 | Retention footer | "retained indefinitely" is false until §1 | after §1, true; keep copy |
 | PHI gate | `_phi_clear` runs on body + card text before insert (`system_posts.py`) with `exact_date` exemption for morning kinds | keep; add the §2.2 banned-pattern check beside it |
 | Channel slug uniqueness | `UNIQUE` on slug (`community/store.py:311`) | none |
-| `/internal/community/purge` | manual, internal-auth only (`main.py:7225`); deletes all bot posts | keep, but log an audit event with actor; never call from a scheduler |
+| `/internal/community/purge` | manual, internal-auth only (`main.py:7287`); deletes all bot posts | keep, but log an audit event with actor; never call from a scheduler |
 | Read-only channels ("RO") | composer disabled with copy "Only the Archangel team posts…" | fine |
 | Email markdown leak | `_snippet()` on raw body (`notify.py:188`) | fixed by §2.4 |
 | Empty-state hero | shows the correct room copy; masks the durability loss | after §1, an empty `#medical-ai-news` should read "No digest yet today" and show the next run time from the ledger, so silence is explained |

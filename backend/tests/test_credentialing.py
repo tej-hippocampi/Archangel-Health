@@ -587,8 +587,8 @@ def test_store_cv_trusts_bytes_over_a_lying_header():
 def test_store_cv_scrubs_pdf_metadata():
     """B-5.6 — process_upload (the metadata-stripping path) is bypassed for
     CVs on purpose, so XMP/DocInfo was retained verbatim."""
-    pytest.importorskip("PyPDF2")
-    from PyPDF2 import PdfReader, PdfWriter
+    pytest.importorskip("pypdf")
+    from pypdf import PdfReader, PdfWriter
     from asclepius import assets
     from asclepius.credentialing import store_cv
     fresh_store()
@@ -600,7 +600,7 @@ def test_store_cv_scrubs_pdf_metadata():
     buf = io.BytesIO()
     writer.write(buf)
     original = buf.getvalue()
-    # PyPDF2 encodes text strings, so assert through the parser, not raw bytes.
+    # pypdf encodes text strings, so assert through the parser, not raw bytes.
     assert (PdfReader(io.BytesIO(original)).metadata or {}).get("/Author") == "Dr Secret Author"
 
     meta = store_cv(original, "application/pdf")
@@ -619,7 +619,7 @@ def test_store_cv_scrubs_pdf_metadata():
 
 
 def test_store_cv_keeps_an_unrewritable_pdf_rather_than_refusing_it():
-    """The scrub is best-effort: a CV is optional evidence, so a PDF PyPDF2
+    """The scrub is best-effort: a CV is optional evidence, so a PDF pypdf
     cannot rewrite is stored as-is rather than rejected."""
     from asclepius.credentialing import store_cv
     fresh_store()

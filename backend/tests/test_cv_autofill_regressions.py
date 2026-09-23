@@ -54,7 +54,7 @@ def test_not_active_license_and_publications_not_employer():
     assert p['employer']==''
 
 def test_mixed_pdf_ocr_is_per_page(monkeypatch):
-    from PyPDF2 import PdfReader, PdfWriter
+    from pypdf import PdfReader, PdfWriter
     source=Path(__file__).parent/'cv_corpus/pdfs/cv-000.pdf'
     writer=PdfWriter(); writer.add_page(PdfReader(str(source)).pages[0]); writer.add_blank_page(width=612,height=792)
     out=io.BytesIO(); writer.write(out)
@@ -68,7 +68,7 @@ def test_mixed_pdf_ocr_is_per_page(monkeypatch):
     assert calls==[1]
 
 def test_pdf_page_limit_precedes_ocr(monkeypatch):
-    from PyPDF2 import PdfWriter
+    from pypdf import PdfWriter
     writer=PdfWriter()
     for _ in range(31): writer.add_blank_page(width=612,height=792)
     out=io.BytesIO(); writer.write(out)

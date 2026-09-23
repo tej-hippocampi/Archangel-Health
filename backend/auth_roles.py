@@ -8,9 +8,8 @@ Five roles, no others (PRD Pass-4 §1):
   - `surgeon`           → tenant JWT, role claim "surgeon"
   - `rn_coordinator`    → tenant JWT, role claim "rn_coordinator"
   - `np_pa`             → tenant JWT, role claim "np_pa"
-  - `patient`           → implicit (no Bearer token); enforced by
-                          `require_patient_session(staff)` which 403s when
-                          a staff token is present on a patient-only route
+  - `patient`           → patient session bound to the target patient_id;
+                          staff tokens are rejected on patient-only routes
 
 Reads (e.g. `GET /api/triage/tuning/<stage>/current`) accept the full
 clinical set so NP/PAs can see everything; writes exclude NP/PA.
@@ -40,16 +39,15 @@ def require_roles(staff: Optional[StaffContext], allowed: Iterable[str]) -> None
         raise HTTPException(status_code=403, detail="Insufficient role.")
 
 
-def require_patient_session(staff: Optional[StaffContext]) -> None:
-    """Raise 403 if a staff token is present on a patient-only endpoint.
-
-    Patient endpoints intentionally accept anonymous (the patient app does
-    not currently mint a session token). When a clinician hits one of these
-    routes, we reject with 403 to keep clinical-source provenance honest —
-    these events represent the patient's own actions.
-    """
+def require_patient_session(staff: Optional[StaffContext], patient_id: str) -> None:
+    """Require the exact patient's session, preserving patient-source provenance."""
     if staff is not None:
         raise HTTPException(
             status_code=403,
             detail="Patient-session only — staff cannot submit on a patient's behalf here.",
         )
+    from patient_session import current_patient_session
+
+    session = current_patient_session()
+    if session is None or not patient_id or session.patient_id != patient_id:
+        raise HTTPException(status_code=404, detail="Patient not found")

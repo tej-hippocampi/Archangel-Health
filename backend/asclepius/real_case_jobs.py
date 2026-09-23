@@ -6,6 +6,7 @@ import contextlib
 import hashlib
 import json
 import logging
+import sqlite3
 import time
 import uuid
 
@@ -37,7 +38,7 @@ def request_key(ic, params):
                                    sort_keys=True).encode()).hexdigest()
 
 
-def enqueue(store, ic, body, actor):
+def enqueue(store, ic, body, actor, *, auto_upload_id=None):
     params = body.model_dump()
     params['background'] = False
     # Stable across double clicks, refreshes, and retries. Changed inputs require
@@ -46,6 +47,14 @@ def enqueue(store, ic, body, actor):
     now = time.time()
     with store._conn() as conn:
         store._immediate(conn)
+        # Bind an automatic upload/case to its FIRST job in the same commit as
+        # creation. A restart must not derive a different request from changed
+        # specialties or create a second walk after insert-before-checkpoint.
+        linked = conn.execute('SELECT j.* FROM auto_generation_cases a JOIN real_case_generation_jobs j '
+                              'ON j.job_id=a.job_id WHERE a.upload_id=? AND a.ingest_case_id=?',
+                              (auto_upload_id, ic['ingest_case_id'])).fetchone() if auto_upload_id else None
+        if linked:
+            return dict(linked)
         row = conn.execute('SELECT * FROM real_case_generation_jobs WHERE request_key = ?',
                            (key,)).fetchone()
         if row:
@@ -61,6 +70,9 @@ def enqueue(store, ic, body, actor):
                          'trajectory_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                          (job_id, key, ic['ingest_case_id'], json.dumps(params), actor,
                           trajectory_id, str(now), str(now)))
+        if auto_upload_id:
+            conn.execute('INSERT INTO auto_generation_cases (upload_id, ingest_case_id, job_id) VALUES (?, ?, ?)',
+                         (auto_upload_id, ic['ingest_case_id'], job_id))
     return get(store, job_id)
 
 
@@ -123,20 +135,23 @@ async def run(store, job_id, job_realm):
                              "error = NULL, lease_until = 0, updated_at = ? WHERE job_id = ? AND lease_owner = ?",
                              (json.dumps(result), str(time.time()), job_id, owner))
             await bg()
-    except asyncio.CancelledError:
+    except (asyncio.CancelledError, sqlite3.Error, OSError) as exc:
         # Process shutdown: durable tasks survive. Recovery reconciles task IDs
         # before calling a model, including insert-before-checkpoint crashes.
         with store._conn() as conn:
             conn.execute("UPDATE real_case_generation_jobs SET status = 'queued', lease_until = 0 "
                          "WHERE job_id = ? AND lease_owner = ? AND status = 'running'", (job_id, owner))
-        raise
+        if isinstance(exc, asyncio.CancelledError):
+            raise
+        log.warning('Real-chart job %s will retry after storage failure: %s', job_id, type(exc).__name__)
     except Exception as exc:
         detail = getattr(exc, 'detail', None) or str(exc)
         log.warning('Real-chart job %s paused: %s', job_id, detail)
         with store._conn() as conn:
             conn.execute("UPDATE real_case_generation_jobs SET status = 'failed', error = ?, lease_until = 0, "
-                         "updated_at = ? WHERE job_id = ? AND lease_owner = ? AND status = 'running'",
-                         (str(detail)[:2000], str(time.time()), job_id, owner))
+                         "result_json = ?, updated_at = ? WHERE job_id = ? AND lease_owner = ? AND status = 'running'",
+                         (str(detail)[:2000], json.dumps({"failure": detail}) if isinstance(detail, dict) else None,
+                          str(time.time()), job_id, owner))
     finally:
         heartbeat_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
