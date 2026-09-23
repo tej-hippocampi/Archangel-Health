@@ -146,7 +146,7 @@ def specialty_region_channel_defs(keys: List[str]) -> List[Dict[str, Any]]:
     """
     from community.countries import region_name  # noqa: PLC0415 - config only
 
-    valid = {c["slug"] for c in specialty_channel_defs()}
+    valid = {c["specialty"]: c["slug"] for c in specialty_channel_defs()}
     out: List[Dict[str, Any]] = []
     seen: List[str] = []
     for raw in keys or ():
@@ -161,8 +161,8 @@ def specialty_region_channel_defs(keys: List[str]) -> List[Dict[str, Any]]:
             continue
         seen.append(key)
         out.append({
-            "slug": f"{specialty}-{region}",
-            "name": f"{specialty}-{region}",
+            "slug": f"{valid[specialty]}-{region}",
+            "name": f"{valid[specialty]}-{region}",
             "description": (
                 f"{specialty.title()} in {display}: colleagues close enough that "
                 "the guidelines, the drug availability and the meetings worth "
@@ -253,22 +253,31 @@ def city_channel_defs(cities: List[str]) -> List[Dict[str, Any]]:
 
 
 def specialty_channel_defs() -> List[Dict[str, Any]]:
-    """One channel per ENABLED specialty, derived from the asclepius specialty
-    registry (config-only module — no DB touch, so plane isolation holds).
-    Adding a specialty to the registry auto-creates its channel on next boot."""
-    from asclepius.specialties import SPECIALTY_REGISTRY  # noqa: PLC0415 — config only
+    """Clinical specialty rooms independent of the paid case-generation catalog.
+
+    Preserve existing subspecialty slugs: e.g. radiation-oncology already has
+    its own history, so the primary-specialty room uses a distinct slug.
+    """
+    from asclepius.onboarding_specialties import CLINICAL_SPECIALTIES  # noqa: PLC0415
+    from community.subspecialties import SUBSPECIALTIES  # noqa: PLC0415
+    from community.countries import COUNTRIES  # noqa: PLC0415
+
+    reserved = {c["slug"] for c in DEFAULT_CHANNELS}
+    reserved |= {s.slug for s in SUBSPECIALTIES}
+    reserved |= {c.slug for c in COUNTRIES.values()}
 
     out: List[Dict[str, Any]] = []
-    for cfg in SPECIALTY_REGISTRY.values():
-        if not cfg.enabled:
-            continue
+    for specialty in CLINICAL_SPECIALTIES:
+        slug = specialty.replace(" ", "-")
+        if slug in reserved:
+            slug = "specialty-" + slug
         out.append({
-            "slug": cfg.name,
-            "name": cfg.name,
-            "description": f"For {cfg.name} colleagues: cases (de-identified), literature, and specialty task talk.",
+            "slug": slug,
+            "name": slug,
+            "description": f"For {specialty} colleagues: cases (de-identified), literature, and specialty task talk.",
             "post_policy": "all",
             "grp": "specialty",
-            "specialty": cfg.name,
+            "specialty": specialty,
         })
     return out
 
@@ -717,7 +726,7 @@ class CommunityStore:
         specialty_regions: Optional[List[str]] = None,
     ) -> None:
         """Idempotently seed the fixed channels (PRD §3 + Community v2): the
-        core set, one channel per enabled specialty, and one per country,
+        core set, one channel per clinical specialty, and one per country,
         subspecialty, city and specialty-in-region cohort that has members. A slug removed from the config
         is DEACTIVATED, never deleted: its history stays in the DB and
         moderation/audit paths can still resolve it.
@@ -744,6 +753,17 @@ class CommunityStore:
         )
         seeded = DEFAULT_CHANNELS + specialty_channel_defs() + cohort_channels
         with self._conn() as conn:
+            # An expanded vocabulary must never repurpose a historical room
+            # (for example a legacy free-text city called "dermatology").
+            # Fail atomically so the conflicting channel can be reviewed.
+            existing_groups = {
+                row["slug"]: row["grp"] or "core"
+                for row in conn.execute("SELECT slug, grp FROM community_channels")
+            }
+            for ch in seeded:
+                previous = existing_groups.get(ch["slug"])
+                if previous is not None and previous != (ch.get("grp") or "core"):
+                    raise ValueError(f"Channel group conflict for {ch['slug']}: {previous}")
             for pos, ch in enumerate(seeded):
                 conn.execute(
                     """

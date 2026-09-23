@@ -6962,8 +6962,8 @@ def _member_cohorts() -> Dict[str, Optional[list]]:
     try:
         from asclepius.store import get_store as _get_astore
 
-        from community import countries as _ccountries
         from community import store as _cstore_mod
+        from community.router import member_map as _community_members
 
         codes: list = []
         subspecialties: list = []
@@ -6982,11 +6982,13 @@ def _member_cohorts() -> Dict[str, Optional[list]]:
             for raw in _user_subspecialties(user):
                 if raw not in subspecialties:
                     subspecialties.append(raw)
-            # The crossed room is derived, never stored: one physician's
-            # specialty and their country's region are already known here, and
-            # a second stored field would be a second thing to keep true.
+        # Seed from the same normalized member identity used for visibility.
+        # Legacy profile columns may be empty despite a confirmed declaration.
+        for member in _community_members().values():
+            if member.get("is_staff"):
+                continue
             key = _cstore_mod.specialty_region_key(
-                user.get("specialty"), _ccountries.region_for(code))
+                member.get("specialty"), member.get("region"))
             if key and key not in crossed:
                 crossed.append(key)
         return {"countries": codes, "subspecialties": subspecialties,
