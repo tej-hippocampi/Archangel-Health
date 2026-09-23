@@ -366,6 +366,10 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
     for user in astore.list_users():
         if not user.get("active") or user["id"] in banned:
             continue
+        # Match the access gate: a later rejection supersedes historical vault
+        # approval in the directory, notification audience and cohort counts.
+        if (user.get("verification_status") or "").strip().lower() == "rejected":
+            continue
         role = user.get("role")
         # A non-physician account is never a member here, however its
         # verification lands. This is the directory, the mention target list and

@@ -51,10 +51,28 @@ def test_first_approved_dermatologist_opens_room_but_staff_and_pending_do_not(mo
     monkeypatch.delenv("COMMUNITY_SPECIALTY_MIN_MEMBERS", raising=False)
     astore, _, admin = setup_world()
     assert "dermatology" not in channel_slugs(admin)
+
     doctor = make_approved_physician(astore, specialty="dermatology")
     assert "dermatology" in channel_slugs(doctor)
     astore.record_verification_decision(doctor["id"], status="pending", decided_by="test")
     assert "dermatology" not in channel_slugs(admin)
+
+
+def test_rejected_vault_member_cannot_populate_directory_notifications_or_cohorts(monkeypatch):
+    import main
+    monkeypatch.delenv("COMMUNITY_SPECIALTY_MIN_MEMBERS", raising=False)
+    astore, _, admin = setup_world()
+    doctor = make_vault_physician(astore, specialty="dermatology")
+    with astore._conn() as conn:
+        conn.execute("UPDATE users SET country_of_practice='US' WHERE id=?", (doctor["id"],))
+    astore.record_verification_decision(doctor["id"], status="rejected", decided_by="test")
+    assert doctor["id"] not in router.member_map()
+    assert router.resolve_member_for_notify(doctor["id"]) is None
+    assert main._member_cohorts()["specialty_regions"] == []
+    assert "dermatology" not in channel_slugs(admin)
+    response = client.get(BASE + "/members?specialty=dermatology", headers=headers_for(admin))
+    assert response.json()["members"] == []
+    assert client.get(BASE + "/me", headers=headers_for(doctor)).status_code == 403
 
 
 def test_specialty_catalog_covers_clinical_vocabulary_without_slug_collisions():
@@ -102,8 +120,8 @@ def test_reseeding_preserves_existing_subspecialty_identity_and_messages():
     assert cstore.get_channel_by_slug("specialty-radiation-oncology")["grp"] == "specialty"
 
 
-def test_legacy_city_collision_fails_without_repurposing_history():
-    _, cstore, _ = setup_world()
+def test_legacy_city_collision_fails_without_repurposing_history(tmp_path):
+    cstore = community_store.CommunityStore(db_path=str(tmp_path / "collision.db"))
     with cstore._conn() as conn:
         conn.execute("UPDATE community_channels SET grp='city',specialty=NULL,city='dermatology' WHERE slug='dermatology'")
     before = cstore.list_channels(include_inactive=True)

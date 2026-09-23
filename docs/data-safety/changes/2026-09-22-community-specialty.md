@@ -89,3 +89,24 @@ Builder checks: 226 initial community tests and 218 additional community tests
 passed; 103 affected specialty/cohort tests passed after audit corrections.
 The live route table remains unchanged at 687 routes and the dangling-import
 scan is clear. Browser and CI outcomes are recorded in the pull request.
+
+
+## Integration with security release and full CI
+
+Rebased onto main 761a9de. The community directory now mirrors the security
+release's normalized rejection rule: a later rejected status supersedes an
+older vault approval in directory results, notifications and specialty counts.
+The auditor verified this integration with 26 specialty/WebSocket security
+checks and a separate mixed-case/whitespace rejection reproduction. All 240
+integrated community checks had passed before that additional correction.
+
+The first full CI run passed 17 checks but shard 4 identified stale PRD line
+citations and contamination from the new synthetic collision test's global
+store. The collision test now owns an independent temporary database; its
+preservation assertions remain. The 35 specialty/task-notification tests pass
+in sequence. PRD citations are updated to actual symbols, without changing
+production code to satisfy documentation.
+
+Live/sandbox preflight found zero conflicts among 24/13 existing channels.
+The real Chrome check passed all three user-facing surfaces with no JavaScript
+errors. Final CI is required on the corrected head before deployment.
