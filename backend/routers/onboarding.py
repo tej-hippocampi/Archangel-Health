@@ -263,7 +263,9 @@ class Step1Body(OnboardTokenBody):
     password: Optional[str] = Field(default=None, min_length=1, max_length=200)
     #: Two-letter US state. Optional because a physician licensed outside the US
     #: has no answer to give, and a required field they cannot fill is a wall.
-    license_state: str = Field(default="", max_length=2)
+    #: Omitted/null preserves an earlier answer; an explicit empty string
+    #: means "Outside the US" and clears a previously selected state.
+    license_state: Optional[str] = Field(default=None, max_length=2)
 
 
 class VerifyOtpBody(OnboardTokenBody):
@@ -396,6 +398,7 @@ def _hydrate_session_fields(ts: Any, row: Dict[str, Any]) -> Dict[str, Any]:
         # whether to ask again, which is what a resumed session is deciding.
         "director_password_set": bool(_director_password_hash(row)),
         "director_license_state": (row.get("director_license_state") or "").strip(),
+        "director_license_state_answered": row.get("director_license_state") is not None,
         "team_members": members,
     }
     if product == "asclepius":

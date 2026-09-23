@@ -113,8 +113,8 @@ def test_admin_reminder_preview_and_selected_send(tmp_path, monkeypatch, kind, w
         browser.close()
 
 
-@pytest.mark.parametrize("width,legacy_autofill", [(1440, False), (390, True)])
-def test_public_join_opens_real_international_onboarding(tmp_path, monkeypatch, width, legacy_autofill):
+@pytest.mark.parametrize("width,legacy_autofill,country", [(1440, False, "GB"), (390, True, "IN")])
+def test_public_join_opens_real_international_onboarding(tmp_path, monkeypatch, width, legacy_autofill, country):
     """Serve the built /join page with real APIs; no request leaves this test."""
     from team_store import TeamStore, get_team_store, set_team_store
     from routers import onboarding
@@ -175,17 +175,36 @@ def test_public_join_opens_real_international_onboarding(tmp_path, monkeypatch, 
             expect(page.get_by_label("Work email", exact=True)).to_have_value("doctor@aiimsjodhpur.edu.in")
             page.get_by_label("Choose a password", exact=True).fill(PASSWORD)
             page.get_by_label("Confirm password", exact=True).fill(PASSWORD)
+            state = page.get_by_label("State you are licensed in", exact=False)
+            state.select_option("CA")
+            page.get_by_role("button", name="Continue", exact=True).click()
+            expect(page.get_by_role("heading", name="Verify your email.", exact=True)).to_be_visible()
+            page.get_by_role("button", name="Back", exact=True).click()
+            state.select_option(label="Outside the US")
+            expect(state).to_have_value("")
+            screenshot(page, f"outside-us-selected-{width}.png")
             page.get_by_role("button", name="Continue", exact=True).click()
             expect(page.get_by_role("heading", name="Verify your email.", exact=True)).to_be_visible()
             token = urlsplit(page.url).path.rsplit("/", 1)[1]
             row = team.get_health_system_by_onboarding_token(token)
             assert row and row["director_email"] == "doctor@aiimsjodhpur.edu.in"
             assert int(row["onboarding_step"]) == 1
+            assert row["director_license_state"] == ""
             page.reload()
             expect(page.get_by_role("heading", name="Verify your email.", exact=True)).to_be_visible()
             assert len(requests) == 1
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
             screenshot(page, f"join-international-{width}.png")
+            team.create_otp_challenge(row["id"], row["director_email"], "123456")
+            response = client.post("/api/onboarding/verify-otp", json={"token": token, "code": "123456"})
+            assert response.status_code == 200, response.text
+            page.reload()
+            page.get_by_role("button", name="No CV? Enter manually", exact=False).click()
+            page.get_by_label("Where do you practise?", exact=True).select_option(country)
+            expect(page.get_by_label("Where are you licensed?", exact=True)).to_have_value(country)
+            expect(page.get_by_label("NPI number", exact=False)).to_have_count(0)
+            expect(page.get_by_label("GMC reference number" if country == "GB" else "Medical council registration number", exact=False)).to_be_visible()
+            screenshot(page, f"international-credentials-{country}-{width}.png")
             assert not errors, errors
             browser.close()
     finally:

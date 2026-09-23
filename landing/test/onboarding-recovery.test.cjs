@@ -89,11 +89,63 @@ test("a temporary session failure retries the same link", async () => {
   assert.doesNotMatch(document.body.textContent, /This onboarding link can't be loaded/);
 });
 
+test("an international physician can select Outside the US and continue to email verification", async () => {
+  const calls = [];
+  global.fetch = async (url, init) => {
+    if (!init?.body) return new Response(JSON.stringify({
+      status: "pending", product: "asclepius", step: 0,
+      director_first_name: "Alex", director_last_name: "Example",
+      director_email: "doctor@example.org", director_license_state: "CA",
+    }));
+    calls.push({ url, body: JSON.parse(init.body) });
+    return new Response(JSON.stringify({ ok: true, step: 1, password_set: true }));
+  };
+  await mount(Wizard, { token: "recovery-token" });
+  const state = document.querySelector("select");
+  assert.equal(state.value, "CA");
+  const outside = [...state.options].filter(o => o.textContent === "Outside the US");
+  assert.equal(outside.length, 1, "the international answer must be unambiguous");
+  assert.equal(outside[0].disabled, false, "Outside the US must be selectable");
+  await act(async () => {
+    state.value = outside[0].value;
+    state.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  const next = [...document.querySelectorAll("button")].find(b => b.textContent === "Continue");
+  assert.equal(next.disabled, true, "choosing a location must not bypass password validation");
+  for (const input of document.querySelectorAll('input[type="password"]')) {
+    await type(input, "international-test-password-1");
+  }
+  assert.equal(next.disabled, false);
+  await act(async () => next.click());
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "/api/onboarding/step1-identity");
+  assert.equal(calls[0].body.license_state, "", "the previous US state must be cleared");
+  assert.match(document.body.textContent, /Verify your email/);
+});
+
 test("an invalid member invitation does not start an unrelated physician signup", async () => {
   global.fetch = async () => new Response(JSON.stringify({ detail: "Invalid invitation." }), { status: 404 });
   await mount(Wizard, { token: "recovery-token", mode: "member" });
   assert.equal(document.querySelector('a[href="/join"]'), null);
 });
+
+for (const savedReview of [false, true]) {
+  test(`an explicit international answer survives CV hydration (saved review: ${savedReview})`, async () => {
+    global.fetch = async () => new Response(JSON.stringify({
+      status: "pending", product: "asclepius", step: 1,
+      director_first_name: "Alex", director_last_name: "Example", director_email: "doctor@example.org",
+      director_password_set: true, director_license_state: "", director_license_state_answered: true,
+      director_credentials: savedReview ? { licenseState: "", cvManualFields: ["licenseState"],
+        cvSuggestions: { licenseState: "CA" } } : {},
+      director_cv: { uploaded: true, stage: "done", parsed: { ok: true,
+        licenses: [{ state: "CA", number: "A12345", current: "yes" }] } },
+    }));
+    await mount(Wizard, { token: "recovery-token" });
+    await act(async () => [...document.querySelectorAll("button")].find(b => b.textContent === "Back").click());
+    assert.equal(document.querySelector("select").value, "");
+    assert.equal(document.querySelector("select").selectedOptions[0].textContent, "Outside the US");
+  });
+}
 
 test("a returning applicant can request a password link without a reset token", async () => {
   const calls = [];
