@@ -798,14 +798,23 @@ async def step1_identity(body: Step1Body, request: Request):
         pw_hash = await run_in_threadpool(ts.hash_team_password, body.password)
 
     previous_email = (row.get("director_email") or "").strip()
-    # Normalise through the registry's own resolver so this endpoint cannot
-    # drift from the country list in asclepius/registry/config.py. Unknown codes
-    # are ACCEPTED, not rejected: for_country falls back to DEFAULT_REGISTRY
-    # carrying the code, and a whitelist here would rebuild the very dead end
-    # this change exists to remove for the first doctor from a country nobody
-    # has configured yet.
-    from asclepius.registry import config as registry_config
-    licensure_country = registry_config.normalize_country(body.country_of_licensure)
+    # ONE definition of a country code, shared with the store that writes it.
+    # `registry_config.normalize_country` is deliberately lenient because it is
+    # a LOOKUP helper: it truncates and never checks that it got letters. Using
+    # it here let 'G' and 'U1' through as a non-US country, which blanked the
+    # state, while the store then rejected them and wrote no country either —
+    # a 200 that stored nothing and left the row reading as US, which is the
+    # exact failure this change exists to remove.
+    #
+    # Anything that is not two letters is treated as NOT SUPPLIED rather than
+    # 400'd, for the reason the field's own docstring gives: a cached tab
+    # running the previous bundle must not be walled out mid-deploy. Unknown
+    # but well-formed codes like 'ZW' are still accepted, because for_country
+    # falls back to DEFAULT_REGISTRY carrying the code, and a whitelist here
+    # would rebuild the dead end for the first doctor from a country nobody has
+    # configured yet.
+    from team_store import country_code
+    licensure_country = country_code(body.country_of_licensure)
     # A US state is meaningless once the country is not the US, and a cached tab
     # running the previous bundle will still post one. Drop it here rather than
     # trusting the client: anything non-empty in that column is read downstream
@@ -1559,13 +1568,25 @@ async def asclepius_credentials(body: AsclepiusCredentialsBody, request: Request
     # would then be reading when they decide about a real person.
     if int(row.get("onboarding_step") or 0) < 2:
         raise HTTPException(status_code=403, detail="Verify your email first.")
+    from team_store import country_code
     # v2 §2: the Review screen is the first thing that writes here, and the
     # institution screen it used to depend on is gone from this path.
     director_email = _ensure_director_person(ts, row)
     if not director_email:
         raise HTTPException(status_code=400, detail="Start your application first.")
+    # A US state licence on a doctor licensed elsewhere is not a harmless
+    # leftover: this blob is what reaches the Tier B vault, and credentials.py
+    # turns a non-empty `licenseState` into `state_licensed: true` plus a US
+    # medical-board lookup handle in the block shipped to buyers. The form
+    # clears both when the country changes, but a CV parse fills them without
+    # ever looking at the country, and a cached tab still posts the old shape.
+    # Sanitise on arrival rather than trusting either.
+    creds = dict(body.credentials or {})
+    if country_code(creds.get("countryOfLicensure")) not in ("", "US"):
+        creds["licenseState"] = ""
+        creds["licenseNumber"] = ""
     ts.save_asclepius_credentials_preserving(
-        row["id"], director_email, body.credentials, _SERVER_CV_KEYS)
+        row["id"], director_email, creds, _SERVER_CV_KEYS)
     # The physician's specialty lives on the health_systems row too — the tier
     # scorer and the task router both read it from there — and v2 has no
     # institution screen to put it there. Mirror it from the one field the Review

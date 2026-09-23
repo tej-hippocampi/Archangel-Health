@@ -632,7 +632,14 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       // so the same fact is not asked for twice. Never over a value the
       // physician already has there: the same rule applyCvParse follows.
       const fromStep1 = (d.director_license_state ?? "").trim();
-      const countryFromStep1 = (d.director_country_of_licensure ?? "").trim().toUpperCase();
+      // A row whose country column is NULL was written before the column
+      // existed, by a physician who passed screen 1 under the previous bundle
+      // and was treated as US throughout. Resuming them with a BLANK country
+      // would put a red "this decides which number we can check you against"
+      // marker on a question they were never asked. Reading the legacy value
+      // as what it always was restores exactly the screen they left.
+      const countryFromStep1 = (d.director_country_of_licensure ?? "").trim().toUpperCase()
+        || (d.director_password_set ? "US" : "");
       // Same rule for both: fill a blank, never write over an answer the
       // physician already gave on a later screen. Without the country line a
       // doctor who said "GB" on screen 1 and then reloaded came back to a form
@@ -871,18 +878,25 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     // Drop the plaintext the instant it is spent. It lived in React state for
     // one screen and it does not need to outlive the request. The country is
     // committed in the same breath: one screen, one commit point.
-    setDataState((d) => ({
-      ...d,
-      password: "",
-      passwordSet: true,
-      credentials: {
-        ...d.credentials,
-        countryOfLicensure: country,
-        countryOfPractice: d.credentials.countryOfPractice || country,
-        countryOfDegree: d.credentials.countryOfDegree || country,
-        licenseState: country === "US" ? d.credentials.licenseState : "",
-      },
-    }));
+    setDataState((d) => {
+      const prev = (d.credentials.countryOfLicensure || "US").toUpperCase();
+      return {
+        ...d,
+        password: "",
+        passwordSet: true,
+        credentials: {
+          ...d.credentials,
+          countryOfLicensure: country,
+          // Mirror while they agree, matching the screen's own control and the
+          // Review screen. See the comment on that onChange in steps.tsx.
+          ...((d.credentials.countryOfPractice || prev) === prev
+            ? { countryOfPractice: country } : {}),
+          ...((d.credentials.countryOfDegree || prev) === prev
+            ? { countryOfDegree: country } : {}),
+          ...(country === "US" ? {} : { licenseState: "", licenseNumber: "" }),
+        },
+      };
+    });
     setStep("verify");
     return true;
   }, [token, data.firstName, data.lastName, data.email, data.password,

@@ -64,7 +64,7 @@ def _utcnow_iso() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
-def _country_code(raw: Optional[str]) -> str:
+def country_code(raw: Optional[str]) -> str:
     """An ISO-3166 alpha-2 country code, or "" when nothing usable was given.
 
     Two characters, upper-cased, letters only. The width is not arbitrary: the
@@ -1390,10 +1390,13 @@ class TeamStore:
 
         ``license_state`` is the ONE exception to that COALESCE rule, and it has
         to be. A physician who picks California, then corrects the country to
-        GB, would otherwise leave 'CA' stuck on the row forever, and
-        ``asclepius/credentials.py`` turns any non-empty state into
-        ``state_licensed: true`` plus a US medical-board lookup handle in the
-        block we ship to buyers. So a non-US country clears the state outright.
+        GB, would otherwise leave 'CA' stuck on the row forever. This column's
+        one reader is the ``/session`` prefill, so a stale value here comes back
+        as the answer on a resumed screen 1 and seeds the credentials blob from
+        there. That blob is what reaches the Tier B vault, where
+        ``asclepius/credentials.py`` turns a non-empty ``license_state`` into
+        ``state_licensed: true`` and a US medical-board lookup handle in the
+        block shipped to buyers. So a non-US country clears the state outright.
         A US or absent country keeps the old COALESCE behaviour untouched.
 
         There is deliberately NO sentinel state meaning "outside the US": the
@@ -1411,9 +1414,12 @@ class TeamStore:
                     director_country_of_licensure =
                         COALESCE(NULLIF(?, ''), director_country_of_licensure),
                     -- Cleared outright when the country is not the US; see the
-                    -- docstring. A US or absent country takes the old branch.
+                    -- docstring. Falls back to the country ALREADY ON THE ROW
+                    -- when this call carries none, or a resubmit that omits the
+                    -- country could re-pin a US state on a row stored as GB.
                     director_license_state = CASE
-                        WHEN ? NOT IN ('', 'US') THEN ''
+                        WHEN COALESCE(NULLIF(?, ''), director_country_of_licensure, '')
+                             NOT IN ('', 'US') THEN ''
                         ELSE COALESCE(NULLIF(?, ''), director_license_state) END,
                     -- Mailbox proof belongs to the address that received the OTP.
                     onboarding_step = CASE
@@ -1425,8 +1431,8 @@ class TeamStore:
                     first_name.strip(), last_name.strip(), email.lower().strip(),
                     password_hash,
                     password_hash, _utcnow_iso(),
-                    _country_code(country_of_licensure),
-                    _country_code(country_of_licensure),
+                    country_code(country_of_licensure),
+                    country_code(country_of_licensure),
                     (license_state or "").strip().upper()[:2],
                     email.lower().strip(),
                     hs_id,

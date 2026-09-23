@@ -92,9 +92,16 @@ def test_nothing_seeds_a_country_so_the_guard_above_can_actually_fire():
     case it was written for could not be reached. Asserting the guard's source
     line, as the test above does, proved only that somebody had typed it.
 
-    Screen 1 now commits a real answer on Continue, so the physician path still
-    arrives at Review with a country. Member mode skips screen 1 entirely and
-    legitimately arrives without one, which is where the guard earns its keep.
+    Screen 1 now commits a real answer on Continue, so the ordinary physician
+    path still arrives at Review with a country and never sees the marker.
+
+    The guard is a BACKSTOP, not a path anybody walks on purpose: it fires only
+    where Review is reached with no country at all. Member mode does not
+    qualify, despite the obvious guess — Step5Credentials defaults
+    `reviewMode` to false there, and every use of `ident` is gated on it, so a
+    member is shown the NPI field either way. What the seed change buys is that
+    "" is now REACHABLE at all; while it was "US", the guard was unreachable by
+    construction and this file asserted only that somebody had typed the line.
     """
     empty = _STEPS_CODE[_STEPS_CODE.index("export function emptyCredentials"):][:1400]
     assert 'countryOfLicensure: ""' in empty

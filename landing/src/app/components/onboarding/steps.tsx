@@ -639,7 +639,7 @@ export function Step1NameEmail({
      Pre-filled with the US, which is most of the traffic, so a US physician
      sees one more select already reading the right answer rather than one more
      question to work out. It does not gate Continue; see `valid` above. */
-  const credentialCfg = useCredentialConfig();
+  const credentialCfg = useCredentialConfig(isAsclepius && kind === "physician");
   const licensureCountry = (data.credentials.countryOfLicensure || "US").toUpperCase();
   const licensedInUS = licensureCountry === "US";
   const countryOptions = credentialCfg.countries.map((x) => ({
@@ -757,20 +757,29 @@ export function Step1NameEmail({
               label="Where are you licensed?"
               value={licensureCountry}
               onChange={(v) => {
+                const c = data.credentials;
                 const next = (v || "").toUpperCase();
+                const prev = (c.countryOfLicensure || "US").toUpperCase();
                 setData({
                   credentials: {
-                    ...data.credentials,
+                    ...c,
                     countryOfLicensure: next,
-                    // Licensed where you practise is the common case. The
-                    // Review screen keeps separate controls for everyone else,
-                    // so this only fills a blank, never overwrites an answer.
-                    countryOfPractice: data.credentials.countryOfPractice || next,
-                    countryOfDegree: data.credentials.countryOfDegree || next,
-                    // A US state means nothing once the answer is not the US,
-                    // and a stale one ships as `state_licensed: true` in the
-                    // buyer-facing credential block. See credentials.py.
-                    licenseState: next === "US" ? data.credentials.licenseState : "",
+                    // MIRROR WHILE THEY AGREE, which is the rule the Review
+                    // screen already uses. "Fill only a blank" looks safer and
+                    // is wrong for a control somebody can change twice: pick
+                    // GB, correct a mis-click back to US, and practice/degree
+                    // stay GB forever while licensure says US. That lands on
+                    // the physician's card, their community profile and the
+                    // verification queue as a country they do not practise in.
+                    ...((c.countryOfPractice || prev) === prev
+                      ? { countryOfPractice: next } : {}),
+                    ...((c.countryOfDegree || prev) === prev
+                      ? { countryOfDegree: next } : {}),
+                    // A US state and a US licence number mean nothing once the
+                    // answer is not the US. Cleared rather than hidden: the
+                    // Review screen stops RENDERING them below, and a value
+                    // nobody can see is still posted with the credentials blob.
+                    ...(next === "US" ? {} : { licenseState: "", licenseNumber: "" }),
                   },
                 });
               }}
@@ -1866,9 +1875,14 @@ const CREDENTIAL_CONFIG_FALLBACK: CredentialConfig = {
   qualifications: ["MD", "DO", "MBBS", "MBChB", "MBBCh", "BMBS", "Staatsexamen", "Other"],
 };
 
-function useCredentialConfig(): CredentialConfig {
+/** `enabled` gates the REQUEST, never the hook call, so hook order is identical
+ *  on every render. Screen 1 renders the country block only for a self-serve
+ *  physician; without this, every advisor and referral partner fetched a
+ *  country list their door never shows. */
+function useCredentialConfig(enabled = true): CredentialConfig {
   const [cfg, setCfg] = useState<CredentialConfig>(CREDENTIAL_CONFIG_FALLBACK);
   useEffect(() => {
+    if (!enabled) return;
     let live = true;
     fetch(`${API_BASE}/api/onboarding/credential-config`, { headers: apiHeaders() })
       .then((r) => (r.ok ? r.json() : null))
@@ -1883,7 +1897,7 @@ function useCredentialConfig(): CredentialConfig {
       })
       .catch(() => { /* Keep every country selectable using document review. */ });
     return () => { live = false; };
-  }, []);
+  }, [enabled]);
   return cfg;
 }
 const PRACTICE_SETTING_SUGGESTIONS = [
@@ -2603,7 +2617,14 @@ export function Step5Credentials({
           label="Where are you licensed?"
           placeholder="Select country"
           value={c.countryOfLicensure}
-          onChange={(v) => set({ countryOfLicensure: v, registrationNumber: "", registryExtras: {} })}
+          onChange={(v) => set({
+            countryOfLicensure: v, registrationNumber: "", registryExtras: {},
+            // The licence pair below renders only for a US answer. Clearing it
+            // here is what stops a value the physician can no longer see from
+            // riding along in the credentials blob — a CV parse fills both
+            // without ever checking the country.
+            ...((v || "").toUpperCase() === "US" ? {} : { licenseState: "", licenseNumber: "" }),
+          })}
           options={countryOptions}
           // `isUS` treats an unanswered country as the US, so without this a
           // consultant in Riyadh would be shown a red marker on an NPI field

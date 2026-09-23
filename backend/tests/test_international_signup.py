@@ -381,6 +381,13 @@ _GB_CREDS = {
     "currentlyActive": True,
     "residencyCompleted": True,
     "practiceStatus": "active",
+    # DELIBERATELY STALE, and the point of several assertions below. A CV parse
+    # fills these two without ever checking the country, and a cached tab still
+    # posts the old shape, so the server has to drop them rather than trust the
+    # form to have cleared them. Left in place, credentials.py would ship this
+    # consultant to a buyer as holding a California licence.
+    "licenseState": "CA",
+    "licenseNumber": "A12345",
 }
 _ATTS = {
     "consentCredentialShare": True, "attestIndependentJudgment": True,
@@ -429,6 +436,15 @@ def _prove_mailbox(http, hs_id):
         conn.commit()
 
 
+def _saved_credentials(http, hs_id, email):
+    """The credentials blob as stored, read back off the asclepius_people row."""
+    people = http.app.state.team_store.list_asclepius_people(hs_id)
+    person = next(p for p in people
+                  if (p.get("email") or "").lower() == email.lower())
+    raw = person.get("credentials") or person.get("credentials_json") or {}
+    return json.loads(raw) if isinstance(raw, str) else raw
+
+
 def _step1(http, token, email, **extra):
     payload = {"token": token, "first_name": "Eleanor", "last_name": "Whitfield",
                "email": email, "password": _PW}
@@ -461,10 +477,12 @@ def test_a_uk_physician_completes_signup_end_to_end(http, _mail):
     # GB verifies by DOCUMENT (config.py), so this waits for a human rather than
     # being auto-rejected for failing a US lookup it was never eligible for.
     assert user["registry_verified"] is None or user["registry_verified"] == 0
-    # And nothing in the stored credentials claims a US state licence, which is
-    # what credentials.py would ship to a buyer as `state_licensed: true`.
+    # The stale US licence posted in _GB_CREDS was DROPPED. This is the one that
+    # reaches buyers: credentials.py turns a non-empty licenseState into
+    # `state_licensed: true` and a US medical-board lookup handle.
     stored = json.loads(user["credentials_json"] or "{}")
-    assert not (stored.get("licenseState") or "")
+    assert not (stored.get("licenseState") or ""), "a UK consultant kept a US state"
+    assert not (stored.get("licenseNumber") or "")
 
 
 def test_screen_one_carries_the_country_into_a_resumed_session(http, _mail):
@@ -540,12 +558,123 @@ def test_the_us_path_is_unchanged_for_a_client_that_sends_no_country(http, _mail
     assert (row["director_country_of_licensure"] or "") == ""
 
 
-def test_the_form_carries_no_country_list_of_its_own():
-    """config.py is the single country list. The form's offline fallback builds
-    from countries.json and merges the server's answer over it, so a doctor is
-    never shown a one-country dropdown when the config fetch fails."""
+def _steps_source() -> str:
     import pathlib
-    steps = (pathlib.Path(__file__).resolve().parents[2] / "landing" / "src" / "app"
-             / "components" / "onboarding" / "steps.tsx").read_text(encoding="utf-8")
-    assert "CREDENTIAL_CONFIG_FALLBACK" in steps
-    assert "Object.entries(countryNames)" in steps
+    return (pathlib.Path(__file__).resolve().parents[2] / "landing" / "src" / "app"
+            / "components" / "onboarding" / "steps.tsx").read_text(encoding="utf-8")
+
+
+def _screen_one() -> str:
+    src = _steps_source()
+    return src[src.index("export function Step1NameEmail"):
+               src.index("export function Step2Verify")]
+
+
+def test_screen_one_takes_its_countries_from_the_shared_config():
+    """config.py is the single country list, and screen 1 must not grow a
+    second one. It reads the same hook the Review screen does, whose offline
+    fallback covers every country in countries.json — so a failed config fetch
+    degrades to slightly plainer labels, never to a dropdown the doctor's
+    country is missing from."""
+    screen1 = _screen_one()
+    assert "useCredentialConfig(" in screen1
+    assert "credentialCfg.countries.map" in screen1
+    # No literal country list of its own.
+    assert "country_name:" not in screen1
+    assert "United Kingdom" not in screen1
+
+
+def test_screen_one_asks_only_a_physician_for_a_country():
+    """An advisor and a referral partner are never shown the country block, so
+    they must not fetch the list that fills it."""
+    assert 'useCredentialConfig(isAsclepius && kind === "physician")' in _screen_one()
+
+
+def test_a_malformed_country_is_treated_as_not_supplied(http, _mail):
+    """The 200-that-stored-nothing. `registry_config.normalize_country` is a
+    lookup helper: it truncates and never checks it got letters, so 'G' and
+    'U1' used to read as a non-US country (which blanked the state) while the
+    store rejected them (so no country was written either). The row then read
+    as US everywhere downstream, with a success code on it."""
+    for bad in ("G", "U1", "1"):
+        fresh_store()
+        email = f"dr-{uniq()}@nephrology-associates.com"
+        token, hs_id = _invite(http, email)
+        r = _step1(http, token, email, country_of_licensure=bad, license_state="CA")
+        assert r.status_code == 200, f"{bad}: {r.text}"
+        row = http.app.state.team_store.get_health_system_by_id(hs_id)
+        # Treated exactly as if no country had been sent: the US path.
+        assert (row["director_country_of_licensure"] or "") == "", bad
+        assert row["director_license_state"] == "CA", (
+            f"{bad} silently discarded the state as if it were a real country")
+
+
+def test_a_country_less_resubmit_cannot_re_pin_a_state_on_a_non_us_row(http, _mail):
+    """Screen 1 is re-submittable and the state-clearing CASE has to read the
+    country ALREADY ON THE ROW when a call carries none. Reading only the
+    incoming value let a later country-less write put 'CA' back on a row stored
+    as GB, which is the stale value credentials.py ships as a US licence."""
+    fresh_store()
+    email = f"dr-{uniq()}@nhs-trust.example"
+    token, hs_id = _invite(http, email)
+
+    assert _step1(http, token, email, country_of_licensure="GB").status_code == 200
+    # No country key at all, but carrying a state.
+    assert _step1(http, token, email, license_state="CA").status_code == 200
+
+    row = http.app.state.team_store.get_health_system_by_id(hs_id)
+    assert (row["director_country_of_licensure"] or "") == "GB"
+    assert (row["director_license_state"] or "") == "", "a US state was re-pinned on a GB row"
+
+
+def test_the_credentials_blob_drops_a_us_licence_from_a_non_us_doctor(http, _mail):
+    """The form clears these when the country changes, but a CV parse fills
+    both without ever looking at the country, so the endpoint cannot trust it.
+    This blob is what reaches the Tier B vault and the buyer-facing block."""
+    fresh_store()
+    email = f"dr-{uniq()}@nhs-trust.example"
+    token, hs_id = _invite(http, email)
+    assert _step1(http, token, email, country_of_licensure="GB").status_code == 200
+    _prove_mailbox(http, hs_id)
+
+    assert http.post("/api/onboarding/asclepius/credentials",
+                     json={"token": token, "credentials": _GB_CREDS}).status_code == 200
+
+    saved = _saved_credentials(http, hs_id, email)
+    assert not (saved.get("licenseState") or ""), "a GB consultant kept a US state"
+    assert not (saved.get("licenseNumber") or "")
+    # And the country's own identifier is untouched.
+    assert saved.get("registrationNumber") == "1234567"
+
+
+def test_a_us_doctors_licence_survives_the_same_endpoint(http, _mail):
+    """The other half of the rule above: sanitising must not eat the field for
+    the physicians it is actually for."""
+    fresh_store()
+    email = f"dr-{uniq()}@nephrology-associates.com"
+    token, hs_id = _invite(http, email)
+    assert _step1(http, token, email, country_of_licensure="US",
+                  license_state="CA").status_code == 200
+    _prove_mailbox(http, hs_id)
+
+    us_creds = dict(_GB_CREDS)
+    us_creds.update({"countryOfPractice": "US", "countryOfLicensure": "US",
+                     "countryOfDegree": "US", "npi": "1234567893", "degree": "MD"})
+    assert http.post("/api/onboarding/asclepius/credentials",
+                     json={"token": token, "credentials": us_creds}).status_code == 200
+
+    saved = _saved_credentials(http, hs_id, email)
+    assert saved.get("licenseState") == "CA"
+    assert saved.get("licenseNumber") == "A12345"
+
+
+def test_screen_one_mirrors_the_country_only_while_the_fields_agree():
+    """"Fill only a blank" is the wrong rule for a control somebody can change
+    twice. Pick GB, correct a mis-click back to US, and practice and degree
+    would stay GB forever while licensure said US — and country_of_practice is
+    what renders the physician's card, their community profile and the
+    verification queue row."""
+    screen1 = _screen_one()
+    assert "(c.countryOfPractice || prev) === prev" in screen1
+    assert "(c.countryOfDegree || prev) === prev" in screen1
+    assert "countryOfPractice: data.credentials.countryOfPractice || next" not in screen1

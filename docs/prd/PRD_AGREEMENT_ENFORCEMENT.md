@@ -64,7 +64,7 @@ false; a string, integer, or non-empty initials field is not consent.
 | qa_approve_all | `qa_approve_all` at backend/routers/asclepius.py:5924 |
 | list_submissions | `list_submissions` at backend/routers/asclepius.py:5857 |
 | get_submission | `get_submission` at backend/routers/asclepius.py:5869 |
-| save_asclepius_attestations | `save_asclepius_attestations` at backend/team_store.py:2177 |
+| save_asclepius_attestations | `save_asclepius_attestations` at backend/team_store.py:2223 |
 | provision_user | `provision_user` at backend/asclepius/store.py:4066 |
 | _attestations_complete | `_attestations_complete` at backend/routers/onboarding.py:70 |
 | isRequired | `isRequired` at frontend/asclepius/agreement_gate.js:5 |

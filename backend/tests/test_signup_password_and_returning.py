@@ -610,7 +610,9 @@ def test_screen_one_asks_for_the_password_and_the_state():
     assert "Choose a password" in _STEPS
     assert "Confirm password" in _STEPS
     assert "State you are licensed in" in _STEPS
-    assert "Where are you licensed?" in _STEPS
+    # NOT a bare `"Where are you licensed?" in _STEPS` — that string is also in
+    # Step5Credentials and passes with screen 1 untouched. The country question
+    # is pinned inside Step1NameEmail by the test below.
     # And it gates Continue on it, or the field is decoration.
     assert "const pwOk = !needsPassword || passwordValid(" in _STEPS
     assert "pwOk &&" in _STEPS

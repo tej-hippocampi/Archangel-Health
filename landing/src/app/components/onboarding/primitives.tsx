@@ -657,7 +657,11 @@ export function SelectField({
             paddingRight: 32,
           }}
         >
-          <option value="" disabled>
+          {/* An OPTIONAL select has to be clearable, or "optional" is a label
+              the control contradicts. A disabled blank is also exactly the
+              mechanism that hid "Outside the US" behind an option nobody could
+              click, so it stays only where the field really must be answered. */}
+          <option value="" disabled={!optional}>
             {placeholder || "Select…"}
           </option>
           {options.map((opt) => (
