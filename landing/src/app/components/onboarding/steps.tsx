@@ -2608,7 +2608,16 @@ export function Step5Credentials({
             // Licensed where you practise is the common case; the field below
             // is there for everyone else.
             ...(c.countryOfLicensure === c.countryOfPractice
-              ? { countryOfLicensure: v, countryOfDegree: c.countryOfDegree || v }
+              ? {
+                  countryOfLicensure: v,
+                  countryOfDegree: c.countryOfDegree || v,
+                  // This control CHANGES LICENSURE too, so it has to clear the
+                  // licence for the same reason the licensure control does:
+                  // the pair below stops rendering, and a value nobody can see
+                  // is still posted with the credentials blob.
+                  ...((v || "").toUpperCase() === "US"
+                    ? {} : { licenseState: "", licenseNumber: "" }),
+                }
               : {}),
           })}
           options={countryOptions}

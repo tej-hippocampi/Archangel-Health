@@ -103,22 +103,71 @@ export function mount(el, options = {}) {
 }
 `);
 
+/* Screen 1 owns the whole OnboardingData object and commits a country on
+   Continue, so it needs its own host rather than a flag on the one above.
+   `onNext` records the data as it stood when Continue was pressed, which is
+   what the wizard posts. */
+fs.writeFileSync(path.join(out, "entry-step1.tsx"), `
+import React, { useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { Step1NameEmail, emptyCredentials, withRowIds } from './steps';
+
+export function mountStep1(el, options = {}) {
+  const controller = { submitted: null };
+  function Host() {
+    const [data, setData] = useState({
+      firstName: 'Eleanor',
+      lastName: 'Whitfield',
+      email: 'eleanor@nhs-trust.example',
+      password: '',
+      passwordSet: true,
+      product: options.product || 'asclepius',
+      attestations: {},
+      credentials: withRowIds({
+        ...emptyCredentials('Eleanor Whitfield'),
+        ...options.credentials,
+      }),
+      ...options.data,
+    });
+    controller.data = data;
+    return (
+      <Step1NameEmail
+        data={data}
+        setData={(patch) => setData((prev) => ({ ...prev, ...patch }))}
+        onNext={async () => { controller.submitted = controller.data; return false; }}
+        kind={options.kind || 'physician'}
+      />
+    );
+  }
+  const root = createRoot(el);
+  root.render(<Host />);
+  controller.unmount = () => root.unmount();
+  return controller;
+}
+`);
+
+for (const [entry, outfile] of [["entry.tsx", "form.cjs"], ["entry-step1.tsx", "step1.cjs"]]) {
 esbuild.buildSync({
-  entryPoints: [path.join(out, "entry.tsx")],
+  entryPoints: [path.join(out, entry)],
   bundle: true,
   platform: "node",
   format: "cjs",
-  outfile: path.join(out, "form.cjs"),
+  outfile: path.join(out, outfile),
   jsx: "automatic",
   external: ["react", "react-dom", "react-dom/client", "react/jsx-runtime"],
   alias: {
     "@/lib/auth-api": path.join(out, "api.ts"),
     "@/lib/npi": path.join(out, "npi.ts"),
+    "@/lib/countries.json": path.join(repo, "landing/src/lib/countries.json"),
   },
   logLevel: "silent",
 });
+}
 
-module.exports = { bundlePath: path.join(out, "form.cjs") };
+module.exports = {
+  bundlePath: path.join(out, "form.cjs"),
+  step1BundlePath: path.join(out, "step1.cjs"),
+};
 
 if (require.main === module) {
   console.log("built production onboarding components ->", path.join(out, "form.cjs"));

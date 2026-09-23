@@ -650,11 +650,21 @@ def test_neither_the_country_nor_the_state_can_gate_continue():
 
 
 def test_picking_a_non_us_country_drops_the_state_on_screen_one():
-    """A stale 'CA' left behind by someone who corrected their country ships to
-    buyers as `state_licensed: true` plus a US medical-board lookup handle."""
+    """A stale 'CA' left behind by someone who corrected their country rides
+    along in the credentials blob, which is what reaches the Tier B vault.
+
+    Asserted field by field rather than as one source literal: the first
+    version of this test pinned the exact expression and went red the moment
+    that expression was reformatted, which says nothing about the behaviour.
+    The behavioural version of this rule lives in
+    landing/test/onboarding-country.test.cjs, which mounts the real screen.
+    """
     screen1 = _STEPS[_STEPS.index("export function Step1NameEmail"):
                      _STEPS.index("export function Step2Verify")]
-    assert 'licenseState: next === "US" ? data.credentials.licenseState : ""' in screen1
+    clearing = screen1[screen1.index("Where are you licensed?"):][:1600]
+    assert 'licenseState: ""' in clearing
+    assert 'licenseNumber: ""' in clearing
+    assert 'next === "US"' in clearing
 
 
 def test_the_password_policy_has_exactly_one_definition():

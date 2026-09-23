@@ -18,6 +18,7 @@ from starlette.concurrency import run_in_threadpool
 from ratelimit import client_ip, global_rate_limiter, rate_limiter
 
 from email_utils import is_email_dev_mode, is_email_transport_configured, send_html_email
+from team_store import country_code
 from asclepius import passwords as asc_passwords
 from asclepius import store as asc_store_mod
 from onboarding_emails import (
@@ -65,6 +66,34 @@ REQUIRED_ASCLEPIUS_ATTESTATIONS = (
     "noPhi", "attestConfidentiality", "attestNoDisciplinaryAction",
     "attestWorkQuality",
 )
+
+
+def _without_a_foreign_us_licence(credentials: Any) -> Dict[str, Any]:
+    """Strip a US state licence off a doctor who is not licensed in the US.
+
+    This blob is what reaches the Tier B vault, and ``asclepius/credentials.py``
+    turns a non-empty ``licenseState`` into ``state_licensed: true`` and a US
+    medical-board lookup handle in the block shipped to buyers. A UK consultant
+    carrying 'CA' is a false claim in the product, offered to a lab as
+    independent proof of a licence from a board that never issued one.
+
+    The form clears both fields when the country changes, on three controls.
+    This does not trust it: a CV parse fills licence fields without ever
+    looking at the country, and a tab holding the previous bundle still posts
+    the old shape.
+
+    Reads ``countryOfLicensure or countryOfPractice``, which is the SAME
+    resolution ``_run_signup_verification`` uses to decide the registry. A
+    narrower predicate here would let a blob whose licensure is blank and whose
+    practice is GB keep a US licence, while finish treated that physician as
+    British. Both ends must agree on who counts as non-US.
+    """
+    creds = dict(credentials or {})
+    licensure = creds.get("countryOfLicensure") or creds.get("countryOfPractice")
+    if country_code(licensure) not in ("", "US"):
+        creds["licenseState"] = ""
+        creds["licenseNumber"] = ""
+    return creds
 
 
 def _attestations_complete(attestations: Any) -> bool:
@@ -269,10 +298,17 @@ class Step1Body(OnboardTokenBody):
     #: ISO-3166 alpha-2, e.g. "GB". Asked on screen 1 ahead of the state,
     #: because it decides whether a state is a sensible question at all.
     #:
-    #: Optional on the wire for the same reason ``password`` is: a browser
-    #: holding the previous SPA bundle posts the old body, and 400ing that
-    #: would break signup for everyone mid-deploy. Absent means US, which is
-    #: what every row written before this field existed is.
+    #: OMITTING it is fine, for the same reason ``password`` is optional: a
+    #: browser holding the previous SPA bundle posts the old body, and 400ing
+    #: that would break signup for everyone mid-deploy. Absent means US, which
+    #: is what every row written before this field existed is.
+    #:
+    #: SENDING something longer than two characters is not fine, and pydantic
+    #: rejects it here with a 422 before the handler runs. That is deliberate:
+    #: alpha-3 cannot be truncated into alpha-2 (DNK would become DN), so the
+    #: alternative is silently labelling a Danish doctor as nothing at all.
+    #: A one-character or non-letter value does reach the handler, and is
+    #: treated there as not supplied.
     country_of_licensure: str = Field(default="", max_length=2)
 
 
@@ -806,14 +842,15 @@ async def step1_identity(body: Step1Body, request: Request):
     # a 200 that stored nothing and left the row reading as US, which is the
     # exact failure this change exists to remove.
     #
-    # Anything that is not two letters is treated as NOT SUPPLIED rather than
-    # 400'd, for the reason the field's own docstring gives: a cached tab
-    # running the previous bundle must not be walled out mid-deploy. Unknown
+    # Anything that reaches here and is not two letters is treated as NOT
+    # SUPPLIED rather than 400'd, so a cached tab running the previous bundle
+    # is not walled out mid-deploy. Note the ceiling: `max_length=2` means
+    # pydantic has already 422'd anything longer, which is why this is only
+    # ever deciding about one-character and non-letter values. Unknown
     # but well-formed codes like 'ZW' are still accepted, because for_country
     # falls back to DEFAULT_REGISTRY carrying the code, and a whitelist here
     # would rebuild the dead end for the first doctor from a country nobody has
     # configured yet.
-    from team_store import country_code
     licensure_country = country_code(body.country_of_licensure)
     # A US state is meaningless once the country is not the US, and a cached tab
     # running the previous bundle will still post one. Drop it here rather than
@@ -1568,25 +1605,14 @@ async def asclepius_credentials(body: AsclepiusCredentialsBody, request: Request
     # would then be reading when they decide about a real person.
     if int(row.get("onboarding_step") or 0) < 2:
         raise HTTPException(status_code=403, detail="Verify your email first.")
-    from team_store import country_code
     # v2 §2: the Review screen is the first thing that writes here, and the
     # institution screen it used to depend on is gone from this path.
     director_email = _ensure_director_person(ts, row)
     if not director_email:
         raise HTTPException(status_code=400, detail="Start your application first.")
-    # A US state licence on a doctor licensed elsewhere is not a harmless
-    # leftover: this blob is what reaches the Tier B vault, and credentials.py
-    # turns a non-empty `licenseState` into `state_licensed: true` plus a US
-    # medical-board lookup handle in the block shipped to buyers. The form
-    # clears both when the country changes, but a CV parse fills them without
-    # ever looking at the country, and a cached tab still posts the old shape.
-    # Sanitise on arrival rather than trusting either.
-    creds = dict(body.credentials or {})
-    if country_code(creds.get("countryOfLicensure")) not in ("", "US"):
-        creds["licenseState"] = ""
-        creds["licenseNumber"] = ""
     ts.save_asclepius_credentials_preserving(
-        row["id"], director_email, creds, _SERVER_CV_KEYS)
+        row["id"], director_email, _without_a_foreign_us_licence(body.credentials),
+        _SERVER_CV_KEYS)
     # The physician's specialty lives on the health_systems row too — the tier
     # scorer and the task router both read it from there — and v2 has no
     # institution screen to put it there. Mirror it from the one field the Review
@@ -2379,7 +2405,8 @@ async def member_session(token: str, request: Request):
 async def member_credentials(body: MemberCredentialsBody, request: Request):
     ts, person, hs = _load_asclepius_member(request, body.token)
     ts.save_asclepius_credentials_preserving(
-        hs["id"], person["email"], body.credentials, _SERVER_CV_KEYS)
+        hs["id"], person["email"], _without_a_foreign_us_licence(body.credentials),
+        _SERVER_CV_KEYS)
     return {"ok": True}
 
 

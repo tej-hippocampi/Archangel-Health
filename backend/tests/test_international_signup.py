@@ -678,3 +678,61 @@ def test_screen_one_mirrors_the_country_only_while_the_fields_agree():
     assert "(c.countryOfPractice || prev) === prev" in screen1
     assert "(c.countryOfDegree || prev) === prev" in screen1
     assert "countryOfPractice: data.credentials.countryOfPractice || next" not in screen1
+
+
+def test_the_blob_sanitiser_reads_practice_when_licensure_is_blank(http, _mail):
+    """The sanitiser and `_run_signup_verification` must agree on who is non-US.
+
+    finish resolves licensure as `countryOfLicensure or countryOfPractice`. A
+    narrower predicate here let a blob whose licensure was blank and whose
+    practice was GB keep a US licence, while finish treated that same physician
+    as British — a US state licence attached to a doctor the system had already
+    decided was not American.
+    """
+    fresh_store()
+    email = f"dr-{uniq()}@nhs-trust.example"
+    token, hs_id = _invite(http, email)
+    assert _step1(http, token, email, country_of_licensure="GB").status_code == 200
+    _prove_mailbox(http, hs_id)
+
+    creds = dict(_GB_CREDS)
+    creds["countryOfLicensure"] = ""          # blank, as an older blob can be
+    creds["countryOfPractice"] = "GB"
+    assert http.post("/api/onboarding/asclepius/credentials",
+                     json={"token": token, "credentials": creds}).status_code == 200
+
+    saved = _saved_credentials(http, hs_id, email)
+    assert not (saved.get("licenseState") or ""), "practice country was ignored"
+    assert not (saved.get("licenseNumber") or "")
+
+
+def test_an_invited_member_cannot_store_a_foreign_us_licence(http, _mail):
+    """`/member/credentials` is a second door into the same blob, and an
+    invited clinician reaches it without ever seeing screen 1."""
+    fresh_store()
+    director = f"dr-{uniq()}@nhs-trust.example"
+    token, hs_id = _invite(http, director)
+    assert _step1(http, token, director, country_of_licensure="GB").status_code == 200
+    _prove_mailbox(http, hs_id)
+
+    ts = http.app.state.team_store
+    member_email = f"reg-{uniq()}@nhs-trust.example"
+    # add-member gates on institution details, which the v2 physician path has
+    # no screen for, so the director's own flow never sets them.
+    assert http.post("/api/onboarding/asclepius/institution",
+                     json={"token": token, "org_name": "Northridge",
+                           "specialty": "Nephrology",
+                           "phone": "5551234"}).status_code == 200
+    assert http.post("/api/onboarding/asclepius/add-member",
+                     json={"token": token, "full_name": "Rhys Morgan",
+                           "email": member_email, "role": "np"}).status_code == 200
+    # The emailed token is not returned by the API; mint a usable raw one, as
+    # tests/test_asclepius_onboarding.py does.
+    member_token = ts.issue_asclepius_member_token(hs_id, member_email)
+
+    r = http.post("/api/onboarding/member/credentials",
+                  json={"token": member_token, "credentials": _GB_CREDS})
+    assert r.status_code == 200, r.text
+    saved = _saved_credentials(http, hs_id, member_email)
+    assert not (saved.get("licenseState") or ""), "a member kept a US state under GB"
+    assert not (saved.get("licenseNumber") or "")
