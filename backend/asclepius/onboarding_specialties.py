@@ -65,6 +65,10 @@ _NAMES = {
     "medical genetics": ("clinical genetics", "geneticist"),
 }
 
+# Clinical identity vocabulary shared with the community. This does not enable
+# paid case generation or change a physician's permissions.
+CLINICAL_SPECIALTIES = tuple(_NAMES)
+
 
 def normalize(value: Any) -> str:
     text = str(value or "").strip().casefold()

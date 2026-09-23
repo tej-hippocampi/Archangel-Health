@@ -176,20 +176,28 @@ def test_headers_are_frozen_and_carry_no_purpose_signal(variants):
     ra = a["client"].get(f"{API}/hs/me")
     rb = b["client"].get(f"{API}/hs/me")
     _assert_observationally_identical(ra, rb, "GET /hs/me")
-    assert sorted(_headers(ra)) == GOLDEN_HEADERS, (
+    headers = _headers(ra)
+    # Starlette 1.7's CORS layer adds this fixed cache key even to requests
+    # without Origin. Earlier supported releases omit it. It must be identical
+    # on both variants (checked above), and may vary only on Origin.
+    assert headers.get("vary") in (None, "Origin")
+    expected = GOLDEN_HEADERS + (["vary"] if "vary" in headers else [])
+    assert sorted(headers) == sorted(expected), (
         "the provider-facing header set changed. Adding a header is fine — add it "
         "to GOLDEN_HEADERS deliberately, having confirmed it appears on BOTH "
         f"variants. Saw: {sorted(_headers(ra))}")
 
 
 def test_the_required_header_values(variants):
-    a, _b = variants
+    a, b = variants
     h = _headers(a["client"].get(f"{API}/hs/me"))
+    other = _headers(b["client"].get(f"{API}/hs/me"))
     assert h["cache-control"] == "no-store", "a private/public differential is a leak"
     assert h["referrer-policy"] == "no-referrer"
     assert "etag" not in h, "ETag is content-derived and fingerprints the variant"
     assert "content-encoding" not in h, "compression makes size a function of content"
-    assert "vary" not in h, "Vary present on one variant and absent on the other is a leak"
+    assert h.get("vary") == other.get("vary"), "Vary must not distinguish variants"
+    assert h.get("vary") in (None, "Origin"), "Only the fixed CORS cache key is allowed"
 
 
 def test_every_provider_route_is_observationally_identical(variants):

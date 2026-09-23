@@ -32,6 +32,7 @@ from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
 from asclepius.credentials import generalized_blurb, find_tier_b_leak
 from asclepius.constants import TIER_B_FORBIDDEN_KEYS
+from asclepius.onboarding_specialties import canonical
 from asclepius.store import get_store as get_asclepius_store
 from audit import audit_log
 from community import attachments as catt
@@ -333,6 +334,27 @@ def _tier_a_credentials_by_id_hashed() -> Dict[str, Dict[str, Any]]:
     return out
 
 
+def _member_specialty(user: Dict[str, Any], ship: Dict[str, Any]) -> Optional[str]:
+    """Honor the physician's saved declaration, including legacy accounts whose
+    specialty column discarded fields outside the paid-generation registry.
+    Only the normalized specialty leaves this boundary; no credential or CV
+    contents are added to the public profile.
+    """
+    credentials = user.get("credentials_json") or user.get("credentials") or {}
+    if isinstance(credentials, str):
+        try:
+            credentials = json.loads(credentials)
+        except ValueError:
+            credentials = {}
+    if not isinstance(credentials, dict):
+        credentials = {}
+    for value in (credentials.get("primarySpecialty"), ship.get("primary_specialty"),
+                  user.get("specialty")):
+        if isinstance(value, str) and (specialty := canonical(value)):
+            return specialty
+    return None
+
+
 def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
     """Every gated member keyed by user id. Built exclusively from Tier A
     attributes + the users table — the Tier B vault is never opened here."""
@@ -343,6 +365,10 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
     out: Dict[str, Dict[str, Any]] = {}
     for user in astore.list_users():
         if not user.get("active") or user["id"] in banned:
+            continue
+        # Match the access gate: a later rejection supersedes historical vault
+        # approval in the directory, notification audience and cohort counts.
+        if (user.get("verification_status") or "").strip().lower() == "rejected":
             continue
         role = user.get("role")
         # A non-physician account is never a member here, however its
@@ -381,7 +407,7 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
         else:
             continue
         ship = (cred or {}).get("ship") or {}
-        specialty = ship.get("primary_specialty") or user.get("specialty")
+        specialty = _member_specialty(user, ship)
         years = ship.get("years_in_active_practice")
         if years is None:
             years = user.get("years_experience")
@@ -393,7 +419,10 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
         if is_staff:
             blurb = "Archangel Health team."
         else:
-            blurb = (cred or {}).get("blurb") or generalized_blurb(ship, fallback_specialty=specialty)
+            previous_specialty = canonical(ship.get("primary_specialty") or user.get("specialty"))
+            blurb = (cred or {}).get("blurb") if (specialty or "") == previous_specialty else None
+            blurb = blurb or generalized_blurb(
+                {**ship, "primary_specialty": specialty}, fallback_specialty=specialty)
         member: Dict[str, Any] = {
             "user_id": user["id"],
             "display_name": name,
@@ -552,11 +581,13 @@ def resolve_member_for_notify(user_id: str) -> Optional[Dict[str, Any]]:
 # ─── Channel visibility (Community v2 — threshold-gated specialty channels) ───
 def specialty_threshold() -> int:
     """Members of a specialty required before its channel appears
-    (``COMMUNITY_SPECIALTY_MIN_MEMBERS``, default 3, floor 1)."""
+    (``COMMUNITY_SPECIALTY_MIN_MEMBERS``, default 1, floor 1).
+    The first verified colleague must be able to find their specialty room.
+    """
     try:
-        return max(1, int(os.getenv("COMMUNITY_SPECIALTY_MIN_MEMBERS", "3")))
+        return max(1, int(os.getenv("COMMUNITY_SPECIALTY_MIN_MEMBERS", "1")))
     except (TypeError, ValueError):
-        return 3
+        return 1
 
 
 def _decode_cards(raw: Any) -> List[Dict[str, Any]]:

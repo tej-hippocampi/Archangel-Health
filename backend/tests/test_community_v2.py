@@ -203,7 +203,8 @@ def test_core_channels_present_with_groups():
     assert chans["future-of-medical-ai"]["post_policy"] == "all"
 
 
-def test_specialty_channel_hidden_below_threshold():
+def test_specialty_channel_hidden_below_threshold(monkeypatch):
+    monkeypatch.setenv("COMMUNITY_SPECIALTY_MIN_MEMBERS", "3")
     astore, _, _ = setup_world()
     doc = make_vault_physician(astore)  # 1 nephrologist < 3
     chans = channel_slugs(doc)
@@ -215,7 +216,8 @@ def test_specialty_channel_hidden_below_threshold():
     assert r2.status_code == 404
 
 
-def test_specialty_channel_appears_at_threshold():
+def test_specialty_channel_appears_at_threshold(monkeypatch):
+    monkeypatch.setenv("COMMUNITY_SPECIALTY_MIN_MEMBERS", "3")
     astore, _, _ = setup_world()
     doc = make_vault_physician(astore)
     make_approved_physician(astore)          # 2 (bridge member counts too)
@@ -228,7 +230,8 @@ def test_specialty_channel_appears_at_threshold():
     assert "cardiology" not in chans
 
 
-def test_specialty_channel_sticky_once_it_has_history():
+def test_specialty_channel_sticky_once_it_has_history(monkeypatch):
+    monkeypatch.setenv("COMMUNITY_SPECIALTY_MIN_MEMBERS", "3")
     astore, cstore, admin = setup_world()
     docs = [make_vault_physician(astore) for _ in range(3)]
     r = client.post(f"{BASE}/channels/nephrology/messages",

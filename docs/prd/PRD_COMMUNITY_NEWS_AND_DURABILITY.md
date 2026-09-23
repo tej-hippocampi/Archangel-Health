@@ -13,7 +13,7 @@ The trace, end to end:
   `post_system_message` (`community/system_posts.py:292`), which inserts into
   `community_messages` and queues the email fan-out. The read path
   (`router.py channel_messages` → `store.list_messages` → `_serialize_messages`,
-  which explicitly handles the `u-system` author at `community/router.py:931`) is correct. Realm
+  which explicitly handles the `u-system` author at `community/router.py:962`) is correct. Realm
   scoping of the loop, the notify flush, and the email transport is correct.
 - The community store resolves its file as `COMMUNITY_DB_PATH` **or
   `backend/community.db` inside the container** (`realm.py:127-128
@@ -159,13 +159,13 @@ generated from the structure (headline per line) for search and for old clients.
 
 | Area | Finding | Action |
 |---|---|---|
-| Message read path | `list_messages` clauses correct (channel, top-level, id paging, `community/store.py:1015`); tombstones handled; the `u-system` author is serialized by `_serialize_messages` (`community/router.py:931`) | none |
+| Message read path | `list_messages` clauses correct (channel, top-level, id paging, `community/store.py:1035`); tombstones handled; the `u-system` author is serialized by `_serialize_messages` (`community/router.py:962`) | none |
 | Digest loop realm scoping | `with _realm.scoped(r)` per realm (`digest.py:618`); notify flush per realm; sandbox → outbox | none |
 | **Durability** | community.db ephemeral (§1) | **fix** |
 | **Dedup ledger** | lives in community.db → wiped with it → duplicate digests/emails after a same-day redeploy | fixed by §1; add a test that a restart on the same day does not re-post |
 | Retention footer | "retained indefinitely" is false until §1 | after §1, true; keep copy |
 | PHI gate | `_phi_clear` runs on body + card text before insert (`system_posts.py`) with `exact_date` exemption for morning kinds | keep; add the §2.2 banned-pattern check beside it |
-| Channel slug uniqueness | `UNIQUE` on slug (`community/store.py:311`) | none |
+| Channel slug uniqueness | `UNIQUE` on slug (`community/store.py:320`) | none |
 | `/internal/community/purge` | manual, internal-auth only (`main.py:7291`); deletes all bot posts | keep, but log an audit event with actor; never call from a scheduler |
 | Read-only channels ("RO") | composer disabled with copy "Only the Archangel team posts…" | fine |
 | Email markdown leak | `_snippet()` on raw body (`notify.py:188`) | fixed by §2.4 |

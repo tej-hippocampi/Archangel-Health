@@ -3,7 +3,7 @@
 Verified against `Archangel-Health-main (38)` and re-audited against the tree at
 build time — see §9 for every citation that had drifted and every decision the
 code forced. Builds on the structured digest contract already landed
-(`payload_json`, `community/store.py:606`; compose returns
+(`payload_json`, `community/store.py:614`; compose returns
 `{items:[{headline, why_it_matters, source, section, url}]}`, validated by
 `community/digest_contract.py`, whose prompt is `_COMPOSE_SYSTEM`,
 `community/digest.py:116`).
@@ -309,7 +309,7 @@ right fix if the two substitutions read wrong on screen.
 ### 9.2 Profile stats: the verified card's three, not cases · since · last active
 
 §3.2 asks for cases · since · last active. None exists on this plane:
-`member_map` (`community/router.py:336`) is Tier A plus the users table, case
+`member_map` (`community/router.py:358`) is Tier A plus the users table, case
 counts live behind the asclepius gate, and there is no join date or last-seen
 column. §8 forbids widening another router for it.
 

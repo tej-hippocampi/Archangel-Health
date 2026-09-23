@@ -108,7 +108,7 @@ def test_an_unmapped_country_yields_no_crossed_room():
 def test_an_unknown_specialty_or_region_creates_nothing():
     store = _fresh_store()
     store.ensure_default_channels(
-        [], specialty_regions=["dermatology|africa", "nephrology|atlantis", "junk"])
+        [], specialty_regions=["unknown specialty|africa", "nephrology|atlantis", "junk"])
     assert [c for c in store.list_channels() if c.get("grp") == "specialty_region"] == []
 
 
