@@ -110,3 +110,12 @@ production code to satisfy documentation.
 Live/sandbox preflight found zero conflicts among 24/13 existing channels.
 The real Chrome check passed all three user-facing surfaces with no JavaScript
 errors. Final CI is required on the corrected head before deployment.
+
+
+The next CI run resolved all shard-4 failures, but installed newly released
+Starlette 1.7.0 (the previous run used 1.6.0). Its CORS middleware adds a fixed
+`Vary: Origin` header even without a request Origin. Provider equivalence tests
+now permit absent or exactly that header, while continuing to compare all
+header names, order and values between both variants and freezing every other
+header. No application response or CORS policy changes are included. The
+change was reproduced against 1.7.0 locally and independently reviewed.
