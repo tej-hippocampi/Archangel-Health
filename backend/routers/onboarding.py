@@ -1430,12 +1430,19 @@ def _run_signup_verification(store: Any, user: Dict[str, Any], creds: Dict[str, 
     # Where this doctor is licensed decides which registry answers for them.
     # A blank country is a US signup: that is who was signing up before the
     # form could ask.
+    #
+    # `country_code`, NOT `registry_config.normalize_country`, and for the same
+    # reason step1_identity uses it: normalize_country is a lookup helper that
+    # truncates and never checks it got letters, so 'G' used to be recorded on
+    # the user row as the country 'G', and 'GBR' resolved to GB here while
+    # `_without_a_foreign_us_licence` read it as malformed and left a US state
+    # licence on the blob. Both ends now agree on what a country code IS, not
+    # merely on which fields to read.
     from asclepius.registry import config as registry_config
 
-    licensure = registry_config.normalize_country(
+    licensure = country_code(
         creds.get("countryOfLicensure") or creds.get("countryOfPractice")) or "US"
-    practice = registry_config.normalize_country(
-        creds.get("countryOfPractice")) or licensure
+    practice = country_code(creds.get("countryOfPractice")) or licensure
     registration = str(creds.get("registrationNumber") or "").strip()
     npi = credentialing.clean_npi(str(creds.get("npi") or ""))
 

@@ -257,3 +257,23 @@ test("the country list still works with the network down", async () => {
     assert.ok(values.includes(code), `${code} is missing with the config fetch failing`);
   }
 });
+
+test("a select that must be answered keeps its blank disabled", async () => {
+  // The other direction of `disabled={!optional}`, and the one that matters:
+  // without it every placeholder becomes selectable, which is how a country
+  // question stops being a question. Deleting the attribute outright passed
+  // every other test in this file.
+  await screenOne();
+  const blank = [...countrySelect().options].find((o) => o.value === "");
+  assert.ok(blank, "the country select has no placeholder option");
+  assert.equal(blank.disabled, true,
+               "the country placeholder is selectable, so the answer is optional");
+});
+
+test("a required blank stays disabled on the Review screen too", async () => {
+  await review({ credentials: { countryOfPractice: "", countryOfLicensure: "" } });
+  for (const sel of countrySelects()) {
+    const blank = [...sel.options].find((o) => o.value === "");
+    assert.equal(blank.disabled, true, "a Review country select can be blanked");
+  }
+});

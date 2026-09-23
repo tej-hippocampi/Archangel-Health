@@ -214,3 +214,54 @@ test("resuming an unfinished CV parse polls again without replacing an in-progre
   assert.equal(specialtyInput().value, "Nephrology");
   assert.equal(phoneInput().value, "+44 20 5555 0199");
 });
+
+/* Resuming an application that predates the country column.
+ *
+ * Screen 1 asks where a physician is licensed, and emptyCredentials seeds that
+ * field empty so `countrySet` in completeness.ts can tell "answered US" from
+ * "never asked". Rows written before the column existed have neither: their
+ * physician passed screen 1 under a bundle that could not ask, and was treated
+ * as US the whole way through. Resuming them with a blank would put a red
+ * marker on a question nobody ever put to them.
+ */
+const RESUMED = {
+  status: "pending", product: "asclepius", step: 4,
+  director_first_name: "Asha", director_last_name: "Rao",
+  director_email: "asha@aiimsjodhpur.edu.in",
+  director_password_set: true,
+  director_cv: { uploaded: true, stage: "done", parsed: null },
+};
+
+async function resume(session) {
+  global.fetch = async () => new Response(JSON.stringify(session), { status: 200 });
+  await mount(Wizard, { token: "recovery-token" });
+}
+
+const countryValues = () =>
+  [...document.querySelectorAll("select")]
+    .filter((s) => [...s.options].some((o) => o.value === "ZW"))
+    .map((s) => s.value);
+
+test("an application older than the country column resumes as US", async () => {
+  await resume(RESUMED);
+  const values = countryValues();
+  assert.ok(values.length >= 1, "the Review screen showed no country question");
+  for (const v of values) {
+    assert.equal(v, "US", "a legacy application resumed with its country forgotten");
+  }
+});
+
+test("a stored country still wins over the legacy fallback", async () => {
+  await resume({ ...RESUMED, director_country_of_licensure: "GB" });
+  for (const v of countryValues()) {
+    assert.equal(v, "GB", "the answer the physician gave on screen 1 was overwritten");
+  }
+});
+
+test("an application that never reached screen one is not assumed American", async () => {
+  // No password set means screen 1 is still ahead of them, so there is no
+  // accepted answer to restore and the fallback must not invent one.
+  await resume({ ...RESUMED, director_password_set: false, step: 0, director_cv: {} });
+  assert.equal(document.querySelector('input[type="email"]').value,
+               "asha@aiimsjodhpur.edu.in");
+});

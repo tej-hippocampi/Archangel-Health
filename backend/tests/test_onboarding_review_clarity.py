@@ -106,8 +106,13 @@ def test_nothing_seeds_a_country_so_the_guard_above_can_actually_fire():
     empty = _STEPS_CODE[_STEPS_CODE.index("export function emptyCredentials"):][:1400]
     assert 'countryOfLicensure: ""' in empty
     assert 'countryOfLicensure: "US"' not in empty
-    # And the commit point that keeps the physician path whole.
-    assert "countryOfLicensure: country" in _strip_tsx_comments(_WIZARD)
+    # And the commit point that keeps the physician path whole. Anchored INSIDE
+    # submitStep1: a bare `"countryOfLicensure: country" in _WIZARD` is
+    # satisfied by `countryOfLicensure: countryFromStep1` in the resume
+    # hydration, so it matched a different line entirely and pinned nothing.
+    wizard = _strip_tsx_comments(_WIZARD)
+    commit = wizard[wizard.index("/api/onboarding/step1-identity"):][:2000]
+    assert "countryOfLicensure: country," in commit
 
 
 def test_a_missing_identifier_never_paints_the_input_border():

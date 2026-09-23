@@ -736,3 +736,42 @@ def test_an_invited_member_cannot_store_a_foreign_us_licence(http, _mail):
     saved = _saved_credentials(http, hs_id, member_email)
     assert not (saved.get("licenseState") or ""), "a member kept a US state under GB"
     assert not (saved.get("licenseNumber") or "")
+
+
+@pytest.mark.parametrize("bad", ["GBR", "G", "U1"])
+def test_a_malformed_country_in_the_blob_cannot_split_the_two_handlers(http, _mail, bad):
+    """The sanitiser and the verification step must agree on what a country
+    code IS, not merely on which fields to read.
+
+    `normalize_country` truncates and never checks for letters, so finish used
+    to resolve 'GBR' to GB while the sanitiser read it as malformed and left a
+    US state licence on the blob: a doctor the system had decided was British,
+    carrying a California licence. 'G' was worse, landing the country 'G' on
+    the user row. Both now read through `country_code`, so a malformed value is
+    US to both of them and the licence is consistently kept.
+    """
+    fresh_store()
+    email = f"dr-{uniq()}@hospital.example"
+    token, hs_id = _invite(http, email)
+    assert _step1(http, token, email).status_code == 200
+    _prove_mailbox(http, hs_id)
+
+    creds = dict(_GB_CREDS)
+    creds["countryOfLicensure"] = bad
+    creds["countryOfPractice"] = bad
+    assert http.post("/api/onboarding/asclepius/credentials",
+                     json={"token": token, "credentials": creds}).status_code == 200
+    assert http.post("/api/onboarding/asclepius/attestations",
+                     json={"token": token, "attestations": _ATTS}).status_code == 200
+    assert http.post("/api/onboarding/asclepius/finish",
+                     json={"token": token}).status_code == 200
+
+    user = http.app.state.asclepius_store.get_user_by_email(email)
+    stored = json.loads(user["credentials_json"] or "{}")
+    kept = bool(stored.get("licenseState") or "")
+    treated_as_us = (user["country_of_licensure"] or "US").upper() == "US"
+    assert kept == treated_as_us, (
+        f"{bad}: the blob and the registry disagree about who this doctor is "
+        f"(licence kept={kept}, treated as US={treated_as_us})")
+    # And no junk two-character country is recorded as a real one.
+    assert (user["country_of_licensure"] or "US").upper() == "US", bad

@@ -661,7 +661,12 @@ def test_picking_a_non_us_country_drops_the_state_on_screen_one():
     """
     screen1 = _STEPS[_STEPS.index("export function Step1NameEmail"):
                      _STEPS.index("export function Step2Verify")]
-    clearing = screen1[screen1.index("Where are you licensed?"):][:1600]
+    # Bounded by the end of the control rather than by a character count. The
+    # first version of this test counted characters and left thirty to spare,
+    # so one more comment line inside the onChange would have turned it red for
+    # a reason that has nothing to do with the behaviour.
+    start = screen1.index("Where are you licensed?")
+    clearing = screen1[start:screen1.index("options={countryOptions}", start)]
     assert 'licenseState: ""' in clearing
     assert 'licenseNumber: ""' in clearing
     assert 'next === "US"' in clearing
