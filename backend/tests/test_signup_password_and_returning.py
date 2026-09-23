@@ -32,6 +32,7 @@ address the caller may not control.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 
 import pytest
@@ -232,6 +233,89 @@ def test_screen_one_stores_a_hash_and_never_the_password(client, mail):
 
     # And no account exists yet. The mailbox is not proven until screen two.
     assert client.app.state.asclepius_store.get_user_by_email(email) is None
+
+
+@pytest.mark.parametrize("saved_review", [False, True])
+def test_international_selection_clears_a_saved_us_state_and_survives_reload(client, mail, saved_review, tmp_path):
+    fresh_store()
+    email = f"international-{uniq()}@example.org"
+    token, hs_id = _invite(client, email)
+    identity = {"token": token, "first_name": "Alex", "last_name": "Example", "email": email}
+    assert client.post("/api/onboarding/step1-identity", json={
+        **identity, "password": PW, "license_state": "CA"}).status_code == 200
+    ts = client.app.state.team_store
+    original_hash = ts.get_health_system_by_id(hs_id)["director_password_hash"]
+    original_credentials = {**CREDS, "cvManualFields": ["phone"],
+        "cvSuggestions": {"licenseState": "CA"}, "cvParseStage": "done",
+        "cvParsed": {"ok": True, "licenses": [{"state": "CA", "number": "A12345"}]}}
+    if saved_review:
+        ts.upsert_asclepius_person(hs_id, email=email, full_name="Alex Example",
+                                  clinical_role="physician", is_director=True)
+        ts.save_asclepius_credentials(hs_id, email, original_credentials)
+
+    from scripts.data_inventory import compare, snapshot
+    backup = tmp_path / "team-before.db"
+    with sqlite3.connect(ts.db_path) as source, sqlite3.connect(backup) as target:
+        source.backup(target)
+    before = snapshot(backup)
+
+    # Old clients and unrelated identity edits may omit this optional answer.
+    for extra in ({}, {"license_state": None}):
+        assert client.post("/api/onboarding/step1-identity", json={
+            **identity, **extra}).status_code == 200
+        assert ts.get_health_system_by_id(hs_id)["director_license_state"] == "CA"
+
+    # An explicit international answer clears the state, including on retry.
+    for _ in range(2):
+        assert client.post("/api/onboarding/step1-identity", json={
+            **identity, "license_state": ""}).status_code == 200
+        row = ts.get_health_system_by_id(hs_id)
+        assert row["director_license_state"] == ""
+        assert row["director_password_hash"] == original_hash
+        session = client.get(f"/api/onboarding/session?token={token}")
+        assert session.status_code == 200
+        assert session.json()["director_license_state"] == ""
+        assert session.json()["director_license_state_answered"] is True
+        if saved_review:
+            assert session.json()["director_credentials"] == {
+                **original_credentials, "licenseState": "", "cvManualFields": ["phone", "licenseState"]}
+
+    assert compare(before, snapshot(ts.db_path), allowed=(
+        "health_systems.director_license_state", "health_systems.director_password_set_at",
+        "asclepius_people.credentials_json", "asclepius_people.updated_at")) == []
+    restored = tmp_path / "team-restored.db"
+    with sqlite3.connect(backup) as source, sqlite3.connect(restored) as target:
+        source.backup(target)
+    assert compare(before, snapshot(restored)) == []
+
+    ts.create_otp_challenge(hs_id, email, "123456")
+    assert client.post("/api/onboarding/verify-otp", json={
+        "token": token, "code": "123456"}).status_code == 200
+    assert ts.get_health_system_by_id(hs_id)["onboarding_step"] == 2
+
+
+def test_invalid_saved_credentials_roll_back_an_identity_correction(client, mail):
+    fresh_store()
+    email = f"invalid-draft-{uniq()}@example.org"
+    token, hs_id = _invite(client, email)
+    identity = {"token": token, "first_name": "Alex", "last_name": "Example", "email": email}
+    assert client.post("/api/onboarding/step1-identity", json={
+        **identity, "password": PW, "license_state": "CA"}).status_code == 200
+    ts = client.app.state.team_store
+    ts.upsert_asclepius_person(hs_id, email=email, full_name="Alex Example",
+                              clinical_role="physician", is_director=True)
+    with ts._conn() as conn:
+        conn.execute("UPDATE asclepius_people SET credentials_json = ? WHERE health_system_id = ?",
+                     ('{"original":', hs_id))
+    with pytest.raises(json.JSONDecodeError):
+        ts.update_health_system_director_identity(hs_id, first_name="Changed", last_name="Example",
+                                                 email=email, license_state="")
+    row = ts.get_health_system_by_id(hs_id)
+    assert row["director_license_state"] == "CA"
+    assert row["director_first_name"] == "Alex"
+    with ts._conn() as conn:
+        assert conn.execute("SELECT credentials_json FROM asclepius_people WHERE health_system_id = ?",
+                            (hs_id,)).fetchone()[0] == '{"original":'
 
 
 def test_a_weak_password_is_refused_with_a_reason(client, mail):
@@ -618,7 +702,7 @@ def test_screen_one_asks_for_the_password_and_the_state():
 def test_the_state_field_is_optional_and_says_so():
     """A physician licensed outside the US has no answer, and a required field
     somebody cannot fill is a wall on the very first screen."""
-    assert 'placeholder="Outside the US"' in _STEPS
+    assert '{ value: "", label: "Outside the US" }' in _STEPS
     # Not in the validity expression.
     valid_block = _STEPS[_STEPS.index("const valid ="):][:400]
     assert "licenseState" not in valid_block

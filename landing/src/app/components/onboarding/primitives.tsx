@@ -619,6 +619,9 @@ export function SelectField({
 }) {
   const [focused, setFocused] = useState(false);
   const id = useId();
+  // An explicit empty-value option is an answer (e.g. no US licence),
+  // not a placeholder. Do not shadow it with a disabled duplicate.
+  const hasEmptyOption = options.some((opt) => opt.value === "");
   return (
     <div style={{ marginBottom: 20 }}>
       {label && (
@@ -648,7 +651,7 @@ export function SelectField({
             background: "transparent",
             border: "none",
             outline: "none",
-            color: value ? "var(--ink)" : "var(--ink-faint)",
+            color: value || hasEmptyOption ? "var(--ink)" : "var(--ink-faint)",
             fontSize: 15,
             padding: "13px 0",
             fontFamily: "inherit",
@@ -657,9 +660,11 @@ export function SelectField({
             paddingRight: 32,
           }}
         >
-          <option value="" disabled>
-            {placeholder || "Select…"}
-          </option>
+          {!hasEmptyOption && (
+            <option value="" disabled>
+              {placeholder || "Select…"}
+            </option>
+          )}
           {options.map((opt) => (
             <option
               key={opt.value}

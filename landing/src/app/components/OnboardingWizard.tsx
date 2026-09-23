@@ -632,8 +632,11 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       // so the same fact is not asked for twice. Never over a value the
       // physician already has there: the same rule applyCvParse follows.
       const fromStep1 = (d.director_license_state ?? "").trim();
-      const restored = fromStep1 && !base.licenseState
-        ? { ...base, licenseState: fromStep1 }
+      const hasSavedState = Object.prototype.hasOwnProperty.call(d.director_credentials || {}, "licenseState");
+      const answeredOnStep1 = d.director_license_state_answered || !!fromStep1;
+      const restored = answeredOnStep1 && !hasSavedState
+        ? { ...base, licenseState: fromStep1,
+            cvManualFields: [...new Set([...(base.cvManualFields || []), "licenseState"])] }
         : base;
       // Upload results live separately from the form until Review is saved.
       // A reload must restore those suggestions while retaining manual edits.
@@ -849,7 +852,11 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     }
     // Drop the plaintext the instant it is spent. It lived in React state for
     // one screen and it does not need to outlive the request.
-    setDataState((d) => ({ ...d, password: "", passwordSet: true }));
+    setDataState((d) => ({
+      ...d, password: "", passwordSet: true,
+      credentials: { ...d.credentials,
+        cvManualFields: [...new Set([...(d.credentials.cvManualFields || []), "licenseState"])] },
+    }));
     setStep("verify");
     return true;
   }, [token, data.firstName, data.lastName, data.email, data.password,

@@ -219,6 +219,25 @@ test("a country select is not replaced by its own change event", async () => {
   assert.ok(select === document.querySelector("select"), "the select was replaced");
 });
 
+test("a UK physician can select their country without being asked for a US NPI", async () => {
+  await setup({ credentials: { countryOfPractice: "US", countryOfLicensure: "US", licenseState: "" } });
+  const practice = [...document.querySelectorAll("select")]
+    .find(el => accessibleName(el) === "Where do you practise?");
+  assert.ok(practice);
+  const placeholder = [...practice.options].filter(o => o.value === "");
+  assert.equal(placeholder.length, 1);
+  assert.equal(placeholder[0].disabled, true, "unanswered country must remain a placeholder");
+  await act(async () => {
+    practice.value = "GB";
+    practice.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  assert.equal(ctrl.data.credentials.countryOfPractice, "GB");
+  assert.equal(ctrl.data.credentials.countryOfLicensure, "GB");
+  const names = [...document.querySelectorAll("input")].map(accessibleName);
+  assert.ok(!names.some(name => /NPI/i.test(name)), "UK licensure must not ask for a US NPI");
+  assert.ok(names.some(name => /registration/i.test(name)), "UK licensure needs a registration field");
+});
+
 // ── 2. A toggle does not tear down the section around it ────────────────────
 
 test("pressing residency Yes does not replace the button under the pointer", async () => {

@@ -727,12 +727,18 @@ export function Step1NameEmail({
         <div style={{ marginTop: 18 }}>
           <SelectField
             label="State you are licensed in"
-            placeholder="Outside the US"
+            optional
             value={data.credentials.licenseState}
             onChange={(v) =>
-              setData({ credentials: { ...data.credentials, licenseState: v } })
+              setData({
+                credentials: {
+                  ...data.credentials, licenseState: v,
+                  cvManualFields: [...new Set([...(data.credentials.cvManualFields || []), "licenseState"])],
+                },
+                cvAutofilled: data.cvAutofilled.filter((key) => key !== "licenseState"),
+              })
             }
-            options={US_STATES}
+            options={[{ value: "", label: "Outside the US" }, ...US_STATES]}
           />
         </div>
       )}

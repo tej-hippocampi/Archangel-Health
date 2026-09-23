@@ -1367,8 +1367,32 @@ class TeamStore:
         arguments default to None and are COALESCE'd, because screen 1 is
         re-submittable (a physician who corrects their email re-posts the whole
         screen) and a resubmit that omits a field must not blank it.
+        An explicit empty ``license_state`` is the "Outside the US" answer
+        and must clear an earlier US state.
         """
+        state = license_state.strip().upper()[:2] if license_state is not None else None
         with self._conn() as conn:
+            # Keep the identity answer and any existing review draft atomic.
+            # A CV worker may be updating other credential keys concurrently.
+            conn.execute("BEGIN IMMEDIATE")
+            if state is not None:
+                people = conn.execute(
+                    "SELECT id, credentials_json FROM asclepius_people "
+                    "WHERE health_system_id = ? AND is_director = 1", (hs_id,),
+                ).fetchall()
+                for person in people:
+                    credentials = json.loads(person["credentials_json"] or "{}")
+                    if not isinstance(credentials, dict):
+                        raise ValueError("Director credentials must be an object")
+                    manual = credentials.get("cvManualFields", [])
+                    if not isinstance(manual, list):
+                        raise ValueError("Manual credential fields must be a list")
+                    credentials["licenseState"] = state
+                    credentials["cvManualFields"] = list(dict.fromkeys([*manual, "licenseState"]))
+                    conn.execute(
+                        "UPDATE asclepius_people SET credentials_json = ?, updated_at = ? WHERE id = ?",
+                        (json.dumps(credentials), _utcnow_iso(), person["id"]),
+                    )
             conn.execute(
                 """
                 UPDATE health_systems SET
@@ -1376,7 +1400,7 @@ class TeamStore:
                     director_password_hash = COALESCE(?, director_password_hash),
                     director_password_set_at = CASE
                         WHEN ? IS NOT NULL THEN ? ELSE director_password_set_at END,
-                    director_license_state = COALESCE(NULLIF(?, ''), director_license_state),
+                    director_license_state = COALESCE(?, director_license_state),
                     -- Mailbox proof belongs to the address that received the OTP.
                     onboarding_step = CASE
                         WHEN lower(trim(COALESCE(director_email, ''))) <> ? THEN 1
@@ -1387,7 +1411,7 @@ class TeamStore:
                     first_name.strip(), last_name.strip(), email.lower().strip(),
                     password_hash,
                     password_hash, _utcnow_iso(),
-                    (license_state or "").strip().upper()[:2],
+                    state,
                     email.lower().strip(),
                     hs_id,
                 ),
