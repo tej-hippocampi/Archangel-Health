@@ -610,18 +610,49 @@ def test_screen_one_asks_for_the_password_and_the_state():
     assert "Choose a password" in _STEPS
     assert "Confirm password" in _STEPS
     assert "State you are licensed in" in _STEPS
+    assert "Where are you licensed?" in _STEPS
     # And it gates Continue on it, or the field is decoration.
     assert "const pwOk = !needsPassword || passwordValid(" in _STEPS
     assert "pwOk &&" in _STEPS
 
 
-def test_the_state_field_is_optional_and_says_so():
-    """A physician licensed outside the US has no answer, and a required field
-    somebody cannot fill is a wall on the very first screen."""
-    assert 'placeholder="Outside the US"' in _STEPS
-    # Not in the validity expression.
+def test_screen_one_asks_which_country_before_which_state():
+    """The dead end this replaced: "Outside the US" was passed as the select's
+    PLACEHOLDER, and SelectField renders every placeholder disabled. So the one
+    honest answer a doctor outside the US had was the only option they could not
+    click. A GMC-registered consultant reported exactly that and stopped there.
+
+    The country question replaces it, and it comes FIRST because it is what
+    decides whether a US state is a sensible thing to ask for at all.
+    """
+    assert 'placeholder="Outside the US"' not in _STEPS
+    screen1 = _STEPS[_STEPS.index("export function Step1NameEmail"):
+                     _STEPS.index("export function Step2Verify")]
+    assert "Where are you licensed?" in screen1
+    assert "State you are licensed in" in screen1
+    assert screen1.index("Where are you licensed?") < screen1.index(
+        "State you are licensed in"), "the country must be asked before the state"
+    # The state picker exists only for a US answer...
+    assert "{licensedInUS && (" in screen1
+    # ...and says out loud that it does not block.
+    state_block = screen1[screen1.index("State you are licensed in"):][:400]
+    assert "optional" in state_block
+
+
+def test_neither_the_country_nor_the_state_can_gate_continue():
+    """Screen 1 gates only on what an account needs. A pre-filled select that
+    blocks Continue is a dead button with no explanation on the page."""
     valid_block = _STEPS[_STEPS.index("const valid ="):][:400]
     assert "licenseState" not in valid_block
+    assert "countryOfLicensure" not in valid_block
+
+
+def test_picking_a_non_us_country_drops_the_state_on_screen_one():
+    """A stale 'CA' left behind by someone who corrected their country ships to
+    buyers as `state_licensed: true` plus a US medical-board lookup handle."""
+    screen1 = _STEPS[_STEPS.index("export function Step1NameEmail"):
+                     _STEPS.index("export function Step2Verify")]
+    assert 'licenseState: next === "US" ? data.credentials.licenseState : ""' in screen1
 
 
 def test_the_password_policy_has_exactly_one_definition():
@@ -637,8 +668,13 @@ def test_the_wizard_sends_the_password_once_and_then_forgets_it():
     body = _WIZARD[_WIZARD.index("/api/onboarding/step1-identity"):][:900]
     assert "password: data.password || undefined" in body
     assert "license_state:" in body
+    assert "country_of_licensure: country" in body
     # Cleared the moment it is spent: it lived in React state for one screen.
-    assert 'password: "", passwordSet: true' in _WIZARD
+    # Matched field by field rather than as one literal line, because the commit
+    # that clears it also commits the country and so spans several lines now.
+    commit = _WIZARD[_WIZARD.index("/api/onboarding/step1-identity"):][:2000]
+    assert 'password: ""' in commit
+    assert "passwordSet: true" in commit
 
 
 def test_the_wizard_never_stores_a_password_anywhere_durable():

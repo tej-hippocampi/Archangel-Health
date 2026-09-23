@@ -84,6 +84,25 @@ def test_the_identifier_marker_moves_when_no_country_has_been_chosen():
     assert 'if (!ctx.countrySet) return { key: "countryOfLicensure"' in _MODEL
 
 
+def test_nothing_seeds_a_country_so_the_guard_above_can_actually_fire():
+    """The guard above was DEAD CODE for as long as it has existed.
+
+    emptyCredentials seeded countryOfLicensure: "US" and nothing anywhere ever
+    set it back to "", so `countrySet` was unconditionally true and the Riyadh
+    case it was written for could not be reached. Asserting the guard's source
+    line, as the test above does, proved only that somebody had typed it.
+
+    Screen 1 now commits a real answer on Continue, so the physician path still
+    arrives at Review with a country. Member mode skips screen 1 entirely and
+    legitimately arrives without one, which is where the guard earns its keep.
+    """
+    empty = _STEPS_CODE[_STEPS_CODE.index("export function emptyCredentials"):][:1400]
+    assert 'countryOfLicensure: ""' in empty
+    assert 'countryOfLicensure: "US"' not in empty
+    # And the commit point that keeps the physician path whole.
+    assert "countryOfLicensure: country" in _strip_tsx_comments(_WIZARD)
+
+
 def test_a_missing_identifier_never_paints_the_input_border():
     """Pink on the border already means a malformed value. Teaching a physician
     that missing and wrong look identical teaches them to ignore both."""

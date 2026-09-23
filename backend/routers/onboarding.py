@@ -263,7 +263,17 @@ class Step1Body(OnboardTokenBody):
     password: Optional[str] = Field(default=None, min_length=1, max_length=200)
     #: Two-letter US state. Optional because a physician licensed outside the US
     #: has no answer to give, and a required field they cannot fill is a wall.
+    #: Ignored entirely when ``country_of_licensure`` says they are not in the
+    #: US; see the handler. There is no sentinel meaning "elsewhere".
     license_state: str = Field(default="", max_length=2)
+    #: ISO-3166 alpha-2, e.g. "GB". Asked on screen 1 ahead of the state,
+    #: because it decides whether a state is a sensible question at all.
+    #:
+    #: Optional on the wire for the same reason ``password`` is: a browser
+    #: holding the previous SPA bundle posts the old body, and 400ing that
+    #: would break signup for everyone mid-deploy. Absent means US, which is
+    #: what every row written before this field existed is.
+    country_of_licensure: str = Field(default="", max_length=2)
 
 
 class VerifyOtpBody(OnboardTokenBody):
@@ -396,6 +406,8 @@ def _hydrate_session_fields(ts: Any, row: Dict[str, Any]) -> Dict[str, Any]:
         # whether to ask again, which is what a resumed session is deciding.
         "director_password_set": bool(_director_password_hash(row)),
         "director_license_state": (row.get("director_license_state") or "").strip(),
+        "director_country_of_licensure":
+            (row.get("director_country_of_licensure") or "").strip(),
         "team_members": members,
     }
     if product == "asclepius":
@@ -786,13 +798,27 @@ async def step1_identity(body: Step1Body, request: Request):
         pw_hash = await run_in_threadpool(ts.hash_team_password, body.password)
 
     previous_email = (row.get("director_email") or "").strip()
+    # Normalise through the registry's own resolver so this endpoint cannot
+    # drift from the country list in asclepius/registry/config.py. Unknown codes
+    # are ACCEPTED, not rejected: for_country falls back to DEFAULT_REGISTRY
+    # carrying the code, and a whitelist here would rebuild the very dead end
+    # this change exists to remove for the first doctor from a country nobody
+    # has configured yet.
+    from asclepius.registry import config as registry_config
+    licensure_country = registry_config.normalize_country(body.country_of_licensure)
+    # A US state is meaningless once the country is not the US, and a cached tab
+    # running the previous bundle will still post one. Drop it here rather than
+    # trusting the client: anything non-empty in that column is read downstream
+    # as a real US licence and shipped to buyers as `state_licensed: true`.
+    license_state = body.license_state if licensure_country in ("", "US") else ""
     ts.update_health_system_director_identity(
         row["id"],
         first_name=body.first_name,
         last_name=body.last_name,
         email=str(body.email),
         password_hash=pw_hash,
-        license_state=body.license_state,
+        license_state=license_state,
+        country_of_licensure=licensure_country,
     )
     # Referral attribution is keyed on the address the invite was addressed to,
     # and this screen is where that address can change: someone opens a

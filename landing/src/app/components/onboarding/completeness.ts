@@ -166,8 +166,15 @@ export function reviewSections(
       : f("registrationNumber", ctx.registryName || "Registration number", c.registrationNumber),
     f("degree", "Degree", c.degree),
     f("phone", "Your mobile number", c.phone),
-    f("licenseNumber", "Licence number", c.licenseNumber),
-    f("licenseState", "Licence state", c.licenseState),
+    // US only, and the form hides both for everyone else. `licenseNumber` is
+    // weighted `recommended`, so it is COUNTED in the section total — listing
+    // it for a UK consultant who is never shown the field would put a field in
+    // the denominator that cannot be filled, and the section would read "4 of
+    // 5" forever.
+    ...(ctx.isUS ? [
+      f("licenseNumber", "Licence number", c.licenseNumber),
+      f("licenseState", "Licence state", c.licenseState),
+    ] : []),
   ];
 
   return [

@@ -632,9 +632,20 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       // so the same fact is not asked for twice. Never over a value the
       // physician already has there: the same rule applyCvParse follows.
       const fromStep1 = (d.director_license_state ?? "").trim();
-      const restored = fromStep1 && !base.licenseState
-        ? { ...base, licenseState: fromStep1 }
-        : base;
+      const countryFromStep1 = (d.director_country_of_licensure ?? "").trim().toUpperCase();
+      // Same rule for both: fill a blank, never write over an answer the
+      // physician already gave on a later screen. Without the country line a
+      // doctor who said "GB" on screen 1 and then reloaded came back to a form
+      // that had forgotten it, and `isUS` would quietly call them American.
+      const restored = {
+        ...base,
+        ...(fromStep1 && !base.licenseState ? { licenseState: fromStep1 } : {}),
+        ...(countryFromStep1 && !base.countryOfLicensure ? {
+          countryOfLicensure: countryFromStep1,
+          countryOfPractice: base.countryOfPractice || countryFromStep1,
+          countryOfDegree: base.countryOfDegree || countryFromStep1,
+        } : {}),
+      };
       // Upload results live separately from the form until Review is saved.
       // A reload must restore those suggestions while retaining manual edits.
       if (cvBlock.stage === "done" || cvBlock.stage === "failed") {
@@ -828,6 +839,13 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
   // ─────────────────────────────────────────
   const submitStep1 = useCallback(async () => {
     setStepError("");
+    // Screen 1 SHOWS this select pre-filled with the US, so a physician who
+    // never touches it has still been shown the answer and accepted it. Reading
+    // the same `|| "US"` the screen renders turns that acceptance into a real
+    // stored answer, which is what lets emptyCredentials seed "" and makes the
+    // `countrySet` guard in completeness.ts reachable for the flows (member
+    // mode) that genuinely never ask.
+    const country = (data.credentials.countryOfLicensure || "US").toUpperCase();
     const r = await api("/api/onboarding/step1-identity", {
       method: "POST",
       body: JSON.stringify({
@@ -839,7 +857,10 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         // and stores only the hash; `undefined` when the physician already set
         // one on an earlier visit, so a resumed session cannot blank it.
         password: data.password || undefined,
-        license_state: data.credentials.licenseState || "",
+        country_of_licensure: country,
+        // Never send a US state alongside a non-US country. The server drops it
+        // too, because an older bundle in a cached tab will still post one.
+        license_state: country === "US" ? (data.credentials.licenseState || "") : "",
       }),
     });
     const body = await readResponseJson(r);
@@ -848,12 +869,24 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       return false;
     }
     // Drop the plaintext the instant it is spent. It lived in React state for
-    // one screen and it does not need to outlive the request.
-    setDataState((d) => ({ ...d, password: "", passwordSet: true }));
+    // one screen and it does not need to outlive the request. The country is
+    // committed in the same breath: one screen, one commit point.
+    setDataState((d) => ({
+      ...d,
+      password: "",
+      passwordSet: true,
+      credentials: {
+        ...d.credentials,
+        countryOfLicensure: country,
+        countryOfPractice: d.credentials.countryOfPractice || country,
+        countryOfDegree: d.credentials.countryOfDegree || country,
+        licenseState: country === "US" ? d.credentials.licenseState : "",
+      },
+    }));
     setStep("verify");
     return true;
   }, [token, data.firstName, data.lastName, data.email, data.password,
-      data.credentials.licenseState]);
+      data.credentials.licenseState, data.credentials.countryOfLicensure]);
 
   const sendOtp = useCallback(async () => {
     setStepError("");

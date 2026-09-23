@@ -9,11 +9,42 @@ disagreed.
 
 ## How it works now
 
-The form asks where you practise and where you are licensed — separately,
-because they routinely differ — and the answer decides what it asks next.
+The form asks where you practise and where you are licensed, separately,
+because they routinely differ, and the answer decides what it asks next.
 US signups see exactly what they saw before. Everyone else gets their own
 registry's field, labelled the way their regulator labels it, plus whatever
 that registry needs before it will answer.
+
+**Where the country is asked: screen 1, ahead of everything that branches on
+it.** This used to be a Review-screen question, two steps in, while screen 1
+offered a US state picker whose placeholder read "Outside the US". A
+placeholder renders as a disabled option, so the one honest answer a doctor
+outside the US had was the only entry they could not select. A GMC-registered
+consultant reported exactly that and did not finish. The state picker now
+appears only once the country answer is `US`.
+
+`landing/.../onboarding/steps.tsx` seeds the country fields EMPTY and
+`submitStep1` commits the answer the screen displayed. Do not restore a `"US"`
+seed: `countrySet` in `completeness.ts` distinguishes "answered US" from "never
+asked", and a seed makes that check unconditionally true, which silently
+reintroduces the red NPI marker for a physician who can never hold one.
+
+## How a non-US licence is stored
+
+`license_state` is **empty** for a doctor licensed outside the US, and there is
+**no sentinel** value meaning "elsewhere". The column is two characters wide,
+so `INTL` would be truncated to `IN` and claim registration in India. More
+importantly, `asclepius/credentials.py` turns any non-empty state into
+`state_licensed: true` in the block shipped to buyers, and into a US
+medical-board lookup handle offered as independent proof. A sentinel there is a
+false claim in the product itself.
+
+The positive fact lives in `country_of_licensure` (ISO alpha-2). Correcting the
+country to a non-US one clears any state already stored, which is the single
+exception to screen 1's rule that a resubmit never blanks a field.
+
+A blank country still reads as US on the way out, because that is what every
+row written before the column existed actually is.
 
 `backend/asclepius/registry/config.py` is one entry per country: the
 identifier's name, who issues it, its shape, what else the lookup needs, and

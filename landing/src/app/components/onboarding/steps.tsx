@@ -309,12 +309,18 @@ export function emptyCredentials(fullLegalName = ""): Credentials {
     healthSystem: "",
     cvFilename: "",
     npi: "",
-    // Defaults to the US so the form opens exactly as it always has for the
-    // doctors who are most of the traffic; changing the country is what opens
-    // the rest of the world's fields.
-    countryOfPractice: "US",
-    countryOfLicensure: "US",
-    countryOfDegree: "US",
+    // EMPTY, deliberately. These used to be seeded "US", and because nothing
+    // ever set them back to "", `countrySet` in completeness.ts was always true
+    // and the guard it feeds could never fire — so a consultant who had not yet
+    // picked a country was shown a red marker on an NPI they can never hold,
+    // which is the exact case that guard was written to prevent.
+    //
+    // Screen 1 commits a real answer on Continue (see submitStep1 in
+    // OnboardingWizard.tsx), so the physician path still reaches Review with a
+    // country. Member mode skips screen 1 and legitimately arrives with none.
+    countryOfPractice: "",
+    countryOfLicensure: "",
+    countryOfDegree: "",
     registrationNumber: "",
     registryExtras: {},
     qualification: "",
@@ -425,9 +431,10 @@ export function PasswordChecklist({ pw, confirm, email }: {
    knows it without looking, and it prefills the licence block on the Review
    screen so the same fact is not asked for twice.
 
-   "Outside the US" is a first-class answer, not an omission. This field is
-   OPTIONAL: a physician licensed elsewhere has nothing to type here, and a
-   required field somebody cannot fill is a wall on the first screen. */
+   This list answers "which state", never "which country". The country question
+   sits beside it on screen 1 and owns that answer, and this picker only renders
+   once that answer is the US. The field stays OPTIONAL even then: plenty of
+   physicians hold licences in several states, and `valid` never reads it. */
 export const US_STATES: { value: string; label: string }[] = [
   ["AL", "Alabama"], ["AK", "Alaska"], ["AZ", "Arizona"], ["AR", "Arkansas"],
   ["CA", "California"], ["CO", "Colorado"], ["CT", "Connecticut"], ["DE", "Delaware"],
@@ -619,6 +626,26 @@ export function Step1NameEmail({
   const needsPassword = isAsclepius && kind === "physician" && !data.passwordSet;
   const pwOk = !needsPassword || passwordValid(data.password, confirmPw, data.email);
 
+  /* WHERE they are licensed, asked here on screen 1, because the answer decides
+     what every later screen is allowed to ask for: an NPI or a national
+     registration number, a US state or nothing at all.
+
+     It used to be asked on the Review screen, two steps further in, while this
+     screen offered "Outside the US" as the select's PLACEHOLDER — which renders
+     disabled. So the one honest answer a doctor outside the US had was the only
+     option they could not click, and a GMC-registered consultant told us they
+     stopped there. The country question has an answer for everyone.
+
+     Pre-filled with the US, which is most of the traffic, so a US physician
+     sees one more select already reading the right answer rather than one more
+     question to work out. It does not gate Continue; see `valid` above. */
+  const credentialCfg = useCredentialConfig();
+  const licensureCountry = (data.credentials.countryOfLicensure || "US").toUpperCase();
+  const licensedInUS = licensureCountry === "US";
+  const countryOptions = credentialCfg.countries.map((x) => ({
+    value: x.country, label: x.country_name,
+  }));
+
   const valid =
     data.firstName.trim().length > 0 &&
     data.lastName.trim().length > 0 &&
@@ -725,15 +752,43 @@ export function Step1NameEmail({
 
       {isAsclepius && kind === "physician" && (
         <div style={{ marginTop: 18 }}>
-          <SelectField
-            label="State you are licensed in"
-            placeholder="Outside the US"
-            value={data.credentials.licenseState}
-            onChange={(v) =>
-              setData({ credentials: { ...data.credentials, licenseState: v } })
-            }
-            options={US_STATES}
-          />
+          <div style={TWO_COL}>
+            <SelectField
+              label="Where are you licensed?"
+              value={licensureCountry}
+              onChange={(v) => {
+                const next = (v || "").toUpperCase();
+                setData({
+                  credentials: {
+                    ...data.credentials,
+                    countryOfLicensure: next,
+                    // Licensed where you practise is the common case. The
+                    // Review screen keeps separate controls for everyone else,
+                    // so this only fills a blank, never overwrites an answer.
+                    countryOfPractice: data.credentials.countryOfPractice || next,
+                    countryOfDegree: data.credentials.countryOfDegree || next,
+                    // A US state means nothing once the answer is not the US,
+                    // and a stale one ships as `state_licensed: true` in the
+                    // buyer-facing credential block. See credentials.py.
+                    licenseState: next === "US" ? data.credentials.licenseState : "",
+                  },
+                });
+              }}
+              options={countryOptions}
+            />
+            {licensedInUS && (
+              <SelectField
+                label="State you are licensed in"
+                placeholder="Select your state"
+                optional
+                value={data.credentials.licenseState}
+                onChange={(v) =>
+                  setData({ credentials: { ...data.credentials, licenseState: v } })
+                }
+                options={US_STATES}
+              />
+            )}
+          </div>
         </div>
       )}
 
@@ -2893,21 +2948,30 @@ export function Step5Credentials({
         title="Licence & practice"
         sub="What we verify. Nothing here is scored by seniority."
       />
-      <div style={TWO_COL}>
-        <TextField
-          label={lbl("licenseNumber", "State licence number")}
-          placeholder="MD-99881"
-          value={c.licenseNumber}
-          onChange={(v) => set({ licenseNumber: v })}
-          hint="Cross-checked against your NPPES record."
-        />
-        <TextField
-          label={lbl("licenseState", "Licence state")}
-          placeholder="MA"
-          value={c.licenseState}
-          onChange={(v) => set({ licenseState: v.toUpperCase().slice(0, 2) })}
-        />
-      </div>
+      {/* US ONLY. A state licence number cross-checked against NPPES, and a
+          two-letter state, are both questions a doctor licensed elsewhere
+          cannot answer — this pair was the screen-1 dead end repeating itself
+          one screen later, down to the "MA" placeholder. A non-US physician's
+          licence is their national registration number, asked above.
+          completeness.ts drops the same two fields so the "n of m" count on
+          this section agrees with what is actually on screen. */}
+      {isUS && (
+        <div style={TWO_COL}>
+          <TextField
+            label={lbl("licenseNumber", "State licence number")}
+            placeholder="MD-99881"
+            value={c.licenseNumber}
+            onChange={(v) => set({ licenseNumber: v })}
+            hint="Cross-checked against your NPPES record."
+          />
+          <TextField
+            label={lbl("licenseState", "Licence state")}
+            placeholder="MA"
+            value={c.licenseState}
+            onChange={(v) => set({ licenseState: v.toUpperCase().slice(0, 2) })}
+          />
+        </div>
+      )}
 
       {(c.additionalLicenses || []).map((license, index) => (
         <RepeatableCard key={license.rowId || `legacy-license-${index}`} removable removeLabel="Remove additional licence" onRemove={() => set({additionalLicenses: c.additionalLicenses!.filter((_, i) => i !== index)})}>

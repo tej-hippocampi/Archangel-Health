@@ -64,6 +64,18 @@ def _utcnow_iso() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
+def _country_code(raw: Optional[str]) -> str:
+    """An ISO-3166 alpha-2 country code, or "" when nothing usable was given.
+
+    Two characters, upper-cased, letters only. The width is not arbitrary: the
+    caller compares the result against 'US' in SQL, and a value that arrived
+    longer would be truncated rather than rejected, which is how 'INTL' would
+    silently become 'IN' and claim a physician is registered in India.
+    """
+    code = (raw or "").strip().upper()
+    return code if len(code) == 2 and code.isalpha() else ""
+
+
 # ─── Shared team.db connection ───────────────────────────────────────────────
 # team.db is opened from seven places: this store, audit/audit_log, gold/store,
 # token_revocation, patient_session, main._clear_demo_sqlite_rows and
@@ -829,6 +841,13 @@ class TeamStore:
             self._add_column_if_missing(conn, "health_systems", "director_password_hash", "TEXT")
             self._add_column_if_missing(conn, "health_systems", "director_password_set_at", "TEXT")
             self._add_column_if_missing(conn, "health_systems", "director_license_state", "TEXT")
+            # Screen 1 asks WHERE a physician is licensed before it asks which
+            # US state, because the country decides whether a state is even a
+            # sensible question. Nullable with no backfill on purpose: NULL
+            # reads as "" and every consumer defaults to US, which is what the
+            # rows written before this column existed actually are.
+            self._add_column_if_missing(
+                conn, "health_systems", "director_country_of_licensure", "TEXT")
             # Set when the self-serve door recognised an address that already
             # holds an account. An explicit column rather than pre-burning the
             # nudge stamps: a stamp says "already sent", which would be a lie,
@@ -1359,6 +1378,7 @@ class TeamStore:
         email: str,
         password_hash: Optional[str] = None,
         license_state: Optional[str] = None,
+        country_of_licensure: Optional[str] = None,
     ) -> None:
         """Screen 1 of the wizard, and the /join prefill, write through here.
 
@@ -1367,6 +1387,18 @@ class TeamStore:
         arguments default to None and are COALESCE'd, because screen 1 is
         re-submittable (a physician who corrects their email re-posts the whole
         screen) and a resubmit that omits a field must not blank it.
+
+        ``license_state`` is the ONE exception to that COALESCE rule, and it has
+        to be. A physician who picks California, then corrects the country to
+        GB, would otherwise leave 'CA' stuck on the row forever, and
+        ``asclepius/credentials.py`` turns any non-empty state into
+        ``state_licensed: true`` plus a US medical-board lookup handle in the
+        block we ship to buyers. So a non-US country clears the state outright.
+        A US or absent country keeps the old COALESCE behaviour untouched.
+
+        There is deliberately NO sentinel state meaning "outside the US": the
+        column is two characters wide, and anything non-empty in it is read
+        downstream as a real US licence.
         """
         with self._conn() as conn:
             conn.execute(
@@ -1376,7 +1408,13 @@ class TeamStore:
                     director_password_hash = COALESCE(?, director_password_hash),
                     director_password_set_at = CASE
                         WHEN ? IS NOT NULL THEN ? ELSE director_password_set_at END,
-                    director_license_state = COALESCE(NULLIF(?, ''), director_license_state),
+                    director_country_of_licensure =
+                        COALESCE(NULLIF(?, ''), director_country_of_licensure),
+                    -- Cleared outright when the country is not the US; see the
+                    -- docstring. A US or absent country takes the old branch.
+                    director_license_state = CASE
+                        WHEN ? NOT IN ('', 'US') THEN ''
+                        ELSE COALESCE(NULLIF(?, ''), director_license_state) END,
                     -- Mailbox proof belongs to the address that received the OTP.
                     onboarding_step = CASE
                         WHEN lower(trim(COALESCE(director_email, ''))) <> ? THEN 1
@@ -1387,6 +1425,8 @@ class TeamStore:
                     first_name.strip(), last_name.strip(), email.lower().strip(),
                     password_hash,
                     password_hash, _utcnow_iso(),
+                    _country_code(country_of_licensure),
+                    _country_code(country_of_licensure),
                     (license_state or "").strip().upper()[:2],
                     email.lower().strip(),
                     hs_id,

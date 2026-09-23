@@ -346,3 +346,206 @@ def test_the_admin_physician_profile_returns_the_credentials_blob():
     assert body["attestations"]["signedInitials"] == "AP"
     assert body["physician"]["registry_name"]
     assert body["physician"]["country_of_licensure"] == "IN"
+
+
+# ── Screen one, which is where the door was actually shut ────────────────────
+#
+# Everything above this line tests verification: what happens to a non-US doctor
+# once their credentials reach the backend. None of it ran for the physician who
+# reported the bug, because they never got past the first screen.
+#
+# "Outside the US" was passed to the state picker as its PLACEHOLDER, and
+# SelectField renders every placeholder as a disabled option. The one honest
+# answer a GMC-registered consultant had was the only entry they could not
+# click, so they stopped and wrote to us. The country is now asked on screen 1,
+# ahead of the state, and these tests hold that door open.
+
+import sqlite3  # noqa: E402
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from tests._asclepius import app, uniq  # noqa: E402
+
+_PW = "correct-horse-battery-1"
+
+_GB_CREDS = {
+    "fullLegalName": "Dr Eleanor Whitfield",
+    "countryOfPractice": "GB",
+    "countryOfLicensure": "GB",
+    "countryOfDegree": "GB",
+    "registrationNumber": "1234567",
+    "qualification": "MBChB",
+    "degree": "MBChB",
+    "primarySpecialty": "Nephrology",
+    "phone": "7700900123",
+    "currentlyActive": True,
+    "residencyCompleted": True,
+    "practiceStatus": "active",
+}
+_ATTS = {
+    "consentCredentialShare": True, "attestIndependentJudgment": True,
+    "ipAssignment": True, "noPhi": True, "attestConfidentiality": True,
+    "attestNoDisciplinaryAction": True, "attestWorkQuality": True,
+    "signedInitials": "EW",
+}
+
+
+@pytest.fixture()
+def http():
+    with TestClient(app) as c:
+        yield c
+
+
+@pytest.fixture()
+def _mail(monkeypatch):
+    sent = []
+    monkeypatch.setattr(onboarding_module, "_email_configured", lambda: True)
+
+    async def _capture(to, subject, body, **kw):
+        sent.append({"to": to, "subject": subject})
+        return True
+
+    monkeypatch.setattr(onboarding_module, "send_html_email", _capture)
+    return sent
+
+
+@pytest.fixture(autouse=True)
+def _no_real_nppes(monkeypatch):
+    monkeypatch.setattr(credentialing, "fetch_npi_record",
+                        lambda *a, **k: {"result": "unavailable", "reason": "test"})
+
+
+def _invite(http, email):
+    ts = http.app.state.team_store
+    invite = ts.create_health_system_invite(
+        invite_base_url="http://localhost:5173", director_email=email, product="asclepius")
+    return invite["onboarding_url"].rsplit("/", 1)[-1], invite["health_system_id"]
+
+
+def _prove_mailbox(http, hs_id):
+    ts = http.app.state.team_store
+    with sqlite3.connect(ts.db_path) as conn:
+        conn.execute("UPDATE health_systems SET onboarding_step = 2 WHERE id = ?", (hs_id,))
+        conn.commit()
+
+
+def _step1(http, token, email, **extra):
+    payload = {"token": token, "first_name": "Eleanor", "last_name": "Whitfield",
+               "email": email, "password": _PW}
+    payload.update(extra)
+    return http.post("/api/onboarding/step1-identity", json=payload)
+
+
+def test_a_uk_physician_completes_signup_end_to_end(http, _mail):
+    """The headline. This is the doctor who wrote to us, all the way through."""
+    fresh_store()
+    email = f"dr-{uniq()}@nhs-trust.example"
+    token, hs_id = _invite(http, email)
+
+    assert _step1(http, token, email, country_of_licensure="GB").status_code == 200
+    _prove_mailbox(http, hs_id)
+
+    assert http.post("/api/onboarding/asclepius/credentials",
+                     json={"token": token, "credentials": _GB_CREDS}).status_code == 200
+    assert http.post("/api/onboarding/asclepius/attestations",
+                     json={"token": token, "attestations": _ATTS}).status_code == 200
+    finish = http.post("/api/onboarding/asclepius/finish", json={"token": token})
+    assert finish.status_code == 200, finish.text
+
+    user = http.app.state.asclepius_store.get_user_by_email(email)
+    assert user is not None, "a UK doctor finished the form and got no application"
+    assert (user["country_of_licensure"] or "").upper() == "GB"
+    # Their GMC number is on the row, where a US doctor's NPI would be.
+    assert (user["registry_id"] or "") == "1234567"
+    assert not (user["npi"] or ""), "a UK consultant was given an NPI"
+    # GB verifies by DOCUMENT (config.py), so this waits for a human rather than
+    # being auto-rejected for failing a US lookup it was never eligible for.
+    assert user["registry_verified"] is None or user["registry_verified"] == 0
+    # And nothing in the stored credentials claims a US state licence, which is
+    # what credentials.py would ship to a buyer as `state_licensed: true`.
+    stored = json.loads(user["credentials_json"] or "{}")
+    assert not (stored.get("licenseState") or "")
+
+
+def test_screen_one_carries_the_country_into_a_resumed_session(http, _mail):
+    """A reload used to come back with the country forgotten, and `isUS`
+    silently calls a forgotten country American."""
+    fresh_store()
+    email = f"dr-{uniq()}@nhs-trust.example"
+    token, _ = _invite(http, email)
+    assert _step1(http, token, email, country_of_licensure="GB").status_code == 200
+
+    body = http.get(f"/api/onboarding/session?token={token}").json()
+    assert body["director_country_of_licensure"] == "GB"
+    assert body["director_license_state"] == ""
+
+
+def test_a_stale_client_cannot_pin_a_us_state_on_a_non_us_doctor(http, _mail):
+    """A cached tab running the previous bundle still posts a state. Anything
+    non-empty in that column ships to buyers as `state_licensed: true`."""
+    fresh_store()
+    email = f"dr-{uniq()}@nhs-trust.example"
+    token, hs_id = _invite(http, email)
+    assert _step1(http, token, email,
+                  country_of_licensure="GB", license_state="CA").status_code == 200
+
+    row = http.app.state.team_store.get_health_system_by_id(hs_id)
+    assert (row["director_license_state"] or "") == ""
+    assert (row["director_country_of_licensure"] or "") == "GB"
+
+
+def test_correcting_the_country_clears_a_state_already_stored(http, _mail):
+    """Screen 1 is re-submittable, and every other field on it is COALESCE'd so
+    a resubmit cannot blank it. The state is the one field that must clear:
+    otherwise a physician who picks California and then corrects the country to
+    GB leaves 'CA' on the row forever."""
+    fresh_store()
+    email = f"dr-{uniq()}@nhs-trust.example"
+    token, hs_id = _invite(http, email)
+
+    assert _step1(http, token, email,
+                  country_of_licensure="US", license_state="CA").status_code == 200
+    assert http.app.state.team_store.get_health_system_by_id(
+        hs_id)["director_license_state"] == "CA"
+
+    assert _step1(http, token, email, country_of_licensure="GB").status_code == 200
+    row = http.app.state.team_store.get_health_system_by_id(hs_id)
+    assert (row["director_license_state"] or "") == "", "the stale state stuck"
+    assert (row["director_country_of_licensure"] or "") == "GB"
+
+
+def test_an_unconfigured_country_is_accepted_rather_than_rejected(http, _mail):
+    """The dead end must not move. A whitelist here would shut the door on the
+    first doctor from a country nobody has configured yet, which is exactly the
+    failure this change exists to remove."""
+    fresh_store()
+    email = f"dr-{uniq()}@hospital.example"
+    token, hs_id = _invite(http, email)
+    assert _step1(http, token, email, country_of_licensure="ZW").status_code == 200
+    assert http.app.state.team_store.get_health_system_by_id(
+        hs_id)["director_country_of_licensure"] == "ZW"
+
+
+def test_the_us_path_is_unchanged_for_a_client_that_sends_no_country(http, _mail):
+    """The regression guard for most of the traffic, and for the deploy window
+    in which a browser is still running the previous bundle."""
+    fresh_store()
+    email = f"dr-{uniq()}@nephrology-associates.com"
+    token, hs_id = _invite(http, email)
+    # No country key at all, exactly as the old bundle posts it.
+    assert _step1(http, token, email, license_state="ca").status_code == 200
+
+    row = http.app.state.team_store.get_health_system_by_id(hs_id)
+    assert row["director_license_state"] == "CA", "the US state was not kept"
+    assert (row["director_country_of_licensure"] or "") == ""
+
+
+def test_the_form_carries_no_country_list_of_its_own():
+    """config.py is the single country list. The form's offline fallback builds
+    from countries.json and merges the server's answer over it, so a doctor is
+    never shown a one-country dropdown when the config fetch fails."""
+    import pathlib
+    steps = (pathlib.Path(__file__).resolve().parents[2] / "landing" / "src" / "app"
+             / "components" / "onboarding" / "steps.tsx").read_text(encoding="utf-8")
+    assert "CREDENTIAL_CONFIG_FALLBACK" in steps
+    assert "Object.entries(countryNames)" in steps

@@ -83,8 +83,13 @@ test("a temporary session failure retries the same link", async () => {
   await mount(Wizard, { token: "recovery-token" });
   const retry = [...document.querySelectorAll("button")].find(b => b.textContent === "Try again");
   await act(async () => retry.click());
-  assert.equal(calls.length, 2);
-  assert.equal(calls[0], calls[1]);
+  // Only the SESSION calls. Screen 1 also fetches the country list, which is a
+  // different endpoint on a different schedule, and the property under test is
+  // that the failed session load is retried with the same link — not that the
+  // wizard makes exactly two requests in total.
+  const sessions = calls.filter(u => String(u).includes("/api/onboarding/session"));
+  assert.equal(sessions.length, 2);
+  assert.equal(sessions[0], sessions[1]);
   assert.equal(document.querySelector('input[type="email"]').value, "doctor@aiimsjodhpur.edu.in");
   assert.doesNotMatch(document.body.textContent, /This onboarding link can't be loaded/);
 });
