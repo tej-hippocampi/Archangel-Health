@@ -92,7 +92,7 @@ and flag-gated legacy) instantiates `TeamStore()`, `AsclepiusStore()`, or
 - **Login** (`/auth/login`, `/hs/login`, provider/buyer logins, and every onboarding
   entry): reads header `X-Asclepius-Realm` (default `live`).
 - **Serving the sandbox UI:** add `/sandbox/asclepius`, `/sandbox/admin`,
-  `/sandbox/provider`, `/sandbox/buyer` aliases beside `main.py:2758`, `:7033`,
+  `/sandbox/provider`, `/sandbox/buyer` aliases beside `main.py:2762`, `:7033`,
   `:2825` (and the buyer route) that serve the identical HTML with
   `<script>window.__REALM='sandbox'</script>` injected. The SPA's `api()` helper
   sends the header from `window.__REALM` and keys `localStorage` tokens as

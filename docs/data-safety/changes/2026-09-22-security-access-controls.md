@@ -106,6 +106,23 @@ Release gates include the data-change guard, full applicable test suite,
 route-baseline diff, complete CI-shard discovery, PRD citation audit, dangling
 imports and whitespace. Source freeze and final gate evidence precede release.
 
+## PR review follow-up — 23 September 2026
+
+Roster-triggered pre-op outreach now returns immediately in the sandbox before
+creating a task or consuming the shared live throttle. Synthetic email/SMS
+controls confirm that sandbox reads send nothing and preserve send history,
+while live email delivery, SMS fallback and duplicate throttling still work.
+No recipient records, survey results, original sources or presentation changed.
+
+The optional link timing check used fixed A/B request order, which aligned
+periodic garbage collection with one account on both baseline and patched code.
+Independent balanced-order and same-account purpose-swap measurements isolated
+that harness artifact. The test now warms both clients and shuffles exactly
+500 A/B and 500 B/A pairs using a fixed seed. It retains 1,000 observations per
+variant and the existing absolute t-statistic threshold of 4.5, and additionally
+requires every response to succeed. Root's timing-enabled module passed all ten
+tests. Clinical application code for that measurement is unchanged.
+
 ## Do not touch / operational release decision
 
 Do not delete accepted originals, rewrite unknown ownership, remove historical

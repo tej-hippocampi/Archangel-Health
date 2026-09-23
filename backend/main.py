@@ -2703,6 +2703,10 @@ async def patient_code_entry(hs: Optional[str] = None):
 
 
 async def _maybe_trigger_preop_outreach(app: FastAPI) -> None:
+    # Roster reads must not send sandbox patient data to real email/SMS
+    # transports or consume the live scheduler's shared throttle window.
+    if _realm.is_sandbox():
+        return
     now_m = time.monotonic()
     last = getattr(app.state, "last_preop_outreach_mono", 0.0)
     if now_m - last < 900:

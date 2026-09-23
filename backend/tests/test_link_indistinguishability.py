@@ -402,18 +402,30 @@ def test_the_partner_facing_status_vocabulary_cannot_encode_purpose():
                     reason="timing test is a nightly job; a wall-clock assertion in "
                            "a shared CI runner measures the runner, not the code")
 def test_response_timing_carries_no_signal(variants):
-    """Interleaved A/B/A/B — sequential batches measure network and scheduler
-    drift, not the code. Welch's t-test, failing at |t| > 4.5."""
+    """Warm both clients, then randomize balanced A/B and B/A pairs.
+
+    Fixed alternation can align periodic runtime work with one account. Keep
+    1,000 samples per variant and Welch's original |t| < 4.5 threshold.
+    """
+    import random
     import statistics
     import time
 
     a, b = variants
+    for _ in range(100):
+        for v in (a, b):
+            assert v["client"].get(f"{API}/hs/me").status_code == 200
     sa, sb = [], []
-    for _ in range(1000):
-        for v, acc in ((a, sa), (b, sb)):
+    orders = [False] * 500 + [True] * 500
+    random.Random(694173).shuffle(orders)
+    for reverse in orders:
+        pair = ((b, sb), (a, sa)) if reverse else ((a, sa), (b, sb))
+        for v, acc in pair:
             t0 = time.perf_counter()
-            v["client"].get(f"{API}/hs/me")
-            acc.append(time.perf_counter() - t0)
+            response = v["client"].get(f"{API}/hs/me")
+            elapsed = time.perf_counter() - t0
+            assert response.status_code == 200
+            acc.append(elapsed)
     ma, mb = statistics.mean(sa), statistics.mean(sb)
     va, vb = statistics.variance(sa), statistics.variance(sb)
     t = (ma - mb) / ((va / len(sa) + vb / len(sb)) ** 0.5)

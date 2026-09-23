@@ -114,6 +114,51 @@ def test_interactive_entry_tokens_keep_existing_five_minute_lifetime():
     assert 290 <= claims["exp"] - time.time() <= 301
 
 
+@pytest.mark.parametrize("email_delivered", [True, False])
+def test_sandbox_roster_cannot_schedule_external_outreach_or_throttle_live(survey_env, monkeypatch, email_delivered):
+    import asyncio
+    from types import SimpleNamespace
+
+    client, store, patients = survey_env
+    patients["synthetic-survey"]["phone"] = "+15555550123"
+    monkeypatch.setenv(realm.ADMIN_PASSWORD_VAR, "synthetic-sandbox-password")
+    monkeypatch.setattr(main.app.state, "last_preop_outreach_mono", 0.0, raising=False)
+    monkeypatch.setattr(main.app.state, "preop_outreach_inline_task", None, raising=False)
+    calls = []
+
+    async def email(to, subject, body):
+        calls.append(("email", realm.current()))
+        return email_delivered
+
+    def sms(**kwargs):
+        calls.append(("sms", realm.current()))
+
+    monkeypatch.setattr(main, "is_email_transport_configured", lambda: True)
+    monkeypatch.setattr(main, "_send_html_email", email)
+    monkeypatch.setattr(main, "TwilioClient", lambda: SimpleNamespace(send=sms))
+    with realm.scoped(realm.SANDBOX):
+        token = tenant_token(health_system_id="synthetic-hospital")
+    response = client.get("/api/patients", headers={"Authorization": "Bearer " + token})
+    assert response.status_code == 200, response.text
+    assert calls == []
+    assert main.app.state.preop_outreach_inline_task is None
+    assert main.app.state.last_preop_outreach_mono == 0.0
+    assert not store.has_survey_send("synthetic-survey", -4)
+
+    async def live_roster_trigger():
+        assert realm.current() == realm.LIVE
+        await main._maybe_trigger_preop_outreach(main.app)
+        task = main.app.state.preop_outreach_inline_task
+        assert task is not None
+        await task
+        await main._maybe_trigger_preop_outreach(main.app)
+        assert main.app.state.preop_outreach_inline_task is task
+
+    asyncio.run(live_roster_trigger())
+    assert calls == [("email", "live")] + ([] if email_delivered else [("sms", "live")])
+    assert store.has_survey_send("synthetic-survey", -4)
+
+
 def test_patient_cookie_and_entry_tokens_cannot_cross_realms(survey_env, monkeypatch):
     client, _, _ = survey_env
     monkeypatch.setenv(realm.ADMIN_PASSWORD_VAR, "synthetic-sandbox-password")

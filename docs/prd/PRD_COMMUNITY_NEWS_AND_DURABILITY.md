@@ -28,7 +28,7 @@ The trace, end to end:
   `/healthz`), deliberately not fail-closed.
 - So: 13:00 UTC the digest posts and emails everyone → you deploy (you deploy many
   times a day) → the container is replaced → `community.db` is gone →
-  `ensure_default_channels()` (`community/store.py:711`, `main.py:6977`) re-creates the seven
+  `ensure_default_channels()` (`community/store.py:711`, `main.py:6981`) re-creates the seven
   empty channels at boot → Kalpesh opens `#medical-ai-news` and sees the empty-state
   hero. The email is the only surviving evidence the post existed.
 
@@ -49,7 +49,7 @@ the roster twice.
    **before** the beside-the-code path — the durable directory is already known to the
    process, and the sandbox realm already derives its paths this way. A deploy that
    forgets the variable then still lands on the volume.
-3. **Fail closed in production:** extend the `main.py:6670` production gate to the
+3. **Fail closed in production:** extend the `main.py:6674` production gate to the
    community and tenant stores. The comment's reason for WARN-only ("would brick every
    legitimate local run") is handled by the gate already keying on `ENV=production`;
    the reason "would take down a running deployment" is exactly the point — a
@@ -166,7 +166,7 @@ generated from the structure (headline per line) for search and for old clients.
 | Retention footer | "retained indefinitely" is false until §1 | after §1, true; keep copy |
 | PHI gate | `_phi_clear` runs on body + card text before insert (`system_posts.py`) with `exact_date` exemption for morning kinds | keep; add the §2.2 banned-pattern check beside it |
 | Channel slug uniqueness | `UNIQUE` on slug (`community/store.py:311`) | none |
-| `/internal/community/purge` | manual, internal-auth only (`main.py:7287`); deletes all bot posts | keep, but log an audit event with actor; never call from a scheduler |
+| `/internal/community/purge` | manual, internal-auth only (`main.py:7291`); deletes all bot posts | keep, but log an audit event with actor; never call from a scheduler |
 | Read-only channels ("RO") | composer disabled with copy "Only the Archangel team posts…" | fine |
 | Email markdown leak | `_snippet()` on raw body (`notify.py:188`) | fixed by §2.4 |
 | Empty-state hero | shows the correct room copy; masks the durability loss | after §1, an empty `#medical-ai-news` should read "No digest yet today" and show the next run time from the ledger, so silence is explained |
