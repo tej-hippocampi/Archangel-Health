@@ -122,7 +122,9 @@ def test_sandbox_roster_cannot_schedule_external_outreach_or_throttle_live(surve
     client, store, patients = survey_env
     patients["synthetic-survey"]["phone"] = "+15555550123"
     monkeypatch.setenv(realm.ADMIN_PASSWORD_VAR, "synthetic-sandbox-password")
-    monkeypatch.setattr(main.app.state, "last_preop_outreach_mono", 0.0, raising=False)
+    # Relative time works even on a fresh CI runner with <15 minutes uptime.
+    last_outreach = main.time.monotonic() - 901.0
+    monkeypatch.setattr(main.app.state, "last_preop_outreach_mono", last_outreach, raising=False)
     monkeypatch.setattr(main.app.state, "preop_outreach_inline_task", None, raising=False)
     calls = []
 
@@ -142,7 +144,7 @@ def test_sandbox_roster_cannot_schedule_external_outreach_or_throttle_live(surve
     assert response.status_code == 200, response.text
     assert calls == []
     assert main.app.state.preop_outreach_inline_task is None
-    assert main.app.state.last_preop_outreach_mono == 0.0
+    assert main.app.state.last_preop_outreach_mono == last_outreach
     assert not store.has_survey_send("synthetic-survey", -4)
 
     async def live_roster_trigger():
