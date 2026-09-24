@@ -113,3 +113,19 @@ test('switching registry countries preserves identifiers without cross-country r
  const resumed={...reloaded,...ctx.changeLicensure(reloaded,'IN')};
  assert.equal(resumed.registrationNumber,'NMC-987');assert.equal(resumed.registryExtras.stateCouncil,'Delhi');
 });
+test('choosing the first country keeps a registration number entered while country was unanswered',()=>{
+ const current={...ctx.emptyCredentials(),registrationNumber:'GMC-7654321'};
+ const chosen={...current,...ctx.changeLicensure(current,'GB')};
+ assert.equal(chosen.registrationNumber,'GMC-7654321');
+ assert.equal({...chosen,...ctx.changeLicensure(chosen,'IN')}.registrationNumber,'');
+});
+test('an adopted registration stays with its country across Outside-US resets',()=>{
+ let current={...ctx.emptyCredentials(),registrationNumber:'GMC-7654321',registryExtras:{note:'UK evidence'}};
+ for(const country of ['GB','US','','IN']){
+  current={...current,...ctx.changeLicensure(current,country)};
+  assert.equal(current.registrationNumber,country==='GB'?'GMC-7654321':'');
+ }
+ current={...current,...ctx.changeLicensure(current,'GB')};
+ assert.equal(current.registrationNumber,'GMC-7654321');
+ assert.equal(current.registryExtras.note,'UK evidence');
+});

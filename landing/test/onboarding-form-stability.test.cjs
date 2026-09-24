@@ -563,3 +563,13 @@ test('a malformed advisory registry regex cannot crash or block review', async (
     assert.equal([...document.querySelectorAll('button')].find(el=>el.textContent==='Continue').disabled,false);
   } finally { global.fetch=previous; }
 });
+test('a manually selected qualification survives switching from US to international licensure', async () => {
+  await setup({credentials:{countryOfLicensure:'US'}});
+  const degree=[...document.querySelectorAll('select')].find(el=>accessibleName(el)==='Degree');
+  await act(async()=>{degree.value='MBBS';degree.dispatchEvent(new Event('change',{bubbles:true}));});
+  const country=[...document.querySelectorAll('select')].find(el=>accessibleName(el).startsWith('Where are you licensed?'));
+  await act(async()=>{country.value='GB';country.dispatchEvent(new Event('change',{bubbles:true}));});
+  const qualification=[...document.querySelectorAll('select')].find(el=>accessibleName(el)==='Primary medical qualification');
+  assert.equal(qualification.value,'MBBS');
+  assert.equal(ctrl.data.credentials.degree,'MBBS');
+});

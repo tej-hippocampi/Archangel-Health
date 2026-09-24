@@ -27,8 +27,8 @@ saved draft is not rewritten on load. Null string answers hydrate as unanswered.
 CV qualifications absent from an option catalogue remain visible and editable.
 
 An absent country question retains legacy US routing. An explicit blank modern
-licensure answer routes to document review under the existing unknown-region
-code ZZ, rather than querying NPPES or guessing licensure from practice country.
+licensure answer routes to document review under an explicit unknown-country
+marker ZZ, rather than querying NPPES or guessing licensure from practice country.
 No country or qualification change approves a physician or bypasses review.
 
 ## Preservation and recovery
@@ -65,7 +65,7 @@ before release. Application changes require the existing frontend, backend,
 browser, data guard and route checks. Tests cannot guarantee every future edge
 case; the added regressions exercise the reported failures in existing CI jobs.
 
-Local verification: 814 affected backend/harness checks, 91 frontend tests, four
+Local verification: 814 affected backend/harness checks, 94 frontend tests, four
 Chrome applications through submission, and the 100-PDF / 1,300-field corpus
 passed. The independent auditor confirmed no remaining P1/P2 findings and
 separately checked the responsive grid at seven widths. Mobile controls are

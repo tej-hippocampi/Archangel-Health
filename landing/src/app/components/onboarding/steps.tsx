@@ -359,7 +359,14 @@ export function changeLicensure(c: Credentials, country: string): Partial<Creden
   if (country === c.countryOfLicensure) return { countryOfLicensure: country };
   const registrationsByCountry = { ...c.registrationsByCountry,
     [c.countryOfLicensure]: { registrationNumber: c.registrationNumber, registryExtras: c.registryExtras } };
-  const saved = registrationsByCountry[country];
+  let saved = registrationsByCountry[country];
+  // Bind unassigned evidence once, retaining it under the chosen jurisdiction.
+  // Returning to Outside the US must not reuse that number for a new country.
+  if (!saved && !c.countryOfLicensure && country) {
+    saved = { registrationNumber: c.registrationNumber, registryExtras: c.registryExtras };
+    registrationsByCountry[country] = saved;
+    registrationsByCountry[""] = { registrationNumber: "", registryExtras: {} };
+  }
   return { countryOfLicensure: country, registrationsByCountry,
     registrationNumber: saved?.registrationNumber || "",
     registryExtras: saved?.registryExtras || {} };
@@ -2684,7 +2691,7 @@ export function Step5Credentials({
                      isUS ? "Degree" : "Primary medical qualification")}
           placeholder="Select qualification"
           value={isUS ? c.degree : c.qualification}
-          onChange={(v) => set(isUS ? { degree: v } : { qualification: v, degree: v })}
+          onChange={(v) => set({ qualification: v, degree: v })}
           options={qualificationOptions}
         />
       </div>
