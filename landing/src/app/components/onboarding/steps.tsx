@@ -114,6 +114,13 @@ export function withRowIds(c: Credentials): Credentials {
     (rows || []).map((r) => (r && r.rowId ? r : { ...r, rowId: newRowId(prefix) }));
   return {
     ...c,
+    // Legacy JSON can contain null rather than an omitted, unanswered value.
+    ...Object.fromEntries(Object.entries(emptyCredentials()).filter(([, value]) => typeof value === "string")
+      .map(([key, fallback]) => [key, c[key as keyof Credentials] ?? fallback])),
+    countryOfPractice: String(c.countryOfPractice ?? "").trim().toUpperCase(),
+    countryOfLicensure: String(c.countryOfLicensure ?? "").trim().toUpperCase(),
+    countryOfDegree: String(c.countryOfDegree ?? "").trim().toUpperCase(),
+    registryExtras: c.registryExtras || {},
     boardCertifications: stamp(c.boardCertifications, "bc"),
     fellowship: stamp(c.fellowship, "fel"),
     residency: stamp(c.residency, "res"),
@@ -182,6 +189,8 @@ export type Credentials = {
   countryOfPractice: string;   // ISO 3166-1 alpha-2
   countryOfLicensure: string;
   countryOfDegree: string;
+  /** Keep identifiers with their jurisdiction when the physician switches countries. */
+  registrationsByCountry?: Record<string, { registrationNumber: string; registryExtras: Record<string, string> }>;
   /* The non-US twin of `npi`: SCFHS number, state council registration, GMC
      reference. Kept separate so `npi` keeps meaning exactly one thing. */
   registrationNumber: string;
@@ -309,12 +318,10 @@ export function emptyCredentials(fullLegalName = ""): Credentials {
     healthSystem: "",
     cvFilename: "",
     npi: "",
-    // Defaults to the US so the form opens exactly as it always has for the
-    // doctors who are most of the traffic; changing the country is what opens
-    // the rest of the world's fields.
-    countryOfPractice: "US",
-    countryOfLicensure: "US",
-    countryOfDegree: "US",
+    // Unanswered is not a US credential. Ask rather than invent a country.
+    countryOfPractice: "",
+    countryOfLicensure: "",
+    countryOfDegree: "",
     registrationNumber: "",
     registryExtras: {},
     qualification: "",
@@ -345,6 +352,30 @@ export function emptyCredentials(fullLegalName = ""): Credentials {
     continuingCertification: null,
     structuredReviewExperience: [],
   };
+}
+
+/** Country switches must not erase evidence or reuse another registry's ID. */
+export function changeLicensure(c: Credentials, country: string): Partial<Credentials> {
+  if (country === c.countryOfLicensure) return { countryOfLicensure: country };
+  const registrationsByCountry = { ...c.registrationsByCountry,
+    [c.countryOfLicensure]: { registrationNumber: c.registrationNumber, registryExtras: c.registryExtras } };
+  const saved = registrationsByCountry[country];
+  return { countryOfLicensure: country, registrationsByCountry,
+    registrationNumber: saved?.registrationNumber || "",
+    registryExtras: saved?.registryExtras || {} };
+}
+
+/** Hydrate old drafts without turning real US credentials into unknown-country applications. */
+export function restoreCredentials(saved: Partial<Credentials>, fullLegalName = ""): Credentials {
+  const c = { ...emptyCredentials(fullLegalName), ...saved };
+  if (!Object.prototype.hasOwnProperty.call(saved, "countryOfLicensure") &&
+      (saved.npi || (saved.licenseNumber && US_STATES.some((s) => s.value === saved.licenseState)))) {
+    c.countryOfLicensure = "US";
+  }
+  if (!Object.prototype.hasOwnProperty.call(saved, "qualification") && saved.degree) {
+    c.qualification = saved.degree;
+  }
+  return withRowIds(c);
 }
 
 /* Placeholder for the optional "tell us more about your specialty" box. The
@@ -532,7 +563,9 @@ export type CvParsed = {
 /** The parse stages the CV screen narrates. Mirrors `credentialing.CV_STAGES`. */
 export type CvStage = "reading" | "matching" | "preparing" | "done" | "failed";
 
-const TWO_COL: CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 };
+const TWO_COL: CSSProperties = {
+  display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))", gap: 16,
+};
 const CARD_FOOTER_BACK: CSSProperties = { marginTop: 18, textAlign: "center" };
 
 /** "Already have an account? Sign in."
@@ -733,6 +766,8 @@ export function Step1NameEmail({
               setData({
                 credentials: {
                   ...data.credentials, licenseState: v,
+                  ...changeLicensure(data.credentials, v ? data.credentials.countryOfLicensure || "US"
+                    : data.credentials.countryOfLicensure === "US" ? "" : data.credentials.countryOfLicensure),
                   cvManualFields: [...new Set([...(data.credentials.cvManualFields || []), "licenseState"])],
                 },
                 cvAutofilled: data.cvAutofilled.filter((key) => key !== "licenseState"),
@@ -744,6 +779,15 @@ export function Step1NameEmail({
       )}
 
       <div style={{ marginTop: 12 }}>
+        {!valid && <p role="status" style={{ color: "var(--ink-muted)", fontSize: 13 }}>
+          To continue: {[
+            !data.firstName.trim() && "enter your first name",
+            !data.lastName.trim() && "enter your last name",
+            !/\S+@\S+\.\S+/.test(data.email.trim()) && "enter a valid email address",
+            !pwOk && "complete the password requirements shown above",
+            needsConfidentiality && !a.attestConfidentiality && "agree to confidentiality",
+          ].filter(Boolean).join("; ")}.
+        </p>}
         <PrimaryButton
           fullWidth
           disabled={!valid}
@@ -1758,13 +1802,6 @@ export function Step4Institution({
 
 /* ── Step 5 — Credentials (director or invited member) ──────────── */
 
-const DEGREE_OPTIONS = [
-  { value: "MD", label: "MD" },
-  { value: "DO", label: "DO" },
-  { value: "MBBS", label: "MBBS" },
-  { value: "Other", label: "Other" },
-];
-
 /* ── What each country's registry needs ────────────────────────────────────
    Served by GET /api/onboarding/credential-config, whose source of truth is
    backend/asclepius/registry/config.py. Fetched once when the credentials
@@ -1826,8 +1863,23 @@ function useCredentialConfig(): CredentialConfig {
       .then((data) => {
         if (live && data && Array.isArray(data.countries) && data.countries.length) {
           const merged = new Map(CREDENTIAL_CONFIG_FALLBACK.countries.map((c) => [c.country, c]));
-          for (const c of data.countries) merged.set(c.country, c);
-          setCfg({ ...data, countries: [...merged.values()].sort(
+          for (const c of data.countries) {
+            if (!c || typeof c.country !== "string") continue;
+            const code = c.country.trim().toUpperCase();
+            const fallback = merged.get(code);
+            if (!fallback) continue;
+            merged.set(code, { ...fallback, ...c, country: code,
+              country_name: typeof c.country_name === "string" && c.country_name ? c.country_name : fallback.country_name,
+              id_label: typeof c.id_label === "string" && c.id_label ? c.id_label : fallback.id_label,
+              extra_fields: Array.isArray(c.extra_fields) ? c.extra_fields.filter((f: RegistryFieldSpec) =>
+                f && typeof f.key === "string" && typeof f.label === "string" &&
+                (f.kind !== "select" || Array.isArray(f.options))) : fallback.extra_fields,
+            });
+          }
+          setCfg({ ...CREDENTIAL_CONFIG_FALLBACK,
+            qualifications: [...new Set([...CREDENTIAL_CONFIG_FALLBACK.qualifications,
+              ...(Array.isArray(data.qualifications) ? data.qualifications.filter((q: unknown) => typeof q === "string" && q) : [])])],
+            countries: [...merged.values()].sort(
             (a, b) => a.country_name.localeCompare(b.country_name),
           ) });
         }
@@ -2366,7 +2418,7 @@ export function Step5Credentials({
 }) {
   const c = data.credentials;
   const autofilled = new Set(data.cvAutofilled || []);
-  const set = (patch: Partial<Credentials>) => {
+  const set = (patch: Partial<Credentials>, manualKeys = Object.keys(patch)) => {
     // A chip claims "this is what your CV said". The moment the physician
     // rewrites the field, that claim is false, so the chip goes — per key, so
     // correcting the NPI does not silently un-label the specialty.
@@ -2376,7 +2428,7 @@ export function Step5Credentials({
     // would have the second one restore a chip the first had just cleared.
     const touched = Object.keys(patch).filter((k) => autofilled.has(k));
     setData({
-      credentials: { ...c, ...patch, cvManualFields: [...new Set([...(c.cvManualFields || []), ...Object.keys(patch)])] },
+      credentials: { ...c, ...patch, cvManualFields: [...new Set([...(c.cvManualFields || []), ...manualKeys])] },
       ...(touched.length
         ? { cvAutofilled: (data.cvAutofilled || []).filter((k) => !touched.includes(k)) }
         : {}),
@@ -2397,21 +2449,23 @@ export function Step5Credentials({
   // required to be present, never required to match a shape, because several
   // countries publish no format and a doctor should not lose an evening to our
   // guess about punctuation. The registry check reports; a human decides.
-  const isUS = (c.countryOfLicensure || "US").toUpperCase() === "US";
+  const isUS = (c.countryOfLicensure || "").trim().toUpperCase() === "US";
   const cfg = useCredentialConfig();
   const countryOptions = cfg.countries.map((x) => ({
     value: x.country, label: x.country_name,
   }));
   const registry = cfg.countries.find(
-    (x) => x.country === (c.countryOfLicensure || "US").toUpperCase(),
+    (x) => x.country === (c.countryOfLicensure || "").trim().toUpperCase(),
   ) || { ...cfg.default, country: "", country_name: "", registry_name: "",
          id_regex: null, extra_fields: [] as RegistryFieldSpec[] };
   const qualificationOptions = cfg.qualifications.map((q) => ({ value: q, label: q }));
-  const registryFormatWarning =
-    !isUS && registry.id_regex && c.registrationNumber.trim().length > 0 &&
-    !new RegExp(registry.id_regex).test(c.registrationNumber.trim())
-      ? "That does not look like the usual format, worth a second check, but you can continue."
-      : "";
+  let registryFormatWarning = "";
+  try {
+    if (!isUS && registry.id_regex && c.registrationNumber.trim() &&
+        !new RegExp(registry.id_regex).test(c.registrationNumber.trim())) {
+      registryFormatWarning = "That does not look like the usual format, worth a second check, but you can continue.";
+    }
+  } catch { /* A broken advisory pattern must never crash the application. */ }
 
   /* THE REVIEW PAGE'S GROUPING. Only computed for reviewMode, which is the one
      rendering that puts every field on one scroll; the three-screen path is
@@ -2544,22 +2598,20 @@ export function Step5Credentials({
             countryOfPractice: v,
             // Licensed where you practise is the common case; the field below
             // is there for everyone else.
-            ...(c.countryOfLicensure === c.countryOfPractice
-              ? { countryOfLicensure: v, countryOfDegree: c.countryOfDegree || v }
+            ...(!c.cvManualFields?.includes("countryOfLicensure") &&
+                (!c.countryOfLicensure || c.countryOfLicensure === c.countryOfPractice)
+              ? changeLicensure(c, v)
               : {}),
-          })}
+          }, ["countryOfPractice"])}
           options={countryOptions}
         />
         <SelectField
           label="Where are you licensed?"
           placeholder="Select country"
           value={c.countryOfLicensure}
-          onChange={(v) => set({ countryOfLicensure: v, registrationNumber: "", registryExtras: {} })}
+          onChange={(v) => set(changeLicensure(c, v))}
           options={countryOptions}
-          // `isUS` treats an unanswered country as the US, so without this a
-          // consultant in Riyadh would be shown a red marker on an NPI field
-          // they can never hold. Until this is answered the identifier question
-          // is unanswerable, so the marker belongs here instead.
+          // Until country is answered, mark the country rather than a US ID.
           requirement={reviewMode && ident.key === "countryOfLicensure"
             ? "needed" : undefined}
           needed={reviewMode && ident.key === "countryOfLicensure"
@@ -2633,7 +2685,7 @@ export function Step5Credentials({
           placeholder="Select qualification"
           value={isUS ? c.degree : c.qualification}
           onChange={(v) => set(isUS ? { degree: v } : { qualification: v, degree: v })}
-          options={isUS ? DEGREE_OPTIONS : qualificationOptions}
+          options={qualificationOptions}
         />
       </div>
 
@@ -3089,6 +3141,20 @@ export function Step5Credentials({
       </ReviewGroup>)}
 
       <div style={{ height: 1, background: "var(--hairline)", margin: "8px 0 22px" }} />
+      {!valid && <p role="status" style={{ color: "var(--ink-muted)", fontSize: 13 }}>
+        To continue, complete: {[
+          show(1) && !c.fullLegalName.trim() && "full legal name",
+          show(1) && !c.primarySpecialty.trim() && "primary specialty",
+          !reviewMode && show(1) && (isUS ? !/^\d{10}$/.test(c.npi.trim()) : !c.registrationNumber.trim()) && (isUS ? "10-digit NPI" : "medical registration number"),
+          !reviewMode && show(1) && c.phone.trim().length < 7 && "phone number",
+          !reviewMode && show(1) && !(isUS ? c.degree : c.qualification).trim() && "medical qualification",
+          !reviewMode && show(1) && c.currentlyActive === null && "whether you currently practise",
+          !reviewMode && show(2) && isUS && !c.licenseNumber.trim() && "state licence number",
+          !reviewMode && show(2) && isUS && c.licenseState.trim().length !== 2 && "licence state",
+          !reviewMode && show(2) && c.residencyCompleted === null && "training completion",
+          !reviewMode && show(2) && !c.practiceStatus && "practice status",
+        ].filter(Boolean).join("; ")}.{reviewMode && " Other credentials can be completed later."}
+      </p>}
       <PrimaryButton fullWidth disabled={!valid} onClick={onNext} loadingLabel="Saving…" successLabel="Saved ✓">
         {submitLabel || (phase === 3 ? "Finish and continue" : "Continue")}
       </PrimaryButton>
@@ -3287,7 +3353,7 @@ export function Step6Attestations({
           set({ attestNoDisciplinaryAction: !a.attestNoDisciplinaryAction })
         }
         title="No active board disciplinary action"
-        body="I attest that I am not currently subject to an active disciplinary action by any state medical board, and that my licence is active and unrestricted."
+        body="I attest that I am not currently subject to an active disciplinary action by any state medical board or medical regulator, and that my licence is active and unrestricted."
       />
 
       <div style={{ marginTop: 18 }}>

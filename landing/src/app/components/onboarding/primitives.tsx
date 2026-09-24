@@ -665,6 +665,9 @@ export function SelectField({
               {placeholder || "Select…"}
             </option>
           )}
+          {value && !options.some((opt) => opt.value === value) && (
+            <option value={value}>{value}</option>
+          )}
           {options.map((opt) => (
             <option
               key={opt.value}

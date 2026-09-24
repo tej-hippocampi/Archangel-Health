@@ -346,3 +346,48 @@ def test_the_admin_physician_profile_returns_the_credentials_blob():
     assert body["attestations"]["signedInitials"] == "AP"
     assert body["physician"]["registry_name"]
     assert body["physician"]["country_of_licensure"] == "IN"
+
+@pytest.mark.parametrize('credentials,expected', [
+    ({'countryOfLicensure':'GB','countryOfPractice':'US'}, 'GB'),
+    ({'countryOfLicensure':'IN','countryOfPractice':'GB'}, 'IN'),
+    ({'countryOfLicensure':'', 'countryOfPractice':'GB'}, 'ZZ'),
+    ({'countryOfLicensure':'', 'countryOfPractice':''}, 'ZZ'),
+    ({'countryOfLicensure':None, 'countryOfPractice':None}, 'ZZ'),
+])
+def test_modern_country_answers_never_fall_back_to_us_registry(monkeypatch, credentials, expected):
+    store = fresh_store()
+    user = _user(store)
+    monkeypatch.setattr(credentialing, 'verify_npi', lambda *a, **k: pytest.fail('foreign or unknown licence must not query NPPES'))
+    onboarding_module._run_signup_verification(store, user, {
+        **credentials, 'fullLegalName':'International Physician', 'degree':'MBBS',
+        'primarySpecialty':'Nephrology', 'registrationNumber':'GMC-1234567',
+        'npi':'1234567893',
+    })
+    saved = store.get_user_by_id(user['id'])
+    assert saved['country_of_licensure'] == expected
+    assert saved['registry_id'] == 'GMC-1234567'
+    assert tiering.hard_gates(saved)['gates']['A1']['state'] == tiering.UNKNOWN
+    assert tiering.hard_gates(saved)['gates']['A2']['state'] != tiering.FAIL
+    assert json.loads(saved['registry_payload_json'])['result'] in ('queued', 'document_only')
+
+
+def test_new_international_verification_preserves_existing_rows_and_originals(tmp_path):
+    import sqlite3
+    from scripts.data_inventory import snapshot, compare
+    store = fresh_store()
+    existing = _user(store, email='existing-doctor@example.org')
+    originals = tmp_path / 'originals'
+    originals.mkdir()
+    (originals / 'accepted-cv.txt').write_bytes(b'Accepted original CV evidence')
+    # Obtain the database in this isolated test, never a live/sandbox database.
+    with store._conn() as conn:
+        database = next(row[2] for row in conn.execute('PRAGMA database_list') if row[1] == 'main')
+    before = snapshot(database, {'originals': originals})
+    backup = tmp_path / 'before.sqlite'
+    with sqlite3.connect(database) as source, sqlite3.connect(backup) as dest:
+        source.backup(dest)
+    user = _user(store, email='new-international@example.org')
+    onboarding_module._run_signup_verification(store, user, _saudi_credentials())
+    assert compare(before, snapshot(database, {'originals': originals})) == []
+    assert store.get_user_by_id(existing['id'])['email'] == 'existing-doctor@example.org'
+    assert compare(before, snapshot(backup, {'originals': originals})) == []

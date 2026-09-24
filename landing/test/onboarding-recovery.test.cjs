@@ -261,3 +261,33 @@ test("resuming an unfinished CV parse polls again without replacing an in-progre
   assert.equal(specialtyInput().value, "Nephrology");
   assert.equal(phoneInput().value, "+44 20 5555 0199");
 });
+
+for (const confirmed of [false, true]) {
+  test(`resuming an old Outside-US CV draft repairs only implicit country defaults (${confirmed})`, async () => {
+    const session = cvSession('done', {
+      countryOfPractice:'US',countryOfLicensure:'US',countryOfDegree:'US',
+      licenseState:'',cvManualFields:confirmed ? ['countryOfPractice','countryOfLicensure','countryOfDegree','licenseState'] : ['licenseState'],
+    });
+    session.director_license_state='';session.director_license_state_answered=true;
+    global.fetch=async(url)=>new Response(JSON.stringify(url.includes('/session?')?session:{countries:[]}));
+    await mount(Wizard,{token:'recovery-token'});
+    const label=[...document.querySelectorAll('label')].find(el=>el.textContent.startsWith('Where are you licensed?'));
+    const select=document.getElementById(label.htmlFor);
+    assert.equal(select.value,confirmed?'US':'');
+    const practiceLabel=[...document.querySelectorAll('label')].find(el=>el.textContent==='Where do you practise?');
+    assert.equal(document.getElementById(practiceLabel.htmlFor).value,confirmed?'US':'');
+  });
+}
+
+for (const explicitBlank of [false, true]) {
+  test(`legacy US credentials survive country-question upgrade (${explicitBlank})`, async () => {
+    const credentials={npi:'1234567893',licenseState:'CA',licenseNumber:'A123',degree:'MD',
+      ...(explicitBlank?{countryOfLicensure:''}:{})};
+    global.fetch=async(url)=>new Response(JSON.stringify(url.includes('/session?')?cvSession('done',credentials):{countries:[]}));
+    await mount(Wizard,{token:'recovery-token'});
+    const label=[...document.querySelectorAll('label')].find(el=>el.textContent.startsWith('Where are you licensed?'));
+    assert.equal(document.getElementById(label.htmlFor).value,explicitBlank?'':'US');
+    const npi=[...document.querySelectorAll('input')].find(el=>el.value==='1234567893');
+    assert.equal(!!npi,!explicitBlank);
+  });
+}

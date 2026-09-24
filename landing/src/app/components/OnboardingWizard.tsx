@@ -59,8 +59,8 @@ import {
   StepAsclepiusSignIn,
   emptyAttestations,
   emptyCredentials,
+  restoreCredentials,
   newRowId,
-  withRowIds,
   type AsclepiusMember,
   type AsclepiusRole,
   type Credentials,
@@ -419,7 +419,8 @@ function applyCvParse(
   // prefill has to do the same: filling only `degree` left a doctor licensed
   // outside the US looking at an empty box wearing a "from your CV" chip —
   // a label claiming their CV said something the field does not show.
-  const degree = (parsed.degrees || []).find((d) => ["MD", "DO", "MBBS", "MBChB", "DPM"].includes(d));
+  const degree = (parsed.degrees || []).find((d) =>
+    ["MD", "DO", "MBBS", "MBChB", "MBBCh", "BMBS", "BM BCh", "MB BCh BAO", "Staatsexamen", "DPM"].includes(d));
   if (degree) {
     fill("degree", degree);
     fill("qualification", degree);
@@ -622,11 +623,11 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     }
     const restoredCredentials = (() => {
       const base = savedCreds
-        // withRowIds on the way IN: credentials saved before stable row ids
+        // Stable row IDs on the way IN: credentials saved before row IDs
         // existed arrive without them, and minting them here — once, on
         // hydration — is what keeps the rest of the app from having to cope
         // with their absence. Existing ids are never reassigned.
-        ? withRowIds({ ...emptyCredentials(fullLegal), ...d.director_credentials })
+        ? restoreCredentials(d.director_credentials, fullLegal)
         : emptyCredentials(fullLegal);
       // Screen 1's state answer prefills the Review screen's licence block,
       // so the same fact is not asked for twice. Never over a value the
@@ -638,6 +639,15 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         ? { ...base, licenseState: fromStep1,
             cvManualFields: [...new Set([...(base.cvManualFields || []), "licenseState"])] }
         : base;
+      // Repair the old implicit US default for a saved Outside-the-US answer.
+      // Preserve explicit country choices and actual US credential evidence.
+      if (answeredOnStep1 && !fromStep1 && !restored.npi && !restored.licenseNumber) {
+        for (const key of ["countryOfPractice", "countryOfLicensure", "countryOfDegree"] as const) {
+          if (restored[key] === "US" && !restored.cvManualFields?.includes(key)) restored[key] = "";
+        }
+      } else if (fromStep1 && !restored.countryOfLicensure) {
+        restored.countryOfLicensure = "US";
+      }
       // Upload results live separately from the form until Review is saved.
       // A reload must restore those suggestions while retaining manual edits.
       if (cvBlock.stage === "done" || cvBlock.stage === "failed") {
@@ -762,7 +772,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       roleLabel: (d.role_label ?? "").trim(),
       product: "asclepius",
       credentials: savedCreds
-        ? withRowIds({ ...emptyCredentials(fullLegal), ...d.credentials })
+        ? restoreCredentials(d.credentials, fullLegal)
         : emptyCredentials(fullLegal),
       attestations:
         d.attestations && Object.keys(d.attestations).length > 0

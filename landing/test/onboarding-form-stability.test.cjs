@@ -496,3 +496,70 @@ test("the physician's own Yes is recorded as an answer", async () => {
   assert.equal(toggle("Currently active / valid?", "Yes").getAttribute("aria-pressed"),
                "true");
 });
+
+test('a new international review has no invented US country or NPI', async () => {
+  await setup();
+  const selects=[...document.querySelectorAll('select')];
+  assert.equal(selects.find(el=>accessibleName(el)==='Where do you practise?').value,'');
+  assert.equal(selects.find(el=>accessibleName(el).startsWith('Where are you licensed?')).value,'');
+  assert.ok(![...document.querySelectorAll('input')].some(el=>/NPI/.test(accessibleName(el))));
+  assert.equal([...document.querySelectorAll('button')].find(el=>el.textContent==='Continue').disabled,false);
+});
+test('a CV qualification outside a dropdown list remains visible and editable', async () => {
+  for (const country of ['GB','US']) {
+    await setup({credentials:{countryOfLicensure:country,degree:'MB BCh BAO',qualification:'MB BCh BAO'}});
+    const qualification=[...document.querySelectorAll('select')].find(el=>/Degree|Primary medical qualification/.test(accessibleName(el)));
+    assert.equal(qualification.value,'MB BCh BAO');
+    assert.equal(qualification.selectedOptions[0].textContent,'MB BCh BAO');
+    await act(async()=>{qualification.value='MBBS';qualification.dispatchEvent(new Event('change',{bubbles:true}));});
+    assert.equal(ctrl.data.credentials.degree,'MBBS');
+  }
+});
+test('an explicit licensing country is independent of practice and degree countries', async () => {
+  await setup({credentials:{countryOfPractice:'GB',countryOfLicensure:'GB',countryOfDegree:'IN',cvManualFields:['countryOfLicensure']}});
+  const practice=[...document.querySelectorAll('select')].find(el=>accessibleName(el)==='Where do you practise?');
+  await act(async()=>{practice.value='US';practice.dispatchEvent(new Event('change',{bubbles:true}));});
+  assert.equal(ctrl.data.credentials.countryOfLicensure,'GB');
+  assert.equal(ctrl.data.credentials.countryOfDegree,'IN');
+});
+test('review explains a disabled Continue without requiring US credentials', async () => {
+  await setup({credentials:{countryOfLicensure:'GB',primarySpecialty:''}});
+  assert.equal([...document.querySelectorAll('button')].find(el=>el.textContent==='Continue').disabled,true);
+  assert.match(document.querySelector('[role="status"]').textContent,/primary specialty/);
+  assert.doesNotMatch(document.querySelector('[role="status"]').textContent,/NPI/);
+});
+test('legacy null countries and empty credential fields render an editable review', async () => {
+  await setup({credentials:{countryOfPractice:null,countryOfLicensure:null,countryOfDegree:null,registrationNumber:null,registryExtras:null,qualification:null}});
+  assert.equal(ctrl.data.credentials.countryOfLicensure,'');
+  assert.equal(ctrl.data.credentials.registrationNumber,'');
+  assert.equal([...document.querySelectorAll('button')].find(el=>el.textContent==='Continue').disabled,false);
+});
+test('correcting a suggested practice country updates only unconfirmed licensure', async () => {
+  await setup();
+  const practice=[...document.querySelectorAll('select')].find(el=>accessibleName(el)==='Where do you practise?');
+  for(const country of ['GB','IN']){
+    await act(async()=>{practice.value=country;practice.dispatchEvent(new Event('change',{bubbles:true}));});
+    assert.equal(ctrl.data.credentials.countryOfLicensure,country);
+    assert.ok(!ctrl.data.credentials.cvManualFields.includes('countryOfLicensure'));
+  }
+});
+test('every country remains selectable and can submit a minimal review', async () => {
+  await setup();
+  const licensing=[...document.querySelectorAll('select')].find(el=>accessibleName(el).startsWith('Where are you licensed?'));
+  const countries=[...licensing.options].map(o=>o.value).filter(Boolean);
+  assert.equal(countries.length,250);
+  for(const country of countries){
+    await act(async()=>{licensing.value=country;licensing.dispatchEvent(new Event('change',{bubbles:true}));});
+    assert.equal(ctrl.data.credentials.countryOfLicensure,country);
+    assert.equal([...document.querySelectorAll('button')].find(el=>el.textContent==='Continue').disabled,false,country);
+    assert.equal([...document.querySelectorAll('input')].some(el=>/NPI/.test(accessibleName(el))),country==='US',country);
+  }
+});
+test('a malformed advisory registry regex cannot crash or block review', async () => {
+  const previous=global.fetch;
+  try {
+    global.fetch=async()=>new Response(JSON.stringify({countries:[{country:'GB',id_regex:'[',extra_fields:null}]}));
+    await setup({credentials:{countryOfLicensure:'GB',registrationNumber:'7654321'}});
+    assert.equal([...document.querySelectorAll('button')].find(el=>el.textContent==='Continue').disabled,false);
+  } finally { global.fetch=previous; }
+});
