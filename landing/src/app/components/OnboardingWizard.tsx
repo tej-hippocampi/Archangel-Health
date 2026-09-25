@@ -59,8 +59,9 @@ import {
   StepAsclepiusSignIn,
   emptyAttestations,
   emptyCredentials,
+  restoreCredentials,
+  changeLicensure,
   newRowId,
-  withRowIds,
   type AsclepiusMember,
   type AsclepiusRole,
   type Credentials,
@@ -419,7 +420,8 @@ function applyCvParse(
   // prefill has to do the same: filling only `degree` left a doctor licensed
   // outside the US looking at an empty box wearing a "from your CV" chip —
   // a label claiming their CV said something the field does not show.
-  const degree = (parsed.degrees || []).find((d) => ["MD", "DO", "MBBS", "MBChB", "DPM"].includes(d));
+  const degree = (parsed.degrees || []).find((d) =>
+    ["MD", "DO", "MBBS", "MBChB", "MBBCh", "BMBS", "BM BCh", "MB BCh BAO", "Staatsexamen", "DPM"].includes(d));
   if (degree) {
     fill("degree", degree);
     fill("qualification", degree);
@@ -622,11 +624,11 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     }
     const restoredCredentials = (() => {
       const base = savedCreds
-        // withRowIds on the way IN: credentials saved before stable row ids
+        // Stable row IDs on the way IN: credentials saved before row IDs
         // existed arrive without them, and minting them here — once, on
         // hydration — is what keeps the rest of the app from having to cope
         // with their absence. Existing ids are never reassigned.
-        ? withRowIds({ ...emptyCredentials(fullLegal), ...d.director_credentials })
+        ? restoreCredentials(d.director_credentials, fullLegal)
         : emptyCredentials(fullLegal);
       // Screen 1's state answer prefills the Review screen's licence block,
       // so the same fact is not asked for twice. Never over a value the
@@ -634,10 +636,29 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       const fromStep1 = (d.director_license_state ?? "").trim();
       const hasSavedState = Object.prototype.hasOwnProperty.call(d.director_credentials || {}, "licenseState");
       const answeredOnStep1 = d.director_license_state_answered || !!fromStep1;
-      const restored = answeredOnStep1 && !hasSavedState
-        ? { ...base, licenseState: fromStep1,
-            cvManualFields: [...new Set([...(base.cvManualFields || []), "licenseState"])] }
-        : base;
+      // Compare the identity answer observed at Review-save time, not Review's
+      // independently editable licence state. Only a changed identity snapshot
+      // proves that screen 1 was corrected after the reviewed draft was saved.
+      const identityChanged = answeredOnStep1 && typeof base.identityLicenseState === "string"
+        && base.identityLicenseState !== fromStep1;
+      const restored = identityChanged
+        ? { ...base, ...changeLicensure(base, fromStep1 ? "US"
+              : base.countryOfLicensure === "US" ? "" : base.countryOfLicensure),
+            licenseState: fromStep1,
+            cvManualFields: [...new Set([...(base.cvManualFields || []), "licenseState", "countryOfLicensure"])] }
+        : answeredOnStep1 && !hasSavedState
+          ? { ...base, licenseState: fromStep1,
+              cvManualFields: [...new Set([...(base.cvManualFields || []), "licenseState"])] }
+          : base;
+      // Repair the old implicit US default for a saved Outside-the-US answer.
+      // Preserve explicit country choices and actual US credential evidence.
+      if (answeredOnStep1 && !fromStep1 && !restored.npi && !restored.licenseNumber) {
+        for (const key of ["countryOfPractice", "countryOfLicensure", "countryOfDegree"] as const) {
+          if (restored[key] === "US" && !restored.cvManualFields?.includes(key)) restored[key] = "";
+        }
+      } else if (fromStep1 && !restored.countryOfLicensure) {
+        restored.countryOfLicensure = "US";
+      }
       // Upload results live separately from the form until Review is saved.
       // A reload must restore those suggestions while retaining manual edits.
       if (cvBlock.stage === "done" || cvBlock.stage === "failed") {
@@ -648,6 +669,8 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     })();
     setDataState((prev) => ({
       ...prev,
+      identityLicenseState: d.director_license_state_answered || d.director_license_state
+        ? (d.director_license_state || "").trim() : undefined,
       firstName,
       lastName,
       email: (d.director_email ?? "").trim(),
@@ -762,7 +785,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       roleLabel: (d.role_label ?? "").trim(),
       product: "asclepius",
       credentials: savedCreds
-        ? withRowIds({ ...emptyCredentials(fullLegal), ...d.credentials })
+        ? restoreCredentials(d.credentials, fullLegal)
         : emptyCredentials(fullLegal),
       attestations:
         d.attestations && Object.keys(d.attestations).length > 0
@@ -854,6 +877,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     // one screen and it does not need to outlive the request.
     setDataState((d) => ({
       ...d, password: "", passwordSet: true,
+      identityLicenseState: data.credentials.licenseState || "",
       credentials: { ...d.credentials,
         cvManualFields: [...new Set([...(d.credentials.cvManualFields || []), "licenseState"])] },
     }));
@@ -1041,7 +1065,9 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       setStepError("");
       const r = await api(path, {
         method: "POST",
-        body: JSON.stringify({ token, credentials: data.credentials }),
+        body: JSON.stringify({ token, credentials: {
+          ...data.credentials, identityLicenseState: data.identityLicenseState,
+        } }),
       });
       const body = await readResponseJson(r);
       if (!r.ok) {
@@ -1050,7 +1076,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       }
       return true;
     },
-    [token, data.credentials],
+    [token, data.credentials, data.identityLicenseState],
   );
 
   // ─────────────────────────────────────────

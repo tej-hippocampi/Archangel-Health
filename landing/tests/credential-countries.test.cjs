@@ -48,11 +48,20 @@ test('HTTP error and empty country response retain the catalogue', async () => {
 });
 test('older API enriches registry details without shrinking the country choices', async () => {
   const india = {country: 'IN', country_name: 'India', id_label: 'Medical council registration number',
-    method: 'scrape', extra_fields: [{key: 'stateCouncil'}]};
+    method: 'scrape', extra_fields: [{key: 'stateCouncil', label: 'State council', kind: 'text'}]};
   const {current} = await load(async () => ({ok: true, json: async () => ({
     countries: [india], default: {method: 'document'}, qualifications: ['MBBS'],
   })}));
   allCountries(current);
   assert.equal(current.countries.find(c => c.country === 'IN').id_label, india.id_label);
   assert.equal(current.countries.find(c => c.country === 'IN').extra_fields[0].key, 'stateCouncil');
+});
+test('partial or malformed registry metadata cannot remove countries or qualifications', async () => {
+ for (const countries of [[{country:'gb',country_name:null,extra_fields:null}], [null,{country:'IN',extra_fields:[null,{key:'bad'}]}]]) {
+  const {current}=await load(async()=>({ok:true,json:async()=>({countries,qualifications:null})}));
+  allCountries(current);
+  assert.ok(current.qualifications.includes('MBBS'));
+  assert.equal(current.countries.find(c=>c.country==='GB').country_name,names.GB);
+  assert.ok(Array.isArray(current.countries.find(c=>c.country==='IN').extra_fields));
+ }
 });

@@ -1359,12 +1359,15 @@ def _run_signup_verification(store: Any, user: Dict[str, Any], creds: Dict[str, 
         log.exception("[credentialing] CV attach failed (non-fatal)")
 
     # Where this doctor is licensed decides which registry answers for them.
-    # A blank country is a US signup: that is who was signing up before the
-    # form could ask.
+    # Only an absent country question means a legacy US signup. An explicitly
+    # unanswered modern form needs document review until the country is known.
     from asclepius.registry import config as registry_config
 
-    licensure = registry_config.normalize_country(
-        creds.get("countryOfLicensure") or creds.get("countryOfPractice")) or "US"
+    country_answer = registry_config.normalize_country(creds.get("countryOfLicensure"))
+    if "countryOfLicensure" not in creds:
+        country_answer = registry_config.normalize_country(creds.get("countryOfPractice"))
+    licensure = country_answer or (
+        "ZZ" if "countryOfLicensure" in creds or "countryOfPractice" in creds else "US")
     practice = registry_config.normalize_country(
         creds.get("countryOfPractice")) or licensure
     registration = str(creds.get("registrationNumber") or "").strip()

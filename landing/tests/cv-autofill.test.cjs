@@ -5,7 +5,7 @@ const root=path.resolve(__dirname,'..');
 const w=fs.readFileSync(path.join(root,'src/app/components/OnboardingWizard.tsx'),'utf8');
 const s=fs.readFileSync(path.join(root,'src/app/components/onboarding/steps.tsx'),'utf8');
 const a=s.indexOf('export function emptyCredentials(');
-const empty=s.slice(a,s.indexOf('\n/* Placeholder',a)).replace('export function','function');
+const empty=s.slice(a,s.indexOf('\n/* Placeholder',a)).replaceAll('export function','function');
 const apply=w.slice(w.indexOf('function applyCvParse('),w.indexOf('export default function OnboardingWizard'));
 const rows=s.slice(s.indexOf('let rowSeq ='),s.indexOf('export type BoardCert')).replaceAll('export function','function');
 const ctx={};vm.createContext(ctx);vm.runInContext(stripTypeScriptTypes(rows+'\n'+apply+'\n'+empty),ctx);
@@ -91,4 +91,68 @@ test('additional licences retained including primary CV licence when manual pair
  assert.equal(p.additionalLicenses[0].state,'MA');
  const q=ctx.applyCvParse(parsed,{...ctx.emptyCredentials(),licenseState:'NY',licenseNumber:'USER123'}).patch;
  assert.equal(q.additionalLicenses[0].number,'A123456');
+});
+
+test('unanswered countries remain neutral and international degrees survive autofill',()=>{
+ const blank=ctx.emptyCredentials();
+ assert.equal(blank.countryOfPractice,'');assert.equal(blank.countryOfLicensure,'');assert.equal(blank.countryOfDegree,'');
+ for(const degree of ['MBBS','MBChB','MBBCh','BMBS','BM BCh','MB BCh BAO','Staatsexamen']){
+  const {patch}=ctx.applyCvParse({ok:true,degrees:[degree]},blank);
+  assert.equal(patch.degree,degree);assert.equal(patch.qualification,degree);
+  assert.equal(patch.countryOfLicensure,undefined,'a degree does not establish a licensing country');
+ }
+});
+test('switching registry countries preserves identifiers without cross-country reuse',()=>{
+ const gb={...ctx.emptyCredentials(),countryOfLicensure:'GB',registrationNumber:'GMC-1234567',registryExtras:{note:'retained'}};
+ const india={...gb,...ctx.changeLicensure(gb,'IN')};
+ assert.equal(india.registrationNumber,'');assert.deepEqual(plain(india.registryExtras),{});
+ india.registrationNumber='NMC-987';india.registryExtras={stateCouncil:'Delhi'};
+ const back={...india,...ctx.changeLicensure(india,'GB')};
+ assert.equal(back.registrationNumber,'GMC-1234567');assert.equal(back.registryExtras.note,'retained');
+ const reloaded=plain(back);
+ const resumed={...reloaded,...ctx.changeLicensure(reloaded,'IN')};
+ assert.equal(resumed.registrationNumber,'NMC-987');assert.equal(resumed.registryExtras.stateCouncil,'Delhi');
+});
+test('choosing the first country keeps a registration number entered while country was unanswered',()=>{
+ const current={...ctx.emptyCredentials(),registrationNumber:'GMC-7654321'};
+ const chosen={...current,...ctx.changeLicensure(current,'GB')};
+ assert.equal(chosen.registrationNumber,'GMC-7654321');
+ assert.equal({...chosen,...ctx.changeLicensure(chosen,'IN')}.registrationNumber,'');
+});
+test('an adopted registration stays with its country across Outside-US resets',()=>{
+ let current={...ctx.emptyCredentials(),registrationNumber:'GMC-7654321',registryExtras:{note:'UK evidence'}};
+ for(const country of ['GB','US','','IN']){
+  current={...current,...ctx.changeLicensure(current,country)};
+  assert.equal(current.registrationNumber,country==='GB'?'GMC-7654321':'');
+ }
+ current={...current,...ctx.changeLicensure(current,'GB')};
+ assert.equal(current.registrationNumber,'GMC-7654321');
+ assert.equal(current.registryExtras.note,'UK evidence');
+});
+
+test('a new unassigned registration replaces an older cached answer only when entered',()=>{
+ let c={...ctx.emptyCredentials(),countryOfLicensure:'GB',registrationNumber:'GMC-111'};
+ for(const country of ['US','']) c={...c,...ctx.changeLicensure(c,country)};
+ const unchanged={...c,...ctx.changeLicensure(c,'GB')};
+ assert.equal(unchanged.registrationNumber,'GMC-111');
+ c=plain({...c,registrationNumber:'GMC-222',registryExtras:{note:'corrected'}});
+ c={...c,...ctx.changeLicensure(c,'GB')};
+ assert.equal(c.registrationNumber,'GMC-222');
+ assert.equal(c.registryExtras.note,'corrected');
+ for(const country of ['US','','IN']) c={...c,...ctx.changeLicensure(c,country)};
+ assert.equal(c.registrationNumber,'');
+ c={...c,...ctx.changeLicensure(c,'GB')};
+ assert.equal(c.registrationNumber,'GMC-222');
+});
+
+test('partial unassigned corrections preserve the other cached registry fields',()=>{
+ const cached={GB:{registrationNumber:'GMC-111',registryExtras:{note:'original'}}};
+ let c={...ctx.emptyCredentials(),registrationsByCountry:cached,registrationNumber:'GMC-222'};
+ let chosen={...c,...ctx.changeLicensure(c,'GB')};
+ assert.equal(chosen.registrationNumber,'GMC-222');
+ assert.equal(chosen.registryExtras.note,'original');
+ c={...ctx.emptyCredentials(),registrationsByCountry:cached,registryExtras:{note:'corrected'}};
+ chosen={...c,...ctx.changeLicensure(c,'GB')};
+ assert.equal(chosen.registrationNumber,'GMC-111');
+ assert.equal(chosen.registryExtras.note,'corrected');
 });

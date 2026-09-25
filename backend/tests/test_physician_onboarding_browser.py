@@ -113,15 +113,18 @@ def test_admin_reminder_preview_and_selected_send(tmp_path, monkeypatch, kind, w
         browser.close()
 
 
-@pytest.mark.parametrize("width,legacy_autofill,country", [(1440, False, "GB"), (390, True, "IN")])
-def test_public_join_opens_real_international_onboarding(tmp_path, monkeypatch, width, legacy_autofill, country):
+@pytest.mark.parametrize("width,legacy_autofill,country,upload_cv,config_failure", [
+    (1440, False, "GB", True, False), (390, True, "IN", False, False),
+    (390, False, "GB", True, True), (1440, False, "BR", False, True),
+])
+def test_public_join_opens_real_international_onboarding(tmp_path, monkeypatch, width, legacy_autofill, country, upload_cv, config_failure):
     """Serve the built /join page with real APIs; no request leaves this test."""
     from team_store import TeamStore, get_team_store, set_team_store
     from routers import onboarding
 
     playwright = pytest.importorskip("playwright.sync_api")
     from playwright.sync_api import expect
-    fresh_store()
+    store = fresh_store()
     previous_team = get_team_store()
     team = TeamStore(str(tmp_path / "join.db"))
     set_team_store(team)
@@ -148,6 +151,9 @@ def test_public_join_opens_real_international_onboarding(tmp_path, monkeypatch, 
                     route.fulfill(status=200, body="")  # fonts and external assets
                     return
                 content = req.post_data_buffer
+                if config_failure and url.path == "/api/onboarding/credential-config":
+                    route.fulfill(status=503, body="unavailable")
+                    return
                 if url.path == "/api/onboarding/self-serve":
                     payload = json.loads(content)
                     assert "company_website" not in payload  # current UI has no trap
@@ -199,12 +205,62 @@ def test_public_join_opens_real_international_onboarding(tmp_path, monkeypatch, 
             response = client.post("/api/onboarding/verify-otp", json={"token": token, "code": "123456"})
             assert response.status_code == 200, response.text
             page.reload()
-            page.get_by_role("button", name="No CV? Enter manually", exact=False).click()
-            page.get_by_label("Where do you practise?", exact=True).select_option(country)
-            expect(page.get_by_label("Where are you licensed?", exact=True)).to_have_value(country)
+            if upload_cv:
+                page.locator('input[type="file"]').set_input_files({
+                    "name": "international-cv.txt", "mimeType": "text/plain",
+                    "buffer": b"Asha Sharma, MBBS\nSpecialty: Nephrology\nConsultant at Example Hospital\n",
+                })
+                expect(page.get_by_role("heading", name="Review the fields.", exact=True)).to_be_visible(timeout=15000)
+                page.reload()
+                expect(page.get_by_role("heading", name="Review the fields.", exact=True)).to_be_visible()
+                expect(page.get_by_label("Primary medical qualification", exact=False)).to_have_value("MBBS")
+            else:
+                page.get_by_role("button", name="No CV? Enter manually", exact=False).click()
+            expect(page.get_by_label("Where do you practise?", exact=True)).to_have_value("")
+            expect(page.get_by_label("Where are you licensed?", exact=False)).to_have_value("")
             expect(page.get_by_label("NPI number", exact=False)).to_have_count(0)
-            expect(page.get_by_label("GMC reference number" if country == "GB" else "Medical council registration number", exact=False)).to_be_visible()
+            # Practice alone must not assign the licensing registry.
+            page.get_by_label("Where do you practise?", exact=True).select_option(country)
+            expect(page.get_by_label("Where are you licensed?", exact=False)).to_have_value("")
+            page.get_by_label("Where are you licensed?", exact=False).select_option(country)
+            expect(page.get_by_label("NPI number", exact=False)).to_have_count(0)
+            label = "Medical registration number" if config_failure else "GMC reference number" if country == "GB" else "Medical council registration number"
+            registration = page.get_by_label(label, exact=False)
+            expect(registration).to_be_visible()
+            registration.fill("7654321")
+            page.get_by_label("Where are you licensed?", exact=False).select_option("US")
+            expect(page.get_by_label("NPI number", exact=False)).to_be_visible()
+            page.get_by_label("Where are you licensed?", exact=False).select_option(country)
+            expect(page.get_by_label(label, exact=False)).to_have_value("7654321")
+            page.get_by_label("Primary specialty", exact=False).fill("Nephrology")
+            page.get_by_label("Primary medical qualification", exact=False).select_option("MBBS")
+            assert page.locator("input,select,textarea").evaluate_all("""elements => elements.every(el => {
+                const rect = el.getBoundingClientRect();
+                return rect.width === 0 || (rect.left >= 0 && rect.right <= innerWidth);
+            })"""), "Credential controls must remain inside the viewport"
             screenshot(page, f"international-credentials-{country}-{width}.png")
+            page.get_by_role("button", name="Submit my application", exact=True).click()
+            expect(page.get_by_role("heading", name="Attestations & rights.", exact=True)).to_be_visible()
+            saved = team.get_asclepius_person(row["id"], row["director_email"])["credentials"]
+            assert saved["countryOfLicensure"] == country and saved["registrationNumber"] == "7654321"
+            assert saved["qualification"] == "MBBS" and not saved["licenseState"]
+            assert saved["identityLicenseState"] == ""
+            page.reload()
+            expect(page.get_by_role("heading", name="Attestations & rights.", exact=True)).to_be_visible()
+            page.get_by_role("button", name="Back", exact=True).click()
+            expect(page.get_by_label("Where are you licensed?", exact=False)).to_have_value(country)
+            expect(page.get_by_label(label, exact=False)).to_have_value("7654321")
+            page.get_by_role("button", name="Submit my application", exact=True).click()
+            page.get_by_role("button", name="Agree to all seven", exact=True).click()
+            page.get_by_placeholder("T.P.", exact=True).fill("AS")
+            monkeypatch.setattr(onboarding, "_email_configured", lambda: True)
+            page.get_by_role("button", name="Sign & send my application", exact=True).click()
+            expect(page.get_by_role("heading", name="Thank you, Dr. Sharma.", exact=True)).to_be_visible(timeout=15000)
+            user = store.get_user_by_email(row["director_email"])
+            assert user and user["country_of_licensure"] == country and user["registry_id"] == "7654321"
+            assert user["verification_status"] == "pending"
+            if upload_cv:
+                assert user["cv_asset_sha"] == saved["cvAssetSha"]
             assert not errors, errors
             browser.close()
     finally:
