@@ -362,10 +362,15 @@ export function changeLicensure(c: Credentials, country: string): Partial<Creden
   const registrationsByCountry = { ...c.registrationsByCountry,
     [c.countryOfLicensure]: { registrationNumber: c.registrationNumber, registryExtras: c.registryExtras } };
   let saved = registrationsByCountry[country];
-  // Bind unassigned evidence once, retaining it under the chosen jurisdiction.
+  // Bind unassigned evidence once. A newly entered unanswered identifier wins
+  // over an older cached answer; an empty reset restores the cached answer.
   // Returning to Outside the US must not reuse that number for a new country.
-  if (!saved && !c.countryOfLicensure && country) {
-    saved = { registrationNumber: c.registrationNumber, registryExtras: c.registryExtras };
+  if (!c.countryOfLicensure && country &&
+      (!saved || c.registrationNumber || Object.keys(c.registryExtras || {}).length)) {
+    saved = {
+      registrationNumber: c.registrationNumber || saved?.registrationNumber || "",
+      registryExtras: { ...saved?.registryExtras, ...c.registryExtras },
+    };
     registrationsByCountry[country] = saved;
     registrationsByCountry[""] = { registrationNumber: "", registryExtras: {} };
   }

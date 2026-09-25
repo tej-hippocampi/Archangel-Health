@@ -294,7 +294,7 @@ for (const explicitBlank of [false, true]) {
 
 for (const [credentials, expected] of [
   [{countryOfPractice:'gb'},'GB'],
-  [{countryOfPractice:'GB',npi:'1234567893'},'GB'],
+  [{countryOfPractice:'GB',npi:'1234567893',licenseState:'CA',licenseNumber:'A123',registrationNumber:'7654321'},'GB'],
   [{countryOfPractice:'GB',countryOfLicensure:''},''],
   [{countryOfPractice:'GB',countryOfLicensure:null},''],
   [{},''],

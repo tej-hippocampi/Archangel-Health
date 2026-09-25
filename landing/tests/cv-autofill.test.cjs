@@ -129,3 +129,30 @@ test('an adopted registration stays with its country across Outside-US resets',(
  assert.equal(current.registrationNumber,'GMC-7654321');
  assert.equal(current.registryExtras.note,'UK evidence');
 });
+
+test('a new unassigned registration replaces an older cached answer only when entered',()=>{
+ let c={...ctx.emptyCredentials(),countryOfLicensure:'GB',registrationNumber:'GMC-111'};
+ for(const country of ['US','']) c={...c,...ctx.changeLicensure(c,country)};
+ const unchanged={...c,...ctx.changeLicensure(c,'GB')};
+ assert.equal(unchanged.registrationNumber,'GMC-111');
+ c=plain({...c,registrationNumber:'GMC-222',registryExtras:{note:'corrected'}});
+ c={...c,...ctx.changeLicensure(c,'GB')};
+ assert.equal(c.registrationNumber,'GMC-222');
+ assert.equal(c.registryExtras.note,'corrected');
+ for(const country of ['US','','IN']) c={...c,...ctx.changeLicensure(c,country)};
+ assert.equal(c.registrationNumber,'');
+ c={...c,...ctx.changeLicensure(c,'GB')};
+ assert.equal(c.registrationNumber,'GMC-222');
+});
+
+test('partial unassigned corrections preserve the other cached registry fields',()=>{
+ const cached={GB:{registrationNumber:'GMC-111',registryExtras:{note:'original'}}};
+ let c={...ctx.emptyCredentials(),registrationsByCountry:cached,registrationNumber:'GMC-222'};
+ let chosen={...c,...ctx.changeLicensure(c,'GB')};
+ assert.equal(chosen.registrationNumber,'GMC-222');
+ assert.equal(chosen.registryExtras.note,'original');
+ c={...ctx.emptyCredentials(),registrationsByCountry:cached,registryExtras:{note:'corrected'}};
+ chosen={...c,...ctx.changeLicensure(c,'GB')};
+ assert.equal(chosen.registrationNumber,'GMC-111');
+ assert.equal(chosen.registryExtras.note,'corrected');
+});

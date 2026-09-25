@@ -589,3 +589,12 @@ test('a registration entered before practice country binds only to explicitly ch
   assert.equal(ctrl.data.credentials.registryExtras.note,'GMC');
   assert.equal(ctrl.data.credentials.countryOfPractice,'US');
 });
+
+test('choosing a revisited licensing country keeps a newly typed registration', async () => {
+  await setup({credentials:{countryOfLicensure:'',registrationsByCountry:{GB:{registrationNumber:'1111111',registryExtras:{}}}}});
+  const registration=[...document.querySelectorAll('input')].find(el=>/Medical registration number/.test(accessibleName(el)));
+  await type(registration,'2222222');
+  const licensing=[...document.querySelectorAll('select')].find(el=>accessibleName(el).startsWith('Where are you licensed?'));
+  await act(async()=>{licensing.value='GB';licensing.dispatchEvent(new Event('change',{bubbles:true}));});
+  assert.equal(ctrl.data.credentials.registrationNumber,'2222222');
+});

@@ -67,7 +67,7 @@ before release. Application changes require the existing frontend, backend,
 browser, data guard and route checks. Tests cannot guarantee every future edge
 case; the added regressions exercise the reported failures in existing CI jobs.
 
-Local verification: 1,033 affected backend/harness checks, 106 frontend tests, four
+Local verification: 1,033 affected backend/harness checks, 109 frontend tests, four
 Chrome applications through submission, and the 100-PDF / 1,300-field corpus
 passed. The independent auditor confirmed no remaining P1/P2 findings and
 separately checked the responsive grid at seven widths. Mobile controls are
@@ -82,3 +82,11 @@ it to distinguish a newer identity correction from a later independent Review
 edit. Legacy drafts without that snapshot retain their saved Review answers.
 Independent recheck passed 74 frontend and 54 tiering tests with no remaining
 P1/P2 findings. No stored application is rewritten during hydration.
+
+
+A final identifier-cache regression also checks replacing an old country's number
+while the licensing question is unanswered. New nonempty corrections take
+precedence; complementary cached registry details and empty-reset restoration
+remain intact. A legacy GB practice record with NPI/CA licence evidence retains
+GB routing, matching the pre-change backend fallback; US evidence does not
+silently replace a recorded jurisdiction for a doctor holding multiple licences.
