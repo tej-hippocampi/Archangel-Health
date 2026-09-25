@@ -230,7 +230,7 @@ _DEGREES_OK = {
     # degree in India -- so this list accepts the words doctors actually hold
     # and leaves judging them to A1 and the registry behind it.
     "staatsexamen", "approbation", "mbchb (img)", "bm", "bm bch", "mb bchir",
-    "cand med", "licenciado en medicina", "laurea in medicina", "mudr",
+    "cand med", "licenciado en medicina", "laurea in medicina", "mudr", "mb bch bao",
 }
 
 

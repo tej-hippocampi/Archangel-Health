@@ -291,3 +291,84 @@ for (const explicitBlank of [false, true]) {
     assert.equal(!!npi,!explicitBlank);
   });
 }
+
+for (const [credentials, expected] of [
+  [{countryOfPractice:'gb'},'GB'],
+  [{countryOfPractice:'GB',npi:'1234567893'},'GB'],
+  [{countryOfPractice:'GB',countryOfLicensure:''},''],
+  [{countryOfPractice:'GB',countryOfLicensure:null},''],
+  [{},''],
+]) {
+  test(`legacy jurisdiction hydration: ${JSON.stringify(credentials)}`, async () => {
+    const session=cvSession('done',credentials);
+    global.fetch=async(url)=>new Response(JSON.stringify(url.includes('/session?')?session:{countries:[]}));
+    await mount(Wizard,{token:'recovery-token'});
+    const label=[...document.querySelectorAll('label')].find(el=>el.textContent.startsWith('Where are you licensed?'));
+    assert.equal(document.getElementById(label.htmlFor).value,expected);
+  });
+}
+
+test('correcting foreign licensure to a US state through Back updates review and keeps the foreign identifier', async () => {
+  const session=cvSession('done',{countryOfLicensure:'GB',registrationNumber:'7654321',licenseState:''});
+  const calls=[];
+  global.fetch=async(url,init)=>{
+    if(url.includes('/session?')) return new Response(JSON.stringify(session));
+    if(init?.body) calls.push({url,body:JSON.parse(init.body)});
+    return new Response(JSON.stringify({ok:true,countries:[]}));
+  };
+  await mount(Wizard,{token:'recovery-token'});
+  for(let i=0;i<3;i++) await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Back').click());
+  const state=document.querySelector('select');
+  await act(async()=>{state.value='CA';state.dispatchEvent(new Event('change',{bubbles:true}));});
+  await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Continue').click());
+  assert.equal(calls.find(c=>c.url.endsWith('step1-identity')).body.license_state,'CA');
+  await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Send 6')).click());
+  const code=[...document.querySelectorAll('input[inputmode="numeric"]')];
+  for (let i=0;i<6;i++) await type(code[i],String(i+1));
+  await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Verify code').click());
+  await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.includes('No CV? Enter manually')).click());
+  const label=[...document.querySelectorAll('label')].find(el=>el.textContent.startsWith('Where are you licensed?'));
+  const licensing=document.getElementById(label.htmlFor);
+  assert.equal(licensing.value,'US');
+  await act(async()=>{licensing.value='GB';licensing.dispatchEvent(new Event('change',{bubbles:true}));});
+  assert.ok([...document.querySelectorAll('input')].some(el=>el.value==='7654321'));
+});
+
+for (const [storedState, currentState, country, expected] of [
+  ['', 'CA', 'GB', 'US'],
+  ['CA', '', 'US', ''],
+  ['CA', 'CA', 'GB', 'GB'],
+]) {
+  test(`identity country correction survives reload: ${storedState} to ${currentState}, ${country}`, async () => {
+    const session=cvSession('done',{countryOfLicensure:country,licenseState:storedState,identityLicenseState:storedState,registrationNumber:'7654321',cvManualFields:['countryOfLicensure','licenseState']});
+    session.director_license_state=currentState;session.director_license_state_answered=true;
+    global.fetch=async(url)=>new Response(JSON.stringify(url.includes('/session?')?session:{countries:[]}));
+    await mount(Wizard,{token:'recovery-token'});
+    const label=[...document.querySelectorAll('label')].find(el=>el.textContent.startsWith('Where are you licensed?'));
+    const licensing=document.getElementById(label.htmlFor);
+    assert.equal(licensing.value,expected);
+    if(country==='GB'){
+      await act(async()=>{licensing.value='GB';licensing.dispatchEvent(new Event('change',{bubbles:true}));});
+      assert.ok([...document.querySelectorAll('input')].some(el=>el.value==='7654321'));
+    }
+  });
+}
+
+for (const provenance of [undefined, 'CA']) {
+  test(`a later Review licence state survives an older identity answer (${provenance})`, async () => {
+    const session=cvSession('done',{countryOfLicensure:'US',licenseState:'NY',licenseNumber:'NY-123',identityLicenseState:provenance});
+    session.director_license_state='CA';session.director_license_state_answered=true;
+    let saved;
+    global.fetch=async(url,init)=>{
+      if(init?.body) saved=JSON.parse(init.body).credentials;
+      return new Response(JSON.stringify(url.includes('/session?')?session:{countries:[]}));
+    };
+    await mount(Wizard,{token:'recovery-token'});
+    const stateLabel=[...document.querySelectorAll('label')].find(el=>el.textContent==='Licence state');
+    assert.equal(document.getElementById(stateLabel.htmlFor).value,'NY');
+    assert.ok([...document.querySelectorAll('input')].some(el=>el.value==='NY-123'));
+    await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Submit my application').click());
+    assert.equal(saved.identityLicenseState,'CA');
+    assert.equal(saved.licenseState,'NY');
+  });
+}

@@ -517,3 +517,14 @@ def test_leie_load_and_status_path():
                       headers=headers_for(admin)).json()["gate_a5"] == "active"
     assert store.leie_status("1234567893") == "excluded"
     assert store.leie_status("1861763010") == "clear"
+
+
+@pytest.mark.parametrize("degree", [
+    "MD", "DO", "MBBS", "MBChB", "MBBCh", "BMBS", "BM BCh", "MB BCh BAO",
+    "Staatsexamen", "mbbchbao", "M.B. B.Ch. B.A.O.",
+])
+def test_international_cv_degrees_pass_degree_gate_without_bypassing_verification(degree):
+    import json
+    result = tiering.hard_gates({"credentials_json": json.dumps({"degree": degree})})
+    assert result["gates"]["A3"]["state"] == tiering.PASS
+    assert result["eligible"] is False, "A medical degree alone must not approve a physician"

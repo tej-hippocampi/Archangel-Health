@@ -26,7 +26,9 @@ licence-number evidence. Explicit manual country choices are retained. The raw
 saved draft is not rewritten on load. Null string answers hydrate as unanswered.
 CV qualifications absent from an option catalogue remain visible and editable.
 
-An absent country question retains legacy US routing. An explicit blank modern
+For legacy drafts with an absent licensure question, a recorded practice country is
+preserved; otherwise actual US identifiers retain US classification. Upload-only
+metadata does not establish a country. An explicit blank modern
 licensure answer routes to document review under an explicit unknown-country
 marker ZZ, rather than querying NPPES or guessing licensure from practice country.
 No country or qualification change approves a physician or bypasses review.
@@ -65,8 +67,18 @@ before release. Application changes require the existing frontend, backend,
 browser, data guard and route checks. Tests cannot guarantee every future edge
 case; the added regressions exercise the reported failures in existing CI jobs.
 
-Local verification: 814 affected backend/harness checks, 94 frontend tests, four
+Local verification: 1,033 affected backend/harness checks, 106 frontend tests, four
 Chrome applications through submission, and the 100-PDF / 1,300-field corpus
 passed. The independent auditor confirmed no remaining P1/P2 findings and
 separately checked the responsive grid at seven widths. Mobile controls are
 asserted inside the viewport. Production rollout remains a separate release step.
+
+
+Final pre-merge review also covers registration entered before selecting practice,
+foreign-to-US corrections through Back, and MB BCh BAO eligibility. Practice no
+longer suggests a licensing jurisdiction. The additive identityLicenseState
+snapshot records the identity-screen answer observed at Review save; reload uses
+it to distinguish a newer identity correction from a later independent Review
+edit. Legacy drafts without that snapshot retain their saved Review answers.
+Independent recheck passed 74 frontend and 54 tiering tests with no remaining
+P1/P2 findings. No stored application is rewritten during hydration.

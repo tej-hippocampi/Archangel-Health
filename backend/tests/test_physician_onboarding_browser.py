@@ -219,8 +219,10 @@ def test_public_join_opens_real_international_onboarding(tmp_path, monkeypatch, 
             expect(page.get_by_label("Where do you practise?", exact=True)).to_have_value("")
             expect(page.get_by_label("Where are you licensed?", exact=False)).to_have_value("")
             expect(page.get_by_label("NPI number", exact=False)).to_have_count(0)
+            # Practice alone must not assign the licensing registry.
             page.get_by_label("Where do you practise?", exact=True).select_option(country)
-            expect(page.get_by_label("Where are you licensed?", exact=False)).to_have_value(country)
+            expect(page.get_by_label("Where are you licensed?", exact=False)).to_have_value("")
+            page.get_by_label("Where are you licensed?", exact=False).select_option(country)
             expect(page.get_by_label("NPI number", exact=False)).to_have_count(0)
             label = "Medical registration number" if config_failure else "GMC reference number" if country == "GB" else "Medical council registration number"
             registration = page.get_by_label(label, exact=False)
@@ -242,6 +244,7 @@ def test_public_join_opens_real_international_onboarding(tmp_path, monkeypatch, 
             saved = team.get_asclepius_person(row["id"], row["director_email"])["credentials"]
             assert saved["countryOfLicensure"] == country and saved["registrationNumber"] == "7654321"
             assert saved["qualification"] == "MBBS" and not saved["licenseState"]
+            assert saved["identityLicenseState"] == ""
             page.reload()
             expect(page.get_by_role("heading", name="Attestations & rights.", exact=True)).to_be_visible()
             page.get_by_role("button", name="Back", exact=True).click()

@@ -232,6 +232,9 @@ test("a UK physician can select their country without being asked for a US NPI",
     practice.dispatchEvent(new Event("change", { bubbles: true }));
   });
   assert.equal(ctrl.data.credentials.countryOfPractice, "GB");
+  assert.equal(ctrl.data.credentials.countryOfLicensure, "US");
+  const licensing = [...document.querySelectorAll("select")].find(el => accessibleName(el).startsWith("Where are you licensed?"));
+  await act(async () => { licensing.value = "GB"; licensing.dispatchEvent(new Event("change", { bubbles: true })); });
   assert.equal(ctrl.data.credentials.countryOfLicensure, "GB");
   const names = [...document.querySelectorAll("input")].map(accessibleName);
   assert.ok(!names.some(name => /NPI/i.test(name)), "UK licensure must not ask for a US NPI");
@@ -534,12 +537,12 @@ test('legacy null countries and empty credential fields render an editable revie
   assert.equal(ctrl.data.credentials.registrationNumber,'');
   assert.equal([...document.querySelectorAll('button')].find(el=>el.textContent==='Continue').disabled,false);
 });
-test('correcting a suggested practice country updates only unconfirmed licensure', async () => {
+test('practice country changes do not invent a licensing jurisdiction', async () => {
   await setup();
   const practice=[...document.querySelectorAll('select')].find(el=>accessibleName(el)==='Where do you practise?');
   for(const country of ['GB','IN']){
     await act(async()=>{practice.value=country;practice.dispatchEvent(new Event('change',{bubbles:true}));});
-    assert.equal(ctrl.data.credentials.countryOfLicensure,country);
+    assert.equal(ctrl.data.credentials.countryOfLicensure,'');
     assert.ok(!ctrl.data.credentials.cvManualFields.includes('countryOfLicensure'));
   }
 });
@@ -572,4 +575,17 @@ test('a manually selected qualification survives switching from US to internatio
   const qualification=[...document.querySelectorAll('select')].find(el=>accessibleName(el)==='Primary medical qualification');
   assert.equal(qualification.value,'MBBS');
   assert.equal(ctrl.data.credentials.degree,'MBBS');
+});
+
+test('a registration entered before practice country binds only to explicitly chosen licensure', async () => {
+  await setup({credentials:{registrationNumber:'7654321',registryExtras:{note:'GMC'}}});
+  const practice=[...document.querySelectorAll('select')].find(el=>accessibleName(el)==='Where do you practise?');
+  await act(async()=>{practice.value='US';practice.dispatchEvent(new Event('change',{bubbles:true}));});
+  assert.equal(ctrl.data.credentials.countryOfLicensure,'');
+  assert.equal(ctrl.data.credentials.registrationNumber,'7654321');
+  const licensing=[...document.querySelectorAll('select')].find(el=>accessibleName(el).startsWith('Where are you licensed?'));
+  await act(async()=>{licensing.value='GB';licensing.dispatchEvent(new Event('change',{bubbles:true}));});
+  assert.equal(ctrl.data.credentials.registrationNumber,'7654321');
+  assert.equal(ctrl.data.credentials.registryExtras.note,'GMC');
+  assert.equal(ctrl.data.credentials.countryOfPractice,'US');
 });

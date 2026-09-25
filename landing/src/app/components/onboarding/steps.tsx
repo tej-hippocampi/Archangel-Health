@@ -157,6 +157,8 @@ export type Fellowship = {
 export type TrainingRow = { rowId?: string; institution: string; year: string };
 
 export type Credentials = {
+  /** Identity-screen answer observed when this reviewed draft was saved. */
+  identityLicenseState?: string;
   /** Persist CV suggestions separately from transient review chips. */
   cvSuggestions?: Record<string, unknown>;
   cvManualFields?: string[];
@@ -372,12 +374,15 @@ export function changeLicensure(c: Credentials, country: string): Partial<Creden
     registryExtras: saved?.registryExtras || {} };
 }
 
-/** Hydrate old drafts without turning real US credentials into unknown-country applications. */
+/** Preserve recorded legacy jurisdictions without guessing from CV-only metadata. */
 export function restoreCredentials(saved: Partial<Credentials>, fullLegalName = ""): Credentials {
   const c = { ...emptyCredentials(fullLegalName), ...saved };
-  if (!Object.prototype.hasOwnProperty.call(saved, "countryOfLicensure") &&
-      (saved.npi || (saved.licenseNumber && US_STATES.some((s) => s.value === saved.licenseState)))) {
-    c.countryOfLicensure = "US";
+  if (!Object.prototype.hasOwnProperty.call(saved, "countryOfLicensure")) {
+    const practice = (saved.countryOfPractice || "").trim().toUpperCase();
+    if (practice) c.countryOfLicensure = practice;
+    else if (saved.npi || (saved.licenseNumber && US_STATES.some((s) => s.value === saved.licenseState))) {
+      c.countryOfLicensure = "US";
+    }
   }
   if (!Object.prototype.hasOwnProperty.call(saved, "qualification") && saved.degree) {
     c.qualification = saved.degree;
@@ -483,6 +488,8 @@ export const US_STATES: { value: string; label: string }[] = [
 ].map(([value, label]) => ({ value, label }));
 
 export type OnboardingData = {
+  /** Kept separate from Review's independently editable licence state. */
+  identityLicenseState?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -773,9 +780,9 @@ export function Step1NameEmail({
               setData({
                 credentials: {
                   ...data.credentials, licenseState: v,
-                  ...changeLicensure(data.credentials, v ? data.credentials.countryOfLicensure || "US"
+                  ...changeLicensure(data.credentials, v ? "US"
                     : data.credentials.countryOfLicensure === "US" ? "" : data.credentials.countryOfLicensure),
-                  cvManualFields: [...new Set([...(data.credentials.cvManualFields || []), "licenseState"])],
+                  cvManualFields: [...new Set([...(data.credentials.cvManualFields || []), "licenseState", "countryOfLicensure"])],
                 },
                 cvAutofilled: data.cvAutofilled.filter((key) => key !== "licenseState"),
               })
@@ -2601,15 +2608,8 @@ export function Step5Credentials({
           label="Where do you practise?"
           placeholder="Select country"
           value={c.countryOfPractice}
-          onChange={(v) => set({
-            countryOfPractice: v,
-            // Licensed where you practise is the common case; the field below
-            // is there for everyone else.
-            ...(!c.cvManualFields?.includes("countryOfLicensure") &&
-                (!c.countryOfLicensure || c.countryOfLicensure === c.countryOfPractice)
-              ? changeLicensure(c, v)
-              : {}),
-          }, ["countryOfPractice"])}
+          // Practice does not establish who issued a registration number.
+          onChange={(v) => set({ countryOfPractice: v })}
           options={countryOptions}
         />
         <SelectField

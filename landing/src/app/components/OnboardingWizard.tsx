@@ -60,6 +60,7 @@ import {
   emptyAttestations,
   emptyCredentials,
   restoreCredentials,
+  changeLicensure,
   newRowId,
   type AsclepiusMember,
   type AsclepiusRole,
@@ -635,10 +636,20 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       const fromStep1 = (d.director_license_state ?? "").trim();
       const hasSavedState = Object.prototype.hasOwnProperty.call(d.director_credentials || {}, "licenseState");
       const answeredOnStep1 = d.director_license_state_answered || !!fromStep1;
-      const restored = answeredOnStep1 && !hasSavedState
-        ? { ...base, licenseState: fromStep1,
-            cvManualFields: [...new Set([...(base.cvManualFields || []), "licenseState"])] }
-        : base;
+      // Compare the identity answer observed at Review-save time, not Review's
+      // independently editable licence state. Only a changed identity snapshot
+      // proves that screen 1 was corrected after the reviewed draft was saved.
+      const identityChanged = answeredOnStep1 && typeof base.identityLicenseState === "string"
+        && base.identityLicenseState !== fromStep1;
+      const restored = identityChanged
+        ? { ...base, ...changeLicensure(base, fromStep1 ? "US"
+              : base.countryOfLicensure === "US" ? "" : base.countryOfLicensure),
+            licenseState: fromStep1,
+            cvManualFields: [...new Set([...(base.cvManualFields || []), "licenseState", "countryOfLicensure"])] }
+        : answeredOnStep1 && !hasSavedState
+          ? { ...base, licenseState: fromStep1,
+              cvManualFields: [...new Set([...(base.cvManualFields || []), "licenseState"])] }
+          : base;
       // Repair the old implicit US default for a saved Outside-the-US answer.
       // Preserve explicit country choices and actual US credential evidence.
       if (answeredOnStep1 && !fromStep1 && !restored.npi && !restored.licenseNumber) {
@@ -658,6 +669,8 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     })();
     setDataState((prev) => ({
       ...prev,
+      identityLicenseState: d.director_license_state_answered || d.director_license_state
+        ? (d.director_license_state || "").trim() : undefined,
       firstName,
       lastName,
       email: (d.director_email ?? "").trim(),
@@ -864,6 +877,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     // one screen and it does not need to outlive the request.
     setDataState((d) => ({
       ...d, password: "", passwordSet: true,
+      identityLicenseState: data.credentials.licenseState || "",
       credentials: { ...d.credentials,
         cvManualFields: [...new Set([...(d.credentials.cvManualFields || []), "licenseState"])] },
     }));
@@ -1051,7 +1065,9 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       setStepError("");
       const r = await api(path, {
         method: "POST",
-        body: JSON.stringify({ token, credentials: data.credentials }),
+        body: JSON.stringify({ token, credentials: {
+          ...data.credentials, identityLicenseState: data.identityLicenseState,
+        } }),
       });
       const body = await readResponseJson(r);
       if (!r.ok) {
@@ -1060,7 +1076,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       }
       return true;
     },
-    [token, data.credentials],
+    [token, data.credentials, data.identityLicenseState],
   );
 
   // ─────────────────────────────────────────
