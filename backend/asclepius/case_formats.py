@@ -45,7 +45,7 @@ from asclepius.validation import residual_identifiers
 
 # Source formats a real de-identified export can arrive in. ``dicom`` is present
 # only to reject (no imaging). Keep in sync with the adapter registry below.
-CASE_FORMATS = ("lab_csv", "fhir_r4", "hl7v2", "note_text", "dicom")
+CASE_FORMATS = ("lab_csv", "fhir_r4", "hl7v2", "note_text", "dicom", "ccda", "pdf_doc")
 
 
 class CaseIngestError(ValueError):
@@ -207,6 +207,8 @@ FORMATS: Dict[str, Callable[..., Dict[str, Any]]] = {
     "hl7v2": _adapter("hl7v2"),
     "note_text": _adapter("note_text"),
     "dicom": _reject_imaging,
+    "ccda": _adapter("ccda"),
+    "pdf_doc": _adapter("pdf_doc"),
 }
 
 
@@ -239,6 +241,8 @@ def ingest_real_deid(
         )
     try:
         parsed = adapter(raw, specialty=specialty, manifest=manifest)
+        if parsed.get("_unparsed_reason"):
+            raise CaseIngestError("adapter could not parse clinical content")
     except CaseIngestError:
         raise  # ImagingRejected / CaseFormatNotImplemented pass through untouched
     except Exception as exc:

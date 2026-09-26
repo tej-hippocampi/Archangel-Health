@@ -15,6 +15,8 @@ sendgrid.env
 
 # Local ZIP bundles exported for one-off sharing (prefer source commits)
 *.zip
+!backend/tests/fixtures/ehr_sandbox/mixed_patients.zip
+!backend/tests/fixtures/ehr_sandbox/unmapped_patients.zip
 
 # Python
 __pycache__/

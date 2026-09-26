@@ -6382,6 +6382,8 @@ async def _assignment_maintenance_loop() -> None:
                     if expired:
                         print(f"[assignment-maintenance] [{r}] expired {expired} stale assignment(s)")
                     asc_route_notify.sweep_stalled_points(store)
+                    from asclepius.ehr_sandbox import reviews as ehr_reviews
+                    ehr_reviews.reassign_expired(store)
             except Exception as e:
                 print(f"[assignment-maintenance] [{r}] error: {e}")
         await asyncio.sleep(int(os.getenv("ASCLEPIUS_ASSIGNMENT_SWEEP_SECONDS", "3600")))
@@ -7602,6 +7604,8 @@ try:
     from routers.asclepius_env import router as asclepius_env_router
 
     app.include_router(asclepius_env_router)
+    from routers.asclepius_ehr_sandbox import router as asclepius_ehr_sandbox_router
+    app.include_router(asclepius_ehr_sandbox_router)
 except Exception as _asc_env_exc:  # pragma: no cover
     __import__("logging").getLogger("asclepius.boot").warning(
         "Asclepius ENV environments router not mounted: %s", _asc_env_exc

@@ -169,19 +169,22 @@ def _has_images(messages: list[dict[str, Any]]) -> bool:
 
 def _openai_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Build the OpenAI Responses ``input`` list from messages that may carry
-    Anthropic-style image blocks — text → ``input_text``, base64 image →
+    Anthropic-style image blocks — user text → ``input_text``, assistant text
+    → ``output_text``, base64 image →
     ``input_image`` data URL. Same bytes as the Anthropic payload."""
     out: list[dict[str, Any]] = []
     for m in messages or []:
         role = m.get("role", "user")
         content = m.get("content")
         parts: list[dict[str, Any]] = []
+        def text_part(text):
+            return {"type":"output_text","text":text,"annotations":[]} if role=="assistant" else {"type":"input_text","text":text}
         if isinstance(content, list):
             for b in content:
                 if not isinstance(b, dict):
                     continue
                 if b.get("type") == "text":
-                    parts.append({"type": "input_text", "text": b.get("text", "")})
+                    parts.append(text_part(b.get("text", "")))
                 elif b.get("type") == "image":
                     src = b.get("source") or {}
                     if src.get("type") == "base64":
@@ -190,10 +193,22 @@ def _openai_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     elif src.get("type") == "url" and src.get("url"):
                         parts.append({"type": "input_image", "image_url": src.get("url")})
         else:
-            parts.append({"type": "input_text", "text": str(content or "")})
+            parts.append(text_part(str(content or "")))
         out.append({"role": role, "content": parts})
     return out
 
+
+
+def _openai_chat_messages(system, messages):
+    """Keep conversation roles and per-message images on the legacy API too."""
+    result=[{"role":"system","content":system}]
+    for message in _openai_input(messages):
+        content=[]
+        for part in message["content"]:
+            if part["type"] in ("input_text","output_text"): content.append({"type":"text","text":part["text"]})
+            elif part["type"]=="input_image": content.append({"type":"image_url","image_url":{"url":part["image_url"]}})
+        result.append({"role":message["role"],"content":content})
+    return result
 
 def _is_openai_reasoning(model: str) -> bool:
     m = (model or "").lower().replace("openai:", "")
@@ -301,21 +316,23 @@ def _log(record: dict[str, Any], patient_id: Optional[str], system: str, message
 
 
 # ── OpenAI call (async) — normalized to an Anthropic-shaped result ───────────
-async def _openai_create_async(model: str, system: str, messages: list[dict[str, Any]], max_tokens: int, temperature) -> _LLMResult:
+async def _openai_create_async(model: str, system: str, messages: list[dict[str, Any]], max_tokens: int, temperature, *, json_object=False) -> _LLMResult:
     client = _aopenai()
     model = api_model_id(model)
-    user_text = _user_text(messages)
     reasoning = _is_openai_reasoning(model)
     out_cap = _openai_output_cap(max_tokens, reasoning)
-    has_images = _has_images(messages)  # V4 vision A/B — read the pixels, not just text
     # Prefer the Responses API (uniform across reasoning + non-reasoning models);
     # fall back to chat.completions if the installed SDK lacks it.
     try:
         params: dict[str, Any] = {"model": model, "instructions": system,
-                                  "input": (_openai_input(messages) if has_images else user_text),
+                                  "input": _openai_input(messages),
                                   "max_output_tokens": out_cap}
         if temperature is not None and not reasoning:
             params["temperature"] = temperature
+        if json_object:
+            params["text"] = {"format":{"type":"json_object"}}
+            # Responses validates input messages, not the separate instructions.
+            params["input"].insert(0,{"role":"developer","content":"Respond with exactly one JSON object."})
         resp = await client.responses.create(**params)
         text = getattr(resp, "output_text", "") or ""
         usage = getattr(resp, "usage", None)
@@ -325,23 +342,8 @@ async def _openai_create_async(model: str, system: str, messages: list[dict[str,
                           getattr(resp, "id", None), _openai_stop_reason(resp))
     except (AttributeError, TypeError):
         # Older SDK / shape mismatch → chat.completions with reasoning-safe params.
-        if has_images:
-            uc: list[dict[str, Any]] = [{"type": "text", "text": user_text}]
-            for m in messages or []:
-                c = m.get("content")
-                if isinstance(c, list):
-                    for b in c:
-                        if isinstance(b, dict) and b.get("type") == "image":
-                            src = b.get("source") or {}
-                            if src.get("type") == "base64":
-                                uc.append({"type": "image_url", "image_url": {
-                                    "url": f"data:{src.get('media_type', 'image/png')};base64,{src.get('data', '')}"}})
-            user_content: Any = uc
-        else:
-            user_content = user_text
-        params = {"model": model,
-                  "messages": [{"role": "system", "content": system},
-                               {"role": "user", "content": user_content}]}
+        params = {"model": model, "messages": _openai_chat_messages(system,messages)}
+        if json_object: params["response_format"] = {"type":"json_object"}
         if reasoning:
             params["max_completion_tokens"] = out_cap
         else:
@@ -356,6 +358,77 @@ async def _openai_create_async(model: str, system: str, messages: list[dict[str,
                           getattr(usage, "prompt_tokens", None),
                           getattr(usage, "completion_tokens", None),
                           getattr(resp, "id", None), _openai_stop_reason(resp, choice))
+
+
+class _ToolUseBlock:
+    type = "tool_use"
+
+    def __init__(self, call_id, name, arguments):
+        self.id = call_id
+        self.name = name
+        try:
+            self.input = json.loads(arguments)
+        except (ValueError, TypeError):
+            self.input = {}  # Tool schema rejects missing required arguments.
+
+
+class _OpenAIResponseItem:
+    type = "openai_response_item"
+
+    def __init__(self, item):
+        self.item = item
+
+
+def _openai_tool_history(messages):
+    """Preserve roles, tool call IDs/results and stateless reasoning items."""
+    items = []
+    for message in messages:
+        content = message.get("content", "")
+        if isinstance(content, str):
+            items.append({"role": message["role"], "content": content})
+            continue
+        for block in content:
+            kind = block.get("type")
+            if kind == "tool_use":
+                items.append({"type": "function_call", "call_id": block["id"],
+                              "name": block["name"], "arguments": json.dumps(block["input"])})
+            elif kind == "tool_result":
+                output = block.get("content", "")
+                items.append({"type": "function_call_output", "call_id": block["tool_use_id"],
+                              "output": output if isinstance(output, str) else json.dumps(output)})
+            elif kind == "openai_response_item":
+                items.append(block["item"])
+            elif kind == "text":
+                items.append({"role": message["role"], "content": block["text"]})
+            else:
+                raise ValueError("unsupported block in native OpenAI tool history")
+    return items
+
+
+async def _openai_tools_async(model, system, messages, max_tokens, temperature, tools):
+    # https://developers.openai.com/api/docs/guides/function-calling
+    # Additive path: text/image-only callers retain their existing transport.
+    model = api_model_id(model)
+    reasoning = _is_openai_reasoning(model)
+    params = {"model": model, "instructions": system, "input": _openai_tool_history(messages),
+              "max_output_tokens": _openai_output_cap(max_tokens, reasoning), "store": False,
+              "include": ["reasoning.encrypted_content"],
+              "tools": [{"type": "function", "name": t["name"], "description": t.get("description", ""),
+                         "parameters": t["input_schema"], "strict": False} for t in tools]}
+    if temperature is not None and not reasoning:
+        params["temperature"] = temperature
+    response = await _aopenai().responses.create(**params)
+    usage = getattr(response, "usage", None)
+    result = _LLMResult(getattr(response, "output_text", ""), getattr(usage, "input_tokens", None),
+                        getattr(usage, "output_tokens", None), getattr(response, "id", None), _openai_stop_reason(response))
+    for item in getattr(response, "output", []):
+        if getattr(item, "type", None) == "function_call":
+            result.content.append(_ToolUseBlock(item.call_id, item.name, item.arguments))
+        elif getattr(item, "type", None) == "reasoning":
+            result.content.append(_OpenAIResponseItem(item.model_dump(exclude_none=True)))
+    if any(getattr(b, "type", None) == "tool_use" for b in result.content):
+        result.stop_reason = "tool_use"
+    return result
 
 
 #: The API's wording when a model refuses a pinned sampling parameter:
@@ -438,6 +511,7 @@ async def call_llm(
     prompt_id: Optional[str] = None,
     patient_id: Optional[str] = None,
     purpose: str = "",
+    json_object: bool = False,
     **overrides: Any,
 ) -> tuple[Any, dict[str, Any]]:
     kwargs, cfg = _build_kwargs(role, system, messages, overrides)
@@ -462,8 +536,10 @@ async def call_llm(
             return build_response(role=role, purpose=purpose, system=system,
                                   messages=messages, kwargs=kwargs)
         if provider == "openai":
+            if kwargs.get("tools"):
+                return await _openai_tools_async(cfg["model"], system, messages, kwargs.get("max_tokens"), kwargs.get("temperature"), kwargs["tools"])
             return await _openai_create_async(cfg["model"], system, messages,
-                                              kwargs.get("max_tokens"), kwargs.get("temperature"))
+                                              kwargs.get("max_tokens"), kwargs.get("temperature"), **({"json_object":True} if json_object else {}))
         return await _anthropic_create_async(kwargs)
 
     for attempt in range(2):  # one retry on TRANSIENT errors only
@@ -504,17 +580,20 @@ async def call_llm(
     return resp, rec
 
 
-def _openai_create_sync(model: str, system: str, messages: list[dict[str, Any]], max_tokens: int, temperature) -> _LLMResult:
+def _openai_create_sync(model: str, system: str, messages: list[dict[str, Any]], max_tokens: int, temperature, *, json_object=False) -> _LLMResult:
     client = _sopenai()
     model = api_model_id(model)
-    user_text = _user_text(messages)
     reasoning = _is_openai_reasoning(model)
     out_cap = _openai_output_cap(max_tokens, reasoning)
     try:
-        params: dict[str, Any] = {"model": model, "instructions": system, "input": user_text,
+        params: dict[str, Any] = {"model": model, "instructions": system, "input": _openai_input(messages),
                                   "max_output_tokens": out_cap}
         if temperature is not None and not reasoning:
             params["temperature"] = temperature
+        if json_object:
+            params["text"] = {"format":{"type":"json_object"}}
+            # Responses validates input messages, not the separate instructions.
+            params["input"].insert(0,{"role":"developer","content":"Respond with exactly one JSON object."})
         resp = client.responses.create(**params)
         usage = getattr(resp, "usage", None)
         return _LLMResult(getattr(resp, "output_text", "") or "",
@@ -522,9 +601,8 @@ def _openai_create_sync(model: str, system: str, messages: list[dict[str, Any]],
                           getattr(usage, "output_tokens", None),
                           getattr(resp, "id", None), _openai_stop_reason(resp))
     except (AttributeError, TypeError):
-        params = {"model": model,
-                  "messages": [{"role": "system", "content": system},
-                               {"role": "user", "content": user_text}]}
+        params = {"model": model, "messages": _openai_chat_messages(system,messages)}
+        if json_object: params["response_format"] = {"type":"json_object"}
         if reasoning:
             params["max_completion_tokens"] = out_cap
         else:
@@ -548,6 +626,7 @@ def call_llm_sync(
     prompt_id: Optional[str] = None,
     patient_id: Optional[str] = None,
     purpose: str = "",
+    json_object: bool = False,
     **overrides: Any,
 ) -> tuple[Any, dict[str, Any]]:
     kwargs, cfg = _build_kwargs(role, system, messages, overrides)
@@ -563,7 +642,7 @@ def call_llm_sync(
                               messages=messages, kwargs=kwargs)
     elif provider == "openai":
         resp = _openai_create_sync(cfg["model"], system, messages,
-                                   kwargs.get("max_tokens"), kwargs.get("temperature"))
+                                   kwargs.get("max_tokens"), kwargs.get("temperature"), **({"json_object":True} if json_object else {}))
     else:
         # Same backstop as the async leg — a model that refuses a pinned sampling
         # parameter must not take the sync callers down either.

@@ -451,6 +451,9 @@ _FREE_TEXT_FIELDS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
     # cannot bypass, so the case quarantined a SECOND time after the GCS fix.
     ("medications", ("drug", "dose", "route", "freq")),
     ("problem_list", ("condition",)),
+    ("orders", ("text", "source_span")),
+    ("medication_events", ("drug", "dose", "reason", "source_span")),
+    ("allergies", ("substance", "reaction")),
 )
 
 
@@ -481,7 +484,11 @@ _STRUCTURED_DATE_KEYS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
     ("notes", ("collected_at", "authored_on", "recorded_at")),
     ("studies", ("collected_at", "effective_at", "recorded_at")),
     ("problem_list", ("recorded_at", "recorded_date", "collected_at")),
-    ("medications", ("authored_on", "ordered_at", "collected_at")),
+    ("medications", ("authored_on", "ordered_at", "collected_at", "started_at", "stopped_at")),
+    ("encounters", ("collected_at", "start")),
+    ("orders", ("collected_at", "authored_on", "due_at")),
+    ("medication_events", ("collected_at", "authored_on")),
+    ("allergies", ("recorded_at", "collected_at")),
 )
 
 
@@ -739,11 +746,40 @@ def normalize_timeline(
     # lysis), so it must be gateable by the environment.
     meds = []
     for m in case.get("medications") or []:
-        meds.append(_assign_offset(dict(m), index, report,
-                                   date_keys=_date_keys_for("medications"),
+        m = dict(m)
+        for raw_key, offset_key in (("started_at", "start_offset_days"), ("stopped_at", "stop_offset_days")):
+            raw = m.pop(raw_key, None)
+            if raw is not None:
+                converted = _assign_offset({"collected_at": raw}, index, report,
+                                           date_keys=("collected_at",), date_order=date_order)
+                m[offset_key] = converted.get("collected_offset_days")
+                if raw_key == "started_at" and not any(m.get(k) for k in ("collected_at", "ordered_at", "authored_on")):
+                    m.setdefault("collected_offset_days", m[offset_key])
+        meds.append(_assign_offset(m, index, report,
+                                   date_keys=("authored_on", "ordered_at", "collected_at"),
                                    date_order=date_order))
     if meds:
         case["medications"] = meds
+
+    # New ENV-EHR collections retain unknown timing as None. Due dates are
+    # intervals from the authored visit, not another candidate authored date.
+    for collection in ("encounters", "orders", "medication_events", "allergies"):
+        converted_items = []
+        for item in case.get(collection) or []:
+            item = dict(item)
+            due = item.pop("due_at", None) if collection == "orders" else None
+            item = _assign_offset(item, index, report,
+                                  date_keys=tuple(k for k in _date_keys_for(collection) if k != "due_at"),
+                                  date_order=date_order)
+            if due is not None:
+                due_item = _assign_offset({"collected_at": due}, index, report,
+                                         date_keys=("collected_at",), date_order=date_order)
+                due_offset, visit_offset = due_item.get("collected_offset_days"), item.get("collected_offset_days")
+                item["due_offset_days"] = (due_offset - visit_offset
+                                           if isinstance(due_offset, int) and isinstance(visit_offset, int) else None)
+            converted_items.append(item)
+        if collection in case:
+            case[collection] = converted_items
 
     # Structured note/study timing → relative offset. This runs UNCONDITIONALLY,
     # outside the ``index is not None`` guard below: ``_assign_offset`` always DELETES

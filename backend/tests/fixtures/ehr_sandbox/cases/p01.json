@@ -1,0 +1,223 @@
+{
+  "case_id": "synthetic-01",
+  "case_source": "synthetic",
+  "specialty": "nephrology",
+  "demographics": {
+    "age_band": "60-69",
+    "sex": "F"
+  },
+  "problem_list": [
+    {
+      "condition": "CKD stage 4 (N18.4)",
+      "collected_offset_days": -900
+    }
+  ],
+  "medications": [
+    {
+      "drug": "Prinivil",
+      "dose": "20 mg",
+      "route": "oral",
+      "freq": "once daily",
+      "status": "active",
+      "collected_offset_days": -900,
+      "start_offset_days": -900
+    },
+    {
+      "drug": "Norvasc",
+      "dose": "5 mg",
+      "route": "oral",
+      "freq": "once daily",
+      "status": "active",
+      "collected_offset_days": -900,
+      "start_offset_days": -900
+    }
+  ],
+  "notes": [
+    {
+      "note_id": "note-0",
+      "note_type": "Visit worksheet",
+      "author_role": "nephrology",
+      "collected_offset_days": -200,
+      "text": "DOS: [visit day]\nVisit worksheet\nNephrology follow-up\nInterval history: stable appetite and urine output. Visit 1.\nLabs: creatinine 2.2 mg/dL, eGFR 28 mL/min/1.73m2, potassium 4.7 mmol/L.\nCurrent medications: Prinivil 20 mg once daily, Norvasc 5 mg once daily.\nAssessment: CKD stage 4 (N18.4). Hypertension (I10).\nPlan: Continue Prinivil and Norvasc without changes. Avoid NSAIDs. Low potassium diet. Follow up in 28 days.\n"
+    },
+    {
+      "note_id": "note-1",
+      "note_type": "Visit worksheet",
+      "author_role": "nephrology",
+      "collected_offset_days": -100,
+      "text": "DOS: [visit day]\nVisit worksheet\nNephrology follow-up\nInterval history: stable appetite and urine output. Visit 2.\nLabs: creatinine 2.2 mg/dL, eGFR 28 mL/min/1.73m2, potassium 5.6 mmol/L.\nCurrent medications: Prinivil 20 mg once daily, Norvasc 5 mg once daily.\nAssessment: CKD stage 4 (N18.4). Hypertension (I10).\nPlan: Decrease Prinivil to 10 mg once daily. Check BMP in 7 days. Avoid NSAIDs. Low potassium diet. Follow up in 28 days.\n"
+    },
+    {
+      "note_id": "note-2",
+      "note_type": "Visit worksheet",
+      "author_role": "nephrology",
+      "collected_offset_days": 0,
+      "text": "DOS: [visit day]\nVisit worksheet\nNephrology follow-up\nInterval history: stable appetite and urine output. Visit 3.\nLabs: creatinine 2.2 mg/dL, eGFR 28 mL/min/1.73m2, potassium 4.7 mmol/L.\nCurrent medications: Prinivil 10 mg once daily, Norvasc 5 mg once daily.\nAssessment: CKD stage 4 (N18.4). Hypertension (I10).\nPlan: Continue Prinivil and Norvasc without changes. Avoid NSAIDs. Low potassium diet. Follow up in 28 days.\n"
+    }
+  ],
+  "lab_panels": [
+    {
+      "panel": "Renal",
+      "collected_offset_days": -201,
+      "results": [
+        {
+          "analyte": "Creatinine",
+          "loinc": "2160-0",
+          "value": 2.2,
+          "unit": "mg/dL"
+        },
+        {
+          "analyte": "eGFR",
+          "loinc": "33914-3",
+          "value": 28,
+          "unit": "mL/min/1.73m2"
+        },
+        {
+          "analyte": "Potassium",
+          "loinc": "2823-3",
+          "value": 4.7,
+          "unit": "mmol/L"
+        },
+        {
+          "analyte": "UACR",
+          "loinc": "9318-7",
+          "value": 120,
+          "unit": "mg/g"
+        }
+      ]
+    },
+    {
+      "panel": "Renal",
+      "collected_offset_days": -101,
+      "results": [
+        {
+          "analyte": "Creatinine",
+          "loinc": "2160-0",
+          "value": 2.2,
+          "unit": "mg/dL"
+        },
+        {
+          "analyte": "eGFR",
+          "loinc": "33914-3",
+          "value": 28,
+          "unit": "mL/min/1.73m2"
+        },
+        {
+          "analyte": "Potassium",
+          "loinc": "2823-3",
+          "value": 5.6,
+          "unit": "mmol/L"
+        },
+        {
+          "analyte": "UACR",
+          "loinc": "9318-7",
+          "value": 120,
+          "unit": "mg/g"
+        }
+      ]
+    },
+    {
+      "panel": "Renal",
+      "collected_offset_days": -1,
+      "results": [
+        {
+          "analyte": "Creatinine",
+          "loinc": "2160-0",
+          "value": 2.2,
+          "unit": "mg/dL"
+        },
+        {
+          "analyte": "eGFR",
+          "loinc": "33914-3",
+          "value": 28,
+          "unit": "mL/min/1.73m2"
+        },
+        {
+          "analyte": "Potassium",
+          "loinc": "2823-3",
+          "value": 4.7,
+          "unit": "mmol/L"
+        },
+        {
+          "analyte": "UACR",
+          "loinc": "9318-7",
+          "value": 120,
+          "unit": "mg/g"
+        }
+      ]
+    }
+  ],
+  "encounters": [
+    {
+      "encounter_ref": "enc-000",
+      "collected_offset_days": -200,
+      "note_ids": [
+        "note-0"
+      ]
+    },
+    {
+      "encounter_ref": "enc-001",
+      "collected_offset_days": -100,
+      "note_ids": [
+        "note-1"
+      ]
+    },
+    {
+      "encounter_ref": "enc-002",
+      "collected_offset_days": 0,
+      "note_ids": [
+        "note-2"
+      ]
+    }
+  ],
+  "orders": [
+    {
+      "kind": "follow_up",
+      "text": "Follow up in 28 days",
+      "encounter_ref": "enc-000",
+      "collected_offset_days": -200,
+      "due_offset_days": 28
+    },
+    {
+      "kind": "follow_up",
+      "text": "Follow up in 28 days",
+      "encounter_ref": "enc-001",
+      "collected_offset_days": -100,
+      "due_offset_days": 28
+    },
+    {
+      "kind": "lab",
+      "code": "24323-8",
+      "code_system": "http://loinc.org",
+      "text": "BMP",
+      "encounter_ref": "enc-001",
+      "collected_offset_days": -100,
+      "due_offset_days": 7
+    },
+    {
+      "kind": "follow_up",
+      "text": "Follow up in 28 days",
+      "encounter_ref": "enc-002",
+      "collected_offset_days": 0,
+      "due_offset_days": 28
+    }
+  ],
+  "medication_events": [
+    {
+      "action": "decrease",
+      "drug": "Prinivil",
+      "rxnorm_ingredient": "29046",
+      "dose": "10 mg",
+      "freq": "once daily",
+      "encounter_ref": "enc-001",
+      "collected_offset_days": -100
+    }
+  ],
+  "allergies": [
+    {
+      "substance": "penicillin",
+      "reaction": "rash",
+      "collected_offset_days": -900
+    }
+  ]
+}

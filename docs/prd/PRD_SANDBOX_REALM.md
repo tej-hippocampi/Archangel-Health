@@ -18,7 +18,7 @@ Verified against `Archangel-Health-main (32)`.
 
 ## §0 Why isolation must be a boundary, not a filter
 
-The existing mock concept (`auth.py:590-653`, `asclepius/store.py:6394 mock_annotator_id_hashes`)
+The existing mock concept (`auth.py:590-653`, `asclepius/store.py:6656 mock_annotator_id_hashes`)
 works by *filtering mock hashes out* — in 30 call sites across 7 files. That is an
 allow-list: every new query that forgets the filter leaks. The sandbox uses the
 opposite mechanism: **sandbox rows live in different files.** The real admin opens
@@ -50,7 +50,7 @@ realms — so production and sandbox can't drift in config, which is the point.
 
 ### 1.2 Store selection becomes per-realm — four stores, one pattern, one trap
 
-`asclepius/store.py:15912 get_store()` (29 call sites, all through this function or the routers'
+`asclepius/store.py:16174 get_store()` (29 call sites, all through this function or the routers'
 `_store()` wrappers at `asclepius.py:189`, `asclepius_admin.py:48`):
 ```python
 _STORES: Dict[str, AsclepiusStore] = {}

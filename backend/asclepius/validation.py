@@ -42,6 +42,19 @@ from asclepius.constants import (
 # and (3) never fall back to a no-op. Returns matched identifier *kinds* (not the
 # matched values), keeping the ``phi:<kinds>`` issue format intact.
 _PHI_PATTERNS: List[Tuple[str, "re.Pattern[str]"]] = [
+    # Export headers can survive inside worksheet narrative, outside the
+    # structured identity nodes discarded by C-CDA/FHIR adapters.
+    ("name", re.compile(r"(?im)^[ \t]*(?:patient[ \t]+name|name|provider[ \t]+name|physician[ \t]+name)[ \t]*:[ \t]*"
+                        r"[A-Z][A-Za-z'\-]+(?:[ \t]+[A-Z][A-Za-z'\-]+){1,4}\b")),
+    ("name", re.compile(r"(?m)^[ \t]*(?i:patient)[ \t]*:[ \t]*(?!(?i:male|female|unknown|age|elderly|adult|young|older)\b)"
+                        r"[A-Z][A-Za-z'\-]+(?:[ \t]+[A-Z][A-Za-z'\-]+){1,4}\b")),
+    # Bare "Physician" also introduces clinical headers ("Physician Fresh
+    # Orders"). Require its explicit name label above. Never join separate lines.
+    ("name", re.compile(r"\b(?:Dr\.|Doctor)[ \t]+[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+){1,3}\b")),
+    ("address", re.compile(r"(?<![\w.])[1-9]\d{0,5}[ \t]+"
+                           r"(?!(?:mg|mcg|g|ml|meq|units?|days?|weeks?|months?|years?|hrs?|hours?|minutes?|times?)\b)"
+                           r"(?:[A-Za-z][A-Za-z0-9.'\-]*[ \t]+){1,5}"
+                           r"(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Way)\b", re.I)),
     ("email", re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")),
     ("phone", re.compile(r"(?<!\d)(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?!\d)")),
     ("ssn", re.compile(r"\b\d{3}-\d{2}-\d{4}\b")),
@@ -83,7 +96,7 @@ try:  # prefer the richer shared Safe-Harbor scanner when the gold package exist
     PHI_SCANNER = "gold.deid"
 
     def residual_identifiers(text: Optional[str]) -> List[str]:
-        return list(_gold_residual_identifiers(text))
+        return sorted(set(_gold_residual_identifiers(text)) | set(_baseline_residual_identifiers(text)))
 except Exception:  # gold absent — use the self-contained baseline (NOT a no-op)
     PHI_SCANNER = "baseline"
 

@@ -16,7 +16,7 @@ on:
         description: Clinical generation path to verify
         default: multimodal
         type: choice
-        options: [multimodal, onboarding, onboarding-library, onboarding-openai-trial]
+        options: [multimodal, onboarding, onboarding-library, onboarding-openai-trial, ehr-sandbox]
       specialty:
         description: Specialty to generate against
         default: nephrology
@@ -124,7 +124,7 @@ jobs:
           }
 
       - name: Run the multimodal smoke
-        if: inputs.mode != 'onboarding-openai-trial'
+        if: inputs.mode != 'onboarding-openai-trial' && inputs.mode != 'ehr-sandbox'
         working-directory: backend
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -152,6 +152,35 @@ jobs:
             python3 scripts/smoke_multimodal.py --specialty "$SMOKE_SPECIALTY" --n "$SMOKE_COUNT" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
           fi
 
+      - name: Prepare synthetic EHR uploads and qualify the complete pipeline
+        if: inputs.mode == 'ehr-sandbox'
+        working-directory: backend
+        env:
+          ASCLEPIUS_LLM_PROVIDER: fake
+          EHR_SMOKE_TASKS_OUT: ${{ runner.temp }}/ehr-synthetic-tasks.json
+          EHR_REAL_OCR_TEST: "1"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tesseract-ocr poppler-utils
+          pip install pytest
+          python3 -m pytest tests/test_ehr_sandbox_ingestion.py -k real_ocr -q --disable-warnings
+          python3 -m pytest tests/test_ehr_sandbox_upload_pipeline.py -q -s --disable-warnings
+
+      - name: Qualify real agents on public synthetic EHR tasks
+        if: inputs.mode == 'ehr-sandbox'
+        working-directory: backend
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ASCLEPIUS_LLM_PROVIDER: ""
+          ASCLEPIUS_DB_PATH: ${{ runner.temp }}/ehr-smoke.db
+          ASCLEPIUS_EXPORT_DIR: ${{ runner.temp }}/ehr-smoke-exports
+          EMAIL_DEV_MODE: "1"
+          ASCLEPIUS_LLM_TIMEOUT_SEC: "90"
+        run: |
+          set -euo pipefail
+          python3 scripts/smoke_ehr_sandbox.py --tasks "${RUNNER_TEMP}/ehr-synthetic-tasks.json" --output "${RUNNER_TEMP}/ehr-smoke-results.json" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
+
       - name: Run OpenAI-only onboarding experiment
         if: inputs.mode == 'onboarding-openai-trial'
         working-directory: backend
@@ -176,4 +205,5 @@ jobs:
             ${{ runner.temp }}/onboarding-cases/*.json
             ${{ runner.temp }}/onboarding-review-diagnostics/*.json
             ${{ runner.temp }}/openai-trial-results/*.json
+            ${{ runner.temp }}/ehr-smoke-results.json
           if-no-files-found: warn

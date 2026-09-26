@@ -807,13 +807,13 @@ def test_the_admin_harness_actually_booted_the_console(admin_page):
     up blank, every assertion below passes vacuously, because empty collections
     satisfy "no offenders"."""
     assert admin_page.locator(".asc-admin-bar").is_visible()
-    assert admin_page.locator(".asc-admin-tab").count() == 6
+    assert admin_page.locator(".asc-admin-tab").count() == 7
     assert admin_page.locator(".asc-pcard").count() == 6
     assert not admin_page.errors, admin_page.errors
 
 
 #: The console tabs this file drives. Physicians, Community and Referrals mount
-#: their real sections in the harness; the other three are stubbed, so driving
+#: their real sections in the harness; the other four are stubbed, so driving
 #: them would screenshot an empty body and dilute the guards rather than widen
 #: them.
 _DRIVEN_TABS = ("Physicians", "Community", "Referrals")

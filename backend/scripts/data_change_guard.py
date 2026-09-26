@@ -9,7 +9,7 @@ import re
 import subprocess
 import sys
 
-PROTECTED = r'(?:tasks|submissions|records|earnings|assignments|exports|users|health_systems|signed_agreements|sealed_ground_truth|study_assets|ingest_\w+|hs_\w+|media_\w+|community_\w+|\w+_outbox)'
+PROTECTED = r'(?:tasks|submissions|records|earnings|assignments|exports|users|health_systems|signed_agreements|sealed_ground_truth|study_assets|ingest_\w+|ehr_\w+|hs_\w+|media_\w+|community_\w+|\w+_outbox)'
 DANGEROUS = re.compile(r'(?:DELETE\s+FROM|DROP\s+TABLE(?:\s+IF\s+EXISTS)?|TRUNCATE(?:\s+TABLE)?|INSERT\s+OR\s+REPLACE\s+INTO|REPLACE\s+INTO)\s+["`\[]?' + PROTECTED + r'\b', re.I)
 
 

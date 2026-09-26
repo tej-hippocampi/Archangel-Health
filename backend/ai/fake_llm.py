@@ -523,11 +523,46 @@ def _f_onboarding_review(ctx: _Ctx) -> str:
                           "reason": "Fake evidence check"} for i, claim in enumerate(entry.get("claims") or [])]})
 
 
+def _f_ehr_worksheet(ctx):
+    """Engineering fixture only; never used as a clinical extraction fallback."""
+    import re
+    try:
+        text = ' '.join(json.loads(ctx.user_text()).get('worksheet', '').split())
+    except (ValueError, AttributeError):
+        text = ''
+    value = {k: [] for k in ('assessments','med_changes','orders','referrals','med_continues','counseling')}
+    value.update(follow_up=None, escalation=None)
+    def item(match, **fields):
+        return {**fields, 'source_span':match.group(0), 'confidence':0.95}
+    value['medications']=[]
+    current=text.split('Current medications:',1)[-1].split('Assessment:',1)[0] if 'Current medications:' in text else ''
+    for match in re.finditer(r'(\w+) ([\d.]+ mg) (once daily)',current):
+        value['medications'].append(item(match,drug=match.group(1),dose=match.group(2),frequency=match.group(3)))
+    for match in re.finditer(r'CKD stage ([1-5]) \(N18\.([1-5])\)', text):
+        value['assessments'].append(item(match, icd10='N18.'+match.group(2), text=match.group(0)))
+    for match in re.finditer(r'Hypertension \(I10\)', text):
+        value['assessments'].append(item(match, icd10='I10', text='Hypertension'))
+    for match in re.finditer(r'Decrease (\w+) to ([\d.]+) mg once daily', text):
+        value['med_changes'].append(item(match, action='decrease', drug=match.group(1), to_dose=match.group(2)+' mg once daily'))
+    for match in re.finditer(r'Check (BMP|CMP) in (\d+) days', text):
+        value['orders'].append(item(match, kind='lab', loinc_group=match.group(1), timing_days=int(match.group(2))))
+    match = re.search(r'Follow up in (\d+) days', text, re.I)
+    if match:
+        value['follow_up'] = item(match, interval_days=int(match.group(1)), tolerance_days=7)
+    if 'Continue Prinivil and Norvasc' in text:
+        value['med_continues'] = ['Prinivil','Norvasc']
+    value['counseling'] = [x for x in ('Avoid NSAIDs','Low potassium diet') if x in text]
+    return json.dumps(value)
+
+
 # Keyed by ``purpose`` first, then by ``role`` for the call sites that declare no
 # purpose. Both spaces are closed and enumerable, and both are asserted against
 # the live code by test_fake_llm_provider.py's AST scan.
 _FIXTURES: dict[str, Callable[[_Ctx], str]] = {
     # ── purposes ──
+    "ehr_worksheet_extract": _f_ehr_worksheet,
+    "ehr_note_rubric": lambda ctx: json.dumps({"criteria": []}),
+    "ehr_agent_rollout": lambda ctx: json.dumps({"tool": "finish_visit", "input": {}}),
     "onboarding_case_author": _f_onboarding_case,
     "onboarding_case_solve": _f_onboarding_solve,
     "onboarding_case_review": _f_onboarding_review,

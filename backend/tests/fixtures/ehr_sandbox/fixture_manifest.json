@@ -1,0 +1,128 @@
+{
+  "synthetic": true,
+  "provenance": "hand-authored; no source patient records or Synthea output",
+  "patients": [
+    {
+      "label": "p01",
+      "visits": 3,
+      "primary_format": "ccda",
+      "files": [
+        "p01__chart.xml"
+      ]
+    },
+    {
+      "label": "p02",
+      "visits": 4,
+      "primary_format": "ccda",
+      "files": [
+        "p02__chart.xml"
+      ]
+    },
+    {
+      "label": "p03",
+      "visits": 5,
+      "primary_format": "ccda",
+      "files": [
+        "p03__chart.xml"
+      ]
+    },
+    {
+      "label": "p04",
+      "visits": 6,
+      "primary_format": "ccda",
+      "files": [
+        "p04__chart.xml"
+      ]
+    },
+    {
+      "label": "p05",
+      "visits": 7,
+      "primary_format": "text_pdf",
+      "files": [
+        "p05__labs.csv",
+        "p05__worksheets.pdf"
+      ]
+    },
+    {
+      "label": "p06",
+      "visits": 8,
+      "primary_format": "text_pdf",
+      "files": [
+        "p06__labs.csv",
+        "p06__worksheets.pdf"
+      ]
+    },
+    {
+      "label": "p07",
+      "visits": 3,
+      "primary_format": "text_pdf",
+      "files": [
+        "p07__labs.csv",
+        "p07__worksheets.pdf"
+      ]
+    },
+    {
+      "label": "p08",
+      "visits": 4,
+      "primary_format": "text_pdf",
+      "files": [
+        "p08__labs.csv",
+        "p08__worksheets.pdf"
+      ]
+    },
+    {
+      "label": "p09",
+      "visits": 5,
+      "primary_format": "scanned_pdf",
+      "files": [
+        "p09__labs.csv",
+        "p09__worksheets.pdf"
+      ]
+    },
+    {
+      "label": "p10",
+      "visits": 6,
+      "primary_format": "scanned_pdf",
+      "files": [
+        "p10__labs.csv",
+        "p10__worksheets.pdf"
+      ]
+    },
+    {
+      "label": "p11",
+      "visits": 7,
+      "primary_format": "csv_text",
+      "files": [
+        "p11__labs.csv",
+        "p11__visit-0.txt",
+        "p11__visit-1.txt",
+        "p11__visit-2.txt",
+        "p11__visit-3.txt",
+        "p11__visit-4.txt",
+        "p11__visit-5.txt",
+        "p11__visit-6.txt"
+      ]
+    },
+    {
+      "label": "p12",
+      "visits": 8,
+      "primary_format": "csv_text",
+      "files": [
+        "p12__labs.csv",
+        "p12__visit-0.txt",
+        "p12__visit-1.txt",
+        "p12__visit-2.txt",
+        "p12__visit-3.txt",
+        "p12__visit-4.txt",
+        "p12__visit-5.txt",
+        "p12__visit-6.txt",
+        "p12__visit-7.txt"
+      ]
+    }
+  ],
+  "archives": {
+    "mixed_patients.zip": "083c3367700939df41e80ece59981669138abf47c1ce15089db9c39aa2767310",
+    "unmapped_patients.zip": "a4479a908ed06aebe37f196084d47d1c23924fc1a57bf8e5b3a9032581d85c69",
+    "qualification_patients.zip": "46ba118826d8aa5d2d839c1041c40dfa2540b2adc43da6e9125855b5063949f4"
+  }
+}

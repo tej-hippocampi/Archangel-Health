@@ -44,7 +44,7 @@ TESTS_DIR = "tests"
 # Owned by the ``visual`` job in tests.yml — it needs a browser, and a browser
 # flake must read as "the visual gate is red", not as a backend failure. Excluded
 # here so it is never double-run, and asserted excluded by the sharding test.
-EXCLUDED = frozenset({"tests/test_asclepius_visual.py", "tests/test_hs_onboarding_browser.py", "tests/test_physician_onboarding_browser.py"})
+EXCLUDED = frozenset({"tests/test_asclepius_visual.py", "tests/test_hs_onboarding_browser.py", "tests/test_physician_onboarding_browser.py", "tests/test_ehr_sandbox_ui.py"})
 
 # Seconds, measured with ``pytest --durations=0`` and summed per file. Refresh
 # with ``python3 scripts/ci_shard.py --measure`` after a big change if shards
@@ -52,6 +52,7 @@ EXCLUDED = frozenset({"tests/test_asclepius_visual.py", "tests/test_hs_onboardin
 # everything else is close enough that listing it would be noise.
 DEFAULT_WEIGHT = 2.0
 WEIGHTS: Dict[str, float] = {
+    "tests/test_ehr_sandbox_upload_pipeline.py": 55.0,
     "tests/test_paired_review.py": 80.4,
     # Longitudinal E2E PRD. Measured rather than left at DEFAULT_WEIGHT: the
     # front-door file ingests four multi-MB real charts through the shipped

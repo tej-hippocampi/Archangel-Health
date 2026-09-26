@@ -1,0 +1,939 @@
+[
+  {
+    "name": "search_patients",
+    "description": "Search patients by name, birth date, MRN or gender. Returns a FHIR Bundle of Patient.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "any part of the name, case-insensitive",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "birthdate": {
+          "type": "string",
+          "description": "YYYY-MM-DD, optionally prefixed ge/le/eq",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "identifier": {
+          "type": "string",
+          "description": "MRN, exact",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "gender": {
+          "type": "string",
+          "enum": [
+            "female",
+            "male",
+            "other",
+            "unknown"
+          ],
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "description": "Page size, maximum 200."
+        },
+        "page_token": {
+          "type": "string",
+          "description": "Copy the next-page cursor from the previous Bundle link; keep filters unchanged."
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_patient",
+    "description": "Read one Patient by id.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        }
+      },
+      "required": [
+        "patient_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "list_encounters",
+    "description": "List encounters for a patient, newest first.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        },
+        "date_from": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "date_to": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "description": "Page size, maximum 200."
+        },
+        "page_token": {
+          "type": "string",
+          "description": "Copy the next-page cursor from the previous Bundle link; keep filters unchanged."
+        }
+      },
+      "required": [
+        "patient_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "search_observations",
+    "description": "Search labs or vitals. Use a LOINC code (system|code or bare) or a group name (e.g. 'BMP','renal','UACR','CBC','iron','PTH'). Paginated.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "group": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "laboratory",
+            "vital-signs"
+          ],
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "date_from": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "date_to": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "sort": {
+          "type": "string",
+          "enum": [
+            "date",
+            "-date"
+          ],
+          "default": "-date",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50
+        },
+        "page_token": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "patient_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "search_conditions",
+    "description": "Problem list and recorded assessments.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        },
+        "clinical_status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "inactive",
+            "resolved"
+          ],
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "description": "Page size, maximum 200."
+        },
+        "page_token": {
+          "type": "string",
+          "description": "Copy the next-page cursor from the previous Bundle link; keep filters unchanged."
+        }
+      },
+      "required": [
+        "patient_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "search_medications",
+    "description": "MedicationRequests (current and past regimens).",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "on-hold",
+            "stopped",
+            "completed",
+            "cancelled",
+            "all"
+          ],
+          "default": "active",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "date_from": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "date_to": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "description": "Page size, maximum 200."
+        },
+        "page_token": {
+          "type": "string",
+          "description": "Copy the next-page cursor from the previous Bundle link; keep filters unchanged."
+        }
+      },
+      "required": [
+        "patient_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "search_allergies",
+    "description": "AllergyIntolerance for a patient.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "description": "Page size, maximum 200."
+        },
+        "page_token": {
+          "type": "string",
+          "description": "Copy the next-page cursor from the previous Bundle link; keep filters unchanged."
+        }
+      },
+      "required": [
+        "patient_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "search_documents",
+    "description": "List clinical documents (visit worksheets, lab reports, letters). Returns metadata only; use read_document for text.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "date_from": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "date_to": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "description": "Page size, maximum 200."
+        },
+        "page_token": {
+          "type": "string",
+          "description": "Copy the next-page cursor from the previous Bundle link; keep filters unchanged."
+        }
+      },
+      "required": [
+        "patient_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "read_document",
+    "description": "Return the text of one document.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "document_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "document_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "search_orders",
+    "description": "Past and pending orders (labs, imaging, referrals) and appointments.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "lab",
+            "imaging",
+            "referral",
+            "appointment",
+            "all"
+          ],
+          "default": "all",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50
+        },
+        "page": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "patient_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "calculate",
+    "description": "Deterministic clinical calculators. Use only retrieved patient values; omit calculations with missing inputs. Exact required inputs by formula: egfr_ckd_epi_2021_cr: creatinine_mg_dl, age, sex; egfr_ckd_epi_2021_cr_cys: creatinine_mg_dl, cystatin_c_mg_l, age, sex; crcl_cockcroft_gault: creatinine_mg_dl, age, sex, weight_kg; kfre_4var_2yr: egfr, uacr_mg_g, age, sex; kfre_4var_5yr: egfr, uacr_mg_g, age, sex; uacr_category: uacr_mg_g; ckd_stage: egfr; bmi: weight_kg, height_cm; unit_convert: value, from_unit, to_unit, analyte.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "formula": {
+          "type": "string",
+          "enum": [
+            "egfr_ckd_epi_2021_cr",
+            "egfr_ckd_epi_2021_cr_cys",
+            "crcl_cockcroft_gault",
+            "kfre_4var_2yr",
+            "kfre_4var_5yr",
+            "uacr_category",
+            "ckd_stage",
+            "bmi",
+            "unit_convert"
+          ],
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "inputs": {
+          "type": "object",
+          "description": "Provide exactly the inputs listed for the selected formula. Units are encoded in numeric field names; eGFR is mL/min/1.73m2. Never substitute assumed values.",
+          "properties": {
+            "age": {
+              "type": "number",
+              "minimum": 0
+            },
+            "analyte": {
+              "type": "string",
+              "description": "unit_convert: creatinine (mg/dL \u2194 umol/L), uacr (mg/g \u2194 mg/mmol), or glucose (mg/dL \u2194 mmol/L)."
+            },
+            "creatinine_mg_dl": {
+              "type": "number",
+              "minimum": 0
+            },
+            "cystatin_c_mg_l": {
+              "type": "number",
+              "minimum": 0
+            },
+            "egfr": {
+              "type": "number",
+              "minimum": 0
+            },
+            "from_unit": {
+              "type": "string"
+            },
+            "height_cm": {
+              "type": "number",
+              "minimum": 0
+            },
+            "sex": {
+              "type": "string",
+              "enum": [
+                "male",
+                "female"
+              ]
+            },
+            "to_unit": {
+              "type": "string"
+            },
+            "uacr_mg_g": {
+              "type": "number",
+              "minimum": 0
+            },
+            "value": {
+              "type": "number",
+              "minimum": 0
+            },
+            "weight_kg": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "formula",
+        "inputs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create_medication_order",
+    "description": "Start a new medication. Creates an active MedicationRequest.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        },
+        "drug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "dose_value": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "dose_unit": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "route": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "frequency": {
+          "type": "string",
+          "description": "e.g. 'once daily', 'BID'",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "duration_days": {
+          "type": "integer",
+          "exclusiveMinimum": 0
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "patient_id",
+        "drug",
+        "dose_value",
+        "dose_unit",
+        "route",
+        "frequency"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "change_medication_order",
+    "description": "Change dose or frequency of an active medication. Stops the old order and creates a new one linked to it.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "medication_request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "dose_value": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "dose_unit": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "frequency": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "medication_request_id",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "discontinue_medication",
+    "description": "Stop an active medication.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "medication_request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "medication_request_id",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "hold_medication",
+    "description": "Put an active medication on hold.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "medication_request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "resume_condition": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "medication_request_id",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create_lab_order",
+    "description": "Order a lab test or panel.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        },
+        "code": {
+          "type": "string",
+          "description": "LOINC code or group name",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "timing_days": {
+          "type": "integer",
+          "description": "days from today, 0 = today",
+          "minimum": 0,
+          "maximum": 3650
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "patient_id",
+        "code"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create_referral",
+    "description": "Refer to another specialty.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        },
+        "specialty": {
+          "type": "string",
+          "description": "controlled list, e.g. vascular_surgery, transplant_nephrology, cardiology, urology, dietitian",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "urgency": {
+          "type": "string",
+          "enum": [
+            "routine",
+            "urgent"
+          ],
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "patient_id",
+        "specialty",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create_imaging_order",
+    "description": "Order imaging.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        },
+        "study": {
+          "type": "string",
+          "description": "e.g. 'renal ultrasound'",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "contrast": {
+          "type": "boolean",
+          "default": false
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "patient_id",
+        "study",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "schedule_follow_up",
+    "description": "Schedule the next visit.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        },
+        "interval_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3650
+        },
+        "visit_type": {
+          "type": "string",
+          "enum": [
+            "office",
+            "telehealth"
+          ],
+          "minLength": 1,
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "patient_id",
+        "interval_days"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "record_assessment",
+    "description": "Record a diagnosis or assessment for today.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        },
+        "icd10": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "clinical_status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "resolved"
+          ],
+          "default": "active",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "ckd_stage": {
+          "type": "string",
+          "enum": [
+            "G1",
+            "G2",
+            "G3a",
+            "G3b",
+            "G4",
+            "G5"
+          ],
+          "minLength": 1,
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "patient_id",
+        "text"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "flag_urgent",
+    "description": "Escalate: the patient needs urgent action beyond a routine order.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "ed_now",
+            "same_day_contact",
+            "admit_recommended",
+            "urgent_referral"
+          ],
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "patient_id",
+        "action",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "write_visit_note",
+    "description": "Write today's visit note. Orders are NOT placed by text; use the order tools.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
+        },
+        "assessment": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        },
+        "plan": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "patient_id",
+        "assessment",
+        "plan"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "finish_visit",
+    "description": "End the visit. Call once, last.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 6000
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "submit_answer",
+    "description": "Probe tasks only: submit the answer.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "answer": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "answer"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

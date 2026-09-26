@@ -254,14 +254,14 @@ def _assert_every_tab_on_screen(page, width):
 
 
 @pytest.mark.parametrize("width", [1280, 1440, 1920])
-def test_sandbox_console_shows_all_seven_tabs_on_a_laptop(sandbox_on, width):
+def test_sandbox_console_shows_all_eight_tabs_on_a_laptop(sandbox_on, width):
     pages = {"/sandbox/admin": client.get("/sandbox/admin").text}
     srv, base = _serve_console(pages)
     p, browser = _launch_browser()
     try:
         page = _boot_console(browser, base, "/sandbox/admin", "asclepius_token_sandbox", width)
         assert _tab_labels(page) == ["Physicians", "Tasks", "Money and Metrics", "Data",
-                                     "Community", "Referrals", "Sandbox"]
+                                     "Community", "Referrals", "EHR environments", "Sandbox"]
         _assert_every_tab_on_screen(page, width)
         # The address is still on screen (it is not sacrificed to make room).
         assert page.locator(".asc-admin-who-email").is_visible()
@@ -274,14 +274,14 @@ def test_sandbox_console_shows_all_seven_tabs_on_a_laptop(sandbox_on, width):
         srv.shutdown()
 
 
-def test_live_console_shows_all_six_tabs_and_no_sandbox_tab(sandbox_on):
+def test_live_console_shows_all_seven_tabs_and_no_sandbox_tab(sandbox_on):
     pages = {"/asclepius/admin": client.get("/asclepius/admin").text}
     srv, base = _serve_console(pages)
     p, browser = _launch_browser()
     try:
         page = _boot_console(browser, base, "/asclepius/admin", "asclepius_token", 1280)
         assert _tab_labels(page) == ["Physicians", "Tasks", "Money and Metrics", "Data",
-                                     "Community", "Referrals"]
+                                     "Community", "Referrals", "EHR environments"]
         _assert_every_tab_on_screen(page, 1280)
     finally:
         browser.close()
@@ -301,7 +301,7 @@ def test_masthead_restacks_on_resize(sandbox_on):
         page.wait_for_timeout(100)
         _assert_every_tab_on_screen(page, 2200)
         # The production bar is capped at 1180px. Even a short email can leave
-        # the seven tabs overflowing (font metrics vary across platforms).
+        # the eight tabs overflowing (font metrics vary across platforms).
         # Give this fixture enough actual space to exercise the reverse resize
         # transition, then restore the production cap for the narrow check.
         page.locator(".asc-admin-bar-inner").evaluate("el => { el.style.maxWidth = '1800px'; }")
