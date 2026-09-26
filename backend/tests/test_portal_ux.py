@@ -775,7 +775,7 @@ def _open_harness(body: str) -> dict:
         _const("DRAFT_PREFIX"),
         _fn("h"), _fn("appendChildren"), _fn("examActive"), _fn("draftKey"), _fn("randomId"),
         _fn("emptyAnchor"), _fn("newDraft"), _fn("initDraftForTask"),
-        _fn("draftContentFingerprint"), _fn("clearDraft"), _fn("isPracticeGate"), _fn("openTaskById"),
+        _fn("draftContentFingerprint"), _fn("clearDraft"), _fn("isPracticeGate"), _fn("readCaseTransition"), _fn("renderTrajectoryLoadError"), _fn("openTaskById"),
     ])
     return _run_node(_OPEN_PRELUDE % {"payload": payload} + "\n" + body)
 
@@ -1416,3 +1416,15 @@ def test_timer_only_autosaves_do_not_resurrect_submitted_drafts():
     out({memory:state.draft,stored:localStorage.getItem(draftKey('t1'))});
     """)
     assert out == {'memory': None, 'stored': None}
+
+
+def test_continuation_reuses_progress_and_clears_recovery_only_after_workspace_opens():
+    out = _open_harness("""
+    const requests=[], progress={next_task_id:'t-1',n_points:7};
+    api=async path=>{requests.push(path);return {task:{task_id:'t-1',trajectory_id:'walk'},served_portal_version:'v5'};};
+    openTaskById('t-1',progress,()=>calls.push('completed')).then(()=>out({requests,calls,
+      progress:state.trajectoryProgress}));
+    """)
+    assert out['requests'] == ['/tasks/t-1']
+    assert out['calls'].index('renderTaskWorkspace') < out['calls'].index('completed')
+    assert out['progress']['n_points'] == 7

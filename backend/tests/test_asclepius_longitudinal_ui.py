@@ -99,6 +99,7 @@ def _run_node(script: str) -> dict:
 
 _PRELUDE = """
 require({dom!r});
+require({case_panel!r});
 
 // Everything the trajectory surfaces touch that is not under test.
 const REALM = 'production';
@@ -122,11 +123,6 @@ function api() {{ return Promise.resolve({{}}); }}
 function clear(node) {{ while (node.firstChild) node.removeChild(node.firstChild); }}
 function autoGrow(ta) {{ return ta; }}
 function infoDot() {{ return document.createElement('span'); }}
-function renderLabsTrend(panels) {{
-  const t = document.createElement('table');
-  t.dataset.panels = String((panels || []).length);
-  return t;
-}}
 function renderEvalView() {{}}
 function openTaskById(id) {{ globalThis.__opened = id; }}
 function stopTimer() {{}}
@@ -151,10 +147,10 @@ def _const(name: str) -> str:
 
 
 def _harness(names, body: str) -> dict:
-    recovery_helpers = ["draftContentFingerprint", "isDuplicateTrajectorySubmission", "trajectoryRecoveryKey", "trajectoryRecoveries", "rememberTrajectoryOutcome", "clearTrajectoryOutcome"]
+    recovery_helpers = ["draftContentFingerprint", "isDuplicateTrajectorySubmission", "trajectoryRecoveryKey", "trajectoryRecoveries", "rememberTrajectoryOutcome", "clearTrajectoryOutcome", "readCaseTransition", "renderTrajectoryLoadError"]
     funcs = "\n".join(_body_of(n) for n in dict.fromkeys(recovery_helpers + names))
     return _run_node(
-        _PRELUDE.format(dom=str(DOM_SHIM), funcs=funcs, consts=_const("SELF_SCORE_CHOICES"))
+        _PRELUDE.format(dom=str(DOM_SHIM), case_panel=str(_FRONTEND / "case_panel.js"), funcs=funcs, consts=_const("SELF_SCORE_CHOICES"))
         + "\n" + body)
 
 
@@ -292,7 +288,8 @@ def test_the_outcome_panel_dates_everything_from_the_decision_executed():
     leave ambiguous."""
     out = _harness(["h", "appendChildren", "renderOutcomePanel"], """
     const panel = renderOutcomePanel({
-      lab_panels: [{ panel: 'LFT', collected_offset_days: 20 }],
+      lab_panels: [{ panel: 'Chemistry', collected_offset_days: 20,
+        results: [{analyte:'Potassium', value:5.8, unit:'mmol/L', ref_low:3.5, ref_high:5, flag:'H'}] }],
       notes: [{ note_type: 'Progress', author_role: 'gi', collected_offset_days: 12, text: 'GGT 983.' }],
       studies: [], medications: [{ drug: 'ceftriaxone', collected_offset_days: 14 }],
       problem_list: [{ condition: 'Stent occlusion', collected_offset_days: 15 }],
@@ -300,6 +297,9 @@ def test_the_outcome_panel_dates_everything_from_the_decision_executed():
     });
     console.log(JSON.stringify({ text: panel.textContent }));
     """)
+    assert "Potassium (mmol/L)" in out["text"]
+    assert "5.8 H" in out["text"]
+    assert "day +20" in out["text"]
     assert "day +12" in out["text"]
     assert "day +14" in out["text"]
     assert "day +15" in out["text"]
@@ -385,7 +385,7 @@ def test_the_walk_continues_on_the_same_patient_not_a_fresh_queue_draw():
     """§5 — reading a new chart is the expensive part of a task, and the whole
     per-decision time saving comes from paying it once."""
     body = _code(_body_of("continueTrajectory"))
-    assert "openTaskById(next)" in body
+    assert "openTaskById(next, progress, finish)" in body
     assert "next_task_id" in body
 
 
@@ -446,8 +446,9 @@ def test_progress_is_reset_before_it_is_rehydrated():
     on an unrelated chart, which is worse than no banner."""
     for fn in ("renderEvalView", "openTaskById"):
         body = _code(_body_of(fn))
-        assert "state.trajectoryProgress = null;" in body, fn
-        reset = body.index("state.trajectoryProgress = null;")
+        reset_statement = "state.trajectoryProgress = progress || null;" if fn == "openTaskById" else "state.trajectoryProgress = null;"
+        assert reset_statement in body, fn
+        reset = body.index(reset_statement)
         assert "trajectories/" in body[reset:], f"{fn} resets but never rehydrates"
 
 
@@ -644,6 +645,7 @@ function buildSubmissionPayload(){return {task_id:'t1'};}
 const cleared=[], opened=[];
 function clearDraft(id,key){cleared.push([id,key]);if(state.draft&&state.draft.task_id===id)state.draft=null;}
 function renderTrajectoryOutcomeView(task){opened.push(task.task_id);}
+function continueFlaggedTrajectory(task){opened.push(task.task_id);}
 """
 
 
@@ -762,3 +764,66 @@ def test_pending_submission_keeps_in_place_edits_with_real_cleanup(action):
         stored:JSON.parse(localStorage.getItem('original-key')).clinical_note}));})();
     """.replace('ACTION', action))
     assert out == {'memory': 'Typed while submitting', 'stored': 'Typed while submitting'}
+
+
+@pytest.mark.parametrize("action", ["renderTrajectoryOutcomeView", "continueFlaggedTrajectory"])
+def test_hung_navigation_read_times_out_without_resubmitting(action):
+    out = _harness(["h", "appendChildren", action], """
+    let rendered, calls=[], signal, delay;
+    setRoot=n=>{rendered=n;state.screenGeneration=(state.screenGeneration||0)+1;};
+    function renderDashboardView() {}
+    api=(path,options)=>{calls.push(path);signal=options.signal;return new Promise(()=>{});};
+    const realTimeout=globalThis.setTimeout;
+    globalThis.setTimeout=(fn,ms)=>{delay=ms;return realTimeout(fn,1);};
+    (async()=>{await ACTION({task_id:'t1',trajectory_id:'walk'});
+      console.log(JSON.stringify({text:rendered.textContent,delay,aborted:signal.aborted,calls,
+        pending:Object.keys(trajectoryRecoveries())}));})();
+    """.replace('ACTION', action))
+    assert out['delay'] == 15000
+    assert out['aborted'] is True
+    assert 'Try again' in out['text'] and 'taking longer than expected' in out['text']
+    assert out['pending'] == ['t1']
+    assert len(out['calls']) == 1 and '/submissions' not in out['calls']
+
+
+def test_outcome_rendering_failure_is_retryable_with_saved_recovery():
+    out = _harness(["h", "appendChildren", "renderTrajectoryOutcomeView"], """
+    let rendered;
+    setRoot=n=>{rendered=n;state.screenGeneration=(state.screenGeneration||0)+1;};
+    function renderDashboardView() {}
+    function paintTrajectoryOutcome(){throw new Error('render failed');}
+    api=async()=>({progress:{next_task_id:'next'}});
+    (async()=>{await renderTrajectoryOutcomeView({task_id:'t1',trajectory_id:'walk'});
+      console.log(JSON.stringify({text:rendered.textContent,pending:Object.keys(trajectoryRecoveries())}));})();
+    """)
+    assert 'render failed' in out['text'] and 'Try again' in out['text']
+    assert out['pending'] == ['t1']
+
+
+def test_late_flag_continuation_cannot_override_navigation():
+    out = _harness(["h", "appendChildren", "continueFlaggedTrajectory"], """
+    let finish,continued=false;
+    api=()=>new Promise(resolve=>{finish=resolve;});
+    function continueTrajectory(){continued=true;}
+    (async()=>{const pending=continueFlaggedTrajectory({task_id:'t1',trajectory_id:'walk'});
+      setRoot();state.view='home';finish({progress:{next_task_id:'next'}});await pending;
+      console.log(JSON.stringify({continued,recovery:trajectoryRecoveries().t1.continuation}));})();
+    """)
+    assert out == {'continued': False, 'recovery': True}
+
+
+@pytest.mark.parametrize('action', ['flagPrompt', 'flagCaseIncoherent'])
+@pytest.mark.parametrize('duplicate', [False, True])
+def test_flags_advance_directly_but_duplicates_recover_the_original_outcome(action, duplicate):
+    out = _harness([action, "workspaceRequestIsCurrent"], _SUBMIT_STUBS + """
+    const continued=[];
+    function continueFlaggedTrajectory(task){continued.push(task.task_id);}
+    state.draft.prompt_review={};
+    api=async()=>{if(DUPLICATE)throw {status:409,detail:{error:'trajectory_already_submitted',submission_id:'original'}};return {};};
+    (async()=>{await ACTION();console.log(JSON.stringify({opened,continued,cleared,
+      continuation:trajectoryRecoveries().t1.continuation}));})();
+    """.replace('ACTION', action).replace('DUPLICATE', json.dumps(duplicate)))
+    assert out['opened'] == (['t1'] if duplicate else [])
+    assert out['continued'] == ([] if duplicate else ['t1'])
+    assert out['continuation'] is (not duplicate)
+    assert out['cleared'] == ([] if duplicate else [['t1', 'original-key']])
