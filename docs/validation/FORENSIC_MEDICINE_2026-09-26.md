@@ -133,6 +133,14 @@ clinical artifact changed. Independent final review checked 1,242 absence/mixed-
 result combinations and the legitimate CT, neurological, soft-tissue and DNA
 controls, with no material blocker. Fresh final-commit CI still gates merge.
 
+The absence grammar also covers adjective test names, including an explicitly
+unperformed immunohistochemical study or cytopathological examination. Twenty-four
+paired regressions distinguish absent tests from positive, negative and mixed
+tissue results in every descriptive field. The targeted suite passes 333 tests.
+Independent review checked 1,152 adjective-form boundary combinations, confirmed
+both clinical artifact hashes and runtime validation, and found no remaining
+blocker. Fresh CI for this final correction is required before merge.
+
 ## Production status
 
 Release preparation is tracked in PR179. No production account write, merge, deploy or email has occurred.

@@ -145,6 +145,35 @@ def test_explicit_absent_tissue_test_does_not_exclude_clinical_exam(field, absen
     assert bank.validate_entry(entry, 'forensic medicine', SOURCES)['case']['studies']
 
 
+@pytest.mark.parametrize('field', ['label', 'findings', 'impression'])
+@pytest.mark.parametrize('test_name', [
+    'immunohistochemical study',
+    'immunohistochemical analysis',
+    'immunohistochemical examination',
+    'cytopathological examination',
+    'cytopathological analysis',
+    'cytopathologic study',
+    'histologic study',
+    'histopathologic examination',
+])
+def test_adjective_test_names_distinguish_absence_from_results(field, test_name):
+    entry = fixture_entry('forensic medicine')
+    study = {'modality': 'clinical examination', 'label': 'Injury documentation',
+             'findings': 'Superficial bruising was documented.'}
+    entry['case']['studies'] = [study]
+    for absence in (f'No {test_name} was performed.', f'{test_name} was not performed.'):
+        study[field] = absence
+        assert bank.validate_entry(entry, 'forensic medicine', SOURCES)['case']['studies']
+    for result in (
+        f'{test_name} showed malignant cells.',
+        f'{test_name} showed no malignant cells.',
+        f'No {test_name} was performed; biopsy sections showed invasive carcinoma.',
+    ):
+        study[field] = result
+        with pytest.raises(ValueError, match='outside_forensic_medicine_scope'):
+            bank.validate_entry(entry, 'forensic medicine', SOURCES)
+
+
 @pytest.mark.parametrize('findings', [
     'Histopathology showed no malignancy.',
     'No malignant cells were seen on H&E.',

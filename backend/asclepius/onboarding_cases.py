@@ -267,7 +267,8 @@ def _forensic_tissue_study(study: dict) -> bool:
     )
     absent_test = (
         r"(?:histopathology|histology|immunohistochemistry|cytopathology|microscopy|"
-        r"(?:histopathological|histological|microscopic)\s+(?:examination|analysis|study)|"
+        r"(?:histopatholog(?:ic|ical)|histolog(?:ic|ical)|immunohistochemical|"
+        r"cytopatholog(?:ic|ical)|microscopic)\s+(?:examination|analysis|study)|"
         r"(?:tissue|biopsy|h\s*&\s*e)[\s-]+(?:slides?|sections?))"
     )
     absent_action = r"(?:performed|undertaken|obtained|provided)"

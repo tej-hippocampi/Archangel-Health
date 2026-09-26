@@ -77,3 +77,8 @@ Final marker coverage includes biopsy sections/slides, immunohistochemistry and
 cytopathology, preserving explicit absence handling and ordinary forensic DNA
 specimen reports. The final targeted run passes 309 tests with no case-file or
 stored-data changes.
+
+Adjective test names now receive the same explicit-absence handling as their noun
+forms. Twenty-four paired regression cases and the 333-test targeted suite pass;
+independent review checked 1,152 boundary combinations. Both clinical documents
+remain unchanged and runtime-valid. No stored data is changed by this correction.
