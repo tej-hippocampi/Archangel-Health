@@ -113,6 +113,17 @@ closed, the false positives are avoided, and both unchanged clinical artifacts
 still match their audit hashes and validate. Fresh CI on this correction is
 required before the user-authorized merge.
 
+A subsequent reviewer update identified absent-test wording as a false positive.
+The guard now removes only explicit statements that a tissue test was not
+performed or supplied before checking the remaining text. It still rejects
+negative tissue results and mixed descriptions containing actual microscopy.
+Twenty-three further regression parameters cover absence across descriptive
+fields and negative-result/mixed-study rejection. The targeted run now passes
+295 tests. Independent reviewer /root/final_merge_review checked 558 combinations
+of absence wording, field placement and positive/negative tissue evidence; all
+matched the intended outcomes. Clinical artifacts remain byte-identical and
+runtime-valid. No remaining blocker in the patch; fresh CI still gates merge.
+
 ## Production status
 
 Release preparation is tracked in PR179. No production account write, merge, deploy or email has occurred.

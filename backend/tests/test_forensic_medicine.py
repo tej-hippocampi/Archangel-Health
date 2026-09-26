@@ -119,6 +119,39 @@ def test_forensic_record_review_studies_remain_allowed(study):
     assert bank.validate_entry(entry, 'forensic medicine', SOURCES)['case']['studies']
 
 
+@pytest.mark.parametrize('field', ['label', 'findings', 'impression'])
+@pytest.mark.parametrize('absent', [
+    'No histopathology was performed.',
+    'Histology was not performed.',
+    'No microscopic examination was undertaken.',
+    'Microscopy never performed.',
+    'No tissue slides were provided.',
+    'H&E sections were not obtained.',
+])
+def test_explicit_absent_tissue_test_does_not_exclude_clinical_exam(field, absent):
+    entry = fixture_entry('forensic medicine')
+    study = {'modality': 'clinical examination', 'label': 'Injury documentation',
+             'findings': 'Superficial soft-tissue bruising was documented.'}
+    study[field] = 'Bruising was documented; ' + absent
+    entry['case']['studies'] = [study]
+    assert bank.validate_entry(entry, 'forensic medicine', SOURCES)['case']['studies']
+
+
+@pytest.mark.parametrize('findings', [
+    'Histopathology showed no malignancy.',
+    'No malignant cells were seen on H&E.',
+    'No histopathology was performed; microscopy showed tumor cells.',
+    'No histology was performed, but H&E shows invasive nests.',
+    'Histology was not performed. The tissue-slide shows atypical cells.',
+])
+def test_negative_results_or_other_tissue_evidence_remain_excluded(findings):
+    entry = fixture_entry('forensic medicine')
+    entry['case']['studies'] = [{'modality': 'clinical examination',
+                               'label': 'Examination findings', 'findings': findings}]
+    with pytest.raises(ValueError, match='outside_forensic_medicine_scope'):
+        bank.validate_entry(entry, 'forensic medicine', SOURCES)
+
+
 def test_paused_pathology_exam_replaced_without_consuming_attempt_or_erasing_evidence(tmp_path):
     from scripts.data_inventory import snapshot, compare
     store = fresh_store()

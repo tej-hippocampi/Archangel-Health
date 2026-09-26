@@ -264,8 +264,27 @@ def _forensic_tissue_study(study: dict) -> bool:
         r"tissue[\s-]+(?:slide|section)|"
         r"(?:anatom(?:ic|ical)|clinical|surgical|dermato)[\s-]*patholog"
     )
-    return any(re.search(tissue_markers, str(study.get(field) or ""), re.I)
-               for field in ("modality", "label", "findings", "impression"))
+    absent_test = (
+        r"(?:histopathology|histology|microscopy|"
+        r"(?:histopathological|histological|microscopic)\s+(?:examination|analysis|study)|"
+        r"(?:tissue|h\s*&\s*e)[\s-]+(?:slides?|sections?))"
+    )
+    absent_action = r"(?:performed|undertaken|obtained|provided)"
+    absent_clause = (
+        rf"\b(?:no\s+{absent_test}\s+(?:(?:was|were)\s+)?{absent_action}|"
+        rf"{absent_test}\s+(?:(?:was|were)\s+)?(?:not|never)\s+{absent_action})"
+        r"(?=\s*(?:[.;,]|$))"
+    )
+    for field in ("modality", "label", "findings", "impression"):
+        text = str(study.get(field) or "")
+        if field != "modality":
+            # Remove only an explicit statement that the test was not done or
+            # supplied. A negative tissue result (e.g. no malignancy on H&E)
+            # still requires tissue interpretation, as does any remaining clause.
+            text = re.sub(absent_clause, "", text, flags=re.I)
+        if re.search(tissue_markers, text, re.I):
+            return True
+    return False
 
 
 def validate_entry(entry: dict, specialty: str, sources: list[dict], *, approved_asset: dict | None = None,

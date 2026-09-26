@@ -67,3 +67,8 @@ label, findings and impression. No case document or stored record is rewritten.
 Twelve added regressions and the 272-test targeted suite pass; independent review
 confirmed restricted tissue studies are rejected and legitimate clinical/genetic
 record review remains allowed.
+
+The final absence-wording correction masks only explicit statements that a test
+was not performed/supplied. Actual tissue results remain excluded, including
+negative results and mixed text. Twenty-three further regression parameters and
+the 295-test targeted suite pass. No clinical artifact or stored data is changed.
