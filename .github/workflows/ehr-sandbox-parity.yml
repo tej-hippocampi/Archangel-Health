@@ -1,0 +1,40 @@
+name: EHR sandbox HAPI parity
+on:
+  workflow_dispatch:
+    inputs:
+      hapi_image:
+        description: HAPI image tag or digest for the disposable reference server
+        default: hapiproject/hapi:latest
+        required: true
+permissions:
+  contents: read
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ASCLEPIUS_LLM_PROVIDER: fake
+      EMAIL_DEV_MODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r backend/requirements.txt
+      - name: Start isolated HAPI
+        env:
+          HAPI_IMAGE: ${{ inputs.hapi_image }}
+        run: docker run -d --name ehr-parity -p 8080:8080 "$HAPI_IMAGE"
+      - name: Wait for metadata
+        run: |
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://localhost:8080/fhir/metadata >/dev/null; then exit 0; fi
+            sleep 5
+          done
+          docker logs ehr-parity
+          exit 1
+      - name: Compare forty fixed queries
+        run: python backend/scripts/ehr_sandbox_parity.py --url http://localhost:8080/fhir
+      - name: Reference server logs
+        if: failure()
+        run: docker logs ehr-parity

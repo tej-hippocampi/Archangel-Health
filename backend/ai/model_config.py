@@ -6,6 +6,9 @@ APP_AI_CONFIG_VERSION = "2026-05-31.1"
 # temperature: None  -> do NOT send temperature (API default)
 #              float -> send exact value
 MODEL_REGISTRY: dict[str, dict[str, Any]] = {
+    "ehr_extract": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 4096},
+    "ehr_rubric_judge": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 4096},
+    "ehr_agent": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 4096},
     "generation": {"model": "claude-sonnet-4-6", "temperature": None, "max_tokens": 2000},
     "extraction": {"model": "claude-sonnet-4-6", "temperature": None, "max_tokens": 2500},
     "eligibility_extract": {"model": "claude-sonnet-4-6", "temperature": 0.0, "max_tokens": 4000},

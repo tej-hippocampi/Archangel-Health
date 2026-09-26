@@ -21,6 +21,6 @@ Contract rules every adapter obeys:
     in behind the same ``parse`` contract later without downstream change.
 """
 
-from asclepius.adapters import fhir_r4, hl7v2, lab_csv, note_text  # noqa: F401
+from asclepius.adapters import fhir_r4, hl7v2, lab_csv, note_text, ccda, pdf_doc  # noqa: F401
 
-__all__ = ["fhir_r4", "hl7v2", "lab_csv", "note_text"]
+__all__ = ["fhir_r4", "hl7v2", "lab_csv", "note_text", "ccda", "pdf_doc"]

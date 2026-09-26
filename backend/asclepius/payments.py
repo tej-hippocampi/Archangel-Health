@@ -140,6 +140,7 @@ class PaymentsDenied(Exception):
         self.detail = detail
 
 # ─── Kinds ────────────────────────────────────────────────────────────────────
+KIND_EHR_REVIEW = "ehr_review"
 KIND_TASK = "task"
 KIND_REVIEW_SESSION = "review_session"
 # A one-time bounty when a referred physician's FIRST task is approved. A third
@@ -2081,7 +2082,8 @@ def mark_paid(
 
 
 # ═══ The Earnings read model ══════════════════════════════════════════════════
-_KIND_LABELS = {KIND_TASK: "Task", KIND_REVIEW_SESSION: "Review session",
+_KIND_LABELS = {
+    KIND_EHR_REVIEW: "EHR physician review",KIND_TASK: "Task", KIND_REVIEW_SESSION: "Review session",
                 KIND_REFERRAL: "Referral",
                 KIND_REFEREE_BONUS: "First case bonus",
                 KIND_HS_REFERRAL: "Health system introduction"}

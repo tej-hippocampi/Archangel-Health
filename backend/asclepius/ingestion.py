@@ -863,6 +863,10 @@ def _classify(name: str, head: bytes, text_head: str) -> str:
         return "lab_csv"
     if lower.endswith((".txt", ".md", ".note")):
         return "note_text"
+    if lower.endswith(".xml") and (b"ClinicalDocument" in head or b"urn:hl7-org:v3" in head):
+        return "ccda"
+    if lower.endswith(".pdf") or head.startswith(b"%PDF"):
+        return "pdf_doc"
     return "unsupported"
 
 
@@ -1117,11 +1121,10 @@ def unpack_bundle_from_path(zip_path: str, *, spill: bool = True) -> Dict[str, A
                     name_for_kind, lower = name[:-3], lower[:-3]
                 else:
                     name_for_kind = name
-                head = data[:512]
-                text_head = head.decode("utf-8", errors="replace").lstrip()[:200]
-                kind = _classify(name_for_kind,
-                                 data[:256] if len(data) < 512 else data[:512],
-                                 text_head)
+                xml_entry = name_for_kind.lower().endswith(".xml")
+                head = data[:4096] if xml_entry else data[:512]
+                text_head = head.decode("utf-8", errors="replace").lstrip()[:4096 if xml_entry else 200]
+                kind = _classify(name_for_kind, head, text_head)
                 if kind == "manifest":
                     try:
                         manifest = json.loads(data.decode("utf-8", errors="replace"))
@@ -1182,7 +1185,8 @@ def _merge_fragments(parts: List[Dict[str, Any]]) -> Dict[str, Any]:
     keys so ``deidentify``/``_strip_meta`` keep it out of the model-visible body."""
     out: Dict[str, Any] = {"demographics": {}, "lab_panels": [], "notes": [],
                            "medications": [], "problem_list": [], "vitals": {},
-                           "studies": [], "source_refs": []}
+                           "studies": [], "source_refs": [], "encounters": [],
+                           "orders": [], "medication_events": [], "allergies": []}
     index_event = None
     sealed = None
     eval_task = None
@@ -1197,8 +1201,27 @@ def _merge_fragments(parts: List[Dict[str, Any]]) -> Dict[str, Any]:
             return None
 
     for p in parts:
-        for k in ("lab_panels", "notes", "medications", "problem_list", "studies",
-                  "source_refs"):
+        # Adapter-local references may restart in each file. Mint case-local
+        # identities and remap every edge together without modifying originals.
+        note_ids = {n['note_id']: f"note-{len(out['notes']) + i}"
+                    for i, n in enumerate(p.get('notes') or []) if n.get('note_id')}
+        encounter_ids = {e['encounter_ref']: f"enc-{len(out['encounters']) + i:03d}"
+                         for i, e in enumerate(p.get('encounters') or [])}
+        if len(encounter_ids) != len(p.get('encounters') or []):
+            raise BundleRejected('duplicate encounter references within a source fragment')
+        start_note = len(out['notes'])
+        for i, note in enumerate(p.get('notes') or []):
+            out['notes'].append({**note, 'note_id': f'note-{start_note + i}'})
+        for encounter in p.get('encounters') or []:
+            out['encounters'].append({**encounter, 'encounter_ref': encounter_ids[encounter['encounter_ref']],
+                                      'note_ids': [note_ids.get(n, n) for n in encounter.get('note_ids', [])]})
+        for collection in ('orders', 'medication_events'):
+            for item in p.get(collection) or []:
+                item = dict(item)
+                if item.get('encounter_ref') in encounter_ids:
+                    item['encounter_ref'] = encounter_ids[item['encounter_ref']]
+                out[collection].append(item)
+        for k in ("lab_panels", "medications", "problem_list", "studies", "source_refs", "allergies"):
             out[k].extend(p.get(k) or [])
         for k, v in (p.get("demographics") or {}).items():
             out["demographics"].setdefault(k, v)
@@ -1676,6 +1699,12 @@ def _patient_key_and_source(
     keys = list(dict.fromkeys(str(k) for k in fragment.get("_patient_keys") or []))
     if len(keys) > 1:
         raise BundleRejected("multiple patients in one file; provide one patient per file")
+    # Per-file mappings apply to every format, including legacy CSV/text.
+    # Validate multiplicity FIRST so a mapping cannot launder a multi-patient file.
+    from asclepius.adapters.ehr_mapping import mapped_key
+    mapped = mapped_key({**manifest, "filename": entry_name})
+    if mapped is not None:
+        return mapped, "manifest"
     # The manifest is the AUTHORITATIVE grouping hint (PRD §5): when the partner
     # declares a patient_key, every entry in the bundle belongs to that one case
     # (FHIR ids / CSV keys are per-system and would otherwise split the case).
@@ -1693,7 +1722,7 @@ def _patient_key_and_source(
 
 # Which minting system wins when one physical patient carries several keys
 # (Real-Case Generation PRD §2.3). Most authoritative first.
-_KEY_SOURCE_PRECEDENCE = ("manifest", "fhir_r4", "hl7v2", "lab_csv", "note_text",
+_KEY_SOURCE_PRECEDENCE = ("manifest", "fhir_r4", "hl7v2", "ccda", "lab_csv", "note_text", "pdf_doc",
                           "filename", "default")
 
 
@@ -1920,6 +1949,8 @@ def process_upload(store: Any, upload_id: str, *, specialty_override: Optional[s
         entry_manifest["filename"] = name
         try:
             frag = cf.FORMATS[kind](e["data"], specialty=specialty, manifest=entry_manifest)
+            if frag.get("_unparsed_reason"):
+                raise cf.CaseIngestError("adapter could not parse clinical content")
             pk, how = _patient_key_and_source(frag, name, manifest)
             parsed_any = True
             # An adapter-minted key belongs to the FORMAT that minted it — that is

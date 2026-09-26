@@ -29,9 +29,9 @@ drop-in with zero downstream change.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, ClassVar, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
 
 # Out-of-range flags on a lab result (HL7-style). "" = within range.
 LAB_FLAGS = ("", "L", "H", "LL", "HH")
@@ -134,13 +134,34 @@ class LabPanel(BaseModel):
     results: List[LabResult] = Field(default_factory=list)
 
 
-class ClinicalNote(BaseModel):
+class _EHRCompatibleModel(BaseModel):
+    """Keep accepted legacy case hashes stable when EHR fields are absent.
+
+    Explicit values (including empty lists/nulls) and later mutations survive.
+    Only the newly introduced, implicit defaults are omitted; historical model
+    defaults retain their original serialization behavior.
+    """
+    _ehr_defaults: ClassVar[dict[str, Any]] = {}
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler):
+        result = handler(self)
+        for field, default in self._ehr_defaults.items():
+            if field not in self.model_fields_set and getattr(self, field) == default:
+                result.pop(field, None)
+        return result
+
+
+class ClinicalNote(_EHRCompatibleModel):
     """A de-identified narrative (FHIR DocumentReference). ``author_role`` is a
     generalized category ("nephrology", "ICU") — never a person's name."""
 
     # extra="forbid" (BUG-1 §1): a mis-named note body key (e.g. "body",
     # "content") must raise, not silently produce an empty note.
     model_config = ConfigDict(extra="forbid")
+    _ehr_defaults = {"note_id": None}
+
+    note_id: Optional[str] = None          # opaque id assigned during fragment merge
 
     note_type: str = "Progress"            # H&P | Progress | Consult | Nursing
     author_role: str = "clinician"
@@ -171,14 +192,62 @@ class ProblemItem(BaseModel):
     collected_offset_days: Optional[int] = None
 
 
-class MedicationItem(BaseModel):
+class MedicationItem(_EHRCompatibleModel):
+    _ehr_defaults = {"status": None, "start_offset_days": None, "stop_offset_days": None}
     drug: str
     dose: Optional[str] = None
     route: Optional[str] = None
     freq: Optional[str] = None
+    status: Optional[str] = None
+    start_offset_days: Optional[int] = None
+    stop_offset_days: Optional[int] = None
     # RELATIVE day the medication was ORDERED (see ProblemItem). Critical for V5: a
     # drug started after the decision point IS the diagnosis (tolvaptan → SIADH,
     # rasburicase → tumor lysis), so it must be holdable-out. ``None`` = unknown.
+    collected_offset_days: Optional[int] = None
+
+
+class EncounterItem(BaseModel):
+    """One de-identified visit, with an opaque per-case encounter reference."""
+    model_config = ConfigDict(extra="forbid")
+    encounter_ref: str
+    visit_type: Literal["office", "telehealth", "procedure", "hospital", "other"] = "office"
+    collected_offset_days: Optional[int] = None
+    note_ids: List[str] = Field(default_factory=list)
+
+
+class OrderItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["lab", "imaging", "referral", "procedure", "follow_up", "other"]
+    code: Optional[str] = None
+    code_system: Optional[str] = None
+    text: str = ""
+    encounter_ref: Optional[str] = None
+    due_offset_days: Optional[int] = None
+    collected_offset_days: Optional[int] = None
+    source: Literal["structured", "worksheet_extracted"] = "structured"
+    source_span: Optional[str] = None
+
+
+class MedicationEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action: Literal["start", "stop", "increase", "decrease", "hold", "continue", "switch"]
+    drug: str
+    rxnorm_ingredient: Optional[str] = None
+    dose: Optional[str] = None
+    route: Optional[str] = None
+    freq: Optional[str] = None
+    reason: Optional[str] = None
+    encounter_ref: Optional[str] = None
+    collected_offset_days: Optional[int] = None
+    source: Literal["structured", "worksheet_extracted"] = "structured"
+    source_span: Optional[str] = None
+
+
+class AllergyItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    substance: str
+    reaction: Optional[str] = None
     collected_offset_days: Optional[int] = None
 
 
@@ -273,7 +342,7 @@ class Study(BaseModel):
     collected_offset_days: Optional[int] = None
 
 
-class ClinicalCase(BaseModel):
+class ClinicalCase(_EHRCompatibleModel):
     # extra="forbid" (BUG-1 §1): THE critical one. If the LLM returns ``labs``
     # instead of ``lab_panels`` (or nests results differently, or omits them),
     # pydantic's default ``extra='ignore'`` would silently drop the key and yield
@@ -281,6 +350,7 @@ class ClinicalCase(BaseModel):
     # Forbidding extras makes that a hard ValidationError → caught by the caller
     # → counted as ``case_gen_failed``. Never again a silent empty case.
     model_config = ConfigDict(extra="forbid")
+    _ehr_defaults = {"encounters": [], "orders": [], "medication_events": [], "allergies": []}
 
     case_id: Optional[str] = None
     case_source: str = "synthetic"         # synthetic | real_deid
@@ -291,6 +361,10 @@ class ClinicalCase(BaseModel):
     vitals: Dict[str, Any] = Field(default_factory=dict)
     lab_panels: List[LabPanel] = Field(default_factory=list)
     notes: List[ClinicalNote] = Field(default_factory=list)
+    encounters: List[EncounterItem] = Field(default_factory=list)
+    orders: List[OrderItem] = Field(default_factory=list)
+    medication_events: List[MedicationEvent] = Field(default_factory=list)
+    allergies: List[AllergyItem] = Field(default_factory=list)
     # Structured studies (PRD §3): ECG/echo/cath (cardiology), pathology/imaging/
     # molecular (oncology), renal biopsy/US (nephrology). Additive + backward
     # compatible — existing cases carry an empty list.

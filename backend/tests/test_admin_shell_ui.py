@@ -204,7 +204,7 @@ def test_the_console_boots_into_the_masthead_and_the_physicians_tab():
     assert res["hidden"] is False, "the masthead never came out of hidden"
     assert res["body"], "the console body never mounted"
     assert [t.split(" ")[0] for t in res["tabs"]] == [
-        "Physicians", "Tasks", "Money", "Data", "Community", "Referrals"]
+        "Physicians", "Tasks", "Money", "Data", "Community", "Referrals", "EHR"]
     assert res["active"] and res["active"][0].startswith("Physicians")
 
 

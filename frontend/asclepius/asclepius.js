@@ -471,7 +471,11 @@
     // regardless — this is so the operator sees a sentence, not a stack trace.)
     if (!sessionCan('review')) { switchView('home'); return; }
     const host = h('div', { class: 'asc-wrap asc-wrap-review' });
-    setRoot(host);
+    const ehr = h('button', {class:'asc-btn', onclick: () => {
+      teardownReview(); const body=h('div',{class:'asc-wrap'}); setRoot(body);
+      window.EhrReviewSection.render(body,{h,api,clear,toast});
+    }}, 'My EHR reviews');
+    const wrapper=h('div',{},ehr,host);setRoot(wrapper);
     if (window.AsclepiusReview && typeof window.AsclepiusReview.render === 'function') {
       window.AsclepiusReview.render(host, reviewSectionCtx());
     } else {
@@ -1891,6 +1895,10 @@
     // has to land a reviewer on their work rather than on a generic dashboard.
     // Consumed once — the hash is cleared so a later reload is not permanently
     // pinned to review — and gated on the capability like every other route in.
+    if (/^#ehr-review(?:\/[^/]+)?$/.test(location.hash) && window.EhrReviewSection) {
+      const host = h('div', {class: 'asc-wrap'}); setRoot(host);
+      window.EhrReviewSection.render(host, {h, api, clear, toast}, location.hash.split('/')[1]); return;
+    }
     if (readReviewHash() && sessionCan('review')) { setPanel('review'); return; }
     // §6: the first-login walkthrough. A newly approved physician lands in the
     // welcome letter, not on a dashboard they have to reverse-engineer.

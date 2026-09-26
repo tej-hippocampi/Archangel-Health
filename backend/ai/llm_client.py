@@ -358,6 +358,77 @@ async def _openai_create_async(model: str, system: str, messages: list[dict[str,
                           getattr(resp, "id", None), _openai_stop_reason(resp, choice))
 
 
+class _ToolUseBlock:
+    type = "tool_use"
+
+    def __init__(self, call_id, name, arguments):
+        self.id = call_id
+        self.name = name
+        try:
+            self.input = json.loads(arguments)
+        except (ValueError, TypeError):
+            self.input = {}  # Tool schema rejects missing required arguments.
+
+
+class _OpenAIResponseItem:
+    type = "openai_response_item"
+
+    def __init__(self, item):
+        self.item = item
+
+
+def _openai_tool_history(messages):
+    """Preserve roles, tool call IDs/results and stateless reasoning items."""
+    items = []
+    for message in messages:
+        content = message.get("content", "")
+        if isinstance(content, str):
+            items.append({"role": message["role"], "content": content})
+            continue
+        for block in content:
+            kind = block.get("type")
+            if kind == "tool_use":
+                items.append({"type": "function_call", "call_id": block["id"],
+                              "name": block["name"], "arguments": json.dumps(block["input"])})
+            elif kind == "tool_result":
+                output = block.get("content", "")
+                items.append({"type": "function_call_output", "call_id": block["tool_use_id"],
+                              "output": output if isinstance(output, str) else json.dumps(output)})
+            elif kind == "openai_response_item":
+                items.append(block["item"])
+            elif kind == "text":
+                items.append({"role": message["role"], "content": block["text"]})
+            else:
+                raise ValueError("unsupported block in native OpenAI tool history")
+    return items
+
+
+async def _openai_tools_async(model, system, messages, max_tokens, temperature, tools):
+    # https://developers.openai.com/api/docs/guides/function-calling
+    # Additive path: text/image-only callers retain their existing transport.
+    model = api_model_id(model)
+    reasoning = _is_openai_reasoning(model)
+    params = {"model": model, "instructions": system, "input": _openai_tool_history(messages),
+              "max_output_tokens": _openai_output_cap(max_tokens, reasoning), "store": False,
+              "include": ["reasoning.encrypted_content"],
+              "tools": [{"type": "function", "name": t["name"], "description": t.get("description", ""),
+                         "parameters": t["input_schema"], "strict": False} for t in tools]}
+    if temperature is not None and not reasoning:
+        params["temperature"] = temperature
+    response = await _aopenai().responses.create(**params)
+    usage = getattr(response, "usage", None)
+    result = _LLMResult(getattr(response, "output_text", ""), getattr(usage, "input_tokens", None),
+                        getattr(usage, "output_tokens", None), getattr(response, "id", None), _openai_stop_reason(response))
+    for item in getattr(response, "output", []):
+        if getattr(item, "type", None) == "function_call":
+            result.content.append(_ToolUseBlock(item.call_id, item.name, item.arguments))
+        elif getattr(item, "type", None) == "reasoning":
+            result.content.append(_OpenAIResponseItem(item.model_dump(exclude_none=True)))
+    if any(getattr(b, "type", None) == "tool_use" for b in result.content):
+        result.stop_reason = "tool_use"
+    return result
+
+
 #: The API's wording when a model refuses a pinned sampling parameter:
 #: ``\`temperature\` is deprecated for this model.``
 _DEPRECATED_PARAM_RE = re.compile(r"`(\w+)` is deprecated for this model", re.I)
@@ -462,6 +533,8 @@ async def call_llm(
             return build_response(role=role, purpose=purpose, system=system,
                                   messages=messages, kwargs=kwargs)
         if provider == "openai":
+            if kwargs.get("tools"):
+                return await _openai_tools_async(cfg["model"], system, messages, kwargs.get("max_tokens"), kwargs.get("temperature"), kwargs["tools"])
             return await _openai_create_async(cfg["model"], system, messages,
                                               kwargs.get("max_tokens"), kwargs.get("temperature"))
         return await _anthropic_create_async(kwargs)

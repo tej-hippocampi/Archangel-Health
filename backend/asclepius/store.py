@@ -599,6 +599,65 @@ class AsclepiusStore:
             if 'attachment_json' not in {r[1] for r in conn.execute('PRAGMA table_info(admin_notify_outbox)')}:
                 conn.execute('ALTER TABLE admin_notify_outbox ADD COLUMN attachment_json TEXT')
 
+    # ENV-EHR internal persistence. Callers receive the realm-scoped store;
+    # these helpers never instantiate a store or accept arbitrary table names.
+    def _ehr_columns(self, conn, table):
+        from asclepius.ehr_sandbox.constants import EHR_TABLES
+        if table not in EHR_TABLES:
+            raise ValueError("unknown EHR table")
+        return {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+
+    def ehr_insert(self, table, fields, *, _connection=None):
+        with (nullcontext(_connection) if _connection is not None else self._conn()) as conn:
+            columns = self._ehr_columns(conn, table)
+            if not fields or not set(fields) <= columns:
+                raise ValueError("unknown EHR columns")
+            names = list(fields)
+            conn.execute(f"INSERT INTO {table} ({','.join(names)}) VALUES ({','.join('?' for _ in names)})",
+                         [fields[k] for k in names])
+        return dict(fields)
+
+    def ehr_list(self, table, *, limit=1000, offset=0, _connection=None, **filters):
+        with (nullcontext(_connection) if _connection is not None else self._conn()) as conn:
+            columns = self._ehr_columns(conn, table)
+            if not set(filters) <= columns:
+                raise ValueError("unknown EHR filters")
+            where = ' AND '.join(f"{k} = ?" for k in filters) or '1=1'
+            rows = conn.execute(f"SELECT * FROM {table} WHERE {where} ORDER BY rowid LIMIT ? OFFSET ?",
+                                [*filters.values(), min(max(int(limit), 1), 10000), max(int(offset), 0)]).fetchall()
+        return [dict(row) for row in rows]
+
+    def ehr_all(self, table, *, _connection=None, **filters):
+        """Internal complete traversal; public routes page independently."""
+        filters.pop('limit', None)
+        rows, offset = [], 0
+        while True:
+            page = self.ehr_list(table, limit=10000, offset=offset, _connection=_connection, **filters)
+            rows.extend(page)
+            if len(page) < 10000:
+                return rows
+            offset += len(page)
+
+    def ehr_get(self, table, *, _connection=None, **filters):
+        if not filters:
+            raise ValueError("EHR lookup requires an identity")
+        rows = self.ehr_list(table, limit=1, _connection=_connection, **filters)
+        return rows[0] if rows else None
+
+    def ehr_update(self, table, filters, fields, *, _connection=None):
+        immutable = {"ehr_charts": {"resources_json", "chart_hash", "ingest_case_id", "upload_id"},
+                     "ehr_visits": {"key_enc", "outcome_enc", "chart_id", "encounter_ref"},
+                     "ehr_tasks": {"snapshot_json", "instruction", "seed", "split", "visit_id", "probe_key_enc"}}
+        if table in ("ehr_key_corrections", "ehr_review_verdicts") or set(fields) & immutable.get(table, set()):
+            raise ValueError("immutable EHR evidence; append a correction or revision")
+        with (nullcontext(_connection) if _connection is not None else self._conn()) as conn:
+            columns = self._ehr_columns(conn, table)
+            if not filters or not fields or not set(filters) | set(fields) <= columns:
+                raise ValueError("invalid EHR update")
+            result = conn.execute(f"UPDATE {table} SET {','.join(k+' = ?' for k in fields)} WHERE " +
+                                  ' AND '.join(k+' = ?' for k in filters), [*fields.values(), *filters.values()])
+        return result.rowcount
+
     # ─── Connection ──────────────────────────────────────────────────────────
     def _connect_uri(self) -> str:
         """The sqlite URI a read-only store opens. Public so the test that pins
@@ -1232,6 +1291,209 @@ class AsclepiusStore:
             # annotations_json added after the table shipped — guard for existing DBs.
             if "annotations_json" not in cols("env_runs"):
                 conn.execute("ALTER TABLE env_runs ADD COLUMN annotations_json TEXT")
+
+            # ENV-EHR: additive tables; portal assignments and env_runs remain separate.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ehr_charts (
+                  chart_id        TEXT PRIMARY KEY,          -- 'chart-' + 12 hex
+                  ingest_case_id  TEXT NOT NULL,             -- ingest_cases.ingest_case_id
+                  upload_id       TEXT NOT NULL,
+                  specialty       TEXT NOT NULL DEFAULT 'nephrology',
+                  source_country  TEXT NOT NULL DEFAULT 'US',-- I15
+                  n_visits        INTEGER NOT NULL DEFAULT 0,
+                  resources_json  TEXT NOT NULL,             -- FHIR R4 resources, relative offsets (no dates)
+                  extraction_json TEXT,                      -- worksheet-extraction report (confidence, spans)
+                  status          TEXT NOT NULL DEFAULT 'built',   -- built | quarantined | superseded
+                  chart_hash      TEXT NOT NULL,             -- sha256 of resources_json
+                  created_at      TEXT NOT NULL,
+                  updated_at      TEXT NOT NULL
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ehr_visits (
+                  visit_id        TEXT PRIMARY KEY,          -- 'visit-' + 12 hex
+                  chart_id        TEXT NOT NULL,
+                  encounter_ref   TEXT NOT NULL,
+                  visit_index     INTEGER NOT NULL,          -- 0..n-1 in chart order
+                  offset_days     INTEGER NOT NULL,          -- decision day = the visit worksheet's offset (§8.2)
+                  has_next_visit  INTEGER NOT NULL DEFAULT 0,
+                  key_enc         TEXT,                      -- encrypted VisitKey JSON (I2)
+                  outcome_enc     TEXT,                      -- encrypted OutcomeWindow JSON (I2)
+                  key_confidence  REAL,                      -- min item confidence from extraction
+                  key_conflict    INTEGER NOT NULL DEFAULT 0,-- worksheet vs structured med-list disagree (§8.2 step 4)
+                  key_audit       TEXT NOT NULL DEFAULT 'pending', -- pending | not_sampled | passed | failed | waived
+                  doctor_flagged  INTEGER NOT NULL DEFAULT 0,-- the key itself trips a safety rule (§9.5)
+                  status          TEXT NOT NULL DEFAULT 'candidate', -- candidate | ready | excluded
+                  exclusion_reason TEXT,
+                  created_at      TEXT NOT NULL,
+                  UNIQUE (chart_id, encounter_ref)
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ehr_tasks (
+                  task_id         TEXT PRIMARY KEY,          -- 'ehrt-' + 12 hex
+                  visit_id        TEXT NOT NULL,
+                  task_kind       TEXT NOT NULL DEFAULT 'visit',  -- visit | probe_trend | probe_retrieval | probe_dose
+                  env_version     TEXT NOT NULL,             -- e.g. 'neph-ehr-1.0.0'
+                  split           TEXT NOT NULL,             -- train | dev | heldout  (I11)
+                  seed            INTEGER NOT NULL,
+                  snapshot_json   TEXT NOT NULL,             -- the pre-sliced sandbox snapshot (target + decoys), synthetic dates
+                  instruction     TEXT NOT NULL,
+                  budget_tool_calls INTEGER NOT NULL DEFAULT 40,
+                  tags_json       TEXT,                      -- failure modes targeted (F1..F12), action/no-action class
+                  probe_key_enc   TEXT,                      -- encrypted key for probe tasks
+                  status          TEXT NOT NULL DEFAULT 'ready',  -- ready | retired
+                  created_at      TEXT NOT NULL
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ehr_rollouts (
+                  rollout_id      TEXT PRIMARY KEY,          -- 'ehrr-' + 12 hex
+                  task_id         TEXT NOT NULL,
+                  model           TEXT,
+                  provider        TEXT,
+                  harness         TEXT NOT NULL DEFAULT 'native_tools', -- native_tools | json_protocol | scripted:noop | scripted:oracle | external
+                  run_group       TEXT,                      -- groups k repeats for pass^k
+                  trajectory_json TEXT NOT NULL,
+                  access_log_json TEXT NOT NULL,             -- every read: resource ids returned
+                  writes_json     TEXT NOT NULL,             -- accepted writes (the end state, I4)
+                  rejected_writes_json TEXT,                 -- writes the server refused, with OperationOutcome
+                  terminated_by   TEXT,                      -- finish_visit | budget | error
+                  provisional_reward REAL,
+                  final_reward    REAL,                      -- set when all reviews resolve
+                  hard_fail       INTEGER NOT NULL DEFAULT 0,
+                  hard_fail_reason TEXT,
+                  status          TEXT NOT NULL DEFAULT 'graded', -- graded | awaiting_review | final
+                  created_at      TEXT NOT NULL,
+                  updated_at      TEXT
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ehr_checkpoints (
+                  checkpoint_id   TEXT PRIMARY KEY,
+                  rollout_id      TEXT NOT NULL,
+                  kind            TEXT NOT NULL,             -- retrieve | reason | act | document | safety
+                  score           REAL,                      -- 0..1, NULL when not gradable
+                  verdict         TEXT NOT NULL,             -- pass | partial | fail | not_gradable | pending_review
+                  items_json      TEXT NOT NULL,             -- per-item matches/misses/extras with evidence
+                  grader          TEXT NOT NULL,             -- code | rubric_llm | physician
+                  UNIQUE (rollout_id, kind)
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ehr_reviews (
+                  review_id       TEXT PRIMARY KEY,          -- 'ehrrev-' + 12 hex
+                  scope           TEXT NOT NULL,             -- rollout | visit
+                  rollout_id      TEXT,                      -- NULL for visit-scoped reviews
+                  visit_id        TEXT NOT NULL,
+                  trigger         TEXT NOT NULL,             -- disagreement | outcome_flag | safety | rubric_sample | key_audit
+                  dedupe_key      TEXT NOT NULL UNIQUE,      -- rollout scope: rollout_id|trigger ; visit scope: visit_id|trigger
+                  items_json      TEXT NOT NULL,             -- the disputed items (blinded Plan A / Plan B)
+                  blind_order     TEXT NOT NULL,             -- 'a_is_doctor' | 'a_is_agent' (seeded, never sent to the reviewer)
+                  status          TEXT NOT NULL DEFAULT 'open', -- open | needs_second | needs_tiebreak | resolved | unresolved | cancelled
+                  reason          TEXT,                      -- e.g. no_eligible_reviewer, daily_cap
+                  resolution_json TEXT,                      -- per-item final verdicts
+                  created_at      TEXT NOT NULL,
+                  resolved_at     TEXT
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ehr_review_rollouts (
+                  review_id       TEXT NOT NULL,
+                  rollout_id      TEXT NOT NULL,
+                  item_ids_json   TEXT NOT NULL,             -- the rollout's items this review decides
+                  PRIMARY KEY (review_id, rollout_id)
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ehr_review_assignments (
+                  review_assignment_id TEXT PRIMARY KEY,     -- 'ehra-' + 12 hex; the earning ref_id (I14)
+                  review_id       TEXT NOT NULL,
+                  user_id         TEXT NOT NULL,
+                  round           INTEGER NOT NULL,          -- 1, 2, or 3 (tie-break)
+                  status          TEXT NOT NULL DEFAULT 'offered', -- offered | claimed | submitted | expired | revoked
+                  offered_at      TEXT NOT NULL,
+                  due_at          TEXT NOT NULL,
+                  expires_at      TEXT NOT NULL,
+                  UNIQUE (review_id, user_id)
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ehr_review_verdicts (
+                  verdict_id      TEXT PRIMARY KEY,
+                  review_id       TEXT NOT NULL,
+                  review_assignment_id TEXT NOT NULL UNIQUE, -- ehr_review_assignments id (I14 ref_id)
+                  reviewer_user_id TEXT NOT NULL,
+                  round           INTEGER NOT NULL,          -- 1, 2, or 3 (tie-break)
+                  verdict_json    TEXT NOT NULL,
+                  confidence      TEXT NOT NULL,             -- high | low
+                  seconds_spent   INTEGER,
+                  submitted_at    TEXT NOT NULL,
+                  UNIQUE (review_id, reviewer_user_id)
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ehr_verdict_cache (
+                  cache_key       TEXT PRIMARY KEY,          -- sha256(visit_id + normalized item signature)
+                  visit_id        TEXT NOT NULL,
+                  item_signature  TEXT NOT NULL,
+                  verdict         TEXT NOT NULL,             -- valid_alternative | agent_wrong | doctor_wrong | harmful
+                  source_review_id TEXT NOT NULL,
+                  created_at      TEXT NOT NULL
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ehr_key_corrections (
+                  correction_id   TEXT PRIMARY KEY,
+                  visit_id        TEXT NOT NULL,
+                  review_id       TEXT NOT NULL,
+                  correction_json TEXT NOT NULL,             -- {item_id, from, to, reason}
+                  created_at      TEXT NOT NULL
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ehr_source_exclusions (
+                  upload_id       TEXT NOT NULL,
+                  user_id         TEXT NOT NULL,
+                  reason          TEXT NOT NULL,             -- source_practice_clinician | family | other
+                  PRIMARY KEY (upload_id, user_id)
+                );
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ehr_charts_ingest ON ehr_charts(ingest_case_id, status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ehr_charts_upload ON ehr_charts(upload_id, status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ehr_visits_chart ON ehr_visits(chart_id, visit_index)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ehr_tasks_visit ON ehr_tasks(visit_id, status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ehr_tasks_split ON ehr_tasks(split, status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ehr_rollouts_task ON ehr_rollouts(task_id, status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ehr_rollouts_group ON ehr_rollouts(run_group)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ehr_reviews_visit ON ehr_reviews(visit_id, status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ehr_assignments_user ON ehr_review_assignments(user_id, status, expires_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ehr_review_rollouts_run ON ehr_review_rollouts(rollout_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ehr_corrections_visit ON ehr_key_corrections(visit_id)")
 
             # Added after credentialing_exams shipped. No backfill: NULL means
             # "we did not record whether this was their own specialty", which is

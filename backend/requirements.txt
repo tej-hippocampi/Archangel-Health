@@ -65,3 +65,8 @@ stripe==15.6.1
 # Generated HTML cards: HTML5 sanitization and parsed CSS filtering.
 nh3==0.3.7
 tinycss2==1.5.1
+
+# ENV-EHR C-CDA XML parser
+lxml>=5,<6
+fhir.resources>=8,<9
+jsonschema>=4,<5

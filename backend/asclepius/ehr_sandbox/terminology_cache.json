@@ -1,0 +1,174 @@
+{
+  "version": 2,
+  "source": "Verified fixture RxNorm ingredient IDs plus label-derived exact brand aliases. Null ingredient means no verified RxNorm code; preserve source text.",
+  "drugs": [
+    {
+      "name": "lisinopril",
+      "ingredient": "29046",
+      "aliases": [
+        "lisinopril",
+        "prinivil",
+        "zestril"
+      ]
+    },
+    {
+      "name": "amlodipine",
+      "ingredient": "17767",
+      "aliases": [
+        "amlodipine",
+        "norvasc"
+      ]
+    },
+    {
+      "name": "furosemide",
+      "ingredient": "4603",
+      "aliases": [
+        "furosemide",
+        "lasix"
+      ]
+    },
+    {
+      "name": "metformin",
+      "ingredient": "6809",
+      "aliases": [
+        "metformin",
+        "glucophage"
+      ]
+    },
+    {
+      "name": "spironolactone",
+      "ingredient": "9997",
+      "aliases": [
+        "spironolactone",
+        "aldactone"
+      ]
+    },
+    {
+      "name": "gabapentin",
+      "ingredient": null,
+      "aliases": [
+        "gabapentin",
+        "Neurontin"
+      ]
+    },
+    {
+      "name": "apixaban",
+      "ingredient": null,
+      "aliases": [
+        "apixaban",
+        "Eliquis"
+      ]
+    },
+    {
+      "name": "rivaroxaban",
+      "ingredient": null,
+      "aliases": [
+        "rivaroxaban",
+        "Xarelto"
+      ]
+    },
+    {
+      "name": "allopurinol",
+      "ingredient": null,
+      "aliases": [
+        "allopurinol",
+        "Zyloprim",
+        "Lopurin"
+      ]
+    },
+    {
+      "name": "colchicine",
+      "ingredient": null,
+      "aliases": [
+        "colchicine",
+        "Colcrys",
+        "Mitigare"
+      ]
+    },
+    {
+      "name": "sitagliptin",
+      "ingredient": null,
+      "aliases": [
+        "sitagliptin",
+        "Januvia"
+      ]
+    },
+    {
+      "name": "nitrofurantoin",
+      "ingredient": null,
+      "aliases": [
+        "nitrofurantoin",
+        "Macrobid",
+        "Macrodantin"
+      ]
+    },
+    {
+      "name": "baclofen",
+      "ingredient": null,
+      "aliases": [
+        "baclofen",
+        "Lioresal"
+      ]
+    },
+    {
+      "name": "trimethoprim-sulfamethoxazole",
+      "ingredient": null,
+      "aliases": [
+        "trimethoprim-sulfamethoxazole",
+        "sulfamethoxazole-trimethoprim",
+        "TMP-SMX",
+        "Bactrim",
+        "Septra"
+      ]
+    },
+    {
+      "name": "enoxaparin",
+      "ingredient": null,
+      "aliases": [
+        "enoxaparin",
+        "Lovenox"
+      ]
+    },
+    {
+      "name": "losartan",
+      "ingredient": null,
+      "aliases": [
+        "losartan",
+        "Cozaar"
+      ]
+    },
+    {
+      "name": "valsartan",
+      "ingredient": null,
+      "aliases": [
+        "valsartan",
+        "Diovan"
+      ]
+    },
+    {
+      "name": "ibuprofen",
+      "ingredient": null,
+      "aliases": [
+        "ibuprofen",
+        "Advil",
+        "Motrin"
+      ]
+    },
+    {
+      "name": "naproxen",
+      "ingredient": null,
+      "aliases": [
+        "naproxen",
+        "Aleve"
+      ]
+    },
+    {
+      "name": "diclofenac",
+      "ingredient": null,
+      "aliases": [
+        "diclofenac",
+        "Voltaren"
+      ]
+    }
+  ]
+}

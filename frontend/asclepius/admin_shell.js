@@ -775,6 +775,7 @@
     ['data', 'Data'],
     ['community', 'Community'],
     ['referrals', 'Referrals'],
+    ['ehr', 'EHR environments'],
   ];
   // Sandbox PRD §3: the sandbox admin console is the SAME console with one
   // more section — Accounts (the ten doctors + credentials, Reset, Seed fresh
@@ -866,6 +867,7 @@
     else if (state.adminTab === 'data') renderAdminDataSection(body);
     else if (state.adminTab === 'community') renderAdminCommunitySection(body);
     else if (state.adminTab === 'referrals') renderAdminReferralsSection(body);
+    else if (state.adminTab === 'ehr') window.AdminEhrSection.render(body, adminSectionCtx());
     else if (state.adminTab === 'sandbox' && REALM === 'sandbox') renderAdminSandboxSection(body);
   }
 
