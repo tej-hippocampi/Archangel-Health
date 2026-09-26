@@ -2746,7 +2746,7 @@ export function Step5Credentials({
         requirement={reviewMode && !c.primarySpecialty.trim() ? "required" : undefined}
         hint={data.cvParsed?.specialty_status === "ambiguous"
           ? "Your CV lists more than one specialty. Choose your current primary specialty so both your practice and examination cases match your work."
-          : "Your practice and examination cases will match this specialty. Confirm it reflects your current clinical work."}
+          : "Your practice and examination cases will match this specialty. Use the specialty title you practise under in your country; no US equivalent is needed."}
       />
 
       {/* ── Contact & corroboration (PRD-B Seam 4) ──────────────────────────

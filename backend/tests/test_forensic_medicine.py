@@ -73,8 +73,8 @@ def test_training_keeps_forensic_qualifier(specialty):
 
 @pytest.mark.parametrize('modality', ['pathology', ' Pathology ', 'histopathology', 'histology', 'microscopy'])
 def test_medicolegal_topics_and_no_pathology_studies(modality):
-    assert 'injury documentation' in topic_for('Legal Medicine', 'practice')
-    assert 'strangulation' in topic_for('Rechtsmedizin', 'examination')
+    assert 'interpretation of genital lacerations' in topic_for('Legal Medicine', 'practice')
+    assert 'neck compression' in topic_for('Rechtsmedizin', 'examination')
     assert 'histopathology' in scope_for('forensic medicine')
     entry = fixture_entry('forensic medicine')
     entry['case']['studies'] = [{'modality': modality, 'label': 'Microscopic skin specimen',

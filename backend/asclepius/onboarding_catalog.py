@@ -52,11 +52,11 @@ CURRICULUM = (
     ("Occupational Medicine", "occupational asthma exposure assessment", "occupational needlestick HIV exposure assessment"),
     ("Preventive Medicine", "colorectal cancer screening average risk adults", "lung cancer screening eligibility and shared decision making"),
     ("Medical Genetics", "Lynch syndrome genetic testing and counseling", "BRCA hereditary cancer germline variant counseling"),
-    ("Forensic Medicine / Legal Medicine", "clinical forensic injury documentation and limits of inferring consent after adult sexual assault", "medicolegal assessment of nonfatal strangulation using adult history and examination records"),
+    ("Forensic Medicine / Legal Medicine", "interpretation of genital lacerations after reported adult vaginal penetration without inferring individual consent from population injury frequencies", "clinical forensic follow-up documentation of reported loss of consciousness and memory loss after adult neck compression"),
 )
 
 SPECIALTIES = tuple(canonical(row[0]) for row in CURRICULUM)
-assert len(SPECIALTIES) == len(set(SPECIALTIES))
+assert len(SPECIALTIES) == len(set(SPECIALTIES)) == 44
 
 # PubMed searches use concise disease terms, not the whole teaching instruction
 # (which would AND words like "supplied" and "assessment" and return no papers).
