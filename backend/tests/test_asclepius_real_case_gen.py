@@ -810,7 +810,7 @@ def test_generation_produces_fully_tagged_tasks_with_a_measured_difficulty(monke
                     {"model": "m1", "failure_reason": "Anchored on the latest sodium value."},
                     {"model": "m2", "failure_reason": "Anchored on the latest sodium value."}]}
 
-    async def _candidates(prompt, *, specialty="general", ai_failure_mode=None):
+    async def _candidates(prompt, *, specialty="general", ai_failure_mode=None, longitudinal=False):
         assert ai_failure_mode, "the flawed candidate must be keyed to the derived trap"
         return {"candidates": [{"id": "A", "text": "Strong answer."},
                                {"id": "B", "text": "Flawed answer."}],
@@ -933,7 +933,7 @@ def test_promote_does_not_spend_frontier_tokens_unless_measurement_is_enabled(mo
         return {"value": 0.9, "measured": True, "k": 5, "per_provider": {},
                 "failure_reasons": []}
 
-    async def _candidates(prompt, *, specialty="general", ai_failure_mode=None):
+    async def _candidates(prompt, *, specialty="general", ai_failure_mode=None, longitudinal=False):
         return {"candidates": [{"id": "A", "text": "a"}, {"id": "B", "text": "b"}],
                 "model": "m", "intended_flawed_id": "B"}
 
@@ -986,7 +986,7 @@ def test_a_task_is_never_created_with_an_empty_question(monkeypatch):
         return {"value": 0.8, "measured": True, "k": 5, "n_models": 2,
                 "per_provider": {}, "failure_reasons": []}
 
-    async def _candidates(prompt, *, specialty="general", ai_failure_mode=None):
+    async def _candidates(prompt, *, specialty="general", ai_failure_mode=None, longitudinal=False):
         return {"candidates": [{"id": "A", "text": "a"}, {"id": "B", "text": "b"}],
                 "model": "m", "intended_flawed_id": "B"}
 
@@ -1026,7 +1026,7 @@ def test_the_case_judge_fails_closed_on_the_real_path(monkeypatch):
         return {"value": 0.8, "measured": True, "k": 5, "n_models": 2,
                 "per_provider": {}, "failure_reasons": []}
 
-    async def _candidates(prompt, *, specialty="general", ai_failure_mode=None):
+    async def _candidates(prompt, *, specialty="general", ai_failure_mode=None, longitudinal=False):
         return {"candidates": [{"id": "A", "text": "a"}, {"id": "B", "text": "b"}],
                 "model": "m", "intended_flawed_id": "B"}
 

@@ -285,7 +285,8 @@ async def run_grounding_check(task: Dict[str, Any], submission: Dict[str, Any]) 
 
 
 async def generate_candidates_ex(
-    prompt: str, *, specialty: str = "general", ai_failure_mode: Optional[str] = None
+    prompt: str, *, specialty: str = "general", ai_failure_mode: Optional[str] = None,
+    longitudinal: bool = False,
 ) -> Dict[str, Any]:
     """Generate two blinded candidate answers (one strong, one plausibly-flawed).
 
@@ -308,6 +309,10 @@ async def generate_candidates_ex(
         from ai.llm_client import call_llm, first_text
     except Exception as exc:  # pragma: no cover
         return _empty(f"llm client unavailable: {exc}")
+    from asclepius.prompts import LONGITUDINAL_ANSWER_STYLE
+    system = ASCLEPIUS_CANDIDATE_GEN_SYSTEM
+    if longitudinal:
+        system += "\n\n" + LONGITUDINAL_ANSWER_STYLE
     user = f"Specialty: {specialty}\n\nPROMPT:\n{prompt}"
     if ai_failure_mode:
         user += f"\n\nAI_FAILURE_MODE (key the flawed answer to this): {ai_failure_mode}"
@@ -328,7 +333,7 @@ async def generate_candidates_ex(
         try:
             resp, rec = await call_llm(
                 role="asclepius_candidate_gen",
-                system=ASCLEPIUS_CANDIDATE_GEN_SYSTEM,
+                system=system,
                 messages=[{"role": "user", "content": user + retry_note}],
                 prompt_id="asclepius_candidate_gen",
                 purpose="asclepius_candidate_generation",

@@ -1744,3 +1744,161 @@ def test_next_case_queue_timeout_offers_retry_without_reload(accepted_portal):
     page.get_by_role("button", name="Try again", exact=True).click()
     expect(page.get_by_text(task["prompt"], exact=True)).to_be_visible()
     assert not portal.errors, portal.errors
+
+
+@pytest.mark.parametrize("version,width", [("v1", 1440), ("v2", 390), ("v3", 1440), ("v4", 390), ("v5", 1440), ("v5", 390)])
+def test_labeling_back_edit_refresh_and_late_flag(accepted_portal, tmp_path, version, width):
+    from playwright.sync_api import expect
+    from tests.test_longitudinal_v5_relabel import _real_case
+
+    portal = accepted_portal(tier="reviewer", width=width)
+    page, store = portal.page, portal.store
+    answers = [{"id": "A", "text": "**First action:** Obtain an ECG. Check K+ 5.84 mmol/L; do not assume glucose. <img src=x onerror=alert(1)>"},
+               {"id": "B", "text": "**Plan B:** Discharge without checking potassium."}]
+    if version == "v5":
+        task = _browser_chart_walk(portal)[0]
+        store.set_task_candidates(task["task_id"], answers)
+    else:
+        task = store.insert_task(prompt="What is the next step in this assigned kidney case?",
+            specialty="nephrology", difficulty="hard", max_labels=1, candidate_answers=answers,
+            case=_real_case(specialty="nephrology") if version == "v4" else None,
+            distribution="assigned_only")
+        store.set_real_data_approved(portal.user["id"], True)
+        store.upsert_assignment(task_id=task["task_id"], user_id=portal.user["id"], role="label", assigned_by="fixture")
+    task_id = task["task_id"]
+    page.add_init_script("localStorage.setItem('asclepius_portal_version', " + json.dumps(version) + "); localStorage.setItem('asclepius_portal_version_picked_v4', '1');")
+    page.goto("https://app.archangelhealth.ai/asclepius")
+    page.get_by_role("button", name="Start →", exact=True).click()
+    expect(page.locator("#ascAnswers")).to_have_count(0)
+    page.locator('.asc-gate .asc-btn-primary').click()
+    field = page.locator('.asc-gate input.asc-instinct-input, .asc-gate textarea.asc-textarea').first
+    field.fill("Obtain an ECG before deciding treatment.")
+    page.get_by_role("button", name="Reveal AI answers →", exact=True).click()
+    expect(page.locator('#ascAnswers')).to_contain_text("First action:")
+    expect(page.locator('#ascAnswers')).not_to_contain_text("**")
+    expect(page.locator('#ascAnswers strong').first).to_have_text("First action:")
+    expect(page.locator('#ascAnswers img')).to_have_count(0)
+    original = store.get_independent_commit(task_id, portal.user["id"])["payload"]
+    page.get_by_role("button", name="Previous step", exact=True).click()
+    expect(field).to_have_value(original["text"])
+    expect(page.locator('.asc-revision-note')).to_be_visible()
+    field.fill("Recheck potassium and review the ECG urgently.")
+    page.reload()
+    page.get_by_role("button", name="Continue →", exact=True).click()
+    expect(field).to_have_value("Recheck potassium and review the ECG urgently.")
+    page.get_by_role("button", name="Next step", exact=True).click()
+    expect(page.locator('#ascAnswers')).to_contain_text("First action:")
+    expect(page.get_by_text("Could not load the AI answers.", exact=True)).to_have_count(0)
+    assert store.get_independent_commit(task_id, portal.user["id"])["payload"] == original
+    page.locator('[data-verdict="A_better"]').click()
+    editor = page.locator('.asc-substage[data-substage="refine"] textarea, [data-workflow-step="refine"] textarea').first
+    expect(editor).not_to_have_value(__import__('re').compile(r"\*\*"))
+    editor.fill("My revised answer for A: check potassium and ECG.")
+    page.locator('[data-verdict="B_better"]').click()
+    expect(editor).to_contain_text("Plan B:")
+    editor.fill("My distinct revised answer for B.")
+    page.locator('[data-verdict="A_better"]').click()
+    expect(editor).to_have_value("My revised answer for A: check potassium and ECG.")
+    page.locator('[data-verdict="both_inadequate"]').click()
+    page.locator('[data-verdict="B_better"]').click()
+    expect(editor).to_have_value("My distinct revised answer for B.")
+    page.locator('.asc-workflow-menu summary').click()
+    expect(page.locator('.asc-workflow-list')).to_be_visible()
+    assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+    page.screenshot(path=str(tmp_path / f"step-menu-{version}-{width}.png"), full_page=True)
+    page.keyboard.press("Escape")
+    page.get_by_role("button", name="Flag case", exact=True).click()
+    reason = page.locator('.asc-gate input').last
+    reason.fill("The question does not include the required glucose measurement.")
+    portal.overrides["/api/asclepius/submissions"] = (503, {"detail": "flag retry fixture"})
+    send = page.get_by_role("button", name="Send to admin" if version not in ("v1", "v2") else "Confirm, flag & skip", exact=True)
+    send.click()
+    expect(page.get_by_text("Could not flag the prompt: flag retry fixture", exact=True)).to_be_visible()
+    expect(reason).to_have_value("The question does not include the required glucose measurement.")
+    portal.overrides.pop("/api/asclepius/submissions")
+    send.click()
+    page.wait_for_timeout(300)
+    with store._conn() as conn:
+        rows = conn.execute("SELECT submission_id FROM submissions WHERE task_id=?", (task_id,)).fetchall()
+    assert len(rows) == 1
+    saved = store.get_submission(rows[0]["submission_id"])["payload"]
+    assert saved["prompt_review"]["attest_clinically_valid"] is False
+    assert saved["independent_answer"] == original
+    assert saved["independent_answer_revision"]["text"] == "Recheck potassium and review the ECG urgently."
+    assert saved["chosen_revision"]["revised_text"] == "My distinct revised answer for B."
+    assert not portal.errors, portal.errors
+
+
+def test_labeling_every_completed_step_can_reopen_and_revised_answer_needs_review(accepted_portal, tmp_path):
+    from playwright.sync_api import expect
+
+    portal = accepted_portal(tier="reviewer", width=390)
+    page, store = portal.page, portal.store
+    task = _browser_chart_walk(portal)[0]
+    page.add_init_script("localStorage.setItem('asclepius_portal_version', 'v5'); localStorage.setItem('asclepius_portal_version_picked_v4', '1');")
+    page.goto("https://app.archangelhealth.ai/asclepius")
+    page.get_by_role("button", name="Start →", exact=True).click()
+    page.get_by_role("button", name="Looks clinically valid, continue →", exact=True).click()
+    field = page.locator('.asc-instinct-input')
+    field.fill("The original answer before seeing the models.")
+    page.evaluate('''() => {
+      const real = window.fetch;
+      window.fetch = async (...args) => {
+        const response = await real(...args);
+        if (String(args[0]).endsWith('/reveal') && !window.heldOnce) {
+          window.heldOnce = true;
+          await new Promise(resolve => {window.releaseReveal = resolve;});
+        }
+        return response;
+      };
+    }''')
+    page.get_by_role("button", name="Reveal AI answers →", exact=True).click()
+    page.wait_for_function('!!window.releaseReveal')
+    field.fill("The local draft changed during the reveal request.")
+    page.evaluate('window.releaseReveal()')
+    expect(page.locator('#ascVerdicts')).to_be_visible()
+    original = store.get_independent_commit(task["task_id"], portal.user["id"])["payload"]
+    assert original["text"] == "The original answer before seeing the models."
+    _complete_longitudinal_grading(page)
+    expect(page.locator('#ascSubmit')).to_be_enabled()
+    titles = ['Review the case', 'Your crux answer', 'Compare the answers', 'Refine the winning answer',
+              'Why is this answer better?', 'Ground it in a source', 'Critique the rejected answer',
+              'Check the reasoning', 'Build the scoring guide', 'How confident are you with your answer?']
+    def visit(title):
+        page.locator('.asc-workflow-menu summary').click()
+        page.locator('.asc-workflow-list button').filter(has_text=title).click()
+        expect(page.locator('.asc-workflow-menu summary')).to_have_attribute('aria-label', 'All steps. Current step: ' + title)
+    for title in titles:
+        visit(title)
+    visit('Refine the winning answer')
+    page.locator('.asc-substage[data-substage="refine"] textarea').fill("Revised final answer: drainage has worked, but repeat the labs before deciding on discharge.")
+    page.get_by_role('button', name='Save changes').click()
+    visit('How confident are you with your answer?')
+    page.locator('#ascConf [data-conf="high"]').click()
+    expect(page.locator('#ascSubmit')).to_be_disabled()
+    visit('Check the reasoning')
+    expect(page.locator('.asc-revision-note')).to_contain_text('Your answer has changed')
+    # Reasoning rows paint on the next animation turn. Locator.all() does not
+    # wait and can otherwise confirm zero rows on a busy CI browser.
+    expect(page.locator('.asc-step-confirm').first).to_be_visible()
+    for button in page.locator('.asc-step-confirm').all():
+        button.click()
+    expect(page.locator('.asc-step-confirm:not(.active)')).to_have_count(0)
+    page.locator('#ascStepsCont').click()
+    for _ in range(20):
+        next_button = page.locator('#ascRubricWizard').get_by_role('button', name='Next', exact=False)
+        if not next_button.count():
+            break
+        next_button.click()
+    page.get_by_role('button', name='Save & finish').click()
+    page.locator('#ascConf [data-conf="high"]').click()
+    expect(page.locator('#ascSubmit')).to_be_enabled()
+    page.screenshot(path=str(tmp_path / 'revised-ready-mobile.png'))
+    page.locator('#ascSubmit').click()
+    expect(page.get_by_text('What happened next', exact=True)).to_be_visible()
+    with store._conn() as conn:
+        sid = conn.execute('SELECT submission_id FROM submissions WHERE task_id=?', (task['task_id'],)).fetchone()[0]
+    saved = store.get_submission(sid)['payload']
+    assert saved['independent_answer'] == original
+    assert saved['independent_answer_revision']['text'] == 'The local draft changed during the reveal request.'
+    assert not portal.errors, portal.errors

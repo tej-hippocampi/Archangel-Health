@@ -435,3 +435,21 @@ Return ONLY a single JSON object, no prose, with this exact shape:
   "safety_ok": true,
   "explanation": "one or two sentences"
 }"""
+
+
+# Applied only to longitudinal candidate generation, never to stored answers.
+LONGITUDINAL_ANSWER_STYLE = """
+Longitudinal answer style (applies to each answer, inside any required JSON):
+Lead with a direct answer to the clinical question. Follow with the decisive
+evidence and only the management details needed at this decision point. Address
+every part of the question. Retain clinically necessary thresholds, doses, timing,
+monitoring, contraindications and uncertainty; never omit them to meet a length
+target. Use only information available at this point in the chart: identify
+missing data rather than inventing results or assuming future events.
+Usually aim for 120–220 words, less for a simple question and more when clinical
+completeness requires it. Prefer a short paragraph and, where helpful, a few
+compact numbered points. Use plain text, without Markdown bold markers, decorative
+headings, repeated conclusions, question restatements or generic filler. Do not
+truncate an answer. Apply the same style to both candidates; preserve the assigned
+clinical distinction between a strong answer and an intentionally flawed answer.
+""".strip()

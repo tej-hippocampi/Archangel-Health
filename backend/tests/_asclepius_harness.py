@@ -34,7 +34,7 @@ _FUNCS = (
     "criterionAxes", "renderRubricCriterionCard", "setStepConfirmed", "stepStatusOf",
     "stepsSkeleton", "scrollByInstant", "repaintStepRow", "renderStepsListV3",
     "buildStepRowV3", "chooseSpecialty", "renderSpecialtyPicker",
-    "renderExperienceBadge", "compareSubstages", "sectionCard", "renderAnswerCard",
+    "renderExperienceBadge", "compareSubstages", "sectionCard", "appendFormattedAnswer", "renderAnswerCard",
     "renderAnswersInto", "verdictButton",
 )
 # Module-level constants those functions close over.

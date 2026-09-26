@@ -49,6 +49,7 @@ from typing import Any, Dict, List, Optional, Tuple
 GROUPS: Tuple[Tuple[str, str], ...] = (
     ("signoff", "The physician's read on the question"),
     ("blind", "Their answer before seeing the candidates"),
+    ("reconsidered", "Their revision after seeing the candidates"),
     ("answer", "The answer they stand behind"),
     ("rationale", "Why it is better"),
     ("critique", "What is wrong with the other one"),
@@ -138,6 +139,13 @@ FIELDS: Tuple[Field, ...] = (
         "Persisted onto the TASK, not the submission, and served in the task "
         "view. Declared here so the walk over SubmissionIn accounts for it.",
     ),
+
+    _shown("independent_answer_revision", "Revised answer", "reconsidered"),
+    _shown("independent_answer_revision.text", "Revised answer", "reconsidered"),
+    _shown("independent_answer_revision.evidence_anchor", "Source", "reconsidered", "anchors"),
+    _shown("independent_answer_revision.evidence_anchors", "Sources", "reconsidered", "anchors"),
+    _withheld("independent_answer_revision.capture_phase", "The group heading states the exposure phase."),
+    _withheld("independent_answer_revision.revised_at", "Server audit timestamp, not a clinical judgment."),
 
     # The verdict.
     _shown("verdict", "Their verdict", "answer", "eyebrow"),

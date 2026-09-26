@@ -636,7 +636,8 @@ def test_saved_score_does_not_navigate_over_a_newer_screen():
 
 _SUBMIT_STUBS = """
 state.task={task_id:'t1',trajectory_id:'walk'};
-state.draft={task_id:'t1',verdict:'both_inadequate',confidence_set:true,storage_key:'original-key'};
+state.draft={task_id:'t1',verdict:'both_inadequate',confidence_set:true,storage_key:'original-key',independent_answer:{text:'Blind answer'}};
+function currentSubstage(){return 'done';}
 function tutorialActive(){return false;} function examActive(){return false;}
 function groundingSatisfied(){return {ok:true};} function stepsReview(){return {ok:true};}
 function rubricGate(){return {ok:true};} function failureTagGate(){return {ok:true};}

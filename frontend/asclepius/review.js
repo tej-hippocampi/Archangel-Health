@@ -610,6 +610,10 @@
     var bits = [an.citation_text || '', an.identifier || '', an.source_type || '']
       .filter(Boolean).join(' \u00b7 ');
     var kids = [bits || (an.url || '')];
+    if (/^https?:\/\//i.test(an.url || '')) kids.push(h('a', {
+      href: an.url, target: '_blank', rel: 'noopener noreferrer',
+      class: 'asc-btn-link', style: 'margin-left:8px', title: an.url,
+    }, 'Open source ↗'));
     if (an.citation_confirmed) kids.push(h('span', { class: 'asc-chip asc-rv-chip-gap' }, 'confirmed'));
     return h('div', { class: 'asc-rv-kv' }, kids);
   }
@@ -810,6 +814,13 @@
         h('div', {},
           ia.kind ? h('span', { class: 'asc-chip' }, String(ia.kind)) : null,
           grounded(h('div', { class: 'asc-rv-answer-text' }, ia.text), ia))));
+    }
+
+    var reconsidered = a.independent_answer_revision || null;
+    if (reconsidered) {
+      body.push(section('Revised after seeing the AI answers',
+        grounded(h('div', { class: 'asc-rv-answer-text' },
+          reconsidered.text || 'Answer text cleared after reveal.'), reconsidered)));
     }
 
     // GREEN, because this is physician-authored. Same class for A and B.
