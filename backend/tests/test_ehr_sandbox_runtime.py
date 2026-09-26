@@ -185,7 +185,8 @@ def test_grader_token_check_rejects_non_ascii_without_crashing():
 
 
 @pytest.mark.parametrize('text,phrase,per_day',[('epoetin 4000 units 3 times weekly','3 times weekly',3/7),('iron 100 mg TIW','tiw',3/7),
-    ('calcitriol 0.25 mcg every other day','every other day',.5),('amlodipine 10 mg once daily','once daily',1),('insulin 4 units qpm','qpm',1)])
+    ('calcitriol 0.25 mcg every other day','every other day',.5),('amlodipine 10 mg once daily','once daily',1),('insulin 4 units qpm','qpm',1),
+    ('metformin 500 mg 2 times daily','2 times daily',2)])
 def test_one_frequency_reader_for_copied_regimens(text,phrase,per_day):
     from asclepius.ehr_sandbox.terminology import frequency_phrase,frequency_per_day
     assert frequency_phrase(text)==phrase and frequency_per_day(phrase)==pytest.approx(per_day)
@@ -194,3 +195,9 @@ def test_one_frequency_reader_for_copied_regimens(text,phrase,per_day):
 def test_thousands_separator_without_a_space():
     from asclepius.ehr_sandbox.terminology import daily_amount
     assert daily_amount('1,000mg','daily')['value']==1000
+
+
+@pytest.mark.parametrize('text',['0 times weekly','0x weekly','100 times weekly'])
+def test_implausible_weekly_counts_are_not_a_schedule(text):
+    from asclepius.ehr_sandbox.terminology import frequency_phrase,frequency_per_day
+    assert frequency_per_day(text) is None and frequency_phrase(text) is None

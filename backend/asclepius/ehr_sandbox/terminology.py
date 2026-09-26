@@ -97,11 +97,13 @@ def frequency_phrase(text):
     """The first frequency phrase in free text that ``frequency_per_day`` reads."""
     text=normalize(text)
     for pattern in (PER_WEEK.pattern,r'\b(?:every|q)\s*\d+\s*(?:hours?|h)\b',
-                    r'\b(?:twice|three times|four times|once) (?:daily|a day)\b',
+                    r'\b(?:twice|three times|four times|once|[1-9] times) (?:daily|a day|per day)\b',
                     r'\b(?:every other day|qod|tiw|biw|bid|tid|qid|qhs|qam|qpm|qd|nightly|at bedtime|every night|'
                     r'each morning|every morning|every evening|each evening|once a day|each day|daily|weekly|hourly)\b'):
         match=re.search(pattern,text)
-        if match and frequency_per_day(match.group(0)) is not None: return match.group(0)
+        # The phrase must mean what the whole text means ("2 times daily" is not "daily").
+        if match and frequency_per_day(match.group(0)) is not None:
+            return match.group(0) if frequency_per_day(match.group(0))==frequency_per_day(text) else None
     return None
 
 
@@ -117,7 +119,8 @@ def frequency_per_day(text):
     per_week=PER_WEEK.search(freq)
     if per_week:
         word=per_week.group(1)
-        return ({'once':1,'twice':2,'three times':3,'four times':4}.get(word) or int(re.match(r'\d+',word).group()))/7
+        count={'once':1,'twice':2,'three times':3,'four times':4}.get(word) or int(re.match(r'\d+',word).group())
+        return count/7 if 1<=count<=21 else None  # "0 times weekly" is not a schedule
     if re.search(r'\btiw\b',freq): return 3/7
     if re.search(r'\bbiw\b',freq): return 2/7
     if re.search(r'\b(?:weekly|once a week|once weekly)\b',freq): return 1/7

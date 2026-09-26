@@ -334,6 +334,13 @@ def test_provider_failure_is_not_scored_or_sent_to_paid_review(store,compiled,mo
     assert not store.ehr_all('ehr_reviews',rollout_id=rollout['rollout_id'])
     m=build(store=store)['report']['models']['synthetic-provider-model']
     assert m['provider_errors']==1 and m['n_provisional']==0 and m['other_incomplete']==0
+    # A sibling review resolving on the same visit recomputes its rollouts; the outage stays an outage.
+    monkeypatch.setattr(reviews,'load_candidates',lambda s:[candidate('reviewer-1')])
+    row=reviews.create_review(task['visit_id'],'disagreement',[{'item_id':'x','key':{'type':'lab','group':'BMP'},'actual':{'type':'lab','group':'renal'}}],scope='visit',store=store)
+    from tests.test_ehr_sandbox_workflow import verdict
+    assert reviews.submit(row['review_id'],'reviewer-1',verdict(row),store=store)['status']=='resolved'
+    rollout=store.ehr_get('ehr_rollouts',rollout_id=rollout['rollout_id'])
+    assert rollout['status']=='provider_error' and rollout['final_reward'] is None
 
 
 def test_one_unofferable_review_does_not_stop_the_hourly_sweep(store,compiled,monkeypatch):
@@ -344,7 +351,7 @@ def test_one_unofferable_review_does_not_stop_the_hourly_sweep(store,compiled,mo
     seen=[]
     def select(review_id,*a,**kw):
         seen.append(review_id)
-        if review_id==rows[0]['review_id']: raise ValueError('chart is not eligible for review')
+        if review_id==rows[0]['review_id']: raise RuntimeError('notification outbox unavailable')
         return []
     monkeypatch.setattr(reviews,'select_reviewers',select)
     result=reviews.reassign_expired(store)

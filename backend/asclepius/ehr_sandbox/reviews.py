@@ -365,6 +365,7 @@ def route_rollout(rollout_id,*,store=None):
 
 def recompute_rollout(rollout_id,*,store,connection):
     row=store.ehr_get('ehr_rollouts',rollout_id=rollout_id,_connection=connection)
+    if row['status']=='provider_error' or row['provider']=='error': return  # an outage is never a model score
     linked=store.ehr_all('ehr_review_rollouts',rollout_id=rollout_id,_connection=connection)
     reviews=[store.ehr_get('ehr_reviews',review_id=r['review_id'],_connection=connection) for r in linked]
     if any(r['status'] not in CLOSED for r in reviews):
