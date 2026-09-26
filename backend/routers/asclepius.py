@@ -1971,7 +1971,8 @@ def _practice_task(store, user):
     current = store.get_tutorial_state(user["id"])
     ident = current.get("practice_task_id")
     if ident and ident != TUTORIAL_TASK_ID:
-        return onboarding_cases.get_task(store, ident)
+        task = onboarding_cases.get_task(store, ident)
+        return task if task and task.get("specialty") == resolve(user)["specialty"] else None
     if not ident and resolve(user)["specialty"]:
         prepared = onboarding_cases.get_task(store, onboarding_cases.task_id(resolve(user)["specialty"], "practice"))
         if prepared:

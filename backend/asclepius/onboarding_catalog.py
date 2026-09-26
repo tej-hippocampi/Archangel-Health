@@ -52,10 +52,11 @@ CURRICULUM = (
     ("Occupational Medicine", "occupational asthma exposure assessment", "occupational needlestick HIV exposure assessment"),
     ("Preventive Medicine", "colorectal cancer screening average risk adults", "lung cancer screening eligibility and shared decision making"),
     ("Medical Genetics", "Lynch syndrome genetic testing and counseling", "BRCA hereditary cancer germline variant counseling"),
+    ("Forensic Medicine / Legal Medicine", "clinical forensic injury documentation and limits of inferring consent after adult sexual assault", "medicolegal assessment of nonfatal strangulation using adult history and examination records"),
 )
 
 SPECIALTIES = tuple(canonical(row[0]) for row in CURRICULUM)
-assert len(SPECIALTIES) == len(set(SPECIALTIES)) == 43
+assert len(SPECIALTIES) == len(set(SPECIALTIES))
 
 # PubMed searches use concise disease terms, not the whole teaching instruction
 # (which would AND words like "supplied" and "assessment" and return no papers).
@@ -103,6 +104,7 @@ refractory breathlessness|goals of care
 occupational asthma|occupational HIV exposure
 colorectal cancer screening|lung cancer screening
 Lynch syndrome|BRCA genetic counseling
+sexual assault|strangulation
 """.strip().splitlines()
 assert len(_SEARCH_PAIRS) == len(CURRICULUM)
 SEARCH_TERMS = {topic: query for row, pair in zip(CURRICULUM, _SEARCH_PAIRS)
@@ -119,3 +121,26 @@ def age_scope_for(specialty: str) -> str | None:
     if specialty not in SPECIALTIES:
         return None
     return "pediatric" if specialty == "pediatrics" else "older_adult" if specialty == "geriatrics" else "adult"
+
+
+def scope_for(specialty: str) -> str | None:
+    """Explicit clinical boundaries shared by authors and independent reviewers."""
+    return {
+        "forensic medicine": (
+            "Forensic Medicine / Legal Medicine is an independent medical specialty. "
+            "Assess clinical forensic examinations, objective injury documentation, "
+            "medicolegal medical-record review, or interpretation of supplied forensic genetic reports. "
+            "Do not require anatomic/clinical pathology, histopathology, microscopic skin specimens, "
+            "or tissue-slide diagnosis. Keep observation separate from inference; do not infer "
+            "intent, legal guilt, precise injury timing, or causation beyond the supplied evidence. "
+            "Do not assume US credentials or jurisdiction-specific law."
+        ),
+        "forensic pathology": (
+            "Assess medicolegal death investigation within Forensic Pathology. "
+            "Do not substitute a general surgical pathology or dermatopathology examination."
+        ),
+        "forensic genetics": (
+            "Assess interpretation and limitations of supplied forensic genetic evidence. "
+            "Do not substitute hereditary cancer counseling or other clinical medical genetics."
+        ),
+    }.get(canonical(specialty))

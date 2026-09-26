@@ -55,6 +55,14 @@ _NAMES = {
     "radiology": ("radiologist", "diagnostic radiology"),
     "interventional radiology": ("interventional radiologist",),
     "pathology": ("pathologist", "anatomic pathology", "anatomical pathology"),
+    # National specialty titles describe clinical scope, not US equivalence.
+    # Autopsy experience alone does not confer anatomic/clinical pathology.
+    "forensic medicine": ("legal medicine", "clinical forensic medicine", "forensic and legal medicine",
+        "legal and forensic medicine", "forensic medicine legal medicine", "forensic physician", "forensic medical practitioner",
+        "rechtsmedizin", "rechtsmediziner", "rechtsmedizinerin", "sudska medicina", "sudske medicine",
+        "судска медицина", "судске медицине"),
+    "forensic pathology": ("forensic pathologist",),
+    "forensic genetics": ("forensic geneticist",),
     "physical medicine and rehabilitation": ("physical medicine rehabilitation", "physiatry", "physiatrist", "pm r"),
     "pain medicine": ("pain management",),
     "palliative medicine": ("palliative care", "hospice and palliative medicine"),
@@ -76,20 +84,33 @@ def normalize(value: Any) -> str:
     return " ".join(text.split())
 
 
-def match(value: Any) -> str | None:
+def matching_fields(value: Any) -> set[str]:
     text = " " + normalize(value) + " "
     spans = [(m.start(), m.end(), name) for name, aliases in _NAMES.items()
              for term in (name, *aliases)
              for m in re.finditer(r"(?<!\w)" + re.escape(term) + r"(?!\w)", text)]
-    spans = [(start, end, "pediatric " + name
-              if not name.startswith("pediatric ") and re.search(r"(?:pediatric|paediatric)\s+$", text[:start])
-              else name) for start, end, name in spans]
+    for modifier, pattern in (("pediatric", r"(?:pediatric|paediatric)\s+$"),
+                              ("forensic", r"forensic\s+$")):
+        spans = [(start, end, modifier + " " + name
+                  if not name.startswith(modifier + " ") and re.search(pattern, text[:start])
+                  else name) for start, end, name in spans]
     # A nested parent (oncology in radiation oncology) is less specific. Two
     # separate fields are ambiguous and must never be broken by word length.
     names = {name for start, end, name in spans if not any(
         left <= start and right >= end and (left < start or right > end)
         for left, right, _ in spans)}
+    return names
+
+
+def match(value: Any) -> str | None:
+    names = matching_fields(value)
     return next(iter(names)) if len(names) == 1 else None
+
+
+def is_specialty_title(value: Any) -> bool:
+    """Bare specialty labels count as identity evidence; incidental mentions do not."""
+    text = normalize(value)
+    return any(text == term for name, aliases in _NAMES.items() for term in (name, *aliases))
 
 
 def canonical(value: Any) -> str:
