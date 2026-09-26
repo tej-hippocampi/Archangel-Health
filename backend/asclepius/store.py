@@ -5530,6 +5530,7 @@ class AsclepiusStore:
     def set_earning_quality(
         self, earning_id: str, *, multiplier: float, reasons: List[str],
         version: str, hold: bool, amount_cents: Optional[int] = None,
+        _connection=None,
     ) -> bool:
         """Record the quality adjustment on one ledger row, and its hold state.
 
@@ -5542,7 +5543,7 @@ class AsclepiusStore:
         ``hold`` is the human gate: while it is set, neither a verdict nor the
         auto-approve sweep may approve the row.
         """
-        with self._conn() as conn:
+        with nullcontext(_connection) if _connection is not None else self._conn() as conn:
             row = conn.execute(
                 "SELECT status FROM earnings WHERE earning_id = ?", (earning_id,)
             ).fetchone()

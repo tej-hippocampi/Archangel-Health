@@ -254,3 +254,11 @@ def test_lab_claim_context_stops_at_next_analyte(text,grounded):
     overlay=[{'resourceType':'DocumentReference','id':'multiple-labs','subject':{'reference':'Patient/p1'},
               'content':[{'attachment':{'data':base64.b64encode(text.encode()).decode()}}]}]
     assert (note_check(snapshot,overlay,'p1',[])['grounding']==1)==grounded
+
+
+def test_act_is_not_gradable_when_the_key_has_no_actions(episode):
+    task,key=episode
+    key={**key,'med_changes':[],'orders':[],'referrals':[],'follow_up':None,'escalation':None}
+    env=EhrVisitEnv(task);env.reset()
+    act=next(c for c in grade(task,env.rollout(),key)['checkpoints'] if c['kind']=='act')
+    assert act['score'] is None and act['verdict']=='not_gradable'

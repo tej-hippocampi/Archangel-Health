@@ -89,7 +89,7 @@ def create_grader_app(tasks=None,keys=None,token=None):
     def health(): return {'status':'ok','service':'grader'}
     @app.post('/grade')
     def score(body: Grade,authorization: str=Header(default='')):
-        if not secrets.compare_digest(authorization,'Bearer '+token): raise HTTPException(403,'Grader authentication required')
+        if not secrets.compare_digest(authorization.encode(),('Bearer '+token).encode()): raise HTTPException(403,'Grader authentication required')
         if body.task_id not in tasks or body.task_id not in keys: raise HTTPException(404,'Unknown task')
         env=EhrVisitEnv(tasks[body.task_id]);env.reset(body.seed)
         # Never trust client-supplied access logs, writes or calculated values.

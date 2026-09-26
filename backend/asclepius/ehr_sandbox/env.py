@@ -6,6 +6,19 @@ from .constants import DECISION_INSTANT
 from .sandbox import FhirSandbox,cached_snapshot
 from .tools import ToolRegistry,tool_schemas
 
+MAX_ARGUMENT_DEPTH=32
+
+
+def _depth(value):
+    """Nesting depth without recursion, so hostile input cannot overflow the stack."""
+    deepest=0; stack=[(value,1)]
+    while stack:
+        node,level=stack.pop(); deepest=max(deepest,level)
+        if deepest>MAX_ARGUMENT_DEPTH: break
+        children=node.values() if isinstance(node,dict) else node if isinstance(node,list) else ()
+        stack.extend((child,level+1) for child in children if isinstance(child,(dict,list)))
+    return deepest
+
 
 class EhrVisitEnv:
     def __init__(self,task,*,max_steps=None,verify_fn=None):
@@ -35,17 +48,23 @@ class EhrVisitEnv:
         if action.get('type')=='thought' or ('tool' not in action and action.get('type') is None):
             self.trajectory.append({'step':step,'type':'thought','content':str(action.get('content',''))[:16000]}); observation={}
         else:
-            self.calls+=1; self.sandbox.step=self.calls
             name=action.get('tool',''); params=action.get('input',{})
-            self.trajectory.append({'step':step,'type':'tool_call','tool':name,'input':copy.deepcopy(params)})
-            before=len(self.sandbox.write_log); result=self.registry.execute(name,params)
+            # Arguments must be finite, reasonably nested JSON: NaN or a very deep
+            # structure would otherwise break the stored trajectory or escape
+            # as a server error, after the call was already counted.
+            try: text=dumps(params); params=json.loads(text) if _depth(params)<=MAX_ARGUMENT_DEPTH else None
+            except (ValueError,TypeError,RecursionError): params=None
+            self.calls+=1; self.sandbox.step=self.calls
+            self.trajectory.append({'step':step,'type':'tool_call','tool':name,'input':json.loads(text) if params is not None else {}})
+            before=len(self.sandbox.write_log)
+            result=self.registry.execute(name,params) if params is not None else outcome('invalid tool input: arguments must be finite JSON nested at most %d deep'%MAX_ARGUMENT_DEPTH)
             self.trajectory.append({'step':step+1,'type':'observation','content':dumps(result)})
             observation={'observation':result}
             writes=self.sandbox.write_log[before:]
             if writes: reward=0.0 if all(w['accepted'] for w in writes) else -0.05
             if self.registry.finished:
                 self.terminated=True; self.terminated_by=name
-                self.trajectory.append({'step':step+2,'type':'final_output','content':dumps(params)})
+                self.trajectory.append({'step':step+2,'type':'final_output','content':dumps(params if params is not None else {})})
             if not self.terminated and self.calls>=self.budget:
                 self.truncated=True; self.terminated_by='budget'
         self.step_rewards.append({'step':step,'action':self.calls,'reward':reward})

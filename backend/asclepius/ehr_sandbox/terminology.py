@@ -72,8 +72,13 @@ def daily_dose(text, frequency=None):
     return amount['value'] if amount and amount['unit']=='mg' else None
 
 
+def plain_numbers(text):
+    """Drop thousands separators: "1,000 mg" is 1000 mg, not 0 mg."""
+    return re.sub(r'(?<=\d),(?=\d{3}\b)', '', str(text or ''))
+
+
 def daily_amount(text, frequency=None):
-    match = re.search(r'(\d+(?:\.\d+)?)\s*(mg|mcg|g|mEq|mL|units?)\b', str(text), re.I)
+    match = re.search(r'(\d+(?:\.\d+)?)\s*(mg|mcg|g|mEq|mL|units?)\b', plain_numbers(text), re.I)
     if not match:
         return None
     source=match.group(2).lower()
@@ -91,11 +96,18 @@ def frequency_per_day(text):
     interval=re.search(r'\b(?:every|q)\s*(\d+)\s*(?:hours?|h)\b',freq)
     if interval: return 24/int(interval.group(1)) if int(interval.group(1))>0 else None
     if re.search(r'\b(?:every other day|qod)\b',freq): return .5
+    # "three times weekly" is common renal dosing (ESA, IV iron); read the count
+    # before the bare "weekly" below claims it as once a week.
+    per_week=re.search(r'\b(once|twice|three times|four times|[1-7] times?|[1-7]x)\s*(?:a |per |each )?week(?:ly)?\b',freq)
+    if per_week:
+        word=per_week.group(1)
+        count={'once':1,'twice':2,'three times':3,'four times':4}.get(word) or int(word[0])
+        return count/7
     if re.search(r'\b(?:weekly|once a week|once weekly)\b',freq): return 1/7
     if re.search(r'\bbid\b|twice|2 times',freq): return 2
     if re.search(r'\btid\b|three times|3 times',freq): return 3
     if re.search(r'\bqid\b|four times|4 times',freq): return 4
-    if re.search(r'\b(?:daily|qd|qhs|nightly|at bedtime|every night|each morning|once a day|each day)\b',freq): return 1
+    if re.search(r'\b(?:daily|qd|qhs|nightly|at bedtime|every night|each morning|every morning|every evening|each evening|once a day|each day)\b',freq): return 1
     return None
 
 

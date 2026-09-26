@@ -11,7 +11,7 @@ from .env import EhrVisitEnv
 from .sealed import unseal,seal
 from .grader import grade
 from .items import key_items
-from .terminology import drug
+from .terminology import drug,plain_numbers
 
 SYSTEM='You are operating an EHR through tools. Search by MRN, then use the returned Patient.id as patient_id in subsequent tools. Act only on the patient named in the task. Use retrieved evidence; never invent missing lab values or calculator inputs. If an input is unavailable, omit that calculation and document the missing evidence. Follow the exact input names in each tool schema. Place orders with tools; text in your note does not place orders. Confirm successful tool results before documenting actions as completed. Call finish_visit after all actions and the note are complete.'
 
@@ -57,8 +57,8 @@ def scripted(env,key,mode='oracle'):
             assessment.append(item['text']); continue
         if kind=='med':
             matched=next((e['resource'] for e in meds if drug(e['resource']['medicationCodeableConcept']['text'])['name']==item['ingredient']),None)
-            action=item['action']; dose=re.search(r'(\d+(?:\.\d+)?)\s*(mg|mcg|g|mEq|mL|units?)\b',item.get('to_dose') or '',re.I)
-            textdose=item.get('to_dose') or ''
+            textdose=plain_numbers(item.get('to_dose'))
+            action=item['action']; dose=re.search(r'(\d+(?:\.\d+)?)\s*(mg|mcg|g|mEq|mL|units?)\b',textdose,re.I)
             frequency=textdose[dose.end():].strip() if dose else 'unspecified'
             if action in ('hold','stop') and matched:
                 call('hold_medication' if action=='hold' else 'discontinue_medication',medication_request_id=matched['id'],reason=item.get('reason') or 'reference plan')
@@ -182,7 +182,10 @@ async def run(task_id,*,model,k=1,harness='native_tools',store=None,run_group=No
                         'kind':cp['kind'],'score':cp['score'],'verdict':cp['verdict'],'items_json':dumps(public_verification(cp['items'])),'grader':cp['grader']},_connection=conn)
             # Review routing is control-plane-only and is added by M5.
             from . import reviews
-            if hasattr(reviews,'route_rollout'): reviews.route_rollout(rollout_id,store=store)
+            # A provider failure (bad model id, outage, timeout) says nothing about
+            # the plan: keep the graded evidence, never offer it for paid review.
+            if provider=='error': pass
+            elif hasattr(reviews,'route_rollout'): reviews.route_rollout(rollout_id,store=store)
             else: store.ehr_update('ehr_rollouts',{'rollout_id':rollout_id},{'final_reward':result['reward'],'status':'final'})
             return {'rollout_id':rollout_id,**public_verification(result)}
     results=await asyncio.gather(*(one(i) for i in range(k)))

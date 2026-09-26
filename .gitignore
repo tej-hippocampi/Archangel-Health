@@ -17,6 +17,7 @@ sendgrid.env
 *.zip
 !backend/tests/fixtures/ehr_sandbox/mixed_patients.zip
 !backend/tests/fixtures/ehr_sandbox/unmapped_patients.zip
+!backend/tests/fixtures/ehr_sandbox/qualification_patients.zip
 
 # Python
 __pycache__/

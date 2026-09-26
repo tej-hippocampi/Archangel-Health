@@ -19,7 +19,11 @@ ROOT = Path(__file__).parent / 'fixtures' / 'ehr_sandbox'
 
 @pytest.mark.parametrize('text', ['Patient: male age band 60-69', 'Physician Fresh Orders', 'Physician Note\nTime',
                                   'Repeat in 12 hrs\n- CT', 'Day 0 contrast-enhanced CT',
-                                  'A value of 1.0 contrast-enhanced CT'])
+                                  'A value of 1.0 contrast-enhanced CT',
+                                  # The live v3 rationale and forum gates share these patterns.
+                                  'ECG shows 2 mm ST elevation', '1 cm nodule on CT chest',
+                                  'Found 3 lesions on CT', '1 episode of ST depression',
+                                  'BP 130/80 at 1 visit per Dr', 'Name: basic metabolic panel'])
 def test_ehr_privacy_patterns_do_not_join_clinical_headers_or_decimal_values(text):
     from asclepius.validation import residual_identifiers
     assert not residual_identifiers(text)
@@ -27,7 +31,8 @@ def test_ehr_privacy_patterns_do_not_join_clinical_headers_or_decimal_values(tex
 
 @pytest.mark.parametrize('text,kind', [('Patient name: Alice Example', 'name'),
     ('Physician name: Alice Example', 'name'), ('Seen by Dr. Alice Example', 'name'),
-    ('Address: 123 Privacy Street', 'address')])
+    ('Address: 123 Privacy Street', 'address'), ('Lives at 12 Oak St', 'address'),
+    ('12 MAIN STREET', 'address'), ('NAME: JANE SMITH', 'name')])
 def test_ehr_privacy_patterns_still_detect_explicit_identifiers(text, kind):
     from asclepius.validation import residual_identifiers
     assert kind in residual_identifiers(text)

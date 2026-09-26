@@ -44,17 +44,21 @@ from asclepius.constants import (
 _PHI_PATTERNS: List[Tuple[str, "re.Pattern[str]"]] = [
     # Export headers can survive inside worksheet narrative, outside the
     # structured identity nodes discarded by C-CDA/FHIR adapters.
-    ("name", re.compile(r"(?im)^[ \t]*(?:patient[ \t]+name|name|provider[ \t]+name|physician[ \t]+name)[ \t]*:[ \t]*"
+    ("name", re.compile(r"(?m)^[ \t]*(?i:patient[ \t]+name|name|provider[ \t]+name|physician[ \t]+name)[ \t]*:[ \t]*"
                         r"[A-Z][A-Za-z'\-]+(?:[ \t]+[A-Z][A-Za-z'\-]+){1,4}\b")),
     ("name", re.compile(r"(?m)^[ \t]*(?i:patient)[ \t]*:[ \t]*(?!(?i:male|female|unknown|age|elderly|adult|young|older)\b)"
                         r"[A-Z][A-Za-z'\-]+(?:[ \t]+[A-Z][A-Za-z'\-]+){1,4}\b")),
     # Bare "Physician" also introduces clinical headers ("Physician Fresh
     # Orders"). Require its explicit name label above. Never join separate lines.
     ("name", re.compile(r"\b(?:Dr\.|Doctor)[ \t]+[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+){1,3}\b")),
+    # Case-sensitive: a street name is capitalised, and uppercase ST/CT/DR are
+    # clinical ("2 mm ST elevation", "nodule on CT"), so only spelled-out
+    # suffixes may be all caps.
     ("address", re.compile(r"(?<![\w.])[1-9]\d{0,5}[ \t]+"
-                           r"(?!(?:mg|mcg|g|ml|meq|units?|days?|weeks?|months?|years?|hrs?|hours?|minutes?|times?)\b)"
-                           r"(?:[A-Za-z][A-Za-z0-9.'\-]*[ \t]+){1,5}"
-                           r"(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Way)\b", re.I)),
+                           r"(?!(?i:mm|cm|mg|mcg|g|ml|meq|units?|days?|weeks?|months?|years?|hrs?|hours?|minutes?|times?)\b)"
+                           r"(?:[A-Z][A-Za-z0-9.'\-]*[ \t]+){1,5}"
+                           r"(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Way"
+                           r"|STREET|AVENUE|AVE|ROAD|RD|BOULEVARD|BLVD|LANE|LN|DRIVE|COURT|WAY)\b")),
     ("email", re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")),
     ("phone", re.compile(r"(?<!\d)(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?!\d)")),
     ("ssn", re.compile(r"\b\d{3}-\d{2}-\d{4}\b")),

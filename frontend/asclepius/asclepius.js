@@ -1897,8 +1897,11 @@
     // Consumed once — the hash is cleared so a later reload is not permanently
     // pinned to review — and gated on the capability like every other route in.
     if (/^#ehr-review(?:\/[^/]+)?$/.test(location.hash) && window.EhrReviewSection) {
+      const reviewId = location.hash.split('/')[1];
+      // Consumed once, like #review, so a later reload is not pinned here.
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* keep the route */ }
       const host = h('div', {class: 'asc-wrap'}); setRoot(host);
-      window.EhrReviewSection.render(host, {h, api, clear, toast}, location.hash.split('/')[1]); return;
+      window.EhrReviewSection.render(host, {h, api, clear, toast}, reviewId); return;
     }
     if (readReviewHash() && sessionCan('review')) { setPanel('review'); return; }
     // §6: the first-login walkthrough. A newly approved physician lands in the

@@ -7604,12 +7604,22 @@ try:
     from routers.asclepius_env import router as asclepius_env_router
 
     app.include_router(asclepius_env_router)
-    from routers.asclepius_ehr_sandbox import router as asclepius_ehr_sandbox_router
-    app.include_router(asclepius_ehr_sandbox_router)
 except Exception as _asc_env_exc:  # pragma: no cover
     __import__("logging").getLogger("asclepius.boot").warning(
         "Asclepius ENV environments router not mounted: %s", _asc_env_exc
     )
+
+# Separate from the ENV router so a missing EHR dependency (lxml, fhir.resources)
+# is named in the log instead of silently dropping both route sets.
+try:
+    from routers.asclepius_ehr_sandbox import router as asclepius_ehr_sandbox_router
+
+    app.include_router(asclepius_ehr_sandbox_router)
+except Exception as _asc_ehr_exc:  # pragma: no cover
+    __import__("logging").getLogger("asclepius.boot").warning(
+        "Asclepius EHR sandbox router not mounted: %s", _asc_ehr_exc
+    )
+
 app.include_router(community_router)
 app.include_router(community_page_router)
 try:

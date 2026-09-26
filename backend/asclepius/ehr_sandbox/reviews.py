@@ -2,6 +2,7 @@
 from __future__ import annotations
 import copy
 import json
+import logging
 from collections import Counter
 from datetime import datetime,timedelta
 from fastapi import HTTPException
@@ -13,6 +14,8 @@ from .items import key_items
 from .terminology import normalize,drug
 from .sealed import unseal,seal
 from .review_policy import render_plan_item,signature,_disputes
+
+logger=logging.getLogger(__name__)
 
 LIVE=('offered','claimed')
 CLOSED=('resolved','unresolved','cancelled')
@@ -189,6 +192,8 @@ def submit(review_id,user_id,body,*,store=None):
     if body.get('confidence') not in ('high','low'): raise ValueError('confidence is required')
     if not isinstance(body.get('seconds_spent'),int) or body['seconds_spent']<0: raise ValueError('seconds_spent must be a nonnegative integer')
     now=audit_now(); next_round=False
+    from asclepius import compensation
+    payable=compensation.accrues_payment(store.get_user_by_id(user_id))
     with store._conn() as conn:
         store._immediate(conn)
         previous=store.ehr_get('ehr_review_verdicts',review_id=review_id,reviewer_user_id=user_id,_connection=conn)
@@ -234,11 +239,20 @@ def submit(review_id,user_id,body,*,store=None):
         store.ehr_update('ehr_review_assignments',{'review_assignment_id':assignment['review_assignment_id']},{'status':'submitted'},_connection=conn)
         from asclepius.payments import KIND_EHR_REVIEW
         aid=assignment['review_assignment_id']
-        store.insert_earning(earning_id=identifier('earn',aid),user_id=user_id,kind=KIND_EHR_REVIEW,ref_id=aid,
-            amount_cents=settings().review_pay_cents,rate_cents=settings().review_pay_cents,status='accrued',accrued_at=now,note=f'ehr_review:{review_id}',_connection=conn)
         straight=len(answers)>=5 and len({(i.get('plan_a'),i.get('plan_b'),i.get('better'),i.get('safety_decision'),i.get('met'),i.get('reference_decision'),i.get('critical')) for i in answers})==1
-        if body['seconds_spent']>=60 and not straight:
-            store.resolve_earning(kind=KIND_EHR_REVIEW,ref_id=aid,status='approved',resolved_at=now,only_from=['accrued'],_connection=conn)
+        # The browser's timer is advisory; the server's clock since the offer bounds it.
+        elapsed=(datetime.fromisoformat(now)-datetime.fromisoformat(assignment['offered_at'])).total_seconds()
+        fast=min(body['seconds_spent'],elapsed)<60
+        if payable:  # equity-only advisors record the verdict but accrue no cash
+            earning_id=identifier('earn',aid)
+            store.insert_earning(earning_id=earning_id,user_id=user_id,kind=KIND_EHR_REVIEW,ref_id=aid,
+                amount_cents=settings().review_pay_cents,rate_cents=settings().review_pay_cents,status='accrued',accrued_at=now,note=f'ehr_review:{review_id}',_connection=conn)
+            if not fast and not straight:
+                store.resolve_earning(kind=KIND_EHR_REVIEW,ref_id=aid,status='approved',resolved_at=now,only_from=['accrued'],_connection=conn)
+            else:
+                # Held for a person: the fourteen-day auto-approve sweep skips held rows.
+                store.set_earning_quality(earning_id,multiplier=1.0,reasons=[r for r,hit in (('fast_review',fast),('straight_lined',straight)) if hit],
+                                          version='ehr_review_v1',hold=True,_connection=conn)
         verdicts=store.ehr_all('ehr_review_verdicts',review_id=review_id,_connection=conn)
         mapped_rows=[verdict_data(v)['mapped'] for v in verdicts]
         resolved=None
@@ -411,9 +425,14 @@ def reassign_expired(store=None):
         for row in store.ehr_all('ehr_review_assignments',limit=10000,_connection=conn):
             if row['status'] in LIVE and row['expires_at']<=now:
                 count+=store.ehr_update('ehr_review_assignments',{'review_assignment_id':row['review_assignment_id'],'status':row['status']},{'status':'expired'},_connection=conn)
+    failed=[]
     for row in store.ehr_all('ehr_reviews',limit=10000):
-        if row['status'] not in CLOSED: select_reviewers(row['review_id'],store=store)
-    return {'expired':count}
+        if row['status'] in CLOSED: continue
+        # One review on a chart that left 'built' must not stop the hourly sweep.
+        try: select_reviewers(row['review_id'],store=store)
+        except (ValueError,HTTPException) as exc:
+            failed.append(row['review_id']); logger.warning('EHR review %s not re-offered: %s',row['review_id'],exc)
+    return {'expired':count,'reoffer_failed':failed}
 
 
 def review_items(row):

@@ -146,3 +146,39 @@ def test_calculator_published_equations():
     assert 0<two<five<1
     with pytest.raises(ValueError): calculate('egfr_ckd_epi_2021_cr',{'age':50,'sex':'male','creatinine_mg_dl':0})
     with pytest.raises(ValueError): calculate('egfr_ckd_epi_2021_cr',{'age':50,'sex':'male','creatinine_mg_dl':1,'race':'x'})
+
+
+def test_non_finite_or_deeply_nested_arguments_are_recoverable_tool_errors(env):
+    pid=patient(env)
+    bad=env.step({'tool':'calculate','input':{'operation':'egfr_ckd_epi_2021','creatinine':float('nan')}})[0]['observation']
+    assert bad['resourceType']=='OperationOutcome'
+    deep={};node=deep
+    for _ in range(900): node['x']={};node=node['x']
+    assert env.step({'tool':'submit_answer','input':{'answer':deep}})[0]['observation']['resourceType']=='OperationOutcome'
+    assert env.calls==2 and not env.terminated
+    from asclepius.ehr_sandbox.common import dumps
+    dumps(env.rollout()['trajectory'])  # the trajectory stays storable
+    assert call(env,'get_patient',patient_id=pid)['id']==pid
+
+
+def test_status_update_keeps_the_prescription_authored_date(env):
+    pid=patient(env)
+    med=call(env,'search_medications',patient_id=pid)['entry'][0]['resource']
+    call(env,'discontinue_medication',medication_request_id=med['id'],reason='test')
+    updated=env.sandbox.overlay['MedicationRequest/'+med['id']]
+    assert updated['status']!='active' and updated.get('authoredOn')==med.get('authoredOn')
+
+
+@pytest.mark.parametrize('text,frequency,value',[('1,000 mg','twice daily',2000.0),('3 mg','three times weekly',3*3/7),
+    ('2 mg','twice weekly',2*2/7),('10 mg','every morning',10.0),('10 mg','once weekly',10/7)])
+def test_renal_dosing_amounts_parse(text,frequency,value):
+    from asclepius.ehr_sandbox.terminology import daily_amount
+    assert daily_amount(text,frequency)['value']==pytest.approx(value)
+
+
+def test_grader_token_check_rejects_non_ascii_without_crashing():
+    from fastapi.testclient import TestClient
+    from asclepius.ehr_sandbox.server import create_grader_app
+    client=TestClient(create_grader_app(tasks={},keys={},token='secret'))
+    response=client.post('/grade',json={'task_id':'x','seed':0,'actions':[]},headers=[(b'authorization','Bearer sécret'.encode('utf-8'))])
+    assert response.status_code==403

@@ -10,7 +10,7 @@ from functools import lru_cache
 from collections import defaultdict
 
 from .common import digest, document_text, outcome, resource_ref, subject, validate
-from .terminology import GROUPS,frequency_per_day
+from .terminology import GROUPS,frequency_per_day,plain_numbers
 
 PARAMS = {
     'Patient': {'name','family','given','birthdate','identifier','gender'},
@@ -245,9 +245,14 @@ class FhirSandbox:
             item['id']=resource_id
         else:
             item['id']='w-'+digest([self.rollout_id,self._sequence])[:16]
-        if kind in ('MedicationRequest','ServiceRequest','CommunicationRequest'): item['authoredOn']=self.now
-        if kind=='Condition': item['recordedDate']=self.now
-        if kind=='DocumentReference': item['date']=self.now
+        # Stamp creation times only on create; a status update keeps its history.
+        if not resource_id:
+            if kind in ('MedicationRequest','ServiceRequest','CommunicationRequest'): item['authoredOn']=self.now
+            if kind=='Condition': item['recordedDate']=self.now
+            if kind=='DocumentReference': item['date']=self.now
+        else:
+            for field in ('authoredOn','recordedDate','date'):
+                if field in old: item[field]=old[field]
         if kind=='MedicationRequest':
             med=item.get('medicationCodeableConcept',{})
             if not med.get('text','').strip() and not med.get('coding'): raise ValueError('medication is required')
@@ -260,7 +265,7 @@ class FhirSandbox:
                 if any(isinstance(q,bool) or not isinstance(q,(int,float)) or not math.isfinite(q) or q<=0 for q in quantities):
                     raise ValueError('medication dose must be positive and finite')
             else:
-                parsed=re.search(r'(?<![\w.])(-?\d+(?:\.\d+)?)\s*(?:mg|mcg|g|mEq|mL|units?)\b',dosage.get('text',''),re.I)
+                parsed=re.search(r'(?<![\w.])(-?\d+(?:\.\d+)?)\s*(?:mg|mcg|g|mEq|mL|units?)\b',plain_numbers(dosage.get('text','')),re.I)
                 if not parsed or float(parsed.group(1))<=0: raise ValueError('positive parseable medication dosage is required')
             frequency=dosage.get('timing',{}).get('code',{}).get('text') or dosage.get('text','')
             if item.get('status')=='active' and frequency_per_day(frequency) is None: raise ValueError('medication frequency must be explicit and parseable')

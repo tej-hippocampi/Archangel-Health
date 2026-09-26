@@ -254,6 +254,8 @@ def test_alternating_outcome_ratings_are_not_straight_line_earnings_hold(store,c
     items=[{'item_id':f'lab-{i}','key':{'type':'lab','group':'BMP','timing_days':i+1},'actual':None} for i in range(5)]
     row=reviews.create_review(task['visit_id'],'outcome_flag',items,scope='visit',store=store)
     assignment=store.ehr_all('ehr_review_assignments',review_id=row['review_id'])[0]
+    from tests.test_ehr_sandbox_workflow import offered_minutes_ago
+    offered_minutes_ago(store,row['review_id'])
     reviews.submit(row['review_id'],assignment['user_id'],{'confidence':'high','seconds_spent':90,'items':[
         {'item_id':item['item_id'],'reference_decision':'appropriate' if i%2 else 'inappropriate',
          'rationale':'This decision was independently considered against the available chart.'} for i,item in enumerate(items)]},store=store)
