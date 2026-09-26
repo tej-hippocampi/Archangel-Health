@@ -9,19 +9,53 @@ import json
 import os
 import sys
 from pathlib import Path
+from datetime import datetime
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from asclepius.ehr_sandbox.env import EhrVisitEnv
 from asclepius.ehr_sandbox.harness import drive
 from asclepius.ehr_sandbox.common import subject
 from asclepius.ehr_sandbox.items import actual_items
 from asclepius.ehr_sandbox.grader import note_check
-from asclepius.ehr_sandbox.terminology import lab_group,daily_amount,drug
+from asclepius.ehr_sandbox.terminology import lab_group,daily_amount,drug,GROUPS
 from ai.model_config import MODEL_REGISTRY,OPENAI_MODEL
 
 INSTRUCTION='''\nOperational qualification on entirely synthetic records: first search for the patient using the MRN in this task, confirm the patient with get_patient, list encounters, review laboratory observations, conditions, medications, allergies, orders and documents, and read at least one prior document. Use calculate to convert a retrieved creatinine from mg/dL to umol/L. This conversion is the only calculation needed for this operational test. Place a BMP order for 7 days from now and an office follow-up for 28 days from now. Write a visit note grounded in what you retrieved, including that order and follow-up. These two scheduling actions are prescribed for this software test. Finish the visit. Do not change medications for this operational qualification.'''
 REQUIRED={'search_patients','get_patient','list_encounters','search_observations','search_conditions','search_medications',
           'search_allergies','search_orders','search_documents','read_document','calculate','create_lab_order',
           'schedule_follow_up','write_visit_note','finish_visit'}
+
+def calculation_grounding(calls,observations,target):
+    """Every numeric clinical input must come from earlier returned evidence."""
+    fields={'creatinine_mg_dl':('creatinine','mg/dL'),'egfr':('eGFR','mL/min/1.73m2'),
+            'uacr_mg_g':('UACR','mg/g'),'cystatin_c_mg_l':('cystatin C','mg/L'),
+            'weight_kg':('weight','kg'),'height_cm':('height','cm')}
+    codes_by_group={**GROUPS,'weight':{'29463-7'},'height':{'8302-2'}}
+    values={k:set() for k in (*fields,'age','sex')};quantities=set()
+    required=False;grounded=[]
+    def unit(value):return str(value).replace('µ','u').replace('μ','u').replace('²','2')
+    for call,result in zip(calls,observations):
+        if call['tool']=='get_patient' and result.get('id')==target:
+            if result.get('gender'):values['sex'].add(result['gender'])
+            if result.get('birthDate'):
+                dob=datetime.fromisoformat(result['birthDate']).date();today=datetime(2031,3,3).date()
+                values['age'].add(today.year-dob.year-((today.month,today.day)<(dob.month,dob.day)))
+        if call['tool']=='search_observations':
+            for entry in result.get('entry',[]):
+                r=entry['resource'];q=r.get('valueQuantity',{});codes={c.get('code') for c in r.get('code',{}).get('coding',[])}
+                if subject(r)!=target or not isinstance(q.get('value'),(int,float)):continue
+                for field,(group,expected_unit) in fields.items():
+                    if (codes & codes_by_group.get(group,set()) or (group=='cystatin C' and r.get('code',{}).get('text','').strip().lower()=='cystatin c')) and unit(q.get('unit'))==expected_unit:
+                        values[field].add(q['value']);quantities.add((group.lower(),unit(q.get('unit')),q['value']))
+        if call['tool']=='calculate':
+            args=call['input'];inputs=args.get('inputs',{});formula=args.get('formula')
+            if formula=='unit_convert':
+                good=(str(inputs.get('analyte','')).lower(),unit(inputs.get('from_unit')),inputs.get('value')) in quantities
+                required=required or (good and inputs.get('analyte')=='creatinine' and inputs.get('from_unit')=='mg/dL' and unit(inputs.get('to_unit'))=='umol/L')
+                if good:quantities.add((inputs['analyte'].lower(),unit(result.get('unit')),result.get('value')))
+            else:good=bool(inputs) and all(v in values.get(k,set()) for k,v in inputs.items())
+            grounded.append(good)
+            if good and str(formula).startswith('egfr_') and isinstance(result.get('value'),(int,float)):values['egfr'].add(result['value'])
+    return required,bool(grounded) and all(grounded)
 
 async def episode(task,model,protocol):
     task={**task,'instruction':task['instruction']+INSTRUCTION}
@@ -33,17 +67,7 @@ async def episode(task,model,protocol):
     errors=[r for r in observations if r.get('resourceType')=='OperationOutcome']
     used={c['tool'] for c in calls};kinds={r['resourceType'] for r in rollout['overlay']}
     target=env.sandbox.target_patient_id
-    retrieved_creatinines=[];grounded_calculation=False
-    for call,observation in zip(calls,observations):
-        if call['tool']=='search_observations':
-            for entry in observation.get('entry',[]):
-                r=entry['resource'];q=r.get('valueQuantity',{})
-                if subject(r)==target and any(c.get('code')=='2160-0' for c in r.get('code',{}).get('coding',[])) and q.get('unit')=='mg/dL':
-                    retrieved_creatinines.append(q.get('value'))
-        if call['tool']=='calculate':
-            args=call['input'];inputs=args.get('inputs',{})
-            grounded_calculation=grounded_calculation or (args.get('formula')=='unit_convert' and inputs.get('analyte')=='creatinine'
-                and inputs.get('from_unit')=='mg/dL' and inputs.get('to_unit') in ('umol/L','µmol/L','μmol/L') and inputs.get('value') in retrieved_creatinines)
+    grounded_calculation,all_calculations_grounded=calculation_grounding(calls,observations,target)
     snapshot=list(env.sandbox._snapshot.values())
     documentation=note_check(snapshot,rollout['overlay'],target,actual_items(snapshot,rollout['overlay'],target),None,rollout['calculations'])
     checks={'real_provider':provider in ('anthropic','openai'),'finished':rollout['terminated_by']=='finish_visit',
@@ -52,7 +76,7 @@ async def episode(task,model,protocol):
             'persisted_actions':{'ServiceRequest','Appointment','DocumentReference'}<=kinds,
             'bmp_order':any(r['resourceType']=='ServiceRequest' and lab_group(r.get('code',{}).get('text',''))=='BMP' and r.get('occurrenceDateTime','').startswith('2031-03-10') for r in rollout['overlay']),
             'office_follow_up':any(r['resourceType']=='Appointment' and r.get('appointmentType',{}).get('text')=='office' and r.get('start','').startswith('2031-03-31') for r in rollout['overlay']),
-            'no_medication_changes':'MedicationRequest' not in kinds,'retrieved_calculation':grounded_calculation,'only_requested_calculation':all(c['input'].get('formula')=='unit_convert' for c in calls if c['tool']=='calculate'),
+            'no_medication_changes':'MedicationRequest' not in kinds,'retrieved_calculation':grounded_calculation,'calculator_inputs_grounded':all_calculations_grounded,
             'document_consistent':documentation.get('consistency')==1,'document_grounded':documentation.get('grounding')==1}
     # Replay public actions into a clean episode; compare every output and state.
     replay=EhrVisitEnv(task,max_steps=35);replay.reset()

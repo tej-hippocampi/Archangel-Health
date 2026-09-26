@@ -74,7 +74,7 @@ def note_check(snapshot,overlay,target,actual,rubric=None,calculations=()):
         pattern=r'\b(?:'+ '|'.join(re.escape(n) for n in names)+r')\s*(?:is|of|=|:)?\s*(\d+(?:\.\d+)?)'
         for m in re.finditer(pattern,note,re.I):
             value=float(m.group(1)); candidates=[r for r in labs if abs(r['valueQuantity']['value']-value)<=max(.05,.005*abs(value))]
-            dates=re.findall(r'\d{4}-\d{2}-\d{2}',note[m.end():m.end()+50].split('\n',1)[0].split(';',1)[0])
+            dates=re.findall(r'\d{4}-\d{2}-\d{2}',re.split(r'[;\n]|\.(?=\s|$)',note[m.end():m.end()+50],maxsplit=1)[0])
             grounded=bool(candidates) and (not dates or any(r.get('effectiveDateTime','').startswith(dates[0]) for r in candidates))
             if group == 'eGFR' and not dates:
                 grounded = grounded or any(c.get('formula', '').startswith('egfr_')

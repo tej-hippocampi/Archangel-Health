@@ -23,8 +23,23 @@ def test_openai_json_transport_preserves_conversation(monkeypatch,sync,fallback)
               {'role':'user','content':'{"result":{"id":"p1"}}'}]
     args=(OPENAI_MODEL,'Return exactly one JSON object.',messages,2000,0)
     result=llm_client._openai_create_sync(*args,json_object=True) if sync else asyncio.run(llm_client._openai_create_async(*args,json_object=True))
-    params=captured[0];conversation=params['messages'][1:] if fallback else params['input']
+    params=captured[0];conversation=params['messages'][1:] if fallback else params['input'][1:]
+    if not fallback:assert params['input'][0]['role']=='developer' and 'JSON' in params['input'][0]['content']
     assert [m['role'] for m in conversation]==['user','assistant','user']
     assert [m['content'][0]['text'] for m in conversation]==[m['content'] for m in messages]
     assert (params['response_format'] if fallback else params['text']['format'])=={'type':'json_object'}
     assert llm_client.first_text(result)=='{"tool":"finish_visit","input":{}}'
+
+
+def test_qualification_calculations_require_retrieved_inputs():
+    from scripts.smoke_ehr_sandbox import calculation_grounding
+    result={'entry':[{'resource':{'resourceType':'Observation','subject':{'reference':'Patient/p1'},'code':{'coding':[{'code':code}]},'valueQuantity':{'value':value,'unit':unit}}}
+                     for code,value,unit in [('2160-0',3.6,'mg/dL'),('33914-3',28,'mL/min/1.73m2')]]}
+    calls=[{'tool':'search_observations','input':{}},
+           {'tool':'calculate','input':{'formula':'unit_convert','inputs':{'value':3.6,'analyte':'creatinine','from_unit':'mg/dL','to_unit':'umol/L'}}},
+           {'tool':'calculate','input':{'formula':'ckd_stage','inputs':{'egfr':28}}}]
+    outputs=[result,{'value':318.24,'unit':'umol/L'},{'value':'G4'}]
+    assert calculation_grounding(calls,outputs,'p1')==(True,True)
+    calls.append({'tool':'calculate','input':{'formula':'uacr_category','inputs':{'uacr_mg_g':300}}});outputs.append({'value':'A2'})
+    assert calculation_grounding(calls,outputs,'p1')==(True,False)
+    assert calculation_grounding(calls,outputs,'other')==(False,False)

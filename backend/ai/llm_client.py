@@ -326,7 +326,10 @@ async def _openai_create_async(model: str, system: str, messages: list[dict[str,
                                   "max_output_tokens": out_cap}
         if temperature is not None and not reasoning:
             params["temperature"] = temperature
-        if json_object: params["text"] = {"format":{"type":"json_object"}}
+        if json_object:
+            params["text"] = {"format":{"type":"json_object"}}
+            # Responses validates input messages, not the separate instructions.
+            params["input"].insert(0,{"role":"developer","content":"Respond with exactly one JSON object."})
         resp = await client.responses.create(**params)
         text = getattr(resp, "output_text", "") or ""
         usage = getattr(resp, "usage", None)
@@ -584,7 +587,10 @@ def _openai_create_sync(model: str, system: str, messages: list[dict[str, Any]],
                                   "max_output_tokens": out_cap}
         if temperature is not None and not reasoning:
             params["temperature"] = temperature
-        if json_object: params["text"] = {"format":{"type":"json_object"}}
+        if json_object:
+            params["text"] = {"format":{"type":"json_object"}}
+            # Responses validates input messages, not the separate instructions.
+            params["input"].insert(0,{"role":"developer","content":"Respond with exactly one JSON object."})
         resp = client.responses.create(**params)
         usage = getattr(resp, "usage", None)
         return _LLMResult(getattr(resp, "output_text", "") or "",

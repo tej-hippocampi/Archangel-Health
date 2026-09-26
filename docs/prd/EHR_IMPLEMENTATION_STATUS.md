@@ -96,9 +96,12 @@ The portable grader uses deterministic documentation checks and exported,
 resolved physician grading policy. Approved LLM rubric judging is available in
 the control plane; portable delivery does not silently call a model provider.
 The HTTP service implements the documented reset/step/state protocol. The
-Verifiers adapter targets `verifiers>=0.1.8,<0.2`; actual external SDK/client and
-real-provider integration is checked by the manual `llm-smoke` EHR mode;
-fake-provider tests alone do not establish it.
+Verifiers adapter was exercised against installed `verifiers==0.1.8` in a
+network-disabled container: two complete 12-call episodes, fresh state each time,
+and authenticated reward handoff. Model responses and the HTTP grading handoff
+were scripted; the private grading engine was separately tested. Real-provider
+integration is checked by the manual `llm-smoke` EHR mode; fake-provider tests
+alone do not establish it.
 
 OCR is optional locally and fails closed when unavailable; production scanned
 intake uses OCRmyPDF or the installed Tesseract/Poppler fallback. Both paths reject unsupported page bounds; OCR remains subject to extraction/key review. Build/evaluation jobs run in the application
@@ -126,7 +129,11 @@ restart; an operator can retry from retained inputs.
   protocol failure plus overly narrow documentation matching. Fixes preserve
   provider message roles, enforce JSON-object responses, clarify public tool
   inputs, and accept valid note wording while rejecting timing contradictions.
-  A fresh real-provider run is required before operational qualification passes.
+  A second real run confirmed the native and Claude JSON tool paths, and caught
+  the Responses API requirement for JSON in input messages plus a date-attribution
+  boundary. Those are fixed with targeted regressions. Calculator qualification
+  accepts optional calculations only when every input was previously retrieved;
+  assumed UACR values fail. Final CI evidence is recorded in the PR.
 - Follow-up focused checks: 196 passed, 1 opt-in OCR test skipped; image plus
   upload-to-export checks: 17 passed. Real Tesseract/Poppler parsed all five scanned
   synthetic visits with their dates intact. These checks do not certify OCR clinical

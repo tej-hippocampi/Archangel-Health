@@ -195,3 +195,16 @@ def test_class_hold_requires_every_active_member_to_be_held(episode,held,consist
     assert result['resourceType']=='DocumentReference',result
     snapshot=list(env.sandbox._snapshot.values());overlay=env.rollout()['overlay']
     assert (note_check(snapshot,overlay,pid,actual_items(snapshot,overlay,pid))['consistency']==1)==consistent
+
+
+def test_lab_date_does_not_cross_sentence_into_prior_result(episode):
+    import base64
+    from asclepius.ehr_sandbox.grader import note_check
+    from asclepius.ehr_sandbox.safety_rules import observations
+    task,_=episode;env=EhrVisitEnv(task);env.reset();pid=env.sandbox.target_patient_id
+    snapshot=list(env.sandbox._snapshot.values());labs=observations(snapshot,pid,'K');old,current=labs[0],labs[-1]
+    text=f"Potassium {current['valueQuantity']['value']} mmol/L (elevated). Also prior {old['effectiveDateTime'][:10]}: Potassium {old['valueQuantity']['value']} mmol/L."
+    overlay=[{'resourceType':'DocumentReference','id':'dated-values','subject':{'reference':'Patient/'+pid},
+              'content':[{'attachment':{'data':base64.b64encode(text.encode()).decode()}}]}]
+    result=note_check(snapshot,overlay,pid,[])
+    assert result['grounding']==1,result
