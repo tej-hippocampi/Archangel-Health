@@ -196,7 +196,8 @@ def test_v4_picker_can_reveal_and_flag_an_assigned_walk_with_the_shipped_client(
 
     code = "\n".join(_fn(name) for name in (
         "draftVersion", "buildSubmissionPayload", "revealAnswers", "mergeAnswers",
-        "workspaceRequestIsCurrent", "flagPrompt", "flagCaseIncoherent"))
+        "workspaceRequestIsCurrent", "trajectoryRecoveryKey", "trajectoryRecoveries",
+        "rememberTrajectoryOutcome", "isDuplicateTrajectorySubmission", "flagPrompt", "flagCaseIncoherent"))
     out = _open_harness(code + """
     function tutorialActive() { return false; }
     function cleanAnchor(anchor) { return anchor; }
@@ -206,6 +207,7 @@ def test_v4_picker_can_reveal_and_flag_an_assigned_walk_with_the_shipped_client(
     function saveDraft() {}
     function stopTimer() {}
     function renderEvalView() {}
+    function renderTrajectoryOutcomeView() {}
     PICKED_VERSION = 'v4';
     RESPONSE = %s;
     if (%s) {

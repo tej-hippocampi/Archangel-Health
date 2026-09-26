@@ -510,6 +510,7 @@ function firstRunBannerEl() { return null; }
 function teardownFirstRun() {}
 function renderScoreWidget() { return null; }
 function renderDashboardWidget() { return document.createElement('div'); }
+function renderPendingTrajectoryOutcome() { return null; }
 function renderDashboardEmpty() {
   const d = document.createElement('div'); d.className = 'asc-empty'; return d;
 }
@@ -749,7 +750,7 @@ const state = { user: {}, token: 't', view: 'home', draft: null, task: null,
 let RESPONSE = null;   // null => api() throws THROWN
 let THROWN = null;
 
-function setRoot(node) { rendered = node; calls.push('setRoot'); }
+function setRoot(node) { state.screenGeneration = (state.screenGeneration || 0) + 1; rendered = node; calls.push('setRoot'); }
 function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
 function renderHeader() {}
 function startTimer() {}
@@ -774,7 +775,7 @@ def _open_harness(body: str) -> dict:
         _const("DRAFT_PREFIX"),
         _fn("h"), _fn("appendChildren"), _fn("examActive"), _fn("draftKey"), _fn("randomId"),
         _fn("emptyAnchor"), _fn("newDraft"), _fn("initDraftForTask"),
-        _fn("clearDraft"), _fn("isPracticeGate"), _fn("openTaskById"),
+        _fn("draftContentFingerprint"), _fn("clearDraft"), _fn("isPracticeGate"), _fn("openTaskById"),
     ])
     return _run_node(_OPEN_PRELUDE % {"payload": payload} + "\n" + body)
 
@@ -1336,3 +1337,82 @@ def test_the_reviewer_billing_clock_is_untouched_by_the_display_timer():
     for knob in ("BEAT_INTERVAL_SECONDS", "MAX_GAP_SECONDS", "PAUSE_TOLERANCE_SECONDS"):
         assert knob in payments, f"{knob} must still exist in payments.py"
         assert knob not in JS, f"{knob} must not leak into the portal's display timer"
+
+
+def test_task_open_response_after_navigation_cannot_replace_newer_workspace():
+    out = _open_harness("""
+    let finish;
+    api = () => new Promise(resolve => {finish=resolve;});
+    (async () => {
+      const pending=openTaskById('old');
+      state.task={task_id:'new'}; state.draft={task_id:'new',text:'Preserve this'};
+      setRoot(h('div',{},'New screen'));
+      finish({task:{task_id:'old'},served_portal_version:'v5'}); await pending;
+      out({task:state.task.task_id,draft:state.draft.text,root:rendered.textContent});
+    })();
+    """)
+    assert out == {'task': 'new', 'draft': 'Preserve this', 'root': 'New screen'}
+
+
+def test_old_trajectory_metadata_cannot_stamp_a_newer_opened_task():
+    out = _open_harness("""
+    let finish;
+    api = path => path==='/tasks/old'
+      ? Promise.resolve({task:{task_id:'old',trajectory_id:'old-walk'},served_portal_version:'v5'})
+      : new Promise(resolve=>{finish=resolve;});
+    (async()=>{
+      const pending=openTaskById('old');await new Promise(r=>setTimeout(r,0));
+      state.task={task_id:'new'};state.draft={task_id:'new'};state.trajectoryProgress={n_points:2};
+      setRoot(h('div',{},'New screen'));finish({progress:{n_points:99}});await pending;
+      out({task:state.task.task_id,n:state.trajectoryProgress.n_points,root:rendered.textContent});
+    })();
+    """)
+    assert out == {'task': 'new', 'n': 2, 'root': 'New screen'}
+
+
+
+def test_late_submission_cleanup_preserves_a_reopened_same_task_draft():
+    out = _open_harness("""
+    const old={task_id:'t1',submission_id:'old',savedAt:1};
+    state.draft={task_id:'t1',submission_id:'new',savedAt:2,text:'Newer clinical work'};
+    localStorage.setItem(draftKey('t1'),JSON.stringify(state.draft));
+    clearDraft('t1',draftKey('t1'),old);
+    out({memory:state.draft.text,stored:JSON.parse(localStorage.getItem(draftKey('t1'))).text});
+    """)
+    assert out == {'memory': 'Newer clinical work', 'stored': 'Newer clinical work'}
+
+
+def test_late_submission_cleanup_preserves_newer_work_saved_in_another_tab():
+    out = _open_harness("""
+    const old={task_id:'t1',submission_id:'same',savedAt:1}; state.draft=old;
+    localStorage.setItem(draftKey('t1'),JSON.stringify({...old,savedAt:2,text:'Other tab work'}));
+    clearDraft('t1',draftKey('t1'),old);
+    out({memory:state.draft,stored:JSON.parse(localStorage.getItem(draftKey('t1'))).text});
+    """)
+    assert out == {'memory': None, 'stored': 'Other tab work'}
+
+
+
+def test_submission_cleanup_uses_immutable_content_even_for_in_place_edits():
+    out = _open_harness("""
+    state.draft={task_id:'t1',submission_id:'s1',savedAt:100,clinical_note:'original'};
+    const expected=state.draft;
+    const submittedContent=draftContentFingerprint(expected);
+    state.draft.clinical_note='More recent physician reasoning';state.draft.savedAt=200;
+    localStorage.setItem(draftKey('t1'),JSON.stringify(state.draft));
+    clearDraft('t1',draftKey('t1'),expected,submittedContent);
+    out({memory:state.draft.clinical_note,stored:JSON.parse(localStorage.getItem(draftKey('t1'))).clinical_note});
+    """)
+    assert out == {'memory': 'More recent physician reasoning', 'stored': 'More recent physician reasoning'}
+
+
+def test_timer_only_autosaves_do_not_resurrect_submitted_drafts():
+    out = _open_harness("""
+    state.draft={task_id:'t1',submission_id:'s1',savedAt:100,elapsedSec:10,clinical_note:'original'};
+    const expected=state.draft;const submittedContent=draftContentFingerprint(expected);
+    state.draft.savedAt=200;state.draft.elapsedSec=15;
+    localStorage.setItem(draftKey('t1'),JSON.stringify(state.draft));
+    clearDraft('t1',draftKey('t1'),expected,submittedContent);
+    out({memory:state.draft,stored:localStorage.getItem(draftKey('t1'))});
+    """)
+    assert out == {'memory': None, 'stored': None}

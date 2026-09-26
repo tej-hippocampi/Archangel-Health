@@ -290,13 +290,14 @@ def validate_submission(
     verdict = submission.get("verdict") or payload.get("verdict")
     issues: List[str] = []
 
-    # 0. The V4 packaging wall (EHR PRD §9.5): case_source=='real_deid' ⇔
-    # portal_version=='v4' on everything that would ship. The router already
-    # derives the version server-side; this is the belt-and-braces assertion at
-    # the packaging layer — a mismatch (a bug, a direct DB write) routes the
-    # submission to needs_qa and NO record ships mislabeled. Never silent.
+    # Match the router's provenance boundary: real static cases are V4 and real
+    # longitudinal points are V5. Neither version may describe synthetic data.
     pv = (payload.get("portal_version") or submission.get("portal_version") or "")
-    if (task.get("case_source") == "real_deid") != (pv == "v4"):
+    is_real = task.get("case_source") == "real_deid"
+    is_trajectory = bool(task.get("trajectory_id"))
+    expected_real_version = "v5" if is_trajectory else "v4"
+    if ((is_real and pv != expected_real_version)
+            or (not is_real and (pv in ("v4", "v5") or is_trajectory))):
         issues.append("portal_version_case_source_mismatch")
 
     # 1. verdict + completeness

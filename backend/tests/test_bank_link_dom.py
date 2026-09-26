@@ -18,6 +18,7 @@ def shell_function(name):
 
 def context():
     return _ctx() + '\n' + shell_function('setRoot') + """
+      var state = {screenGeneration:0};
       var host = h('main', {id:'ascRoot'}); document.body.appendChild(host);
       function root(){return host;} function closeTagPopover(){}
       function clear(el){while(el.firstChild)el.removeChild(el.firstChild);}
