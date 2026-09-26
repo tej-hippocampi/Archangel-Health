@@ -12,7 +12,8 @@ def build(*,store,run_groups=None,model=None,task_ids=None,output_dir=None):
     models={}; failures=Counter(); examples=defaultdict(list)
     for name in sorted({r['model'] for r in rows}):
         own=[r for r in rows if r['model']==name]
-        valid=[r for r in own if r['status']!='reference_excluded']
+        # Provider failures (outage, bad model id) are infrastructure, not model scores.
+        valid=[r for r in own if r['status'] not in ('reference_excluded','provider_error')]
         finalized=[r for r in valid if r['status']=='final' and r['final_reward'] is not None]
         groups=defaultdict(list);scores=defaultdict(list);success={};provisional=[]
         for row in valid:
@@ -35,7 +36,8 @@ def build(*,store,run_groups=None,model=None,task_ids=None,output_dir=None):
         final=[r['final_reward'] for r in finalized]
         rate=sum(success.values())/len(success) if success else None
         models[name]={'n':len(own),'n_final':len(finalized),'n_provisional':len(provisional),
-            'withdrawn':len(own)-len(valid),'pending':sum(r['status']=='awaiting_review' for r in valid),
+            'withdrawn':sum(r['status']=='reference_excluded' for r in own),
+            'provider_errors':sum(r['status']=='provider_error' for r in own),'pending':sum(r['status']=='awaiting_review' for r in valid),
             'other_incomplete':sum(r['status'] not in ('final','awaiting_review') for r in valid),
             'mean_final_reward':sum(final)/len(final) if final else None,
             'mean_provisional_reward':sum(provisional)/len(provisional) if provisional else None,

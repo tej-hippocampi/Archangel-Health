@@ -182,3 +182,15 @@ def test_grader_token_check_rejects_non_ascii_without_crashing():
     client=TestClient(create_grader_app(tasks={},keys={},token='secret'))
     response=client.post('/grade',json={'task_id':'x','seed':0,'actions':[]},headers=[(b'authorization','Bearer sécret'.encode('utf-8'))])
     assert response.status_code==403
+
+
+@pytest.mark.parametrize('text,phrase,per_day',[('epoetin 4000 units 3 times weekly','3 times weekly',3/7),('iron 100 mg TIW','tiw',3/7),
+    ('calcitriol 0.25 mcg every other day','every other day',.5),('amlodipine 10 mg once daily','once daily',1),('insulin 4 units qpm','qpm',1)])
+def test_one_frequency_reader_for_copied_regimens(text,phrase,per_day):
+    from asclepius.ehr_sandbox.terminology import frequency_phrase,frequency_per_day
+    assert frequency_phrase(text)==phrase and frequency_per_day(phrase)==pytest.approx(per_day)
+
+
+def test_thousands_separator_without_a_space():
+    from asclepius.ehr_sandbox.terminology import daily_amount
+    assert daily_amount('1,000mg','daily')['value']==1000

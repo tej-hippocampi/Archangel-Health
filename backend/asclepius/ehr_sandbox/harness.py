@@ -184,7 +184,7 @@ async def run(task_id,*,model,k=1,harness='native_tools',store=None,run_group=No
             from . import reviews
             # A provider failure (bad model id, outage, timeout) says nothing about
             # the plan: keep the graded evidence, never offer it for paid review.
-            if provider=='error': pass
+            if provider=='error': store.ehr_update('ehr_rollouts',{'rollout_id':rollout_id},{'status':'provider_error','final_reward':None})
             elif hasattr(reviews,'route_rollout'): reviews.route_rollout(rollout_id,store=store)
             else: store.ehr_update('ehr_rollouts',{'rollout_id':rollout_id},{'final_reward':result['reward'],'status':'final'})
             return {'rollout_id':rollout_id,**public_verification(result)}

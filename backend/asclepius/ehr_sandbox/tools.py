@@ -8,7 +8,7 @@ from datetime import datetime,timedelta
 from pathlib import Path
 import jsonschema
 from .common import concept,extension,outcome
-from .terminology import drug,lab_group,GROUPS,LOINC,RXNORM,ICD10,plain_numbers
+from .terminology import drug,lab_group,GROUPS,LOINC,RXNORM,ICD10,plain_numbers,frequency_phrase
 from .calculators import calculate
 
 SCHEMAS=json.loads(Path(__file__).with_name('tool_schemas.json').read_text())
@@ -110,10 +110,8 @@ class ToolRegistry:
             if not dosage.get('doseAndRate') and source_dose:
                 dosage['doseAndRate']=[{'doseQuantity':{'value':float(source_dose.group(1)),'unit':source_dose.group(2)}}]
             if not dosage.get('timing'):
-                source_text=dosage.get('text','').lower()
-                frequency=next((f for f in ('three times weekly','twice weekly','three times a week','twice a week','every morning','every evening','twice daily','three times daily','four times daily','once daily','every other day','once a week','at bedtime','every night','each morning','once a day','each day','bid','tid','qid','qhs','nightly','qd','qod','daily','weekly','hourly') if re.search(r'\b'+f+r'\b',source_text)),None)
-                interval=re.search(r'\b(?:every|q)\s*\d+\s*(?:hours?|h)\b',source_text)
-                if interval: frequency=interval.group(0)
+                # One reader for frequency text, so the copied regimen keeps its schedule.
+                frequency=frequency_phrase(dosage.get('text',''))
                 if frequency: dosage['timing']={'code':concept(frequency)}
             quantity=dosage.setdefault('doseAndRate',[{'doseQuantity':{}}])[0].setdefault('doseQuantity',{})
             if 'dose_value' in p: quantity['value']=p['dose_value']

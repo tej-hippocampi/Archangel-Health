@@ -23,7 +23,9 @@ ROOT = Path(__file__).parent / 'fixtures' / 'ehr_sandbox'
                                   # The live v3 rationale and forum gates share these patterns.
                                   'ECG shows 2 mm ST elevation', '1 cm nodule on CT chest',
                                   'Found 3 lesions on CT', '1 episode of ST depression',
-                                  'BP 130/80 at 1 visit per Dr', 'Name: basic metabolic panel'])
+                                  'BP 130/80 at 1 visit per Dr', 'Name: basic metabolic panel',
+                                  'ECG: 2 MM ST ELEVATION', '1 EPISODE OF ST DEPRESSION',
+                                  'Given 1 Dose Per Dr', '8 Unenhanced CT'])
 def test_ehr_privacy_patterns_do_not_join_clinical_headers_or_decimal_values(text):
     from asclepius.validation import residual_identifiers
     assert not residual_identifiers(text)
@@ -32,7 +34,10 @@ def test_ehr_privacy_patterns_do_not_join_clinical_headers_or_decimal_values(tex
 @pytest.mark.parametrize('text,kind', [('Patient name: Alice Example', 'name'),
     ('Physician name: Alice Example', 'name'), ('Seen by Dr. Alice Example', 'name'),
     ('Address: 123 Privacy Street', 'address'), ('Lives at 12 Oak St', 'address'),
-    ('12 MAIN STREET', 'address'), ('NAME: JANE SMITH', 'name')])
+    ('12 MAIN STREET', 'address'), ('NAME: JANE SMITH', 'name'),
+    # All-caps export forms and lowercase values behind an explicit label.
+    ('123 MAIN ST', 'address'), ('1234 W MAIN ST APT 5', 'address'), ('45 ELM DR', 'address'),
+    ('7 OAK CT', 'address'), ('123 main street', 'address'), ('Patient Name: alice example', 'name')])
 def test_ehr_privacy_patterns_still_detect_explicit_identifiers(text, kind):
     from asclepius.validation import residual_identifiers
     assert kind in residual_identifiers(text)

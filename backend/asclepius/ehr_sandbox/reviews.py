@@ -123,8 +123,19 @@ def select_reviewers(review_id,n=1,*,store=None):
     return [a for a,_ in offered]
 
 
+def _opened_at(store,assignment_id):
+    """When the reviewer first opened the review, or None if never opened."""
+    opened=[e['occurred_at'] for e in store.list_events(entity_type='ehr_review_assignment',entity_id=assignment_id)
+            if e['event_type']=='ehr_review_opened']
+    return min(opened) if opened else None
+
+
 def view(review_id,user_id,*,store=None):
     store=store or get_store(); assignment=require_live_review_assignment(store,review_id,user_id)
+    # Pay is gated on the server's clock from this first open, not the browser's timer.
+    if _opened_at(store,assignment['review_assignment_id']) is None:
+        store.log_event(entity_type='ehr_review_assignment',entity_id=assignment['review_assignment_id'],
+                        event_type='ehr_review_opened',actor=user_id)
     row=store.ehr_get('ehr_reviews',review_id=review_id); visit,chart=_chart(store,row['visit_id'])
     tasks=store.ehr_all('ehr_tasks',visit_id=visit['visit_id'],task_kind='visit')
     if tasks:
@@ -194,6 +205,7 @@ def submit(review_id,user_id,body,*,store=None):
     now=audit_now(); next_round=False
     from asclepius import compensation
     payable=compensation.accrues_payment(store.get_user_by_id(user_id))
+    opened_at=_opened_at(store,identifier('ehra',[review_id,user_id]))
     with store._conn() as conn:
         store._immediate(conn)
         previous=store.ehr_get('ehr_review_verdicts',review_id=review_id,reviewer_user_id=user_id,_connection=conn)
@@ -240,8 +252,9 @@ def submit(review_id,user_id,body,*,store=None):
         from asclepius.payments import KIND_EHR_REVIEW
         aid=assignment['review_assignment_id']
         straight=len(answers)>=5 and len({(i.get('plan_a'),i.get('plan_b'),i.get('better'),i.get('safety_decision'),i.get('met'),i.get('reference_decision'),i.get('critical')) for i in answers})==1
-        # The browser's timer is advisory; the server's clock since the offer bounds it.
-        elapsed=(datetime.fromisoformat(now)-datetime.fromisoformat(assignment['offered_at'])).total_seconds()
+        # The browser's timer is advisory; the server's clock since the first open
+        # bounds it. A review submitted without ever being opened is held.
+        elapsed=(datetime.fromisoformat(now)-datetime.fromisoformat(opened_at)).total_seconds() if opened_at else 0
         fast=min(body['seconds_spent'],elapsed)<60
         if payable:  # equity-only advisors record the verdict but accrue no cash
             earning_id=identifier('earn',aid)
@@ -430,7 +443,7 @@ def reassign_expired(store=None):
         if row['status'] in CLOSED: continue
         # One review on a chart that left 'built' must not stop the hourly sweep.
         try: select_reviewers(row['review_id'],store=store)
-        except (ValueError,HTTPException) as exc:
+        except Exception as exc:  # noqa: BLE001 - logged; the sweep continues
             failed.append(row['review_id']); logger.warning('EHR review %s not re-offered: %s',row['review_id'],exc)
     return {'expired':count,'reoffer_failed':failed}
 

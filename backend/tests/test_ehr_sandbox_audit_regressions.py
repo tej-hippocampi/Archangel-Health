@@ -254,8 +254,8 @@ def test_alternating_outcome_ratings_are_not_straight_line_earnings_hold(store,c
     items=[{'item_id':f'lab-{i}','key':{'type':'lab','group':'BMP','timing_days':i+1},'actual':None} for i in range(5)]
     row=reviews.create_review(task['visit_id'],'outcome_flag',items,scope='visit',store=store)
     assignment=store.ehr_all('ehr_review_assignments',review_id=row['review_id'])[0]
-    from tests.test_ehr_sandbox_workflow import offered_minutes_ago
-    offered_minutes_ago(store,row['review_id'])
+    from tests.test_ehr_sandbox_workflow import opened_minutes_ago
+    opened_minutes_ago(store,row['review_id'])
     reviews.submit(row['review_id'],assignment['user_id'],{'confidence':'high','seconds_spent':90,'items':[
         {'item_id':item['item_id'],'reference_decision':'appropriate' if i%2 else 'inappropriate',
          'rationale':'This decision was independently considered against the available chart.'} for i,item in enumerate(items)]},store=store)
@@ -305,3 +305,47 @@ def test_rubric_result_records_judge_identity(store,monkeypatch):
     result=asyncio.run(judge('synthetic note',[],rubric={'status':'approved','approved_by':['synthetic-1','synthetic-2'],
         'rubric_version':'synthetic-v1','criteria':[{'id':'c1','description':'Synthetic test criterion','points':1}]},store=store))
     assert result['judge_model']=='claude-sonnet-4-6' and result['judge_provider']=='fake'
+
+
+def test_straight_lined_outcome_ratings_are_held_for_a_person(store,compiled,monkeypatch):
+    task,_=compiled
+    monkeypatch.setattr(reviews,'load_candidates',lambda s:[candidate('a'),candidate('b')])
+    items=[{'item_id':f'lab-{i}','key':{'type':'lab','group':'BMP','timing_days':i+1},'actual':None} for i in range(5)]
+    row=reviews.create_review(task['visit_id'],'outcome_flag',items,scope='visit',store=store)
+    assignment=store.ehr_all('ehr_review_assignments',review_id=row['review_id'])[0]
+    from tests.test_ehr_sandbox_workflow import opened_minutes_ago
+    opened_minutes_ago(store,row['review_id'])
+    reviews.submit(row['review_id'],assignment['user_id'],{'confidence':'high','seconds_spent':90,'items':[
+        {'item_id':item['item_id'],'reference_decision':'appropriate',
+         'rationale':'This decision was independently considered against the available chart.'} for item in items]},store=store)
+    earning=store.get_earning(kind='ehr_review',ref_id=assignment['review_assignment_id'])
+    assert earning['status']=='accrued' and earning['quality_hold'] and 'straight_lined' in earning['quality_reasons_json']
+
+
+def test_provider_failure_is_not_scored_or_sent_to_paid_review(store,compiled,monkeypatch):
+    from asclepius.ehr_sandbox import harness
+    from asclepius.ehr_sandbox.report import build
+    task,_=compiled
+    async def outage(*a,**kw): raise TimeoutError('provider unavailable')
+    monkeypatch.setattr(harness,'drive',outage)
+    result=asyncio.run(harness.run(task['task_id'],model='synthetic-provider-model',store=store))
+    rollout=store.ehr_get('ehr_rollouts',rollout_id=result['rollouts'][0]['rollout_id'])
+    assert rollout['status']=='provider_error' and rollout['final_reward'] is None
+    assert not store.ehr_all('ehr_reviews',rollout_id=rollout['rollout_id'])
+    m=build(store=store)['report']['models']['synthetic-provider-model']
+    assert m['provider_errors']==1 and m['n_provisional']==0 and m['other_incomplete']==0
+
+
+def test_one_unofferable_review_does_not_stop_the_hourly_sweep(store,compiled,monkeypatch):
+    task,_=compiled
+    monkeypatch.setattr(reviews,'load_candidates',lambda s:[candidate('a'),candidate('b')])
+    rows=[reviews.create_review(task['visit_id'],'safety',[{'item_id':f's{i}','key':{'type':'lab','group':'BMP'},'actual':None}],scope='visit',store=store)
+          for i in range(2)]
+    seen=[]
+    def select(review_id,*a,**kw):
+        seen.append(review_id)
+        if review_id==rows[0]['review_id']: raise ValueError('chart is not eligible for review')
+        return []
+    monkeypatch.setattr(reviews,'select_reviewers',select)
+    result=reviews.reassign_expired(store)
+    assert set(seen)>={r['review_id'] for r in rows} and result['reoffer_failed']==[rows[0]['review_id']]

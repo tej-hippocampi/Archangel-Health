@@ -5529,8 +5529,7 @@ class AsclepiusStore:
     # ─── Case quality (internal metric, stamped) ─────────────────────────────
     def set_earning_quality(
         self, earning_id: str, *, multiplier: float, reasons: List[str],
-        version: str, hold: bool, amount_cents: Optional[int] = None,
-        _connection=None,
+        version: str, hold: bool, amount_cents: Optional[int] = None, _connection=None,
     ) -> bool:
         """Record the quality adjustment on one ledger row, and its hold state.
 

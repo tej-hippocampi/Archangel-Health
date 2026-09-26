@@ -70,11 +70,13 @@ def verdict(row,confidence='high',a='appropriate',b='appropriate'):
              **({'safety_decision':'confirmed'} if row['trigger']=='safety' else {}),'rationale':'The structured plan is supported by the available chart evidence.'} for i in reviews.review_items(row)]}
 
 
-def offered_minutes_ago(store,review_id,minutes=10):
-    """Reviews are paid on the server's clock since the offer, not the browser's timer."""
+def opened_minutes_ago(store,review_id,minutes=10):
+    """Reviews are paid on the server's clock since the first open, not the browser's timer."""
     from datetime import datetime,timedelta,timezone
     when=(datetime.now(timezone.utc)-timedelta(minutes=minutes)).replace(tzinfo=None).isoformat(timespec='seconds')
-    with store._conn() as conn: conn.execute('UPDATE ehr_review_assignments SET offered_at=? WHERE review_id=?',(when,review_id))
+    for a in store.ehr_all('ehr_review_assignments',review_id=review_id):
+        store.log_event(entity_type='ehr_review_assignment',entity_id=a['review_assignment_id'],event_type='ehr_review_opened',
+                        actor=a['user_id'],occurred_at=when)
 
 
 def test_assignment_gate_ledger_retry_and_resolution(store,compiled,monkeypatch):
@@ -86,7 +88,7 @@ def test_assignment_gate_ledger_retry_and_resolution(store,compiled,monkeypatch)
     with pytest.raises(HTTPException): reviews.view(row['review_id'],'admin',store=store)
     payload=reviews.view(row['review_id'],'reviewer-1',store=store)
     assert 'blind_order' not in payload and 'source_span' not in dumps(payload)
-    body=verdict(row); offered_minutes_ago(store,row['review_id'])
+    body=verdict(row); opened_minutes_ago(store,row['review_id'])
     first=reviews.submit(row['review_id'],'reviewer-1',body,store=store)
     second=reviews.submit(row['review_id'],'reviewer-1',body,store=store)
     assert first['status']=='resolved' and second['already_submitted']
@@ -100,7 +102,10 @@ def test_instant_submission_is_held_not_paid_whatever_the_browser_timer_says(sto
     task,_=compiled;monkeypatch.setattr(reviews,'load_candidates',lambda s:[candidate('reviewer-1')])
     monkeypatch.setattr(reviews,'recompute_rollout',lambda *a,**kw:None)
     row=reviews.create_review(task['visit_id'],'disagreement',[{'item_id':'x','key':{'type':'lab','group':'BMP'},'actual':{'type':'lab','group':'renal'}}],scope='visit',store=store)
-    reviews.submit(row['review_id'],'reviewer-1',verdict(row),store=store)
+    # An hour-old offer opened just now: the browser claims 90 seconds, the server saw ~0.
+    with store._conn() as conn: conn.execute("UPDATE ehr_review_assignments SET offered_at='2000-01-01T00:00:00' WHERE review_id=?",(row['review_id'],))
+    reviews.view(row['review_id'],'reviewer-1',store=store)
+    reviews.submit(row['review_id'],'reviewer-1',{**verdict(row),'seconds_spent':90},store=store)
     assignment=store.ehr_get('ehr_review_assignments',review_id=row['review_id'],user_id='reviewer-1')
     earning=store.get_earning(kind='ehr_review',ref_id=assignment['review_assignment_id'])
     assert earning['status']=='accrued' and earning['quality_hold']
@@ -114,7 +119,7 @@ def test_equity_only_reviewer_records_a_verdict_without_accruing_cash(store,comp
     monkeypatch.setattr(reviews,'recompute_rollout',lambda *a,**kw:None)
     monkeypatch.setattr(store,'get_user_by_id',lambda uid:{'id':uid,'compensation_model':'equity_only'})
     row=reviews.create_review(task['visit_id'],'disagreement',[{'item_id':'x','key':{'type':'lab','group':'BMP'},'actual':{'type':'lab','group':'renal'}}],scope='visit',store=store)
-    offered_minutes_ago(store,row['review_id'])
+    opened_minutes_ago(store,row['review_id'])
     reviews.submit(row['review_id'],'reviewer-1',verdict(row),store=store)
     assignment=store.ehr_get('ehr_review_assignments',review_id=row['review_id'],user_id='reviewer-1')
     assert store.get_earning(kind='ehr_review',ref_id=assignment['review_assignment_id']) is None
