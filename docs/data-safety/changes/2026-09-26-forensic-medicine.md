@@ -26,7 +26,7 @@ remain authoritative; this patch does not mass-relabel existing physicians.
 
 All original case JSON, images, source evidence, CV uploads, credential forms,
 submitted assessments, signatures, tasks, submissions, records, earnings and
-exports remain unchanged. The proposed release adds reviewed material only.
+exports remain unchanged. The release bundle adds two exact independently audited case documents only.
 No migration, deletion, account edit, email, external upload or paid-queue
 capability is part of the code change. Old drafts and completed exams are retained.
 A separately authorized account correction is needed for the known saved
@@ -48,5 +48,16 @@ is compared to the before inventory. These fixtures are not production backup pr
 Missing/rejected clinical material must remain unavailable instead of returning a
 pathology case. The full library coverage gate remains required before release.
 
-Release status: in progress. Real case generation, independent review and final
-checks are recorded in subsequent revisions. No production write or deploy performed.
+Release preparation: two-provider clinical build 36211253261 passed both cases on
+the first attempt after rejected earlier drafts were excluded. Independent
+artifact auditor /root/audit_forensic_cases cleared the exact pair; report and
+hashes are retained in onboarding_material/audits/audit-forensic-medicine-2026-09-26.json.
+All 88 curriculum cases validate. The 86 existing case files and 201 checked
+case/asset/CV-fixture files match origin/main 6b72423037d00d13b5aa036be4a392950ceeaf03
+byte-for-byte. All prior source pins and authoring feedback remain unchanged;
+only two new topic configurations and feedback entries are added.
+
+Deployment/account repair remains separate from these isolated checks. Live
+backup/restore and scoped account preconditions must be verified at that boundary.
+No production write or deploy performed. Full results are recorded in
+docs/validation/FORENSIC_MEDICINE_2026-09-26.md.

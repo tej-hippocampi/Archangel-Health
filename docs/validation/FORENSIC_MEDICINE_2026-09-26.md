@@ -29,9 +29,9 @@ credentials or enable paid case generation. A physician-confirmed specialty stil
 wins, so already incorrect declarations need a deliberate account correction.
 The form explains that an international physician need not choose a US equivalent.
 
-The proposed pair covers injury documentation/interpretation and medicolegal
-review of nonfatal strangulation. Authorship and independent reviews receive the
-specialty scope; pathology/histology/microscopy studies are rejected. Missing or
+The pair covers interpretation of genital injury evidence and retention of
+reported neurological symptoms in nonfatal-strangulation documentation. Authorship
+and independent reviews receive the specialty scope; pathology/histology/microscopy studies are rejected. Missing or
 rejected material remains unavailable instead of selecting an unrelated case.
 
 An unfinished wrong-specialty draw can be replaced once the correct case is
@@ -39,32 +39,32 @@ ready. Previous case IDs and drafts are retained, attempt 1 stays attempt 1,
 and submitted exams remain immutable. Stale practice writes after correction
 are rejected, matching the existing exam protection.
 
-## Validation so far
+## Validation
 
 - Actual PDF parsing and production TypeScript prefill verified locally.
-- 35 forensic regressions passed, including national titles, nearby specialties,
-  actual-layout synthetic CV, microscopy rejection, missing-case behavior, stale
-  writes, replacement, idempotent draws, submitted-exam retention and restoration.
-- 393 existing CV, evidence, library, specialty-routing and examination tests passed;
-  two local OCR checks skipped, with OCR enforced by CI. The missing-content
-  coverage gate is intentionally not counted as a pass before bundle import.
-- 260 additional CV-to-case, credentialing, promotion and self-service tests passed;
-  new forensic release-case parameter is not counted before bundle import.
-- 133 evidence, scope, community and review-clarity tests passed; 25 onboarding and
-  tutorial tests passed. Counts overlap and must not be summed as unique tests.
-- 109 frontend checks passed; route table unchanged at 691 routes; no dangling
-  imports across 779 files; SQL preservation and merge-readiness gates clear.
+- 235 final forensic, release-library, CV-to-case and harness tests passed with no
+  exclusions. This includes the complete curriculum, the released forensic pair
+  and 35 new regressions for national titles, nearby specialties, microscopy
+  rejection, stale writes, missing-case behavior, replacement, submitted-exam
+  retention and restoration.
+- 71 evidence tests passed after the source/topic refinements. Earlier focused
+  suites covered existing CV parsing, credentialing, promotion, self-service,
+  specialty routing, examination, community scope and tutorial behavior.
+- 109 frontend checks passed. Route table unchanged at 691 routes; no dangling
+  imports across 779 files. PRD line references corrected and harness audit passes.
 - Same populated SQLite dataset compared before/after replacement, preserving
   every identity and all fields except the expected tutorial-state transition.
   SQLite backup API and an isolated restored copy matched the original inventory.
+- Full release-library check passes all 88 entries. SQL preservation gate and
+  diff check pass. Fresh final-commit CI remains required before merging.
 
 ## Independent reviews and clinical build status
 
 Code auditor /root/audit_forensic_routing independently reran 35 forensic and
 105 library tests, identified combined-title recognition and modality-normalization
 issues, and confirmed those fixes. Evidence audit verified additive topic pins
-and preserved prior configurations. No remaining blocking code findings for draft
-preparation; actual reviewed cases remain a release gate.
+and preserved prior configurations. The initial code audit found no remaining blocker for draft preparation and
+held release pending the clinical artifact review documented below.
 
 First isolated real-model run 36209707471 rejected the practice case for lack of
 adequate source support. Its exam passed both providers but independent artifact
@@ -74,15 +74,33 @@ implausibly absolute distractor. It was not imported into the released bank.
 Second run 36210185377 used the verified topic-specific references but both cases
 failed all three attempts. Practice drafts added unsupported documentation and
 injury-timing claims. Exam drafts failed required review metadata or confidence
-gates. No artifact from this run was imported. Authoring is being narrowed to
-the directly supported decisions, without weakening any review gate. No automated
-review, source pin or independent agent review is represented as physician
-ratification. Final accepted artifacts and full coverage checks are recorded
-below when completed.
+gates. No artifact from this run was imported. Authoring was narrowed to directly
+supported decisions without weakening any review gate. No automated review,
+source pin or independent agent review is represented as physician ratification.
+
+Third run 36211253261 passed both cases on their first attempts using the original
+two-provider evidence-review protocol. Runtime validation of both exact downloaded
+documents passed. Independent auditor /root/audit_forensic_cases cleared both:
+source hashes and quotations verified, two substantive references per decision,
+correct keys, plausible distractors, withheld private fields, distinct decisions
+and appropriate clinical scope. No material unresolved findings. The report is
+`backend/asclepius/onboarding_material/audits/audit-forensic-medicine-2026-09-26.json`;
+its SHA256 is `2bd48b8921c265948494992895a68d6c3bb1bbca50df8e663ddd938e42ffe3e0`.
+
+The accepted documents were copied byte-for-byte into the release bundle.
+`build_onboarding_library.py --check` passes all 88 cases / 44 specialties.
+All 86 preexisting case documents and 201 checked case/asset/CV-fixture files
+remain byte-identical to origin/main at `6b72423037d00d13b5aa036be4a392950ceeaf03`.
+
+Final code/import auditor /root/audit_forensic_routing independently confirmed
+both imports and all document/entry/blind hashes, the exact audit-report hash,
+88/88 coverage and preservation of all 201 original files. Its final focused run
+passed 36 forensic and full-coverage tests with no exclusions. No blocking
+findings remain for PR readiness; final-commit CI is still required.
 
 ## Production status
 
-PR179 is a draft. No production account write, merge, deploy or email has occurred.
+Release preparation is tracked in PR179. No production account write, merge, deploy or email has occurred.
 A scoped correction plan is prepared for the affected account: preserve the
 original declaration in an audit record, correct its current specialty after
 release, and let the normal draw path replace the unsubmitted exam without

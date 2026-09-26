@@ -1,0 +1,463 @@
+{
+  "task_id": "onboarding-examination-v1-736dfbecd43435eaa374-1",
+  "specialty": "forensic medicine",
+  "kind": "examination",
+  "slot": 1,
+  "entry": {
+    "title": "Clinical-forensic follow-up after reported neck compression",
+    "question": "Which entry should be used for the final clinical-forensic follow-up summary?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "forensic medicine",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Reported transient loss of consciousness during neck compression",
+          "since": "Reported at the initial evaluation",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Reported memory gap surrounding the event",
+          "since": "Reported at the initial evaluation",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Clinical-forensic follow-up",
+          "author_role": "forensic medicine clinician",
+          "text": "At follow-up on day 3, the adult reports no current neurological, breathing, swallowing, or voice symptoms. During the completed acute evaluation on day 0, she described neck compression by another person and stated, “I blacked out,” followed by, “There is a part I still cannot remember.” The current examination shows normal speech, orientation, gait, and limb movement, with no externally visible neck injury. The acute record contains clinical photographs; no photographic asset is attached or independently examined in this case.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 3
+        }
+      ],
+      "studies": [],
+      "source_refs": [],
+      "case_provenance": {
+        "agents": [
+          "synthetic case author",
+          "clinical evidence reviewer"
+        ],
+        "disclaimers": [
+          "Fictional onboarding assessment; not patient care.",
+          "Legal conclusions and jurisdiction-specific requirements are outside the case."
+        ],
+        "recorded": null
+      },
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "complete for the assessed documentation decision",
+      "ground_truth": {
+        "answer": "B",
+        "rationale": "The follow-up summary should preserve the clearly attributed reports of loss of consciousness and memory loss even though they have resolved and the current examination is normal. These are recognized neurological and cognitive outcomes reported after non-fatal strangulation, while the evidence base also requires caution about causal certainty. Standardized clinical-forensic documentation should distinguish subjective complaints and the reported experience from objective current findings, and may note photographs already present in the record without claiming that they prove intent, causation, or precise timing.",
+        "evidence": {
+          "decision_basis": "Retain resolved but clinically relevant reported neurological symptoms alongside current objective findings, using attributed and non-conclusory language."
+        },
+        "key_data": [
+          "The patient reported, “I blacked out,” during the completed acute evaluation.",
+          "The patient also reported a memory gap surrounding the event.",
+          "Both symptoms have resolved by the day-3 follow-up.",
+          "The current neurological and external neck examinations are unremarkable.",
+          "Clinical photographs already exist in the acute record but are not independently examined here."
+        ]
+      },
+      "hard_hook": "Resolved symptoms must be reconciled with a normal follow-up examination in an objective forensic record.",
+      "reasoning_divergence": "The flawed approach treats absence of a current deficit as a reason to remove previously reported neurological symptoms."
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Document only that the patient is currently asymptomatic with a normal neurological and external neck examination. Omit the earlier blackout and memory gap because they resolved, produced no present objective deficit, and are not independently verified."
+      },
+      {
+        "id": "B",
+        "text": "Document the normal current examination and absence of ongoing symptoms while retaining the patient-attributed reports, preferably in her own words, that she blacked out and has a memory gap. Note that acute photographs are present without treating them or the symptom history as proof of causation, intent, precise timing, or legal responsibility."
+      }
+    ],
+    "intended_flawed_id": "A",
+    "safety_keywords": [
+      "neck compression",
+      "loss of consciousness",
+      "memory loss",
+      "neurological symptoms",
+      "forensic documentation"
+    ],
+    "evidence_keywords": [
+      "non-fatal strangulation",
+      "verbatim quotations",
+      "subjective complaints",
+      "standardized documentation",
+      "clinical photographs"
+    ],
+    "error_tags": [
+      "omission",
+      "other"
+    ],
+    "claims": [
+      {
+        "statement": "Clinical responses to non-fatal strangulation should document subjective complaints, the reported experience, and internal and external injury findings using standardized methods.",
+        "source_ids": [
+          "36972965"
+        ]
+      },
+      {
+        "statement": "Verbatim quotations and good-quality photographs are recognized components of clinical-forensic documentation after reported non-fatal strangulation.",
+        "source_ids": [
+          "36972965"
+        ]
+      },
+      {
+        "statement": "Little or no externally visible injury may be present after non-fatal strangulation, so a normal external examination does not make the reported symptom history irrelevant.",
+        "source_ids": [
+          "36972965"
+        ]
+      },
+      {
+        "statement": "Loss of consciousness and memory loss are reported neurological and cognitive outcomes following non-fatal strangulation.",
+        "source_ids": [
+          "33432860"
+        ]
+      },
+      {
+        "statement": "Most available neuropsychological evidence relied on case studies or self-report and often did not control for confounding, limiting definitive causal interpretation.",
+        "source_ids": [
+          "33432860"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-26T02:21:35.040868+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "36972965",
+        "title": "Medical evidence assisting non-fatal strangulation prosecution: a scoping review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/36972965/",
+        "abstract": "Non-fatal strangulation (NFS) is a serious form of gendered violence that is fast becoming an offence in many jurisdictions worldwide. However, it often leaves little or no externally visible injuries making prosecution challenging. This review aimed to provide an overview of how health professionals can support the prosecution of criminal charges of NFS as part of regular practice, particularly when externally visible injuries are absent.\nEleven databases were searched with terms related to NFS and medical evidence in health sciences and legal databases. Eligible articles were English language and peer reviewed, published before 30 June 2021; sample over 18 years that had primarily survived a strangulation attempt and included medical investigations of NFS injuries, clinical documentation of NFS or medical evidence related to NFS prosecution.\nSearches found 25 articles that were included for review. Alternate light sources appeared to be the most effective tool for finding evidence of intradermal injury among NFS survivors that were not otherwise visible. However, there was only one article that examined the utility of this tool. Other common diagnostic imaging was less effective at detection, but were sought after by prosecutors, particularly MRIs of the head and neck. Recording injuries and other aspects of the assault using standardised tools specific for NFS were suggested for documenting evidence. Other documentation included writing verbatim quotes of the experience of the assault and taking good quality photographs that could assist with corroborating a survivor's story and proving intent, if relevant for the jurisdiction.\nClinical responses to NFS should include investigation and standardised documentation of internal and external injuries, subjective complaints and the experience of the assault. These records can assist in providing corroborating evidence of the assault, reducing the need for survivor testimony in court proceedings and increasing the likelihood of a guilty plea.",
+        "sha256": "ab447686b5a0302157fa0cdac4209d2df705d4439fb447a8963db3201861239c",
+        "retrieved_at": "2026-09-26T02:20:23.617198+00:00",
+        "source_type": "scoping_review",
+        "pmcid": "PMC10077461"
+      },
+      {
+        "id": "33432860",
+        "title": "The neuropsychological outcomes of non-fatal strangulation in domestic and sexual violence: A systematic review.",
+        "year": 2022,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33432860/",
+        "abstract": "This systematic review draws together evidence from the literature for the pathological, neurological, cognitive, psychological, and behavioural outcomes of non-fatal strangulation in domestic and sexual violence. A systematic search of PubMed, PsycINFO, CINHAL, Proquest, ASSIA, Web of Science, WestLaw, Open Grey, and Ethos was conducted, with no date limits set, to identify eligible studies. Thirty empirical, peer-reviewed studies were found which met the inclusion criteria. Pathological changes included arterial dissection and stroke. Neurological consequences included loss of consciousness, indicating at least mild acquired brain injury, seizures, motor and speech disorders, and paralysis. Psychological outcomes included PTSD, depression, suicidality, and dissociation. Cognitive and behavioural sequelae were described less frequently, but included memory loss, increased aggression, compliance, and lack of help-seeking. However, no studies used formal neuropsychological assessment: the majority were medical case studies or based on self-report. Furthermore, few authors were able to control for possible confounds, including other physical violence and existing psychosocial difficulties. There is therefore a need for further neuropsychological research, focusing on cognitive and behavioural outcomes, using standardized tools, and control groups where possible. This is urgent, given societal normalization of strangulation, and legal systems which often do not reflect the act's severity and its consequences.",
+        "sha256": "b1b29251a087b5d624b76bd271374d9b578faa3ce6aa4473c6f4b2a0e9e1c301",
+        "retrieved_at": "2026-09-26T02:20:23.617198+00:00",
+        "source_type": "systematic_review"
+      },
+      {
+        "id": "41147881",
+        "title": "EMS Care of Survivors of Sexual Assault - A Position Statement and Resource Document of NAEMSP.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41147881/",
+        "abstract": "Caring for sexual assault survivors requires interdisciplinary collaboration, pre-planning, and education. The purpose of this document is to guide emergency medical service (EMS) agencies and clinicians in the patient-centered management of survivors of sexual assault. The National Association of EMS Physicians Recommends:Trauma-Informed Care: EMS clinicians should recognize that sexual assault is a traumatic event, and we recommend a trauma-informed care approach. Some recommended actions include, but are not limited to, asking questions that validate a survivor's experience, asking permission before doing an exam to acknowledge a patient's choice, and allowing a support person during the physical exam.Physical Injuries after sexual assault: EMS clinicians should assess for serious traumatic injuries associated with sexual assault including strangulation.Collaboration with Sexual Assault Forensic Examiner Organizations: EMS clinicians should understand general forensic guidelines and state-specific regulations relevant to prehospital care. Indications for forensic exams vary by state, thus partnerships between EMS and sexual assault forensic examiner organizations can facilitate access to forensic examiners who can provide clear guidance on available forensic resources.Transport to Sexual Assault Forensic Examiner-resourced facilities: EMS systems should identify local facilities that are resourced to care for sexual assault survivors or systems designed to provide these resources to the survivor and preferentially transport stable survivors to these destinations for medical and forensic evaluation. If there is concern for a life-threatening injury, patients should be transported to a trauma center for evaluation.Documentation: In addition to awareness of local regulations, EMS clinicians should be complete, accurate, and culturally competent in their documentation. They should minimize bias in their documentation.Evidence Preservation: EMS clinicians should be aware of best practices for evidence preservation and be trained in evidence collection in the prehospital setting, including avoiding showering, eating, changing clothes before the forensic exam, and maintaining chain of custody.Consider other special populations: EMS clinicians should be aware of high-risk special populations for sexual assault with unique medical, cultural and/or regulatory considerations including, but not limited to, the pediatric, elderly, transgender, gender diverse, LGBTQ (lesbian, gay, bisexual, transgender, queer), pregnant, and male survivors.",
+        "sha256": "54e88016954dda37b7c62df670188f157d1fcbdf986a47a638d1e68091477b5c",
+        "retrieved_at": "2026-09-26T02:20:26.260894+00:00"
+      },
+      {
+        "id": "37955631",
+        "title": "Hair-thread strangulation syndrome in childhood: a systematic review.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37955631/",
+        "abstract": "Hair-thread strangulation syndrome describes the constriction of a body part by a tightly wound hair or thread. This research aims to review the literature about this entity.\nA systematic review was performed to characterise hair-thread strangulation syndrome in subjects aged ≤16 years. This pre-registered review (PROSPERO ID: CRD42022363996) followed the PRISMA methodology.\nSubjects with digital strangulation were significantly younger (median = 4.0 [interquartile range: 2.0-6.1] months; n = 143) than females with genital strangulation (9.0 [6.8-11] years; n = 36), males with genital strangulation (5.1 [1.9-8.0] years; n = 36), and subjects with non-digital and non-genital strangulation (24 [13-48] months; n = 11). Digital strangulation was followed by an amputation in five (3.5%) and a reconstructive surgical intervention in seven (4.9%) cases. Sequelae occurred in four (11%) cases after female genital strangulation: clitoris autoamputation (n = 2) and surgical removal of a necrotic labium minus (n = 2). Severe complications were observed in 14 (39%) cases with male genital strangulation: urethral fistula (n = 7), urethral transection (n = 2), and partial penile autoamputation (n = 5). A partial uvular autoamputation was observed in one case (9.0%) with non-digital and non-genital strangulation.\nEarly recognition and management are crucial to avoid sequelae or long-term care in hair-thread strangulation syndrome.",
+        "sha256": "489b023fdbf89ce87f9091083152f395bdf7e6bb2ea7dda2bbcbd08bc7df2eb9",
+        "retrieved_at": "2026-09-26T02:20:27.347340+00:00"
+      },
+      {
+        "id": "31773472",
+        "title": "Suicidal ligature strangulation: a systematic review of the published literature.",
+        "year": 2020,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/31773472/",
+        "abstract": "To summarize the published forensic pathology evidence base in deaths concluded to be the result of suicidal ligature strangulation, an uncommon entity. Four electronic bibliographic databases Medline Ovid, Embase, Scopus, HEINonline were screened for relevant literature. No date restrictions were applied. All English language case reports or case series were included. Articles were evaluated and key data extracted according to predefined criteria. A total of 1554 references eventually yielded 24 papers with 31 eligible case reports. The location of the deaths and background circumstances and history mirror broadly those of suicide generally. The range of ligature types was diverse. 19/31 cases reported one or more knots present. In the remaining 12 cases, the ligatures did not lend themselves to knots. In only one case were laryngeal fractures reported, but the available material does not justify confidence in that report given the significance of the finding. This systematic review has identified and synthesized the evidence from 31 case reports of suicidal ligature strangulation. A forensic pathologist faced with a possible case can locate it within the spectrum of reported cases and therefore identify its common and distinguishing features. Inherent difficulties for research in forensic pathology mean that case reports are an important source of learning and evidence for the discipline. Opportunities for improvement exist especially in harmonizing terminology and standardizing techniques generally, and in reports of suicidal ligature strangulation in particular.",
+        "sha256": "f3af6d4880c222ddda2f542ddf48209e796e6248e49c12ad1f3b7d706b05780d",
+        "retrieved_at": "2026-09-26T02:20:27.347340+00:00"
+      },
+      {
+        "id": "38006652",
+        "title": "Systematic review of laryngohyoid fractures in fatal falls: A potential mimicker of strangulation.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38006652/",
+        "abstract": "Fractures of the laryngohyoid complex are classically associated with deaths due to strangulation. Recent studies, however, indicate the possible presence of such fractures in fatal falls. The primary focus of this systematic review is to analyze the characteristics of laryngohyoid fractures in the context of falls to aid in a more accurate interpretation of autopsy findings. Search for relevant literature occurred on PubMed on the 26th of October 2022, and Embase and Web of Science on the 5th of November 2022. Inclusion criteria included being a primary study, published in English, involving fatal falls and injuries to the laryngohyoid complex, and presenting sufficient details about the relevant cases. Four case reports and six descriptive retrospective studies were included in the final analysis yielding a sum of 38 cases. The risk of bias was assessed using the Joanna Briggs Institute (JBI) critical appraisal tools. Potential limitations of this study include the inclusion of case reports and studies published in English only. The cumulative male-to-female ratio was 23:15 with a mean age of 48 years old. The fall height ranged from standing height to 60 m. Forty-three fractures to the laryngohyoid complex were identified with the thyroid cartilage most commonly affected, followed by fracture of the hyoid bone, and finally the cricoid cartilage. While cases of falls did indeed display hallmark laryngohyoid findings classically displayed in strangulation, they also featured unique presentations such as fractures of the clavicle and a reduced prevalence of conjunctival petechiae.",
+        "sha256": "d5c470c87d4b21a4e2593546372831b1eb94e0e07cc15f73cdd4bc8b56b562dc",
+        "retrieved_at": "2026-09-26T02:20:27.347340+00:00"
+      },
+      {
+        "id": "30627977",
+        "title": "Relevant findings on postmortem CT and postmortem MRI in hanging, ligature strangulation and manual strangulation and their additional value compared to autopsy - a systematic review.",
+        "year": 2019,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30627977/",
+        "abstract": "Several articles have described the use of postmortem computed tomography (CT) and postmortem magnetic resonance imaging (MRI) in forensic medicine. Although access to CT scanners and, particularly, access to MRI scanners, is still limited for several institutes, both modalities are being applied with increasing frequency in the forensic setting. Certainly, postmortem imaging can provide crucial information prior to autopsy, and this method has even been considered a replacement to autopsy in selected cases by some forensic institutes. However, the role of postmortem imaging has to be assessed individually according to various injury categories and causes of death. Therefore, this systematic review focuses on the role of postmortem CT and MRI in cases of hanging and ligature and manual strangulation. We assessed the most common and relevant findings on CT and MRI in cases of strangulation and compared the detectability of these findings among CT, MRI and autopsy. According to the available literature, mainly fractures of the hyoid bone or thyroid cartilage were investigated using postmortem CT. Compared to autopsy, CT demonstrated equivalent results concerning the detection of these fractures. A currently described \"gas bubble sign\" may even facilitate the detection of laryngeal fractures on CT. Regarding the detection of hemorrhages in the soft tissue of the neck, postmortem MRI is more suitable for the detection of this \"vital sign\" in strangulation. Compared to autopsy, postmortem MRI is almost equally accurate for the detection of hemorrhages in the neck. Another \"vital sign\", gas within the soft tissue in hanging, which is hardly detectable by conventional autopsy, can be clearly depicted by CT and MRI. The number of cases of manual and ligature strangulation that were investigated by means of postmortem CT and MRI is much smaller than the number of cases of hanging that were investigated by CT and MRI. Likewise, judicial hanging and the hangman's fracture on postmortem imaging were described in only a few cases. Based on the results of this systematic review, we discuss the additional value of CT and MRI in fatal strangulation compared to autopsy, and we reflect on where the literature is currently lacking.",
+        "sha256": "62b80198deb6f81bd1ce1f8d37f495fe06e968550a27c607eb7c860324a51026",
+        "retrieved_at": "2026-09-26T02:20:27.911644+00:00"
+      },
+      {
+        "id": "32474664",
+        "title": "Homicide and concealment of the corpse. Autopsy case series and review of the literature.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/32474664/",
+        "abstract": "The concealment of the body following a homicide undermines different moments of the forensic and medico-legal investigations. The aim of the present study is to provide an overview of the literature and the forensic casuistry of the Institute of Legal Medicine of Padova for analyzing and discussing diverse methodological approaches for the forensic pathologist dealing with covered-up homicides.\nA literature review, updated until September 2019, was performed, and a literature pool of forensic cases was built. In-house cases were included by conducting a retrospective analysis of the forensic caseworks of Padova of the last 20 years. Data regarding epidemiology, methodology of assessment, methods of concealment, and answers to medico-legal issues were extracted for both data sets.\nSeventy-eight papers were included in the literature review (78.2% being case reports or case series, 17% retrospective studies, and 6% experimental studies or reviews). Literature and in-house data sets consisted of 145 and 13 cases, respectively. Death scene investigation, radiology, toxicology, and additional analyses were performed in 20-54% of literature and 62-77% of in-house cases. Cover-up by multiple methods prevailed. Death was caused by head trauma in about 40% of cases (both data sets), strangulation in 21% of literature, and 7% of in-house cases, and was undetermined in 17% of literature and 7% of in-house cases.\nThe methodology of ascertainment should be case-specific and based on a multidisciplinary and multimodal evaluation of all data, including those gained through novel radiological and/or analytical techniques.",
+        "sha256": "a73d1c4d06929bbc32edadd02748574e573508bbbe4340a3ffad0e2793688237",
+        "retrieved_at": "2026-09-26T02:20:29.723305+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "Option B aligns with forensic documentation standards for non-fatal strangulation, where externally visible injury is frequently absent yet the account remains clinically and evidentially significant. Source 36972965 explicitly recommends recording verbatim quotes of the assault experience and preserving subjective complaints, since these corroborate the survivor's account even when no visible injury exists. Source 33432860 documents that transient loss of consciousness and memory loss are recognized sequelae of neck compression (indicating possible acquired brain injury), so omitting them—as Option A proposes—would discard material findings simply because they resolved and lack independent objective confirmation. Option A conflates 'unverified/resolved' with 'irrelevant,' which is contrary to the documentation principle of separating observation from inference: the clinician should record what the patient reported (observation) without endorsing it as proof. Option B correctly retains the patient-attributed reports in her own words, documents the normal current exam, notes the presence of acute photographs without treating them or the history as proof, and explicitly refrains from inferring causation, intent, timing, or legal responsibility—consistent with the scope constraints. This is the appropriate and complete follow-up summary entry.",
+          "confidence": 0.9
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.9,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "36972965"
+              ],
+              "reason": "The scoping review conclusion explicitly states clinical responses should include standardised documentation of internal and external injuries, subjective complaints, and the experience of the assault.",
+              "source_passage_ids": [
+                "36972965:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36972965",
+                  "quote": "Clinical responses to NFS should include investigation and standardised documentation of internal and external injuries, subjective complaints and the experience of the assault. These records can assist in providing corroborating evidence of the assault, reducing the need for survivor testimony in court proceedings and increasing the likelihood of a guilty plea."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "36972965"
+              ],
+              "reason": "The review lists verbatim quotes of the experience and good quality photographs as documentation components.",
+              "source_passage_ids": [
+                "36972965:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36972965",
+                  "quote": "Searches found 25 articles that were included for review. Alternate light sources appeared to be the most effective tool for finding evidence of intradermal injury among NFS survivors that were not otherwise visible. However, there was only one article that examined the utility of this tool. Other common diagnostic imaging was less effective at detection, but were sought after by prosecutors, particularly MRIs of the head and neck. Recording injuries and other aspects of the assault using standardised tools specific for NFS were suggested for documenting evidence. Other documentation included writing verbatim quotes of the experience of the assault and taking good quality photographs that could assist with corroborating a survivor's story and proving intent, if relevant for the jurisdiction."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "36972965"
+              ],
+              "reason": "The review states NFS often leaves little or no externally visible injuries, supporting that a normal external exam does not negate the reported history.",
+              "source_passage_ids": [
+                "36972965:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36972965",
+                  "quote": "Non-fatal strangulation (NFS) is a serious form of gendered violence that is fast becoming an offence in many jurisdictions worldwide. However, it often leaves little or no externally visible injuries making prosecution challenging. This review aimed to provide an overview of how health professionals can support the prosecution of criminal charges of NFS as part of regular practice, particularly when externally visible injuries are absent. Eleven databases were searched with terms related to NFS and medical evidence in health sciences and legal databases. Eligible articles were English language and peer reviewed, published before 30 June 2021; sample over 18 years that had primarily survived a strangulation attempt and included medical investigations of NFS injuries, clinical documentation of NFS or medical evidence related to NFS prosecution."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "33432860"
+              ],
+              "reason": "The systematic review names loss of consciousness as a neurological consequence and memory loss as a cognitive/behavioural sequela of NFS.",
+              "source_passage_ids": [
+                "33432860:p0",
+                "33432860:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33432860",
+                  "quote": "This systematic review draws together evidence from the literature for the pathological, neurological, cognitive, psychological, and behavioural outcomes of non-fatal strangulation in domestic and sexual violence. A systematic search of PubMed, PsycINFO, CINHAL, Proquest, ASSIA, Web of Science, WestLaw, Open Grey, and Ethos was conducted, with no date limits set, to identify eligible studies. Thirty empirical, peer-reviewed studies were found which met the inclusion criteria. Pathological changes included arterial dissection and stroke. Neurological consequences included loss of consciousness, indicating at least mild acquired brain injury, seizures, motor and speech disorders, and paralysis. Psychological outcomes included PTSD, depression, suicidality, and dissociation."
+                },
+                {
+                  "source_id": "33432860",
+                  "quote": "Cognitive and behavioural sequelae were described less frequently, but included memory loss, increased aggression, compliance, and lack of help-seeking. However, no studies used formal neuropsychological assessment: the majority were medical case studies or based on self-report. Furthermore, few authors were able to control for possible confounds, including other physical violence and existing psychosocial difficulties. There is therefore a need for further neuropsychological research, focusing on cognitive and behavioural outcomes, using standardized tools, and control groups where possible. This is urgent, given societal normalization of strangulation, and legal systems which often do not reflect the act's severity and its consequences."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "33432860"
+              ],
+              "reason": "The review notes no studies used formal neuropsychological assessment, most relied on case studies or self-report, and few controlled for confounds.",
+              "source_passage_ids": [
+                "33432860:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33432860",
+                  "quote": "Cognitive and behavioural sequelae were described less frequently, but included memory loss, increased aggression, compliance, and lack of help-seeking. However, no studies used formal neuropsychological assessment: the majority were medical case studies or based on self-report. Furthermore, few authors were able to control for possible confounds, including other physical violence and existing psychosocial difficulties. There is therefore a need for further neuropsychological research, focusing on cognitive and behavioural outcomes, using standardized tools, and control groups where possible. This is urgent, given societal normalization of strangulation, and legal systems which often do not reflect the act's severity and its consequences."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is a forensic documentation decision within scope of forensic/legal medicine. The decision is entirely about documentation standards, not tissue diagnosis or imaging. Answer B retains the patient-attributed reports (blackout, memory gap) in verbatim form, documents the normal current examination, notes the existing photographs, and avoids conclusory statements about causation/intent/timing. This aligns directly with the scoping review (36972965), which recommends documenting subjective complaints and the experience of the assault, verbatim quotes, and photographs, and warns that little/no external injury is common. It also aligns with the systematic review (33432860), which identifies LOC and memory loss as recognized outcomes while cautioning about causal certainty (self-report basis, uncontrolled confounds). Answer A (the intended flawed option) omits clinically and forensically relevant resolved symptoms because they resolved and are unverified—this is an omission that contradicts standardized forensic documentation practice, since normal external exam does not negate the history. The applicant-visible material (title, question, notes) does not disclose the intended answer—the note simply presents the clinical facts without prescribing whether to retain or omit the historical reports, so no leakage. The two candidates present genuinely distinct decisions (retain vs. omit reported symptoms), and the decision differs from the prior case (individual-consent inference from injury frequencies), so practice independence holds. All five claims are directly supported by exact source text from the two core sources. Confidence is set at 0.90 rather than higher because the case relies on abstract-level scope statements of a scoping review as documentation standards; while the review's conclusion sentence does substantively endorse documenting subjective complaints and verbatim quotes, the full guideline text is not provided, leaving mild residual uncertainty about operational specifics—but this does not affect the correctness of choosing B over A."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "B",
+          "rationale": "The final summary should distinguish current objective findings from the historical account: she is presently asymptomatic with a normal neurological and external neck examination, while the reported blackout and memory gap remain clinically and forensically relevant patient-attributed symptoms. Their resolution and lack of visible neck injury do not justify omitting them, because non-fatal neck compression may leave little or no external injury, and recommended documentation includes subjective complaints, the reported experience, and verbatim quotations (PMID 36972965). Loss of consciousness and memory loss are also recognized reported neurological/cognitive outcomes, although much of that evidence is self-reported and does not independently establish mechanism or causation (PMID 33432860). The photographs should be noted as existing in the acute record but not interpreted because they were not independently examined. This documentation does not establish causation, intent, exact timing, or legal responsibility.",
+          "confidence": 0.98
+        },
+        "review": {
+          "best_answer_id": "B",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "36972965"
+              ],
+              "reason": "The review expressly recommends standardized documentation of subjective complaints, the reported experience, and internal and external injuries.",
+              "source_passage_ids": [
+                "36972965:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36972965",
+                  "quote": "Clinical responses to NFS should include investigation and standardised documentation of internal and external injuries, subjective complaints and the experience of the assault. These records can assist in providing corroborating evidence of the assault, reducing the need for survivor testimony in court proceedings and increasing the likelihood of a guilty plea."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "36972965"
+              ],
+              "reason": "The review specifically identifies verbatim accounts and good-quality photographs as documentation components.",
+              "source_passage_ids": [
+                "36972965:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36972965",
+                  "quote": "Searches found 25 articles that were included for review. Alternate light sources appeared to be the most effective tool for finding evidence of intradermal injury among NFS survivors that were not otherwise visible. However, there was only one article that examined the utility of this tool. Other common diagnostic imaging was less effective at detection, but were sought after by prosecutors, particularly MRIs of the head and neck. Recording injuries and other aspects of the assault using standardised tools specific for NFS were suggested for documenting evidence. Other documentation included writing verbatim quotes of the experience of the assault and taking good quality photographs that could assist with corroborating a survivor's story and proving intent, if relevant for the jurisdiction."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "36972965"
+              ],
+              "reason": "The review states that little or no external injury may be visible and nevertheless recommends documenting subjective complaints and the experience, supporting retention of the symptom history despite a normal external examination.",
+              "source_passage_ids": [
+                "36972965:p0",
+                "36972965:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "36972965",
+                  "quote": "Non-fatal strangulation (NFS) is a serious form of gendered violence that is fast becoming an offence in many jurisdictions worldwide. However, it often leaves little or no externally visible injuries making prosecution challenging. This review aimed to provide an overview of how health professionals can support the prosecution of criminal charges of NFS as part of regular practice, particularly when externally visible injuries are absent. Eleven databases were searched with terms related to NFS and medical evidence in health sciences and legal databases. Eligible articles were English language and peer reviewed, published before 30 June 2021; sample over 18 years that had primarily survived a strangulation attempt and included medical investigations of NFS injuries, clinical documentation of NFS or medical evidence related to NFS prosecution."
+                },
+                {
+                  "source_id": "36972965",
+                  "quote": "Clinical responses to NFS should include investigation and standardised documentation of internal and external injuries, subjective complaints and the experience of the assault. These records can assist in providing corroborating evidence of the assault, reducing the need for survivor testimony in court proceedings and increasing the likelihood of a guilty plea."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "33432860"
+              ],
+              "reason": "The systematic review lists loss of consciousness among neurological consequences and memory loss among cognitive sequelae.",
+              "source_passage_ids": [
+                "33432860:p0",
+                "33432860:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33432860",
+                  "quote": "This systematic review draws together evidence from the literature for the pathological, neurological, cognitive, psychological, and behavioural outcomes of non-fatal strangulation in domestic and sexual violence. A systematic search of PubMed, PsycINFO, CINHAL, Proquest, ASSIA, Web of Science, WestLaw, Open Grey, and Ethos was conducted, with no date limits set, to identify eligible studies. Thirty empirical, peer-reviewed studies were found which met the inclusion criteria. Pathological changes included arterial dissection and stroke. Neurological consequences included loss of consciousness, indicating at least mild acquired brain injury, seizures, motor and speech disorders, and paralysis. Psychological outcomes included PTSD, depression, suicidality, and dissociation."
+                },
+                {
+                  "source_id": "33432860",
+                  "quote": "Cognitive and behavioural sequelae were described less frequently, but included memory loss, increased aggression, compliance, and lack of help-seeking. However, no studies used formal neuropsychological assessment: the majority were medical case studies or based on self-report. Furthermore, few authors were able to control for possible confounds, including other physical violence and existing psychosocial difficulties. There is therefore a need for further neuropsychological research, focusing on cognitive and behavioural outcomes, using standardized tools, and control groups where possible. This is urgent, given societal normalization of strangulation, and legal systems which often do not reflect the act's severity and its consequences."
+                }
+              ]
+            },
+            {
+              "index": 4,
+              "supported": true,
+              "source_ids": [
+                "33432860"
+              ],
+              "reason": "The review reports that most evidence came from case studies or self-report, lacked formal neuropsychological assessment, and often did not control for confounding.",
+              "source_passage_ids": [
+                "33432860:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "33432860",
+                  "quote": "Cognitive and behavioural sequelae were described less frequently, but included memory loss, increased aggression, compliance, and lack of help-seeking. However, no studies used formal neuropsychological assessment: the majority were medical case studies or based on self-report. Furthermore, few authors were able to control for possible confounds, including other physical violence and existing psychosocial difficulties. There is therefore a need for further neuropsychological research, focusing on cognitive and behavioural outcomes, using standardized tools, and control groups where possible. This is urgent, given societal normalization of strangulation, and legal systems which often do not reflect the act's severity and its consequences."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is a clinical-forensic documentation decision within the stated specialty. B appropriately separates the current objective findings from the patient's attributed historical reports and avoids unsupported conclusions about causation, intent, timing, or legal responsibility. The chart directly establishes the prior statements, their resolution, the normal follow-up findings, and the existence—but not independent review—of acute photographs. The two substantive reviews support preserving subjective complaints and verbatim accounts, recognize that external injury may be absent, identify loss of consciousness and memory loss as reported outcomes, and counsel caution about causal interpretation because of evidence limitations. No imaging is necessary to answer this documentation question, and the case does not ask for acute clinical management. A is intentionally flawed because it would erase relevant attributed history merely because symptoms resolved and the current examination is normal. The visible title, question, and note do not disclose the intended choice or management plan. The decision is distinct from the previous case, which concerned whether genital injuries could establish consent in an individual encounter."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "59a95de159e747dc4883310b0e211e9aa311e29d2f20f09325acefcd90573158"
+  }
+}
