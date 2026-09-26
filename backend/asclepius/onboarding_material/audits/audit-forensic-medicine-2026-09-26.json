@@ -1,0 +1,539 @@
+{
+  "schema_version": 1,
+  "audit_type": "independent_clinical_artifact_review",
+  "reviewer": {
+    "agent_task": "/root/audit_forensic_cases",
+    "role": "independent agent reviewer",
+    "physician_ratification": false
+  },
+  "reviewed_at": "2026-09-26T02:26:28.797777+00:00",
+  "build_run_id": "36211253261",
+  "overall_verdict": "clear",
+  "review_basis": "Independent inspection of exact entries, actual blind_entry payloads, rendered prompts, retained source abstracts and provider claim quotations. Previous provider verdicts were not treated as proof of clinical validity.",
+  "evidence_scope": "Only abstracts and body_excerpts retained in the exact passing JSON documents; these artifacts contain abstracts and no body_excerpts. No external medical or legal sources were added.",
+  "policy_files_read": [
+    "forensic-medicine-fix/AGENTS.md",
+    "forensic-medicine-fix/docs/data-safety/POLICY.md"
+  ],
+  "hash_conventions": {
+    "document_sha256": "SHA256 of the exact UTF-8 artifact file bytes",
+    "canonical_document_sha256": "SHA256(json.dumps(document, sort_keys=True).encode())",
+    "entry_sha256": "SHA256(json.dumps(entry, sort_keys=True).encode())",
+    "blind_sha256": "SHA256(json.dumps(blind_entry(entry), sort_keys=True).encode())"
+  },
+  "pair_review": {
+    "distinct_decisions": true,
+    "assessment": "Practice concerns individual inference from group genital-injury frequencies. Examination concerns inclusion of historical neurological complaints in a current clinical-forensic summary. Neither case states the other case's answer; the tested decisions differ in action and evidentiary error."
+  },
+  "boundaries": {
+    "artifact_files_changed": false,
+    "production_accessed": false,
+    "review_or_confidence_gates_changed": false,
+    "physician_ratified": false,
+    "release_scope": "Clear for these exact case contents and local library validation; this is not physician ratification or a separate production-preservation/deployment audit."
+  },
+  "artifacts": [
+    {
+      "task_id": "onboarding-examination-v1-736dfbecd43435eaa374-1",
+      "kind": "examination",
+      "specialty": "forensic medicine",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/forensic-medicine/run-36211253261/llm-smoke-forensic medicine/onboarding-cases/onboarding-examination-v1-736dfbecd43435eaa374-1.json",
+      "document_sha256": "5be822789905ddf66eed52226876abc471614f571691831db2d7a9cab87b5d8c",
+      "canonical_document_sha256": "15661b0670f1ee31d9b2e6fbdab0dfaa96de7018301ce263b15c4117124b1ed8",
+      "entry_sha256": "59a95de159e747dc4883310b0e211e9aa311e29d2f20f09325acefcd90573158",
+      "blind_sha256": "c85725ad10222c91708d64741ed737ec6a0454f1c5bc0fede3a8f496dbfe3e5a",
+      "library_validation": {
+        "status": "pass",
+        "function": "asclepius.onboarding_library.validate",
+        "code_root": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/forensic-medicine-fix",
+        "original_document_unchanged": true
+      },
+      "private_key_withheld": true,
+      "public_payload_inspected": true,
+      "rendered_prompt_inspected": true,
+      "provider_provenance": {
+        "method": "two_provider_evidence_review",
+        "author_model": "gpt-5.6-sol",
+        "reviewed_at": "2026-09-26T02:21:35.040868+00:00",
+        "source_quote_review": true,
+        "physician_ratified": false,
+        "reviews": [
+          {
+            "provider": "anthropic",
+            "model": "claude-opus-4-8",
+            "blind_best_answer_id": "B",
+            "blind_confidence": 0.9,
+            "review_best_answer_id": "B",
+            "review_confidence": 0.9,
+            "review_issues": [],
+            "provider_model_mapping_validated": true,
+            "image_sha256": null
+          },
+          {
+            "provider": "openai",
+            "model": "gpt-5.6-sol",
+            "blind_best_answer_id": "B",
+            "blind_confidence": 0.98,
+            "review_best_answer_id": "B",
+            "review_confidence": 0.98,
+            "review_issues": [],
+            "provider_model_mapping_validated": true,
+            "image_sha256": null
+          }
+        ],
+        "request_ids_retained_in_passing_artifact": false
+      },
+      "source_integrity_checks": [
+        {
+          "source_id": "36972965",
+          "retained_abstract_sha256": "ab447686b5a0302157fa0cdac4209d2df705d4439fb447a8963db3201861239c",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": true
+        },
+        {
+          "source_id": "33432860",
+          "retained_abstract_sha256": "b1b29251a087b5d624b76bd271374d9b578faa3ce6aa4473c6f4b2a0e9e1c301",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": true
+        },
+        {
+          "source_id": "41147881",
+          "retained_abstract_sha256": "54e88016954dda37b7c62df670188f157d1fcbdf986a47a638d1e68091477b5c",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": false
+        },
+        {
+          "source_id": "37955631",
+          "retained_abstract_sha256": "489b023fdbf89ce87f9091083152f395bdf7e6bb2ea7dda2bbcbd08bc7df2eb9",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": false
+        },
+        {
+          "source_id": "31773472",
+          "retained_abstract_sha256": "f3af6d4880c222ddda2f542ddf48209e796e6248e49c12ad1f3b7d706b05780d",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": false
+        },
+        {
+          "source_id": "38006652",
+          "retained_abstract_sha256": "d5c470c87d4b21a4e2593546372831b1eb94e0e07cc15f73cdd4bc8b56b562dc",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": false
+        },
+        {
+          "source_id": "30627977",
+          "retained_abstract_sha256": "62b80198deb6f81bd1ce1f8d37f495fe06e968550a27c607eb7c860324a51026",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": false
+        },
+        {
+          "source_id": "32474664",
+          "retained_abstract_sha256": "a73d1c4d06929bbc32edadd02748574e573508bbbe4340a3ffad0e2793688237",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": false
+        }
+      ],
+      "retained_quote_checks": [
+        {
+          "provider": "anthropic",
+          "model": "claude-opus-4-8",
+          "claim_index": 0,
+          "source_id": "36972965",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": true
+        },
+        {
+          "provider": "anthropic",
+          "model": "claude-opus-4-8",
+          "claim_index": 1,
+          "source_id": "36972965",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": true
+        },
+        {
+          "provider": "anthropic",
+          "model": "claude-opus-4-8",
+          "claim_index": 2,
+          "source_id": "36972965",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": false
+        },
+        {
+          "provider": "anthropic",
+          "model": "claude-opus-4-8",
+          "claim_index": 3,
+          "source_id": "33432860",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": true
+        },
+        {
+          "provider": "anthropic",
+          "model": "claude-opus-4-8",
+          "claim_index": 3,
+          "source_id": "33432860",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": true
+        },
+        {
+          "provider": "anthropic",
+          "model": "claude-opus-4-8",
+          "claim_index": 4,
+          "source_id": "33432860",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": true
+        },
+        {
+          "provider": "openai",
+          "model": "gpt-5.6-sol",
+          "claim_index": 0,
+          "source_id": "36972965",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": true
+        },
+        {
+          "provider": "openai",
+          "model": "gpt-5.6-sol",
+          "claim_index": 1,
+          "source_id": "36972965",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": true
+        },
+        {
+          "provider": "openai",
+          "model": "gpt-5.6-sol",
+          "claim_index": 2,
+          "source_id": "36972965",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": false
+        },
+        {
+          "provider": "openai",
+          "model": "gpt-5.6-sol",
+          "claim_index": 2,
+          "source_id": "36972965",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": true
+        },
+        {
+          "provider": "openai",
+          "model": "gpt-5.6-sol",
+          "claim_index": 3,
+          "source_id": "33432860",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": true
+        },
+        {
+          "provider": "openai",
+          "model": "gpt-5.6-sol",
+          "claim_index": 3,
+          "source_id": "33432860",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": true
+        },
+        {
+          "provider": "openai",
+          "model": "gpt-5.6-sol",
+          "claim_index": 4,
+          "source_id": "33432860",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": true
+        }
+      ],
+      "verdict": "clear",
+      "independent_best_answer_id": "B",
+      "substantive_source_ids": [
+        "36972965",
+        "33432860"
+      ],
+      "assessed_decision": "Whether to retain earlier patient-reported loss of consciousness and memory loss in a clinical-forensic follow-up summary when current symptoms and examinations are normal.",
+      "scope": "Adult clinical forensic follow-up documentation after reported neck compression. No histology, pathology diagnosis, imaging recommendation or interpretation of unavailable photographs is required.",
+      "clinical_key": "B is correct: record the current normal findings while retaining the earlier attributed neurological history. Normal current findings and lack of independent verification do not justify A's omission of subjective complaints explicitly covered by the scoping review.",
+      "source_entailment": [
+        {
+          "claim_index": 0,
+          "source_ids": [
+            "36972965"
+          ],
+          "supported": true,
+          "basis": "The conclusion explicitly calls for standardized documentation of internal and external injuries, subjective complaints and the experience of the assault."
+        },
+        {
+          "claim_index": 1,
+          "source_ids": [
+            "36972965"
+          ],
+          "supported": true,
+          "basis": "The retained results identify verbatim quotes and good-quality photographs as documentation components."
+        },
+        {
+          "claim_index": 2,
+          "source_ids": [
+            "36972965"
+          ],
+          "supported": true,
+          "basis": "The abstract states that little or no externally visible injury is common and nevertheless recommends recording subjective complaints and the reported experience. Together these establish the relevance of symptom history despite the normal external examination."
+        },
+        {
+          "claim_index": 3,
+          "source_ids": [
+            "33432860"
+          ],
+          "supported": true,
+          "basis": "Loss of consciousness and memory loss are explicitly listed among reported neurological and cognitive outcomes."
+        },
+        {
+          "claim_index": 4,
+          "source_ids": [
+            "33432860"
+          ],
+          "supported": true,
+          "basis": "The abstract identifies reliance on case studies/self-report and poor control of other physical violence and psychosocial confounds. Caution about definitive causal interpretation is an explicit bounded inference from these limitations."
+        }
+      ],
+      "all_decisive_content_supported": "The assessed retain-versus-omit decision is jointly supported by the NFS-specific documentation recommendation and the systematic review identifying these exact symptoms as relevant outcomes. Verbatim attribution is supported by 36972965. Current normal findings and existence of photographs are chart facts. B does not interpret uninspected photographs or diagnose the cause of the reported symptoms.",
+      "two_source_assessment": "36972965 establishes the documentation action; 33432860 independently establishes the clinical relevance of the specific loss-of-consciousness and memory-loss history at issue. The neurological source is material to the retain-versus-omit decision rather than an unrelated citation.",
+      "candidate_fairness": "A presents one plausible omission error: narrowing a follow-up summary to current objective findings and excluding resolved, unverified history. B supplies the relevant historical and current information without an unrelated treatment advantage.",
+      "answer_leakage": "The notes provide the original reports, current normal findings and existence of photographs without saying to retain or omit the symptoms. The actual public payload includes a generic provenance disclaimer that legal conclusions are outside scope; this does not select between the two candidates because A's defect is omission of clinical history. Private ground_truth, hard_hook and reasoning_divergence are withheld.",
+      "care_completeness": "The synthetic record explicitly places the question at day-3 follow-up after a completed day-0 acute evaluation and states there are no current neurological, airway, swallowing or voice symptoms. The sound candidate addresses only documentation. It does not assert that vascular injury was excluded, claim a normal image, authorize discharge or replace acute assessment with recordkeeping. The lack of acute test details does not prevent this bounded documentation decision.",
+      "material_unresolved_issues": [],
+      "nonblocking_notes": [
+        "The warning against treating the uninspected photographs or symptom account as proof of causation, intent, precise timing or legal responsibility is read as a limit on the information available in this case, not as a sourced universal legal rule. It is not the assessed distinction between candidates. No legal doctrine or jurisdiction-specific evidentiary standard is asserted or needed.",
+        "The phrase that she has a memory gap is nested within retained patient-attributed historical reports. The note places those quotations at day 0 and reports no current symptoms at day 3; it does not require a new current diagnosis of persistent amnesia.",
+        "The retained evidence consists of abstracts, not a complete clinical guideline. The operative documentation and symptom statements used here are present in those abstracts; no omitted protocol was supplied from memory."
+      ]
+    },
+    {
+      "task_id": "onboarding-practice-v1-736dfbecd43435eaa374-1",
+      "kind": "practice",
+      "specialty": "forensic medicine",
+      "artifact_path": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/output/forensic-medicine/run-36211253261/llm-smoke-forensic medicine/onboarding-cases/onboarding-practice-v1-736dfbecd43435eaa374-1.json",
+      "document_sha256": "cc73a87ab55f4a9e262f2276a46a2ee982b989d95d17a7ab86609122c860ac58",
+      "canonical_document_sha256": "14bce9d7ba1b039781d8451e595bbb8943e2cc5e752b59e50908e06aeba62638",
+      "entry_sha256": "4fb05a10eb2be0e099e0bbc50d01058338fb4fd9711a2d12f5acd3b1d4ee2d24",
+      "blind_sha256": "a4370dfd53b5983541faadc3c25364c60cb69b6222ea700ac452891430dd7126",
+      "library_validation": {
+        "status": "pass",
+        "function": "asclepius.onboarding_library.validate",
+        "code_root": "/Users/tejpatel/.codex/.chatgpt-projects/g-p-694de3709aac8191b6a9addc3f367271/forensic-medicine-fix",
+        "original_document_unchanged": true
+      },
+      "private_key_withheld": true,
+      "public_payload_inspected": true,
+      "rendered_prompt_inspected": true,
+      "provider_provenance": {
+        "method": "two_provider_evidence_review",
+        "author_model": "gpt-5.6-sol",
+        "reviewed_at": "2026-09-26T02:20:22.200525+00:00",
+        "source_quote_review": true,
+        "physician_ratified": false,
+        "reviews": [
+          {
+            "provider": "anthropic",
+            "model": "claude-opus-4-8",
+            "blind_best_answer_id": "A",
+            "blind_confidence": 0.96,
+            "review_best_answer_id": "A",
+            "review_confidence": 0.93,
+            "review_issues": [],
+            "provider_model_mapping_validated": true,
+            "image_sha256": null
+          },
+          {
+            "provider": "openai",
+            "model": "gpt-5.6-sol",
+            "blind_best_answer_id": "A",
+            "blind_confidence": 0.99,
+            "review_best_answer_id": "A",
+            "review_confidence": 0.98,
+            "review_issues": [],
+            "provider_model_mapping_validated": true,
+            "image_sha256": null
+          }
+        ],
+        "request_ids_retained_in_passing_artifact": false
+      },
+      "source_integrity_checks": [
+        {
+          "source_id": "39567355",
+          "retained_abstract_sha256": "1852c8c22fc056180dcb36f596db227972b7e61659908dc35ec7f9f6344d09e5",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": true
+        },
+        {
+          "source_id": "37842551",
+          "retained_abstract_sha256": "dc247f55f8186565b34481300a64bc622079bf35144e8286b23a0c26cd65d2bc",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": true
+        },
+        {
+          "source_id": "41147881",
+          "retained_abstract_sha256": "54e88016954dda37b7c62df670188f157d1fcbdf986a47a638d1e68091477b5c",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": false
+        },
+        {
+          "source_id": "34292926",
+          "retained_abstract_sha256": "62710c00cda9a28bb54ffab4803eabd1c2c0d6a1af5140137cf73ce6ce3f98db",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": false
+        },
+        {
+          "source_id": "40331832",
+          "retained_abstract_sha256": "b243187edd61b9e120266779190f990cb4fbfc323cdd67d6d5b28429f3e48d4a",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": false
+        },
+        {
+          "source_id": "39343134",
+          "retained_abstract_sha256": "4368eb329836befc628f1f1797b542ff22586ed16d20d424298259109bb6e0b7",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": false
+        },
+        {
+          "source_id": "38285211",
+          "retained_abstract_sha256": "c5e4ff828fc9336db503f5a3e28cbb3a631445a7851e9d21ca13dfe380137b10",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": false
+        },
+        {
+          "source_id": "38170646",
+          "retained_abstract_sha256": "0462ccc28cba2d38d821740f6ff57248aeff4868fb9e5008e6336b733005958d",
+          "recorded_hash_matches": true,
+          "body_excerpts_present": false,
+          "substantive_for_assessed_decision": false
+        }
+      ],
+      "retained_quote_checks": [
+        {
+          "provider": "anthropic",
+          "model": "claude-opus-4-8",
+          "claim_index": 0,
+          "source_id": "39567355",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": true
+        },
+        {
+          "provider": "anthropic",
+          "model": "claude-opus-4-8",
+          "claim_index": 1,
+          "source_id": "39567355",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": false
+        },
+        {
+          "provider": "anthropic",
+          "model": "claude-opus-4-8",
+          "claim_index": 2,
+          "source_id": "37842551",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": false
+        },
+        {
+          "provider": "anthropic",
+          "model": "claude-opus-4-8",
+          "claim_index": 3,
+          "source_id": "37842551",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": false
+        },
+        {
+          "provider": "openai",
+          "model": "gpt-5.6-sol",
+          "claim_index": 0,
+          "source_id": "39567355",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": true
+        },
+        {
+          "provider": "openai",
+          "model": "gpt-5.6-sol",
+          "claim_index": 1,
+          "source_id": "39567355",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": false
+        },
+        {
+          "provider": "openai",
+          "model": "gpt-5.6-sol",
+          "claim_index": 2,
+          "source_id": "37842551",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": false
+        },
+        {
+          "provider": "openai",
+          "model": "gpt-5.6-sol",
+          "claim_index": 3,
+          "source_id": "37842551",
+          "verbatim_after_whitespace_normalization": true,
+          "byte_exact_substring": false
+        }
+      ],
+      "verdict": "clear",
+      "independent_best_answer_id": "A",
+      "substantive_source_ids": [
+        "39567355",
+        "37842551"
+      ],
+      "assessed_decision": "Whether observed genital lacerations and higher population injury frequencies can classify an individual encounter as consensual or non-consensual.",
+      "scope": "Adult clinical forensic interpretation of anogenital examination findings. No histology, anatomic pathology, clinical pathology or unavailable image interpretation is required.",
+      "clinical_key": "A is correct: the injuries are established observations, but the two retained meta-analyses document injuries in both groups and the broader review explicitly states that injury presence does not prove sexual violence. B improperly uses a population frequency difference to classify the individual encounter.",
+      "source_entailment": [
+        {
+          "claim_index": 0,
+          "source_ids": [
+            "39567355"
+          ],
+          "supported": true,
+          "basis": "The review compares genital lacerations after consensual and non-consensual vaginal penetration and states that injuries were observed in both groups in all studies."
+        },
+        {
+          "claim_index": 1,
+          "source_ids": [
+            "39567355"
+          ],
+          "supported": true,
+          "basis": "The retained abstract reports RR 1.26 and heterogeneity of 54%, exactly matching the claim."
+        },
+        {
+          "claim_index": 2,
+          "source_ids": [
+            "37842551"
+          ],
+          "supported": true,
+          "basis": "The abstract reports AGI in 48% and 31% of the two groups and states that the high-quality-study subgroup had no significant difference."
+        },
+        {
+          "claim_index": 3,
+          "source_ids": [
+            "37842551"
+          ],
+          "supported": true,
+          "basis": "The conclusion expressly says presence does not prove sexual violence and absence does not refute sexual assault."
+        }
+      ],
+      "all_decisive_content_supported": "The sound candidate and key stay within the supported distinction between population association and individual consent classification. They do not add documentation protocols, force, injury dating, the responsible actor, treatment or dosing.",
+      "two_source_assessment": "Both meta-analyses directly concern the same injury/comparator distinction and materially support the individual-inference limit. Other retained sources were not counted toward this gate.",
+      "candidate_fairness": "Both candidates acknowledge injury in both groups and differ at one consequential inferential step. B is a plausible misuse of comparative research rather than a cluster of absolute legal claims. No unprovided corroborating account is needed because the assessed limit concerns what the injury finding alone establishes.",
+      "answer_leakage": "The neutral question asks for a supportable interpretation; notes describe differing accounts and observed injuries without announcing the interpretation. The actual blind payload and rendered prompt do not expose the answer key or author reasoning.",
+      "care_completeness": "The task is a focused interpretation question, not a request for complete post-assault management. The record describes no ongoing bleeding or acute instability, and A does not defer or rule out other care. The retained prophylaxis sources are not needed to answer this question and were not used to invent a treatment plan.",
+      "material_unresolved_issues": [],
+      "nonblocking_notes": []
+    }
+  ]
+}

@@ -57,7 +57,7 @@ contract alone establishes neither method. [HHS de-identification guidance](http
   session in one transaction. Failed commits preserve parts and allow retry;
   post-commit cleanup, event or convenience-default failures cannot undo success
   or suppress ingestion dispatch.
-- Evidence: `insert_ingest_upload` at backend/asclepius/store.py:6123;
+- Evidence: `insert_ingest_upload` at backend/asclepius/store.py:6130;
   `finalize` at backend/asclepius/uploads.py:437;
   `atomic_write` at backend/durable_files.py:23;
   `purge_expired_raw` at backend/asclepius/ingestion.py:538.
@@ -89,10 +89,10 @@ contract alone establishes neither method. [HHS de-identification guidance](http
   Sent means provider acceptance, not inbox delivery.
   Large-file collections and their receipt/hash histories paginate for both admin
   and health-system users; they remain separate from clinical case ingestion.
-- Evidence: `approve_hs_organization` at backend/asclepius/store.py:13822;
-  `decline_hs_organization` at backend/asclepius/store.py:13851;
-  `record_signed_agreement` at backend/asclepius/store.py:13978;
-  `complete_hs_signup` at backend/asclepius/store.py:13290;
+- Evidence: `approve_hs_organization` at backend/asclepius/store.py:13862;
+  `decline_hs_organization` at backend/asclepius/store.py:13891;
+  `record_signed_agreement` at backend/asclepius/store.py:14018;
+  `complete_hs_signup` at backend/asclepius/store.py:13330;
   `message` at backend/asclepius/hs_mail.py:15;
   `_drain_admin_notifications` at backend/main.py:784.
 
@@ -115,7 +115,7 @@ contract alone establishes neither method. [HHS de-identification guidance](http
 - Evidence: `unify_patient_keys` at backend/asclepius/ingestion.py:1729;
   `_merge_fragments` at backend/asclepius/ingestion.py:1175;
   `process_upload` at backend/asclepius/ingestion.py:1800;
-  `insert_task` at backend/asclepius/store.py:7311.
+  `insert_task` at backend/asclepius/store.py:7318.
 
 ### Future PRD enforcement
 

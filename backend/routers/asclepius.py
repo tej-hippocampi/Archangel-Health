@@ -173,7 +173,7 @@ from asclepius.tutorial_case import (
     tutorial_raw_task,
 )
 from asclepius.v4_cases import V4_DEFAULT_MAX_LABELS
-from asclepius.store import get_store, verify_password as _verify_password, _utcnow_iso
+from asclepius.store import DuplicateTrajectorySubmission, get_store, verify_password as _verify_password, _utcnow_iso
 from email_utils import is_email_transport_configured, send_html_email
 from onboarding_emails import (
     build_asclepius_password_changed_email,
@@ -1971,7 +1971,8 @@ def _practice_task(store, user):
     current = store.get_tutorial_state(user["id"])
     ident = current.get("practice_task_id")
     if ident and ident != TUTORIAL_TASK_ID:
-        return onboarding_cases.get_task(store, ident)
+        task = onboarding_cases.get_task(store, ident)
+        return task if task and task.get("specialty") == resolve(user)["specialty"] else None
     if not ident and resolve(user)["specialty"]:
         prepared = onboarding_cases.get_task(store, onboarding_cases.task_id(resolve(user)["specialty"], "practice"))
         if prepared:
@@ -4659,6 +4660,19 @@ def _stored_outcome(task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "error": "outcome_not_reconstructible", "message": str(exc)})
 
 
+def _legacy_outcome_delta(task: Dict[str, Any], outcome_task: Dict[str, Any]) -> Dict[str, Any]:
+    from asclepius import real_cases
+    try:
+        return real_cases.outcome_delta(
+            asc_cases.public_case(outcome_task.get("case")),
+            outcome_index_offset=(outcome_task.get("generation") or {}).get("index_event_offset"),
+            decision_index_offset=(task.get("generation") or {}).get("index_event_offset"),
+        )
+    except real_cases.RealCaseError as exc:
+        raise HTTPException(status_code=409, detail={
+            "error": "outcome_not_reconstructible", "message": str(exc)}) from exc
+
+
 @router.get("/tasks/{task_id}/trajectory-outcome")
 async def trajectory_outcome(
     task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
@@ -4731,21 +4745,8 @@ async def trajectory_outcome(
             "progress": progress,
         }
 
-    decision_offset = ((task.get("generation") or {}).get("index_event_offset"))
-    outcome_offset = (((outcome_task or {}).get("generation") or {}).get("index_event_offset"))
-    try:
-        if not sealed:
-            delta = real_cases.outcome_delta(
-                asc_cases.public_case(outcome_task.get("case")),
-                outcome_index_offset=outcome_offset,
-                decision_index_offset=decision_offset,
-            )
-    except real_cases.RealCaseError as exc:
-        # FAIL CLOSED and say so. The alternative — serving the outcome case whole
-        # — would show the physician chart state they had already read as if it
-        # were new, and could reach back BEFORE their own decision point.
-        raise HTTPException(status_code=409, detail={
-            "error": "outcome_not_reconstructible", "message": str(exc)})
+    if not sealed:
+        delta = _legacy_outcome_delta(task, outcome_task)
 
     store.log_event(
         entity_type="task", entity_id=task_id, event_type="trajectory_outcome_revealed",
@@ -4797,8 +4798,19 @@ async def trajectory_self_score(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)
+    if not asc_trajectory.is_trajectory_point(task):
+        raise HTTPException(status_code=404, detail="This case is not part of a longitudinal trajectory.")
     submission = _trajectory_submission(store, task, user)
-    if "sealed_outcome" in (task.get("generation") or {}) and _stored_outcome(task) is None:
+    if "sealed_outcome" in (task.get("generation") or {}):
+        has_outcome = _stored_outcome(task) is not None
+    else:
+        outcome_task = _outcome_point(store, task)
+        has_outcome = outcome_task is not None
+        if has_outcome:
+            # A successor row alone is not evidence. Apply the same chronology
+            # and reconstruction checks as the reveal before claiming verified.
+            _legacy_outcome_delta(task, outcome_task)
+    if not has_outcome:
         raise HTTPException(status_code=409, detail={
             "error": "no_outcome_to_score", "message": "This terminal point has no later outcome to score."})
     expected = submission.get("expected_trajectory") or {}
@@ -4892,6 +4904,18 @@ async def get_trajectory(
 
 
 # ─── Submissions ──────────────────────────────────────────────────────────────
+def _insert_submission(store: Any, **fields: Any) -> Dict[str, Any]:
+    try:
+        return store.insert_submission(**fields)
+    except DuplicateTrajectorySubmission as exc:
+        raise HTTPException(status_code=409, detail={
+            "error": "trajectory_already_submitted",
+            "message": "Your assessment for this decision point is already saved. "
+                       "Resume the saved submission instead of submitting another prediction.",
+            "submission_id": exc.submission_id,
+        }) from exc
+
+
 @router.post("/submissions")
 async def submit(
     body: SubmissionIn,
@@ -4967,7 +4991,7 @@ async def submit(
         flagged_payload["portal_version"] = flag_pv
         if note_phi:
             (flagged_payload.get("prompt_review") or {})["note"] = safe_note
-        store.insert_submission(
+        _insert_submission(store,
             submission_id=sid,
             task_id=body.task_id,
             evaluator_id=user["id"],
@@ -5031,7 +5055,7 @@ async def submit(
         nh_payload["portal_version"] = nh_pv
         if nh_note_phi:
             (nh_payload.get("prompt_review") or {})["note"] = nh_safe_note
-        store.insert_submission(
+        _insert_submission(store,
             submission_id=sid, task_id=body.task_id, evaluator_id=user["id"],
             verdict=None, chosen_id=None, rejected_id=None, confidence=body.confidence,
             time_spent_sec=body.time_spent_sec, payload=nh_payload,
@@ -5062,7 +5086,7 @@ async def submit(
         ci_payload["portal_version"] = ci_pv
         if ci_note_phi:
             (ci_payload.get("prompt_review") or {})["note"] = ci_safe_note
-        store.insert_submission(
+        _insert_submission(store,
             submission_id=sid, task_id=body.task_id, evaluator_id=user["id"],
             verdict=None, chosen_id=None, rejected_id=None, confidence=body.confidence,
             time_spent_sec=body.time_spent_sec, payload=ci_payload,
@@ -5205,7 +5229,7 @@ async def submit(
     dedupe_hash = compute_dedupe_hash(task, payload)
     grounded = is_grounded(task, payload)
 
-    submission = store.insert_submission(
+    submission = _insert_submission(store,
         submission_id=sid,
         task_id=body.task_id,
         evaluator_id=user["id"],
@@ -5255,12 +5279,8 @@ async def submit(
     # every packaged record from it ships an environment-verifiable outcome. Written
     # ONLY from the physician's own submission, never by an admin or a model.
     if _expected:
-        # The column, alongside the payload. The payload is what packaging reads;
-        # the column is what the falsifier corpus and the outcome-verification
-        # metric query, and it is indexed-adjacent to the task's trajectory
-        # columns. Both carry the SAME normalized object — normalization happened
-        # before the row was written, precisely so the two cannot disagree.
-        store.set_submission_expected_trajectory(sid, _expected)
+        # insert_submission saved the column and original payload atomically.
+        # A failed audit event must not strand a retained prediction on retry.
         store.log_event(
             entity_type="submission", entity_id=sid,
             event_type="expected_trajectory_committed", actor=user["id"],

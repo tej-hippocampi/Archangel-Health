@@ -171,6 +171,7 @@
   // it with it. Every re-render goes through here; close it on the way past or
   // it outlives the chip it belongs to.
   function setRoot(node) {
+    state.screenGeneration = (state.screenGeneration || 0) + 1;
     closeTagPopover();
     // A departed screen cannot start onboarding or redirect a later session.
     if (window.EarningsSection && window.EarningsSection.reset) window.EarningsSection.reset();
@@ -2914,6 +2915,7 @@
     // §2: no separate route for the picker. The workspace scaffold mounts once;
     // the picker floats over it and hands control back here, so entry costs one
     // render instead of two full page transitions.
+    const screen = state.screenGeneration, token = state.token;
     if (needsSpecialty) {
       stopTimer();
       loadCard.hidden = true;
@@ -2928,6 +2930,7 @@
       // client sends its selected version here.
       const data = await api('/tasks/next?portal_version=' + encodeURIComponent(getPortalVersion())
         + '&specialty=' + encodeURIComponent(getPortalSpecialty()));
+      if (state.screenGeneration !== screen || state.token !== token) return;
       state.task = data.task;
       if (!state.task) { renderEvalEmpty(); return; }
       // The SERVED version, not the picked one. There are a finite number of real
@@ -2945,17 +2948,21 @@
       if (state.task.trajectory_id) {
         try {
           const walk = await api('/trajectories/' + encodeURIComponent(state.task.trajectory_id));
+          if (state.screenGeneration !== screen || state.token !== token) return;
           state.trajectoryProgress = walk.progress || null;
         } catch (e) { /* the banner degrades to "Longitudinal case" */ }
       }
+      if (state.screenGeneration !== screen || state.token !== token) return;
       initDraftForTask(state.task);
       // Resuming straight into the compare stage (e.g. mid-task refresh) needs the
       // withheld answer texts loaded before they're rendered.
       if (state.draft.stage === 'compare') {
         try { await loadWithheldAnswersIfNeeded(); } catch (e) { /* compare shows a reload hint */ }
       }
+      if (state.screenGeneration !== screen || state.token !== token) return;
       renderTaskWorkspace();
     } catch (e) {
+      if (state.screenGeneration !== screen || state.token !== token) return;
       // Welcome package v2 §5: the required stops are enforced on the SERVER, and
       // its refusal names the one thing left to do. Send them there rather than
       // rendering "Could not load the next task", which is a dead end for a
@@ -3643,6 +3650,8 @@
 
     const cols = h('div', { class: 'asc-dash-cols' });
     const main = h('div', { class: 'asc-dash-main' });
+    const pendingOutcome = renderPendingTrajectoryOutcome();
+    if (pendingOutcome && !noRealWork) main.appendChild(pendingOutcome);
 
     if (sessionCan('review')) {
       main.appendChild(h('button', {
@@ -3696,7 +3705,7 @@
     } else if (!tasks.length) {
       // The waiting message describes BOTH queues. A review assignment or an
       // unknown review count must not be contradicted by an empty label queue.
-      if (!reviewError && !reviewPending && (!sessionCan('review') || reviewReady === 0)) {
+      if (!pendingOutcome && !reviewError && !reviewPending && (!sessionCan('review') || reviewReady === 0)) {
         main.appendChild(renderDashboardEmpty());
       }
     } else {
@@ -3844,8 +3853,10 @@
     setRoot(h('div', { class: 'asc-wrap' },
       h('div', { class: 'asc-card asc-card-pad' },
         h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Opening case…'))));
+    const screen = state.screenGeneration, token = state.token;
     try {
       const data = await api('/tasks/' + encodeURIComponent(id));
+      if (state.screenGeneration !== screen || state.token !== token) return;
       // A 200 carrying no task is the same fact as a 404 — the server has
       // nothing under this id — so it gets the same treatment. Returning to the
       // dashboard while leaving the draft in place would loop the physician
@@ -3874,16 +3885,20 @@
       if (state.task.trajectory_id) {
         try {
           const walk = await api('/trajectories/' + encodeURIComponent(state.task.trajectory_id));
+          if (state.screenGeneration !== screen || state.token !== token) return;
           state.trajectoryProgress = walk.progress || null;
         } catch (e) { /* the banner degrades to "Longitudinal case" */ }
       }
+      if (state.screenGeneration !== screen || state.token !== token) return;
       renderHeader();
       initDraftForTask(state.task);
       if (state.draft.stage === 'compare') {
         try { await loadWithheldAnswersIfNeeded(); } catch (e) { /* compare shows a reload hint */ }
       }
+      if (state.screenGeneration !== screen || state.token !== token) return;
       renderTaskWorkspace();
     } catch (e) {
+      if (state.screenGeneration !== screen || state.token !== token) return;
       // 409 trajectory_out_of_order (PRD-2 §9.1): the physician is entitled to
       // this case, just not yet — its history contains the outcomes of decisions
       // they have not made. Say that, and hand them the one they may open, rather
@@ -3982,9 +3997,9 @@
       // Gated-capture stage machine (Eval Flow Upgrade §1): prompt_review ->
       // independent_answer -> compare. Persisted so a refresh resumes the stage.
       stage: 'prompt_review',
-      // Evaluator experience this task is graded under (Asclepius V2). Mirrors
-      // the live selection during Stage 1, then pins when Stage 2 begins.
-      portal_version: getPortalVersion(),
+      // A directly opened assignment can belong to a different flow than the
+      // saved picker preference. Use the version returned with this task.
+      portal_version: state.servedVersion || getPortalVersion(),
       prompt_review: { reviewed: false, verdict: null, note: '', reviewed_at: null, attest_clinically_valid: null },
       independent_answer: { text: '', evidence_anchor: emptyAnchor(), captured_at: null },
       verdict: null,
@@ -4068,8 +4083,15 @@
     if (!draft.rejected_critique.error_tag_reasons) draft.rejected_critique.error_tag_reasons = {};
     if (!Array.isArray(draft.rejected_critique.failure_tags)) draft.rejected_critique.failure_tags = [];
     if (draft.assist === undefined) draft.assist = null;
-    // Served version wins over the picker — see the note in the fetch above.
-    if (!draft.portal_version) draft.portal_version = state.servedVersion || getPortalVersion();
+    // Repair drafts created with the picker instead of the served task version.
+    // Real/static and longitudinal versions describe the case itself; they are
+    // not preferences. Preserve the doctor's work and pinned synthetic V1–V3
+    // experience, but correct either direction across the real-case boundary.
+    const realVersions = ['v4', 'v5'];
+    if (!draft.portal_version || (state.servedVersion &&
+        (realVersions.includes(state.servedVersion) || realVersions.includes(draft.portal_version)))) {
+      draft.portal_version = state.servedVersion || getPortalVersion();
+    }
     if (!draft.prompt_review) draft.prompt_review = { reviewed: false, verdict: null, note: '', reviewed_at: null };
     if (!draft.independent_answer) draft.independent_answer = { text: '', evidence_anchor: emptyAnchor(), captured_at: null };
     if (!draft.independent_answer.evidence_anchor) draft.independent_answer.evidence_anchor = emptyAnchor();
@@ -4179,15 +4201,36 @@
     } catch (_) { return null; }
     return best;
   }
-  function clearDraft(taskId) {
-    try { localStorage.removeItem(draftKey(taskId)); } catch (e) { /* ignore */ }
-    // …and drop the in-memory copy, or the next saveDraft() writes the key
-    // straight back. After a submit, state.draft still points at the finished
-    // draft until the next task replaces it, and three things fire in that
-    // window: the blur save, the tab-hide save, and beforeunload. A submitted
-    // case resurrected as a stored draft would then be offered as a Continue
-    // (§4.1) and leave a key behind that nothing ever cleans up.
-    if (state.draft && state.draft.task_id === taskId) state.draft = null;
+  function draftContentFingerprint(draft) {
+    const content = Object.assign({}, draft);
+    // Autosaved clock metadata changes while a submission is finalizing.
+    // Only a change to the draft's content should retain another work copy.
+    delete content.savedAt;
+    delete content.elapsedSec;
+    return JSON.stringify(content);
+  }
+
+  function clearDraft(taskId, storageKey, expectedDraft, expectedContent) {
+    const key = storageKey || draftKey(taskId);
+    // Capture expectedContent before the POST. expectedDraft is the live object
+    // and can still receive edits while that request is in flight.
+    const content = expectedContent === undefined && expectedDraft
+      ? draftContentFingerprint(expectedDraft) : expectedContent;
+    const changedInMemory = expectedDraft && state.draft === expectedDraft
+      && draftContentFingerprint(state.draft) !== content;
+    let keepStored = expectedDraft && state.draft && state.draft.task_id === taskId
+      && (state.draft !== expectedDraft || changedInMemory);
+    try {
+      if (expectedDraft && !keepStored) {
+        const saved = JSON.parse(localStorage.getItem(key) || 'null');
+        keepStored = saved && draftContentFingerprint(saved) !== content;
+      }
+      if (!keepStored) localStorage.removeItem(key);
+    } catch (e) { /* keep an unreadable draft rather than discard newer work */ }
+    // Drop only the unchanged object that actually submitted. A later save of
+    // that object would otherwise resurrect a completed draft.
+    if (state.draft && state.draft.task_id === taskId
+        && (!expectedDraft || (state.draft === expectedDraft && !changedInMemory))) state.draft = null;
   }
 
   // ─── Portal version (V1 classic · V2 assisted · V3 seamless) ────────────────
@@ -4270,10 +4313,10 @@
     return (state.draft && state.draft.portal_version) || getPortalVersion();
   }
   function isV2() { return draftVersion() === 'v2'; }
-  // The SEAMLESS-flow gate: V4 (real cases) is the V3 flow over real data -
+  // The SEAMLESS-flow gate: V4 (static) and V5 (longitudinal) use the V3 flow over real data -
   // every V3 UX behavior (instinct one-liner, hidden-until-verdict suggestions,
-  // one-click citations, bright diff, big editor) applies identically to v4.
-  function isV3() { return draftVersion() === 'v3' || draftVersion() === 'v4'; }
+  // one-click citations, bright diff, big editor) applies identically to both.
+  function isV3() { return ['v3', 'v4', 'v5'].includes(draftVersion()); }
   // Assisted flows (V2 + V3) share model pre-labeling, the A/B diff, dictation,
   // and value-aware routing. V1 (classic) is the only non-assisted flow. Most
   // former ``isV2()`` gates are really "is assisted"; V3-specific behavior
@@ -4392,27 +4435,90 @@
     ['not_assessable', 'Not assessable', 'this encounter does not say either way'],
   ];
 
+  function isDuplicateTrajectorySubmission(error, task) {
+    return !!(task && task.trajectory_id && error.status === 409 && error.detail
+      && error.detail.error === 'trajectory_already_submitted' && error.detail.submission_id);
+  }
+
+  function trajectoryRecoveryKey() {
+    return state.user && state.user.id
+      ? 'asclepius_trajectory_outcomes:' + REALM + ':' + state.user.id : null;
+  }
+
+  function trajectoryRecoveries(key) {
+    key = key || trajectoryRecoveryKey();
+    if (!key) return {};
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || '{}');
+      return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+    } catch (_) { return {}; }
+  }
+
+  function rememberTrajectoryOutcome(task, score, key) {
+    key = key || trajectoryRecoveryKey();
+    if (!key || !task || !task.task_id) return;
+    const saved = trajectoryRecoveries(key);
+    const previous = saved[task.task_id] || {};
+    saved[task.task_id] = {
+      task: { task_id: task.task_id, trajectory_id: task.trajectory_id,
+        sequence_index: task.sequence_index,
+        generation: { point_class: (task.generation || {}).point_class } },
+      score: score || previous.score || null,
+      savedAt: Date.now(),
+    };
+    try { localStorage.setItem(key, JSON.stringify(saved)); } catch (_) { /* keep the live screen usable */ }
+  }
+
+  function clearTrajectoryOutcome(taskId, key, expectedScore) {
+    key = key || trajectoryRecoveryKey();
+    if (!key || !taskId) return;
+    const saved = trajectoryRecoveries(key);
+    // Another outcome screen or tab may have newer unsaved marks. A response
+    // acknowledges only the score snapshot sent by its own Save click.
+    if (expectedScore !== undefined && saved[taskId]
+        && JSON.stringify(saved[taskId].score) !== expectedScore) return;
+    delete saved[taskId];
+    try { localStorage.setItem(key, JSON.stringify(saved)); } catch (_) { /* retry remains safe */ }
+  }
+
+  function renderPendingTrajectoryOutcome() {
+    const pending = Object.values(trajectoryRecoveries())
+      .filter((entry) => entry && entry.task && entry.task.task_id)
+      .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0];
+    if (!pending) return null;
+    return h('div', { class: 'asc-card asc-card-pad' },
+      h('h3', {}, 'Finish your outcome review'),
+      h('p', { class: 'asc-help' }, 'Your evaluation is saved. Return to the next encounter and your marks.'),
+      h('button', { class: 'asc-btn asc-btn-primary',
+        onClick: () => renderTrajectoryOutcomeView(pending.task) }, 'Continue outcome review'));
+  }
+
   async function renderTrajectoryOutcomeView(task) {
     state.view = 'trajectory_outcome';
+    state.panel = 'tasks';
+    rememberTrajectoryOutcome(task);
     stopTimer();
     renderHeader();
     setRoot(h('div', { class: 'asc-wrap' },
       h('div', { class: 'asc-card asc-card-pad' },
         h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }),
           'Opening what happened next…'))));
+    const screen = state.screenGeneration, token = state.token;
     let data;
     try {
       data = await api('/tasks/' + encodeURIComponent(task.task_id) + '/trajectory-outcome');
     } catch (e) {
-      if (e.status === 401) return;
-      // A VISIBLE failure, and the work is safe: the submission is already
-      // committed server-side. Never a silent fall-through to the next case,
-      // which would look like the reveal simply does not exist.
-      toast('Your answer is saved. The next encounter could not be loaded: '
-        + (e.message || 'unknown error'), 'error');
-      renderEvalView();
+      if (e.status === 401 || state.screenGeneration !== screen || state.token !== token) return;
+      setRoot(h('div', { class: 'asc-wrap' }, h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'asc-inline-error' }, 'Your answer is saved. The next encounter could not be loaded: '
+          + (e.message || 'unknown error')),
+        h('button', { class: 'asc-btn asc-btn-primary', style: 'margin-top:16px',
+          onClick: () => renderTrajectoryOutcomeView(task) }, 'Try again'),
+        h('button', { class: 'asc-btn asc-btn-ghost', onClick: renderDashboardView }, 'Back to dashboard'))));
       return;
     }
+    if (state.screenGeneration !== screen || state.token !== token) return;
+    state.trajectoryProgress = data.progress || null;
     paintTrajectoryOutcome(task, data);
   }
 
@@ -4511,8 +4617,19 @@
 
   function renderSelfScoreCard(task, data, expected, falsifiers) {
     // The physician's own falsifier is the rubric. No reviewer grades this.
-    const marks = expected.map((_, i) => ({ index: i, state: null, note: '' }));
-    let falsifierFired = false;
+    const recoveryKey = trajectoryRecoveryKey();
+    const recovered = (trajectoryRecoveries(recoveryKey)[task.task_id] || {}).score || data.self_score || {};
+    const marks = expected.map((_, i) => {
+      const prior = (recovered.marks || []).find((m) => m.index === i) || {};
+      return { index: i, state: SELF_SCORE_CHOICES.some(([key]) => key === prior.state) ? prior.state : null,
+        note: prior.note || '' };
+    });
+    let falsifierFired = !!recovered.falsifier_fired;
+    let saving = false;
+    const controls = [];
+    function persistMarks() {
+      rememberTrajectoryOutcome(task, { marks, falsifier_fired: falsifierFired }, recoveryKey);
+    }
     const rows = h('div', {});
 
     expected.forEach((exp, i) => {
@@ -4523,17 +4640,22 @@
       const pills = h('div', { class: 'asc-conf-pills', style: 'margin-top:8px' });
       SELF_SCORE_CHOICES.forEach(([key, label, why]) => {
         const btn = h('button', { class: 'asc-conf-pill', type: 'button', title: why }, label);
+        controls.push(btn);
+        if (marks[i].state === key) btn.classList.add('active');
         btn.addEventListener('click', () => {
+          if (saving) return;
           marks[i].state = key;
           Array.prototype.forEach.call(pills.children, (b) => b.classList.remove('active'));
           btn.classList.add('active');
+          persistMarks();
           refresh();
         });
         pills.appendChild(btn);
       });
       const note = h('input', { class: 'asc-input', style: 'margin-top:8px',
-        placeholder: 'What in the record shows that? (optional)' });
-      note.addEventListener('input', () => { marks[i].note = note.value; });
+        placeholder: 'What in the record shows that? (optional)', value: marks[i].note });
+      controls.push(note);
+      note.addEventListener('input', () => { if (saving) return; marks[i].note = note.value; persistMarks(); });
       rows.appendChild(h('div', { class: 'asc-field', style: i ? 'margin-top:18px' : '' },
         h('div', { class: 'asc-prompt-text' },
           exp.expectation
@@ -4545,7 +4667,9 @@
     let falsifierBlock = null;
     if (falsifiers.length) {
       const box = h('input', { type: 'checkbox', id: 'ascFalsifierFired' });
-      box.addEventListener('change', () => { falsifierFired = box.checked; });
+      box.checked = falsifierFired;
+      controls.push(box);
+      box.addEventListener('change', () => { if (saving) return; falsifierFired = box.checked; persistMarks(); });
       falsifierBlock = h('div', { class: 'asc-field', style: 'margin-top:22px' },
         h('label', { class: 'asc-label' }, 'You said you would be wrong if:'),
         h('ul', { class: 'asc-case-list' }, ...falsifiers.map((f) => h('li', {}, f))),
@@ -4557,13 +4681,19 @@
     const hint = h('span', { class: 'asc-submit-hint' });
     function refresh() {
       const marked = marks.filter((m) => m.state).length;
-      save.disabled = marked === 0;
+      save.disabled = saving || marked === 0;
+      controls.forEach((control) => { control.disabled = saving; });
       hint.textContent = marked
         ? ''
         : 'Mark at least one expectation before continuing.';
     }
     save.addEventListener('click', async () => {
-      save.disabled = true;
+      if (saving || !marks.some((m) => m.state)) return;
+      saving = true;
+      persistMarks();
+      refresh();
+      const screen = state.screenGeneration, token = state.token;
+      const submittedScore = JSON.stringify({ marks, falsifier_fired: falsifierFired });
       save.textContent = 'Saving…';
       try {
         await api('/tasks/' + encodeURIComponent(task.task_id) + '/trajectory-self-score', {
@@ -4573,11 +4703,14 @@
             falsifier_fired: falsifierFired,
           },
         });
+        clearTrajectoryOutcome(task.task_id, recoveryKey, submittedScore);
+        if (state.screenGeneration !== screen || state.token !== token) return;
         toast('Recorded. Your own expectations, checked against the record.', 'success');
-        continueTrajectory(data);
+        continueTrajectory(data, true);
       } catch (e) {
-        if (e.status === 401) return;
-        save.disabled = false;
+        if (e.status === 401 || state.screenGeneration !== screen || state.token !== token) return;
+        saving = false;
+        refresh();
         save.textContent = 'Save and continue';
         if (isAgreementGate(e)) {
           hint.textContent = 'Sign in the new tab, then return here and save your marks. ';
@@ -4611,9 +4744,21 @@
   // the queue, so a physician mid-chart stays on that patient — reading a new
   // chart is the expensive part of a task, and the whole per-decision time saving
   // (§5) comes from paying it once.
-  function continueTrajectory(data) {
-    const next = (data.progress || {}).next_task_id;
+  function continueTrajectory(data, recoveryHandled) {
+    if (!recoveryHandled) clearTrajectoryOutcome(data.task_id);
+    const progress = data.progress || {};
+    const next = progress.next_task_id;
     if (next) { openTaskById(next); return; }
+    if (progress.waiting_for_assignment) {
+      state.view = 'trajectory_waiting';
+      stopTimer();
+      renderHeader();
+      setRoot(h('div', { class: 'asc-wrap' }, h('div', { class: 'asc-card asc-card-pad' },
+        h('h3', {}, 'You’ve finished your assigned points'),
+        h('p', { class: 'asc-help' }, 'The next point has not been assigned to you yet. We’ll notify you when it is ready.'),
+        h('button', { class: 'asc-btn asc-btn-primary', onClick: renderDashboardView }, 'Back to dashboard'))));
+      return;
+    }
     renderEvalView();
   }
 
@@ -5371,7 +5516,7 @@
   // branch, where the ternary yields null and the row renders as before.
   function renderExperienceBadge(toggle, isOpen) {
     const v = draftVersion();
-    const meta = { v4: 'Real · De-identified Cases', v3: 'Synthetic Multimodal',
+    const meta = { v5: 'Longitudinal · Chart Walk', v4: 'Real · De-identified Cases', v3: 'Synthetic Multimodal',
                    v2: 'V2 · Assisted', v1: 'V1 · Classic' }[v] || 'V1 · Classic';
     // A physician who picked the real cases and finished them is continued onto
     // the synthetic queue. The badge above already flips to the served version,
@@ -5812,7 +5957,11 @@
         h('button', {
           class: 'asc-btn asc-btn-primary', style: 'margin-top:12px',
           onClick: async () => {
-            try { await loadWithheldAnswersIfNeeded(); renderTaskWorkspace(); }
+            const screen = state.screenGeneration, token = state.token;
+            try {
+              await loadWithheldAnswersIfNeeded();
+              if (state.screenGeneration === screen && state.token === token) renderTaskWorkspace();
+            }
             catch (e) { if (e.status !== 401) toast('Still could not load the answers: ' + e.message, 'error'); }
           },
         }, 'Reload answers')));
@@ -6171,22 +6320,36 @@
       await reportPracticeConcern();
       return;
     }
-    const d = state.draft;
+    if (state.submitting) return;
+    const d = state.draft, task = state.task, tutorial = state.tutorial;
+    const token = state.token, view = state.view, panel = state.panel;
+    const recoveryKey = trajectoryRecoveryKey();
+    const current = () => workspaceRequestIsCurrent(task, d, tutorial)
+      && state.token === token && state.view === view && state.panel === panel;
     d.prompt_review.reviewed = true;
     d.prompt_review.verdict = 'flagged';
     d.prompt_review.reviewed_at = new Date().toISOString();
     saveDraft();
-    if (state.submitting) return;
     if (examActive()) { await submitExamEvaluation(); return; }
     state.submitting = true;
+    const submittedContent = draftContentFingerprint(d);
     try {
       await api('/submissions', { method: 'POST', body: buildSubmissionPayload() });
-      clearDraft(d.task_id);
+      if (task.trajectory_id && recoveryKey) rememberTrajectoryOutcome(task, null, recoveryKey);
+      const stillCurrent = current();
+      clearDraft(d.task_id, d.storage_key, d, submittedContent);
+      if (!stillCurrent) return;
       stopTimer();
       toast('Prompt flagged for review. Loading the next task', 'success');
-      renderEvalView();
+      if (task.trajectory_id) renderTrajectoryOutcomeView(task);
+      else renderEvalView();
     } catch (e) {
-      if (e.status !== 401) toast('Could not flag the prompt: ' + e.message, 'error');
+      if (isDuplicateTrajectorySubmission(e, task)) {
+        if (recoveryKey) rememberTrajectoryOutcome(task, null, recoveryKey);
+        if (current()) renderTrajectoryOutcomeView(task);
+        return;  // Keep this attempted draft; the earlier server submission is authoritative.
+      }
+      if (current() && e.status !== 401) toast('Could not flag the prompt: ' + e.message, 'error');
     } finally {
       state.submitting = false;
     }
@@ -6200,22 +6363,36 @@
       await reportPracticeConcern();
       return;
     }
-    const d = state.draft;
+    if (state.submitting) return;
+    const d = state.draft, task = state.task, tutorial = state.tutorial;
+    const token = state.token, view = state.view, panel = state.panel;
+    const recoveryKey = trajectoryRecoveryKey();
+    const current = () => workspaceRequestIsCurrent(task, d, tutorial)
+      && state.token === token && state.view === view && state.panel === panel;
     d.prompt_review.reviewed = true;
     d.prompt_review.verdict = 'case_incoherent';
     d.prompt_review.reviewed_at = new Date().toISOString();
     saveDraft();
-    if (state.submitting) return;
     if (examActive()) { await submitExamEvaluation(); return; }
     state.submitting = true;
+    const submittedContent = draftContentFingerprint(d);
     try {
       await api('/submissions', { method: 'POST', body: buildSubmissionPayload() });
-      clearDraft(d.task_id);
+      if (task.trajectory_id && recoveryKey) rememberTrajectoryOutcome(task, null, recoveryKey);
+      const stillCurrent = current();
+      clearDraft(d.task_id, d.storage_key, d, submittedContent);
+      if (!stillCurrent) return;
       stopTimer();
       toast('Case flagged as inconsistent. Loading the next task', 'success');
-      renderEvalView();
+      if (task.trajectory_id) renderTrajectoryOutcomeView(task);
+      else renderEvalView();
     } catch (e) {
-      if (e.status !== 401) toast('Could not flag the case: ' + e.message, 'error');
+      if (isDuplicateTrajectorySubmission(e, task)) {
+        if (recoveryKey) rememberTrajectoryOutcome(task, null, recoveryKey);
+        if (current()) renderTrajectoryOutcomeView(task);
+        return;  // Keep this attempted draft; the earlier server submission is authoritative.
+      }
+      if (current() && e.status !== 401) toast('Could not flag the case: ' + e.message, 'error');
     } finally {
       state.submitting = false;
     }
@@ -6430,6 +6607,7 @@
   async function commitIndependentAnswerAndReveal() {
     const d = state.draft;
     const task = state.task, tutorial = state.tutorial;
+    const screen = state.screenGeneration, token = state.token;
     if (!(d.independent_answer.text || '').trim()) return;
     // Re-entrancy guard: V3's Enter-to-reveal can fire again while the reveal POST
     // is in flight (the disabled button doesn't gate the keydown path). Without
@@ -6453,7 +6631,7 @@
     d.stage = 'compare';
     saveDraft();
     state._revealing = false;
-    renderTaskWorkspace();
+    if (state.screenGeneration === screen && state.token === token) renderTaskWorkspace();
   }
 
   function renderAnswerCard(c, diff, assist) {
@@ -9298,14 +9476,20 @@
       hint.appendChild(progressHost);
       _renderProgress(progressHost, 'queued', 5);
     }
-    const taskId = state.draft.task_id;
-
+    const task = state.task, draft = state.draft, tutorial = state.tutorial;
+    const token = state.token, view = state.view, panel = state.panel;
+    const current = () => workspaceRequestIsCurrent(task, draft, tutorial)
+      && state.token === token && state.view === view && state.panel === panel;
+    const taskId = draft.task_id;
+    const recoveryKey = trajectoryRecoveryKey();
     const payload = buildSubmissionPayload();
+    const submittedContent = draftContentFingerprint(draft);
     try {
       // Real submit progress (BUG-5): opt into the async pipeline (202 +
       // submission_id) and poll the backend-stamped phases. If the server doesn't
       // support it (older backend returns 200 + result), fall through to success.
       const res = await api('/submissions?async_pipeline=1', { method: 'POST', body: payload });
+      if (task.trajectory_id && recoveryKey) rememberTrajectoryOutcome(task, null, recoveryKey);
       let finalStatus = res.status;
       let recordCount = res.record_count;
       let timedOut = false;
@@ -9318,11 +9502,12 @@
       // Longitudinal reveal (§4 Phase 4). Captured BEFORE the draft is cleared and
       // the view is re-rendered: the seal has just been honoured — the action is
       // committed — so this is the first legal moment to show what happened next.
-      const revealTask = (state.task && state.task.trajectory_id
-                          && payload.expected_trajectory) ? state.task : null;
+      const revealTask = task.trajectory_id ? task : null;
       // The submission is committed server-side the moment we got the 202, so a
       // poll timeout is "still finalizing", NOT a failure; never lose the work.
-      clearDraft(taskId);
+      const stillCurrent = current();
+      clearDraft(taskId, draft.storage_key, draft, submittedContent);
+      if (!stillCurrent) return;
       stopTimer();
       if (revealTask) {
         // Straight to the reveal, not through a toast and a fresh queue draw. The
@@ -9342,6 +9527,12 @@
       }
       renderEvalView();
     } catch (e) {
+      if (isDuplicateTrajectorySubmission(e, task)) {
+        if (recoveryKey) rememberTrajectoryOutcome(task, null, recoveryKey);
+        if (current()) renderTrajectoryOutcomeView(task);
+        return;  // Preserve the attempted draft, and resume the original saved commitment.
+      }
+      if (!current()) return;
       state.submitting = false;
       if (btn) { btn.textContent = 'Submit evaluation'; }
       if (progressHost) clear(progressHost);

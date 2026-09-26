@@ -101,7 +101,11 @@ _PRELUDE = """
 require({dom!r});
 
 // Everything the trajectory surfaces touch that is not under test.
+const REALM = 'production';
+const memory = new Map();
+const localStorage = {{ getItem: k => memory.get(k) || null, setItem: (k,v) => memory.set(k,v), removeItem: k => memory.delete(k) }};
 const state = {{
+  user: {{ id: 'physician-a' }}, token: 'token-a', view: 'eval', panel: 'tasks',
   task: {{ task_id: 't1', trajectory_id: null, sequence_index: null, grounding_mode: 'optional' }},
   trajectoryProgress: null,
   specialties: [],
@@ -127,7 +131,7 @@ function renderEvalView() {{}}
 function openTaskById(id) {{ globalThis.__opened = id; }}
 function stopTimer() {{}}
 function renderHeader() {{}}
-function setRoot() {{}}
+function setRoot() {{ state.screenGeneration = (state.screenGeneration || 0) + 1; }}
 
 // The self-score vocabulary is a const, not a function, so it cannot be pulled in
 // by ``_extract_function``. Sliced verbatim from the shipped source instead of
@@ -147,7 +151,8 @@ def _const(name: str) -> str:
 
 
 def _harness(names, body: str) -> dict:
-    funcs = "\n".join(_body_of(n) for n in names)
+    recovery_helpers = ["draftContentFingerprint", "isDuplicateTrajectorySubmission", "trajectoryRecoveryKey", "trajectoryRecoveries", "rememberTrajectoryOutcome", "clearTrajectoryOutcome"]
+    funcs = "\n".join(_body_of(n) for n in dict.fromkeys(recovery_helpers + names))
     return _run_node(
         _PRELUDE.format(dom=str(DOM_SHIM), funcs=funcs, consts=_const("SELF_SCORE_CHOICES"))
         + "\n" + body)
@@ -184,6 +189,25 @@ def test_the_commitment_card_is_not_rendered_on_v1_v2():
     """V1/V2 must stay byte-for-byte unchanged; the card is an isV3() surface."""
     body = _code(_body_of("renderExpectedTrajectoryCard"))
     assert "if (!isV3()) return null;" in body
+
+
+@pytest.mark.parametrize("version,seamless", [("v1", False), ("v2", False), ("v3", True), ("v4", True), ("v5", True)])
+def test_the_real_version_predicate_keeps_v5_predictions_visible(version, seamless):
+    out = _harness([
+        "h", "appendChildren", "draftVersion", "isV3",
+        "renderExpectedTrajectoryCard", "renderExperienceBadge",
+    ], """
+    state.draft.portal_version = %s;
+    state.task.trajectory_id = state.draft.portal_version === 'v5' ? 'walk-1' : null;
+    const card = renderExpectedTrajectoryCard();
+    console.log(JSON.stringify({seamless: isV3(), visible: !!card,
+      badge: renderExperienceBadge().textContent}));
+    """ % json.dumps(version))
+    assert out["seamless"] is seamless
+    assert out["visible"] is seamless
+    if version == "v5":
+        assert "Longitudinal" in out["badge"]
+        assert "Classic" not in out["badge"]
 
 
 def test_expectations_and_falsifiers_are_independently_repeatable_executed():
@@ -234,20 +258,29 @@ def test_the_outcome_is_never_fetched_before_the_submission_lands():
         "what converts an opinion into a prediction")
 
 
-def test_the_reveal_only_fires_for_a_point_that_carried_a_prediction():
-    """No prediction, nothing to check: the reveal would be a spoiler with no
-    purpose, on a chart the physician may still have points left to walk."""
+def test_every_submitted_longitudinal_point_keeps_the_walk_continuation():
+    """Predictions are optional; skipping one must not drop the physician into a
+    different queue selected by an old V4 browser preference."""
     submit = _code(_body_of("submitEvaluation"))
-    assert "payload.expected_trajectory" in submit
-    assert "state.task.trajectory_id" in submit
+    assert "task.trajectory_id ? task : null" in submit
+    assert "&& payload.expected_trajectory" not in submit
 
 
-def test_a_failed_reveal_never_loses_the_submitted_work():
-    """The submission is committed server-side before this runs. A reveal failure
-    is a display problem, and it must read as one."""
-    body = _code(_body_of("renderTrajectoryOutcomeView"))
-    assert "Your answer is saved" in body
-    assert "renderEvalView()" in body
+def test_a_failed_outcome_fetch_stays_retryable_and_preserves_recovery():
+    out = _harness(["h", "appendChildren", "renderTrajectoryOutcomeView"], """
+    let rendered;
+    setRoot = node => { rendered=node; state.screenGeneration=(state.screenGeneration||0)+1; };
+    function renderDashboardView() {}
+    api = async () => { throw {status:503,message:'temporary outage'}; };
+    (async () => {
+      await renderTrajectoryOutcomeView({task_id:'t1',trajectory_id:'walk'});
+      console.log(JSON.stringify({text:rendered.textContent,
+        pending:Object.keys(trajectoryRecoveries())}));
+    })();
+    """)
+    assert 'Your answer is saved' in out['text']
+    assert 'Try again' in out['text']
+    assert out['pending'] == ['t1']
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -527,3 +560,205 @@ def test_every_class_the_new_surfaces_use_exists_in_the_stylesheet():
     assert used, "extraction found no classes — the harness is broken, not the code"
     missing = [c for c in sorted(used) if f".{c}" not in CSS]
     assert not missing, f"classes used with no style behind them: {missing}"
+
+
+# Recovery and races run the shipped client functions with delayed network replies.
+def test_outcome_response_cannot_replace_a_newer_screen():
+    out = _harness(["h", "appendChildren", "renderTrajectoryOutcomeView"], """
+    let finish, painted=false;
+    api = () => new Promise(resolve => { finish=resolve; });
+    function paintTrajectoryOutcome() { painted=true; }
+    (async () => {
+      const pending=renderTrajectoryOutcomeView({task_id:'t1',trajectory_id:'walk'});
+      state.view='home'; setRoot();
+      finish({outcome:null}); await pending;
+      console.log(JSON.stringify({painted,pending:Object.keys(trajectoryRecoveries())}));
+    })();
+    """)
+    assert out == {'painted': False, 'pending': ['t1']}
+
+
+def test_score_marks_survive_remount_and_are_isolated_by_account():
+    out = _harness(["h", "appendChildren", "renderSelfScoreCard", "renderPendingTrajectoryOutcome"], """
+    const task={task_id:'t1',trajectory_id:'walk'};
+    const expected=[{expectation:'improves'}];
+    const card=renderSelfScoreCard(task,{},expected,['worsens']);
+    card.querySelectorAll('.asc-conf-pill')[1].dispatch('click');
+    const note=card.querySelector('.asc-input'); note.value='Observed in the record'; note.dispatch('input');
+    const recovered=renderSelfScoreCard(task,{},expected,['worsens']);
+    const ours=renderPendingTrajectoryOutcome().textContent;
+    state.user={id:'physician-b'};
+    const other=renderPendingTrajectoryOutcome();
+    console.log(JSON.stringify({ours,other,mark:recovered.querySelectorAll('.asc-conf-pill')[1].classList.contains('active'),
+      note:recovered.querySelector('.asc-input').value}));
+    """)
+    assert out['mark'] is True
+    assert out['note'] == 'Observed in the record'
+    assert 'Continue outcome review' in out['ours']
+    assert out['other'] is None
+
+
+def test_score_save_is_single_flight_and_retry_keeps_marks():
+    out = _harness(["h", "appendChildren", "renderSelfScoreCard"], """
+    let reject, requests=[];
+    api = (path,opts) => { requests.push(JSON.parse(JSON.stringify(opts.body))); return new Promise((_,r)=>{reject=r;}); };
+    function isAgreementGate() { return false; }
+    const card=renderSelfScoreCard({task_id:'t1'},{},[{expectation:'improves'}],[]);
+    const pills=card.querySelectorAll('.asc-conf-pill'); const save=card.querySelector('.asc-btn');
+    pills[0].dispatch('click'); save.dispatch('click'); pills[1].dispatch('click'); save.dispatch('click');
+    const disabled=save.disabled;
+    (async () => {
+      reject({status:503,message:'temporary'}); await new Promise(r=>setTimeout(r,0));
+      console.log(JSON.stringify({requests,disabled,retryEnabled:!save.disabled,
+        pending:trajectoryRecoveries().t1.score.marks}));
+    })();
+    """)
+    assert out['disabled'] is True
+    assert out['retryEnabled'] is True
+    assert len(out['requests']) == 1
+    assert out['requests'][0]['marks'][0]['state'] == 'held'
+    assert out['pending'][0]['state'] == 'held'
+
+
+def test_saved_score_does_not_navigate_over_a_newer_screen():
+    out = _harness(["h", "appendChildren", "renderSelfScoreCard"], """
+    let finish, continued=false;
+    api = () => new Promise(r=>{finish=r;});
+    function continueTrajectory() { continued=true; }
+    const card=renderSelfScoreCard({task_id:'t1'},{},[{expectation:'improves'}],[]);
+    card.querySelectorAll('.asc-conf-pill')[0].dispatch('click'); card.querySelector('.asc-btn').dispatch('click');
+    (async () => { setRoot(); state.view='home'; finish({}); await new Promise(r=>setTimeout(r,0));
+      console.log(JSON.stringify({continued,pending:Object.keys(trajectoryRecoveries())})); })();
+    """)
+    assert out == {'continued': False, 'pending': []}
+
+
+_SUBMIT_STUBS = """
+state.task={task_id:'t1',trajectory_id:'walk'};
+state.draft={task_id:'t1',verdict:'both_inadequate',confidence_set:true,storage_key:'original-key'};
+function tutorialActive(){return false;} function examActive(){return false;}
+function groundingSatisfied(){return {ok:true};} function stepsReview(){return {ok:true};}
+function rubricGate(){return {ok:true};} function failureTagGate(){return {ok:true};}
+function updateSubmitState(){} function updateHeaderProgress(){}
+function buildSubmissionPayload(){return {task_id:'t1'};}
+const cleared=[], opened=[];
+function clearDraft(id,key){cleared.push([id,key]);if(state.draft&&state.draft.task_id===id)state.draft=null;}
+function renderTrajectoryOutcomeView(task){opened.push(task.task_id);}
+"""
+
+
+def test_submission_without_prediction_opens_outcome_and_saves_recovery():
+    out = _harness(["submitEvaluation", "workspaceRequestIsCurrent"], _SUBMIT_STUBS + """
+    api=async()=>({status:'needs_qa',record_count:1});
+    (async()=>{await submitEvaluation();console.log(JSON.stringify({opened,cleared,pending:Object.keys(trajectoryRecoveries())}));})();
+    """)
+    assert out == {'opened': ['t1'], 'cleared': [['t1', 'original-key']], 'pending': ['t1']}
+
+
+def test_late_submission_cannot_reveal_a_different_task():
+    out = _harness(["submitEvaluation", "workspaceRequestIsCurrent"], _SUBMIT_STUBS + """
+    let finish; api=()=>new Promise(r=>{finish=r;});
+    (async()=>{const pending=submitEvaluation();state.task={task_id:'new',trajectory_id:'other'};
+      state.draft={task_id:'new',text:'Keep this'};finish({status:'needs_qa'});await pending;
+      console.log(JSON.stringify({opened,draft:state.draft,pending:Object.keys(trajectoryRecoveries())}));})();
+    """)
+    assert out == {'opened': [], 'draft': {'task_id': 'new', 'text': 'Keep this'}, 'pending': ['t1']}
+
+
+def test_recovery_is_saved_before_pipeline_poll_finishes():
+    out = _harness(["submitEvaluation", "workspaceRequestIsCurrent"], _SUBMIT_STUBS + """
+    let finish; api=async()=>({accepted:true,submission_id:'s1'});
+    function pollSubmissionStatus(){return new Promise(r=>{finish=r;});}
+    (async()=>{const pending=submitEvaluation();await new Promise(r=>setTimeout(r,0));
+      const before=Object.keys(trajectoryRecoveries());finish({done:true,status:'needs_qa'});await pending;
+      console.log(JSON.stringify({before,opened}));})();
+    """)
+    assert out == {'before': ['t1'], 'opened': ['t1']}
+
+
+
+def test_assignment_boundary_waits_instead_of_opening_an_unassigned_point():
+    out = _harness(["h", "appendChildren", "continueTrajectory"], """
+    let rendered,draws=0;
+    setRoot=n=>{rendered=n;}; renderEvalView=()=>{draws++;};
+    function renderDashboardView() {}
+    continueTrajectory({task_id:'t1',progress:{next_task_id:null,complete:false,waiting_for_assignment:true}});
+    console.log(JSON.stringify({text:rendered.textContent,draws,opened:globalThis.__opened||null}));
+    """)
+    assert 'finished your assigned points' in out['text']
+    assert out['draws'] == 0
+    assert out['opened'] is None
+
+
+@pytest.mark.parametrize('name', ['flagPrompt', 'flagCaseIncoherent'])
+def test_flag_response_preserves_the_walk_and_ignores_newer_navigation(name):
+    out = _harness([name, "workspaceRequestIsCurrent"], _SUBMIT_STUBS + """
+    let finish; api=()=>new Promise(r=>{finish=r;});
+    state.draft.prompt_review={};
+    (async()=>{const pending=CALL();state.view='home';finish({});await pending;
+      console.log(JSON.stringify({opened,pending:Object.keys(trajectoryRecoveries()),cleared}));})();
+    """.replace('CALL', name))
+    assert out == {'opened': [], 'pending': ['t1'], 'cleared': [['t1', 'original-key']]}
+
+
+
+def test_duplicate_submission_resumes_original_without_discarding_attempted_draft():
+    out = _harness(["submitEvaluation", "workspaceRequestIsCurrent"], _SUBMIT_STUBS + """
+    api=async()=>{throw {status:409,detail:{error:'trajectory_already_submitted',submission_id:'original-sid'}};};
+    state.draft.note='Preserve the attempted work';
+    (async()=>{await submitEvaluation();console.log(JSON.stringify({opened,cleared,note:state.draft.note,
+      pending:Object.keys(trajectoryRecoveries())}));})();
+    """)
+    assert out == {'opened': ['t1'], 'cleared': [], 'note': 'Preserve the attempted work', 'pending': ['t1']}
+
+
+
+def test_old_score_success_retains_newer_marks_from_reopened_outcome():
+    out = _harness(["h", "appendChildren", "renderSelfScoreCard"], """
+    let finish;api=()=>new Promise(resolve=>{finish=resolve;});
+    const task={task_id:'t1'},expected=[{expectation:'improves'}];
+    const first=renderSelfScoreCard(task,{},expected,[]);
+    first.querySelectorAll('.asc-conf-pill')[0].dispatch('click');
+    first.querySelector('.asc-btn').dispatch('click');
+    setRoot();
+    const reopened=renderSelfScoreCard(task,{},expected,[]);
+    reopened.querySelectorAll('.asc-conf-pill')[1].dispatch('click');
+    const note=reopened.querySelector('.asc-input');note.value='Newer clinical observation';note.dispatch('input');
+    (async()=>{finish({});await new Promise(r=>setTimeout(r,0));
+      console.log(JSON.stringify({score:trajectoryRecoveries().t1.score,
+        selected:reopened.querySelectorAll('.asc-conf-pill')[1].classList.contains('active')}));})();
+    """)
+    assert out['selected'] is True
+    assert out['score']['marks'][0] == {'index': 0, 'state': 'did_not_hold', 'note': 'Newer clinical observation'}
+
+
+def test_score_success_does_not_clear_newer_other_tab_marks_during_continuation():
+    out = _harness(["h", "appendChildren", "renderSelfScoreCard", "continueTrajectory"], """
+    let finish;api=()=>new Promise(resolve=>{finish=resolve;});
+    const task={task_id:'t1'},expected=[{expectation:'improves'}];
+    const card=renderSelfScoreCard(task,{task_id:'t1',progress:{next_task_id:'next'}},expected,[]);
+    card.querySelectorAll('.asc-conf-pill')[0].dispatch('click');card.querySelector('.asc-btn').dispatch('click');
+    rememberTrajectoryOutcome(task,{marks:[{index:0,state:'not_assessable',note:'Other tab edit'}],falsifier_fired:false});
+    (async()=>{finish({});await new Promise(r=>setTimeout(r,0));
+      console.log(JSON.stringify({mark:trajectoryRecoveries().t1.score.marks[0],opened:globalThis.__opened}));})();
+    """)
+    assert out['mark'] == {'index': 0, 'state': 'not_assessable', 'note': 'Other tab edit'}
+    assert out['opened'] == 'next'
+
+
+@pytest.mark.parametrize('action', ['submitEvaluation', 'flagPrompt', 'flagCaseIncoherent'])
+def test_pending_submission_keeps_in_place_edits_with_real_cleanup(action):
+    stubs = _SUBMIT_STUBS.replace("function clearDraft(id,key){cleared.push([id,key]);if(state.draft&&state.draft.task_id===id)state.draft=null;}", "")
+    out = _harness([action, "workspaceRequestIsCurrent", "clearDraft"], stubs + """
+    function draftKey(id){return 'draft:'+id;}
+    let finish;api=()=>new Promise(resolve=>{finish=resolve;});
+    state.draft.prompt_review={};state.draft.clinical_note='original';state.draft.savedAt=100;
+    localStorage.setItem('original-key',JSON.stringify(state.draft));
+    (async()=>{const pending=ACTION();
+      state.draft.clinical_note='Typed while submitting';state.draft.savedAt=200;
+      localStorage.setItem('original-key',JSON.stringify(state.draft));
+      finish({status:'needs_qa'});await pending;
+      console.log(JSON.stringify({memory:state.draft.clinical_note,
+        stored:JSON.parse(localStorage.getItem('original-key')).clinical_note}));})();
+    """.replace('ACTION', action))
+    assert out == {'memory': 'Typed while submitting', 'stored': 'Typed while submitting'}

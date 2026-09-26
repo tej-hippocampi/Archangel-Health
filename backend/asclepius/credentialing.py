@@ -1192,6 +1192,8 @@ _MEDICAL_FIELDS = {
     "interventional cardiology", "vascular medicine", "neonatology",
     "hospice and palliative medicine", "clinical informatics",
     "addiction medicine", "occupational medicine", "public health",
+    "forensic medicine", "legal medicine", "forensic pathology", "forensic genetics",
+    "rechtsmedizin", "sudska medicina", "судска медицина",
 }
 
 #: Words that end a captured field. "Board-certified nephrologist with 10 years"
@@ -1215,6 +1217,8 @@ def display_specialty(name: str) -> str:
     raw = (name or "").strip()
     if not raw:
         return ""
+    if raw == "forensic medicine":
+        return "Forensic Medicine / Legal Medicine"
     small = {"and", "of", "the", "in"}
     words = []
     for i, word in enumerate(raw.split()):

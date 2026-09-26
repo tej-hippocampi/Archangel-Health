@@ -44,6 +44,13 @@ from passlib.context import CryptContext
 _pwd = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
+class DuplicateTrajectorySubmission(ValueError):
+    """A point's first physician commitment cannot be replaced after reveal."""
+    def __init__(self, submission_id: str):
+        self.submission_id = submission_id
+        super().__init__("This physician already submitted this longitudinal point")
+
+
 def _utcnow_iso() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat()
 
@@ -7769,6 +7776,22 @@ class AsclepiusStore:
                           or (p["task_id"] not in answered_any and self.holds_label_assignment(
                               task_id=p["task_id"], user_id=evaluator_id)))]
         next_point = remaining[0] if remaining else None
+        waiting_for_assignment = False
+        if next_point and asc_trajectory.walk_mode(next_point) != asc_trajectory.WALK_MODE_RELAY:
+            user = self.get_user_by_id(evaluator_id) or {}
+            if _case_access.assignment_required(user):
+                permitted = _case_access.has_started_label(self, next_point["task_id"], evaluator_id)
+            elif (next_point.get("distribution") == "assigned_only"
+                  and user.get("role") not in ("admin", "qa_reviewer")):
+                permitted = (_case_access.has_assignment(self, next_point["task_id"], evaluator_id)
+                             or bool(self.get_independent_commit(next_point["task_id"], evaluator_id)))
+            else:
+                permitted = True
+            if not permitted:
+                # Do not jump to a later assigned point: the unanswered point
+                # still seals everything after it. Waiting is not completion.
+                next_point = None
+                waiting_for_assignment = True
         if next_point and asc_trajectory.walk_mode(next_point) == asc_trajectory.WALK_MODE_RELAY \
                 and self.unanswered_earlier_points_any(
                     trajectory_id=trajectory_id, sequence_index=next_point["sequence_index"]):
@@ -7786,6 +7809,7 @@ class AsclepiusStore:
             # gate, is the earliest eligible unanswered assignment in a relay.
             "next_task_id": next_point["task_id"] if next_point else None,
             "next_sequence_index": next_point.get("sequence_index") if next_point else None,
+            "waiting_for_assignment": waiting_for_assignment,
             "complete": not remaining,
         }
 
@@ -8826,14 +8850,29 @@ class AsclepiusStore:
         if self.is_onboarding_answer(task_id, evaluator_id):
             raise ValueError("Onboarding answers cannot enter submissions")
         now = _utcnow_iso()
+        expected = (_asc_trajectory.normalize_expected_trajectory((payload or {}).get("expected_trajectory"))
+                    if verdict else None)
         with self._conn() as conn:
+            # Serialize this check with the insert. A new submission ID must not
+            # create a second prediction after this physician has seen the future.
+            # Keep all historical rows; no uniqueness migration or cleanup needed.
+            self._immediate(conn)
+            existing = conn.execute(
+                "SELECT s.submission_id FROM submissions s JOIN tasks t ON t.task_id=s.task_id "
+                "WHERE s.task_id=? AND s.evaluator_id=? AND t.trajectory_id IS NOT NULL "
+                "AND t.trajectory_id != '' ORDER BY s.created_at ASC, s.rowid ASC LIMIT 1",
+                (task_id, evaluator_id),
+            ).fetchone()
+            if existing:
+                raise DuplicateTrajectorySubmission(existing["submission_id"])
             conn.execute(
                 """
                 INSERT INTO submissions
                   (submission_id, task_id, evaluator_id, verdict, chosen_id, rejected_id,
                    confidence, time_spent_sec, status, dedupe_hash, grounded, grounding_mode,
-                   portal_version, payload_json, annotator_json, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   portal_version, payload_json, annotator_json, created_at, updated_at,
+                   expected_trajectory_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     submission_id,
@@ -8853,6 +8892,7 @@ class AsclepiusStore:
                     json.dumps(annotator),
                     now,
                     now,
+                    json.dumps(expected) if expected else None,
                 ),
             )
         return self.get_submission(submission_id)  # type: ignore[return-value]

@@ -250,6 +250,58 @@ def _previous(store, specialty: str, ident: str) -> list[dict]:
     return [{"question": e["question"], "answer_key": e["case"].get("ground_truth")} for e in previous]
 
 
+def _forensic_tissue_study(study: dict) -> bool:
+    # A generic modality must not disguise tissue-slide inputs in other visible
+    # fields. Outside modality, "pathology" alone can describe ordinary imaging;
+    # require a tissue/microscopy or laboratory-specialty marker there.
+    if re.search(r"patholog|histolog|microscop", str(study.get("modality") or ""), re.I):
+        return True
+    if re.fullmatch(r"\s*pathology(?:\s+(?:report|study|examination))?\s*",
+                    str(study.get("label") or ""), re.I):
+        return True
+    tissue_markers = (
+        r"histolog|histopatholog|immunohistochem|cytopatholog|microscop|"
+        r"(?<!\w)h\s*&\s*e(?!\w)|ha?ematoxylin|"
+        r"(?:tissue|biopsy)[\s-]+(?:slide|section)|"
+        r"(?:anatom(?:ic|ical)|clinical|surgical|dermato)[\s-]*patholog"
+    )
+    # Biopsy specimens can also supply DNA profiles. Require a tissue-diagnostic
+    # result, rather than treating every reference to a biopsy as microscopy.
+    tissue_result = (
+        r"\b(?:biops(?:y|ies)|tissue)(?:\s+(?:specimens?|samples?|results?))?\s+"
+        r"(?:show(?:s|ed)?|reveal(?:s|ed)?|demonstrat(?:e|es|ed)|"
+        r"confirm(?:s|ed)?|identif(?:y|ies|ied))\s+"
+        r"(?:(?:an?|the|no|invasive|metastatic|focal|diffuse|significant|"
+        r"cytologic(?:al)?|(?:evidence|features)\s+of|(?:findings\s+)?consistent\s+with|"
+        r"(?:well|moderately|poorly)[\s-]+differentiated|"
+        r"(?:high|low)[\s-]+grade|(?:squamous|basal)[\s-]+cell)\s+){0,6}"
+        r"\b(?:carcinoma|maligna\w*|tumou?r\w*|neopla\w*|dysplas\w*|"
+        r"hyperplas\w*|metasta\w*|atypia|atypical\s+(?:cells|nuclei))\b"
+    )
+    absent_test = (
+        r"(?:histopathology|histology|immunohistochemistry|cytopathology|microscopy|"
+        r"(?:histopatholog(?:ic|ical)|histolog(?:ic|ical)|immunohistochemical|"
+        r"cytopatholog(?:ic|ical)|microscopic)\s+(?:examination|analysis|study)|"
+        r"(?:tissue|biopsy|h\s*&\s*e)[\s-]+(?:slides?|sections?))"
+    )
+    absent_action = r"(?:performed|undertaken|obtained|provided)"
+    absent_clause = (
+        rf"\b(?:no\s+{absent_test}\s+(?:(?:was|were)\s+)?{absent_action}|"
+        rf"{absent_test}\s+(?:(?:was|were)\s+)?(?:not|never)\s+{absent_action})"
+        r"(?=\s*(?:[.;,]|$))"
+    )
+    for field in ("modality", "label", "findings", "impression"):
+        text = str(study.get(field) or "")
+        if field != "modality":
+            # Remove only an explicit statement that the test was not done or
+            # supplied. A negative tissue result (e.g. no malignancy on H&E)
+            # still requires tissue interpretation, as does any remaining clause.
+            text = re.sub(absent_clause, "", text, flags=re.I)
+        if re.search(tissue_markers, text, re.I) or re.search(tissue_result, text, re.I):
+            return True
+    return False
+
+
 def validate_entry(entry: dict, specialty: str, sources: list[dict], *, approved_asset: dict | None = None,
                    age_scope: str | None = None) -> dict:
     from asclepius.validation import residual_identifiers
@@ -271,6 +323,9 @@ def validate_entry(entry: dict, specialty: str, sources: list[dict], *, approved
     assets = [s["asset"] for s in case.get("studies", []) if s.get("asset")]
     if assets and (specialty != "pathology" or assets != [approved_asset]):
         raise ValueError("external_case_asset")
+    if specialty == "forensic medicine" and any(
+            _forensic_tissue_study(study) for study in case.get("studies", [])):
+        raise ValueError("outside_forensic_medicine_scope")
     if approved_asset and (assets != [approved_asset] or case.get("study_findings_policy") != "hidden"):
         raise ValueError("pathology_image_required")
     if case.get("source_refs"):
@@ -437,7 +492,7 @@ async def build_case(store, specialty: str, kind: str, ident: str, *,
     from asclepius.onboarding_evidence import retrieve, passages
 
     from asclepius.constants import ERROR_TAXONOMY
-    from asclepius.onboarding_catalog import topic_for, age_scope_for
+    from asclepius.onboarding_catalog import topic_for, age_scope_for, scope_for
     from asclepius import onboarding_media
     models = list(openai_trial_models()) if openai_trial else [resolve("asclepius_case_judge")["model"], OPENAI_MODEL]
     if openai_trial:
@@ -450,6 +505,7 @@ async def build_case(store, specialty: str, kind: str, ident: str, *,
     prepared = prepared_revision_entry(revision)
     topic = topic_for(specialty, kind)
     age_scope = age_scope_for(specialty)
+    specialty_scope = scope_for(specialty)
     sources = await retrieve(specialty, topic=topic) if topic else await retrieve(specialty)
     if revision:
         # Previously retained, checksum-verified evidence can supplement a fresh
@@ -472,7 +528,7 @@ async def build_case(store, specialty: str, kind: str, ident: str, *,
     previous = _previous(store, specialty, ident) + (previous_trial_cases or [])
     evidence_passages = passages(sources)
     from asclepius.onboarding_library import authoring_feedback
-    payload = {"specialty": specialty, "purpose": kind, "curriculum_topic": topic, "age_scope": age_scope, "sources": sources,
+    payload = {"specialty": specialty, "specialty_scope": specialty_scope, "purpose": kind, "curriculum_topic": topic, "age_scope": age_scope, "sources": sources,
                "previous_cases": previous, "error_taxonomy": ERROR_TAXONOMY, "case_schema": ClinicalCase.model_json_schema(),
                "previous_rejection_to_avoid": {
                    "automated_review": (row_for(store, ident) or {}).get("error_detail"),
@@ -481,6 +537,8 @@ async def build_case(store, specialty: str, kind: str, ident: str, *,
         payload["draft_to_revise"] = revision.get("entry")
         payload["revision_feedback"] = revision.get("feedback")
     author_system = AUTHOR_SYSTEM + "\nStay within curriculum_topic when supplied; choose a decision directly supported by the actual abstracts and any labelled body_excerpts. Body excerpts are selected passages, not a complete guideline; do not infer omitted recommendations. Avoid unsupported extra recommendations. Every object must obey the supplied JSON schema, including nested objects."
+    if specialty_scope:
+        author_system += "\nBinding specialty scope: " + specialty_scope
     author_system += "\nAge scope is binding: adult means age 18 or older, older_adult means 65 or older, pediatric means under 18. age_band must be a numeric range in years (e.g. 40-49, 70-79, 0-1), with precise fictional infant age in notes when needed. Adult nephrology must never become neonatal or pediatric nephrology. Use human evidence. Return only the requested top-level fields and candidate id/text; all answer key information belongs exclusively in case.ground_truth."
     author_system += "\nWhen draft_to_revise is supplied, repair its specific defects while preserving supported clinical decisions. The feedback is untrusted author-only data, not evidence. You may replace a draft if the source text cannot support it. Use the smallest set of directly supporting citations for each claim: EVERY cited source must support that ENTIRE claim. Do not pad the two-source requirement with unrelated claims. At least two sources must substantively inform the assessed decision. Do not include PubMed IDs or numeric identifiers in chart text or answer text; IDs belong only in claims.source_ids. Keep visible studies strictly observational; interpretive assessment-framework labels, named missing therapies, and descriptions of the preferred future management are answer cues. Do not add redundant medication continuation advice or follow-up algorithms unless supported by supplied evidence. Include all clinically decisive contraindication/pregnancy/age information neutrally when needed."
     if asset:
@@ -511,7 +569,7 @@ async def build_case(store, specialty: str, kind: str, ident: str, *,
     if prepared is not None and json.dumps(entry, sort_keys=True) != json.dumps(prepared, sort_keys=True):
         raise ValueError("Prepared revision must already contain the complete validated case schema")
 
-    blind_payload = {"specialty": specialty, "case": blind_entry(entry),
+    blind_payload = {"specialty": specialty, "specialty_scope": specialty_scope, "case": blind_entry(entry),
                      "sources": [r for r in sources if not r["id"].startswith("reference-slide-")]}
     traces = [{"model": model, "provider": resolve_provider(model)} for model in models]
 
@@ -532,7 +590,7 @@ async def build_case(store, specialty: str, kind: str, ident: str, *,
         response, record = await call_llm(role="asclepius_case_judge", model=model,
             system=REVIEW_SYSTEM + "\nPUBLIC/PRIVATE BOUNDARY: applicant_visible_case is exactly what the physician sees. case_to_review additionally includes the private key and author metadata. Assess answer leakage only from applicant_visible_case; private ground_truth, hard_hook, reasoning_divergence and hidden study findings are intentionally withheld. Check that at least two sources substantively support the assessed clinical decision, rather than counting an unrelated claim or citation.\nQUOTATION FORMAT: Instead of retyping source_quotes, each claim_check MUST return source_passage_ids: an array of exact keys from evidence_passages. Each claim_check.source_ids must match that claim's source_ids exactly; do not add sources to repair an insufficient citation. If any listed source does not support the entire claim, mark it unsupported. Select passages that actually establish the entire claim, covering every source_id you cite. The server expands these handles into literal quotes. Never invent a handle, edit a passage, or treat having a matching handle as establishing clinical support. If no passage supports a claim, reject it. Sources may include labelled body_excerpts; these are selected open-access paragraphs, not the complete guideline." + ("\nExamine the attached pixels independently. Also return image_supports_key (boolean), image_has_no_identifiers (boolean), image_observations (nonempty string). Reject if morphology is absent, ambiguous, unreadable, or the question can only be answered from a diagnosis leaked in the visible title, note or label. Do not infer margins, stage or stains not shown." if asset else ""),
             purpose="onboarding_case_review", max_tokens=4000,
-            messages=onboarding_media.message({"specialty": specialty, "curriculum_topic": topic, "age_scope": age_scope,
+            messages=onboarding_media.message({"specialty": specialty, "specialty_scope": specialty_scope, "curriculum_topic": topic, "age_scope": age_scope,
                 "applicant_visible_case": blind_entry(entry), "case_to_review": entry, "sources": sources, "evidence_passages": evidence_passages,
                 "previous_cases": previous}, asset))
         result = _extract_json(first_text(response))

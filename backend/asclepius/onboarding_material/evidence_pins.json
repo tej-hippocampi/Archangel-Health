@@ -1,4 +1,42 @@
 {
+  "interpretation of genital lacerations after reported adult vaginal penetration without inferring individual consent from population injury frequencies": {
+    "excerpt_terms": "injury consent consensual examination documentation limitations interpretation",
+    "sources": [
+      {
+        "id": "39567355",
+        "pmcid": "PMC11693518",
+        "title": "Genital lacerations following sexual assault and consensual sexual intercourse: A systematic review and meta-analysis.",
+        "source_type": "systematic_review_meta_analysis",
+        "require_licensed_fulltext": false
+      },
+      {
+        "id": "37842551",
+        "pmcid": "PMC10570717",
+        "title": "Anogenital injury following sexual assault and consensual sexual intercourse: a systematic review and meta-analysis.",
+        "source_type": "systematic_review_meta_analysis",
+        "require_licensed_fulltext": false
+      }
+    ]
+  },
+  "clinical forensic follow-up documentation of reported loss of consciousness and memory loss after adult neck compression": {
+    "excerpt_terms": "strangulation history documentation examination visible injury symptoms inference assessment",
+    "sources": [
+      {
+        "id": "36972965",
+        "pmcid": "PMC10077461",
+        "title": "Medical evidence assisting non-fatal strangulation prosecution: a scoping review.",
+        "source_type": "scoping_review",
+        "require_licensed_fulltext": false
+      },
+      {
+        "id": "33432860",
+        "pmcid": "",
+        "title": "The neuropsychological outcomes of non-fatal strangulation in domestic and sexual violence: A systematic review.",
+        "source_type": "systematic_review",
+        "require_licensed_fulltext": false
+      }
+    ]
+  },
   "myasthenia gravis impending crisis assessment": {
     "excerpt_terms": "myasthenia crisis exacerbation respiratory airway vital capacity intravenous immunoglobulin plasma exchange intensive care",
     "sources": [

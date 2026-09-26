@@ -143,7 +143,7 @@ Ranked by how often each failure happens times how badly it hurts the patient. T
 
 | Piece | Where | Reuse how |
 |---|---|---|
-| Partner zip upload through a token link: caps, magic bytes, SHA-256, encrypted quarantine write | `partner_upload` at `routers/asclepius.py:6870` | Unchanged. The nephrology zip arrives here. |
+| Partner zip upload through a token link: caps, magic bytes, SHA-256, encrypted quarantine write | `partner_upload` at `routers/asclepius.py:6890` | Unchanged. The nephrology zip arrives here. |
 | Orchestrator: unpack → classify → adapters → one case per patient → timeline → de-id verify → `ingest_cases` row | `process_upload` at `asclepius/ingestion.py:1800` | Its logic is unchanged. Two new formats flow through it, and the helpers it calls get the edits listed in §8.1 (including the `_classify` call-site head size). |
 | File classifier | `_classify` at `asclepius/ingestion.py:851`, called at `asclepius/ingestion.py:1127` with only a 512-byte `head` and a 200-character `text_head` | **Edit**: add `ccda` and `pdf_doc` (§8.1). **Also edit the call site** to pass a 4,096-byte head for `.xml` entries only, because a C-CDA root can sit behind an XML declaration and stylesheet instruction. |
 | Fragment merge | `_merge_fragments` at `asclepius/ingestion.py:1175` (its per-key copy loop) | **Edit**: copy the four new collections (§6.1). Without this they are silently dropped. |
@@ -154,7 +154,7 @@ Ranked by how often each failure happens times how badly it hurts the patient. T
 | Residual-PHI verifier | `verify_deid` at `asclepius/deid_verify.py:179` | Called again at the chart-build boundary and at every sandbox read (I7). |
 | Encounter segmentation (a new encounter after a gap of more than 7 days) | `segment_longitudinal_record` at `asclepius/real_cases.py:250` | Used to group same-day items. A visit is keyed to the day of a worksheet (§8.2). |
 | Temporal split for one decision point | `build_encounter_case` at `asclepius/real_cases.py:1362`, and `assert_temporal_split` at `asclepius/real_cases.py:2175` | This is the pattern the visit compiler follows. Reuse `assert_temporal_split` on the visible slice. |
-| Encrypted sealed answer keys | `sealed_ground_truth` table at `asclepius/store.py:1183`. Crypto helpers `encrypt_field` at `field_crypto.py:71` and `decrypt_field` at `field_crypto.py:87` | Visit keys and outcomes are stored the same way: encrypted, read only by the grader and the review surface. |
+| Encrypted sealed answer keys | `sealed_ground_truth` table at `asclepius/store.py:1190`. Crypto helpers `encrypt_field` at `field_crypto.py:71` and `decrypt_field` at `field_crypto.py:87` | Visit keys and outcomes are stored the same way: encrypted, read only by the grader and the review surface. |
 
 ### 4.2 The environment track
 
@@ -174,10 +174,10 @@ Ranked by how often each failure happens times how badly it hurts the patient. T
 
 | Piece | Where | Reuse how |
 |---|---|---|
-| Assignments table: idempotent on (task, user, role) | `upsert_assignment` at `asclepius/store.py:5355`; `has_assignment` at `asclepius/case_access.py:81`; `assignment_required` at `asclepius/case_access.py:23` | **Not reused for reviews.** Review rows there would count toward portal allocation load (`open_assignment_counts`, `asclepius/store.py:5417`) and show in the admin assignment list as rows with no task. Copying the case-access gate would also let the open-pool flag or a mock user skip the assignment check, which breaks I12. Reviews get their own `ehr_review_assignments` table (§6.2) and their own gate (§11.6). |
-| Physician eligibility for real data and specialty match | `_eligible_to_review` at `asclepius/allocation.py:183` (no agreement check). `Physician` objects are built only in the admin router, at `routers/asclepius_admin.py:3763`. Agreement currency: `require_current_agreement` at `routers/asclepius.py:3654` uses `physician_agreement.gate_enabled` and `resignature_reason` | `reviews.load_candidates(store)` copies the admin construction as a thin helper (with a comment pointing to the original; never import a router). It then applies `_eligible_to_review`, the agreement check, and I12. |
+| Assignments table: idempotent on (task, user, role) | `upsert_assignment` at `asclepius/store.py:5362`; `has_assignment` at `asclepius/case_access.py:81`; `assignment_required` at `asclepius/case_access.py:23` | **Not reused for reviews.** Review rows there would count toward portal allocation load (`open_assignment_counts`, `asclepius/store.py:5424`) and show in the admin assignment list as rows with no task. Copying the case-access gate would also let the open-pool flag or a mock user skip the assignment check, which breaks I12. Reviews get their own `ehr_review_assignments` table (§6.2) and their own gate (§11.6). |
+| Physician eligibility for real data and specialty match | `_eligible_to_review` at `asclepius/allocation.py:183` (no agreement check). `Physician` objects are built only in the admin router, at `routers/asclepius_admin.py:3763`. Agreement currency: `require_current_agreement` at `routers/asclepius.py:3655` uses `physician_agreement.gate_enabled` and `resignature_reason` | `reviews.load_candidates(store)` copies the admin construction as a thin helper (with a comment pointing to the original; never import a router). It then applies `_eligible_to_review`, the agreement check, and I12. |
 | Email one member | `notify_person` at `notifications.py:244` | Review offers and reminders. |
-| Ledger row, un-double-payable through `UNIQUE(kind, ref_id)` | `insert_earning` at `asclepius/store.py:16261`; kinds start at `KIND_TASK` (`asclepius/payments.py:144`); display labels in `_KIND_LABELS` at `asclepius/payments.py:2085` | New kind `KIND_EHR_REVIEW = "ehr_review"` plus a `_KIND_LABELS` entry ("EHR review"). `ref_id` is the `ehr_review_assignments` id. $25. |
+| Ledger row, un-double-payable through `UNIQUE(kind, ref_id)` | `insert_earning` at `asclepius/store.py:16301`; kinds start at `KIND_TASK` (`asclepius/payments.py:144`); display labels in `_KIND_LABELS` at `asclepius/payments.py:2085` | New kind `KIND_EHR_REVIEW = "ehr_review"` plus a `_KIND_LABELS` entry ("EHR review"). `ref_id` is the `ehr_review_assignments` id. $25. |
 
 ### 4.4 The gaps this PRD fills
 
@@ -520,7 +520,7 @@ The `OutcomeWindow` (sealed) holds visit k+1's labs, vitals, worksheet assessmen
 
 | Package | Why | Milestone | Required? | Install |
 |---|---|---|---|---|
-| `lxml` | Parse C-CDA/CCD XML (Office Ally "CCD", "Transition of Care" and "EHI CCD" batch exports) | M1 | Required | `pip install "lxml>=5,<6"` |
+| `lxml` | Parse C-CDA/CCD XML (Office Ally "CCD", "Transition of Care" and "EHI CCD" batch exports) | M1 | Required | `pip install "lxml>=6.1.3,<7"` |
 | `pypdf` | PDF text layer extraction. **Already pinned** (`pypdf==6.19.0` in `backend/requirements.txt`); do not re-pin | M1 | Required | already installed |
 | `pdfplumber` | Table-aware text extraction for lab tables in PDFs | M1 | Optional (improves lab tables) | `pip install "pdfplumber>=0.11"` |
 | `ocrmypdf` + system `tesseract-ocr` | OCR for scanned worksheets with no text layer | M1 | Optional in dev, **required in production** for scanned uploads | `apt-get install -y ocrmypdf tesseract-ocr` then `pip install "ocrmypdf>=16"` |
@@ -625,7 +625,7 @@ frontend/asclepius/ehr/admin.js           M5
 4. Parse lab tables inside "Lab report" segments into `lab_panels` when `pdfplumber` is available. When it is not, keep them as notes only; the chart builder can still extract values from text in M2.
 5. **Never store page images as assets.** An image-only page that could not be OCR'd was never screened for names or headers. It stays only inside the encrypted raw upload in quarantine. The entry is reported as unparsed (next paragraph).
 
-**Unparsed files.** A PDF whose pages cannot be read (scanned, no OCR installed) counts as an incomplete file. The existing orchestrator then raises a **blocking** `incomplete_upload` review on the upload's cases (`_raise_review` with `incomplete_upload`, `asclepius/ingestion.py:2100`), and no chart builds until an admin resolves it. That is correct behaviour and must not be weakened. The admin either re-uploads with OCR enabled or clears the review with a written reason through the existing route `POST /ingestion/cases/{ingest_case_id}/review/clear` (`clear_case_review`, `routers/asclepius.py:7422`).
+**Unparsed files.** A PDF whose pages cannot be read (scanned, no OCR installed) counts as an incomplete file. The existing orchestrator then raises a **blocking** `incomplete_upload` review on the upload's cases (`_raise_review` with `incomplete_upload`, `asclepius/ingestion.py:2100`), and no chart builds until an admin resolves it. That is correct behaviour and must not be weakened. The admin either re-uploads with OCR enabled or clears the review with a written reason through the existing route `POST /ingestion/cases/{ingest_case_id}/review/clear` (`clear_case_review`, `routers/asclepius.py:7442`).
 
 **Edits to existing files in M1 (the complete list; nothing else in ingestion changes):**
 
@@ -979,7 +979,7 @@ full_success = all four checkpoints == 'pass' and not hard_fail
 
 `reviews.select_reviewers(review, n)`:
 
-1. **Candidates** come from `reviews.load_candidates(store)`, a thin copy of the `Physician` construction in the admin router (`routers/asclepius_admin.py:3763`): active, non-mock, verified evaluators, with domain match for `nephrology`. Keep a comment pointing to the original. Each candidate must pass `_eligible_to_review` (`asclepius/allocation.py:183`): specialty match ≥ 0.5, `real_data_approved`, `can_review`. **Plus** the agreement check that `_eligible_to_review` does not do: when `physician_agreement.gate_enabled()`, `resignature_reason(store.latest_physician_agreement(user_id))` must be `None`. This is the same test `require_current_agreement` applies (`routers/asclepius.py:3654`).
+1. **Candidates** come from `reviews.load_candidates(store)`, a thin copy of the `Physician` construction in the admin router (`routers/asclepius_admin.py:3763`): active, non-mock, verified evaluators, with domain match for `nephrology`. Keep a comment pointing to the original. Each candidate must pass `_eligible_to_review` (`asclepius/allocation.py:183`): specialty match ≥ 0.5, `real_data_approved`, `can_review`. **Plus** the agreement check that `_eligible_to_review` does not do: when `physician_agreement.gate_enabled()`, `resignature_reason(store.latest_physician_agreement(user_id))` must be `None`. This is the same test `require_current_agreement` applies (`routers/asclepius.py:3655`).
 2. **Exclude:**
    - users in `ehr_source_exclusions` for this chart's upload (I12);
    - anyone who already has a verdict on this review;
