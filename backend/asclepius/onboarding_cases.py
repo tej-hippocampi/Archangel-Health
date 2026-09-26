@@ -265,6 +265,15 @@ def _forensic_tissue_study(study: dict) -> bool:
         r"(?:tissue|biopsy)[\s-]+(?:slide|section)|"
         r"(?:anatom(?:ic|ical)|clinical|surgical|dermato)[\s-]*patholog"
     )
+    # Biopsy specimens can also supply DNA profiles. Require a tissue-diagnostic
+    # result, rather than treating every reference to a biopsy as microscopy.
+    tissue_result = (
+        r"\b(?:biops(?:y|ies)|tissue)(?:\s+(?:specimens?|samples?|results?))?\s+"
+        r"(?:show(?:s|ed)?|reveal(?:s|ed)?|demonstrat(?:e|es|ed)|"
+        r"confirm(?:s|ed)?|identif(?:y|ies|ied))\b[^.;,\n]{0,160}"
+        r"\b(?:carcinoma|maligna\w*|tumou?r\w*|neopla\w*|dysplas\w*|"
+        r"hyperplas\w*|metasta\w*|atypia|atypical\s+(?:cells|nuclei))\b"
+    )
     absent_test = (
         r"(?:histopathology|histology|immunohistochemistry|cytopathology|microscopy|"
         r"(?:histopatholog(?:ic|ical)|histolog(?:ic|ical)|immunohistochemical|"
@@ -284,7 +293,7 @@ def _forensic_tissue_study(study: dict) -> bool:
             # supplied. A negative tissue result (e.g. no malignancy on H&E)
             # still requires tissue interpretation, as does any remaining clause.
             text = re.sub(absent_clause, "", text, flags=re.I)
-        if re.search(tissue_markers, text, re.I):
+        if re.search(tissue_markers, text, re.I) or re.search(tissue_result, text, re.I):
             return True
     return False
 

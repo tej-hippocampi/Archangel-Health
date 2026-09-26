@@ -117,6 +117,12 @@ def test_generic_modality_cannot_hide_tissue_study(field, text):
      'findings': 'Plantar responses are flexor bilaterally.'},
     {'modality': 'forensic genetics', 'label': 'DNA comparison report',
      'findings': 'Biopsy specimens revealed a DNA profile different from the comparator.'},
+    {'modality': 'clinical examination', 'label': 'Injury documentation',
+     'findings': 'Soft tissue showed bruising. The record separately reports a history of carcinoma.'},
+    {'modality': 'forensic genetics', 'label': 'DNA comparison report',
+     'findings': 'Biopsy revealed a DNA profile, and the record separately mentions prior carcinoma.'},
+    {'modality': 'clinical examination', 'label': 'Injury documentation',
+     'findings': 'Soft tissue showed atypical discoloration around the contusion.'},
 ])
 def test_forensic_record_review_studies_remain_allowed(study):
     entry = fixture_entry('forensic medicine')
@@ -168,6 +174,8 @@ def test_adjective_test_names_distinguish_absence_from_results(field, test_name)
         f'{test_name} showed malignant cells.',
         f'{test_name} showed no malignant cells.',
         f'No {test_name} was performed; biopsy sections showed invasive carcinoma.',
+        f'No {test_name} was performed; biopsy revealed invasive carcinoma.',
+        f'No {test_name} was performed; tissue showed malignant cells.',
     ):
         study[field] = result
         with pytest.raises(ValueError, match='outside_forensic_medicine_scope'):
@@ -181,6 +189,8 @@ def test_adjective_test_names_distinguish_absence_from_results(field, test_name)
     'No histology was performed, but H&E shows invasive nests.',
     'Histology was not performed. The tissue-slide shows atypical cells.',
     'No histology was performed; biopsy sections showed invasive carcinoma.',
+    'Biopsy showed no malignancy.',
+    'Tissue samples demonstrated atypical cells.',
 ])
 def test_negative_results_or_other_tissue_evidence_remain_excluded(findings):
     entry = fixture_entry('forensic medicine')

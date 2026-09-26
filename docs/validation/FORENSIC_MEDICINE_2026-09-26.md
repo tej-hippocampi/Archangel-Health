@@ -141,6 +141,15 @@ Independent review checked 1,152 adjective-form boundary combinations, confirmed
 both clinical artifact hashes and runtime validation, and found no remaining
 blocker. Fresh CI for this final correction is required before merge.
 
+The residual scope check also recognizes a biopsy/tissue result that names a
+tissue diagnosis without repeating a microscopy marker. Result verbs and
+diagnostic terms must occur in the same clause; DNA profiles, separate historical
+diagnoses and ordinary injury descriptions remain allowed. The exact final suite
+passes 338 tests, including raw biopsy carcinoma and malignant-cell findings after
+absent-test statements. Independent review passed 252 further boundary probes
+and reconfirmed both unchanged, runtime-valid clinical artifacts. Fresh CI gates
+the authorized merge.
+
 ## Production status
 
 Release preparation is tracked in PR179. No production account write, merge, deploy or email has occurred.

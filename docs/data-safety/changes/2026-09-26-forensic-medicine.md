@@ -82,3 +82,8 @@ Adjective test names now receive the same explicit-absence handling as their nou
 forms. Twenty-four paired regression cases and the 333-test targeted suite pass;
 independent review checked 1,152 boundary combinations. Both clinical documents
 remain unchanged and runtime-valid. No stored data is changed by this correction.
+
+Residual biopsy/tissue results naming a tissue diagnosis are now rejected even
+without repeated microscopy terms. Same-clause result matching preserves DNA,
+unrelated history and ordinary injury wording. The exact suite passes 338 tests;
+independent review passes 252 further probes. No artifact or stored data changes.
