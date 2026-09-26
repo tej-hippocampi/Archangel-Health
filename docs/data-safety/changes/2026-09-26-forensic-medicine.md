@@ -87,3 +87,8 @@ Residual biopsy/tissue results naming a tissue diagnosis are now rejected even
 without repeated microscopy terms. Same-clause result matching preserves DNA,
 unrelated history and ordinary injury wording. The exact suite passes 338 tests;
 independent review passes 252 further probes. No artifact or stored data changes.
+
+The result grammar now ties diagnostic terms directly to the specimen result,
+without skipping arbitrary DNA/history text. The exact suite passes 343 tests;
+independent review passes 369 probes. Clinical artifacts and stored data remain
+unchanged by this final scope-check correction.

@@ -123,6 +123,10 @@ def test_generic_modality_cannot_hide_tissue_study(field, text):
      'findings': 'Biopsy revealed a DNA profile, and the record separately mentions prior carcinoma.'},
     {'modality': 'clinical examination', 'label': 'Injury documentation',
      'findings': 'Soft tissue showed atypical discoloration around the contusion.'},
+    {'modality': 'forensic genetics', 'label': 'DNA comparison report',
+     'findings': 'Biopsy revealed a DNA profile and the record separately mentions prior carcinoma.'},
+    {'modality': 'clinical examination', 'label': 'Injury documentation',
+     'findings': 'Tissue showed bruising in a patient with a history of carcinoma.'},
 ])
 def test_forensic_record_review_studies_remain_allowed(study):
     entry = fixture_entry('forensic medicine')
@@ -191,6 +195,9 @@ def test_adjective_test_names_distinguish_absence_from_results(field, test_name)
     'No histology was performed; biopsy sections showed invasive carcinoma.',
     'Biopsy showed no malignancy.',
     'Tissue samples demonstrated atypical cells.',
+    'Biopsy revealed a poorly differentiated carcinoma.',
+    'Biopsy showed no significant cytologic atypia.',
+    'Tissue samples demonstrated features of invasive squamous cell carcinoma.',
 ])
 def test_negative_results_or_other_tissue_evidence_remain_excluded(findings):
     entry = fixture_entry('forensic medicine')

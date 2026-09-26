@@ -150,6 +150,14 @@ absent-test statements. Independent review passed 252 further boundary probes
 and reconfirmed both unchanged, runtime-valid clinical artifacts. Fresh CI gates
 the authorized merge.
 
+Result matching now requires the diagnosis directly after the result verb and
+explicit diagnostic qualifiers. It cannot skip arbitrary DNA-profile or history
+text, even without punctuation. This is a bounded lexical guard alongside the
+independent author/reviewer scope checks. The exact targeted suite passes 343
+tests. Independent review passed 369 probes for direct/qualified/negative results,
+absent tests and same-sentence unrelated history; both artifact hashes and runtime
+validation remain clear. Fresh final-commit CI is required before merge.
+
 ## Production status
 
 Release preparation is tracked in PR179. No production account write, merge, deploy or email has occurred.

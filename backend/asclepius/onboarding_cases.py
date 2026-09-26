@@ -270,7 +270,11 @@ def _forensic_tissue_study(study: dict) -> bool:
     tissue_result = (
         r"\b(?:biops(?:y|ies)|tissue)(?:\s+(?:specimens?|samples?|results?))?\s+"
         r"(?:show(?:s|ed)?|reveal(?:s|ed)?|demonstrat(?:e|es|ed)|"
-        r"confirm(?:s|ed)?|identif(?:y|ies|ied))\b[^.;,\n]{0,160}"
+        r"confirm(?:s|ed)?|identif(?:y|ies|ied))\s+"
+        r"(?:(?:an?|the|no|invasive|metastatic|focal|diffuse|significant|"
+        r"cytologic(?:al)?|(?:evidence|features)\s+of|(?:findings\s+)?consistent\s+with|"
+        r"(?:well|moderately|poorly)[\s-]+differentiated|"
+        r"(?:high|low)[\s-]+grade|(?:squamous|basal)[\s-]+cell)\s+){0,6}"
         r"\b(?:carcinoma|maligna\w*|tumou?r\w*|neopla\w*|dysplas\w*|"
         r"hyperplas\w*|metasta\w*|atypia|atypical\s+(?:cells|nuclei))\b"
     )
