@@ -762,7 +762,7 @@ def test_the_409_leads_somewhere_rather_than_dead_ending():
     the practice gate's 403 was shaped to avoid.
     """
     js = _PORTAL_JS.read_text(encoding="utf-8")
-    handler = js[js.index("const data = await api('/tasks/next"):]
+    handler = js[js.index("async function renderEvalView()"):]
     handler = handler[:handler.index("function renderEvalEmpty()")]
     # Comments stripped first: this asserts an ordering in the CODE, and the
     # comment explaining the branch naturally quotes the string it exists to
