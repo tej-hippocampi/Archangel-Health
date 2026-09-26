@@ -215,3 +215,10 @@ def test_conftest_does_not_hard_assign_the_behaviour_flags():
         assert f'os.environ["{flag}"]' not in text, (
             f"{flag} is hard-assigned in tests/conftest.py; use setdefault so a "
             "test module that needs the other behaviour can still choose it")
+
+
+def test_ehr_review_browser_gate_is_owned_by_chromium_job():
+    path = "tests/test_ehr_sandbox_ui.py"
+    assert path in ci_shard.EXCLUDED
+    workflow = (Path(BACKEND).parent / ".github/workflows/tests.yml").read_text()
+    assert path in workflow.split("  visual:", 1)[1].split("  onboarding-form:", 1)[0]
