@@ -92,6 +92,9 @@ def test_medicolegal_topics_and_no_pathology_studies(modality):
     ('findings', 'Hematoxylin and eosin stained tissue shows atypical cells.'),
     ('impression', 'Histopathology supports invasive carcinoma.'),
     ('impression', 'The supplied tissue-slide supports the diagnosis.'),
+    ('modality', 'immunohistochemistry'),
+    ('findings', 'Immunohistochemistry demonstrates tumor-cell staining.'),
+    ('impression', 'Cytopathology confirms squamous cell carcinoma.'),
 ])
 def test_generic_modality_cannot_hide_tissue_study(field, text):
     entry = fixture_entry('forensic medicine')
@@ -112,6 +115,8 @@ def test_generic_modality_cannot_hide_tissue_study(field, text):
      'findings': 'No fracture or hemorrhage.'},
     {'modality': 'clinical examination', 'label': 'Pathological reflex assessment',
      'findings': 'Plantar responses are flexor bilaterally.'},
+    {'modality': 'forensic genetics', 'label': 'DNA comparison report',
+     'findings': 'Biopsy specimens revealed a DNA profile different from the comparator.'},
 ])
 def test_forensic_record_review_studies_remain_allowed(study):
     entry = fixture_entry('forensic medicine')
@@ -126,6 +131,9 @@ def test_forensic_record_review_studies_remain_allowed(study):
     'No microscopic examination was undertaken.',
     'Microscopy never performed.',
     'No tissue slides were provided.',
+    'No biopsy sections were provided.',
+    'No immunohistochemistry was performed.',
+    'Cytopathology was not performed.',
     'H&E sections were not obtained.',
 ])
 def test_explicit_absent_tissue_test_does_not_exclude_clinical_exam(field, absent):
@@ -143,6 +151,7 @@ def test_explicit_absent_tissue_test_does_not_exclude_clinical_exam(field, absen
     'No histopathology was performed; microscopy showed tumor cells.',
     'No histology was performed, but H&E shows invasive nests.',
     'Histology was not performed. The tissue-slide shows atypical cells.',
+    'No histology was performed; biopsy sections showed invasive carcinoma.',
 ])
 def test_negative_results_or_other_tissue_evidence_remain_excluded(findings):
     entry = fixture_entry('forensic medicine')

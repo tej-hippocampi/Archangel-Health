@@ -124,6 +124,15 @@ of absence wording, field placement and positive/negative tissue evidence; all
 matched the intended outcomes. Clinical artifacts remain byte-identical and
 runtime-valid. No remaining blocker in the patch; fresh CI still gates merge.
 
+The final tissue-marker review also covers biopsy sections/slides,
+immunohistochemistry and cytopathology. Generic biopsy specimens used for DNA
+comparison remain allowed. Regression coverage includes explicit absence of
+these tests, actual tissue findings after an absent-test clause, and legitimate
+forensic genetic reports. The final targeted run passes 309 tests; neither
+clinical artifact changed. Independent final review checked 1,242 absence/mixed-
+result combinations and the legitimate CT, neurological, soft-tissue and DNA
+controls, with no material blocker. Fresh final-commit CI still gates merge.
+
 ## Production status
 
 Release preparation is tracked in PR179. No production account write, merge, deploy or email has occurred.

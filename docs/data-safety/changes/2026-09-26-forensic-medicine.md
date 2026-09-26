@@ -72,3 +72,8 @@ The final absence-wording correction masks only explicit statements that a test
 was not performed/supplied. Actual tissue results remain excluded, including
 negative results and mixed text. Twenty-three further regression parameters and
 the 295-test targeted suite pass. No clinical artifact or stored data is changed.
+
+Final marker coverage includes biopsy sections/slides, immunohistochemistry and
+cytopathology, preserving explicit absence handling and ordinary forensic DNA
+specimen reports. The final targeted run passes 309 tests with no case-file or
+stored-data changes.

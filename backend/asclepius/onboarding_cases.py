@@ -260,14 +260,15 @@ def _forensic_tissue_study(study: dict) -> bool:
                     str(study.get("label") or ""), re.I):
         return True
     tissue_markers = (
-        r"histolog|histopatholog|microscop|(?<!\w)h\s*&\s*e(?!\w)|ha?ematoxylin|"
-        r"tissue[\s-]+(?:slide|section)|"
+        r"histolog|histopatholog|immunohistochem|cytopatholog|microscop|"
+        r"(?<!\w)h\s*&\s*e(?!\w)|ha?ematoxylin|"
+        r"(?:tissue|biopsy)[\s-]+(?:slide|section)|"
         r"(?:anatom(?:ic|ical)|clinical|surgical|dermato)[\s-]*patholog"
     )
     absent_test = (
-        r"(?:histopathology|histology|microscopy|"
+        r"(?:histopathology|histology|immunohistochemistry|cytopathology|microscopy|"
         r"(?:histopathological|histological|microscopic)\s+(?:examination|analysis|study)|"
-        r"(?:tissue|h\s*&\s*e)[\s-]+(?:slides?|sections?))"
+        r"(?:tissue|biopsy|h\s*&\s*e)[\s-]+(?:slides?|sections?))"
     )
     absent_action = r"(?:performed|undertaken|obtained|provided)"
     absent_clause = (
