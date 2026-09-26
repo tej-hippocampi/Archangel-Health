@@ -61,3 +61,9 @@ Deployment/account repair remains separate from these isolated checks. Live
 backup/restore and scoped account preconditions must be verified at that boundary.
 No production write or deploy performed. Full results are recorded in
 docs/validation/FORENSIC_MEDICINE_2026-09-26.md.
+
+Final premerge hardening extends the study scope check from modality to visible
+label, findings and impression. No case document or stored record is rewritten.
+Twelve added regressions and the 272-test targeted suite pass; independent review
+confirmed restricted tissue studies are rejected and legitimate clinical/genetic
+record review remains allowed.

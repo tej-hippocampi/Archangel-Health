@@ -250,6 +250,24 @@ def _previous(store, specialty: str, ident: str) -> list[dict]:
     return [{"question": e["question"], "answer_key": e["case"].get("ground_truth")} for e in previous]
 
 
+def _forensic_tissue_study(study: dict) -> bool:
+    # A generic modality must not disguise tissue-slide inputs in other visible
+    # fields. Outside modality, "pathology" alone can describe ordinary imaging;
+    # require a tissue/microscopy or laboratory-specialty marker there.
+    if re.search(r"patholog|histolog|microscop", str(study.get("modality") or ""), re.I):
+        return True
+    if re.fullmatch(r"\s*pathology(?:\s+(?:report|study|examination))?\s*",
+                    str(study.get("label") or ""), re.I):
+        return True
+    tissue_markers = (
+        r"histolog|histopatholog|microscop|(?<!\w)h\s*&\s*e(?!\w)|ha?ematoxylin|"
+        r"tissue[\s-]+(?:slide|section)|"
+        r"(?:anatom(?:ic|ical)|clinical|surgical|dermato)[\s-]*patholog"
+    )
+    return any(re.search(tissue_markers, str(study.get(field) or ""), re.I)
+               for field in ("modality", "label", "findings", "impression"))
+
+
 def validate_entry(entry: dict, specialty: str, sources: list[dict], *, approved_asset: dict | None = None,
                    age_scope: str | None = None) -> dict:
     from asclepius.validation import residual_identifiers
@@ -272,8 +290,7 @@ def validate_entry(entry: dict, specialty: str, sources: list[dict], *, approved
     if assets and (specialty != "pathology" or assets != [approved_asset]):
         raise ValueError("external_case_asset")
     if specialty == "forensic medicine" and any(
-            re.search(r"patholog|histolog|microscop", str(study.get("modality") or ""), re.I)
-            for study in case.get("studies", [])):
+            _forensic_tissue_study(study) for study in case.get("studies", [])):
         raise ValueError("outside_forensic_medicine_scope")
     if approved_asset and (assets != [approved_asset] or case.get("study_findings_policy") != "hidden"):
         raise ValueError("pathology_image_required")

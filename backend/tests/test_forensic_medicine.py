@@ -83,6 +83,42 @@ def test_medicolegal_topics_and_no_pathology_studies(modality):
         bank.validate_entry(entry, 'forensic medicine', SOURCES)
 
 
+@pytest.mark.parametrize('field,text', [
+    ('label', 'Microscopic skin specimen'),
+    ('label', 'Pathology report'),
+    ('label', 'H&E tissue section'),
+    ('findings', 'H & E shows tumor cells in the specimen.'),
+    ('findings', 'Microscopy demonstrates invasive nests.'),
+    ('findings', 'Hematoxylin and eosin stained tissue shows atypical cells.'),
+    ('impression', 'Histopathology supports invasive carcinoma.'),
+    ('impression', 'The supplied tissue-slide supports the diagnosis.'),
+])
+def test_generic_modality_cannot_hide_tissue_study(field, text):
+    entry = fixture_entry('forensic medicine')
+    study = {'modality': 'clinical examination', 'label': 'Examination findings',
+             'findings': 'Findings supplied for the assessment.'}
+    study[field] = text
+    entry['case']['studies'] = [study]
+    with pytest.raises(ValueError, match='outside_forensic_medicine_scope'):
+        bank.validate_entry(entry, 'forensic medicine', SOURCES)
+
+
+@pytest.mark.parametrize('study', [
+    {'modality': 'CT', 'label': 'Head CT report',
+     'findings': 'No fracture or hemorrhage.', 'impression': 'No acute intracranial pathology.'},
+    {'modality': 'forensic genetics', 'label': 'DNA comparison report',
+     'findings': 'The supplied DNA profiles differ at two tested loci.'},
+    {'modality': 'CT', 'label': 'Intracranial pathology assessment',
+     'findings': 'No fracture or hemorrhage.'},
+    {'modality': 'clinical examination', 'label': 'Pathological reflex assessment',
+     'findings': 'Plantar responses are flexor bilaterally.'},
+])
+def test_forensic_record_review_studies_remain_allowed(study):
+    entry = fixture_entry('forensic medicine')
+    entry['case']['studies'] = [study]
+    assert bank.validate_entry(entry, 'forensic medicine', SOURCES)['case']['studies']
+
+
 def test_paused_pathology_exam_replaced_without_consuming_attempt_or_erasing_evidence(tmp_path):
     from scripts.data_inventory import snapshot, compare
     store = fresh_store()

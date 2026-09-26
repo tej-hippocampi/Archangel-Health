@@ -98,6 +98,21 @@ both imports and all document/entry/blind hashes, the exact audit-report hash,
 passed 36 forensic and full-coverage tests with no exclusions. No blocking
 findings remain for PR readiness; final-commit CI is still required.
 
+## Final review correction
+
+The premerge review identified a deterministic validation gap: a study using the
+generic modality clinical examination could hide microscopic tissue content in
+its label, findings or impression. The guard now inspects all four fields for
+specific histology, microscopy, H&E and tissue-slide markers. Generic pathology
+wording in ordinary CT/neurological findings and labels remains allowed. Twelve
+additional regressions cover the bypass and these legitimate record-review cases.
+
+The final targeted forensic/library/evidence/harness run passed 272 tests with no
+exclusions. Independent reviewer /root/final_merge_review confirmed the bypass is
+closed, the false positives are avoided, and both unchanged clinical artifacts
+still match their audit hashes and validate. Fresh CI on this correction is
+required before the user-authorized merge.
+
 ## Production status
 
 Release preparation is tracked in PR179. No production account write, merge, deploy or email has occurred.
