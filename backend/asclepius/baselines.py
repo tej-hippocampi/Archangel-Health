@@ -183,6 +183,9 @@ async def run_baselines(
     # prompt_hash so "same prompt, same image" is enforceable, not assumed.
     image_block, image_sha, _image_mime = _case_image_for_baseline(task)
     system = _BASELINE_SYSTEM_IMAGE if image_block else _BASELINE_SYSTEM
+    if (task or {}).get("trajectory_id"):
+        from asclepius.prompts import LONGITUDINAL_ANSWER_STYLE
+        system += "\n\n" + LONGITUDINAL_ANSWER_STYLE
     # Explicit generation temperature (Buyer Response PRD §10 G1): candidate
     # generation is deliberately warm (variety is the product), stamped and folded
     # into the hash so two records with the same hash are genuinely comparable.

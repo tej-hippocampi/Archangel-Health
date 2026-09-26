@@ -585,6 +585,16 @@ class IndependentAnswer(BaseModel):
     captured_at: Optional[str] = None
 
 
+class IndependentAnswerRevision(BaseModel):
+    """Server-derived correction after reveal; never a blind training target."""
+
+    text: str = ""
+    evidence_anchor: Optional[EvidenceAnchor] = None
+    evidence_anchors: List[EvidenceAnchor] = Field(default_factory=list)
+    capture_phase: str = "after_model_reveal"
+    revised_at: Optional[str] = None
+
+
 class SubmissionIn(BaseModel):
     # Client-generated so submit is idempotent across mid-task refresh (PRD §10).
     submission_id: Optional[str] = None
@@ -595,6 +605,8 @@ class SubmissionIn(BaseModel):
     # Stage-1/Stage-2 gated-capture fields (Eval Flow Upgrade §2, §3).
     prompt_review: Optional[PromptReview] = None
     independent_answer: Optional[IndependentAnswer] = None
+    # Incoming claims are discarded; derived from the authoritative reveal commit.
+    independent_answer_revision: Optional[IndependentAnswerRevision] = None
     chosen_id: Optional[str] = None
     rejected_id: Optional[str] = None
     chosen_revision: Optional[ChosenRevision] = None

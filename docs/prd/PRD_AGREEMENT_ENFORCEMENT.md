@@ -49,7 +49,7 @@ false; a string, integer, or non-empty initials field is not consent.
 
 | Symbol | Verified current location |
 |---|---|
-| require_current_agreement | `require_current_agreement` at backend/routers/asclepius.py:3655 |
+| require_current_agreement | `require_current_agreement` at backend/routers/asclepius.py:3661 |
 | next_double_label | `next_double_label` at backend/routers/asclepius_review.py:804 |
 | next_review | `next_review` at backend/routers/asclepius_review.py:390 |
 | next_review_pair | `next_review_pair` at backend/routers/asclepius_review.py:246 |
@@ -58,12 +58,12 @@ false; a string, integer, or non-empty initials field is not consent.
 | annotation_queue | `annotation_queue` at backend/routers/asclepius_env.py:161 |
 | get_run_for_annotation | `get_run_for_annotation` at backend/routers/asclepius_env.py:187 |
 | annotate_environment | `annotate_environment` at backend/routers/asclepius_env.py:202 |
-| trajectory_self_score | `trajectory_self_score` at backend/routers/asclepius.py:4780 |
-| qa_queue | `qa_queue` at backend/routers/asclepius.py:5933 |
-| qa_decision | `qa_decision` at backend/routers/asclepius.py:5962 |
-| qa_approve_all | `qa_approve_all` at backend/routers/asclepius.py:5944 |
-| list_submissions | `list_submissions` at backend/routers/asclepius.py:5877 |
-| get_submission | `get_submission` at backend/routers/asclepius.py:5889 |
+| trajectory_self_score | `trajectory_self_score` at backend/routers/asclepius.py:4787 |
+| qa_queue | `qa_queue` at backend/routers/asclepius.py:5954 |
+| qa_decision | `qa_decision` at backend/routers/asclepius.py:5983 |
+| qa_approve_all | `qa_approve_all` at backend/routers/asclepius.py:5965 |
+| list_submissions | `list_submissions` at backend/routers/asclepius.py:5898 |
+| get_submission | `get_submission` at backend/routers/asclepius.py:5910 |
 | save_asclepius_attestations | `save_asclepius_attestations` at backend/team_store.py:2201 |
 | provision_user | `provision_user` at backend/asclepius/store.py:4073 |
 | _attestations_complete | `_attestations_complete` at backend/routers/onboarding.py:70 |

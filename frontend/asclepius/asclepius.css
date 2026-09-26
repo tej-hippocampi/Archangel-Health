@@ -1343,22 +1343,6 @@
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   margin: 4px 2px 2px; flex-wrap: wrap;
 }
-.asc-stage-meta { display: flex; align-items: baseline; gap: 10px; }
-.asc-stage-step {
-  font-family: var(--mono);
-  font-size: 11px; font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.asc-stage-label { font-size: 15px; font-weight: 500; color: var(--asc-text); }
-.asc-stage-right { display: flex; align-items: center; gap: 14px; }
-.asc-stage-dots { display: flex; gap: 6px; }
-.asc-stage-dot {
-  width: 22px; height: 4px; border-radius: 2px; background: var(--asc-line-strong);
-  transition: background .16s cubic-bezier(.4,0,.2,1);
-}
-.asc-stage-dot.done { background: var(--green); }
-.asc-stage-dot.active { background: var(--ink); }
-
 /* The gate marks the model-content boundary: orange. */
 .asc-gate { border-top: 2px solid var(--orange-line); }
 .asc-gate-actions { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -6206,3 +6190,56 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .vq-detail-body > p { margin: 10px 0; line-height: 1.6; }
 .vq-detail-body > h3 { margin: 24px 0 12px; }
 .asc-exam-receipt > .asc-small { margin-top: 12px; }
+
+/* A consistent way back, with one current position and a compact step index. */
+.asc-workflow-nav {
+  position: sticky; top: 68px; z-index: 45;
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 8px;
+  min-width: 0; padding: 8px; margin: 0 0 16px;
+  background: var(--card); border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-md); box-shadow: var(--shadow-card);
+}
+.asc-case-cols > .asc-workflow-nav { align-self: start; margin-bottom: 0; }
+.asc-workflow-nav button, .asc-workflow-menu summary {
+  font-family: var(--sans); color: var(--ink); cursor: pointer;
+  border: 0; background: transparent; border-radius: var(--r-sm);
+  min-height: 44px; font-size: 13px;
+}
+.asc-workflow-nav button:hover:not(:disabled), .asc-workflow-menu summary:hover { background: var(--card-in); }
+.asc-workflow-nav button:focus-visible, .asc-workflow-menu summary:focus-visible {
+  outline: 2px solid var(--green-deep); outline-offset: 2px;
+}
+.asc-workflow-nav button:disabled { color: var(--ink-faint); cursor: default; }
+.asc-workflow-back, .asc-workflow-next { display: flex; align-items: center; gap: 7px; padding: 0 10px; white-space: nowrap; }
+.asc-workflow-menu { position: relative; flex: 1; min-width: 0; }
+.asc-workflow-menu summary { padding: 6px 10px; list-style: none; }
+.asc-workflow-menu summary::-webkit-details-marker { display: none; }
+.asc-workflow-position { display: block; font: 10px var(--mono); letter-spacing: .06em; color: var(--ink-soft); margin-bottom: 4px; }
+.asc-workflow-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 500; line-height: 1.4; }
+.asc-workflow-title > span { color: var(--ink-soft); }
+.asc-workflow-list {
+  position: absolute; top: calc(100% + 12px); left: 0; min-width: 300px;
+  max-width: calc(100vw - 36px); max-height: min(65vh, 580px); overflow-y: auto;
+  background: var(--card); border: 1px solid var(--hairline-strong); border-radius: var(--r-md);
+  padding: 8px; box-shadow: var(--shadow-float);
+}
+.asc-workflow-list button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px; }
+.asc-workflow-list button[aria-current="step"] { background: var(--green-wash); color: var(--green-deep); }
+.asc-workflow-number { display: grid; place-items: center; flex: 0 0 24px; height: 24px; border: 1px solid var(--hairline-strong); border-radius: 50%; font: 11px var(--mono); }
+.asc-workflow-status { margin-left: auto; color: var(--ink-soft); font-size: 11px; }
+.asc-workflow-tools { display: flex; align-items: center; gap: 4px; }
+.asc-workflow-tools .asc-workflow-flag { color: var(--ink-soft); border-left: 1px solid var(--hairline); border-radius: 0; padding: 0 12px; white-space: nowrap; }
+.asc-workflow-tools .asc-timer { display: none; }
+.asc-revision-note { padding: 12px 14px; border-left: 2px solid var(--green); background: var(--green-wash); border-radius: 0 var(--r-sm) var(--r-sm) 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+.asc-answer-body strong { font-weight: 600; }
+.asc-gate, [data-substage], [data-workflow-step], #ascAnswers { scroll-margin-top: 160px; }
+@media (max-width: 600px) {
+  .asc-workflow-nav { top: 62px; gap: 2px; padding: 5px; }
+  .asc-workflow-back { padding: 0 8px; }
+  .asc-workflow-back > span { display: none; }
+  .asc-workflow-next { padding: 0 7px; gap: 3px; }
+  .asc-workflow-tools .asc-workflow-flag { padding: 0 7px; font-size: 12px; }
+  .asc-workflow-menu summary { padding: 6px; }
+  .asc-workflow-title { font-size: 12px; }
+  .asc-workflow-list { left: -38px; min-width: min(320px, calc(100vw - 48px)); }
+}

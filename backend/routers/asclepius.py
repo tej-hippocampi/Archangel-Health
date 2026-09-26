@@ -2132,6 +2132,12 @@ async def submit_exam(
     served_specialty = (exam_case.task_for_id(store, task_id) or {}).get("specialty") or picked["specialty"]
     if served_specialty != picked["specialty"]:
         raise HTTPException(status_code=409, detail="Your specialty has been corrected. Reopen the examination to load your specialty case; your previous draft is saved.")
+    from asclepius.answer_revision import preserve_blind_answer
+    body = dict(body)
+    preserve_blind_answer(store, task_id, user["id"], body)
+    if (body.get("prompt_review") or {}).get("verdict") in ("flagged", "case_incoherent", "not_hard"):
+        from asclepius.answer_revision import screen_flag_work
+        screen_flag_work(body)
     exam_id, created = store.record_credentialing_exam(
         user_id=user["id"], task_id=task_id, specialty=served_specialty,
         attempt=attempt, payload=body,
@@ -4460,7 +4466,7 @@ async def reveal_task_answers(
     # passed off as a full blind ideal answer.
     pv = _derive_portal_version(task, body.portal_version)
     kind = independent_capture_kind(pv, task.get("independent_mode"))
-    store.commit_independent_answer(
+    commit = store.commit_independent_answer(
         task_id=task_id,
         evaluator_id=user["id"],
         payload={
@@ -4479,7 +4485,8 @@ async def reveal_task_answers(
         entity_type="task", entity_id=task_id,
         event_type="independent_answer_committed", actor=user["id"],
     )
-    return {"answers": _task_answers(task), "committed": True}
+    return {"answers": _task_answers(task), "committed": True,
+            "independent_answer": commit["payload"]}
 
 
 def _derive_portal_version(task: Dict[str, Any], claimed: Optional[str]) -> str:
@@ -4988,6 +4995,10 @@ async def submit(
         safe_note = "[redacted: possible identifier detected]" if note_phi else review.note
         flag_pv = _derive_portal_version(task, body.portal_version)
         flagged_payload = body.model_dump()
+        from asclepius.answer_revision import preserve_blind_answer
+        preserve_blind_answer(store, body.task_id, user["id"], flagged_payload)
+        from asclepius.answer_revision import screen_flag_work
+        screen_flag_work(flagged_payload)
         flagged_payload["portal_version"] = flag_pv
         if note_phi:
             (flagged_payload.get("prompt_review") or {})["note"] = safe_note
@@ -5052,6 +5063,10 @@ async def submit(
         nh_safe_note = "[redacted: possible identifier detected]" if nh_note_phi else review.note
         nh_pv = _derive_portal_version(task, body.portal_version)
         nh_payload = body.model_dump()
+        from asclepius.answer_revision import preserve_blind_answer
+        preserve_blind_answer(store, body.task_id, user["id"], nh_payload)
+        from asclepius.answer_revision import screen_flag_work
+        screen_flag_work(nh_payload)
         nh_payload["portal_version"] = nh_pv
         if nh_note_phi:
             (nh_payload.get("prompt_review") or {})["note"] = nh_safe_note
@@ -5083,6 +5098,10 @@ async def submit(
         ci_safe_note = "[redacted: possible identifier detected]" if ci_note_phi else review.note
         ci_pv = _derive_portal_version(task, body.portal_version)
         ci_payload = body.model_dump()
+        from asclepius.answer_revision import preserve_blind_answer
+        preserve_blind_answer(store, body.task_id, user["id"], ci_payload)
+        from asclepius.answer_revision import screen_flag_work
+        screen_flag_work(ci_payload)
         ci_payload["portal_version"] = ci_pv
         if ci_note_phi:
             (ci_payload.get("prompt_review") or {})["note"] = ci_safe_note
@@ -5113,6 +5132,8 @@ async def submit(
         raise HTTPException(status_code=400, detail="Invalid confidence")
 
     payload = body.model_dump()
+    from asclepius.answer_revision import preserve_blind_answer
+    preserve_blind_answer(store, body.task_id, user["id"], payload)
 
     # §13 (Eval UX Overhaul): derive step_error_tag (and, for note-only corrected
     # steps, the correction_reason + label) from the physician's free-text
@@ -8270,8 +8291,10 @@ async def _generate_one_real_case(
     failure_mode = real_cases.derive_ai_failure_mode(
         case, difficulty, empirical.get("failure_reasons") or [])
     prompt = asc_cases.render_case_prompt(case, question)
-    cg = await generate_candidates_ex(prompt, specialty=specialty,
-                                      ai_failure_mode=failure_mode)
+    cg = await generate_candidates_ex(
+        prompt, specialty=specialty, ai_failure_mode=failure_mode,
+        longitudinal=trajectory_id is not None,
+    )
     candidates = cg.get("candidates") or []
     if len(candidates) < 2:
         # Report what actually went wrong. "no LLM key configured?" was a guess,

@@ -2948,7 +2948,7 @@
       initDraftForTask(state.task);
       // Resuming straight into the compare stage (e.g. mid-task refresh) needs the
       // withheld answer texts loaded before they're rendered.
-      if (state.draft.stage === 'compare') {
+      if (state.draft.stage === 'compare' || state.draft.answers_revealed) {
         try { await loadWithheldAnswersIfNeeded(); } catch (e) { /* compare shows a reload hint */ }
       }
       if (state.screenGeneration !== screen || state.token !== token) return;
@@ -3126,7 +3126,7 @@
       initDraftForTask(state.task);
       state.draft.portal_version = 'v3';
       saveDraft();
-      if (state.draft.stage === 'compare') {
+      if (state.draft.stage === 'compare' || state.draft.answers_revealed) {
         try { await loadWithheldAnswersIfNeeded(); } catch (e) {
           if (e.status === 401) throw e;
           // The workspace offers Retry for a temporary reveal failure.
@@ -3882,7 +3882,7 @@
       if (state.screenGeneration !== screen || state.token !== token) return;
       renderHeader();
       initDraftForTask(state.task);
-      if (state.draft.stage === 'compare') {
+      if (state.draft.stage === 'compare' || state.draft.answers_revealed) {
         try { await loadWithheldAnswersIfNeeded(); } catch (e) { /* compare shows a reload hint */ }
       }
       if (state.screenGeneration !== screen || state.token !== token) return;
@@ -3993,6 +3993,11 @@
       // Gated-capture stage machine (Eval Flow Upgrade §1): prompt_review ->
       // independent_answer -> compare. Persisted so a refresh resumes the stage.
       stage: 'prompt_review',
+      answers_revealed: false,
+      independent_answer_original: null,
+      navigation_step: null,
+      visited_steps: [],
+      verdict_drafts: {},
       // A directly opened assignment can belong to a different flow than the
       // saved picker preference. Use the version returned with this task.
       portal_version: state.servedVersion || getPortalVersion(),
@@ -4026,6 +4031,7 @@
       rubric_done: false,
       confidence_set: false,
       rubricCursor: 0,
+      answer_review_needed: false,
       rubricSeedHash: null,
       // Rubric capture (FEAT-2): the weighted +/− criteria the doctor confirms.
       // ``rubricSeeded`` guards the one-time auto-seed from the doctor's tags.
@@ -4043,6 +4049,8 @@
     // A paused exam may still have a reveal/split response in flight.
     state._revealing = false;
     state.splitting = false;
+    state._rubricSeeding = false;
+    state._verdictRevision = (state._verdictRevision || 0) + 1;
     state.splitAttemptedFor = null;
     let draft = null;
     const storageKey = draftKey(task.task_id);
@@ -4051,6 +4059,11 @@
     try { draft = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch (e) { draft = null; }
     if (!draft || draft.task_id !== task.task_id) draft = newDraft(task);
     draft.storage_key = storageKey;
+    if (draft.answers_revealed === undefined) draft.answers_revealed = draft.stage === 'compare';
+    if (!Array.isArray(draft.visited_steps)) draft.visited_steps = [];
+    if (!draft.verdict_drafts || typeof draft.verdict_drafts !== 'object') draft.verdict_drafts = {};
+    state._reopenedSubstage = draft.navigation_step || null;
+    state._lastSubstage = null;
     // ── Structural backfill, BEFORE anything reaches inside these objects ──
     // Every member backfill below dereferences one of them, so a draft missing
     // one threw a TypeError right here — and openTaskById caught it, leaving
@@ -4494,14 +4507,14 @@
         pending.continuation ? 'Continue to next case' : 'Continue outcome review'));
   }
 
-  // Only navigation reads have a deadline. Abandoning a slow read must never
-  // resubmit a physician's already committed answer or flag.
-  async function readCaseTransition(path) {
+  // Bound navigation reads and idempotent answer reveals. Submission writes
+  // use their existing receipt/recovery path and are never retried here.
+  async function readCaseTransition(path, opts) {
     const controller = new AbortController();
     let timer;
     try {
       return await Promise.race([
-        api(path, { signal: controller.signal }),
+        api(path, Object.assign({}, opts, { signal: controller.signal })),
         new Promise((_, reject) => {
           timer = setTimeout(() => {
             reject({ status: 0, message: 'This is taking longer than expected. Please try again.' });
@@ -5086,9 +5099,11 @@
   // One save + re-render + submit-state pass; every section's Save/Continue
   // funnels through here so advancing is a single code path.
   function refreshStagedFlow() {
+    state.draft.navigation_step = null;
     saveDraft();
     renderRationale();
     updateSubmitState();
+    refreshWorkflowNav();
   }
 
   // Smooth-scroll a freshly-mounted section's heading to ~120px below the
@@ -5110,11 +5125,11 @@
     const d = state.draft;
     if (!d) return { done: 0, total: 1, pct: 0 };
     const steps = [];
-    steps.push({ key: 'prompt_review', done: d.stage !== 'prompt_review' });
-    steps.push({ key: 'independent_answer', done: d.stage === 'compare' });
+    steps.push({ key: 'prompt_review', done: d.prompt_review.verdict === 'valid' });
+    steps.push({ key: 'independent_answer', done: !!d.answers_revealed });
     if (isV3()) {
       compareSubstages().forEach((k) => {
-        steps.push({ key: k, done: d.stage === 'compare' && substageComplete(k) });
+        steps.push({ key: k, done: substageComplete(k) });
       });
     } else {
       steps.push({ key: 'compare', done: false }); // completes at submit
@@ -5194,7 +5209,7 @@
   // info dot; every §1 section mounts through this.
   function sectionCard(key, info, ...children) {
     const meta = SUBSTAGE_META[key] || { chrome: key.toUpperCase(), title: key };
-    const n = compareSubstages().indexOf(key) + 1;
+    const n = compareSubstages().indexOf(key) + 3;
     return h('div', { class: 'asc-card asc-card-pad asc-substage', dataset: { substage: key } },
       h('div', { class: 'asc-substage-head' },
         h('div', { class: 'asc-substage-step' }, 'STEP ' + n + ' · ' + meta.chrome),
@@ -5208,34 +5223,111 @@
   // compare stage reveals A/B.
   const STAGES = ['prompt_review', 'independent_answer', 'compare'];
 
-  function stageHeader(label) {
+  function workflowSteps() {
     const d = state.draft;
-    const n = STAGES.indexOf(d.stage) + 1;
-    const dots = h('div', { class: 'asc-stage-dots' });
-    STAGES.forEach((s, i) => dots.appendChild(
-      h('span', { class: 'asc-stage-dot' + (i < n ? ' done' : '') + (i === n - 1 ? ' active' : '') })));
-    // V1/V2: the compare stage's submit bar owns the live #ascTimer (avoid a
-    // duplicate id, only the first match would update); stages 1–2 host it here.
-    // V3/V4: the submit bar is DEFERRED to the confidence substage (§15), and its
-    // V3 variant carries no timer; this header owns #ascTimer in every stage.
-    const timer = (d.stage === 'compare' && !isV3())
-      ? null
-      : h('span', { class: 'asc-timer', id: 'ascTimer', 'data-tour-ignore': '1' }, formatTime(getElapsed()));
-    // §16: the step counter reads from taskProgress(); the same single source
-    // of truth as the header bar. V1/V2's 3-stage list yields the same "Step N
-    // of 3" text as before; V3/V4 span the full substage flow.
-    let stepText;
-    if (isV3()) {
-      const p = taskProgress();
-      stepText = 'Step ' + Math.min(p.done + 1, p.total) + ' of ' + p.total;
-    } else {
-      stepText = 'Step ' + n + ' of ' + STAGES.length;
+    const first = [
+      { key: 'prompt_review', title: 'Review the case' },
+      { key: 'independent_answer', title: isV3() ? 'Your crux answer' : 'Your answer' },
+    ];
+    const keys = isV3() ? compareSubstages() : ['compare'].concat(!d.verdict ? []
+      : d.verdict === 'both_inadequate' ? ['from_scratch', 'reasoning', 'confidence']
+      : ['refine', 'critique_rejected'].concat(state.task.capture_reasoning ? ['reasoning'] : [], ['confidence']));
+    return first.concat(keys.map(key => ({ key, title: SUBSTAGE_META[key].title })));
+  }
+
+  function workflowCurrent() {
+    const d = state.draft;
+    if (d.stage !== 'compare') return d.stage;
+    if (d.navigation_step && workflowSteps().some(s => s.key === d.navigation_step)) return d.navigation_step;
+    return isV3() ? (currentSubstage() === 'done' ? 'confidence' : currentSubstage()) : 'compare';
+  }
+
+  function workflowReachable(key) {
+    const d = state.draft;
+    if (key === 'prompt_review') return true;
+    if (d.prompt_review.verdict !== 'valid') return false;
+    if (key === 'independent_answer') return true;
+    if (!d.answers_revealed) return false;
+    if (key === 'compare') return true;
+    if (!d.verdict) return false;
+    if (!isV3()) return true;
+    const list = compareSubstages(), first = currentSubstage();
+    return first === 'done' || list.indexOf(key) <= list.indexOf(first)
+      || (d.visited_steps || []).includes(key);
+  }
+
+  function goToWorkflowStep(key, flag) {
+    if (state.submitting || state._revealing || !workflowReachable(key)) return;
+    const d = state.draft;
+    d.navigation_step = key;
+    d.stage = STAGES.includes(key) ? key : 'compare';
+    state._reopenedSubstage = key;
+    saveDraft();
+    renderTaskWorkspace();
+    const target = document.querySelector('[data-workflow-step="' + key + '"]')
+      || document.querySelector('[data-substage="' + key + '"]')
+      || document.querySelector('.asc-gate') || document.getElementById('ascAnswers');
+    if (flag) {
+      const button = Array.from(document.querySelectorAll('.asc-gate button'))
+        .find(b => b.textContent === 'Flag as invalid');
+      if (button) button.click();
+    } else if (target) {
+      target.setAttribute('tabindex', '-1');
+      target.focus({ preventScroll: true });
     }
-    return h('div', { class: 'asc-stage-head' },
-      h('div', { class: 'asc-stage-meta' },
-        h('span', { class: 'asc-stage-step' }, stepText),
-        h('span', { class: 'asc-stage-label' }, label)),
-      h('div', { class: 'asc-stage-right' }, dots, timer));
+    if (target) target.scrollIntoView({ block: 'start', behavior: 'auto' });
+  }
+
+  function stageHeader() {
+    const d = state.draft, steps = workflowSteps(), current = workflowCurrent();
+    const index = Math.max(0, steps.findIndex(s => s.key === current));
+    if (!d.visited_steps) d.visited_steps = [];
+    if (!d.visited_steps.includes(current)) { d.visited_steps.push(current); saveDraft(); }
+    const busy = state.submitting || state._revealing;
+    const shortTitles = { compare: 'Compare answers', refine: 'Refine your answer', why_better: 'Why it’s better',
+      citations: 'Sources', critique_rejected: 'Review the other answer', from_scratch: 'Your ideal answer',
+      reasoning: 'Reasoning', rubric: 'Scoring guide', confidence: 'Review & submit' };
+    const menu = h('details', { class: 'asc-workflow-menu' });
+    const summary = h('summary', { 'aria-label': 'All steps. Current step: ' + steps[index].title },
+      h('span', { class: 'asc-workflow-position' }, 'STEP ' + (index + 1) + ' OF ' + steps.length + ' · ALL STEPS'),
+      h('span', { class: 'asc-workflow-title' }, shortTitles[current] || steps[index].title, h('span', { 'aria-hidden': 'true' }, '⌄')));
+    menu.appendChild(summary);
+    const items = h('div', { class: 'asc-workflow-list', 'aria-label': 'Case steps' });
+    steps.forEach((step, i) => {
+      const reachable = workflowReachable(step.key);
+      const done = step.key === 'prompt_review' ? d.prompt_review.verdict === 'valid'
+        : step.key === 'independent_answer' ? d.answers_revealed : substageComplete(step.key);
+      items.appendChild(h('button', {
+        type: 'button', disabled: busy || !reachable,
+        'aria-current': step.key === current ? 'step' : null,
+        onClick: () => goToWorkflowStep(step.key),
+      }, h('span', { class: 'asc-workflow-number', 'aria-hidden': 'true' }, done ? '✓' : String(i + 1)),
+      h('span', {}, step.title), h('span', { class: 'asc-workflow-status' },
+        step.key === current ? 'Current' : !reachable ? 'Upcoming' : done ? 'Edit' : 'Open')));
+    });
+    menu.appendChild(items);
+    menu.addEventListener('keydown', e => { if (e.key === 'Escape') { menu.open = false; summary.focus(); } });
+    menu.addEventListener('focusout', () => setTimeout(() => { if (!menu.contains(document.activeElement)) menu.open = false; }, 0));
+    const previous = steps[index - 1], next = steps[index + 1];
+    return h('nav', { class: 'asc-stage-head asc-workflow-nav', 'aria-label': 'Labeling workflow' },
+      h('button', { class: 'asc-workflow-back', type: 'button', 'aria-label': 'Previous step',
+        disabled: busy || !previous || !workflowReachable(previous.key),
+        onClick: () => goToWorkflowStep(previous.key) }, '←', h('span', {}, 'Back')),
+      menu,
+      h('div', { class: 'asc-workflow-tools' },
+        h('button', { class: 'asc-workflow-next', type: 'button', 'aria-label': 'Next step',
+          title: next && workflowReachable(next.key) ? 'Next step' : 'Complete this step using the action below',
+          disabled: busy || !next || !workflowReachable(next.key),
+          onClick: () => goToWorkflowStep(next.key) }, 'Next', h('span', { 'aria-hidden': 'true' }, '→')),
+        h('button', { class: 'asc-workflow-flag', type: 'button', disabled: busy,
+          onClick: () => goToWorkflowStep('prompt_review', true) }, 'Flag case'),
+        (d.stage === 'compare' && !isV3()) ? null
+          : h('span', { class: 'asc-timer', id: 'ascTimer', 'data-tour-ignore': '1' }, formatTime(getElapsed()))));
+  }
+
+  function refreshWorkflowNav() {
+    const old = document.querySelector('.asc-workflow-nav');
+    if (old) old.replaceWith(stageHeader());
   }
 
   // ─── Home page: choose your evaluation experience (§5) ─────────────────────
@@ -5721,17 +5813,14 @@
     // The staged split-screen is a V3/V4 feature; V1 and V2 render exactly as
     // before so their submissions and exports stay byte-for-byte identical.
     if (!isV3()) {
-      const wrap = h('div', { class: 'asc-wrap' }, examBannerEl(), renderExperienceBadge(), promptCard, renderCasePanel(), groundingBanner);
+      const wrap = h('div', { class: 'asc-wrap' }, examBannerEl(), renderExperienceBadge(), stageHeader(), promptCard, renderCasePanel(), groundingBanner);
       if (d.stage === 'prompt_review') {
-        wrap.appendChild(stageHeader('Review the prompt'));
         wrap.appendChild(renderPromptGate());
         wrap.appendChild(blurredPlaceholder('The AI answers stay hidden until you confirm the prompt is clinically valid.'));
       } else if (d.stage === 'independent_answer') {
-        wrap.appendChild(stageHeader('Write your answer'));
         wrap.appendChild(renderIndependentAnswer());
         wrap.appendChild(blurredPlaceholder('Write your ideal answer first, then reveal the AI answers to compare.'));
       } else {
-        wrap.appendChild(stageHeader('Compare & grade'));
         renderCompareStage(wrap);
       }
       setRoot(wrap);
@@ -5750,8 +5839,7 @@
       // button on the screen that asks *is this case clinically valid* invites
       // answering without reading, and that gate feeds everything downstream.
       const wrap = h('div', { class: 'asc-wrap asc-wrap-case' },
-        examBannerEl(), renderExperienceBadge(), promptCard, renderCasePanel(), groundingBanner);
-      wrap.appendChild(stageHeader(d.stage === 'prompt_review' ? 'Review the prompt' : 'Write your answer'));
+        examBannerEl(), renderExperienceBadge(), stageHeader(), promptCard, renderCasePanel(), groundingBanner);
       wrap.appendChild(d.stage === 'prompt_review' ? renderPromptGate() : renderIndependentAnswer());
       wrap.appendChild(blurredPlaceholder(d.stage === 'prompt_review'
         ? 'The AI answers stay hidden until you confirm the prompt is clinically valid.'
@@ -6058,7 +6146,7 @@
     // the confidence pills inside it) must NOT mount at compare entry. It mounts
     // from the §1 substage machine, only when the flow reaches `confidence`.
     // V1/V2 keep the eager submit bar exactly as before.
-    if (!isV3()) wrap.appendChild(h('div', { class: 'asc-card' }, renderSubmitBar()));
+    if (!isV3()) wrap.appendChild(h('div', { class: 'asc-card', dataset: { workflowStep: 'confidence' } }, renderSubmitBar()));
     if (assisted) setTimeout(renderAssistHint, 0);
   }
 
@@ -6198,9 +6286,9 @@
   // Reuses the A/B sentence-diff primitives on (original, revised).
   function renderEditDiff(originalText, revisedText) {
     const wrap = h('div', { class: 'asc-editdiff' });
-    const oS = splitSentences(originalText || ''), rS = splitSentences(revisedText || '');
+    const oS = splitSentences(answerPlainText(originalText || '')), rS = splitSentences(answerPlainText(revisedText || ''));
     const flags = diffFlags(oS, rS);
-    if (!flags.any) { wrap.appendChild(h('span', { class: 'asc-diff-shared' }, revisedText || '')); return wrap; }
+    if (!flags.any) { wrap.appendChild(h('span', { class: 'asc-diff-shared' }, answerPlainText(revisedText || ''))); return wrap; }
     rS.forEach((s, i) => wrap.appendChild(sentenceNode(s, flags.b[i], null)));
     return wrap;
   }
@@ -6333,7 +6421,8 @@
 
   function validatePrompt() {
     const d = state.draft;
-    d.prompt_review = { reviewed: true, verdict: 'valid', attest_clinically_valid: true, note: '', reviewed_at: new Date().toISOString() };
+    d.prompt_review = { reviewed: true, verdict: 'valid', attest_clinically_valid: true, note: d.prompt_review.note || '', reviewed_at: new Date().toISOString() };
+    d.navigation_step = null;
     d.stage = 'independent_answer';
     saveDraft();
     renderTaskWorkspace();
@@ -6372,6 +6461,7 @@
       && state.token === token && state.view === view && state.panel === panel;
     d.prompt_review.reviewed = true;
     d.prompt_review.verdict = 'flagged';
+    d.prompt_review.attest_clinically_valid = false;
     d.prompt_review.reviewed_at = new Date().toISOString();
     saveDraft();
     if (examActive()) { await submitExamEvaluation(); return; }
@@ -6415,6 +6505,7 @@
       && state.token === token && state.view === view && state.panel === panel;
     d.prompt_review.reviewed = true;
     d.prompt_review.verdict = 'case_incoherent';
+    d.prompt_review.attest_clinically_valid = false;
     d.prompt_review.reviewed_at = new Date().toISOString();
     saveDraft();
     if (examActive()) { await submitExamEvaluation(); return; }
@@ -6556,14 +6647,14 @@
             placeholder: 'Write your full ideal answer to this prompt…' }, ia.text || '')
         : h('textarea', { class: 'asc-textarea', style: 'min-height:90px',
             placeholder: 'Your quick take: key points you\'d expect (bullets are fine). e.g. continue reduced-dose metformin · recheck eGFR 3 mo · watch for lactic acidosis.' }, ia.text || '');
-    const revealBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', id: 'ascRevealBtn', onClick: commitIndependentAnswerAndReveal }, 'Reveal AI answers →');
+    const revealBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', id: 'ascRevealBtn', onClick: commitIndependentAnswerAndReveal }, state.draft.answers_revealed ? 'Save & return to answers →' : 'Reveal AI answers →');
     const hint = h('span', { class: 'asc-submit-hint', id: 'ascRevealHint' });
     // Soft length cue for the instinct one-liner (guidance, not a gate).
     const counter = instinctMode ? h('span', { class: 'asc-instinct-count', id: 'ascInstinctCount' }) : null;
     const syncReveal = () => {
       const val = (ia.text || '').trim();
       const ok = val.length > 0;
-      revealBtn.disabled = !ok;
+      revealBtn.disabled = !ok || state._revealing;
       hint.textContent = ok ? '' : (instinctMode ? 'add your one-line gut check to continue'
         : fullMode ? 'write your answer to continue' : 'jot your quick take to continue');
       if (counter) counter.textContent = val.length > 140 ? 'keep it to one line' : '';
@@ -6577,11 +6668,13 @@
 
     const card = h('div', { class: 'asc-card asc-card-pad asc-gate' },
       h('div', { class: 'asc-card-title', style: 'margin-bottom:6px' },
-        instinctMode ? 'Quick gut check: in one line, what\'s the crux of the right answer?'
+        state.draft.answers_revealed ? 'Review your answer' : instinctMode ? 'Quick gut check: in one line, what\'s the crux of the right answer?'
           : fullMode ? 'Before you see the AI answers, write your ideal answer'
           : 'Before you see the answers, your quick take'),
+      state.draft.answers_revealed ? h('p', { class: 'asc-revision-note' },
+        'You’ve seen the AI answers. You can revise your answer here; your original answer is kept separately.') : null,
       h('p', { class: 'asc-help', style: 'margin-bottom:16px' },
-        instinctMode
+        state.draft.answers_revealed ? 'Update your clinical judgment or sources, then return to the comparison.' : instinctMode
           ? '~10 seconds. This commits your instinct before the A/B answers can anchor you; your refined chosen answer later is the gold.'
           : fullMode
             ? 'This is captured uncontaminated: your own gold answer, before the A/B answers can anchor your judgment.'
@@ -6591,7 +6684,7 @@
       h('div', { class: 'asc-gate-reveal' }, hint, revealBtn));
     setTimeout(syncReveal, 0);
     // Auto-focus the instinct one-liner so the doctor can type immediately (~10s target).
-    if (instinctMode) setTimeout(() => { try { field.focus(); } catch (e) { /* ignore */ } }, 30);
+    if (instinctMode && !state.draft.answers_revealed) setTimeout(() => { try { if (field.isConnected) field.focus(); } catch (e) { /* ignore */ } }, 30);
     return card;
   }
 
@@ -6614,16 +6707,22 @@
   async function revealAnswers() {
     const task = state.task, draft = state.draft, tutorial = state.tutorial;
     const ia = state.draft.independent_answer;
+    const original = JSON.parse(JSON.stringify(ia));
     // Tutorial: same non-empty-instinct rule, but against the virtual practice
     // case (no independent_commits row is written server-side).
     if (tutorialActive()) {
-      const res = await api('/tutorial/reveal', {
+      const res = await readCaseTransition('/tutorial/reveal', {
         method: 'POST', body: { task_id: task.task_id, text: (ia.text || '').trim() },
       });
-      if (workspaceRequestIsCurrent(task, draft, tutorial)) mergeAnswers(res.answers);
+      if (workspaceRequestIsCurrent(task, draft, tutorial)) {
+        mergeAnswers(res.answers);
+        draft.independent_answer_original = draft.independent_answer_original || original;
+        draft.answers_revealed = true;
+        saveDraft();
+      }
       return;
     }
-    const res = await api('/tasks/' + state.draft.task_id + '/reveal', {
+    const res = await readCaseTransition('/tasks/' + state.draft.task_id + '/reveal', {
       method: 'POST',
       body: {
         text: (ia.text || '').trim(),
@@ -6636,7 +6735,13 @@
         portal_version: draftVersion(),
       },
     });
-    if (workspaceRequestIsCurrent(task, draft, tutorial)) mergeAnswers(res.answers);
+    if (workspaceRequestIsCurrent(task, draft, tutorial)) {
+      mergeAnswers(res.answers);
+      draft.independent_answer_original = res.independent_answer || draft.independent_answer_original || original;
+      draft.independent_answer.captured_at = draft.independent_answer_original.captured_at || null;
+      draft.answers_revealed = true;
+      saveDraft();
+    }
   }
 
   // Re-fetch the answer text when resuming into the compare stage (e.g. a refresh)
@@ -6662,7 +6767,7 @@
     const btn = document.getElementById('ascRevealBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Revealing…'; }
     try {
-      await revealAnswers();
+      if (!d.answers_revealed || (task.candidate_answers || []).some(c => c.text == null)) await revealAnswers();
     } catch (e) {
       if (!workspaceRequestIsCurrent(task, d, tutorial)) return;
       state._revealing = false;
@@ -6671,28 +6776,70 @@
       return;  // stay on Stage 2 rather than reveal blank answers
     }
     if (!workspaceRequestIsCurrent(task, d, tutorial)) return;
-    d.independent_answer.captured_at = new Date().toISOString();
+    d.answers_revealed = true;
+    d.navigation_step = 'compare';
     d.stage = 'compare';
     saveDraft();
     state._revealing = false;
     if (state.screenGeneration === screen && state.token === token) renderTaskWorkspace();
   }
 
+  // Format matched emphasis in the view only. All offsets (diffs and model-error
+  // spans) refer to the original string; clinical text and stored answers are
+  // never rewritten. Text nodes, not HTML, keep model output inert.
+  function appendFormattedAnswer(node, text, diff, errSpans) {
+    const raw = text || '', ranges = [], edges = new Set([0, raw.length]);
+    const add = (start, end, kind, value) => {
+      if (end > start) { ranges.push({ start, end, kind, value }); edges.add(start); edges.add(end); }
+    };
+    const bold = /(\*\*|__)(?=\S)([\s\S]*?\S)\1/g;
+    let match;
+    while ((match = bold.exec(raw))) {
+      const start = match.index, end = start + match[0].length;
+      // Double underscores inside clinical identifiers are literal.
+      if (match[1] === '__' && (/\w/.test(raw[start - 1] || '') || /\w/.test(raw[end] || ''))) continue;
+      add(start, start + 2, 'omit'); add(end - 2, end, 'omit');
+      add(start + 2, end - 2, 'bold');
+    }
+    if (diff) {
+      let offset = 0;
+      diff.sents.forEach((sentence, i) => {
+        add(offset, offset + sentence.length, 'diff', diff.shared[i]);
+        offset += sentence.length;
+      });
+    }
+    for (const span of errSpans || []) {
+      if (!span) continue;
+      let offset = 0, found;
+      while ((found = raw.indexOf(span, offset)) !== -1) {
+        add(found, found + span.length, 'error'); offset = found + span.length;
+      }
+    }
+    const points = Array.from(edges).sort((a, b) => a - b);
+    for (let i = 0; i < points.length - 1; i++) {
+      const start = points[i], end = points[i + 1];
+      const active = ranges.filter(r => r.start <= start && r.end >= end);
+      if (active.some(r => r.kind === 'omit')) continue;
+      let leaf = document.createTextNode(raw.slice(start, end));
+      if (active.some(r => r.kind === 'bold')) leaf = h('strong', {}, leaf);
+      if (active.some(r => r.kind === 'error')) leaf = h('mark', { class: 'asc-err-span', title: 'Model-flagged likely error region' }, leaf);
+      const sentence = active.find(r => r.kind === 'diff');
+      if (sentence) leaf = h('span', { class: 'asc-diff-sent ' + (sentence.value ? 'asc-diff-shared' : 'asc-diff-changed') }, leaf);
+      node.appendChild(leaf);
+    }
+    return node;
+  }
+
+  function answerPlainText(text) {
+    return appendFormattedAnswer(document.createElement('div'), text, null, []).textContent;
+  }
+
   function renderAnswerCard(c, diff, assist) {
-    // Error spans (from the prelabel suggestion) only ever highlight inside the
-    // suggested-weaker answer, and never in full-text mode (nothing decorated).
     const errSpans = (!state.showFullText && assist && assist.suggested_weaker === c.id)
       ? (assist.error_spans || []) : [];
-    let body;
-    if (diff && diff[c.id]) {
-      body = h('div', { class: 'asc-answer-body asc-answer-diff' });
-      diff[c.id].sents.forEach((s, i) => body.appendChild(sentenceNode(s, diff[c.id].shared[i], errSpans)));
-    } else if (errSpans.length) {
-      // No usable sentence diff, but the error highlight is still valuable.
-      body = appendTextWithMarks(h('div', { class: 'asc-answer-body' }), c.text || '', errSpans);
-    } else {
-      body = h('div', { class: 'asc-answer-body' }, c.text || '');
-    }
+    const body = appendFormattedAnswer(h('div', {
+      class: 'asc-answer-body' + (diff && diff[c.id] ? ' asc-answer-diff' : ''),
+    }), c.text || '', diff && diff[c.id], errSpans);
     return h('div', { class: 'asc-answer', dataset: { id: c.id } },
       h('div', { class: 'asc-answer-head' },
         h('div', { class: 'asc-answer-tag' },
@@ -6718,23 +6865,29 @@
     // (and desync the draft from the posted payload).
     if (state.submitting) return;
     const d = state.draft;
-    const prevChosen = d.chosen_id;
+    const fields = ['chosen_revision', 'rejected_critique', 'from_scratch', 'reasoning_steps',
+      'rubric', 'rubricSeeded', 'rubricSeedHash', 'rubricCursor', 'confidence', 'answer_review_needed',
+      'refine_saved', 'why_better_done', 'citations_reviewed', 'critique_done',
+      'from_scratch_saved', 'reasoning_done', 'rubric_done', 'confidence_set', 'visited_steps'];
+    if (d.verdict !== verdict) {
+      d.verdict_drafts = d.verdict_drafts || {};
+      if (state._rubricSeeding) d.rubricSeeded = false;
+      state._openStep = 0;
+      if (d.verdict) d.verdict_drafts[d.verdict] = Object.fromEntries(fields.map(k => [k, d[k]]));
+      const branch = d.verdict_drafts[verdict] || newDraft(state.task);
+      fields.forEach(k => { d[k] = branch[k] === undefined ? newDraft(state.task)[k] : JSON.parse(JSON.stringify(branch[k])); });
+      state.splitAttemptedFor = null;
+      state._verdictRevision = (state._verdictRevision || 0) + 1;
+      state.splitting = false;
+      state._rubricSeeding = false;
+      state._lastSubstage = null;
+      state._reopenedSubstage = null;
+    }
+    d.navigation_step = null;
     d.verdict = verdict;
     if (verdict === 'A_better') { d.chosen_id = 'A'; d.rejected_id = 'B'; }
     else if (verdict === 'B_better') { d.chosen_id = 'B'; d.rejected_id = 'A'; }
     else { d.chosen_id = null; d.rejected_id = null; }
-    // If the chosen side changed, reset the revised text so it pre-fills fresh,
-    // and DROP the chosen-path reasoning steps: they were split/graded against the
-    // previous answer and must never ship attached to the new one. Clearing the
-    // once-per-task split guard lets the new chosen answer auto-split fresh.
-    if (d.chosen_id !== prevChosen) {
-      d.chosen_revision.revised_text = null;
-      d.reasoning_steps = [];
-      state.splitAttemptedFor = null;
-      // §1: sections completed against the previous answer must not survive it;
-      // the staged flow restarts at refine (data the doctor typed is kept).
-      if (isV3()) resetStagedFlow();
-    }
     saveDraft();
     // Update verdict button states
     const vc = document.getElementById('ascVerdicts');
@@ -6771,17 +6924,18 @@
     if (!container) return;
     clear(container);
     const d = state.draft;
-    if (!d.verdict) { updateHeaderProgress(); return; }
+    refreshWorkflowNav();
+    if (!d.verdict || d.navigation_step === 'compare') { updateHeaderProgress(); return; }
 
     if (!isV3()) {
       const box = h('div', { class: 'asc-rationale', style: 'margin-top:20px' });
       if (d.verdict === 'A_better' || d.verdict === 'B_better') {
-        box.appendChild(renderChosenCard());
-        box.appendChild(renderRejectedCard());
-        if (state.task.capture_reasoning) box.appendChild(renderStepsCard(false));
+        box.appendChild(h('div', { dataset: { workflowStep: 'refine' } }, renderChosenCard()));
+        box.appendChild(h('div', { dataset: { workflowStep: 'critique_rejected' } }, renderRejectedCard()));
+        if (state.task.capture_reasoning) box.appendChild(h('div', { dataset: { workflowStep: 'reasoning' } }, renderStepsCard(false)));
       } else if (d.verdict === 'both_inadequate') {
-        box.appendChild(renderFromScratchCard());
-        box.appendChild(renderStepsCard(true));
+        box.appendChild(h('div', { dataset: { workflowStep: 'from_scratch' } }, renderFromScratchCard()));
+        box.appendChild(h('div', { dataset: { workflowStep: 'reasoning' } }, renderStepsCard(true)));
       }
       container.appendChild(box);
       return;
@@ -6790,11 +6944,12 @@
     const list = compareSubstages().slice(1); // 'compare' is the verdict card above
     const cur = currentSubstage();
     if (d.substage !== cur) { d.substage = cur; saveDraft(); }
+    const selected = list.includes(d.navigation_step) ? d.navigation_step : null;
     const curIdx = cur === 'done' ? list.length : list.indexOf(cur);
     const box = h('div', { class: 'asc-rationale asc-staged', style: 'margin-top:20px' });
     list.forEach((key, i) => {
-      if (i > curIdx) return; // §1: the next section does not exist until its turn
-      const isCurrent = key === cur;
+      if (selected ? key !== selected : i > curIdx) return; // §1: the next section does not exist until its turn
+      const isCurrent = key === cur || key === selected;
       if (!isCurrent && key !== 'confidence' && substageComplete(key)
           && state._reopenedSubstage !== key) {
         box.appendChild(renderSubstageSummary(key));
@@ -6805,7 +6960,7 @@
     container.appendChild(box);
     // Scroll the freshly-mounted section under the sticky chrome when the flow
     // advanced (not on every repaint).
-    if (state._lastSubstage !== cur) {
+    if (!selected && state._lastSubstage !== cur) {
       const target = cur === 'done' ? 'confidence' : cur;
       state._lastSubstage = cur;
       setTimeout(() => scrollToSubstage(target), 40);
@@ -6847,14 +7002,12 @@
   }
 
   function renderSubstageSummary(key) {
-    const n = compareSubstages().indexOf(key) + 1;
+    const n = compareSubstages().indexOf(key) + 3;
     return h('button', {
       class: 'asc-substage-chip', type: 'button', dataset: { substage: key },
       title: 'Re-open this section',
       onClick: () => {
-        state._reopenedSubstage = key;
-        renderRationale();
-        setTimeout(() => scrollToSubstage(key), 40);
+        goToWorkflowStep(key);
       },
     },
       h('span', { class: 'asc-substage-chip-step' }, String(n)),
@@ -6893,13 +7046,29 @@
     return h('div', { class: 'asc-substage-actions' }, hint, btn);
   }
 
+  function answerContentChanged(previous, next) {
+    if (answerPlainText(previous || '') === answerPlainText(next || '')) return;
+    const d = state.draft;
+    if (d.reasoning_done || d.rubric_done) d.answer_review_needed = true;
+    d.refine_saved = false;
+    d.from_scratch_saved = false;
+    d.reasoning_done = false;
+    d.rubric_done = false;
+    d.confidence_set = false;
+    d.rubricCursor = 0;
+    state.splitAttemptedFor = null;
+    // Keep all authored work; the doctor reviews it against the new answer.
+    activeSteps().forEach(step => { if (!step.corrected && !step.added) step.confirmed = false; });
+    updateSubmitState();
+  }
+
   // ─── §9 Refine the winning answer ───────────────────────────────────────────
   function renderRefineSection() {
     const d = state.draft;
     const rev = d.chosen_revision;
     const original = chosenText();
     const ta = h('textarea', { class: 'asc-textarea asc-v3-editor', style: 'min-height:46vh' },
-      rev.revised_text != null ? rev.revised_text : original);
+      rev.revised_text != null ? rev.revised_text : answerPlainText(original));
     const editDiff = h('div', { class: 'asc-editdiff-wrap' });
     editDiff.setAttribute('hidden', '');
     const editDiffToggle = h('button', {
@@ -6917,8 +7086,9 @@
       },
     }, '⬍ Show what you changed');
     ta.addEventListener('input', () => {
+      answerContentChanged(rev.revised_text != null ? rev.revised_text : original, ta.value);
       rev.revised_text = ta.value;
-      rev.edited = ta.value !== original;
+      rev.edited = ta.value !== answerPlainText(original);
       saveDraft();
       if (!editDiff.hasAttribute('hidden')) {
         clear(editDiff);
@@ -6930,7 +7100,7 @@
       class: 'asc-btn asc-btn-primary asc-btn-lg', type: 'button',
       onClick: () => {
         rev.revised_text = ta.value;
-        rev.edited = ta.value !== original;
+        rev.edited = ta.value !== answerPlainText(original);
         d.refine_saved = true;
         state._reopenedSubstage = null;
         refreshStagedFlow();
@@ -7387,6 +7557,8 @@
       h('p', { class: 'asc-help', style: 'margin:4px 0 12px' },
         forBoth ? 'Optionally lay out the reasoning steps behind your ideal answer.'
           : 'Confirm each step, or open it and say what’s off, one step at a time.'),
+      d.answer_review_needed ? h('p', { class: 'asc-revision-note' },
+        'Your answer has changed. Review these steps against it, and edit or add any that need updating.') : null,
       h('div', { class: 'asc-steps', id: listId }),
       h('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' }, addBtn),
       sectionActions(hint, contBtn));
@@ -8009,7 +8181,7 @@
       : chosenRefinedText();
     const pinned = h('details', { class: 'asc-rubric-pin', open: '' },
       h('summary', {}, 'Your revised answer (reference)'),
-      h('div', { class: 'asc-rubric-pin-body' }, refText));
+      appendFormattedAnswer(h('div', { class: 'asc-rubric-pin-body' }), refText, null, []));
 
     const body = h('div', { id: 'ascRubricWizard' });
     // While a seed request is in flight and nothing exists yet, hold the wizard
@@ -8294,7 +8466,11 @@
   // 14.5: seeding is SILENT and automatic, invoked on rubric mount and again
   // (additively) whenever the doctor's tags change. Never prompts, never asks.
   async function seedRubric(force) {
-    const d = state.draft;
+    const d = state.draft, task = state.task, tutorial = state.tutorial;
+    const branchRevision = state._verdictRevision || 0;
+    const source = JSON.stringify([d.chosen_revision, d.rejected_critique, d.from_scratch]);
+    const current = () => workspaceRequestIsCurrent(task, d, tutorial)
+      && (state._verdictRevision || 0) === branchRevision;
     // Tutorial: /rubric/suggest is task-scoped (404 on the virtual case), and
     // authoring criteria by hand IS the lesson: mark seeded, fall to manual.
     if (tutorialActive()) { d.rubricSeeded = true; updateSubmitState(); return; }
@@ -8303,6 +8479,10 @@
     state._rubricSeeding = true;
     try {
       const res = await api('/rubric/suggest', { method: 'POST', body: buildSubmissionPayload() });
+      if (!current()) return;
+      if (source !== JSON.stringify([d.chosen_revision, d.rejected_critique, d.from_scratch])) {
+        d.rubricSeeded = false; return;
+      }
       const seeded = (res && res.criteria) || [];
       if (seeded.length) {
         if (force) {
@@ -8319,6 +8499,7 @@
       // Seeding is a convenience; never surface an error; the placeholder
       // resolves to the empty wizard below.
     } finally {
+      if (!current()) return;
       state._rubricSeeding = false;
       // Repaint the LIVE wizard (resilient if the section was rebuilt mid-seed;
       // never repaints over the doctor's typing).
@@ -8341,7 +8522,7 @@
     const ta = h('textarea', {
       class: 'asc-textarea' + (bigEditor ? ' asc-v3-editor' : ''),
       style: bigEditor ? 'min-height:46vh' : 'min-height:120px',
-    }, rev.revised_text != null ? rev.revised_text : original);
+    }, rev.revised_text != null ? rev.revised_text : answerPlainText(original));
     // WS4 (V3): a collapsible "what you changed" view diffs the revised gold
     // against the original so the doctor sees (and the record captures) their edits.
     const editDiff = h('div', { class: 'asc-editdiff-wrap' });
@@ -8361,8 +8542,9 @@
       },
     }, '⬍ Show what you changed') : null;
     ta.addEventListener('input', () => {
+      answerContentChanged(rev.revised_text != null ? rev.revised_text : original, ta.value);
       rev.revised_text = ta.value;
-      rev.edited = ta.value !== original;
+      rev.edited = ta.value !== answerPlainText(original);
       saveDraft();
       // Keep an open diff in sync as the doctor edits.
       if (editDiffToggle && !editDiff.hasAttribute('hidden')) {
@@ -8631,7 +8813,7 @@
   function renderFromScratchCard() {
     const fs = state.draft.from_scratch;
     const ideal = h('textarea', { class: 'asc-textarea', style: 'min-height:140px', placeholder: 'Write the ideal expert answer from scratch…' }, fs.ideal_answer || '');
-    ideal.addEventListener('input', () => { fs.ideal_answer = ideal.value; saveDraft(); updateSubmitState(); });
+    ideal.addEventListener('input', () => { answerContentChanged(fs.ideal_answer, ideal.value); fs.ideal_answer = ideal.value; saveDraft(); updateSubmitState(); });
     const approach = h('textarea', { class: 'asc-textarea', placeholder: 'Notes on your approach (optional)…' }, fs.approach_notes || '');
     approach.addEventListener('input', () => { fs.approach_notes = approach.value; saveDraft(); });
 
@@ -8718,6 +8900,8 @@
     const task = state.task, draft = state.draft, tutorial = state.tutorial;
     const text = chosenRefinedText().trim();
     const startedChosen = state.draft.chosen_id;
+    const branchRevision = state._verdictRevision || 0;
+    const startingSteps = JSON.stringify(activeSteps());
     if (!text || state.splitting) return;
     if (!force && activeSteps().length) return;
     state.splitting = true;
@@ -8741,7 +8925,9 @@
       // Discard if the doctor changed verdict/side while the split was in flight,
       // so results never land on a different answer. Write to the CURRENT array.
       if (workspaceRequestIsCurrent(task, draft, tutorial)
-          && state.draft.stage === 'compare' && state.draft.chosen_id === startedChosen) {
+          && state.draft.chosen_id === startedChosen
+          && (state._verdictRevision || 0) === branchRevision
+          && chosenRefinedText().trim() === text && JSON.stringify(activeSteps()) === startingSteps) {
         const steps = activeSteps();
         steps.length = 0;
         (res.steps || []).forEach((s) => {
@@ -8754,7 +8940,7 @@
       }
     } catch (e) { /* graceful: leave steps for manual entry */ }
     finally {
-      if (workspaceRequestIsCurrent(task, draft, tutorial)) {
+      if (workspaceRequestIsCurrent(task, draft, tutorial) && (state._verdictRevision || 0) === branchRevision) {
         state.splitting = false; repaintSteps(listId); updateSubmitState();
       }
     }
@@ -9399,7 +9585,8 @@
     }
     const d = state.draft;
     let ok = true, msg = '';
-    if (!d.verdict) { ok = false; msg = 'pick a verdict to continue'; }
+    if (!(d.independent_answer.text || '').trim()) { ok = false; msg = 'complete your answer before submitting'; }
+    else if (!d.verdict) { ok = false; msg = 'pick a verdict to continue'; }
     else if (d.verdict === 'both_inadequate' && !(d.from_scratch.ideal_answer || '').trim()) {
       ok = false; msg = 'write the ideal answer to continue';
     } else {
@@ -9431,6 +9618,9 @@
         }
         // §15 (V3/V4): confidence is an active choice, never the draft default.
         else if (isV3() && !d.confidence_set) { ok = false; msg = 'pick your confidence to submit'; }
+        else if (isV3() && currentSubstage() !== 'done') {
+          ok = false; msg = 'Review “' + SUBSTAGE_META[currentSubstage()].title + '” before submitting. Open it from the step menu above.';
+        }
         // Gap U2: the attestation gates the LABEL, never the rejection. The
         // reject button is its own control and is never disabled by this, which
         // is the whole point of putting it beside the checkbox.
@@ -9484,6 +9674,7 @@
     // polluting that. An empty field reads as an incomplete attempt, which is
     // true and is real information.
     if (tutorialActive()) { await submitTutorialEvaluation(); return; }
+    if (!(state.draft.independent_answer.text || '').trim()) { updateSubmitState(); return; }
     const g = groundingSatisfied();
     if (!g.ok) { updateSubmitState(); return; }
     const sr = stepsReview();
@@ -9497,7 +9688,7 @@
       const d0 = state.draft;
       const abVerdict = d0.verdict === 'A_better' || d0.verdict === 'B_better';
       if (abVerdict && (!whyBetterConditionsMet() || !critiqueConditionsMet())) { updateSubmitState(); return; }
-      if (!d0.confidence_set) { updateSubmitState(); return; }
+      if (!d0.confidence_set || currentSubstage() !== 'done') { updateSubmitState(); return; }
     }
     // The tutorial branch that used to be here has moved to the TOP of this
     // function. Leaving a copy behind would be dead code that reads as the
@@ -9735,8 +9926,8 @@
       const original = chosenText();
       const revised = d.chosen_revision.revised_text != null ? d.chosen_revision.revised_text : original;
       payload.chosen_revision = {
-        edited: revised !== original,
-        revised_text: revised,
+        edited: answerPlainText(revised) !== answerPlainText(original),
+        revised_text: answerPlainText(revised) === answerPlainText(original) ? original : revised,
         why_better_tags: d.chosen_revision.why_better_tags.slice(),
         why_better_notes: d.chosen_revision.why_better_notes || '',
         evidence_anchor: cleanAnchor(d.chosen_revision.evidence_anchor),

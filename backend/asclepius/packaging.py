@@ -916,6 +916,11 @@ def package_submission(task: Dict[str, Any], submission: Dict[str, Any],
             }
         )
 
+    # A reconsidered crux is context, never substituted for blind stance/gold.
+    revision = payload.get("independent_answer_revision")
+    if revision:
+        for record in records:
+            record["independent_answer_revision"] = dict(revision)
     return records
 
 
