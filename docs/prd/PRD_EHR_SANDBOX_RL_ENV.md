@@ -342,7 +342,7 @@ CREATE TABLE IF NOT EXISTS ehr_tasks (
   task_id         TEXT PRIMARY KEY,          -- 'ehrt-' + 12 hex
   visit_id        TEXT NOT NULL,
   task_kind       TEXT NOT NULL DEFAULT 'visit',  -- visit | probe_trend | probe_retrieval | probe_dose
-  env_version     TEXT NOT NULL,             -- e.g. 'neph-ehr-1.0.0'
+  env_version     TEXT NOT NULL,             -- e.g. 'neph-ehr-1.1.0'
   split           TEXT NOT NULL,             -- train | dev | heldout  (I11)
   seed            INTEGER NOT NULL,
   snapshot_json   TEXT NOT NULL,             -- the pre-sliced sandbox snapshot (target + decoys), synthetic dates
@@ -1263,7 +1263,7 @@ Every test file must be listed in exactly one CI shard (`scripts/ci_shard.py`; s
   - a same-day lab ordered at visit k is excluded, and one ordered earlier is included;
   - the visit-k worksheet is excluded;
   - unknown-offset items are excluded;
-  - the 8-token leak check trips on a planted copy;
+  - the 8-token leak check trips on a planted copy; identical earlier history is allowed only when its complete resource equals the deterministic slice of the immutable, independently dated source (qualification clarification, env1.1);
   - split by chart id;
   - balance downsampling.
 - **`identities`:** seeded determinism; never draws from source text; decoy confusability rules.
@@ -1507,7 +1507,7 @@ Every test file must be listed in exactly one CI shard (`scripts/ci_shard.py`; s
 ## Appendix B: One task row as exported (train/dev only; no key)
 
 ```json
-{"task_id":"ehrt-9c1e…","env_version":"neph-ehr-1.0.0","task_kind":"visit","split":"dev","seed":417,
+{"task_id":"ehrt-9c1e…","env_version":"neph-ehr-1.1.0","task_kind":"visit","split":"dev","seed":417,
  "instruction":"You are the nephrologist at an outpatient clinic. Today is Monday 3 March 2031. You are seeing Dana Whitaker (MRN 40318822, DOB 1957-06-14) for a scheduled follow-up visit. Use the EHR tools to review the chart, make today's clinical decisions, place any orders, and write today's visit note. Only act on this patient. Call finish_visit when you are done.",
  "now":"2031-03-03T09:00:00-08:00","budget_tool_calls":40,
  "tags":["F1","F2","F3","action"],
@@ -1519,7 +1519,7 @@ Every test file must be listed in exactly one CI shard (`scripts/ci_shard.py`; s
 
 | Var | Default | Meaning |
 |---|---|---|
-| `EHR_ENV_VERSION` | `neph-ehr-1.0.0` | Stamped on tasks and packages |
+| `EHR_ENV_VERSION` | `neph-ehr-1.1.0` | Stamped on tasks and packages |
 | `EHR_KEY_MIN_CONFIDENCE` | `0.80` | Key audit threshold (§8.4) |
 | `EHR_BUDGET_TOOL_CALLS` | `40` | Default per-task budget |
 | `EHR_CHECKPOINT_WEIGHTS` | `0.10,0.20,0.50,0.20` | RETRIEVE, REASON, ACT, DOCUMENT |

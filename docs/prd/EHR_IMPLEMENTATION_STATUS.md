@@ -61,12 +61,22 @@ Evidence files live outside the repository under workspace `output/ehr-sandbox/`
 
 ## Implementation decisions and limits
 
-The fixtures are handwritten and explicitly synthetic, as allowed by PRD §0;
-no Synthea generation or real-record provenance is claimed. Repeated worksheet
-boilerplate can trip the deliberately strict eight-token leakage gate. Such
-visits are excluded, with reasons; the implementation never rewrites source
-records to make them pass. Integration fixtures use distinct narratives and
-explicitly labeled synthetic audit waivers to exercise the downstream workflow.
+The fixtures are handwritten and explicitly synthetic. The expanded qualification
+archive contains 48 patients and 192 visits, including C-CDA and PDF+CSV inputs.
+Upload-to-export validation uses unmodified intake results and the real synthetic
+review assignment/verdict flow. The eight-token leakage check still rejects
+unknown/current provenance and altered content. Identical earlier content is
+allowed only when the entire resource equals the deterministic slice of its
+immutable, independently dated source; this handles repeated clinical history.
+
+Environment 1.1.0 adds public history pagination, finished-encounter end times,
+recoverable calculator errors, sequential medication end-state grading, exact
+synthetic identity/date echoes, and negation-aware documentation consistency.
+Narrative current regimens require affirmative current-list context and exact
+quoted drug, dose, frequency and route evidence. Dated successors preserve prior
+regimens and same-day structured decisions take precedence. Chart builder
+version 2 creates new chart identities so previously cached extraction does not
+silently claim these improvements.
 
 The clinical note rubric is an empty, versioned placeholder pending two actual
 nephrologists' approval. Until then, reports identify deterministic documentation
@@ -87,13 +97,32 @@ resolved physician grading policy. Approved LLM rubric judging is available in
 the control plane; portable delivery does not silently call a model provider.
 The HTTP service implements the documented reset/step/state protocol. The
 Verifiers adapter targets `verifiers>=0.1.8,<0.2`; actual external SDK/client and
-real-provider integration remain environment-specific checks, not claimed by
-fake-provider tests.
+real-provider integration is checked by the manual `llm-smoke` EHR mode;
+fake-provider tests alone do not establish it.
 
 OCR is optional locally and fails closed when unavailable; production scanned
 intake requires OCRmyPDF/Tesseract. Build/evaluation jobs run in the application
 process with persisted events, but do not automatically resume after a process
 restart; an operator can retry from retained inputs.
+
+
+## Expanded qualification (26 September 2026)
+
+- CI repair commit `b5560d3`: all 19 PR checks green, including backend/keyless
+  shards, Chromium, vulnerability scans and data preservation.
+- Expanded local suite: 369 passed; its browser test could not bind in the sandbox.
+  Both browser tests passed on an authorized Chromium rerun.
+- Complete synthetic upload: 48 patients, 192 visits, 188 ready visit episodes; 4 visits
+  excluded for insufficient age/sex-matched decoys in their split. 12 rollouts
+  completed through evaluation and synthetic review. Train export contains 341
+  visit/probe tasks. Separate grader replay matches stored final rewards.
+- Rebuilt agent/grader containers passed; private grader oracle reward 1.0.
+  HAPI search parity 40/40. Original preservation inventory unchanged.
+- Manual real-model CI mode prepares public tasks from the upload qualification,
+  then checks two worksheet extractions and four operational episodes across
+  Anthropic/OpenAI and native-tool/JSON protocols. It asserts requested action
+  semantics, retrieved evidence, documented writes, reset and deterministic replay.
+  Real-provider execution results are recorded separately once that run completes.
 
 ## Release and clinical acceptance
 

@@ -87,14 +87,24 @@ def assert_fhir_slice(resources,day):
         walk(r)
 
 
-def assert_no_worksheet_leak(resources,worksheet):
+def assert_no_worksheet_leak(resources,worksheet,*,source_resources=(),worksheet_ids=(),day=None):
     tokens=re.findall(r'\w+',worksheet.lower())
     sequences={' '.join(tokens[i:i+8]) for i in range(max(0,len(tokens)-7))}
-    texts=[document_text(r) if r['resourceType']=='DocumentReference' else dumps(r) for r in resources]
-    for text in texts:
+    sources={resource_ref(r):r for r in source_resources}
+    expected={resource_ref(r):r for r in slice_resources(source_resources,day)} if isinstance(day,int) else {}
+    for r in resources:
+        text=document_text(r) if r['resourceType']=='DocumentReference' else dumps(r)
         visible=re.findall(r'\w+',text.lower())
-        if any(' '.join(visible[i:i+8]) in sequences for i in range(max(0,len(visible)-7))):
-            raise ValueError('worksheet_text_overlap')
+        if not any(' '.join(visible[i:i+8]) in sequences for i in range(max(0,len(visible)-7))): continue
+        # Independently dated history can legitimately repeat today's language.
+        # Compare the complete resource with the deterministic source slice,
+        # including its permitted status/reference transformations.
+        original=sources.get(resource_ref(r))
+        historical=(original is not None
+                    and isinstance(day,int) and isinstance(ext(original),int) and ext(original)<day
+                    and ext(r)==ext(original) and r['id'] not in worksheet_ids
+                    and digest(r)==digest(expected.get(resource_ref(r))))
+        if not historical: raise ValueError('worksheet_text_overlap')
 
 
 def synthetic_resources(resources,day,seed,index,*,family=None,birth_year=None,gender=None,reference_resources=()):
@@ -116,7 +126,9 @@ def synthetic_resources(resources,day,seed,index,*,family=None,birth_year=None,g
             field={'Observation':'effectiveDateTime','DocumentReference':'date','MedicationRequest':'authoredOn',
                    'Condition':'recordedDate','ServiceRequest':'authoredOn','DiagnosticReport':'effectiveDateTime'}.get(r['resourceType'])
             if field: r[field]=at
-            if r['resourceType']=='Encounter': r['period']={'start':at}
+            if r['resourceType']=='Encounter':
+                r['period']={'start':at}
+                if r.get('status')=='finished': r['period']['end']=at
             if r['resourceType']=='Appointment':
                 due=ext(r,'dueInterval',0)
                 r['start']=(ANCHOR+timedelta(days=offset-day+due)).isoformat()+'T09:00:00-08:00'
@@ -245,7 +257,7 @@ def compile_chart(chart_id,*,store=None,dry_run=False):
             visible=slice_resources(resources,day); assert_fhir_slice(visible,day)
             assert_legacy_slice(visible,day)
             worksheet='\n'.join(document_text(r) for r in resources if r['resourceType']=='DocumentReference' and r['id'] in visit['document_ids'])
-            assert_no_worksheet_leak(visible,worksheet)
+            assert_no_worksheet_leak(visible,worksheet,source_resources=resources,worksheet_ids=visit['document_ids'],day=day)
             seed=int(digest(visit_id)[:8],16)
             snapshot,target,id_map=synthetic_resources(visible,day,seed,0)
             selected=decoy_peers(peers,day,seed,target,visible,third=len(upload_charts)>=20)

@@ -30,6 +30,9 @@ def calculate(formula,inputs):
                 raise ValueError(key+' must be positive')
     if 'age' in inputs and not 18<=inputs['age']<=120: raise ValueError('adult age must be 18 through 120')
     if 'sex' in inputs and inputs['sex'] not in ('male','female'): raise ValueError('equation requires sex male or female')
+    for key in ('from_unit','to_unit','analyte'):
+        if key in inputs and (not isinstance(inputs[key],str) or not inputs[key].strip()):
+            raise ValueError(key+' must be a nonempty string')
     female=inputs.get('sex')=='female'; units='mL/min/1.73m2'
     if formula.startswith('egfr_'):
         ratio=inputs['creatinine_mg_dl']/(0.7 if female else 0.9); age=inputs['age']
@@ -61,4 +64,5 @@ def calculate(formula,inputs):
         elif source==dest and source in (left,right): result=inputs['value']
         else: raise ValueError('unsupported units for analyte')
         units=inputs['to_unit']
+    if isinstance(result,(int,float)) and not math.isfinite(result): raise ValueError('result is outside the supported numeric range')
     return {'formula':formula,'inputs':inputs,'value':round(result,6) if isinstance(result,(int,float)) else result,'unit':units}

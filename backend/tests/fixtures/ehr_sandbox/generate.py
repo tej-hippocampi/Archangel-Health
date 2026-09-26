@@ -158,7 +158,21 @@ def archive(path: Path, entries: dict[str, bytes]) -> None:
             z.writestr(item, data)
 
 
+def qualification_archive() -> None:
+    entries={};mapping={}
+    for i in range(1,49):
+        if i<=24:
+            raw=ccda(i,4).replace(b'<doseQuantity',b'<effectiveTime xsi:type="PIVL_TS"><period value="24" unit="h"/></effectiveTime><doseQuantity')
+            files={f'p{i:02}__chart.xml':raw}
+        else:
+            files={f'p{i:02}__worksheets.pdf':pdf(i,4),f'p{i:02}__labs.csv':labs_csv(i,4)}
+        entries.update(files);mapping.update({name:f'p{i:02}' for name in files})
+    entries['manifest.json']=json.dumps({'specialty':'nephrology','deidentified':True,'note_type':'Visit worksheet','files':mapping}).encode()
+    archive(ROOT / 'qualification_patients.zip', entries)
+
+
 def generate() -> None:
+    qualification_archive()
     (ROOT / 'cases').mkdir(exist_ok=True)
     entries, mapping, patients = {}, {}, []
     for patient in range(1, 13):
@@ -195,7 +209,7 @@ def generate() -> None:
     archive(ROOT / 'unmapped_patients.zip', unmapped)
     manifest = {'synthetic': True, 'provenance': 'hand-authored; no source patient records or Synthea output',
                 'patients': patients, 'archives': {}}
-    for path in [ROOT / 'mixed_patients.zip', ROOT / 'unmapped_patients.zip']:
+    for path in [ROOT / 'mixed_patients.zip', ROOT / 'unmapped_patients.zip', ROOT / 'qualification_patients.zip']:
         manifest['archives'][path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
     (ROOT / 'fixture_manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 

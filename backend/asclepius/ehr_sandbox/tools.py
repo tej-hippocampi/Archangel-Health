@@ -30,11 +30,11 @@ class ToolRegistry:
         except jsonschema.ValidationError as exc: return outcome('invalid tool input at '+'.'.join(map(str,exc.path))+': '+exc.validator)
         self.sandbox.tool=name
         try: return self._execute(name,params)
-        except (ValueError,TypeError,KeyError,IndexError) as exc: return outcome(str(exc)[:200])
+        except (ValueError,TypeError,KeyError,IndexError,ArithmeticError) as exc: return outcome(str(exc)[:200])
 
     def _execute(self,name,p):
         s=self.sandbox
-        if name=='search_patients': return s.search('Patient',**p)
+        if name=='search_patients': return s.search('Patient',**{ {'count':'_count','page_token':'_page'}.get(k,k):v for k,v in p.items()})
         if name=='get_patient': return s.read('Patient',p['patient_id'])
         if name=='read_document':
             doc=s.read('DocumentReference',p['document_id'])
@@ -111,7 +111,9 @@ class ToolRegistry:
                 dosage['doseAndRate']=[{'doseQuantity':{'value':float(source_dose.group(1)),'unit':source_dose.group(2)}}]
             if not dosage.get('timing'):
                 source_text=dosage.get('text','').lower()
-                frequency=next((f for f in ('twice daily','three times daily','once daily','bid','tid','qid','daily','weekly') if re.search(r'\b'+f+r'\b',source_text)),None)
+                frequency=next((f for f in ('twice daily','three times daily','four times daily','once daily','every other day','once a week','at bedtime','every night','each morning','once a day','each day','bid','tid','qid','qhs','nightly','qd','qod','daily','weekly','hourly') if re.search(r'\b'+f+r'\b',source_text)),None)
+                interval=re.search(r'\b(?:every|q)\s*\d+\s*(?:hours?|h)\b',source_text)
+                if interval: frequency=interval.group(0)
                 if frequency: dosage['timing']={'code':concept(frequency)}
             quantity=dosage.setdefault('doseAndRate',[{'doseQuantity':{}}])[0].setdefault('doseQuantity',{})
             if 'dose_value' in p: quantity['value']=p['dose_value']

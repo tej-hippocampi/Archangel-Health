@@ -52,6 +52,7 @@ EXCLUDED = frozenset({"tests/test_asclepius_visual.py", "tests/test_hs_onboardin
 # everything else is close enough that listing it would be noise.
 DEFAULT_WEIGHT = 2.0
 WEIGHTS: Dict[str, float] = {
+    "tests/test_ehr_sandbox_upload_pipeline.py": 55.0,
     "tests/test_paired_review.py": 80.4,
     # Longitudinal E2E PRD. Measured rather than left at DEFAULT_WEIGHT: the
     # front-door file ingests four multi-MB real charts through the shipped

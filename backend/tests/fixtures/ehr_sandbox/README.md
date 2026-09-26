@@ -21,3 +21,16 @@ tests. It is not a shortcut around front-door ingestion acceptance tests.
 Regenerate using `python tests/fixtures/ehr_sandbox/generate.py` from backend
 (generation only: ReportLab and Pillow). ZIP timestamps and PDF metadata are
 fixed. The default suite reads committed files and does not invoke the generator.
+
+## Upload qualification archive
+
+`qualification_patients.zip` contains 48 hand-authored synthetic patients with
+four visits each: 24 C-CDA charts with explicit medication frequency, and
+24 PDF worksheets paired with CSV laboratories. `qualification_archive()` in
+`generate.py` reproduces it. No external source records are used.
+
+`test_ehr_sandbox_upload_pipeline.py` uploads this archive through the real
+partner API without rewriting parsed cases. It exercises source-grounded charts,
+synthetic key-review assignments, compilation, no-op/oracle/planted agents,
+review resolution/retry, report APIs, export and separate-grader replay.
+Synthetic reviewers/model responses validate software only.

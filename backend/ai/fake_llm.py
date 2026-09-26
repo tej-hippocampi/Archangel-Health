@@ -527,13 +527,17 @@ def _f_ehr_worksheet(ctx):
     """Engineering fixture only; never used as a clinical extraction fallback."""
     import re
     try:
-        text = json.loads(ctx.user_text()).get('worksheet', '')
+        text = ' '.join(json.loads(ctx.user_text()).get('worksheet', '').split())
     except (ValueError, AttributeError):
         text = ''
     value = {k: [] for k in ('assessments','med_changes','orders','referrals','med_continues','counseling')}
     value.update(follow_up=None, escalation=None)
     def item(match, **fields):
         return {**fields, 'source_span':match.group(0), 'confidence':0.95}
+    value['medications']=[]
+    current=text.split('Current medications:',1)[-1].split('Assessment:',1)[0] if 'Current medications:' in text else ''
+    for match in re.finditer(r'(\w+) ([\d.]+ mg) (once daily)',current):
+        value['medications'].append(item(match,drug=match.group(1),dose=match.group(2),frequency=match.group(3)))
     for match in re.finditer(r'CKD stage ([1-5]) \(N18\.([1-5])\)', text):
         value['assessments'].append(item(match, icd10='N18.'+match.group(2), text=match.group(0)))
     for match in re.finditer(r'Hypertension \(I10\)', text):

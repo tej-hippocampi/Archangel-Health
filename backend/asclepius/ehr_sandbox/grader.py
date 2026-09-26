@@ -80,6 +80,8 @@ def note_check(snapshot,overlay,target,actual,rubric=None,calculations=()):
             values.append(grounded)
             if not grounded: issues.append({'status':'hallucinated_value','group':group,'value':value})
     statements=[]
+    def negated_at(match):
+        return bool(re.search(r'\b(?:not|never|avoid|no)\s+(?:\w+\s+){0,2}$',plan[max(0,match.start()-30):match.start()],re.I))
     for m in re.finditer(r'\b(start|increase|decrease|reduce|stop|discontinue|hold)\s+([A-Za-z][A-Za-z -]*?)(?=\s+(?:to|at|\d)|[.;\n]|$)',plan,re.I):
         action={'reduce':'decrease','discontinue':'stop'}.get(m.group(1).lower(),m.group(1).lower())
         tail=re.split(r'[;\n]|\.(?:\s|$)',plan[m.end():],maxsplit=1)[0]
@@ -87,12 +89,12 @@ def note_check(snapshot,overlay,target,actual,rubric=None,calculations=()):
         amount=daily_amount(tail)
         statements.append({'type':'med','ingredient':drug(m.group(2).strip())['name'],'action':action,'dose':amount['value'] if amount else None,'dose_unit':amount['unit'] if amount else None,'negated':negated})
     for m in re.finditer(r'\b(?:check|order|repeat)\s+(BMP|CMP|renal(?: panel)?|potassium|UACR|CBC|PTH)\b',plan,re.I):
-        statements.append({'type':'lab','group':lab_group(m.group(1))})
+        statements.append({'type':'lab','group':lab_group(m.group(1)),'negated':negated_at(m)})
     for m in re.finditer(r'\bfollow[ -]?up\s+(?:in\s+)?(\d+)\s*(days?|weeks?|months?)',plan,re.I):
-        statements.append({'type':'follow_up','interval_days':int(m.group(1))*({'d':1,'w':7,'m':30}[m.group(2)[0].lower()])})
-    for m in re.finditer(r'\brefer\s+(?:to\s+)?([a-z_]+)',plan,re.I): statements.append({'type':'referral','specialty':m.group(1).lower()})
+        statements.append({'type':'follow_up','interval_days':int(m.group(1))*({'d':1,'w':7,'m':30}[m.group(2)[0].lower()]),'negated':negated_at(m)})
+    for m in re.finditer(r'\brefer\s+(?:to\s+)?([a-z_]+)',plan,re.I): statements.append({'type':'referral','specialty':m.group(1).lower(),'negated':negated_at(m)})
     def stated(item,statement):
-        if item['type']!=statement['type']: return False
+        if item['type']!=statement['type'] or statement.get('negated'): return False
         if item['type']=='med': return not statement.get('negated') and item['ingredient']==statement['ingredient'] and item['action']==statement['action'] and (statement.get('dose') is None or (item.get('dose') is not None and item.get('dose_unit','mg')==statement.get('dose_unit','mg') and abs(item['dose']-statement['dose'])<.001))
         if item['type']=='lab': return GROUPS.get(statement.get('group'),set())<=GROUPS.get(item.get('group'),set()) and statement.get('group') is not None
         if item['type']=='follow_up': return item['interval_days']==statement['interval_days']

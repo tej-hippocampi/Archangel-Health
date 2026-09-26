@@ -120,8 +120,33 @@ class FhirSandbox:
             elif isinstance(node,list):
                 for value in node: clinical_texts(value)
         clinical_texts(result)
+        trusted_dates=set(self._synthetic_dates)
+        for item in self.overlay.values():
+            for field in ('occurrenceDateTime','authoredOn','recordedDate','date','start','end'):
+                value=item.get(field)
+                if isinstance(value,str) and re.match(r'^\d{4}-\d{2}-\d{2}',value): trusted_dates.add(value[:10])
+        identities=set();names=set()
+        for patient in self._index.by_type.get('Patient',{}).values():
+            names.update(n['text'] for n in patient.get('name',[]) if n.get('text'))
+            identities.update(i['value'] for i in patient.get('identifier',[]) if i.get('value'))
+        for day in tuple(trusted_dates):
+            year,month,date=day.split('-')
+            trusted_dates.update((f'{month}/{date}/{year}',f'{int(month)}/{int(date)}/{year}'))
         for text in texts:
-            for day in self._synthetic_dates: text=text.replace(day,'[synthetic date]')
+            # Mask only a complete synthetic Patient.name or complete labeled
+            # patient-name value. Never mask a trusted substring inside a name.
+            if text in names: text='[synthetic identity]'
+            def patient_label(match):
+                value=match.group(2)
+                parts=re.split(r'(?:[,;]?\s+|\s*\()(?:MRN|DOB)\s*[:#]',value,maxsplit=1,flags=re.I)
+                label_value=parts[0].strip().rstrip('.')
+                if label_value in names:
+                    return match.group(1)+value.replace(label_value,'[synthetic identity]',1)
+                return match.group(0)
+            text=re.sub(r'(?im)(\b(?:patient(?:\s+name)?|name)\s*:\s*)([^\n]+)',patient_label,text)
+            for value in sorted(identities,key=len,reverse=True):
+                text=re.sub(r'(?<!\w)'+re.escape(value)+r'(?!\w)','[synthetic identity]',text)
+            for day in sorted(trusted_dates,key=len,reverse=True): text=text.replace(day,'[synthetic date]')
             if residual_identifiers(text): raise ValueError('residual_identifier_blocked')
         return result
 

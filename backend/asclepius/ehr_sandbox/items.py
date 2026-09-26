@@ -48,13 +48,14 @@ def actual_items(snapshot,overlay,target):
     initial={r['id']:r for r in snapshot if subject(r)==target}
     writes={r['id']:r for r in overlay if subject(r)==target}
     final=initial | writes; items=[]
-    baseline=[r for r in initial.values() if r['resourceType']=='MedicationRequest' and r.get('status')=='active']
-    new_meds=[r for r in writes.values() if r['resourceType']=='MedicationRequest' and r.get('status')=='active' and r['id'] not in initial]
+    baseline=[r for r in initial.values() if r['resourceType']=='MedicationRequest' and r.get('status') in ('active','on-hold')]
+    baseline_ids={r['id'] for r in baseline}
+    new_meds=[r for r in writes.values() if r['resourceType']=='MedicationRequest' and r.get('status') in ('active','on-hold') and r['id'] not in initial]
     replaced=set()
     for r in new_meds:
         name=drug(r['medicationCodeableConcept']['text'])['name']
         ancestor=r; visited=set()
-        while ancestor.get('priorPrescription'):
+        while ancestor.get('priorPrescription') and ancestor.get('id') not in baseline_ids:
             aid=ancestor['priorPrescription']['reference'].split('/')[-1]
             if aid in visited: break
             visited.add(aid); ancestor=final.get(aid,{})
@@ -69,6 +70,7 @@ def actual_items(snapshot,overlay,target):
         if old and final[old['id']].get('status')=='active': old=None
         if old:
             replaced.add(old['id']); action='increase' if before is not None and dose is not None and dose>before else 'decrease' if before is not None and dose is not None and dose<before else 'change'
+        if r.get('status')=='on-hold': action='hold'
         items.append({'type':'med','item_id':r['id'],'ingredient':name,'drug':r['medicationCodeableConcept']['text'],'action':action,'dose':dose,'dose_unit':amount['unit'] if amount else None,'resource':r})
     for old in baseline:
         now=final[old['id']]

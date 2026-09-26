@@ -14,6 +14,8 @@ from .constants import audit_now
 from .sealed import seal
 from . import terminology as terms, worksheet_extract
 
+CHART_VERSION = 2
+
 
 def resources_from_case(case, patient_id):
     resources = []
@@ -157,7 +159,7 @@ async def build_chart(ingest_case_id, *, store=None, source_country='US'):
     case = ClinicalCase.model_validate(row['case']).model_dump()
     prior = store.ehr_list('ehr_charts',ingest_case_id=ingest_case_id,status='built')
     source_hash = digest(case)
-    chart_id = identifier('chart',[ingest_case_id,source_hash])
+    chart_id = identifier('chart',[ingest_case_id,source_hash,CHART_VERSION])
     patient_id = identifier('patient',chart_id)
     now = audit_now()
     base = {'chart_id':chart_id,'ingest_case_id':ingest_case_id,'upload_id':row['upload_id'],'specialty':'nephrology',
@@ -194,7 +196,7 @@ async def build_chart(ingest_case_id, *, store=None, source_country='US'):
                           'document_ids':[n['resource_id'] for n in notes]})
     for resource in resources: validate(resource)
     chart = {**base,'n_visits':len(extracted),'resources_json':dumps(resources),'chart_hash':digest(resources),'status':'built',
-             'extraction_json':dumps({'source_hash':source_hash,'visits':extracted,'patient_id':patient_id})}
+             'extraction_json':dumps({'source_hash':source_hash,'builder_version':CHART_VERSION,'visits':extracted,'patient_id':patient_id})}
     with store._conn() as conn:
         store._immediate(conn)
         existing=store.ehr_get('ehr_charts',chart_id=chart_id,_connection=conn)
@@ -214,7 +216,7 @@ def apply_medication_events(resources,events,patient_id):
         mapped=terms.drug(event['drug'])
         previous=[r for r in resources if r['resourceType']=='MedicationRequest'
                   and terms.drug(r['medicationCodeableConcept']['text'])['name']==mapped['name']
-                  and isinstance(ext(r),int) and ext(r)<day and (ext(r,'stopOffset') is None or ext(r,'stopOffset')>=day)]
+                  and isinstance(ext(r),int) and ext(r)<=day and (ext(r,'stopOffset') is None or ext(r,'stopOffset')>=day)]
         old=max(previous,key=ext) if previous else None
         if action in ('stop','hold','increase','decrease','change') and old:
             old['status']='on-hold' if action=='hold' else 'stopped'
@@ -234,6 +236,25 @@ def apply_medication_events(resources,events,patient_id):
 def augment_from_key(resources,key,case,day,patient_id):
     """Only grounded extractions become dated historical resources; raw notes remain."""
     patient={'reference':'Patient/'+patient_id}
+    structured_today={terms.drug(e['drug'])['name'] for e in case.get('medication_events',[]) if e.get('collected_offset_days')==day and e.get('action')!='continue'}
+    structured_today.update(terms.drug(m['drug'])['name'] for m in case.get('medications',[]) if m.get('start_offset_days')==day or m.get('stop_offset_days')==day)
+    # Each affirmative current regimen is a dated historical assertion. A later
+    # changed dose becomes a successor, preserving the prior regimen and its
+    # dates. Nothing from this worksheet is visible to this same visit's agent.
+    for med in key.get('medications',[]):
+        name=terms.drug(med['drug'])['name']
+        # Structured same-day decisions are already materialized. The current
+        # medication list describes the pre-plan state and cannot undo them.
+        if name in structured_today: continue
+        known=[r for r in resources if r['resourceType']=='MedicationRequest' and terms.drug(r['medicationCodeableConcept']['text'])['name']==name
+               and isinstance(ext(r),int) and ext(r)<=day and (ext(r,'stopOffset') is None or ext(r,'stopOffset')>=day)]
+        previous=max(known,key=ext) if known else None
+        from .items import medication_amount
+        prior_text=previous['dosageInstruction'][0]['text'] if previous else ''
+        same_regimen=previous is not None and medication_amount(previous)==terms.daily_amount(med['dose'],med['frequency']) and terms.daily_amount(prior_text,'daily')==terms.daily_amount(med['dose'],'daily') and terms.frequency_per_day(prior_text)==terms.frequency_per_day(med['frequency']) and (not med.get('route') or med['route'].lower() in prior_text.lower())
+        if not same_regimen:
+            apply_medication_events(resources,[{'drug':med['drug'],'action':'change' if previous else 'start','dose':med['dose'],
+                'freq':med['frequency'],'route':med.get('route',''),'collected_offset_days':day}],patient_id)
     for item in key['assessments']:
         resources.append(validate({'resourceType':'Condition','id':identifier('assessment',[patient_id,day,item['item_id']]),
                           'subject':patient,'code':concept(item['text'],item.get('icd10'),terms.ICD10),

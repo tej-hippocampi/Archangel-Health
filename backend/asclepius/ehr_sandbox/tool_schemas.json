@@ -33,6 +33,16 @@
           ],
           "minLength": 1,
           "maxLength": 6000
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "description": "Page size, maximum 200."
+        },
+        "page_token": {
+          "type": "string",
+          "description": "Copy the next-page cursor from the previous Bundle link; keep filters unchanged."
         }
       },
       "required": [],
@@ -77,6 +87,16 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 6000
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "description": "Page size, maximum 200."
+        },
+        "page_token": {
+          "type": "string",
+          "description": "Copy the next-page cursor from the previous Bundle link; keep filters unchanged."
         }
       },
       "required": [
@@ -173,6 +193,16 @@
           ],
           "minLength": 1,
           "maxLength": 6000
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "description": "Page size, maximum 200."
+        },
+        "page_token": {
+          "type": "string",
+          "description": "Copy the next-page cursor from the previous Bundle link; keep filters unchanged."
         }
       },
       "required": [
@@ -215,6 +245,16 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 6000
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "description": "Page size, maximum 200."
+        },
+        "page_token": {
+          "type": "string",
+          "description": "Copy the next-page cursor from the previous Bundle link; keep filters unchanged."
         }
       },
       "required": [
@@ -233,6 +273,16 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 6000
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "description": "Page size, maximum 200."
+        },
+        "page_token": {
+          "type": "string",
+          "description": "Copy the next-page cursor from the previous Bundle link; keep filters unchanged."
         }
       },
       "required": [
@@ -269,9 +319,13 @@
         },
         "count": {
           "type": "integer",
-          "default": 20,
           "minimum": 1,
-          "maximum": 200
+          "maximum": 200,
+          "description": "Page size, maximum 200."
+        },
+        "page_token": {
+          "type": "string",
+          "description": "Copy the next-page cursor from the previous Bundle link; keep filters unchanged."
         }
       },
       "required": [

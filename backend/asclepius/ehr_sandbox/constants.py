@@ -25,7 +25,7 @@ def audit_now() -> str:
 
 @dataclass(frozen=True)
 class Settings:
-    env_version: str = "neph-ehr-1.0.0"
+    env_version: str = "neph-ehr-1.1.0"
     key_min_confidence: float = 0.80
     budget_tool_calls: int = 40
     checkpoint_weights: tuple[float, ...] = (0.10, 0.20, 0.50, 0.20)

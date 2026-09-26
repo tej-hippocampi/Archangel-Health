@@ -117,3 +117,86 @@ def test_malformed_extraction_rejected():
     candidate={k:copy.deepcopy(key[k]) for k in extraction.SCHEMA['required']}
     candidate['med_changes'][0].pop('drug')
     with pytest.raises(jsonschema.ValidationError): extraction.grounded_key(candidate,note)
+
+@pytest.mark.parametrize('source',[
+ 'Do not start lisinopril 10 mg once daily.',
+ 'Consider lisinopril 10 mg once daily if blood pressure rises.',
+ 'Current medications: lisinopril 110 mg once daily.',
+ 'Current medications: not taking lisinopril 10 mg once daily.',
+])
+def test_narrative_regimen_requires_exact_affirmative_current_evidence(source):
+    candidate={k:[] for k in extraction.ITEM_FIELDS}
+    candidate.update(med_continues=[],counseling=[],follow_up=None,escalation=None,
+        medications=[{'drug':'lisinopril','dose':'10 mg','frequency':'once daily','source_span':source,'confidence':.99}])
+    result=extraction.grounded_key(candidate,source)
+    assert not result['medications'] and result['extraction']['min_confidence']==0
+
+
+def test_later_narrative_regimen_updates_preserve_source_and_temporal_visibility():
+    from asclepius.ehr_sandbox.visit_compiler import slice_resources
+    from asclepius.ehr_sandbox.items import medication_amount
+    resources=[]
+    for day,dose in [(-90,10),(-30,20)]:
+        source=f'Current medications: lisinopril {dose} mg once daily.'
+        candidate={k:[] for k in extraction.ITEM_FIELDS}
+        candidate.update(med_continues=[],counseling=[],follow_up=None,escalation=None,
+            medications=[{'drug':'lisinopril','dose':f'{dose} mg','frequency':'once daily','source_span':source,'confidence':.99}])
+        key=extraction.grounded_key(candidate,source)
+        assert len(key['medications'])==1
+        charts.augment_from_key(resources,key,{},day,'synthetic')
+    assert not slice_resources(resources,-90)
+    assert [medication_amount(r)['value'] for r in slice_resources(resources,-30) if r['status']=='active']==[10]
+    assert [medication_amount(r)['value'] for r in slice_resources(resources,0) if r['status']=='active']==[20]
+    assert len(resources)==2
+
+
+def test_current_list_cannot_undo_same_day_structured_plan():
+    from asclepius.ehr_sandbox.visit_compiler import slice_resources
+    from asclepius.ehr_sandbox.items import medication_amount
+    events=[{'action':'start','drug':'lisinopril','dose':'10 mg','freq':'daily','collected_offset_days':-90},
+            {'action':'decrease','drug':'lisinopril','dose':'5 mg','freq':'daily','collected_offset_days':0}]
+    resources=[];charts.apply_medication_events(resources,events,'synthetic')
+    key={k:[] for k in extraction.ITEM_FIELDS};key.update(follow_up=None,
+        medications=[{'drug':'lisinopril','dose':'10 mg','frequency':'daily'}])
+    charts.augment_from_key(resources,key,{'medication_events':events},0,'synthetic')
+    assert [medication_amount(r)['value'] for r in slice_resources(resources,0) if r['status']=='active']==[10]
+    assert [medication_amount(r)['value'] for r in slice_resources(resources,1) if r['status']=='active']==[5]
+
+@pytest.mark.parametrize('source,route',[
+ ('Current medications: metformin/sitagliptin 10 mg once daily.',''),
+ ('Current medications: metformin / sitagliptin 10 mg once daily.',''),
+ ('Current medications: metformin 10 mg once daily.','intravenous'),
+])
+def test_narrative_regimen_preserves_combination_identity_and_route(source,route):
+    candidate={k:[] for k in extraction.ITEM_FIELDS}
+    candidate.update(med_continues=[],counseling=[],follow_up=None,escalation=None,
+        medications=[{'drug':'metformin','dose':'10 mg','frequency':'once daily','route':route,'source_span':source,'confidence':.99}])
+    assert not extraction.grounded_key(candidate,source)['medications']
+
+
+def test_long_current_list_uses_short_verbatim_quotes():
+    span='lisinopril 10 mg once daily'
+    source='Current medications: '+', '.join(['amlodipine 5 mg once daily']*10)+', '+span+'.\nPlan: Continue therapy.'
+    candidate={k:[] for k in extraction.ITEM_FIELDS}
+    candidate.update(med_continues=[],counseling=[],follow_up=None,escalation=None,
+        medications=[{'drug':'lisinopril','dose':'10 mg','frequency':'once daily','source_span':span,'confidence':.99}])
+    assert len(extraction.grounded_key(candidate,source)['medications'])==1
+
+
+def test_equal_daily_total_does_not_erase_changed_regimen():
+    from asclepius.ehr_sandbox.visit_compiler import slice_resources
+    resources=[]
+    for day,dose,freq in [(-90,10,'twice daily'),(-30,20,'once daily')]:
+        key={k:[] for k in extraction.ITEM_FIELDS};key.update(follow_up=None,
+            medications=[{'drug':'lisinopril','dose':f'{dose} mg','frequency':freq}])
+        charts.augment_from_key(resources,key,{},day,'synthetic')
+    active=[r for r in slice_resources(resources,0) if r['status']=='active']
+    assert len(resources)==2 and len(active)==1 and '20 mg' in active[0]['dosageInstruction'][0]['text'] and 'once daily' in active[0]['dosageInstruction'][0]['text']
+
+
+def test_structured_continue_does_not_suppress_missing_narrative_baseline():
+    resources=[];key={k:[] for k in extraction.ITEM_FIELDS}
+    key.update(follow_up=None,medications=[{'drug':'lisinopril','dose':'10 mg','frequency':'daily'}])
+    case={'medication_events':[{'drug':'lisinopril','action':'continue','collected_offset_days':0}]}
+    charts.augment_from_key(resources,key,case,0,'synthetic')
+    assert len(resources)==1 and resources[0]['status']=='active'
