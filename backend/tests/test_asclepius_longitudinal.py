@@ -928,6 +928,236 @@ def test_self_score_requires_a_stored_prediction_to_grade():
     assert r.json()["detail"]["error"] == "no_prediction_to_score"
 
 
+@pytest.mark.parametrize("sealed", [False, True])
+def test_terminal_points_cannot_claim_an_outcome_was_verified(sealed):
+    store = _store()
+    _, points = _walk(store, n=1)
+    point = points[0]
+    if sealed:
+        generation = {**point["generation"], "sealed_outcome": {
+            "version": 1, "index_event_offset": -120, "until_offset": None,
+            "outcome_encounter_index": None, "outcome": None}}
+        store.set_task_candidates(point["task_id"], [], generation_patch=generation)
+    user = _approved_user(store)
+    sub = _submit(store, point, user["id"])
+    store.set_submission_expected_trajectory(sub["submission_id"], {
+        "expectations": [{"expectation": "Symptoms improve with treatment."}]})
+    response = client.post(f"/api/asclepius/tasks/{point['task_id']}/trajectory-self-score",
+        headers=A.headers_for(user), json={"marks": [{"index": 0, "state": "held"}]})
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"]["error"] == "no_outcome_to_score"
+    assert store.get_submission(sub["submission_id"])["trajectory_self_score"] is None
+
+
+@pytest.mark.parametrize("outcome_offset", [None, -121])
+def test_unreconstructible_legacy_outcome_cannot_be_self_scored(outcome_offset):
+    store = _store()
+    _, points = _walk(store, n=2)
+    store.set_task_candidates(points[1]["task_id"], [], generation_patch={"index_event_offset": outcome_offset})
+    user = _approved_user(store)
+    sub = _submit(store, points[0], user["id"])
+    store.set_submission_expected_trajectory(sub["submission_id"], {
+        "expectations": [{"expectation": "Symptoms improve with treatment."}]})
+    url = f"/api/asclepius/tasks/{points[0]['task_id']}"
+    headers = A.headers_for(user)
+    for response in (client.get(url + "/trajectory-outcome", headers=headers),
+                     client.post(url + "/trajectory-self-score", headers=headers,
+                                 json={"marks": [{"index": 0, "state": "held"}]})):
+        assert response.status_code == 409, response.text
+        assert response.json()["detail"]["error"] == "outcome_not_reconstructible"
+    assert store.get_submission(sub["submission_id"])["trajectory_self_score"] is None
+
+
+@pytest.mark.parametrize("open_pool", ["0", "1"])
+def test_solo_progress_stops_at_an_unassigned_point_without_skipping_it(monkeypatch, open_pool):
+    monkeypatch.setenv("ASCLEPIUS_OPEN_CASE_POOL_ENABLED", open_pool)
+    store = _store()
+    tid, points = _walk(store, n=7)
+    user = _approved_user(store)
+    store.set_task_distribution([p["task_id"] for p in points], "assigned_only")
+    for point in points[:4] + points[5:]:
+        store.upsert_assignment(task_id=point["task_id"], user_id=user["id"],
+                                role="label", assigned_by="test")
+    for point in points[:4]:
+        _submit(store, point, user["id"])
+    headers = A.headers_for(user)
+    response = client.get(f"/api/asclepius/trajectories/{tid}", headers=headers)
+    assert response.status_code == 200, response.text
+    progress = response.json()["progress"]
+    assert (progress["n_answered"], progress["n_points"]) == (4, 7)
+    assert progress["next_task_id"] is None and progress["next_sequence_index"] is None
+    assert progress["waiting_for_assignment"] and not progress["complete"]
+    assert not any(p["openable"] for p in response.json()["points"][4:])
+    assert client.get(f"/api/asclepius/tasks/{points[4]['task_id']}", headers=headers).status_code == 403
+    assert client.get(f"/api/asclepius/tasks/{points[5]['task_id']}", headers=headers).status_code == 409
+    store.upsert_assignment(task_id=points[4]["task_id"], user_id=user["id"],
+                            role="label", assigned_by="test")
+    progress = store.evaluator_trajectory_progress(trajectory_id=tid, evaluator_id=user["id"])
+    assert progress["next_task_id"] == points[4]["task_id"]
+    assert not progress["waiting_for_assignment"]
+
+
+def test_solo_progress_preserves_a_committed_point_after_assignment_revocation(monkeypatch):
+    monkeypatch.setenv("ASCLEPIUS_OPEN_CASE_POOL_ENABLED", "0")
+    store = _store()
+    tid, points = _walk(store, n=1)
+    user = _approved_user(store)
+    assignment = store.upsert_assignment(task_id=points[0]["task_id"], user_id=user["id"],
+                                         role="label", assigned_by="test")
+    response = client.post(f"/api/asclepius/tasks/{points[0]['task_id']}/reveal",
+        headers=A.headers_for(user), json={"text": "Original independent assessment.", "portal_version": "v5"})
+    assert response.status_code == 200
+    store.set_assignment_status(assignment["assignment_id"], "revoked")
+    progress = store.evaluator_trajectory_progress(trajectory_id=tid, evaluator_id=user["id"])
+    assert progress["next_task_id"] == points[0]["task_id"]
+    assert not progress["waiting_for_assignment"]
+
+
+def test_assigned_cardiology_walk_reaches_a_nephrology_reviewer(monkeypatch):
+    monkeypatch.setenv("ASCLEPIUS_OPEN_CASE_POOL_ENABLED", "0")
+    store = _store()
+    _, points = _walk(store, n=2, specialty="cardiology")
+    user = A.make_user(store, specialty="nephrology", tier="reviewer")
+    store.set_real_data_approved(user["id"], True)
+    for point in points:
+        store.upsert_assignment(task_id=point["task_id"], user_id=user["id"],
+                                role="label", assigned_by="test")
+    headers = A.headers_for(user)
+    response = client.get("/api/asclepius/tasks/available?portal_version=v5&specialty=nephrology", headers=headers)
+    assert response.status_code == 200, response.text
+    assert [task["task_id"] for task in response.json()["tasks"]] == [points[0]["task_id"]]
+    drawn = client.get("/api/asclepius/tasks/next?portal_version=v5&specialty=nephrology", headers=headers)
+    assert drawn.status_code == 200, drawn.text
+    assert drawn.json()["task"]["task_id"] == points[0]["task_id"]
+
+
+@pytest.mark.parametrize("case_source,trajectory_id,pv,mismatch", [
+    ("real_deid", "traj", "v5", False),
+    ("real_deid", "traj", "v4", True),
+    ("real_deid", "traj", "v3", True),
+    ("real_deid", None, "v4", False),
+    ("real_deid", None, "v5", True),
+    ("synthetic", None, "v3", False),
+    ("synthetic", None, "v4", True),
+    ("synthetic", None, "v5", True),
+    ("synthetic", "traj", "v5", True),
+])
+def test_packaging_validation_enforces_static_and_longitudinal_provenance(case_source, trajectory_id, pv, mismatch):
+    from asclepius.validation import validate_submission
+    result = validate_submission({"case_source": case_source, "trajectory_id": trajectory_id},
+        {"portal_version": pv}, [])
+    assert ("portal_version_case_source_mismatch" in result["issues"]) is mismatch
+
+
+def test_valid_v5_submission_finishes_pipeline_without_false_provenance_qa():
+    store = _store()
+    _, points = _walk(store, n=2)
+    point = points[0]
+    store.set_task_candidates(point["task_id"], [
+        {"id": "a", "text": "Monitor symptoms and repeat the liver panel."},
+        {"id": "b", "text": "Repeat the procedure immediately."}])
+    user = _approved_user(store)
+    headers = A.headers_for(user)
+    assert client.post(f"/api/asclepius/tasks/{point['task_id']}/reveal", headers=headers,
+        json={"text": "Follow the improving liver enzymes and reassess symptoms.", "portal_version": "v5"}).status_code == 200
+    response = client.post("/api/asclepius/submissions?async_pipeline=true", headers=headers, json={
+        "submission_id": "s-valid-longitudinal", "task_id": point["task_id"], "portal_version": "v5",
+        "verdict": "A_better", "chosen_id": "a", "rejected_id": "b", "confidence": "high", "time_spent_sec": 900})
+    assert response.status_code == 202, response.text
+    stored = store.get_submission("s-valid-longitudinal")
+    assert stored["status"] == "export_ready", stored
+    assert stored["validation"]["valid"] and not stored["validation"]["issues"]
+    records = store.records_for_submission(stored["submission_id"])
+    assert records and all(r["status"] == "export_ready" and r["payload"]["portal_version"] == "v5" for r in records)
+
+
+@pytest.mark.parametrize("second_flag", [None, "flagged", "not_hard", "case_incoherent"])
+def test_new_submission_id_cannot_replace_a_prediction_after_outcome_reveal(second_flag):
+    store = _store()
+    _, points = _walk(store, n=2)
+    user = _approved_user(store)
+    headers = A.headers_for(user)
+    body = {"submission_id": "s-first-prediction", "task_id": points[0]["task_id"], "portal_version": "v5",
+            "verdict": "A_better", "chosen_id": "a", "rejected_id": "b", "confidence": "high", "time_spent_sec": 900,
+            "expected_trajectory": {"expectations": [{"expectation": "Symptoms resolve after drainage."}]}}
+    first = client.post("/api/asclepius/submissions", headers=headers, json=body)
+    assert first.status_code == 200, first.text
+    assert client.get(f"/api/asclepius/tasks/{points[0]['task_id']}/trajectory-outcome", headers=headers).status_code == 200
+    before = store.get_submission(body["submission_id"])
+    record_ids = [r["record_id"] for r in store.records_for_submission(body["submission_id"])]
+    replacement = {**body, "submission_id": "s-second-prediction", "verdict": "B_better",
+                   "expected_trajectory": {"expectations": [{"expectation": "Changed to match the revealed chart."}]}}
+    if second_flag:
+        replacement["prompt_review"] = {"verdict": second_flag, "note": "A second request must preserve the original."}
+    response = client.post("/api/asclepius/submissions", headers=headers, json=replacement)
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"]["submission_id"] == body["submission_id"]
+    assert store.submission_count_for_task(points[0]["task_id"]) == 1
+    assert store.get_submission(body["submission_id"]) == before
+    retry = client.post("/api/asclepius/submissions", headers=headers, json=body)
+    assert retry.status_code == 200 and retry.json()["submission_id"] == body["submission_id"]
+    assert [r["record_id"] for r in store.records_for_submission(body["submission_id"])] == record_ids
+
+
+def test_parallel_new_ids_capture_only_one_prediction_per_physician():
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from asclepius.store import DuplicateTrajectorySubmission
+    store = _store()
+    _, points = _walk(store, n=1, max_labels=2)
+    user = _approved_user(store)
+    barrier = Barrier(2)
+    def submit(number):
+        barrier.wait()
+        try:
+            return _submit(store, points[0], user["id"], sub_id=f"parallel-{number}")["submission_id"]
+        except DuplicateTrajectorySubmission as exc:
+            return exc
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(submit, (1, 2)))
+    assert sum(isinstance(result, str) for result in results) == 1
+    assert store.submission_count_for_task(points[0]["task_id"]) == 1
+    original = next(result for result in results if isinstance(result, str))
+    assert next(result for result in results if isinstance(result, DuplicateTrajectorySubmission)).submission_id == original
+    other = _approved_user(store)
+    _submit(store, points[0], other["id"])
+    assert store.submission_count_for_task(points[0]["task_id"]) == 2
+
+
+def test_failure_after_capture_retains_prediction_for_same_id_retry(monkeypatch):
+    store = _store()
+    _, points = _walk(store, n=2)
+    user = _approved_user(store)
+    headers = A.headers_for(user)
+    body = {"submission_id": "s-interrupted-prediction", "task_id": points[0]["task_id"],
+            "portal_version": "v5", "verdict": "A_better", "chosen_id": "a", "rejected_id": "b",
+            "confidence": "high", "time_spent_sec": 900,
+            "expected_trajectory": {"expectations": [{"expectation": "Symptoms resolve after drainage.",
+                                                       "horizon_value": 2, "horizon_unit": "weeks"}]}}
+    original_log = store.log_event
+    def interrupted_log(**event):
+        if event.get("event_type") == "captured":
+            raise OSError("injected post-capture failure")
+        return original_log(**event)
+    monkeypatch.setattr(store, "log_event", interrupted_log)
+    failing_client = TestClient(A.app, raise_server_exceptions=False)
+    response = failing_client.post("/api/asclepius/submissions", headers=headers, json=body)
+    assert response.status_code == 500
+    captured = store.get_submission(body["submission_id"])
+    assert captured["expected_trajectory"] == captured["payload"]["expected_trajectory"]
+    assert captured["expected_trajectory"]["expectations"][0]["horizon_days"] == 14
+    monkeypatch.setattr(store, "log_event", original_log)
+    retry = client.post("/api/asclepius/submissions", headers=headers, json=body)
+    assert retry.status_code == 200, retry.text
+    retained = store.get_submission(body["submission_id"])
+    assert retained["payload"] == captured["payload"]
+    assert retained["expected_trajectory"] == captured["expected_trajectory"]
+    assert store.submission_count_for_task(points[0]["task_id"]) == 1
+    score = client.post(f"/api/asclepius/tasks/{points[0]['task_id']}/trajectory-self-score",
+        headers=headers, json={"marks": [{"index": 0, "state": "held"}]})
+    assert score.status_code == 200, score.text
+
+
 def test_the_full_commit_reveal_score_loop():
     """§3.3's worked example, end to end: the physician's own stated falsifier
     fires, and the chart proves it. No human graded that."""

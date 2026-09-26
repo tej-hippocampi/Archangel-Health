@@ -23,18 +23,18 @@ def _point(store, seq, cls, trajectory_id='walk-p4', downgraded=None):
                     'downgraded': downgraded, 'generated_at': '2026-08-01T12:00:00'})
 
 
-def _package(store, task, *, only=None, rationale='Interpret the recorded trend.'):
+def _package(store, task, *, only=None, rationale='Interpret the recorded trend.', evaluator_id='doctor-p4'):
     sid = 'sub-' + uuid.uuid4().hex
     specialty = task['specialty']
     chosen, rejected = [a['id'] for a in task['candidate_answers'][:2]]
-    sub = store.insert_submission(submission_id=sid, task_id=task['task_id'], evaluator_id='doctor-p4',
+    sub = store.insert_submission(submission_id=sid, task_id=task['task_id'], evaluator_id=evaluator_id,
         verdict='A_better', chosen_id=chosen, rejected_id=rejected, confidence='high', time_spent_sec=300,
         payload={'chosen_revision': {'edited': True, 'revised_text': 'Continue monitoring the trend.',
                                     'why_better_notes': rationale},
                  'rubric': [{'text': 'Interprets the recorded clinical observations', 'points': 3},
                             {'text': 'Avoids unindicated repeat intervention', 'points': -3}]},
         annotator={'credential': 'board_certified_' + specialty, 'specialty': specialty,
-                   'id_hashed': 'doctor-hash-p4'}, dedupe_hash=None, portal_version='v5', status='export_ready')
+                   'id_hashed': evaluator_id + '-hash'}, dedupe_hash=None, portal_version='v5', status='export_ready')
     packaged = packaging.package_submission(task, sub)
     assert packaged
     for payload in packaged:
@@ -66,7 +66,7 @@ def test_classes_count_distinct_shipped_points_and_keep_stored_audit(store):
     _package(store, legacy)
     _package(store, interval)
     sid = _package(store, decision)
-    _package(store, decision)  # A second label and multiple record types are one point.
+    _package(store, decision, evaluator_id='second-doctor-p4')  # Two physicians still label one point.
     before = copy.deepcopy(store.list_records(status='export_ready'))
     result = EX.build_export(store, created_by='admin')
     _assert_bundle(result)

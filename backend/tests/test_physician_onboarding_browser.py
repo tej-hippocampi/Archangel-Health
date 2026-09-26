@@ -528,6 +528,185 @@ def _dashboard_case(store, *, review_ready=False):
 _WAITING_COPY = "No cases to label or review just yet. We’ll notify you when a case is ready for you."
 
 
+def _browser_chart_walk(portal):
+    from asclepius import real_cases, trajectory
+    from tests.test_longitudinal_v5_relabel import _real_case, _candidates
+
+    store = portal.store
+    store.set_real_data_approved(portal.user["id"], True)
+    tid = trajectory.new_trajectory_id()
+    points = []
+    for i in range(7):
+        case = _real_case(specialty="cardiology")
+        outcome_chart = {"notes": [{"note_type": "Progress", "collected_offset_days": i * 30 + 10,
+                                    "text": "Symptoms improved after treatment."}]}
+        sealed = real_cases.seal_outcome_window(outcome_chart, [], index_offset=i * 30,
+            until_offset=i * 30 + 10, outcome_encounter_index=i + 1)
+        task = store.insert_task(prompt=f"Decision point {i}: what now?", specialty="cardiology",
+            case=case, max_labels=1, capture_reasoning=True, candidate_answers=_candidates(),
+            generation={"index_event_offset": i * 30, "sealed_outcome": sealed},
+            trajectory_id=tid, sequence_index=i, distribution="assigned_only")
+        points.append(task)
+        if i < 4:
+            store.upsert_assignment(task_id=task["task_id"], user_id=portal.user["id"],
+                                    role="label", assigned_by="fixture")
+    return points
+
+
+def _complete_longitudinal_grading(page):
+    page.locator('[data-verdict="A_better"]').click()
+    page.get_by_role("button", name="Save changes").click()
+    section = page.locator('[data-substage="why_better"]')
+    section.locator("textarea").fill("The answer accounts for improvement and avoids an unnecessary repeat procedure.")
+    section.locator(".asc-chip").first.click()
+    section.get_by_role("button", name="Continue").click()
+    page.locator('.asc-substage[data-substage="citations"]').get_by_role("button", name="Continue").click()
+    section = page.locator('.asc-substage[data-substage="critique_rejected"]')
+    section.locator("[data-tag]").first.click()
+    dialog = page.get_by_role("dialog", name="Detail this error")
+    dialog.locator(".asc-reason-pills button").first.click()
+    dialog.get_by_role("button", name="high", exact=True).click()
+    section.get_by_placeholder("One line on the key problem…").fill("Repeating the procedure overlooks the documented improvement.")
+    if section.locator("#ascFailureModes .asc-chip").count():
+        section.locator("#ascFailureModes .asc-chip").first.click()
+    section.get_by_role("button", name="Continue").click()
+    page.locator("[data-step-idx]").first.wait_for()
+    for button in page.locator(".asc-step-confirm").all():
+        button.click()
+    page.locator("#ascStepsCont").click()
+    page.locator("#ascRubricWizard textarea").wait_for()
+    for _ in range(20):
+        next_button = page.locator("#ascRubricWizard").get_by_role("button", name="Next", exact=False)
+        if not next_button.count():
+            break
+        next_button.click()
+    finish = page.get_by_role("button", name="Save & finish")
+    if not finish.is_enabled():
+        page.locator(".asc-rubric-make-critical").first.click()
+    finish.click()
+    page.locator('#ascConf [data-conf="high"]').click()
+
+
+@pytest.mark.parametrize("width,resumed", [(1440, False), (390, True)])
+def test_longitudinal_saved_v4_draft_full_submission_recovery(accepted_portal, tmp_path, width, resumed):
+    from playwright.sync_api import expect
+
+    portal = accepted_portal(width=width, tier="reviewer")
+    page, store = portal.page, portal.store
+    points = _browser_chart_walk(portal)
+    task_id = points[0]["task_id"]
+    draft = {"task_id": task_id, "submission_id": "s-browser-resume", "portal_version": "v4",
+             "stage": "independent_answer", "elapsedSec": 317, "savedAt": 9999999999999,
+             "prompt_review": {"reviewed": True, "verdict": "valid", "note": ""},
+             "independent_answer": {"text": "Preserved independent clinical reasoning"}}
+    page.add_init_script("localStorage.setItem('asclepius_portal_version', 'v4'); localStorage.setItem('asclepius_portal_version_picked_v4', '1');")
+    if resumed:
+        page.add_init_script("if (!localStorage.getItem('resume_seeded')) { localStorage.setItem('resume_seeded','1'); localStorage.setItem('asclepius_draft_' + "
+            + json.dumps(task_id) + ", " + json.dumps(json.dumps(draft)) + "); }")
+    page.goto("https://app.archangelhealth.ai/asclepius")
+    try:
+        page.get_by_role("button", name="Continue →" if resumed else "Start →", exact=True).click()
+    except Exception:
+        (tmp_path / "longitudinal-failure.txt").write_text(page.locator("body").inner_text())
+        page.screenshot(path=str(tmp_path / "longitudinal-failure.png"), full_page=True)
+        raise
+    expect(page.locator(".asc-exp-badge-label")).to_have_text("Longitudinal · Chart Walk")
+    if not resumed:
+        page.get_by_role("button", name="Looks clinically valid, continue →", exact=True).click()
+        page.locator(".asc-instinct-input").fill("Preserved independent clinical reasoning")
+    expect(page.locator(".asc-instinct-input")).to_have_value("Preserved independent clinical reasoning")
+    reveal_path = f"/api/asclepius/tasks/{task_id}/reveal"
+    portal.overrides[reveal_path] = (503, {"detail": "temporary outage"})
+    page.get_by_role("button", name="Reveal AI answers →", exact=True).click()
+    expect(page.get_by_text("Could not reveal the AI answers: temporary outage", exact=True)).to_be_visible()
+    expect(page.locator(".asc-instinct-input")).to_have_value("Preserved independent clinical reasoning")
+    portal.overrides.pop(reveal_path)
+    page.get_by_role("button", name="Reveal AI answers →", exact=True).click()
+    expect(page.locator("#ascVerdicts")).to_be_visible()
+    page.reload()
+    page.get_by_role("button", name="Continue →", exact=True).click()
+    expect(page.locator("#ascVerdicts")).to_be_visible()
+    _complete_longitudinal_grading(page)
+    if resumed:
+        page.get_by_placeholder("e.g. enzymes stay down and bilirubin falls over 2–3 weeks").fill("Symptoms improve after treatment.")
+    assert page.locator("#ascSubmit").is_enabled(), page.locator("body").inner_text()
+    submit_path = "/api/asclepius/submissions"
+    portal.overrides[submit_path] = (503, {"detail": "submit temporarily unavailable"})
+    page.locator("#ascSubmit").click()
+    expect(page.get_by_text("Submit failed: submit temporarily unavailable", exact=True)).to_be_visible()
+    expect(page.locator("#ascSubmit")).to_be_enabled()
+    portal.overrides.pop(submit_path)
+    outcome_path = f"/api/asclepius/tasks/{task_id}/trajectory-outcome"
+    portal.overrides[outcome_path] = (503, {"detail": "outcome temporarily unavailable"})
+    page.locator("#ascSubmit").click()
+    expect(page.get_by_text("Your answer is saved. The next encounter could not be loaded:", exact=False)).to_be_visible()
+    page.reload()
+    page.get_by_role("button", name="Continue outcome review", exact=True).click()
+    expect(page.get_by_role("button", name="Try again", exact=True)).to_be_visible()
+    portal.overrides.pop(outcome_path)
+    page.get_by_role("button", name="Try again", exact=True).click()
+    expect(page.get_by_text("What happened next", exact=True)).to_be_visible()
+    if resumed:
+        page.get_by_role("button", name="Held", exact=True).click()
+        page.get_by_placeholder("What in the record shows that? (optional)").fill("The follow-up note reports improvement.")
+        page.reload()
+        page.get_by_role("button", name="Continue outcome review", exact=True).click()
+        expect(page.get_by_placeholder("What in the record shows that? (optional)")).to_have_value("The follow-up note reports improvement.")
+        score_path = f"/api/asclepius/tasks/{task_id}/trajectory-self-score"
+        portal.overrides[score_path] = (503, {"detail": "score temporarily unavailable"})
+        page.get_by_role("button", name="Save and continue", exact=True).click()
+        expect(page.get_by_text("Could not save that: score temporarily unavailable", exact=True)).to_be_visible()
+        expect(page.get_by_role("button", name="Save and continue", exact=True)).to_be_enabled()
+        portal.overrides.pop(score_path)
+        page.get_by_role("button", name="Save and continue", exact=True).click()
+    else:
+        page.get_by_role("button", name="Continue", exact=True).click()
+    expect(page.get_by_text(points[1]["prompt"], exact=True)).to_be_visible()
+    with store._conn() as conn:
+        submissions = conn.execute("SELECT * FROM submissions WHERE evaluator_id=?", (portal.user["id"],)).fetchall()
+    assert len(submissions) == 1
+    submission = dict(submissions[0])
+    assert submission["task_id"] == task_id and submission["portal_version"] == "v5"
+    assert "portal_version_case_source_mismatch" not in json.dumps(submission)
+    assert not portal.errors, portal.errors
+    page.screenshot(path=str(tmp_path / f"longitudinal-continue-{width}.png"), full_page=True)
+
+
+def test_longitudinal_invalid_flags_stop_at_assignment_boundary(accepted_portal, tmp_path):
+    from playwright.sync_api import expect
+
+    portal = accepted_portal(tier="reviewer", width=390)
+    page, store = portal.page, portal.store
+    points = _browser_chart_walk(portal)
+    page.add_init_script("localStorage.setItem('asclepius_portal_version', 'v4'); localStorage.setItem('asclepius_portal_version_picked_v4', '1');")
+    page.goto("http://testserver/asclepius")
+    page.get_by_role("button", name="Start →", exact=True).click()
+    for i, task in enumerate(points[:4]):
+        expect(page.get_by_text(task["prompt"], exact=True)).to_be_visible()
+        page.get_by_role("button", name="Flag as invalid", exact=True).click()
+        reason = page.get_by_placeholder("Why is this case invalid?", exact=False)
+        reason.fill("The available record does not support this question.")
+        if i == 0:
+            portal.overrides["/api/asclepius/submissions"] = (503, {"detail": "flag temporarily unavailable"})
+            page.get_by_role("button", name="Send to admin", exact=True).click()
+            expect(page.get_by_text("Could not flag the prompt: flag temporarily unavailable", exact=True)).to_be_visible()
+            expect(reason).to_have_value("The available record does not support this question.")
+            portal.overrides.pop("/api/asclepius/submissions")
+        page.get_by_role("button", name="Send to admin", exact=True).click()
+        expect(page.get_by_text("What happened next", exact=True)).to_be_visible()
+        page.get_by_role("button", name="Continue", exact=True).click()
+    expect(page.get_by_text("You’ve finished your assigned points", exact=True)).to_be_visible()
+    assert all(f"/api/asclepius/tasks/{task['task_id']}" not in portal.requests for task in points[4:])
+    with store._conn() as conn:
+        rows = conn.execute("SELECT task_id, portal_version, status, payload_json FROM submissions WHERE evaluator_id=?", (portal.user["id"],)).fetchall()
+    assert len(rows) == 4
+    assert {row["task_id"] for row in rows} == {task["task_id"] for task in points[:4]}
+    assert all(row["portal_version"] == "v5" and row["status"] == "prompt_flagged" for row in rows)
+    assert all(json.loads(row["payload_json"])["prompt_review"]["note"] == "The available record does not support this question." for row in rows)
+    assert not portal.errors, portal.errors
+    page.screenshot(path=str(tmp_path / "longitudinal-assignment-boundary.png"), full_page=True)
+
+
 @pytest.mark.parametrize("tier,reviewer_only,width", [
     ("labeler", False, 1440), ("labeler", False, 390),
     ("reviewer", True, 1440), ("reviewer", True, 390),
