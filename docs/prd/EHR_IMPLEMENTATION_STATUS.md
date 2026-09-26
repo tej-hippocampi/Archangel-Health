@@ -101,7 +101,7 @@ real-provider integration is checked by the manual `llm-smoke` EHR mode;
 fake-provider tests alone do not establish it.
 
 OCR is optional locally and fails closed when unavailable; production scanned
-intake requires OCRmyPDF/Tesseract. Build/evaluation jobs run in the application
+intake uses OCRmyPDF or the installed Tesseract/Poppler fallback. Both paths reject unsupported page bounds; OCR remains subject to extraction/key review. Build/evaluation jobs run in the application
 process with persisted events, but do not automatically resume after a process
 restart; an operator can retry from retained inputs.
 
@@ -122,7 +122,15 @@ restart; an operator can retry from retained inputs.
   then checks two worksheet extractions and four operational episodes across
   Anthropic/OpenAI and native-tool/JSON protocols. It asserts requested action
   semantics, retrieved evidence, documented writes, reset and deterministic replay.
-  Real-provider execution results are recorded separately once that run completes.
+  The first real run passed both worksheet extractions and exposed a GPT JSON
+  protocol failure plus overly narrow documentation matching. Fixes preserve
+  provider message roles, enforce JSON-object responses, clarify public tool
+  inputs, and accept valid note wording while rejecting timing contradictions.
+  A fresh real-provider run is required before operational qualification passes.
+- Follow-up focused checks: 196 passed, 1 opt-in OCR test skipped; image plus
+  upload-to-export checks: 17 passed. Real Tesseract/Poppler parsed all five scanned
+  synthetic visits with their dates intact. These checks do not certify OCR clinical
+  transcription accuracy or replace the real-batch review.
 
 ## Release and clinical acceptance
 

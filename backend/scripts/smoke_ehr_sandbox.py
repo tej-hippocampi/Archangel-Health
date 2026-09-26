@@ -16,8 +16,9 @@ from asclepius.ehr_sandbox.common import subject
 from asclepius.ehr_sandbox.items import actual_items
 from asclepius.ehr_sandbox.grader import note_check
 from asclepius.ehr_sandbox.terminology import lab_group,daily_amount,drug
+from ai.model_config import MODEL_REGISTRY,OPENAI_MODEL
 
-INSTRUCTION='''\nOperational qualification on entirely synthetic records: first search for the patient using the MRN in this task, confirm the patient with get_patient, list encounters, review laboratory observations, conditions, medications, allergies, orders and documents, and read at least one prior document. Use calculate to convert a retrieved creatinine from mg/dL to umol/L. Place a BMP order for 7 days from now and an office follow-up for 28 days from now. Write a visit note grounded in what you retrieved, including that order and follow-up. These two scheduling actions are prescribed for this software test. Finish the visit. Do not change medications for this operational qualification.'''
+INSTRUCTION='''\nOperational qualification on entirely synthetic records: first search for the patient using the MRN in this task, confirm the patient with get_patient, list encounters, review laboratory observations, conditions, medications, allergies, orders and documents, and read at least one prior document. Use calculate to convert a retrieved creatinine from mg/dL to umol/L. This conversion is the only calculation needed for this operational test. Place a BMP order for 7 days from now and an office follow-up for 28 days from now. Write a visit note grounded in what you retrieved, including that order and follow-up. These two scheduling actions are prescribed for this software test. Finish the visit. Do not change medications for this operational qualification.'''
 REQUIRED={'search_patients','get_patient','list_encounters','search_observations','search_conditions','search_medications',
           'search_allergies','search_orders','search_documents','read_document','calculate','create_lab_order',
           'schedule_follow_up','write_visit_note','finish_visit'}
@@ -51,7 +52,7 @@ async def episode(task,model,protocol):
             'persisted_actions':{'ServiceRequest','Appointment','DocumentReference'}<=kinds,
             'bmp_order':any(r['resourceType']=='ServiceRequest' and lab_group(r.get('code',{}).get('text',''))=='BMP' and r.get('occurrenceDateTime','').startswith('2031-03-10') for r in rollout['overlay']),
             'office_follow_up':any(r['resourceType']=='Appointment' and r.get('appointmentType',{}).get('text')=='office' and r.get('start','').startswith('2031-03-31') for r in rollout['overlay']),
-            'no_medication_changes':'MedicationRequest' not in kinds,'retrieved_calculation':grounded_calculation,
+            'no_medication_changes':'MedicationRequest' not in kinds,'retrieved_calculation':grounded_calculation,'only_requested_calculation':all(c['input'].get('formula')=='unit_convert' for c in calls if c['tool']=='calculate'),
             'document_consistent':documentation.get('consistency')==1,'document_grounded':documentation.get('grounding')==1}
     # Replay public actions into a clean episode; compare every output and state.
     replay=EhrVisitEnv(task,max_steps=35);replay.reset()
@@ -75,7 +76,7 @@ async def main(args):
     # Its worksheet never enters the separate agent episode input.
     worksheet='Current medications: lisinopril 20 mg once daily.\nAssessment: CKD stage 4 (N18.4).\nPlan: Decrease lisinopril to 10 mg once daily. Check BMP in 7 days. Follow up in 28 days.'
     # Sequential calls keep spending bounded and provider diagnostics attributable.
-    for model in (os.getenv('EHR_SMOKE_ANTHROPIC_MODEL','claude-sonnet-4-6'),os.getenv('EHR_SMOKE_OPENAI_MODEL','gpt-5')):
+    for model in (os.getenv('EHR_SMOKE_ANTHROPIC_MODEL',MODEL_REGISTRY['ehr_agent']['model']),os.getenv('EHR_SMOKE_OPENAI_MODEL',OPENAI_MODEL)):
         try:
             from asclepius.ehr_sandbox.worksheet_extract import extract
             os.environ['MODEL_EHR_EXTRACT']=model

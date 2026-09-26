@@ -84,8 +84,8 @@ def grounded_key(candidate, text):
             span=value['source_span'].lower()
             # Short quotes remain usable in long medication lists. Verify their
             # exact location inside an affirmative Current/Active section.
-            sections=re.findall(r'\b(?:current|active) medications?\s*:\s*(.*?)(?=\b(?:assessment|plan|allergies|history|labs|impression|physical examination)\s*:|$)',text,re.I|re.S)
-            body=re.sub(r'^\s*(?:current|active) medications?\s*:\s*','',span)
+            sections=re.findall(r'\b(?:current|active) medications?[ \t]*(?::[ \t]*|[ \t]+|\n)(.*?)(?=\b(?:assessment|plan|allergies|history|labs|impression|physical examination)[ \t]*(?::|[ \t]+|\n)|$)',text,re.I|re.S)
+            body=re.sub(r'^\s*(?:current|active) medications?[ \t]*(?::[ \t]*|[ \t]+|\n)','',span)
             drug_match=re.search(r'(?<![\w/+\-])'+re.escape(value['drug'].lower())+r'(?![\w/+\-])',span)
             regimen=re.split(r'[,;]',span[drug_match.end():],maxsplit=1)[0] if drug_match else ''
             ambiguous=re.search(r'^\s*[/+\-]',regimen) is not None

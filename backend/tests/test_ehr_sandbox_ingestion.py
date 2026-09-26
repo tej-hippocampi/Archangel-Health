@@ -214,3 +214,57 @@ def test_ehr_I1_explicit_unknown_pdf_date_never_inherits_prior_visit(monkeypatch
     normalized, _ = normalize_timeline(parsed)
     assert len(normalized['notes']) == 5
     assert normalized['notes'][1].get('collected_offset_days') is None
+
+
+def test_ehr_ocr_fallback_preserves_original_and_closes_images(monkeypatch):
+    import pytesseract
+    import pdf2image
+    from PIL import Image
+    raw,manifest=fixture_file('p09__worksheets.pdf')
+    original=bytes(raw);images=[]
+    monkeypatch.setenv('EHR_OCR_ENABLED','1')
+    monkeypatch.setattr(pdf_doc,'ocrmypdf',None)
+    monkeypatch.setattr(pdf_doc.shutil,'which',lambda name:'/synthetic/'+name)
+    def render(*args,**kwargs):
+        assert kwargs['first_page']==kwargs['last_page']==1 and kwargs['timeout']==60
+        image=Image.new('L',(10,10));images.append(image);return [image]
+    monkeypatch.setattr(pdf2image,'convert_from_path',render)
+    monkeypatch.setattr(pytesseract,'image_to_string',lambda image,timeout:'DOS: 2024-01-15\nAssessment: CKD stage4. Plan: Continue medications. Follow up in 28 days.')
+    result=pdf_doc.parse(raw,manifest=manifest)
+    assert raw==original and len(images)==5 and result['notes']
+    for image in images:
+        with pytest.raises(ValueError):image.getpixel((0,0))
+
+
+def test_ehr_real_ocr_preserves_five_synthetic_visit_dates(monkeypatch):
+    import os,re
+    if os.getenv('EHR_REAL_OCR_TEST')!='1':pytest.skip('real OCR qualification runs in the manual CI smoke')
+    monkeypatch.setenv('EHR_OCR_ENABLED','1');monkeypatch.setattr(pdf_doc,'ocrmypdf',None)
+    raw,manifest=fixture_file('p09__worksheets.pdf')
+    notes=pdf_doc.parse(raw,manifest=manifest)['notes']
+    assert len(notes)==5 and len({n['collected_at'] for n in notes})==5
+    assert all(n['collected_at'] and n['note_type']=='Visit worksheet' for n in notes)
+    assert all(re.search(r'follow\s*up\s*in\s*28\s*days',n['text'],re.I) for n in notes)
+    assert all('current medications' in n['text'].lower() for n in notes)
+
+@pytest.mark.parametrize('header',['DOS 2024-01-15','DOS:2024-01-15','Service date 2024-01-15'])
+def test_ehr_ocr_date_headers_survive_missing_colon(header):
+    assert pdf_doc.service_date(header)=='2024-01-15'
+    assert pdf_doc.service_date('Dosage 2024-01-15') is None
+
+@pytest.mark.parametrize('use_ocrmypdf',[False,True])
+@pytest.mark.parametrize('bounds',[[612,0,0,792],[0,0,0,792],[0,0,100000,100000]])
+def test_ocr_rejects_unsafe_page_bounds_before_render(monkeypatch,use_ocrmypdf,bounds):
+    from types import SimpleNamespace
+    from pypdf import PageObject
+    from pypdf.generic import RectangleObject
+    import pdf2image
+    page=PageObject.create_blank_page(width=612,height=792);page.mediabox=RectangleObject(bounds)
+    monkeypatch.setenv('EHR_OCR_ENABLED','1')
+    monkeypatch.setattr(pdf_doc.shutil,'which',lambda name:'/synthetic/'+name)
+    rendered=[]
+    def render(*args,**kwargs):rendered.append(True);raise AssertionError('unsafe render')
+    monkeypatch.setattr(pdf_doc,'ocrmypdf',SimpleNamespace(ocr=render) if use_ocrmypdf else None)
+    monkeypatch.setattr(pdf2image,'convert_from_path',render)
+    with pytest.raises(pdf_doc.PdfParseError,match='ocr_failed'):pdf_doc._ocr_page(page)
+    assert not rendered

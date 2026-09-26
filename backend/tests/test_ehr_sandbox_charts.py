@@ -200,3 +200,22 @@ def test_structured_continue_does_not_suppress_missing_narrative_baseline():
     case={'medication_events':[{'drug':'lisinopril','action':'continue','collected_offset_days':0}]}
     charts.augment_from_key(resources,key,case,0,'synthetic')
     assert len(resources)==1 and resources[0]['status']=='active'
+
+
+def test_current_medication_header_survives_ocr_missing_colon():
+    source='Current medications lisinopril 10 mg once daily.\nAssessment: CKD.'
+    candidate={k:[] for k in extraction.ITEM_FIELDS}
+    candidate.update(med_continues=[],counseling=[],follow_up=None,escalation=None,
+        medications=[{'drug':'lisinopril','dose':'10 mg','frequency':'once daily','source_span':'lisinopril 10 mg once daily','confidence':.99}])
+    assert len(extraction.grounded_key(candidate,source)['medications'])==1
+
+
+@pytest.mark.parametrize('heading',['Plan','Plan:','Plan proposed regimen:','Assessment','Allergies'])
+def test_colonless_heading_ends_current_medication_section(heading):
+    span='lisinopril 10 mg once daily'
+    source='Current medications\namlodipine 5 mg once daily\n'+heading+'\n'+span
+    candidate={k:[] for k in extraction.ITEM_FIELDS}
+    candidate.update(med_continues=[],counseling=[],follow_up=None,escalation=None,
+        medications=[{'drug':'lisinopril','dose':'10 mg','frequency':'once daily','source_span':span,'confidence':.99}])
+    result=extraction.grounded_key(candidate,source)
+    assert not result['medications'] and result['extraction']['min_confidence']==0

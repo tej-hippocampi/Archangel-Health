@@ -131,3 +131,67 @@ def test_renal_mass_ceiling_does_not_assume_liquid_concentration(episode):
         env.step({'tool':'create_medication_order','input':{'patient_id':env.sandbox.target_patient_id,'drug':'sitagliptin','dose_value':30,'dose_unit':unit,'frequency':'daily','route':'oral'}})
         findings=check([e['resource'] for e in task['snapshot']['entry']],env.rollout()['overlay'],env.sandbox.target_patient_id)
         assert any(f['rule_id']=='S8' for f in findings) is expected
+
+@pytest.mark.parametrize('plan,consistent',[
+ ('BMP ordered for 2031-03-10 (7 days from today). Office visit scheduled for 2031-03-31 (28 days from today). Continue to hold NSAIDs.',True),
+ ('**BMP** was ordered in 7 days. **Follow-Up:** Office visit scheduled for 28 days from today.',True),
+ ('Ordered basic metabolic panel in 7 days. Office appointment on 2031-03-31.',True),
+ ('BMP ordered in 7 days and follow up in 28 days.',True),
+ ('BMP ordered in 7 days, follow up in 28 days.',True),
+ ('BMP not ordered in 7 days. Do not follow up in 28 days.',False),
+ ('BMP ordered in 8 days. Follow up in 28 days.',False),
+ ('BMP ordered in 7 days. Follow up in 29 days.',False),
+ ('BMP ordered for 2031-03-11 (7 days from today). Follow up in 28 days.',False),
+])
+def test_real_agent_document_wording_and_contradictions(episode,plan,consistent):
+    import base64
+    from asclepius.ehr_sandbox.grader import note_check
+    from asclepius.ehr_sandbox.items import actual_items
+    task,_=episode;env=EhrVisitEnv(task);env.reset();pid=env.sandbox.target_patient_id
+    for tool,params in [('create_lab_order',{'code':'BMP','timing_days':7}),('schedule_follow_up',{'interval_days':28})]:
+        env.step({'tool':tool,'input':{'patient_id':pid,**params}})
+    snapshot=list(env.sandbox._snapshot.values());overlay=env.rollout()['overlay']
+    overlay.append({'resourceType':'DocumentReference','id':'wording','subject':{'reference':'Patient/'+pid},
+        'content':[{'attachment':{'contentType':'text/plain','data':base64.b64encode(('Plan: '+plan).encode()).decode()}}]})
+    result=note_check(snapshot,overlay,pid,actual_items(snapshot,overlay,pid))
+    assert (result['consistency']==1)==consistent,result
+
+
+def test_json_protocol_rejects_multiple_calls_then_recovers(episode,monkeypatch):
+    task,_=episode;env=EhrVisitEnv(task);pid=task['snapshot']['identifier']['value']
+    write=json.dumps({'tool':'create_lab_order','input':{'patient_id':pid,'code':'BMP'}})
+    responses=iter([write+write,json.dumps({'tool':'finish_visit','input':{}})])
+    async def provider(**kwargs):
+        assert kwargs['json_object'] is True
+        return SimpleNamespace(content=[SimpleNamespace(type='text',text=next(responses))]),{'provider':'openai'}
+    monkeypatch.setattr('ai.llm_client.call_llm',provider)
+    assert asyncio.run(drive(env,model='synthetic',harness='json_protocol'))=='openai'
+    assert env.terminated and not env.sandbox.overlay
+    assert [r['tool'] for r in env.rollout()['trajectory'] if r['type']=='tool_call']==['finish_visit']
+
+
+def test_document_preserves_referral_identifier(episode):
+    from asclepius.ehr_sandbox.grader import note_check
+    from asclepius.ehr_sandbox.items import actual_items
+    task,_=episode;env=EhrVisitEnv(task);env.reset();pid=env.sandbox.target_patient_id
+    env.step({'tool':'create_referral','input':{'patient_id':pid,'specialty':'vascular_surgery','reason':'Access planning'}})
+    env.step({'tool':'write_visit_note','input':{'patient_id':pid,'assessment':'Chart reviewed.','plan':'Refer to vascular_surgery.'}})
+    snapshot=list(env.sandbox._snapshot.values());overlay=env.rollout()['overlay']
+    assert note_check(snapshot,overlay,pid,actual_items(snapshot,overlay,pid))['consistency']==1
+
+@pytest.mark.parametrize('held,consistent',[(0,False),(1,False),(2,True)])
+def test_class_hold_requires_every_active_member_to_be_held(episode,held,consistent):
+    from asclepius.ehr_sandbox.grader import note_check
+    from asclepius.ehr_sandbox.items import actual_items
+    task,_=episode;pid=task['snapshot']['identifier']['value']
+    for drug in ('ibuprofen','naproxen'):
+        task['snapshot']['entry'].append({'resource':{'resourceType':'MedicationRequest','id':'class-'+drug,
+            'status':'active','intent':'order','subject':{'reference':'Patient/'+pid},'medicationCodeableConcept':{'text':drug},'dosageInstruction':[{'text':'200 mg once daily'}]}})
+    env=EhrVisitEnv(task);env.reset()
+    for drug in ('ibuprofen','naproxen')[:held]:
+        result=env.step({'tool':'hold_medication','input':{'medication_request_id':'class-'+drug,'reason':'Synthetic test'}})[0]['observation']
+        assert result['resourceType']=='MedicationRequest',result
+    result=env.step({'tool':'write_visit_note','input':{'patient_id':pid,'assessment':'Chart reviewed.','plan':'Continue to hold NSAIDs.'}})[0]['observation']
+    assert result['resourceType']=='DocumentReference',result
+    snapshot=list(env.sandbox._snapshot.values());overlay=env.rollout()['overlay']
+    assert (note_check(snapshot,overlay,pid,actual_items(snapshot,overlay,pid))['consistency']==1)==consistent

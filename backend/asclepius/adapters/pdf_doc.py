@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import io
+import math
 import os
 import re
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -19,7 +21,7 @@ try:
 except ImportError:
     pdfplumber = None
 
-DATE_HEADER = re.compile(r'^\s*(?:date\s+of\s+service|service\s+date|DOS|visit\s+date)\s*:\s*([^\n]+)', re.I | re.M)
+DATE_HEADER = re.compile(r'^[ \t]*(?:date[ \t]+of[ \t]+service|service[ \t]+date|DOS|visit[ \t]+date)[ \t]*(?::[ \t]*|[ \t]+)([^\n]+)', re.I | re.M)
 WORKSHEET = re.compile(r'\b(?:assessment|plan|impression)\b|\bA/P\b', re.I)
 
 
@@ -38,8 +40,10 @@ def service_date(text):
 def _ocr_page(page):
     from pypdf import PdfReader, PdfWriter
     from asclepius.ehr_sandbox.constants import settings
-    if settings().ocr_enabled == '0' or ocrmypdf is None:
+    if settings().ocr_enabled == '0':
         raise PdfParseError('ocr_unavailable: scanned page requires local OCR')
+    if ocrmypdf is None and not (shutil.which('tesseract') and shutil.which('pdftoppm')):
+        raise PdfParseError('ocr_unavailable: install Tesseract and Poppler or OCRmyPDF')
     # Disposable decrypted scratch, never a study asset or a replacement original.
     with tempfile.TemporaryDirectory(prefix='ehr-ocr-') as folder:
         source, target = Path(folder) / 'input.pdf', Path(folder) / 'output.pdf'
@@ -47,9 +51,24 @@ def _ocr_page(page):
         writer.add_page(page)
         writer.write(source)
         try:
-            ocrmypdf.ocr(str(source), str(target), force_ocr=True, progress_bar=False,
-                         jobs=1, tesseract_timeout=60, optimize=0)
-            text = PdfReader(target).pages[0].extract_text() or ''
+            width,height=float(page.mediabox.width),float(page.mediabox.height)
+            if not all(math.isfinite(v) and v>0 for v in (width,height)) or width*height*(300/72)**2>25_000_000:
+                raise ValueError('OCR page exceeds supported bounds')
+            if ocrmypdf is not None:
+                ocrmypdf.ocr(str(source), str(target), force_ocr=True, progress_bar=False,
+                             jobs=1, tesseract_timeout=60, optimize=0)
+                text = PdfReader(target).pages[0].extract_text() or ''
+            else:
+                # These dependencies already ship in the application image.
+                # One bounded page at a time; no OCR images become study assets.
+                from pdf2image import convert_from_path
+                import pytesseract
+                images=convert_from_path(str(source),dpi=300,first_page=1,last_page=1,
+                                         grayscale=True,thread_count=1,timeout=60)
+                try:
+                    text=pytesseract.image_to_string(images[0],timeout=60) if images else ''
+                finally:
+                    for image in images: image.close()
         except Exception:
             raise PdfParseError('ocr_failed: scanned page could not be read') from None
     if len(text.strip()) < 40:

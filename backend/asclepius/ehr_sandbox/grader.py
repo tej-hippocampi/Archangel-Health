@@ -6,7 +6,7 @@ from .common import subject,resource_ref,document_text
 from .constants import settings,DECISION_INSTANT
 from .terminology import normalize,drug,lab_group,GROUPS,LAB_NAMES,daily_dose,daily_amount
 from .items import key_items,actual_items,maximum_match
-from .safety_rules import check,observations
+from .safety_rules import check,observations,NSAIDS
 
 
 def public_diagnostics(value):
@@ -62,7 +62,9 @@ def note_check(snapshot,overlay,target,actual,rubric=None,calculations=()):
     notes=[r for r in overlay if r['resourceType']=='DocumentReference' and subject(r)==target]
     if not notes: return checkpoint('document',0,[{'status':'missing_note'}],pass_at=.75)
     # Multiple notes cannot hide a contradiction by replacing the last note.
-    note='\n'.join(document_text(n) for n in notes); plan=note.split('Plan:',1)[-1]; issues=[]; values=[]
+    note='\n'.join(document_text(n) for n in notes)
+    note=re.sub(r'[*`#]+|(?<!\w)_+|_+(?!\w)','',note)
+    plan=re.split(r'\bPlan\s*:',note,maxsplit=1,flags=re.I)[-1]; issues=[]; values=[]
     aliases={'creatinine':['creatinine','Cr'],'eGFR':['eGFR'],'K':['potassium','K'],'UACR':['UACR']}
     aliases.update({name:[name] for name in LAB_NAMES if name not in ('creatinine','egfr','potassium','k','uacr')})
     for group,names in aliases.items():
@@ -82,21 +84,45 @@ def note_check(snapshot,overlay,target,actual,rubric=None,calculations=()):
     statements=[]
     def negated_at(match):
         return bool(re.search(r'\b(?:not|never|avoid|no)\s+(?:\w+\s+){0,2}$',plan[max(0,match.start()-30):match.start()],re.I))
+    def intervals(text):
+        days=[int(m.group(1))*({'d':1,'w':7,'m':30}[m.group(2)[0].lower()])
+              for m in re.finditer(r'\b(\d+)\s*(days?|weeks?|months?)\b',text,re.I)]
+        for value in re.findall(r'\b\d{4}-\d{2}-\d{2}\b',text):
+            try: days.append((datetime.fromisoformat(value).date()-datetime.fromisoformat(DECISION_INSTANT).date()).days)
+            except ValueError: pass
+        return sorted(set(days))
     for m in re.finditer(r'\b(start|increase|decrease|reduce|stop|discontinue|hold)\s+([A-Za-z][A-Za-z -]*?)(?=\s+(?:to|at|\d)|[.;\n]|$)',plan,re.I):
         action={'reduce':'decrease','discontinue':'stop'}.get(m.group(1).lower(),m.group(1).lower())
+        # Continuing general avoidance is counseling, not a new prescription.
+        # A named active medication still requires a persisted hold/stop.
+        name=drug(m.group(2).strip())['name']
+        ongoing=re.search(r'\bcontinue\s+(?:to\s+)?$',plan[max(0,m.start()-30):m.start()],re.I)
+        active_names={drug(r.get('medicationCodeableConcept',{}).get('text',''))['name'] for r in snapshot
+                      if r['resourceType']=='MedicationRequest' and subject(r)==target and r.get('status')=='active'}
+        active=name in active_names or (name.lower() in ('nsaid','nsaids') and bool(active_names & NSAIDS))
+        if ongoing and action in ('hold','stop') and not active: continue
         tail=re.split(r'[;\n]|\.(?:\s|$)',plan[m.end():],maxsplit=1)[0]
         negated=bool(re.search(r'\b(?:not|never|avoid|no)\s+(?:\w+\s+){0,2}$',plan[max(0,m.start()-30):m.start()],re.I))
         amount=daily_amount(tail)
-        statements.append({'type':'med','ingredient':drug(m.group(2).strip())['name'],'action':action,'dose':amount['value'] if amount else None,'dose_unit':amount['unit'] if amount else None,'negated':negated})
-    for m in re.finditer(r'\b(?:check|order|repeat)\s+(BMP|CMP|renal(?: panel)?|potassium|UACR|CBC|PTH)\b',plan,re.I):
-        statements.append({'type':'lab','group':lab_group(m.group(1)),'negated':negated_at(m)})
-    for m in re.finditer(r'\bfollow[ -]?up\s+(?:in\s+)?(\d+)\s*(days?|weeks?|months?)',plan,re.I):
-        statements.append({'type':'follow_up','interval_days':int(m.group(1))*({'d':1,'w':7,'m':30}[m.group(2)[0].lower()]),'negated':negated_at(m)})
+        members=sorted(active_names & NSAIDS) if name.lower() in ('nsaid','nsaids') else []
+        for ingredient in members or [name]:
+            statements.append({'type':'med','ingredient':ingredient,'action':action,'dose':amount['value'] if amount else None,'dose_unit':amount['unit'] if amount else None,'negated':negated})
+    labs=r'BMP|CMP|basic metabolic panel|comprehensive metabolic panel|renal(?: panel)?|potassium|UACR|CBC|PTH'
+    lab_pattern=r'\b(?:(?:check|order(?:ed)?|repeat)\s+(?P<before>'+labs+r')|(?P<after>'+labs+r')\s+(?:was\s+|is\s+)?(?:not\s+)?ordered)\b'
+    for m in re.finditer(lab_pattern,plan,re.I):
+        tail=re.split(r'[.;\n]',plan[m.end():],maxsplit=1)[0]
+        tail=re.split(r'\b(?:follow[ -]?up|office\s+(?:visit|appointment)|refer|check|order|repeat|start|hold|stop)\b',tail,maxsplit=1,flags=re.I)[0]
+        for days in intervals(tail) or [None]:
+            statements.append({'type':'lab','group':lab_group(m.group('before') or m.group('after')),'timing_days':days,
+                               'negated':negated_at(m) or bool(re.search(r'\bnot\b',m.group(),re.I))})
+    for m in re.finditer(r'\b(?:follow[ -]?up|office\s+(?:visit|appointment))\s*:?\s*(?:in\s+|(?:visit\s+)?(?:is\s+|was\s+)?(?:not\s+)?scheduled\s+(?:for\s+|in\s+|on\s+)?)?([^.;\n]+)',plan,re.I):
+        for days in intervals(m.group(1)):
+            statements.append({'type':'follow_up','interval_days':days,'negated':negated_at(m) or bool(re.search(r'\bnot\b',m.group(),re.I))})
     for m in re.finditer(r'\brefer\s+(?:to\s+)?([a-z_]+)',plan,re.I): statements.append({'type':'referral','specialty':m.group(1).lower(),'negated':negated_at(m)})
     def stated(item,statement):
         if item['type']!=statement['type'] or statement.get('negated'): return False
         if item['type']=='med': return not statement.get('negated') and item['ingredient']==statement['ingredient'] and item['action']==statement['action'] and (statement.get('dose') is None or (item.get('dose') is not None and item.get('dose_unit','mg')==statement.get('dose_unit','mg') and abs(item['dose']-statement['dose'])<.001))
-        if item['type']=='lab': return GROUPS.get(statement.get('group'),set())<=GROUPS.get(item.get('group'),set()) and statement.get('group') is not None
+        if item['type']=='lab': return GROUPS.get(statement.get('group'),set())<=GROUPS.get(item.get('group'),set()) and statement.get('group') is not None and (statement.get('timing_days') is None or item.get('timing_days')==statement['timing_days'])
         if item['type']=='follow_up': return item['interval_days']==statement['interval_days']
         if item['type']=='referral': return item['specialty']==statement['specialty']
         return False

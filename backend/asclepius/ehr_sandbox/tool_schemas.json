@@ -58,7 +58,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         }
       },
       "required": [
@@ -76,7 +77,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         },
         "date_from": {
           "type": "string",
@@ -114,7 +116,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         },
         "code": {
           "type": "string",
@@ -182,7 +185,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         },
         "clinical_status": {
           "type": "string",
@@ -220,7 +224,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         },
         "status": {
           "type": "string",
@@ -272,7 +277,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         },
         "count": {
           "type": "integer",
@@ -300,7 +306,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         },
         "type": {
           "type": "string",
@@ -361,7 +368,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         },
         "kind": {
           "type": "string",
@@ -394,7 +402,7 @@
   },
   {
     "name": "calculate",
-    "description": "Deterministic clinical calculators.",
+    "description": "Deterministic clinical calculators. Use only retrieved patient values; omit calculations with missing inputs. Exact required inputs by formula: egfr_ckd_epi_2021_cr: creatinine_mg_dl, age, sex; egfr_ckd_epi_2021_cr_cys: creatinine_mg_dl, cystatin_c_mg_l, age, sex; crcl_cockcroft_gault: creatinine_mg_dl, age, sex, weight_kg; kfre_4var_2yr: egfr, uacr_mg_g, age, sex; kfre_4var_5yr: egfr, uacr_mg_g, age, sex; uacr_category: uacr_mg_g; ckd_stage: egfr; bmi: weight_kg, height_cm; unit_convert: value, from_unit, to_unit, analyte.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -416,7 +424,59 @@
         },
         "inputs": {
           "type": "object",
-          "description": "formula-specific; e.g. {creatinine_mg_dl, age, sex} or {value, from_unit, to_unit, analyte}"
+          "description": "Provide exactly the inputs listed for the selected formula. Units are encoded in numeric field names; eGFR is mL/min/1.73m2. Never substitute assumed values.",
+          "properties": {
+            "age": {
+              "type": "number",
+              "minimum": 0
+            },
+            "analyte": {
+              "type": "string",
+              "description": "unit_convert: creatinine (mg/dL \u2194 umol/L), uacr (mg/g \u2194 mg/mmol), or glucose (mg/dL \u2194 mmol/L)."
+            },
+            "creatinine_mg_dl": {
+              "type": "number",
+              "minimum": 0
+            },
+            "cystatin_c_mg_l": {
+              "type": "number",
+              "minimum": 0
+            },
+            "egfr": {
+              "type": "number",
+              "minimum": 0
+            },
+            "from_unit": {
+              "type": "string"
+            },
+            "height_cm": {
+              "type": "number",
+              "minimum": 0
+            },
+            "sex": {
+              "type": "string",
+              "enum": [
+                "male",
+                "female"
+              ]
+            },
+            "to_unit": {
+              "type": "string"
+            },
+            "uacr_mg_g": {
+              "type": "number",
+              "minimum": 0
+            },
+            "value": {
+              "type": "number",
+              "minimum": 0
+            },
+            "weight_kg": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
         }
       },
       "required": [
@@ -435,7 +495,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         },
         "drug": {
           "type": "string",
@@ -583,7 +644,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         },
         "code": {
           "type": "string",
@@ -619,7 +681,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         },
         "specialty": {
           "type": "string",
@@ -659,7 +722,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         },
         "study": {
           "type": "string",
@@ -694,7 +758,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         },
         "interval_days": {
           "type": "integer",
@@ -727,7 +792,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         },
         "icd10": {
           "type": "string",
@@ -779,7 +845,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         },
         "action": {
           "type": "string",
@@ -815,7 +882,8 @@
         "patient_id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 6000
+          "maxLength": 6000,
+          "description": "The Patient.id returned by search_patients (resource ID, not the MRN)."
         },
         "assessment": {
           "type": "string",

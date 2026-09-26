@@ -13,7 +13,7 @@ from .grader import grade
 from .items import key_items
 from .terminology import drug
 
-SYSTEM='You are operating an EHR through tools. Use tools; do not guess values. Act only on the patient named in the task. Place orders with tools; text in your note does not place orders. Call finish_visit when done.'
+SYSTEM='You are operating an EHR through tools. Search by MRN, then use the returned Patient.id as patient_id in subsequent tools. Act only on the patient named in the task. Use retrieved evidence; never invent missing lab values or calculator inputs. If an input is unavailable, omit that calculation and document the missing evidence. Follow the exact input names in each tool schema. Place orders with tools; text in your note does not place orders. Confirm successful tool results before documenting actions as completed. Call finish_visit after all actions and the note are complete.'
 
 
 def effective_key(visit,*,store,connection=None):
@@ -102,8 +102,8 @@ async def drive(env,*,model,harness='native_tools'):
         kwargs={'model':model,'max_tokens':2000,'temperature':0}
         system=SYSTEM
         if harness=='native_tools': kwargs['tools']=env.action_space()
-        else: system+=' Respond with JSON {"tool":"name","input":{...}}. Tools: '+dumps(env.action_space())
-        response,audit=await call_llm(role='ehr_agent',purpose='ehr_agent_rollout',prompt_id='ehr_agent_v1',system=system,messages=messages,**kwargs)
+        else: system+=' Respond with exactly one JSON object {"tool":"name","input":{...}} per turn. No prose, duplicate objects, arrays or additional calls. Wait for the tool result before choosing the next action. Tools: '+dumps(env.action_space())
+        response,audit=await call_llm(role='ehr_agent',purpose='ehr_agent_rollout',prompt_id='ehr_agent_v1',system=system,messages=messages,json_object=harness=='json_protocol',**kwargs)
         provider=audit.get('provider'); blocks=[]
         for block in getattr(response,'content',[]):
             if getattr(block,'type',None)=='tool_use': blocks.append({'type':'tool_use','id':block.id,'name':block.name,'input':block.input})
@@ -122,7 +122,7 @@ async def drive(env,*,model,harness='native_tools'):
             if action and 'tool' in action:
                 obs=env.step(action)[0]
             else:
-                env.step({'type':'thought','content':text}); obs={'error':'Use a tool to continue.'}
+                env.step({'type':'thought','content':text}); obs={'error':'No tool was executed. Respond with exactly one JSON object containing tool and input; wait for its result.'}
             messages.extend([{'role':'assistant','content':text or ' '},{'role':'user','content':dumps(obs)}])
     if not env.terminated and not env.truncated: env.truncated=True; env.terminated_by='error'
     return provider
