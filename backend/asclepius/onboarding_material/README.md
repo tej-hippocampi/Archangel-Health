@@ -28,7 +28,7 @@ image bytes, agree with the answer, and confirm no identifiers are visible.
 ## Build and release
 
 The manual **LLM smoke (real models)** workflow's `onboarding-library` mode accepts
-one launch specialty, a comma-separated subset, or `all` (43). Each isolated job prepares practice before
+one launch specialty, a comma-separated subset, or `all` (44). Each isolated job prepares practice before
 examination, checks independence, and uploads passing cases separately from
 rejected-attempt diagnostics. Existing
 committed cases are reused; building never overwrites their identities. A failed
@@ -108,7 +108,7 @@ Review/download successful artifacts into `cases/`, then run:
 python backend/scripts/build_onboarding_library.py --check
 ```
 
-The release coverage test requires all **86** reviewed entries. Software fixtures
+The release coverage test requires all **88** reviewed entries. Software fixtures
 are not clinical approval. Runtime validates schema, content hashes, evidence
 reviews, independent blinded agreement and (for pathology) pixel review before
 serving bundled material. Existing ready database cases take precedence and are
@@ -118,3 +118,14 @@ separate generation bank with the same clinical gates.
 
 Automated review is not physician ratification. These materials assess onboarding
 skills; they are not clinical care recommendations or saleable annotations.
+
+## Forensic Medicine / Legal Medicine
+
+This is an independent clinical identity, including Rechtsmedizin and Sudska
+medicina. It does not establish equivalence to US Forensic Pathology or authorize
+pathology practice. The pair assesses injury interpretation/documentation and
+medicolegal review of adult nonfatal-strangulation records, with separate decisions.
+The fixed scope is supplied to authors and independent reviewers; pathology,
+histology and microscopy studies are rejected for this specialty. Pinned PubMed
+references retain their actual source types and abstracts. A pin does not imply
+full-text availability or establish that a clinical claim is supported.

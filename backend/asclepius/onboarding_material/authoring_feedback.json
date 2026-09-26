@@ -58,5 +58,15 @@
     "issues": [
       "A prior lung-screening draft did not name the governing framework while supplied current ACS and USPSTF guidelines differed on time since quitting. Name the intended framework neutrally or choose a decision with agreement; do not mark a different applicable guideline wrong."
     ]
+  },
+  "onboarding-practice-v1-736dfbecd43435eaa374-1": {
+    "issues": [
+      "Prior drafts added unsupported reporting standards, force and injury-dating claims to a supported injury-interpretation decision. Ask only which interpretation of observed genital lacerations is supported, not how to document a complete forensic report. The retained meta-analyses establish that genital injuries occur after both consensual and non-consensual penetration and their presence alone cannot establish non-consent or prove sexual violence. Keep every candidate, key field and claim within that interpretive decision. Do not add instructions about attribution of history, examination methods, force, injury age, the causative encounter, perpetrator identity, intent or legal responsibility. Avoid additional sexual-history events that invite unsupported injury dating. Both candidates should acknowledge that injuries can occur in both groups; the plausible flawed candidate should make one consequential error by using the higher pooled frequency to classify this individual encounter as non-consensual. Avoid absolute proof language or multiple unrelated errors."
+    ]
+  },
+  "onboarding-examination-v1-736dfbecd43435eaa374-1": {
+    "issues": [
+      "Prior drafts expanded into unsupported mechanism, legal conclusions, injury dating and imaging interpretation. Assess only the content retained in a clinical-forensic record at an asymptomatic follow-up after completed acute evaluation. Specifically reported loss of consciousness and memory loss are named in the retained neuropsychological review. The scoping review supports recording subjective complaints and the assault experience using standardized documentation. Assess whether those resolved reported symptoms remain in the record alongside current findings and already available photographs. A plausible flawed approach retains current findings but omits resolved neurological history from the clinical summary because no deficit remains. Do not add legal conclusions, timing, actor identity, definitive mechanism, imaging specificity, or a formal neuropsychological-testing recommendation. Do not classify hoarseness or tunnel vision as outcomes established by the retained abstract. Do not infer a mandatory photography protocol for a normal examination from a general recommendation for good-quality photographs. Apply these limits to every key field and claim. Preserve all clinical, schema and confidence gates."
+    ]
   }
 }

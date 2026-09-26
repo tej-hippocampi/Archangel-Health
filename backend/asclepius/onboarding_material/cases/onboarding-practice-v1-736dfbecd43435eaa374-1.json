@@ -1,0 +1,410 @@
+{
+  "task_id": "onboarding-practice-v1-736dfbecd43435eaa374-1",
+  "specialty": "forensic medicine",
+  "kind": "practice",
+  "slot": 1,
+  "entry": {
+    "title": "Interpretation of genital findings in an adult forensic examination",
+    "question": "Which interpretation of the observed genital lacerations is medically supportable in this individual case?",
+    "case": {
+      "case_id": null,
+      "case_source": "synthetic",
+      "specialty": "forensic medicine",
+      "demographics": {
+        "age_band": "30-39",
+        "sex": "female"
+      },
+      "problem_list": [
+        {
+          "condition": "Genital soreness after reported vaginal penetration",
+          "since": "Index presentation",
+          "collected_offset_days": 0
+        },
+        {
+          "condition": "Observed superficial genital lacerations",
+          "since": "Clinical forensic examination",
+          "collected_offset_days": 0
+        }
+      ],
+      "medications": [],
+      "vitals": {},
+      "lab_panels": [],
+      "notes": [
+        {
+          "note_type": "Clinical forensic history",
+          "author_role": "forensic medicine clinician",
+          "text": "An adult woman underwent a clinical forensic examination approximately 18 hours after reported vaginal penetration. She described genital soreness without ongoing bleeding. The submitted accounts differ regarding whether participation in the encounter was voluntary. She was alert and able to provide her history, and no acute medical instability was recorded.",
+          "model_visible": true,
+          "withheld_reason": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "studies": [
+        {
+          "modality": "Clinical forensic examination",
+          "label": "External genital examination",
+          "findings": "Two superficial linear lacerations are visible at the posterior fourchette. Neither is actively bleeding. No additional anogenital injury is observed.",
+          "measurements": [],
+          "impression": null,
+          "asset": null,
+          "phi_screening": null,
+          "collected_offset_days": 0
+        }
+      ],
+      "source_refs": [],
+      "case_provenance": null,
+      "declared_difficulty": "intermediate",
+      "required_modalities": [],
+      "study_findings_policy": "visible",
+      "medications_absent_on_record": true,
+      "problems_absent_on_record": false,
+      "completeness_status": "focused forensic record",
+      "ground_truth": {
+        "answer": "A",
+        "rationale": "The lacerations are objective findings that can occur after either consensual or non-consensual vaginal penetration. Although pooled observational data show a higher group-level frequency after reported non-consensual penetration, that association cannot determine consent in an individual encounter. The injury findings therefore should not be used alone to classify this encounter as consensual or non-consensual.",
+        "evidence": {
+          "decision_basis": "Population-level injury frequencies do not establish individual consent."
+        },
+        "key_data": [
+          "Two superficial posterior fourchette lacerations were observed.",
+          "Genital and anogenital injuries occur after both consensual and non-consensual penetration.",
+          "Pooled studies report group-level associations with substantial heterogeneity.",
+          "The presence of injury does not prove sexual violence or establish consent in an individual case."
+        ]
+      },
+      "hard_hook": null,
+      "reasoning_divergence": null
+    },
+    "candidate_answers": [
+      {
+        "id": "A",
+        "text": "Interpret the lacerations as objective findings that can occur after either consensual or non-consensual vaginal penetration. Pooled differences between groups do not determine whether this individual encounter was consensual."
+      },
+      {
+        "id": "B",
+        "text": "Acknowledge that lacerations occur after both consensual and non-consensual vaginal penetration, but use their higher pooled frequency after non-consensual penetration to classify this individual encounter as non-consensual."
+      }
+    ],
+    "intended_flawed_id": "B",
+    "safety_keywords": [
+      "genital laceration",
+      "sexual assault",
+      "consent inference",
+      "anogenital injury",
+      "forensic examination"
+    ],
+    "evidence_keywords": [
+      "vaginal penetration",
+      "population-level association",
+      "relative risk",
+      "study heterogeneity",
+      "individual classification"
+    ],
+    "error_tags": [
+      "other"
+    ],
+    "claims": [
+      {
+        "statement": "Across the included studies, genital lacerations were observed after both consensual and non-consensual vaginal penetration.",
+        "source_ids": [
+          "39567355"
+        ]
+      },
+      {
+        "statement": "The pooled laceration analysis found a relative risk of 1.26 for non-consensual versus consensual penetration, with 54% between-study heterogeneity.",
+        "source_ids": [
+          "39567355"
+        ]
+      },
+      {
+        "statement": "Anogenital injury was detected in both comparison groups, and the subgroup analysis limited to high-quality studies found no significant difference.",
+        "source_ids": [
+          "37842551"
+        ]
+      },
+      {
+        "statement": "The presence of anogenital injury does not prove sexual violence, and the absence of injury does not refute that sexual assault occurred.",
+        "source_ids": [
+          "37842551"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "version": 1,
+    "method": "two_provider_evidence_review",
+    "source_quote_review": true,
+    "physician_ratified": false,
+    "reviewed_at": "2026-09-26T02:20:22.200525+00:00",
+    "author_model": "gpt-5.6-sol",
+    "sources": [
+      {
+        "id": "39567355",
+        "title": "Genital lacerations following sexual assault and consensual sexual intercourse: A systematic review and meta-analysis.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39567355/",
+        "abstract": "The identification of genital injuries during a medical-forensic examination may impact the investigation and prosecution of sexual assault. The purpose of this meta-analysis was to compare prevalence of genital lacerations (or tears) in persons reporting consensual versus non-consensual vaginal penetration. We hypothesized there would be greater prevalence of genital injuries in the non-consensual group. We searched PubMed, CINAHL, Web of Science, and gray literature for relevant observational case-control studies. Relative risk (RR) ratios using Mantel-Haenszel method were calculated to compare prevalence of genital lacerations between patients reporting consensual versus non-consensual penetration. Mantel-Haenszel chi-square tested significance and Cochran's Q determined between-study heterogeneity. In all studies, genital injuries were observed in both groups. The overall RR of 1.26 indicated a 26% greater risk of genital lacerations in the non-consensual group compared to the consensual group (p = 0.003). Study heterogeneity was 54% (p = 0.05). Findings suggest a greater likelihood of observing genital lacerations in persons reporting non-consensual vaginal penetration. High heterogeneity reflects variations between studies regarding provider education and training, visualization techniques, patient characteristics, time between assault and examination, and documentation practices. A major limitation is the lack of observer blinding creating potential bias. Findings support the need to standardize genital visualization techniques and documentation in sexual assault medical forensic examinations. Healthcare providers conducting medical forensic examinations must understand the limitations of studies comparing non-consensual and consensual injury findings if asked to provide information or testimony on this topic.",
+        "sha256": "1852c8c22fc056180dcb36f596db227972b7e61659908dc35ec7f9f6344d09e5",
+        "retrieved_at": "2026-09-26T02:19:15.199706+00:00",
+        "source_type": "systematic_review_meta_analysis",
+        "pmcid": "PMC11693518"
+      },
+      {
+        "id": "37842551",
+        "title": "Anogenital injury following sexual assault and consensual sexual intercourse: a systematic review and meta-analysis.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/37842551/",
+        "abstract": "Sexual violence is a grave human rights violation and a serious global public health challenge. Rates of reporting of sexual violence and subsequent passage of cases through the criminal justice system are poor all over the world. The presence or absence of anogenital injury following sexual assault may influence survivors in their willingness to report a crime, and law enforcement officers and jurors in their decision making regarding the laying of charges and/or conviction of offenders. The aim of this systematic review was to compare rates of identification of anogenital injury (AGI) in women following sexual assault and consensual sexual intercourse using the same examination techniques.\nIn this systematic review and meta-analysis, Medline, Embase and Google Scholar were searched for relevant studies (in any language, with no age or sex criteria) published between February 25, 1993, and February 25, 2023, that directly compared AGI between individuals after either sexual assault or consensual sexual intercourse. Abstracts, conference proceedings, and case reports were excluded. The primary outcome of interest was any form of detected AGI. The Mantel-Haenszel method was used for meta-analysis using random effects modelling to determine the risk ratio (RR) of AGI between sexual assault and consensual sexual intercourse. Quality assessment was undertaken using the Newcastle-Ottawa scale tool. The I2 statistic was used to determine heterogeneity among studies. An I2 >75% was considered high heterogeneity. Funnel plots were used to assess the risk of publication bias, by determining any visually apparent asymmetry. This analysis is registered with PROSPERO, CRD42023402468.\nWe included 10 studies, accounting for 3165 study participants. All participants were female. AGI was detected in 901 (48%) of 1874 participants following sexual assault and 394 (31%) of 1291 participants following consensual sexual intercourse. Meta-analysis of all included studies demonstrated that the presence of AGI was significantly more likely for participants following sexual assault than consensual sexual intercourse (RR 1.59 (95% CI 1.21, 2.09); p < 0.001). There was a significant heterogeneity among studies and funnel plots suggest that this RR may be an over-estimation. Subgroup analysis including only high-quality studies showed no significant difference between groups.\nAlthough AGI was significantly more likely to be detected after sexual assault than consensual sexual intercourse, more than half of survivors of sexual assault have no detectable injuries. The presence of AGI, therefore, does not prove there has been sexual violence and absence of injury does not refute that sexual assault has occurred.\nThe University of Birmingham.",
+        "sha256": "dc247f55f8186565b34481300a64bc622079bf35144e8286b23a0c26cd65d2bc",
+        "retrieved_at": "2026-09-26T02:19:15.199706+00:00",
+        "source_type": "systematic_review_meta_analysis",
+        "pmcid": "PMC10570717"
+      },
+      {
+        "id": "41147881",
+        "title": "EMS Care of Survivors of Sexual Assault - A Position Statement and Resource Document of NAEMSP.",
+        "year": 2026,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/41147881/",
+        "abstract": "Caring for sexual assault survivors requires interdisciplinary collaboration, pre-planning, and education. The purpose of this document is to guide emergency medical service (EMS) agencies and clinicians in the patient-centered management of survivors of sexual assault. The National Association of EMS Physicians Recommends:Trauma-Informed Care: EMS clinicians should recognize that sexual assault is a traumatic event, and we recommend a trauma-informed care approach. Some recommended actions include, but are not limited to, asking questions that validate a survivor's experience, asking permission before doing an exam to acknowledge a patient's choice, and allowing a support person during the physical exam.Physical Injuries after sexual assault: EMS clinicians should assess for serious traumatic injuries associated with sexual assault including strangulation.Collaboration with Sexual Assault Forensic Examiner Organizations: EMS clinicians should understand general forensic guidelines and state-specific regulations relevant to prehospital care. Indications for forensic exams vary by state, thus partnerships between EMS and sexual assault forensic examiner organizations can facilitate access to forensic examiners who can provide clear guidance on available forensic resources.Transport to Sexual Assault Forensic Examiner-resourced facilities: EMS systems should identify local facilities that are resourced to care for sexual assault survivors or systems designed to provide these resources to the survivor and preferentially transport stable survivors to these destinations for medical and forensic evaluation. If there is concern for a life-threatening injury, patients should be transported to a trauma center for evaluation.Documentation: In addition to awareness of local regulations, EMS clinicians should be complete, accurate, and culturally competent in their documentation. They should minimize bias in their documentation.Evidence Preservation: EMS clinicians should be aware of best practices for evidence preservation and be trained in evidence collection in the prehospital setting, including avoiding showering, eating, changing clothes before the forensic exam, and maintaining chain of custody.Consider other special populations: EMS clinicians should be aware of high-risk special populations for sexual assault with unique medical, cultural and/or regulatory considerations including, but not limited to, the pediatric, elderly, transgender, gender diverse, LGBTQ (lesbian, gay, bisexual, transgender, queer), pregnant, and male survivors.",
+        "sha256": "54e88016954dda37b7c62df670188f157d1fcbdf986a47a638d1e68091477b5c",
+        "retrieved_at": "2026-09-26T02:19:18.074285+00:00"
+      },
+      {
+        "id": "34292926",
+        "title": "Sexually Transmitted Infections Treatment Guidelines, 2021.",
+        "year": 2021,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/34292926/",
+        "abstract": "These guidelines for the treatment of persons who have or are at risk for sexually transmitted infections (STIs) were updated by CDC after consultation with professionals knowledgeable in the field of STIs who met in Atlanta, Georgia, June 11-14, 2019. The information in this report updates the 2015 guidelines. These guidelines discuss 1) updated recommendations for treatment of Neisseria gonorrhoeae, Chlamydia trachomatis, and Trichomonas vaginalis; 2) addition of metronidazole to the recommended treatment regimen for pelvic inflammatory disease; 3) alternative treatment options for bacterial vaginosis; 4) management of Mycoplasma genitalium; 5) human papillomavirus vaccine recommendations and counseling messages; 6) expanded risk factors for syphilis testing among pregnant women; 7) one-time testing for hepatitis C infection; 8) evaluation of men who have sex with men after sexual assault; and 9) two-step testing for serologic diagnosis of genital herpes simplex virus. Physicians and other health care providers can use these guidelines to assist in prevention and treatment of STIs.",
+        "sha256": "62710c00cda9a28bb54ffab4803eabd1c2c0d6a1af5140137cf73ce6ce3f98db",
+        "retrieved_at": "2026-09-26T02:19:19.954282+00:00",
+        "pmcid": "PMC8344968"
+      },
+      {
+        "id": "40331832",
+        "title": "Antiretroviral Postexposure Prophylaxis After Sexual, Injection Drug Use, or Other Nonoccupational Exposure to HIV - CDC Recommendations, United States, 2025.",
+        "year": 2025,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/40331832/",
+        "abstract": "Nonoccupational postexposure prophylaxis (nPEP) for HIV is recommended when a nonoccupational (e.g., sexual, needle, or other) exposure to nonintact skin or mucous membranes that presents a substantial risk for HIV transmission has occurred, and the source has HIV without sustained viral suppression or their viral suppression information is not known. A rapid HIV test (also referred to as point-of-care) or laboratory-based antigen/antibody combination HIV test is recommended before nPEP initiation. Health care professionals should ensure the first dose of nPEP is provided as soon as possible, and ideally within 24 hours, but no later than 72 hours after exposure. The initial nPEP dose should not be delayed due to pending results of any laboratory-based testing, and the recommended length of nPEP course is 28 days. The recommendations in these guidelines update the 2016 nPEP guidelines (CDC. Updated guidelines for antiretroviral postexposure prophylaxis after sexual, injection drug use, or other nonoccupational exposure to HIV - United States, 2016. Atlanta, GA: US Department of Health and Human Services, CDC; 2017). These 2025 nPEP guidelines update recommendations and considerations for use of HIV nPEP in the United States to include newer antiretroviral (ARV) agents, updated nPEP indication considerations, and emerging nPEP implementation strategies. The guidelines also include considerations for testing and nPEP regimens for persons exposed who have received long-acting injectable ARVs in the past. Lastly, testing recommendations for persons who experienced sexual assault were updated to align with the most recent CDC sexually transmitted infection treatment guidelines. These guidelines are divided into two sections: Recommendations and CDC Guidance. The preferred regimens for most adults and adolescents are now bictegravir/emtricitabine/tenofovir alafenamide or dolutegravir plus (tenofovir alafenamide or tenofovir disoproxil fumarate) plus (emtricitabine or lamivudine). However, the regimen can be tailored to the clinical circumstances. Medical follow-up for persons prescribed nPEP also should be tailored to the clinical situation; recommended follow-up includes a visit at 24 hours (remote or in person) with a medical provider, and clinical follow-up 4-6 weeks and 12 weeks after exposure for laboratory testing. Persons initiating nPEP should be informed that pre-exposure prophylaxis for HIV (PrEP) can reduce their risk for acquiring HIV if they will have repeat or continuing exposure to HIV after the end of the nPEP course. Health care professionals should offer PrEP options to persons with ongoing indications for PrEP and create an nPEP-to-PrEP transition plan for persons who accept PrEP.",
+        "sha256": "b243187edd61b9e120266779190f990cb4fbfc323cdd67d6d5b28429f3e48d4a",
+        "retrieved_at": "2026-09-26T02:19:19.954282+00:00",
+        "pmcid": "PMC12064164"
+      },
+      {
+        "id": "39343134",
+        "title": "[Translated article] Expert Recommendations from the AEDV on Legal Aspects Surrounding the Management of Sexually Transmitted Diseases.",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/39343134/",
+        "abstract": "The incidence of sexually transmitted diseases has been on the rise in our setting for decades. These infections represent not only an individual problem, but also a problem of public health. Therefore, the management of STDs involves reducing community incidence, which means that common issues in the clinical practice such as failure to attend may become a more complex problem, which adds to the difficult and delicate task of locating sexual contacts that would benefit from screening and the appropriate treatment. On the other hand, STDs have direct legal implications in cases of underage patients, or suspected sexual assault. Therefore, the correct handling of these scenarios requires knowledge of the legal framework that regulates them. Dermatologists are clinically trained and prepared to deal with these conditions. Nonetheless, the legal issues involved are often difficult to solve. This document stands as a simple reference guide to help solve the main legal issues we may encounter in a consultation when dealing with STDs.",
+        "sha256": "4368eb329836befc628f1f1797b542ff22586ed16d20d424298259109bb6e0b7",
+        "retrieved_at": "2026-09-26T02:19:19.954282+00:00"
+      },
+      {
+        "id": "38285211",
+        "title": "[Presentations for HIV post-exposure prophylaxis in emergency departments: guideline and recommendations].",
+        "year": 2024,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38285211/",
+        "abstract": "Patients often present to emergency departments after potential or confirmed exposure to human immunodeficiency virus (HIV) asking for recommendations concerning the initiation of post-exposure prophylaxis (PEP). These presentations may occur after occupational as well as non-occupational exposure. PEP entails taking a triple antiretroviral therapy for 28-30 days. If taken early (ideally within 2 h, but no later than 72 h) and as indicated, HIV infection can be prevented with a high level of probability. Since these presentations occur around the clock, they require basic expertise on the part of the emergency department staff regarding its indication and its side effects as well as standardized procedures in the emergency department to not delay initiation. Patients should present to an infectious disease outpatient clinic or practice specialized in HIV in order to have the indication reviewed by a specialist and, if necessary, adapted to complex cases with the aim of making individual case decisions. This review article aims to summarize core statements of the 2022 German-Austrian guideline on HIV post-exposure prophylaxis and to give emergency department staff necessary knowledge to safely and correctly begin PEP.",
+        "sha256": "c5e4ff828fc9336db503f5a3e28cbb3a631445a7851e9d21ca13dfe380137b10",
+        "retrieved_at": "2026-09-26T02:19:20.509914+00:00"
+      },
+      {
+        "id": "38170646",
+        "title": "The position statement of the Working Group on the treatment of post-traumatic stress disorders in adults.",
+        "year": 2023,
+        "url": "https://pubmed.ncbi.nlm.nih.gov/38170646/",
+        "abstract": "Post-traumatic stress disorder (PTSD) is a mental distress that occurs after participation in traumatic event such as the experience of natural disaster, car accident, terrorist attack or armed conflict, being a victim of sexual assault, tortured, physically abused, traumatized or being in any other life-threatening situation. The trauma victim does not always have to be in the position of the o directly threatened with physical harm. The disorder may be developed also as a result of an acute reaction to stress caused by participation in situation in which another person suffer so unimaginable that the further normal life of witness becomes impossible. Patients are often convinced that they lose previous ability to exist irretrievably. Globally PTSD is an increasingly recognized disorder. It can be predicted that in Europe, due to the ongoing war in Ukraine and the migration crisis, the frequency of severe disorders related to traumatic stress will systematically increase. In recent years, there has been a significant progress in knowledge and the development of methods for counteracting PTSD. The empirically confirmed forms of treatment include psychotherapeutic and pharmacotherapeutic interactions. The presented recommendations were developed by a team of experts in the field of psychiatry, clinical psychology, psychotherapy and primary care in order to proposed guidelines for therapeutic procedures in medical and psychological practice. The position statement of the working group have been developed in line with evidence-based practice as a part of three-stage procedure including: literature review, the issue discussion and development of the unified expert position.",
+        "sha256": "0462ccc28cba2d38d821740f6ff57248aeff4868fb9e5008e6336b733005958d",
+        "retrieved_at": "2026-09-26T02:19:20.509914+00:00"
+      }
+    ],
+    "reviews": [
+      {
+        "model": "claude-opus-4-8",
+        "provider": "anthropic",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "Answer A correctly separates observation from inference, which is the core forensic principle here. The meta-analyses (39567355, 37842551) show genital lacerations occur after both consensual and non-consensual penetration, with only a modest increased pooled relative risk after non-consensual acts (RR ~1.26 to 1.59) and high between-study heterogeneity, potential overestimation, and no significant difference in high-quality subgroup analysis. Critically, these are group-level prevalence data that cannot classify an individual encounter as consensual or non-consensual; more than half of assault survivors have no detectable injury, and injury presence neither proves nor refutes assault. Answer B commits an ecological/base-rate fallacy by applying pooled group frequencies to classify a single case, and it improperly infers consent status (a legal/factual determination) from a nonspecific physical finding, exceeding what the evidence supports and the specialty scope permits. The sources explicitly warn examiners to understand these limitations when providing testimony. Confidence is very high because both retrieved meta-analyses and standard forensic reasoning directly and unambiguously support A over B; the only minor uncertainty is the usual absence of case-specific corroborating context, which does not change the interpretive principle.",
+          "confidence": 0.96
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.93,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "39567355"
+              ],
+              "source_passage_ids": [
+                "39567355:p0"
+              ],
+              "reason": "The meta-analysis abstract states genital injuries were observed in both consensual and non-consensual groups across all included studies.",
+              "source_quotes": [
+                {
+                  "source_id": "39567355",
+                  "quote": "The identification of genital injuries during a medical-forensic examination may impact the investigation and prosecution of sexual assault. The purpose of this meta-analysis was to compare prevalence of genital lacerations (or tears) in persons reporting consensual versus non-consensual vaginal penetration. We hypothesized there would be greater prevalence of genital injuries in the non-consensual group. We searched PubMed, CINAHL, Web of Science, and gray literature for relevant observational case-control studies. Relative risk (RR) ratios using Mantel-Haenszel method were calculated to compare prevalence of genital lacerations between patients reporting consensual versus non-consensual penetration. Mantel-Haenszel chi-square tested significance and Cochran's Q determined between-study heterogeneity. In all studies, genital injuries were observed in both groups."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39567355"
+              ],
+              "source_passage_ids": [
+                "39567355:p1"
+              ],
+              "reason": "The abstract reports RR 1.26 and 54% heterogeneity, matching the claim.",
+              "source_quotes": [
+                {
+                  "source_id": "39567355",
+                  "quote": "The overall RR of 1.26 indicated a 26% greater risk of genital lacerations in the non-consensual group compared to the consensual group (p = 0.003). Study heterogeneity was 54% (p = 0.05). Findings suggest a greater likelihood of observing genital lacerations in persons reporting non-consensual vaginal penetration. High heterogeneity reflects variations between studies regarding provider education and training, visualization techniques, patient characteristics, time between assault and examination, and documentation practices. A major limitation is the lack of observer blinding creating potential bias. Findings support the need to standardize genital visualization techniques and documentation in sexual assault medical forensic examinations."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37842551"
+              ],
+              "source_passage_ids": [
+                "37842551:p2"
+              ],
+              "reason": "AGI detected in both groups; subgroup analysis of high-quality studies showed no significant difference.",
+              "source_quotes": [
+                {
+                  "source_id": "37842551",
+                  "quote": "Funnel plots were used to assess the risk of publication bias, by determining any visually apparent asymmetry. This analysis is registered with PROSPERO, CRD42023402468. We included 10 studies, accounting for 3165 study participants. All participants were female. AGI was detected in 901 (48%) of 1874 participants following sexual assault and 394 (31%) of 1291 participants following consensual sexual intercourse. Meta-analysis of all included studies demonstrated that the presence of AGI was significantly more likely for participants following sexual assault than consensual sexual intercourse (RR 1.59 (95% CI 1.21, 2.09); p < 0.001). There was a significant heterogeneity among studies and funnel plots suggest that this RR may be an over-estimation. Subgroup analysis including only high-quality studies showed no significant difference between groups."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37842551"
+              ],
+              "source_passage_ids": [
+                "37842551:p3"
+              ],
+              "reason": "The abstract explicitly states presence of AGI does not prove sexual violence and absence does not refute assault.",
+              "source_quotes": [
+                {
+                  "source_id": "37842551",
+                  "quote": "Although AGI was significantly more likely to be detected after sexual assault than consensual sexual intercourse, more than half of survivors of sexual assault have no detectable injuries. The presence of AGI, therefore, does not prove there has been sexual violence and absence of injury does not refute that sexual assault has occurred. The University of Birmingham."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "The case is on-specialty forensic medicine: interpreting objective genital injury findings without inferring consent. Answer A is the medically supportable interpretation — lacerations are objective findings occurring after both consensual and non-consensual penetration, and population-level frequency differences (RR 1.26, 54% heterogeneity in 39567355; RR 1.59 with no significant difference among high-quality studies in 37842551) cannot classify an individual encounter. Both meta-analyses explicitly caution that presence of injury does not prove sexual violence and that clinicians must understand the limitations when testifying. Answer B (the intended flawed option) commits the ecological fallacy by using pooled group frequencies to classify an individual case as non-consensual — directly contradicted by 37842551's statement that AGI does not prove sexual violence. This is the case working as designed. The two decisive sources (39567355 and 37842551) substantively support the sound decision. No answer leakage in the applicant-visible case: the question asks which interpretation is supportable without disclosing it. No missing imaging or data is needed — the external exam findings suffice for the interpretive question. Extraneous sources (nPEP, STI, PTSD, EMS) are not decisive here and were not relied upon. Confidence slightly below 0.95 because the RR ranking direction (both meta-analyses agree non-consensual has higher point-estimate risk) is real, but neither establishes individual classification, which the sound answer correctly rejects; this alignment is consistent and I found no contradiction between the newer and older sources on the key non-inference principle."
+        },
+        "image_sha256": null
+      },
+      {
+        "model": "gpt-5.6-sol",
+        "provider": "openai",
+        "blind_solution": {
+          "best_answer_id": "A",
+          "rationale": "The two superficial posterior-fourchette lacerations are objective genital injuries, but they are not specific for whether penetration was consensual. The supplied systematic reviews found genital lacerations or anogenital injuries in both consensual and non-consensual groups. Although pooled rates were higher after reported non-consensual penetration, the studies had substantial heterogeneity and potential bias, and higher group-level frequency cannot classify an individual encounter. The medically supportable interpretation is therefore limited to documenting the injuries and stating that they can occur after either consensual or non-consensual vaginal penetration; consent must be determined from the broader evidence, not the examination finding alone.",
+          "confidence": 0.99
+        },
+        "review": {
+          "best_answer_id": "A",
+          "on_specialty": true,
+          "coherent": true,
+          "key_correct": true,
+          "sound_answer_safe": true,
+          "evidence_supported": true,
+          "distinct_decision": true,
+          "no_missing_information": true,
+          "confidence": 0.98,
+          "claim_checks": [
+            {
+              "index": 0,
+              "supported": true,
+              "source_ids": [
+                "39567355"
+              ],
+              "reason": "The systematic review compared genital lacerations after consensual and non-consensual vaginal penetration and reports genital injuries in both groups.",
+              "source_passage_ids": [
+                "39567355:p0"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39567355",
+                  "quote": "The identification of genital injuries during a medical-forensic examination may impact the investigation and prosecution of sexual assault. The purpose of this meta-analysis was to compare prevalence of genital lacerations (or tears) in persons reporting consensual versus non-consensual vaginal penetration. We hypothesized there would be greater prevalence of genital injuries in the non-consensual group. We searched PubMed, CINAHL, Web of Science, and gray literature for relevant observational case-control studies. Relative risk (RR) ratios using Mantel-Haenszel method were calculated to compare prevalence of genital lacerations between patients reporting consensual versus non-consensual penetration. Mantel-Haenszel chi-square tested significance and Cochran's Q determined between-study heterogeneity. In all studies, genital injuries were observed in both groups."
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "supported": true,
+              "source_ids": [
+                "39567355"
+              ],
+              "reason": "The passage directly reports an overall relative risk of 1.26 and between-study heterogeneity of 54%.",
+              "source_passage_ids": [
+                "39567355:p1"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "39567355",
+                  "quote": "The overall RR of 1.26 indicated a 26% greater risk of genital lacerations in the non-consensual group compared to the consensual group (p = 0.003). Study heterogeneity was 54% (p = 0.05). Findings suggest a greater likelihood of observing genital lacerations in persons reporting non-consensual vaginal penetration. High heterogeneity reflects variations between studies regarding provider education and training, visualization techniques, patient characteristics, time between assault and examination, and documentation practices. A major limitation is the lack of observer blinding creating potential bias. Findings support the need to standardize genital visualization techniques and documentation in sexual assault medical forensic examinations."
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "supported": true,
+              "source_ids": [
+                "37842551"
+              ],
+              "reason": "The review reports detected anogenital injuries in both groups and no significant difference in the subgroup restricted to high-quality studies.",
+              "source_passage_ids": [
+                "37842551:p2"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37842551",
+                  "quote": "Funnel plots were used to assess the risk of publication bias, by determining any visually apparent asymmetry. This analysis is registered with PROSPERO, CRD42023402468. We included 10 studies, accounting for 3165 study participants. All participants were female. AGI was detected in 901 (48%) of 1874 participants following sexual assault and 394 (31%) of 1291 participants following consensual sexual intercourse. Meta-analysis of all included studies demonstrated that the presence of AGI was significantly more likely for participants following sexual assault than consensual sexual intercourse (RR 1.59 (95% CI 1.21, 2.09); p < 0.001). There was a significant heterogeneity among studies and funnel plots suggest that this RR may be an over-estimation. Subgroup analysis including only high-quality studies showed no significant difference between groups."
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "supported": true,
+              "source_ids": [
+                "37842551"
+              ],
+              "reason": "The review explicitly states that anogenital injury does not prove sexual violence and that absence of injury does not refute sexual assault.",
+              "source_passage_ids": [
+                "37842551:p3"
+              ],
+              "source_quotes": [
+                {
+                  "source_id": "37842551",
+                  "quote": "Although AGI was significantly more likely to be detected after sexual assault than consensual sexual intercourse, more than half of survivors of sexual assault have no detectable injuries. The presence of AGI, therefore, does not prove there has been sexual violence and absence of injury does not refute that sexual assault has occurred. The University of Birmingham."
+                }
+              ]
+            }
+          ],
+          "issues": [],
+          "rationale": "This is an on-specialty forensic interpretation question. The examination objectively establishes two superficial posterior-fourchette lacerations, but it cannot establish consent. Two systematic reviews substantively support this distinction: injuries were found after both consensual and non-consensual intercourse, pooled associations were heterogeneous and potentially biased, and the broader review expressly states that injury does not prove sexual violence. Therefore, A appropriately separates the observed finding from an unsupported inference about the individual encounter. B improperly converts a group-level association into an individual classification. The visible title and question identify the subject but do not disclose the intended conclusion. No additional imaging, treatment, or jurisdiction-specific legal information is needed to answer the focused interpretive question, and there are no previous cases against which this decision would be duplicative."
+        },
+        "image_sha256": null
+      }
+    ],
+    "entry_sha256": "4fb05a10eb2be0e099e0bbc50d01058338fb4fd9711a2d12f5acd3b1d4ee2d24"
+  }
+}

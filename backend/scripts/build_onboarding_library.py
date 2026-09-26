@@ -108,8 +108,8 @@ if __name__ == "__main__":
         from asclepius import onboarding_library
         report = onboarding_library.coverage()
         print(json.dumps(report, indent=2))
-        if len(report) != 86 or not all(r["ready"] for r in report):
-            raise SystemExit("The 43-specialty release library is incomplete")
+        if len(report) != 2 * len(SPECIALTIES) or not all(r["ready"] for r in report):
+            raise SystemExit("The specialty release library is incomplete")
     else:
         if os.getenv("GITHUB_ACTIONS") != "true" or os.getenv("ASCLEPIUS_LLM_PROVIDER") == "fake":
             raise SystemExit("Real generation runs only in GitHub Actions")

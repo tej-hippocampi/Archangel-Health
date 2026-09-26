@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 
-from asclepius.onboarding_specialties import _NAMES, match, normalize
+from asclepius.onboarding_specialties import _NAMES, matching_fields, is_specialty_title, normalize
 
 
 _EXCLUDED_SECTION = re.compile(
@@ -15,11 +15,11 @@ _EXCLUDED_SECTION = re.compile(
     r"(?:references|referees|publications|bibliography|research(?:\s+(?:and|&))? publications|presentations)\b", re.I)
 _SECTIONS = (
     ("identity", r"(?:professional |clinical )?(?:summary|profile)|personal details|contact information"),
-    ("experience", r"(?:(?:professional|clinical|current|hospital|academic) )?"
+    ("experience", r"(?:(?:professional|clinical|current|hospital|academic|relevant) )?"
      r"(?:experience|appointments|employment|practice)|employment history|work experience"),
     ("training", r"(?:(?:postgraduate|medical|professional) )?"
      r"(?:education|training|qualifications)|education (?:and|&) training|residency|fellowship"),
-    ("board", r"(?:board )?certifications?|(?:licensure|licenses?) (?:and|&) board certifications?"),
+    ("board", r"(?:(?:board|selected) )?certifications?|(?:licensure|licenses?) (?:and|&) board certifications?"),
     ("other", r"licensure|licenses?|awards|honors|honours|memberships|professional memberships|"
      r"clinical interests|research interests|research experience|objectives?"),
 )
@@ -33,7 +33,7 @@ _TRAINING = re.compile(r"\b(?:intern(?:ship)?|residen(?:t|cy)|fellow(?:ship)?)\b
 _ROLE = re.compile(
     r"\b(?:attending|consultant|physician|surgeon|specialist|practi[cs]ing|practitioner|"
     r"[a-z]*(?:ologist|iatrist)|intensivist|allergist|geneticist|internist|pediatrician|"
-    r"paediatrician|anaesthetist)\b", re.I)
+    r"paediatrician|anaesthetist|facharzt|fachärztin|rechtsmediziner|rechtsmedizinerin|specijalista|специјалиста)\b", re.I)
 _CURRENT = re.compile(r"\b(?:present|current(?:ly)?)\b", re.I)
 _HISTORICAL = re.compile(r"\b(?:former|previous|retired|past)\b", re.I)
 _DATE_RANGE = re.compile(
@@ -74,20 +74,7 @@ def applicant_lines(text: str) -> list[tuple[str, str]]:
 
 def candidate_fields(value: str) -> set[str]:
     """Use onboarding's vocabulary and nested-field rules, retaining conflicts."""
-    unique = match(value)
-    if unique:
-        return {unique}
-    text = " " + normalize(value) + " "
-    spans = [(m.start(), m.end(), name) for name, aliases in _NAMES.items()
-             for term in (name, *aliases)
-             for m in re.finditer(r"(?<!\w)" + re.escape(term) + r"(?!\w)", text)]
-    return {
-        ("pediatric " + name if not name.startswith("pediatric ")
-         and re.search(r"(?:pediatric|paediatric)\s+$", text[:start]) else name)
-        for start, end, name in spans if not any(
-            left <= start and right >= end and (left < start or right > end)
-            for left, right, _ in spans)
-    }
+    return matching_fields(value)
 
 
 def _unsupported_list_entry(value: str) -> bool:
@@ -108,7 +95,7 @@ def _unsupported_list_entry(value: str) -> bool:
                 start, end = span.span()
                 # The shared matcher preserves pediatric fields even when
                 # only their adult parent appears in the alias vocabulary.
-                pediatric = re.search(r"\b(?:pediatric|paediatric)\s+$", text[:start])
+                pediatric = re.search(r"\b(?:pediatric|paediatric|forensic)\s+$", text[:start])
                 if pediatric:
                     start = pediatric.start()
                 covered[start:end] = [True] * (end - start)
@@ -120,7 +107,7 @@ def _role_line(line: str, section: str) -> bool:
     return bool(_TRAINING.search(line) or (
         section in {"identity", "experience"} and (
             _ROLE.search(line) or _LABELLED_CURRENT.match(line)
-            or (section == "identity" and normalize(line) in _NAMES))))
+            or (section == "identity" and is_specialty_title(line)))))
 
 
 def _dated_roles(lines: list[tuple[str, str]]) -> dict[int, str]:
@@ -217,7 +204,7 @@ def specialty_evidence(text: str, certification_fields: list[str]) -> dict:
             continue
         role = _ROLE.search(line)
         current = current_entry or bool(_CURRENT.search(line))
-        bare_title = normalize(line) in _NAMES
+        bare_title = is_specialty_title(line)
         if historical_entry and not _CURRENT.search(line):
             continue
         if role or (section == "identity" and bare_title):

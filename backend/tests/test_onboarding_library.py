@@ -21,7 +21,7 @@ def test_recovery_matrix_targets_only_requested_unique_specialties():
     from scripts.build_onboarding_library import matrix_specialties
     assert matrix_specialties('nephrology, pathology,dermatology') == ['pathology', 'dermatology', 'nephrology']
     all_specialties = matrix_specialties('all')
-    assert len(all_specialties) == 43 and set(all_specialties) == set(SPECIALTIES)
+    assert len(all_specialties) == len(SPECIALTIES) and set(all_specialties) == set(SPECIALTIES)
     for invalid in ('', 'pathology,', 'unrecognized', 'pathology,pathology', 'all,pathology'):
         with pytest.raises(ValueError):
             matrix_specialties(invalid)
@@ -279,14 +279,14 @@ def test_pathology_image_is_authorized_blinded_and_metadata_free(monkeypatch, tm
     assert bank.entry_for(store, doc['task_id'])['case']['studies'][0]['findings'] == 'HELD OUT INTERPRETATION'
 
 
-def test_release_library_contains_all_86_reviewed_cases(monkeypatch):
+def test_release_library_contains_every_curriculum_case(monkeypatch):
     # Deliberately fails until real CI artifacts have been reviewed and committed.
     # Passing fixtures never substitutes for completed clinical generation.
     from pathlib import Path
     monkeypatch.setattr(library, 'ROOT', Path(library.__file__).with_name('onboarding_material') / 'cases')
     coverage = library.coverage()
     missing = [(row['specialty'], row['kind']) for row in coverage if not row['ready']]
-    assert len(coverage) == 86 and not missing, missing
+    assert len(coverage) == 2 * len(SPECIALTIES) and not missing, missing
 
 
 def test_both_pathology_reviewers_see_same_pixels_without_caption_or_key(monkeypatch):

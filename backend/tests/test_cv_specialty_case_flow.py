@@ -1,7 +1,7 @@
 """Synthetic applicant CV -> real TS prefill -> provisioning -> released cases.
 
 No fixture cases or real model calls: these requests read the same immutable
-86-case library shipped to production. Applicant records are isolated fixtures.
+88-case release library required by the curriculum. Applicant records are isolated fixtures.
 """
 import json
 import os
