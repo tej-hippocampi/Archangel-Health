@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import sys
 import uuid
+import json
 from pathlib import Path
 
 import pytest
@@ -175,6 +176,73 @@ def test_a_v4_claim_on_a_trajectory_point_is_a_400():
                     json={"text": "stance", "portal_version": "v4"}, headers=h)
     assert r.status_code == 400, r.text
     assert "V5 flow" in r.text
+
+
+@pytest.mark.parametrize("action", ["revealAnswers", "flagPrompt", "flagCaseIncoherent"])
+@pytest.mark.parametrize("resuming", [False, True])
+def test_v4_picker_can_reveal_and_flag_an_assigned_walk_with_the_shipped_client(action, resuming):
+    """Execute the browser draft and action code, then submit its actual payload
+    to the real endpoint. A cached V4 draft must recover without losing work."""
+    from tests.test_portal_ux import _fn, _open_harness
+
+    store = _store()
+    doc = _doctor(store)
+    _tid, points = _walk(store, n=2)
+    task_id = points[0]["task_id"]
+    store.upsert_assignment(task_id=task_id, user_id=doc["id"], role="label", assigned_by="admin-test")
+    headers = A.headers_for(doc)
+    response = client.get(f"/api/asclepius/tasks/{task_id}", headers=headers)
+    assert response.status_code == 200, response.text
+
+    code = "\n".join(_fn(name) for name in (
+        "draftVersion", "buildSubmissionPayload", "revealAnswers", "mergeAnswers",
+        "workspaceRequestIsCurrent", "flagPrompt", "flagCaseIncoherent"))
+    out = _open_harness(code + """
+    function tutorialActive() { return false; }
+    function cleanAnchor(anchor) { return anchor; }
+    function anchorsForSubmit() { return []; }
+    function assistData() { return null; }
+    function getElapsed() { return 317; }
+    function saveDraft() {}
+    function stopTimer() {}
+    function renderEvalView() {}
+    PICKED_VERSION = 'v4';
+    RESPONSE = %s;
+    if (%s) {
+      const draft = newDraft(RESPONSE.task);
+      draft.submission_id = 's-preserved';
+      draft.independent_answer.text = 'Preserved clinical reasoning';
+      draft.prompt_review.note = 'Glucose is unavailable at this decision point';
+      localStorage.setItem(draftKey(RESPONSE.task.task_id), JSON.stringify(draft));
+    }
+    (async () => {
+      await openTaskById(RESPONSE.task.task_id);
+      if (!%s) {
+        state.draft.independent_answer.text = 'Preserved clinical reasoning';
+        state.draft.prompt_review.note = 'Glucose is unavailable at this decision point';
+      }
+      let request = null;
+      api = async (path, options) => { request = {path, ...options}; return {answers: []}; };
+      await %s();
+      out({request});
+    })();
+    """ % (json.dumps(response.json()), json.dumps(resuming), json.dumps(resuming), action))
+    request = out["request"]
+    assert request["body"]["portal_version"] == "v5"
+    result = client.post("/api/asclepius" + request["path"], json=request["body"], headers=headers)
+    assert result.status_code == 200, result.text
+    if action == "revealAnswers":
+        assert result.json()["committed"] is True
+        assert len(result.json()["answers"]) == 2
+        assert request["body"]["text"] == "Preserved clinical reasoning"
+    else:
+        sid = request["body"]["submission_id"]
+        if resuming:
+            assert sid == "s-preserved"
+        sub = store.get_submission(sid)
+        assert sub["portal_version"] == "v5"
+        assert sub["status"] == ("case_incoherent" if action == "flagCaseIncoherent" else "prompt_flagged")
+        assert request["body"]["prompt_review"]["note"] == "Glucose is unavailable at this decision point"
 
 
 def test_the_reveal_commit_outranks_a_later_claim_on_the_submission():
