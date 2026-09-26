@@ -169,19 +169,22 @@ def _has_images(messages: list[dict[str, Any]]) -> bool:
 
 def _openai_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Build the OpenAI Responses ``input`` list from messages that may carry
-    Anthropic-style image blocks — text → ``input_text``, base64 image →
+    Anthropic-style image blocks — user text → ``input_text``, assistant text
+    → ``output_text``, base64 image →
     ``input_image`` data URL. Same bytes as the Anthropic payload."""
     out: list[dict[str, Any]] = []
     for m in messages or []:
         role = m.get("role", "user")
         content = m.get("content")
         parts: list[dict[str, Any]] = []
+        def text_part(text):
+            return {"type":"output_text","text":text,"annotations":[]} if role=="assistant" else {"type":"input_text","text":text}
         if isinstance(content, list):
             for b in content:
                 if not isinstance(b, dict):
                     continue
                 if b.get("type") == "text":
-                    parts.append({"type": "input_text", "text": b.get("text", "")})
+                    parts.append(text_part(b.get("text", "")))
                 elif b.get("type") == "image":
                     src = b.get("source") or {}
                     if src.get("type") == "base64":
@@ -190,7 +193,7 @@ def _openai_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     elif src.get("type") == "url" and src.get("url"):
                         parts.append({"type": "input_image", "image_url": src.get("url")})
         else:
-            parts.append({"type": "input_text", "text": str(content or "")})
+            parts.append(text_part(str(content or "")))
         out.append({"role": role, "content": parts})
     return out
 
@@ -202,7 +205,7 @@ def _openai_chat_messages(system, messages):
     for message in _openai_input(messages):
         content=[]
         for part in message["content"]:
-            if part["type"]=="input_text": content.append({"type":"text","text":part["text"]})
+            if part["type"] in ("input_text","output_text"): content.append({"type":"text","text":part["text"]})
             elif part["type"]=="input_image": content.append({"type":"image_url","image_url":{"url":part["image_url"]}})
         result.append({"role":message["role"],"content":content})
     return result

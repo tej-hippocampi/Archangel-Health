@@ -67,20 +67,30 @@ def note_check(snapshot,overlay,target,actual,rubric=None,calculations=()):
     plan=re.split(r'\bPlan\s*:',note,maxsplit=1,flags=re.I)[-1]; issues=[]; values=[]
     aliases={'creatinine':['creatinine','Cr'],'eGFR':['eGFR'],'K':['potassium','K'],'UACR':['UACR']}
     aliases.update({name:[name] for name in LAB_NAMES if name not in ('creatinine','egfr','potassium','k','uacr')})
+    lab_mention=re.compile(r'\b(?:'+'|'.join(re.escape(n) for names in aliases.values() for n in names)+r')\s*(?:is|of|=|:)?\s*\d+(?:\.\d+)?',re.I)
     for group,names in aliases.items():
         if group in GROUPS: labs=observations(snapshot,target,group)
         else:
             labs=[r for r in snapshot if r['resourceType']=='Observation' and subject(r)==target and any(c.get('code')==LAB_NAMES[group] for c in r.get('code',{}).get('coding',[])) and isinstance(r.get('valueQuantity',{}).get('value'),(int,float))]
         pattern=r'\b(?:'+ '|'.join(re.escape(n) for n in names)+r')\s*(?:is|of|=|:)?\s*(\d+(?:\.\d+)?)'
         for m in re.finditer(pattern,note,re.I):
-            value=float(m.group(1)); candidates=[r for r in labs if abs(r['valueQuantity']['value']-value)<=max(.05,.005*abs(value))]
-            dates=re.findall(r'\d{4}-\d{2}-\d{2}',re.split(r'[;\n]|\.(?=\s|$)',note[m.end():m.end()+50],maxsplit=1)[0])
-            grounded=bool(candidates) and (not dates or any(r.get('effectiveDateTime','').startswith(dates[0]) for r in candidates))
-            if group == 'eGFR' and not dates:
-                grounded = grounded or any(c.get('formula', '').startswith('egfr_')
-                    and abs(c.get('value', -1) - value) <= max(.5, .01 * value) for c in calculations)
-            values.append(grounded)
-            if not grounded: issues.append({'status':'hallucinated_value','group':group,'value':value})
+            context=re.split(r'[;\n]|\.(?=\s|$)',note[m.end():m.end()+160],maxsplit=1)[0]
+            next_lab=lab_mention.search(context)
+            if next_lab:context=context[:next_lab.start()]
+            # Bind each comparative value to its own date and validate both claims.
+            comparison=r'\b(?:was|were|from|versus|vs|previously|prior(?: value)?|previous(?: value)?|compared (?:to|with))\s+(?:(?:'+ '|'.join(re.escape(n) for n in names)+r')\s+)?(?!\d{4}-\d{2}-\d{2})(\d+(?:\.\d+)?)'
+            prior=list(re.finditer(comparison,context,re.I))
+            claims=[(float(m.group(1)),context[:prior[0].start()] if prior else context)]
+            claims.extend((float(c.group(1)),context[c.end():prior[i+1].start() if i+1<len(prior) else len(context)]) for i,c in enumerate(prior))
+            for value,date_context in claims:
+                candidates=[r for r in labs if abs(r['valueQuantity']['value']-value)<=max(.05,.005*abs(value))]
+                dates=re.findall(r'\d{4}-\d{2}-\d{2}',date_context)
+                grounded=bool(candidates) and (not dates or any(r.get('effectiveDateTime','').startswith(dates[0]) for r in candidates))
+                if group == 'eGFR' and not dates:
+                    grounded = grounded or any(c.get('formula', '').startswith('egfr_')
+                        and abs(c.get('value', -1) - value) <= max(.5, .01 * value) for c in calculations)
+                values.append(grounded)
+                if not grounded: issues.append({'status':'hallucinated_value','group':group,'value':value})
     statements=[]
     def negated_at(match):
         return bool(re.search(r'\b(?:not|never|avoid|no)\s+(?:\w+\s+){0,2}$',plan[max(0,match.start()-30):match.start()],re.I))

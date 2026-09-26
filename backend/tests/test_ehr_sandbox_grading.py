@@ -197,14 +197,60 @@ def test_class_hold_requires_every_active_member_to_be_held(episode,held,consist
     assert (note_check(snapshot,overlay,pid,actual_items(snapshot,overlay,pid))['consistency']==1)==consistent
 
 
-def test_lab_date_does_not_cross_sentence_into_prior_result(episode):
+@pytest.mark.parametrize('separator',['. Also prior',' — elevated (was',' (up from',' (compared to'])
+def test_lab_date_does_not_cross_sentence_into_prior_result(episode,separator):
     import base64
     from asclepius.ehr_sandbox.grader import note_check
     from asclepius.ehr_sandbox.safety_rules import observations
     task,_=episode;env=EhrVisitEnv(task);env.reset();pid=env.sandbox.target_patient_id
     snapshot=list(env.sandbox._snapshot.values());labs=observations(snapshot,pid,'K');old,current=labs[0],labs[-1]
-    text=f"Potassium {current['valueQuantity']['value']} mmol/L (elevated). Also prior {old['effectiveDateTime'][:10]}: Potassium {old['valueQuantity']['value']} mmol/L."
+    text=f"Potassium {current['valueQuantity']['value']} mmol/L{separator} {old['valueQuantity']['value']} mmol/L on {old['effectiveDateTime'][:10]}."
+    if separator=='. Also prior':text=f"Potassium {current['valueQuantity']['value']} mmol/L. Also prior {old['effectiveDateTime'][:10]}: Potassium {old['valueQuantity']['value']} mmol/L."
     overlay=[{'resourceType':'DocumentReference','id':'dated-values','subject':{'reference':'Patient/'+pid},
               'content':[{'attachment':{'data':base64.b64encode(text.encode()).decode()}}]}]
     result=note_check(snapshot,overlay,pid,[])
     assert result['grounding']==1,result
+
+
+def test_explicit_wrong_date_on_lab_value_remains_ungrounded(episode):
+    import base64
+    from asclepius.ehr_sandbox.grader import note_check
+    from asclepius.ehr_sandbox.safety_rules import observations
+    task,_=episode;env=EhrVisitEnv(task);env.reset();pid=env.sandbox.target_patient_id
+    snapshot=list(env.sandbox._snapshot.values());labs=observations(snapshot,pid,'K');old,current=labs[0],labs[-1]
+    text=f"Potassium {current['valueQuantity']['value']} mmol/L on {old['effectiveDateTime'][:10]}."
+    overlay=[{'resourceType':'DocumentReference','id':'wrong-date','subject':{'reference':'Patient/'+pid},
+              'content':[{'attachment':{'data':base64.b64encode(text.encode()).decode()}}]}]
+    assert note_check(snapshot,overlay,pid,[])['grounding']==0
+
+
+@pytest.mark.parametrize('prior_value,prior_date',[(9.9,'2030-11-22'),(4.7,'2020-01-01')])
+def test_historical_comparison_requires_value_and_date_evidence(episode,prior_value,prior_date):
+    import base64
+    from asclepius.ehr_sandbox.grader import note_check
+    from asclepius.ehr_sandbox.safety_rules import observations
+    task,_=episode;env=EhrVisitEnv(task);env.reset();pid=env.sandbox.target_patient_id
+    snapshot=list(env.sandbox._snapshot.values());current=observations(snapshot,pid,'K')[-1]
+    text=f"Potassium: {current['valueQuantity']['value']} mmol/L — elevated (was {prior_value} mmol/L on {prior_date})."
+    overlay=[{'resourceType':'DocumentReference','id':'wrong-comparison','subject':{'reference':'Patient/'+pid},
+              'content':[{'attachment':{'data':base64.b64encode(text.encode()).decode()}}]}]
+    result=note_check(snapshot,overlay,pid,[])
+    assert result['grounding']<1 and any(i['value']==prior_value for i in result['items'] if i['status']=='hallucinated_value')
+
+
+@pytest.mark.parametrize('text,grounded',[
+ ('Potassium 5.6 mmol/L, creatinine 3.6 mg/dL (was 3.2 mg/dL on 2030-11-22).',True),
+ ('Potassium 5.6 mmol/L, creatinine 3.6 mg/dL (was 9.9 mg/dL on 2030-11-22).',False),
+ ('Potassium 5.6 mmol/L (was potassium 4.7 mmol/L on 2030-11-22), creatinine 3.6 mg/dL.',True),
+ ('Potassium 5.6 mmol/L (was potassium 4.7 mmol/L on 2020-01-01), creatinine 3.6 mg/dL.',False),
+])
+def test_lab_claim_context_stops_at_next_analyte(text,grounded):
+    import base64
+    from asclepius.ehr_sandbox.grader import note_check
+    snapshot=[{'resourceType':'Observation','id':str(i),'subject':{'reference':'Patient/p1'},
+               'code':{'coding':[{'code':code}]},'valueQuantity':{'value':value,'unit':'mmol/L' if code=='2823-3' else 'mg/dL'},'effectiveDateTime':date}
+              for i,(code,value,date) in enumerate([('2823-3',5.6,'2031-03-02'),('2823-3',4.7,'2030-11-22'),
+                                                  ('2160-0',3.6,'2031-03-02'),('2160-0',3.2,'2030-11-22')])]
+    overlay=[{'resourceType':'DocumentReference','id':'multiple-labs','subject':{'reference':'Patient/p1'},
+              'content':[{'attachment':{'data':base64.b64encode(text.encode()).decode()}}]}]
+    assert (note_check(snapshot,overlay,'p1',[])['grounding']==1)==grounded

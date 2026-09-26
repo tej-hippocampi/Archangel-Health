@@ -165,7 +165,7 @@ Ranked by how often each failure happens times how badly it hurts the patient. T
 | Tool table (13 tools; actions are built as FHIR but **never stored**) | `_TOOL_TABLE` at `asclepius/environments/tools.py:151`; `ToolRegistry` at `asclepius/environments/tools.py:214` | Unchanged. The new tools live in `ehr_sandbox/tools.py`, and their writes **are** stored (I4). |
 | Verifier: deterministic checks, critical-negative hard gate, rubric (RULER) path | `score` at `asclepius/environments/verify.py:525`; reward-hacking probe `probe_hackability` at `asclepius/environments/verify.py:727` | Reuse the composition idea and the hackability probe. The checkpoint grader is new (§9). |
 | Compile a case into an env spec | `compile_environment` at `asclepius/environments/compile_env.py:177` | Reference only. Visit compilation has its own module. |
-| Rollout driver (JSON-in-text action protocol) | `rollout` at `asclepius/environments/rollout.py:68` | **Unchanged.** The new harness (`ehr_sandbox/harness.py`) adds native tool calling through `call_llm` (`ai/llm_client.py:503`) and imports `_extract_json` for the JSON fallback. |
+| Rollout driver (JSON-in-text action protocol) | `rollout` at `asclepius/environments/rollout.py:68` | **Unchanged.** The new harness (`ehr_sandbox/harness.py`) adds native tool calling through `call_llm` (`ai/llm_client.py:506`) and imports `_extract_json` for the JSON fallback. |
 | Physician annotation of env runs, assignment-gated | `save_annotation` at `asclepius/environments/service.py:161`; `_require_annotation_assignment` at `routers/asclepius_env.py:44` | The review flow copies this gate pattern with its own table and routes. |
 | Env HTTP surface | `router` at `routers/asclepius_env.py:37` (`/api/asclepius/environments`) | New routes go on a **new** router, `routers/asclepius_ehr_sandbox.py` (§11). |
 | `env_runs` table | `asclepius/store.py:1263` | **Not reused.** The EHR sandbox has its own tables (§6.2). `env_runs` stays byte-identical. |
@@ -1114,9 +1114,9 @@ Tools follow the naming style of MedAgentBench v2 and PhysicianBench, so labs re
 
 ### 11.4 Harness (M4): `harness.run(task_id, *, model, k=1, harness="native_tools")`
 
-- **Native tool calling:** pass the tool schemas as `tools=` through `call_llm` (`ai/llm_client.py:503`).
+- **Native tool calling:** pass the tool schemas as `tools=` through `call_llm` (`ai/llm_client.py:506`).
   - This works for Anthropic models today.
-  - **OpenAI transport:** native calls use Responses-API function tools and map `function_call` outputs to the shared `tool_use` representation. Plain calls in `_openai_create_async` (`ai/llm_client.py:316`) preserve message roles. The JSON harness requests a single JSON object and rejects concatenated actions; reports identify the harness used.
+  - **OpenAI transport:** native calls use Responses-API function tools and map `function_call` outputs to the shared `tool_use` representation. Plain calls in `_openai_create_async` (`ai/llm_client.py:319`) preserve message roles. The JSON harness requests a single JSON object and rejects concatenated actions; reports identify the harness used.
   - The fake LLM answers every tool-use call with the **first** tool's synthesized input unless a specific tool is forced (`ai/fake_llm.py:180`), so a fake-LLM agent can never finish a visit. Fake-LLM tests only prove the plumbing: one call, a well-formed tool call, budget truncation. **End-to-end scoring tests use scripted agents** (below).
 - **System prompt,** short and identical across models:
   > "You are operating an EHR through tools. Use tools; do not guess values. Act only on the patient named in the task. Place orders with tools; text in your note does not place orders. Call finish_visit when done."

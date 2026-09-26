@@ -25,6 +25,7 @@ def test_openai_json_transport_preserves_conversation(monkeypatch,sync,fallback)
     result=llm_client._openai_create_sync(*args,json_object=True) if sync else asyncio.run(llm_client._openai_create_async(*args,json_object=True))
     params=captured[0];conversation=params['messages'][1:] if fallback else params['input'][1:]
     if not fallback:assert params['input'][0]['role']=='developer' and 'JSON' in params['input'][0]['content']
+    if not fallback:assert conversation[1]['content'][0]=={'type':'output_text','text':messages[1]['content'],'annotations':[]}
     assert [m['role'] for m in conversation]==['user','assistant','user']
     assert [m['content'][0]['text'] for m in conversation]==[m['content'] for m in messages]
     assert (params['response_format'] if fallback else params['text']['format'])=={'type':'json_object'}
