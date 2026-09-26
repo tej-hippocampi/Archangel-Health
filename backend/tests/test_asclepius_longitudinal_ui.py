@@ -186,6 +186,25 @@ def test_the_commitment_card_is_not_rendered_on_v1_v2():
     assert "if (!isV3()) return null;" in body
 
 
+@pytest.mark.parametrize("version,seamless", [("v1", False), ("v2", False), ("v3", True), ("v4", True), ("v5", True)])
+def test_the_real_version_predicate_keeps_v5_predictions_visible(version, seamless):
+    out = _harness([
+        "h", "appendChildren", "draftVersion", "isV3",
+        "renderExpectedTrajectoryCard", "renderExperienceBadge",
+    ], """
+    state.draft.portal_version = %s;
+    state.task.trajectory_id = state.draft.portal_version === 'v5' ? 'walk-1' : null;
+    const card = renderExpectedTrajectoryCard();
+    console.log(JSON.stringify({seamless: isV3(), visible: !!card,
+      badge: renderExperienceBadge().textContent}));
+    """ % json.dumps(version))
+    assert out["seamless"] is seamless
+    assert out["visible"] is seamless
+    if version == "v5":
+        assert "Longitudinal" in out["badge"]
+        assert "Classic" not in out["badge"]
+
+
 def test_expectations_and_falsifiers_are_independently_repeatable_executed():
     out = _harness(["h", "appendChildren", "renderExpectedTrajectoryCard"], """
     const card = renderExpectedTrajectoryCard();

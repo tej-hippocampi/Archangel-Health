@@ -3974,9 +3974,9 @@
       // Gated-capture stage machine (Eval Flow Upgrade §1): prompt_review ->
       // independent_answer -> compare. Persisted so a refresh resumes the stage.
       stage: 'prompt_review',
-      // Evaluator experience this task is graded under (Asclepius V2). Mirrors
-      // the live selection during Stage 1, then pins when Stage 2 begins.
-      portal_version: getPortalVersion(),
+      // A directly opened assignment can belong to a different flow than the
+      // saved picker preference. Use the version returned with this task.
+      portal_version: state.servedVersion || getPortalVersion(),
       prompt_review: { reviewed: false, verdict: null, note: '', reviewed_at: null, attest_clinically_valid: null },
       independent_answer: { text: '', evidence_anchor: emptyAnchor(), captured_at: null },
       verdict: null,
@@ -4060,8 +4060,15 @@
     if (!draft.rejected_critique.error_tag_reasons) draft.rejected_critique.error_tag_reasons = {};
     if (!Array.isArray(draft.rejected_critique.failure_tags)) draft.rejected_critique.failure_tags = [];
     if (draft.assist === undefined) draft.assist = null;
-    // Served version wins over the picker — see the note in the fetch above.
-    if (!draft.portal_version) draft.portal_version = state.servedVersion || getPortalVersion();
+    // Repair drafts created with the picker instead of the served task version.
+    // Real/static and longitudinal versions describe the case itself; they are
+    // not preferences. Preserve the doctor's work and pinned synthetic V1–V3
+    // experience, but correct either direction across the real-case boundary.
+    const realVersions = ['v4', 'v5'];
+    if (!draft.portal_version || (state.servedVersion &&
+        (realVersions.includes(state.servedVersion) || realVersions.includes(draft.portal_version)))) {
+      draft.portal_version = state.servedVersion || getPortalVersion();
+    }
     if (!draft.prompt_review) draft.prompt_review = { reviewed: false, verdict: null, note: '', reviewed_at: null };
     if (!draft.independent_answer) draft.independent_answer = { text: '', evidence_anchor: emptyAnchor(), captured_at: null };
     if (!draft.independent_answer.evidence_anchor) draft.independent_answer.evidence_anchor = emptyAnchor();
@@ -4262,10 +4269,10 @@
     return (state.draft && state.draft.portal_version) || getPortalVersion();
   }
   function isV2() { return draftVersion() === 'v2'; }
-  // The SEAMLESS-flow gate: V4 (real cases) is the V3 flow over real data -
+  // The SEAMLESS-flow gate: V4 (static) and V5 (longitudinal) use the V3 flow over real data -
   // every V3 UX behavior (instinct one-liner, hidden-until-verdict suggestions,
-  // one-click citations, bright diff, big editor) applies identically to v4.
-  function isV3() { return draftVersion() === 'v3' || draftVersion() === 'v4'; }
+  // one-click citations, bright diff, big editor) applies identically to both.
+  function isV3() { return ['v3', 'v4', 'v5'].includes(draftVersion()); }
   // Assisted flows (V2 + V3) share model pre-labeling, the A/B diff, dictation,
   // and value-aware routing. V1 (classic) is the only non-assisted flow. Most
   // former ``isV2()`` gates are really "is assisted"; V3-specific behavior
@@ -5363,7 +5370,7 @@
   // branch, where the ternary yields null and the row renders as before.
   function renderExperienceBadge(toggle, isOpen) {
     const v = draftVersion();
-    const meta = { v4: 'Real · De-identified Cases', v3: 'Synthetic Multimodal',
+    const meta = { v5: 'Longitudinal · Chart Walk', v4: 'Real · De-identified Cases', v3: 'Synthetic Multimodal',
                    v2: 'V2 · Assisted', v1: 'V1 · Classic' }[v] || 'V1 · Classic';
     // A physician who picked the real cases and finished them is continued onto
     // the synthetic queue. The badge above already flips to the served version,

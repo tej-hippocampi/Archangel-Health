@@ -757,7 +757,8 @@ function toast(m) { calls.push('toast:' + m); }
 function renderTaskWorkspace() { calls.push('renderTaskWorkspace'); }
 function renderDashboardView() { calls.push('renderDashboardView'); }
 async function loadWithheldAnswersIfNeeded() {}
-function getPortalVersion() { return 'v3'; }
+let PICKED_VERSION = 'v3';
+function getPortalVersion() { return PICKED_VERSION; }
 // The practice-case gate. isPracticeGate is the REAL predicate (extracted
 // below) so this exercises the actual routing rule; only the destination is
 // stubbed, since startTutorial pulls in the whole tour engine.
@@ -809,6 +810,52 @@ def test_a_structurally_incomplete_draft_is_repaired_not_thrown_on():
     assert out["revision"] == "object"
     assert out["critique"] is True
     assert out["steps"] is True
+
+
+@pytest.mark.parametrize("served,picked", [("v5", "v4"), ("v4", "v3"), ("v3", "v4")])
+def test_opening_an_assigned_case_uses_its_served_version(served, picked):
+    out = _open_harness("""
+    PICKED_VERSION = %s;
+    RESPONSE = {task: {task_id: 't-1'}, served_portal_version: %s};
+    openTaskById('t-1').then(() => out({version: state.draft.portal_version, calls}));
+    """ % (json.dumps(picked), json.dumps(served)))
+    assert out["version"] == served
+    assert "renderTaskWorkspace" in out["calls"]
+
+
+@pytest.mark.parametrize("served,saved,expected", [
+    ("v5", "v4", "v5"), ("v5", "v3", "v5"), ("v4", "v5", "v4"),
+    ("v4", "v3", "v4"), ("v3", "v4", "v3"), ("v3", "v5", "v3"),
+    ("v3", "v1", "v1"), ("v3", "v2", "v2"),
+])
+@pytest.mark.parametrize("stage", ["prompt_review", "independent_answer", "compare"])
+def test_resuming_repairs_the_case_version_without_losing_physician_work(served, saved, expected, stage):
+    out = _open_harness("""
+    const saved = {task_id: 't-1', submission_id: 's-existing', portal_version: %s,
+      stage: %s, elapsedSec: 317, savedAt: 7, substage: 'critique',
+      prompt_review: {reviewed: true, verdict: 'invalid', note: 'Glucose unavailable'},
+      independent_answer: {text: 'Original clinical reasoning',
+        evidence_anchor: {citation_text: 'Original citation', source_type: 'journal', identifier: 'source'}},
+      chosen_revision: {edited: true, revised_text: 'Saved revision'},
+      rejected_critique: {why_worse: 'Saved critique'},
+      reasoning_steps: [{text: 'Saved step', step_note: 'Saved note'}],
+      rubric: [{criterion: 'Saved criterion'}]};
+    localStorage.setItem('asclepius_draft_t-1', JSON.stringify(saved));
+    RESPONSE = {task: {task_id: 't-1'}, served_portal_version: %s};
+    openTaskById('t-1').then(() => {
+      const preserved = {};
+      Object.keys(saved).filter(k => k !== 'portal_version').forEach(k => {
+        if (saved[k] && typeof saved[k] === 'object' && !Array.isArray(saved[k])) {
+          preserved[k] = Object.fromEntries(Object.keys(saved[k]).map(field => [field, state.draft[k][field]]));
+        } else preserved[k] = state.draft[k];
+      });
+      const original = {...saved}; delete original.portal_version;
+      out({version: state.draft.portal_version, preserved, original, calls});
+    });
+    """ % (json.dumps(saved), json.dumps(stage), json.dumps(served)))
+    assert out["version"] == expected
+    assert out["preserved"] == out["original"]
+    assert "renderTaskWorkspace" in out["calls"]
 
 
 def test_a_case_that_will_not_open_lands_on_the_dashboard_not_a_loading_card():

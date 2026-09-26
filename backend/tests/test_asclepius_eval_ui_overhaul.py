@@ -1023,7 +1023,7 @@ def test_v4_parity():
     'v3'`` — which would silently exclude V4 — and never an ``isAssisted()``,
     which would catch V2.
     """
-    assert "function isV3() { return draftVersion() === 'v3' || draftVersion() === 'v4'; }" in JS
+    assert "['v3', 'v4', 'v5'].includes(draftVersion())" in _body_of("isV3")
 
     # Every gate introduced by this PRD, by the function it lives in.
     for fn_name, needle in (
