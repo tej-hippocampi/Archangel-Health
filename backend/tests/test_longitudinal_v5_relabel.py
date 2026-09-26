@@ -208,6 +208,7 @@ def test_v4_picker_can_reveal_and_flag_an_assigned_walk_with_the_shipped_client(
     function stopTimer() {}
     function renderEvalView() {}
     function renderTrajectoryOutcomeView() {}
+    function continueFlaggedTrajectory() {}
     PICKED_VERSION = 'v4';
     RESPONSE = %s;
     if (%s) {

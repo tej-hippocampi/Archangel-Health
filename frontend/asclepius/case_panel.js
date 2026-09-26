@@ -461,12 +461,15 @@
       return el;
     }
 
-    return { panel: panel };
+    return { panel: panel, renderLabsTrend: renderLabsTrend };
   }
 
   window.AsclepiusCasePanel = {
     SPECIALTY_UI: SPECIALTY_UI,
     MODALITY_LABEL: MODALITY_LABEL,
+    renderLabsTrend: function (ctx, panels) {
+      return build(ctx).renderLabsTrend(panels);
+    },
     render: function (ctx, opts) {
       if (!ctx || typeof ctx.h !== 'function' || typeof ctx.clear !== 'function') return null;
       return build(ctx).panel(opts);

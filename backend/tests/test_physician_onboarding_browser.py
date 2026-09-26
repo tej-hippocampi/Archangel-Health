@@ -539,7 +539,12 @@ def _browser_chart_walk(portal):
     for i in range(7):
         case = _real_case(specialty="cardiology")
         outcome_chart = {"notes": [{"note_type": "Progress", "collected_offset_days": i * 30 + 10,
-                                    "text": "Symptoms improved after treatment."}]}
+                                    "text": "Symptoms improved after treatment."}],
+                         "lab_panels": [
+                             {"panel": "Chemistry", "collected_offset_days": i * 30 + day,
+                              "results": [{"analyte": "Potassium", "value": value, "unit": "mmol/L",
+                                           "ref_low": 3.5, "ref_high": 5.0, "flag": flag}]}
+                             for day, value, flag in [(1, 5.8, "H"), (10, 4.2, "")]]}
         sealed = real_cases.seal_outcome_window(outcome_chart, [], index_offset=i * 30,
             until_offset=i * 30 + 10, outcome_encounter_index=i + 1)
         task = store.insert_task(prompt=f"Decision point {i}: what now?", specialty="cardiology",
@@ -644,8 +649,20 @@ def test_longitudinal_saved_v4_draft_full_submission_recovery(accepted_portal, t
     page.get_by_role("button", name="Continue outcome review", exact=True).click()
     expect(page.get_by_role("button", name="Try again", exact=True)).to_be_visible()
     portal.overrides.pop(outcome_path)
+    page.evaluate("""() => {
+        const real = window.AsclepiusCasePanel.renderLabsTrend;
+        window.AsclepiusCasePanel.renderLabsTrend = (...args) => {
+            window.AsclepiusCasePanel.renderLabsTrend = real;
+            throw new Error('simulated render failure');
+        };
+    }""")
+    page.get_by_role("button", name="Try again", exact=True).click()
+    expect(page.get_by_text("Your answer is saved. The next encounter could not be loaded: simulated render failure", exact=True)).to_be_visible()
     page.get_by_role("button", name="Try again", exact=True).click()
     expect(page.get_by_text("What happened next", exact=True)).to_be_visible()
+    expect(page.locator(".asc-lab-table")).to_contain_text("Potassium (mmol/L)")
+    expect(page.locator(".asc-lab-table")).to_contain_text("5.8 H")
+    expect(page.locator(".asc-lab-table")).to_contain_text("4.2")
     if resumed:
         page.get_by_role("button", name="Held", exact=True).click()
         page.get_by_placeholder("What in the record shows that? (optional)").fill("The follow-up note reports improvement.")
@@ -692,14 +709,48 @@ def test_longitudinal_invalid_flags_stop_at_assignment_boundary(accepted_portal,
             expect(page.get_by_text("Could not flag the prompt: flag temporarily unavailable", exact=True)).to_be_visible()
             expect(reason).to_have_value("The available record does not support this question.")
             portal.overrides.pop("/api/asclepius/submissions")
+        progress_path = "/api/asclepius/trajectories/" + task["trajectory_id"]
+        next_path = f"/api/asclepius/tasks/{points[i + 1]['task_id']}"
+        if i == 0:
+            portal.overrides[progress_path] = (503, {"detail": "progress temporarily unavailable"})
+        elif i == 1:
+            portal.overrides[next_path] = (503, {"detail": "next case temporarily unavailable"})
+        elif i == 2:
+            # Exercise the actual navigation deadline and AbortSignal without a
+            # 15-second wall-clock delay in every browser run.
+            page.evaluate("""path => {
+                window.realFetch = window.fetch;
+                window.realTimeout = window.setTimeout;
+                window.setTimeout = (fn, ms, ...args) => window.realTimeout(fn, ms === 15000 ? 100 : ms, ...args);
+                window.fetch = (url, options) => {
+                    if (String(url).endsWith(path)) {
+                        window.stalledSignal = options.signal;
+                        return new Promise(() => {});
+                    }
+                    return window.realFetch(url, options);
+                };
+            }""", next_path)
         page.get_by_role("button", name="Send to admin", exact=True).click()
-        expect(page.get_by_text("What happened next", exact=True)).to_be_visible()
-        page.get_by_role("button", name="Continue", exact=True).click()
+        if i in (0, 1):
+            expect(page.get_by_role("button", name="Try again", exact=True)).to_be_visible()
+            # Refresh after a committed flag must resume navigation without a
+            # second flag POST, including when the next case itself failed.
+            page.reload()
+            page.get_by_role("button", name="Continue to next case", exact=True).click()
+            expect(page.get_by_role("button", name="Try again", exact=True)).to_be_visible()
+            portal.overrides.pop(progress_path if i == 0 else next_path)
+            page.get_by_role("button", name="Try again", exact=True).click()
+        elif i == 2:
+            expect(page.get_by_text("This is taking longer than expected. Please try again.", exact=False)).to_be_visible()
+            assert page.evaluate("window.stalledSignal.aborted")
+            page.evaluate("window.fetch = window.realFetch; window.setTimeout = window.realTimeout")
+            page.get_by_role("button", name="Try again", exact=True).click()
     expect(page.get_by_text("You’ve finished your assigned points", exact=True)).to_be_visible()
     assert all(f"/api/asclepius/tasks/{task['task_id']}" not in portal.requests for task in points[4:])
     with store._conn() as conn:
         rows = conn.execute("SELECT task_id, portal_version, status, payload_json FROM submissions WHERE evaluator_id=?", (portal.user["id"],)).fetchall()
     assert len(rows) == 4
+    assert not any(path.endswith("/trajectory-outcome") for path in portal.requests)
     assert {row["task_id"] for row in rows} == {task["task_id"] for task in points[:4]}
     assert all(row["portal_version"] == "v5" and row["status"] == "prompt_flagged" for row in rows)
     assert all(json.loads(row["payload_json"])["prompt_review"]["note"] == "The available record does not support this question." for row in rows)
@@ -1668,3 +1719,28 @@ def test_blocked_review_submit_preserves_notes_and_step_judgments(accepted_porta
     assert reviews and reviews[0]['reviewer_notes'] == 'Use a safer potassium bath.'
     assert reviews[0]['step_divergence'][0]['judged'] in ('A', 'B')
     assert not portal.errors
+
+
+def test_next_case_queue_timeout_offers_retry_without_reload(accepted_portal):
+    from playwright.sync_api import expect
+
+    portal = accepted_portal()
+    task = _dashboard_case(portal.store)
+    portal.store.upsert_assignment(task_id=task["task_id"], user_id=portal.user["id"],
+                                  role="label", assigned_by="test-admin")
+    page = portal.page
+    page.goto("http://testserver/asclepius")
+    page.get_by_role("button", name="Start →", exact=True).wait_for()
+    page.evaluate("""() => {
+        window.realFetch = window.fetch;
+        window.realTimeout = window.setTimeout;
+        window.setTimeout = (fn, ms, ...args) => window.realTimeout(fn, ms === 15000 ? 100 : ms, ...args);
+        window.fetch = (url, options) => String(url).includes('/tasks/next?')
+            ? new Promise(() => {}) : window.realFetch(url, options);
+    }""")
+    page.get_by_role("button", name="Start →", exact=True).click()
+    expect(page.get_by_text("Could not load the next task: This is taking longer than expected. Please try again.", exact=True)).to_be_visible()
+    page.evaluate("window.fetch = window.realFetch; window.setTimeout = window.realTimeout")
+    page.get_by_role("button", name="Try again", exact=True).click()
+    expect(page.get_by_text(task["prompt"], exact=True)).to_be_visible()
+    assert not portal.errors, portal.errors

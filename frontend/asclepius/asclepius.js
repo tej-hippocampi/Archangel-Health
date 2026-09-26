@@ -2920,7 +2920,7 @@
       // V1 classic. WITHOUT this param the server safely falls back to the classic
       // oldest-first queue, i.e. the whole V3/V2 serving path is dead unless the
       // client sends its selected version here.
-      const data = await api('/tasks/next?portal_version=' + encodeURIComponent(getPortalVersion())
+      const data = await readCaseTransition('/tasks/next?portal_version=' + encodeURIComponent(getPortalVersion())
         + '&specialty=' + encodeURIComponent(getPortalSpecialty()));
       if (state.screenGeneration !== screen || state.token !== token) return;
       state.task = data.task;
@@ -2939,7 +2939,7 @@
       state.trajectoryProgress = null;
       if (state.task.trajectory_id) {
         try {
-          const walk = await api('/trajectories/' + encodeURIComponent(state.task.trajectory_id));
+          const walk = await readCaseTransition('/trajectories/' + encodeURIComponent(state.task.trajectory_id));
           if (state.screenGeneration !== screen || state.token !== token) return;
           state.trajectoryProgress = walk.progress || null;
         } catch (e) { /* the banner degrades to "Longitudinal case" */ }
@@ -2974,9 +2974,7 @@
         return;
       }
       if (e.status !== 401) {
-        setRoot(h('div', { class: 'asc-wrap' },
-          h('div', { class: 'asc-card asc-card-pad' },
-            h('div', { class: 'asc-inline-error' }, 'Could not load the next task: ' + e.message))));
+        renderTrajectoryLoadError('Could not load the next task: ', e, renderEvalView);
       }
     }
   }
@@ -3841,13 +3839,13 @@
         h('span', { class: 'asc-dash-widget-meta' }, formatRelativeTime(lastAt))));
   }
 
-  async function openTaskById(id) {
+  async function openTaskById(id, progress, onOpened) {
     setRoot(h('div', { class: 'asc-wrap' },
       h('div', { class: 'asc-card asc-card-pad' },
         h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Opening case…'))));
     const screen = state.screenGeneration, token = state.token;
     try {
-      const data = await api('/tasks/' + encodeURIComponent(id));
+      const data = await readCaseTransition('/tasks/' + encodeURIComponent(id));
       if (state.screenGeneration !== screen || state.token !== token) return;
       // A 200 carrying no task is the same fact as a 404 — the server has
       // nothing under this id — so it gets the same treatment. Returning to the
@@ -3870,13 +3868,13 @@
       // own submission the server rejects with a 400.
       state.servedVersion = data.served_portal_version || null;
       state.continuedFrom = null;
-      // Trajectory progress for the banner. Best-effort and non-blocking: the
-      // case must open whether or not the walk metadata resolves, because the
-      // banner is context and the case is the work.
-      state.trajectoryProgress = null;
-      if (state.task.trajectory_id) {
+      // Reuse progress from continuation rather than fetching it twice. For
+      // other entry points, metadata has a deadline and the case still opens
+      // if the banner is unavailable.
+      state.trajectoryProgress = progress || null;
+      if (state.task.trajectory_id && !progress) {
         try {
-          const walk = await api('/trajectories/' + encodeURIComponent(state.task.trajectory_id));
+          const walk = await readCaseTransition('/trajectories/' + encodeURIComponent(state.task.trajectory_id));
           if (state.screenGeneration !== screen || state.token !== token) return;
           state.trajectoryProgress = walk.progress || null;
         } catch (e) { /* the banner degrades to "Longitudinal case" */ }
@@ -3889,6 +3887,7 @@
       }
       if (state.screenGeneration !== screen || state.token !== token) return;
       renderTaskWorkspace();
+      if (onOpened) onOpened();
     } catch (e) {
       if (state.screenGeneration !== screen || state.token !== token) return;
       // 409 trajectory_out_of_order (PRD-2 §9.1): the physician is entitled to
@@ -3902,7 +3901,7 @@
       // precise remedy — open the earlier point, which this does for them.
       if (e.status === 409 && e.detail && e.detail.error === 'trajectory_out_of_order') {
         toast(e.detail.message || 'Answer the earlier decisions in this chart first.', 'error');
-        if (e.detail.next_task_id) { openTaskById(e.detail.next_task_id); return; }
+        if (e.detail.next_task_id) { openTaskById(e.detail.next_task_id, null, onOpened); return; }
         renderDashboardView();
         return;
       }
@@ -3928,6 +3927,11 @@
       // straight back to once the gate opens.
       if (isPracticeGate(e)) { goToPracticeCase(); return; }
       if (e.status === 403 || e.status === 404 || e.status === 410) clearDraft(id);
+      if (onOpened && ![403, 404, 410].includes(e.status)) {
+        renderTrajectoryLoadError('Your answer is saved. The next case could not be loaded: ',
+          e, () => openTaskById(id, progress, onOpened));
+        return;
+      }
       toast('Could not open that case: ' + e.message, 'error');
       renderDashboardView();
     }
@@ -4446,7 +4450,7 @@
     } catch (_) { return {}; }
   }
 
-  function rememberTrajectoryOutcome(task, score, key) {
+  function rememberTrajectoryOutcome(task, score, key, continuation) {
     key = key || trajectoryRecoveryKey();
     if (!key || !task || !task.task_id) return;
     const saved = trajectoryRecoveries(key);
@@ -4456,6 +4460,7 @@
         sequence_index: task.sequence_index,
         generation: { point_class: (task.generation || {}).point_class } },
       score: score || previous.score || null,
+      continuation: continuation || previous.continuation || false,
       savedAt: Date.now(),
     };
     try { localStorage.setItem(key, JSON.stringify(saved)); } catch (_) { /* keep the live screen usable */ }
@@ -4479,10 +4484,60 @@
       .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0];
     if (!pending) return null;
     return h('div', { class: 'asc-card asc-card-pad' },
-      h('h3', {}, 'Finish your outcome review'),
-      h('p', { class: 'asc-help' }, 'Your evaluation is saved. Return to the next encounter and your marks.'),
+      h('h3', {}, pending.continuation ? 'Continue your cases' : 'Finish your outcome review'),
+      h('p', { class: 'asc-help' }, pending.continuation
+        ? 'Your flag is saved. Continue to your next assigned case.'
+        : 'Your evaluation is saved. Return to the next encounter and your marks.'),
       h('button', { class: 'asc-btn asc-btn-primary',
-        onClick: () => renderTrajectoryOutcomeView(pending.task) }, 'Continue outcome review'));
+        onClick: () => pending.continuation ? continueFlaggedTrajectory(pending.task)
+          : renderTrajectoryOutcomeView(pending.task) },
+        pending.continuation ? 'Continue to next case' : 'Continue outcome review'));
+  }
+
+  // Only navigation reads have a deadline. Abandoning a slow read must never
+  // resubmit a physician's already committed answer or flag.
+  async function readCaseTransition(path) {
+    const controller = new AbortController();
+    let timer;
+    try {
+      return await Promise.race([
+        api(path, { signal: controller.signal }),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            reject({ status: 0, message: 'This is taking longer than expected. Please try again.' });
+            controller.abort();
+          }, 15000);
+        }),
+      ]);
+    } finally { clearTimeout(timer); }
+  }
+
+  function renderTrajectoryLoadError(message, error, retry) {
+    setRoot(h('div', { class: 'asc-wrap' }, h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-inline-error' }, message + (error.message || 'unknown error')),
+      h('button', { class: 'asc-btn asc-btn-primary', style: 'margin-top:16px', onClick: retry }, 'Try again'),
+      h('button', { class: 'asc-btn asc-btn-ghost', onClick: renderDashboardView }, 'Back to dashboard'))));
+  }
+
+  async function continueFlaggedTrajectory(task) {
+    state.view = 'trajectory_outcome';
+    state.panel = 'tasks';
+    rememberTrajectoryOutcome(task, null, null, true);
+    stopTimer();
+    renderHeader();
+    setRoot(h('div', { class: 'asc-wrap' }, h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Opening next case…'))));
+    const screen = state.screenGeneration, token = state.token;
+    try {
+      const data = await readCaseTransition('/trajectories/' + encodeURIComponent(task.trajectory_id));
+      if (state.screenGeneration !== screen || state.token !== token) return;
+      if (!data || !data.progress) throw new Error('Case progress is unavailable.');
+      continueTrajectory({ task_id: task.task_id, progress: data.progress });
+    } catch (e) {
+      if (e.status === 401 || state.screenGeneration !== screen || state.token !== token) return;
+      renderTrajectoryLoadError('Your flag is saved. The next case could not be loaded: ',
+        e, () => continueFlaggedTrajectory(task));
+    }
   }
 
   async function renderTrajectoryOutcomeView(task) {
@@ -4496,22 +4551,17 @@
         h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }),
           'Opening what happened next…'))));
     const screen = state.screenGeneration, token = state.token;
-    let data;
     try {
-      data = await api('/tasks/' + encodeURIComponent(task.task_id) + '/trajectory-outcome');
+      const data = await readCaseTransition('/tasks/' + encodeURIComponent(task.task_id) + '/trajectory-outcome');
+      if (state.screenGeneration !== screen || state.token !== token) return;
+      state.trajectoryProgress = data.progress || null;
+      paintTrajectoryOutcome(task, data);
     } catch (e) {
       if (e.status === 401 || state.screenGeneration !== screen || state.token !== token) return;
-      setRoot(h('div', { class: 'asc-wrap' }, h('div', { class: 'asc-card asc-card-pad' },
-        h('div', { class: 'asc-inline-error' }, 'Your answer is saved. The next encounter could not be loaded: '
-          + (e.message || 'unknown error')),
-        h('button', { class: 'asc-btn asc-btn-primary', style: 'margin-top:16px',
-          onClick: () => renderTrajectoryOutcomeView(task) }, 'Try again'),
-        h('button', { class: 'asc-btn asc-btn-ghost', onClick: renderDashboardView }, 'Back to dashboard'))));
+      renderTrajectoryLoadError('Your answer is saved. The next encounter could not be loaded: ',
+        e, () => renderTrajectoryOutcomeView(task));
       return;
     }
-    if (state.screenGeneration !== screen || state.token !== token) return;
-    state.trajectoryProgress = data.progress || null;
-    paintTrajectoryOutcome(task, data);
   }
 
   function paintTrajectoryOutcome(task, data) {
@@ -4559,7 +4609,7 @@
   function renderOutcomePanel(outcome) {
     const parts = [];
     if ((outcome.lab_panels || []).length) {
-      parts.push(h('div', { class: 'asc-case-body' }, renderLabsTrend(outcome.lab_panels)));
+      parts.push(h('div', { class: 'asc-case-body' }, window.AsclepiusCasePanel.renderLabsTrend({ h, clear }, outcome.lab_panels)));
     }
     (outcome.notes || []).forEach((n) => {
       parts.push(h('div', { class: 'asc-case-note' },
@@ -4737,10 +4787,12 @@
   // chart is the expensive part of a task, and the whole per-decision time saving
   // (§5) comes from paying it once.
   function continueTrajectory(data, recoveryHandled) {
-    if (!recoveryHandled) clearTrajectoryOutcome(data.task_id);
+    const recoveryKey = trajectoryRecoveryKey();
+    const finish = () => { if (!recoveryHandled) clearTrajectoryOutcome(data.task_id, recoveryKey); };
     const progress = data.progress || {};
     const next = progress.next_task_id;
-    if (next) { openTaskById(next); return; }
+    if (next) { openTaskById(next, progress, finish); return; }
+    finish();
     if (progress.waiting_for_assignment) {
       state.view = 'trajectory_waiting';
       stopTimer();
@@ -6327,13 +6379,13 @@
     const submittedContent = draftContentFingerprint(d);
     try {
       await api('/submissions', { method: 'POST', body: buildSubmissionPayload() });
-      if (task.trajectory_id && recoveryKey) rememberTrajectoryOutcome(task, null, recoveryKey);
+      if (task.trajectory_id && recoveryKey) rememberTrajectoryOutcome(task, null, recoveryKey, true);
       const stillCurrent = current();
       clearDraft(d.task_id, d.storage_key, d, submittedContent);
       if (!stillCurrent) return;
       stopTimer();
       toast('Prompt flagged for review. Loading the next task', 'success');
-      if (task.trajectory_id) renderTrajectoryOutcomeView(task);
+      if (task.trajectory_id) continueFlaggedTrajectory(task);
       else renderEvalView();
     } catch (e) {
       if (isDuplicateTrajectorySubmission(e, task)) {
@@ -6370,13 +6422,13 @@
     const submittedContent = draftContentFingerprint(d);
     try {
       await api('/submissions', { method: 'POST', body: buildSubmissionPayload() });
-      if (task.trajectory_id && recoveryKey) rememberTrajectoryOutcome(task, null, recoveryKey);
+      if (task.trajectory_id && recoveryKey) rememberTrajectoryOutcome(task, null, recoveryKey, true);
       const stillCurrent = current();
       clearDraft(d.task_id, d.storage_key, d, submittedContent);
       if (!stillCurrent) return;
       stopTimer();
       toast('Case flagged as inconsistent. Loading the next task', 'success');
-      if (task.trajectory_id) renderTrajectoryOutcomeView(task);
+      if (task.trajectory_id) continueFlaggedTrajectory(task);
       else renderEvalView();
     } catch (e) {
       if (isDuplicateTrajectorySubmission(e, task)) {
