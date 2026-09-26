@@ -1878,8 +1878,12 @@ def test_labeling_every_completed_step_can_reopen_and_revised_answer_needs_revie
     expect(page.locator('#ascSubmit')).to_be_disabled()
     visit('Check the reasoning')
     expect(page.locator('.asc-revision-note')).to_contain_text('Your answer has changed')
+    # Reasoning rows paint on the next animation turn. Locator.all() does not
+    # wait and can otherwise confirm zero rows on a busy CI browser.
+    expect(page.locator('.asc-step-confirm').first).to_be_visible()
     for button in page.locator('.asc-step-confirm').all():
         button.click()
+    expect(page.locator('.asc-step-confirm:not(.active)')).to_have_count(0)
     page.locator('#ascStepsCont').click()
     for _ in range(20):
         next_button = page.locator('#ascRubricWizard').get_by_role('button', name='Next', exact=False)

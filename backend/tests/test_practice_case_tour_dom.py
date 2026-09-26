@@ -566,7 +566,7 @@ def test_failed_practice_skip_keeps_the_welcome_button_for_retry():
 @pytest.mark.parametrize("exam_loading", [False, True])
 def test_late_practice_response_cannot_change_examination(operation, reject, exam_loading):
     functions = "\n".join(_fn(name) for name in (
-        "workspaceRequestIsCurrent", "mergeAnswers", "revealAnswers",
+        "workspaceRequestIsCurrent", "mergeAnswers", "readCaseTransition", "revealAnswers",
         "commitIndependentAnswerAndReveal", "autoSplitChosen", "submitTutorialEvaluation"))
     out = _run_node("""
       const document = {getElementById: () => null};
